@@ -1,0 +1,61 @@
+root: /Users/ksato/workspace
+
+projects:
+  - id: salestailor
+    local:
+      path: salestailor
+      glob_include:
+        - "app/**/*"
+        - "docs/**/*"
+        - "ops/**/*"
+        - "drive/**/*"
+
+  - id: zeims
+    local:
+      path: zeims
+      glob_include:
+        - "app/**/*"
+        - "web/**/*"
+        - "drive/**/*"
+        - "docs/**/*"
+        - "ops/**/*"
+
+  - id: tech-knight
+    local:
+      path: tech-knight
+      glob_include:
+        - "app/**/*"
+        - "hp_techknight/**/*"
+        - "docs/**/*"
+        - "ops/**/*"
+
+  - id: baao
+    local:
+      path: baao
+      glob_include:
+        - "app/**/*"
+        - "docs/**/*"
+        - "ops/**/*"
+        - "web/**/*"
+
+  - id: unson
+    local:
+      path: unson
+      glob_include:
+        - "app/**/*"
+        - "event/**/*"
+        - "docs/**/*"
+        - "ops/**/*"
+        - "drive/**/*"
+
+  - id: ai-wolf
+    local:
+      path: personal/ai-wolf
+      glob_include:
+        - "**/*"
+
+  - id: sato-portfolio
+    local:
+      path: personal/sato-portfolio
+      glob_include:
+        - "**/*"

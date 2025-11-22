@@ -1,0 +1,20 @@
+# Top-level workspace git: track only shared docs (codex, Agents.md, config.yml)
+
+# Ignore per-project repos (managed separately)
+/baao/
+/salestailor/
+/tech-knight/
+/unson/
+/zeims/
+/personal/
+/tasks/
+/ops/
+/_archive/
+/_inbox/
+
+# macOS cruft
+.DS_Store
+
+# Node/venv/etc. (safety)
+node_modules/
+venv/
