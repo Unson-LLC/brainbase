@@ -30,10 +30,10 @@
   - `_codex/<project>/03_sales_ops/` 営業オペ・反論対応など
   - `_codex/<project>/04_delivery/` 導入〜CSの手順
   - `_codex/<project>/05_kpi/` KPI定義・ダッシュボードリンク
-- プロジェクト側（例: zeims/, salestailor/, tech-knight/app/Aitle/）
-  - `docs/ops/README.md` と 01〜05 の各 md を配置し、正本の codex パスのみ明記（参照用）。
-  - 人/組織/契約/RACI は codex/meta を参照（プロジェクト側はリンクのみ）。
-  - 変更が必要な場合は codex を編集し、プロジェクト側はリンク先を更新するだけ。
+- プロジェクト側（例: zeims/, salestailor/, tech-knight/app/Aitle/, unson/）
+  - `docs/ops/README.md` と 01〜05 の各 md を配置し、正本の `_codex` パスのみ明記（参照用）。
+  - 人/組織/契約/RACI は `_codex/meta` を参照（プロジェクト側はリンクのみ）。
+  - 変更が必要な場合は `_codex` を編集し、プロジェクト側はリンク先を更新するだけ。
 
 ## 4. 参考：config.yml に登録されているプロジェクト
 - `salestailor` → `salestailor/`

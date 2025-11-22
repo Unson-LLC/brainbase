@@ -4,7 +4,19 @@
 /baao/
 /salestailor/
 /tech-knight/
+/_ops/
+/_codex/
+/_tasks/
+# project repos (ignore for this repo)
+/baao/
+/salestailor/
+/tech-knight/
 /unson/
+/zeims/
+/personal/
+/ops/
+/_archive/
+/_inbox/
 /zeims/
 /personal/
 /_ops/
