@@ -22,8 +22,8 @@
 ## 4. 運用ドキュ構造（codex と各プロジェクトの対応）
 - 正本は `_codex/` 配下に集約。プロジェクト内 `docs/ops/` はリンクのみを置き、編集は `_codex` 側で行う。
 - codex の構成（概略）
-  - `_codex/common/00_common/` 必須ルール・決裁・KPI・決定プロトコル（義務）
-  - `_codex/common/00_common/knowledge/` フレーム/定石/価値観の原典（任意・参照）
+  - `_codex/common/` 必須ルール・決裁・KPI・決定プロトコル（義務）、テンプレ、ナレッジ
+  - `_codex/common/knowledge/` フレーム/定石/価値観の原典（任意・参照）
   - `_codex/common/meta/` 人・組織タグ・顧客/契約・RACIの正本（責任と契約ラインの一意表）
   - `_codex/projects/<project>/01_strategy.md` 戦略骨子
   - `_codex/projects/<project>/02_offer/` 価格・オファー関連
