@@ -201,10 +201,10 @@ priority: high
 due: 2025-11-29
 tags: [brainbase, milestone, vision]
 links:
-  - codex/00_common/knowledge/vision.md
-  - codex/zeims/01_strategy.md
-  - codex/aitle/01_strategy.md
-  - codex/salestailor/01_strategy.md
+  - _codex/00_common/knowledge/vision.md
+  - _codex/zeims/01_strategy.md
+  - _codex/aitle/01_strategy.md
+  - _codex/salestailor/01_strategy.md
 ---
 
 id: BRAINBASE-W2-KPI
@@ -228,9 +228,9 @@ priority: high
 due: 2025-12-13
 tags: [brainbase, milestone, raci, agents]
 links:
-  - codex/meta/raci/zeims.md
-  - codex/meta/raci/aitle.md
-  - codex/meta/raci/salestailor.md
+  - _codex/meta/raci/zeims.md
+  - _codex/meta/raci/aitle.md
+  - _codex/meta/raci/salestailor.md
   - zeims/AGENTS.md
   - salestailor/AGENTS.md
   - tech-knight/app/Aitle/AGENTS.md
@@ -245,12 +245,12 @@ priority: high
 due: 2025-12-20
 tags: [brainbase, milestone, offer, delivery]
 links:
-  - codex/zeims/02_offer/
-  - codex/aitle/02_offer/
-  - codex/zeims/03_sales_ops/
-  - codex/aitle/03_sales_ops/
-  - codex/zeims/04_delivery/
-  - codex/aitle/04_delivery/
+  - _codex/zeims/02_offer/
+  - _codex/aitle/02_offer/
+  - _codex/zeims/03_sales_ops/
+  - _codex/aitle/03_sales_ops/
+  - _codex/zeims/04_delivery/
+  - _codex/aitle/04_delivery/
 ---
 
 - 2025-11-21 インポート: Asana 未完了タスク
