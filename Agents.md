@@ -20,16 +20,16 @@
 - 破壊的コマンド（大規模削除、`git reset --hard` など）は実行前に必ず確認。
 
 ## 4. 運用ドキュ構造（codex と各プロジェクトの対応）
-- 正本は `codex/` 配下に集約。プロジェクト内 `docs/ops/` はリンクのみを置き、編集は codex 側で行う。
+- 正本は `_codex/` 配下に集約。プロジェクト内 `docs/ops/` はリンクのみを置き、編集は `_codex` 側で行う。
 - codex の構成（概略）
-  - `00_common/` 必須ルール・決裁・KPI・決定プロトコル（義務）
-  - `00_common/knowledge/` フレーム/定石/価値観の原典（任意・参照）
-  - `meta/` 人・組織タグ・顧客/契約・RACIの正本（責任と契約ラインの一意表）
-  - `<project>/01_strategy.md` 戦略骨子
-  - `<project>/02_offer/` 価格・オファー関連
-  - `<project>/03_sales_ops/` 営業オペ・反論対応など
-  - `<project>/04_delivery/` 導入〜CSの手順
-  - `<project>/05_kpi/` KPI定義・ダッシュボードリンク
+  - `_codex/00_common/` 必須ルール・決裁・KPI・決定プロトコル（義務）
+  - `_codex/00_common/knowledge/` フレーム/定石/価値観の原典（任意・参照）
+  - `_codex/meta/` 人・組織タグ・顧客/契約・RACIの正本（責任と契約ラインの一意表）
+  - `_codex/<project>/01_strategy.md` 戦略骨子
+  - `_codex/<project>/02_offer/` 価格・オファー関連
+  - `_codex/<project>/03_sales_ops/` 営業オペ・反論対応など
+  - `_codex/<project>/04_delivery/` 導入〜CSの手順
+  - `_codex/<project>/05_kpi/` KPI定義・ダッシュボードリンク
 - プロジェクト側（例: zeims/, salestailor/, tech-knight/app/Aitle/）
   - `docs/ops/README.md` と 01〜05 の各 md を配置し、正本の codex パスのみ明記（参照用）。
   - 人/組織/契約/RACI は codex/meta を参照（プロジェクト側はリンクのみ）。
