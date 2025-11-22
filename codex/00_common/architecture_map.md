@@ -10,9 +10,9 @@
        ---------------------------------------------------------------------------------
        |                    |                            |            |          |
   [00_common]            [ops]                      [事業別]     [knowledge]  [meta]
-  ルール/決裁/KPI       GM/AE/CS手順,               zeims /      定石/フレーム/過去決定   人・組織・契約メタ
-  決定プロトコル        会議リズム, MaC/AGENTS      aitle /      (principles, EOS, WTS,
-  テンプレ集            (自動化ルール)             techknight     prompts)
+  ルール/決裁/KPI       GM/AE/CS手順,               zeims /      ビジョン/価値観/定石/過去決定   人・組織・契約メタ
+  決定プロトコル        会議リズム, MaC/AGENTS      aitle /      (vision, principles, EOS,
+  テンプレ集            (自動化ルール)             techknight     WTS, prompts)
                                                    (戦略→オファー→営業/CS→KPI)
                        |
                  [プロジェクト]
@@ -47,6 +47,7 @@
 
 ## フォルダと代表ファイルの対応表
 - 価値観・判断基準：`00_common/knowledge/principles.md`
+- ビジョン/ミッション：`00_common/knowledge/vision.md`
 - 決定プロトコル：`00_common/decision_protocol.md`
 - 定石/フレーム：`00_common/knowledge/`（`eos_framework.md`, `work_the_system.md`, 各 playbook*, `case_studies.md`）
 - プロンプト（価値観呼び出し用）：`00_common/knowledge/prompt_keigo_values.md`
@@ -56,6 +57,7 @@
 - 人・組織・契約：`meta/people.md`, `meta/orgs.md`, `meta/customers.md`
 - RACI：`meta/raci/<project>.md`
 - MaC/自動化ルール：`ops/automation_mac.md`（AGENTS.md, Cursor Rules, LLM CoS の扱い）
+- TTFV：`ops/kpi_definitions.md` に定義、実装は `<project>/04_delivery/` で管理
 
 ## 運用メモ
 - 用語・線の意味が変わったら、このファイルを必ず更新（単一の最新版を維持）。

@@ -17,6 +17,7 @@
 
 ## 推奨ファイル構造（例）
 - `principles.md`            … 佐藤の価値観・意思決定原則・運用ルール・最新補足（原典）
+- `vision.md`                … ビジョン/ミッション/3年イメージの正本
 - `playbook_pricing.md`      … 価格/割引/前受けの定石
 - `playbook_sla.md`          … SLA・障害対応の定石
 - `playbook_sales.md`        … 商談・前受け・反論対応の定石
