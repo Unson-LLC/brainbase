@@ -201,7 +201,7 @@ priority: high
 due: 2025-11-29
 tags: [brainbase, milestone, vision]
 links:
-  - _codex/projects/unson/vision.md
+  - _codex/orgs/unson.md
   - _codex/zeims/01_strategy.md
   - _codex/aitle/01_strategy.md
   - _codex/salestailor/01_strategy.md
