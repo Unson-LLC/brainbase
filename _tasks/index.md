@@ -251,6 +251,21 @@ links:
   - _codex/aitle/03_sales_ops/
   - _codex/zeims/04_delivery/
   - _codex/aitle/04_delivery/
+
+---
+id: BRAINBASE-W5-SALESTAILOR-BRUSHUP
+title: SalesTailor projects 02-05 ブラッシュアップ（最新プラン/営業フロー/配信運用に合わせる）
+project_id: brainbase
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-27
+tags: [brainbase, salestailor, project-docs]
+links:
+  - _codex/projects/salestailor/02_offer.md
+  - _codex/projects/salestailor/03_sales_ops.md
+  - _codex/projects/salestailor/04_delivery.md
+  - _codex/projects/salestailor/05_kpi.md
 ---
 
 - 2025-11-21 インポート: Asana 未完了タスク
