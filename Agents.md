@@ -46,3 +46,10 @@
 - `sato-portfolio` → `personal/sato-portfolio/`
 
 不明点があれば、対象リポジトリ内の AGENTS/CLAUDE ガイドか README を先に確認してください。
+
+## 5. Knowledge Skills の参照とメタデータ運用
+- 対話開始時に `_codex/common/knowledge/*.md` のフロントマターを読み、`skill_id` をキーに {title, primary_use, triggers, inputs, outputs, granularity} の索引を自分のシステムプロンプトへ載せること。
+- ユーザ依頼が索引の primary_use / triggers / inputs に合致したら、そのスキル本文を追加で読み込み、回答に活用する（二段階ロード）。合致しないときは他ソースを探索。
+- フロントマター仕様（必須）: 先頭 `---` で囲む YAML / ASCII 推奨。`skill_id`, `title`, `source_type`, `primary_use`, `triggers`, `inputs`, `outputs`, `granularity` を含める。
+- YAML が壊れている、または必須項目が欠落するスキルは無効化し、警告を残す。参照対象は `_codex` 内のみ（外部スキルは未承認として扱う）。
+- 依頼に応じる際は、まず索引を確認し、該当スキルがあれば優先的に参照すること。毎回この手順を忘れない。
