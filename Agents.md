@@ -23,7 +23,7 @@
 - 正本は `_codex/` 配下に集約。プロジェクト内 `docs/ops/` はリンクのみを置き、編集は `_codex` 側で行う。
 - codex の構成（概略）
 - `_codex/common/` 必須ルール・決裁・KPI・決定プロトコル（義務）、テンプレ、ナレッジ
-- `_codex/common/knowledge/` フレーム/定石/価値観の原典（任意・参照）
+- `_codex/knowledge/` フレーム/定石/価値観の原典（任意・参照）
 - `_codex/common/meta/` 人・組織タグ・顧客/契約・RACIの正本（責任と契約ラインの一意表）
 - `_codex/orgs/<org>.md` 法人/組織のMVV（例: unson, baao, salestailor, techknight）
 - `_codex/projects/<project>/01_strategy.md` 戦略骨子
@@ -48,7 +48,7 @@
 不明点があれば、対象リポジトリ内の AGENTS/CLAUDE ガイドか README を先に確認してください。
 
 ## 5. Knowledge Skills の参照とメタデータ運用
-- 対話開始時に `_codex/common/knowledge/*.md` のフロントマターを読み、`skill_id` をキーに {title, primary_use, triggers, inputs, outputs, granularity} の索引を自分のシステムプロンプトへ載せること。
+- 対話開始時に `_codex/knowledge/*.md` のフロントマターを読み、`skill_id` をキーに {title, primary_use, triggers, inputs, outputs, granularity} の索引を自分のシステムプロンプトへ載せること。
 - ユーザ依頼が索引の primary_use / triggers / inputs に合致したら、そのスキル本文を追加で読み込み、回答に活用する（二段階ロード）。合致しないときは他ソースを探索。
 - フロントマター仕様（必須）: 先頭 `---` で囲む YAML / ASCII 推奨。`skill_id`, `title`, `source_type`, `primary_use`, `triggers`, `inputs`, `outputs`, `granularity` を含める。
 - YAML が壊れている、または必須項目が欠落するスキルは無効化し、警告を残す。参照対象は `_codex` 内のみ（外部スキルは未承認として扱う）。
