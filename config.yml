@@ -48,6 +48,14 @@ projects:
         - "ops/**/*"
         - "drive/**/*"
 
+  - id: ncom
+    local:
+      path: unson/app/ncom-catalyst
+      glob_include:
+        - "docs/**/*"
+        - "meetings/**/*"
+        - "scripts/**/*"
+
   - id: ai-wolf
     local:
       path: personal/ai-wolf
