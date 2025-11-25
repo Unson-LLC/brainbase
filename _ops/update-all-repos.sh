@@ -25,7 +25,7 @@ if [[ ${#DIRTY[@]} -gt 0 ]]; then
   echo "Dirty repositories (skipped):"
   for d in "${DIRTY[@]}"; do
     echo " - $d"
-  end
+  done
   echo
 fi
 
