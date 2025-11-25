@@ -13,6 +13,19 @@ links: []
 - 2025-11-21 インポート: Asana 未完了タスク
 
 ---
+id: NCOM-1BS2BS-REPORT
+title: 1BS/2BS向けレポート差し替えを提出する
+project_id: ncom
+status: todo
+owner: keigo
+priority: high
+due: null
+tags: [ncom, report, 1bs, 2bs]
+links: []
+
+- 2025-11-10 MTG (docomo-dialog-ai-development): 畑さんから「5BSレポートではなく1BS/2BS版に差し替え」と依頼、未提出
+
+---
 id: ASANA-1211945604039611
 title: SalesTailorのマイルストーンを作成する
 project_id: salestailor
@@ -267,5 +280,114 @@ links:
   - _codex/projects/salestailor/04_delivery.md
   - _codex/projects/salestailor/05_kpi.md
 ---
+
+
+---
+id: DIALOGAI-OPS-ENTRY
+title: DialogAI 提供エントリを実態に合わせ再申請し承認を取る
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: null
+tags: [dialogai, governance, itot]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-EDR
+title: 全VMへCrowdStrike導入しITOT/ISMPで導入済み表示を確認
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: null
+tags: [dialogai, security, edr]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-C1WS
+title: C1WS導入状況をITOT/ISMPと整合させる（ホスト登録含む）
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: null
+tags: [dialogai, security, antivirus]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-HOSTS
+title: ITOTのホスト情報（台数・ホスト名）を実態と一致させる
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: null
+tags: [dialogai, governance, itot]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-OPSHEET
+title: 運用項目T列の要否○×を確定しDI運用と認識合わせ
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [dialogai, ops, handover]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-ROLESOPS
+title: 運用項目の役割分担表と手順書一覧を作成する
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [dialogai, ops, sop]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-SECOPT
+title: WebAP診断/Snyk導入の要否とスケジュールを決定
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [dialogai, security, scan]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-GIT
+title: GitHub BBX共通リポジトリ移管方針を決めソース移行する
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [dialogai, repo, migration]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+---
+id: DIALOGAI-OPS-TANAOROSHI
+title: CELL3AI議事録のITOT資産棚卸依頼に回答する
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [dialogai, itot, inventory]
+links:
+  - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
 
 - 2025-11-21 インポート: Asana 未完了タスク
