@@ -16,9 +16,9 @@ REPOS=$(find . -maxdepth 5 -name .git -print \
 for r in $REPOS; do
   echo "== $r =="
   if [[ $FF_ONLY -eq 1 ]]; then
-    (cd "$r" && git pull --ff-only)
+    (cd "$r" && git pull --ff-only) || echo " ! pull failed: $r"
   else
-    (cd "$r" && git pull)
+    (cd "$r" && git pull) || echo " ! pull failed: $r"
   fi
   echo
 done
