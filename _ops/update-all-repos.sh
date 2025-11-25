@@ -10,7 +10,7 @@ if [[ "${1-}" == "--no-ff-only" ]]; then
   FF_ONLY=0
 fi
 
-REPOS=$(find . -maxdepth 2 -name .git -type d -prune \
+REPOS=$(find . -maxdepth 2 -name .git -prune \
   | sed 's|/.git$||' | grep -v '^\.$')
 
 for r in $REPOS; do
