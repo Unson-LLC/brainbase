@@ -15,6 +15,12 @@ REPOS=$(find . -maxdepth 5 -name .git -print \
 
 for r in $REPOS; do
   echo "== $r =="
+  STATUS=$(cd "$r" && git status --porcelain)
+  if [[ -n "$STATUS" ]]; then
+    echo " ! dirty working tree, skipped. (run git status in $r)"
+    echo
+    continue
+  fi
   if [[ $FF_ONLY -eq 1 ]]; then
     (cd "$r" && git pull --ff-only) || echo " ! pull failed: $r"
   else
