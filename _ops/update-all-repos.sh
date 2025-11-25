@@ -13,11 +13,26 @@ fi
 REPOS=$(find . -maxdepth 5 -name .git -print \
   | sed 's|/.git$||' | grep -v '^\.$')
 
+DIRTY=()
 for r in $REPOS; do
-  echo "== $r =="
   STATUS=$(cd "$r" && git status --porcelain)
   if [[ -n "$STATUS" ]]; then
-    echo " ! dirty working tree, skipped. (run git status in $r)"
+    DIRTY+=("$r")
+  fi
+done
+
+if [[ ${#DIRTY[@]} -gt 0 ]]; then
+  echo "Dirty repositories (skipped):"
+  for d in "${DIRTY[@]}"; do
+    echo " - $d"
+  end
+  echo
+fi
+
+for r in $REPOS; do
+  echo "== $r =="
+  if printf '%s\n' "${DIRTY[@]}" | grep -qx "$r"; then
+    echo " ! dirty working tree, skipped."
     echo
     continue
   fi
