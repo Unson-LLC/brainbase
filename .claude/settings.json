@@ -12,5 +12,14 @@
         "hooks": ["/Users/ksato/workspace/.claude/hooks/notify-learning.sh"]
       }
     ]
+  },
+  "mcpServers": {
+    "brainbase": {
+      "command": "npx",
+      "args": ["tsx", "/Users/ksato/workspace/.claude/mcp/brainbase/src/index.ts"],
+      "env": {
+        "CODEX_PATH": "/Users/ksato/workspace/_codex"
+      }
+    }
   }
 }
