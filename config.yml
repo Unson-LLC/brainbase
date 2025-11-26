@@ -67,3 +67,14 @@ projects:
       path: personal/sato-portfolio
       glob_include:
         - "**/*"
+
+  - id: senrigan
+    local:
+      path: senrigan
+      glob_include:
+        - "app/**/*"
+        - "docs/**/*"
+        - "drive/**/*"
+        - "meetings/**/*"
+        - "ops/**/*"
+        - "research/**/*"

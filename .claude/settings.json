@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": ["/Users/ksato/workspace/.claude/hooks/stop.sh"]
+      }
+    ]
+  }
+}

@@ -391,3 +391,17 @@ links:
   - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
 
 - 2025-11-21 インポート: Asana 未完了タスク
+
+---
+id: ZEIMS-EMAIL-FORWARD
+title: zeims@unson.jp の転送設定を確認する
+project_id: zeims
+status: done
+owner: keigo
+priority: medium
+due: null
+tags: [zeims, email, google-workspace]
+links: []
+
+- 2025-11-26 追加: Google Workspace管理コンソールで転送設定を確認
+- 2025-11-26 完了

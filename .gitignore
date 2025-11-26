@@ -2,25 +2,18 @@
 
 # Ignore per-project repos (managed separately)
 /baao/
+/ncom-catalyst/
+/personal/
 /salestailor/
-/tech-knight/
-/_ops/
-# project repos (ignore for this repo)
-/baao/
-/salestailor/
+/senrigan/
 /tech-knight/
 /unson/
-/ncom-catalyst/
 /zeims/
-/personal/
-/ops/
+
+# Special directories
 /_archive/
 /_inbox/
-/zeims/
-/personal/
 /_ops/
-/_archive/
-/_inbox/
 
 # macOS cruft
 .DS_Store
