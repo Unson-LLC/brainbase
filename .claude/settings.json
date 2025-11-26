@@ -3,7 +3,13 @@
     "Stop": [
       {
         "matcher": "",
-        "hooks": ["/Users/ksato/workspace/.claude/hooks/stop.sh"]
+        "hooks": ["/Users/ksato/workspace/.claude/hooks/detect-changes.sh"]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": ["/Users/ksato/workspace/.claude/hooks/notify-learning.sh"]
       }
     ]
   }
