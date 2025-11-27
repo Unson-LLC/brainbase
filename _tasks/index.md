@@ -16,14 +16,15 @@ links: []
 id: NCOM-1BS2BS-REPORT
 title: 1BS/2BS向けレポート差し替えを提出する
 project_id: ncom
-status: todo
+status: done
 owner: keigo
 priority: high
 due: null
 tags: [ncom, report, 1bs, 2bs]
 links: []
 
-- 2025-11-10 MTG (docomo-dialog-ai-development): 畑さんから「5BSレポートではなく1BS/2BS版に差し替え」と依頼、未提出
+- 2025-11-10 MTG (docomo-dialog-ai-development): 畑さんから「5BSレポートではなく1BS/2BS版に差し替え」と依頼
+- 2025-11-27 完了
 
 ---
 id: ASANA-1211945604039611
@@ -405,3 +406,90 @@ links: []
 
 - 2025-11-26 追加: Google Workspace管理コンソールで転送設定を確認
 - 2025-11-26 完了
+
+---
+id: TECHKNIGHT-RENT-CONTRACT
+title: 家賃の契約書作成
+project_id: techknight
+status: done
+owner: keigo
+priority: high
+due: 2025-11-21
+tags: [techknight, contract]
+links:
+  - _codex/projects/techknight/contracts/
+
+- 2025-11-27 追加: Portalより（期限切れ）
+- 2025-11-27 完了: 契約書5点作成（パートナー契約、転貸借契約、業務委託契約、取締役会議事録、株主総会議事録）
+
+---
+id: TECHKNIGHT-HP-SALES
+title: HP営業の売れる仕組みのまとめ
+project_id: techknight
+status: done
+owner: keigo
+priority: high
+due: 2025-11-24
+tags: [techknight, sales]
+links:
+  - _codex/brand/assets/techknight/hp_sales/売れる仕組みのまとめ.md
+
+- 2025-11-27 追加: Portalより（期限切れ）
+- 2025-11-27 完了: 売れる仕組みのまとめ作成
+
+---
+id: UNSON-GBIZ-ID
+title: GBiz ID取得（助成金申請用）
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: null
+tags: [unson, subsidy, government]
+links: []
+
+- 2025-11-27 追加: 助成金申請のため
+
+---
+id: RESEARCH-LLM-JUDGE
+title: LLM as a Judge プレプリントを読む
+project_id: general
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [research, llm, evaluation]
+links:
+  - https://x.com/Kangwook_Lee/status/1993761564156203373
+
+- 2025-11-27 追加: Kangwook Lee氏のツイートで発見した重要そうなプレプリント
+
+---
+id: TECHKNIGHT-HP-TOMIOKA
+title: 富岡開発HPを作成し実績第1号にする
+project_id: techknight
+status: todo
+owner: kuramoto
+priority: high
+due: 2025-12-15
+tags: [techknight, hp_sales, customer, first-case]
+links:
+  - _codex/projects/techknight/hp_sales/project.md
+
+- 2025-11-27 追加: 富岡開発を初期顧客としてHP作成、実績づくり
+- 経緯: 2025/9懇親会→10月提案済み。担当: 松村純大（matsumura@mkkgroup.jp）
+- 目標: クイックサイト・フリーで即公開→ベーシック転換
+
+---
+id: ST-GRANT-20251127
+title: SalesTailor向け助成金サービスを調査（digital-gov note参照）
+project_id: salestailor
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [salestailor, grant, research]
+links:
+  - https://digital-gov.note.jp/n/n09dfb9fa4e8e
+
+- 2025-11-27 ユーザー依頼: 上記記事を使ってSalesTailorに適した助成金サービスを洗い出すタスクを追加。
