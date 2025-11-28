@@ -1,202 +1,191 @@
 ---
 name: raci-format
-description: brainbaseにおけるRACIマトリクス（Responsible/Accountable/Consulted/Informed）の標準フォーマットと運用ルール。役割と責任を明確化し、意思決定を高速化する。RACIを定義する際に使用。
+description: brainbaseにおける体制図（RACI）の標準フォーマット。「立ち位置」を最上位原則とし、法人単位で管理。RACIを定義する際に使用。
 ---
 
-# RACI定義フォーマット
+# 体制図（RACI）フォーマット
 
-brainbaseにおけるRACIマトリクスの標準フォーマットと運用ルールです。
+brainbaseにおける体制図の標準フォーマットと運用ルールです。
 
 ## Instructions
 
-### 1. RACIの基本理解
+### 1. 最上位原則：立ち位置
 
-**RACI** = 責任分担マトリクス（役割と権限の明確化）
+**仕事は立ち位置で全てが決まる。**
 
-- **R (Responsible)**: 実行責任者（実際に作業する人）
-- **A (Accountable)**: 説明責任者・最終決裁者（成果に責任を持つ人）
-- **C (Consulted)**: 事前相談先（意見を求める人）
-- **I (Informed)**: 事後報告先（結果を知らせる人）
+立ち位置とは、その人が持つ**資産**（実績、信頼、歴史、ネットワーク、リスクを取った経験）によって決まる。
 
-**重要な原則**:
-1. **Aは1人のみ**: 最終決裁者は必ず1人に絞る
-2. **Rは複数可**: 実行者は複数いてもOK（ただし明確に分担）
-3. **C/Iは必要最小限**: 相談・報告先が多すぎると意思決定が遅れる
+- 立ち位置が**役割**を規定する
+- 役割には**権利の範囲**がある
+- 範囲を超える行為 = **越権** = 重く扱う
 
-### 2. 標準フォーマット
+### 2. 管理単位
 
-**_codex/common/meta/raci.md** に全プロジェクトのRACIを一元管理：
+**法人単位で1ファイル**（プロジェクト/プロダクト単位ではない）
+
+| ファイル | 法人 |
+|---------|------|
+| raci/unson.md | 雲孫合同会社 |
+| raci/techknight.md | 株式会社Tech Knight |
+| raci/salestailor.md | SalesTailor |
+| raci/baao.md | 一般社団法人BAAO |
+
+プロダクト/ブランドは管轄法人のRACIファイル内の「管轄プロダクト」セクションに記載。
+
+### 3. フロントマター（必須）
+
+```yaml
+---
+org_id: techknight        # 必須: orgs/*.md と一致させる
+name: Tech Knight
+members: [kuramoto_yuta, sato_keigo]  # 必須: people/*.md のファイル名
+updated: 2025-11-28
+---
+```
+
+**紐づけ構造:**
+```
+orgs/*.md ←── org_id ──→ raci/*.md
+                              │
+                          members
+                              ↓
+                      people/*.md
+```
+
+### 4. ファイル構造
 
 ```markdown
-# RACI定義マトリクス
-
-## プロジェクト: <project-name>
-
-### タスク1: <タスク名>
-| 役割 | 担当者 | 備考 |
-|------|--------|------|
-| **R (Responsible)** | <実行者名> | 実際の作業担当 |
-| **A (Accountable)** | <決裁者名> | 最終責任者（必ず1人） |
-| **C (Consulted)** | <相談先名> | 事前に意見を求める |
-| **I (Informed)** | <報告先名> | 事後に結果を報告 |
-```
-
-### 3. _tasks/index.md への組み込み
-
-タスクファイルには、YAML front matterでRACIを埋め込む：
-
-```yaml
 ---
-id: SALESTAILOR-W3
-title: 02_offer/pricing.md を作成
-project_id: salestailor
-status: todo
-owner: keigo
-priority: high
-due: 2025-12-01
-tags: [salestailor, pricing]
-raci:
-  responsible: keigo
-  accountable: keigo
-  consulted: [team, finance]
-  informed: [stakeholders]
+org_id: xxx
+name: 法人名
+members: [person_id]
+updated: YYYY-MM-DD
 ---
+
+# 体制図 - {法人名}
+
+## 立ち位置
+
+| 人 | 資産 | 権利の範囲 |
+| --- | --- | --- |
+| {CEO/代表} | CEO、創業者、... | 最終決裁、事業判断、... |
+| {CTO/技術責任者} | 技術構築者、... | 技術判断 |
+
+## 決裁
+
+| 領域 | 決裁者 |
+| --- | --- |
+| 最終決裁 | {CEO/代表} |
+| 技術判断 | {CTO} |
+
+それ以外 → 都度相談
+
+## 主な担当（柔軟に変わる）
+
+| 人 | 領域 |
+| --- | --- |
+
+## 管轄プロダクト・ブランド
+- プロダクト名
 ```
 
-### 4. 典型的なパターン
+### 5. 重要なルール
 
-**パターン1: ドキュメント作成**
-```yaml
-raci:
-  responsible: keigo          # 実際に書く人
-  accountable: keigo          # 最終承認者
-  consulted: [team]           # レビュー依頼先
-  informed: [stakeholders]    # 完成後に共有
-```
+**誰をRACIに含めるか:**
+- **含める**: 権限者（CEO、CTO、CSO、GM、代表理事など）
+- **含めない**: 業務委託（people.mdで管理）
 
-**パターン2: 価格変更**
-```yaml
-raci:
-  responsible: sales          # 提案書作成
-  accountable: ceo            # 最終決裁
-  consulted: [finance, legal] # 財務・法務に相談
-  informed: [all_staff]       # 全社員に通知
-```
+**最終決裁者:**
+- 各法人のCEO/代表が最終決裁者
+- 「佐藤」が全法人の最終決裁者とは限らない
+- 例: Tech Knight → 倉本、SalesTailor → 堀、BAAO → 山本
 
-**パターン3: KPI設定**
-```yaml
-raci:
-  responsible: analyst        # データ分析担当
-  accountable: ceo            # 目標設定の最終責任
-  consulted: [team_leads]     # 各チームリーダーに相談
-  informed: [all_staff]       # 全社員に共有
-```
-
-### 5. RACI運用率KPI
-
-brainbaseでは「RACI運用率」をKPIとして計測：
-
-```
-RACI運用率 = (RACI定義済みタスク数) / (全タスク数) × 100%
-```
-
-**目標**: 80%以上
+**GMの扱い:**
+- GM（General Manager）は事業責任者として権限を持つ
+- RACIに含める（例: Zeims GM の川合）
 
 ## Examples
 
-### 例1: SalesTailor の戦略ドキュメント作成
+### 例: 株式会社Tech Knight
 
-**_codex/common/meta/raci.md**:
-```markdown
-## SalesTailor
-
-### 01_strategy.md 作成
-| 役割 | 担当者 | 備考 |
-|------|--------|------|
-| R | keigo | 戦略骨子を執筆 |
-| A | keigo | 最終承認 |
-| C | team | レビュー・フィードバック |
-| I | stakeholders | 完成後に共有 |
-```
-
-**_tasks/index.md**:
 ```yaml
 ---
-id: SALESTAILOR-W1
-title: 01_strategy.md 作成
-project_id: salestailor
-status: done
-owner: keigo
-priority: high
-due: 2025-11-30
-tags: [salestailor, strategy, documentation]
-raci:
-  responsible: keigo
-  accountable: keigo
-  consulted: [team]
-  informed: [stakeholders]
+org_id: techknight
+name: Tech Knight
+members: [kuramoto_yuta, sato_keigo]
+updated: 2025-11-28
 ---
-
-- 2025-11-25 作成: 戦略骨子を執筆開始
-- 2025-11-26 レビュー: team にフィードバック依頼
-- 2025-11-27 承認: keigo が最終決定
-- 2025-11-28 共有: stakeholders に共有
-- 2025-11-28 完了: 01_strategy.md 公開
 ```
 
-### 例2: brainbase の価格改定
-
-**_codex/common/meta/raci.md**:
 ```markdown
-## brainbase
+## 立ち位置
 
-### 価格改定
-| 役割 | 担当者 | 備考 |
-|------|--------|------|
-| R | sales | 新価格案を作成 |
-| A | ceo | 最終決裁 |
-| C | finance, legal | 財務・法務に事前相談 |
-| I | all_staff | 全社員に通知 |
+| 人 | 資産 | 権利の範囲 |
+| --- | --- | --- |
+| 倉本 | CEO、事業運営経験 | 最終決裁、事業判断、日常運営 |
+| 佐藤 | 共同創業者、技術構築者、出資者 | 技術判断 |
+
+## 決裁
+
+| 領域 | 決裁者 |
+| --- | --- |
+| 最終決裁 | 倉本 |
+| 事業判断 | 倉本 |
+| 日常運営 | 倉本 |
+| 技術判断 | 佐藤 |
+
+## 管轄プロダクト
+- Aitle
+- HP Sales
+- Smart Front
 ```
 
 ### よくある失敗パターン
 
-**❌ 失敗例1: Aが複数**
-```yaml
-raci:
-  responsible: keigo
-  accountable: [keigo, ceo]  # ❌ 責任が曖昧
+**❌ プロダクト単位でファイル作成**
 ```
-→ **修正**: Accountableは1人に絞る
-```yaml
-raci:
-  responsible: keigo
-  accountable: ceo  # ✅ 最終責任者は1人
-  consulted: [keigo]  # keigoは相談先にする
+raci/aitle.md    # ❌ プロダクト単位
+raci/zeims.md    # ❌ ブランド単位
+```
+→ **修正**: 法人単位で作成
+```
+raci/techknight.md  # ✅ Aitles等を含む
+raci/unson.md       # ✅ Zeimsを含む
 ```
 
-**❌ 失敗例2: Rが曖昧**
-```yaml
-raci:
-  responsible: "チーム全員"  # ❌ 誰が実際にやるのか不明
+**❌ 佐藤を全法人の最終決裁者にする**
+```markdown
+| 最終決裁 | 佐藤 |  # ❌ CEOは倉本なのに
 ```
-→ **修正**: 具体的な担当者を指定
-```yaml
-raci:
-  responsible: keigo  # ✅ 明確
+→ **修正**: 各法人のCEO/代表を最終決裁者に
+```markdown
+| 最終決裁 | 倉本 |  # ✅ Tech Knight CEO
 ```
 
-**❌ 失敗例3: Cが多すぎる**
+**❌ フロントマターに紐づけ情報がない**
 ```yaml
-raci:
-  consulted: [team1, team2, team3, finance, legal, hr, ...]  # ❌ 多すぎ
+---
+name: Tech Knight
+updated: 2025-11-28
+---
 ```
-→ **修正**: 本当に必要な人だけに絞る
+→ **修正**: org_id と members を追加
 ```yaml
-raci:
-  consulted: [finance, legal]  # ✅ 必要最小限
+---
+org_id: techknight
+name: Tech Knight
+members: [kuramoto_yuta, sato_keigo]
+updated: 2025-11-28
+---
 ```
+
+**❌ 業務委託をRACIに含める**
+```markdown
+| 金田 | 業務委託 | ... |  # ❌
+```
+→ **修正**: 権限者のみRACIに記載、業務委託はpeople.mdで管理
 
 ---
 
-このフォーマットに従うことで、brainbaseの「RACI運用率80%以上」の目標を達成できます。
+正本: `_codex/common/meta/raci/<法人>.md`
+テンプレート: `_codex/common/templates/raci_template.md`
