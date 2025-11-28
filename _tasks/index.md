@@ -33,12 +33,14 @@ project_id: salestailor
 status: todo
 owner: keigo
 priority: high
-due: null
-tags: [asana, milestone]
-links: []
+due: 2025-12-06
+tags: [asana, milestone, roadmap]
+links:
+  - .claude/skills/saas-ai-roadmap-playbook/SKILL.md
 ---
 
 - 2025-11-21 インポート: Asana 未完了タスク
+- 2025-11-27 別日に延期: saas-ai-roadmap-playbookスキルを使って作成予定
 
 ---
 id: ASANA-1211910976952134
@@ -441,7 +443,7 @@ links:
 id: UNSON-GBIZ-ID
 title: GBiz ID取得（助成金申請用）
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: null
@@ -449,6 +451,7 @@ tags: [unson, subsidy, government]
 links: []
 
 - 2025-11-27 追加: 助成金申請のため
+- 2025-11-27 完了: 申し込み投函済み
 
 ---
 id: RESEARCH-LLM-JUDGE
@@ -493,3 +496,17 @@ links:
   - https://digital-gov.note.jp/n/n09dfb9fa4e8e
 
 - 2025-11-27 ユーザー依頼: 上記記事を使ってSalesTailorに適した助成金サービスを洗い出すタスクを追加。
+
+---
+id: ST-EMAIL-POLICY-20251128
+title: SalesTailorメール生成の対応方針まとめ（プロンプト/アプリ分離＋LLM Judge）
+project_id: salestailor
+status: todo
+owner: keigo
+priority: high
+due: 2025-11-28
+tags: [salestailor, email, prompt, policy, llm]
+links: []
+
+- 2025-11-28 追加: プロンプト調整とアプリ改修を別軸で整理し、どこが効いて何が崩れるかを可視化する方針メモを作成する。
+- 2025-11-28 コメント: 根本解決策として「LLMでレター生成 → SLM/LLM as a Judgeで品質レビュー・修正」パイプライン案を検証対象に含める。品質向上度をテストで確認する。
