@@ -1,6 +1,6 @@
 #!/bin/bash
-# .claude/hooks/stop.sh
-# 会話終了時に学習候補を検出・分析
+# .claude/hooks/detect-changes.sh
+# 会話終了時に学習候補を検出（重複排除付き）
 
 set -e
 
@@ -8,6 +8,9 @@ LEARNING_DIR="/Users/ksato/workspace/.claude/learning"
 EXECUTION_LOGS="$LEARNING_DIR/execution_logs"
 LEARNING_QUEUE="$LEARNING_DIR/learning_queue"
 CODEX_DIR="/Users/ksato/workspace/_codex"
+
+# ディレクトリ確保
+mkdir -p "$EXECUTION_LOGS" "$LEARNING_QUEUE"
 
 # 今回の会話で変更されたファイルを検出
 detect_changes() {
@@ -37,10 +40,29 @@ EOF
   echo "$log_file"
 }
 
-# 変更ファイルからSkill候補を検出
+# 既存候補にスキルが存在するかチェック
+skill_exists_in_queue() {
+  local skill_name="$1"
+  local files
+  files=$(ls "$LEARNING_QUEUE"/*.json 2>/dev/null) || return 1
+
+  for candidate_file in $files; do
+    if [[ -f "$candidate_file" ]]; then
+      local existing_skill
+      existing_skill=$(jq -r '.skill_name' "$candidate_file" 2>/dev/null) || continue
+      if [[ "$existing_skill" == "$skill_name" ]]; then
+        return 0  # 存在する
+      fi
+    fi
+  done
+  return 1  # 存在しない
+}
+
+# 変更ファイルからSkill候補を検出（重複排除付き）
 detect_skill_candidates() {
   local log_file="$1"
   local candidates_added=0
+  local skills_seen=""
 
   # 変更ファイルを読み込み
   local files=$(jq -r '.changed_files[]' "$log_file" 2>/dev/null || echo "")
@@ -70,12 +92,27 @@ detect_skill_candidates() {
         ;;
     esac
 
-    # 候補として保存
-    if [[ -n "$skill_name" ]]; then
-      local candidate_id=$(date +%s%N | cut -c1-13)
-      local candidate_file="$LEARNING_QUEUE/candidate_${candidate_id}.json"
+    # スキルが特定できない場合はスキップ
+    if [[ -z "$skill_name" ]]; then
+      continue
+    fi
 
-      cat > "$candidate_file" <<EOF
+    # 今回のセッションで既に追加済みならスキップ
+    if [[ "$skills_seen" == *"$skill_name"* ]]; then
+      continue
+    fi
+    skills_seen="$skills_seen $skill_name"
+
+    # キューに既に同じスキルがあればスキップ（重複排除）
+    if skill_exists_in_queue "$skill_name"; then
+      continue
+    fi
+
+    # 候補として保存
+    local candidate_id=$(date +%s%N | cut -c1-13)
+    local candidate_file="$LEARNING_QUEUE/candidate_${candidate_id}.json"
+
+    cat > "$candidate_file" <<EOF
 {
   "id": "$candidate_id",
   "timestamp": "$(date -Iseconds)",
@@ -86,8 +123,7 @@ detect_skill_candidates() {
   "execution_log": "$log_file"
 }
 EOF
-      ((candidates_added++))
-    fi
+    ((candidates_added++))
   done
 
   echo "$candidates_added"
@@ -102,17 +138,12 @@ main() {
     exit 0
   fi
 
-  # Skill候補を検出
+  # Skill候補を検出（重複排除付き）
   local count=$(detect_skill_candidates "$log_file")
 
+  # 新規候補がある場合はログに記録（Stop hookはhookSpecificOutput非対応）
   if [[ $count -gt 0 ]]; then
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📚 学習候補を ${count} 件検出しました"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "次回 /learn-skills で分析・更新できます"
-    echo ""
+    echo "学習候補を ${count} 件検出しました" >&2
   fi
 }
 

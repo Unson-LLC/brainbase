@@ -1,9 +1,0 @@
-{
-  "id": "1764150393N",
-  "timestamp": "2025-11-26T18:46:33+09:00",
-  "skill_name": "raci-format",
-  "file_path": "_codex/common/meta/raci/zeims.md",
-  "trigger": "session_stop",
-  "status": "pending",
-  "execution_log": "/Users/ksato/workspace/.claude/learning/execution_logs/session_2025-11-26_18-46-33.json"
-}
