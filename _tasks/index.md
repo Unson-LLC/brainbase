@@ -2,7 +2,7 @@
 id: ASANA-1211976942811252
 title: NTTのR&D申し込み
 project_id: general
-status: todo
+status: done
 owner: keigo
 priority: medium
 due: null
@@ -11,6 +11,7 @@ links: []
 ---
 
 - 2025-11-21 インポート: Asana 未完了タスク
+- 2025-11-28 完了
 
 ---
 id: NCOM-1BS2BS-REPORT
@@ -65,20 +66,6 @@ owner: keigo
 priority: medium
 due: null
 tags: [asana]
-links: []
----
-
-- 2025-11-21 インポート: Asana 未完了タスク
-
----
-id: ASANA-1211910975352536
-title: Zeimsタスク割り振り
-project_id: zeims
-status: todo
-owner: keigo
-priority: medium
-due: null
-tags: [asana, planning]
 links: []
 ---
 
@@ -197,17 +184,6 @@ links: []
 - 2025-11-21 インポート: Asana 未完了タスク
 
 ---
-id: ASANA-1210635016965024
-title: 🏢 港区年金事務所への相談を検討
-project_id: general
-status: todo
-owner: keigo
-priority: low
-due: null
-tags: [asana]
-links: []
----
-
 id: BRAINBASE-W1-VISION
 title: brainbase W+1: visionと01_strategyドラフト（Zeims/Aitle/SalesTailor）
 project_id: brainbase
@@ -459,15 +435,19 @@ links: []
 id: RESEARCH-LLM-JUDGE
 title: LLM as a Judge プレプリントを読む
 project_id: general
-status: todo
+status: done
 owner: keigo
 priority: medium
 due: null
 tags: [research, llm, evaluation]
 links:
   - https://x.com/Kangwook_Lee/status/1993761564156203373
+  - https://arxiv.org/abs/2511.21140
+  - https://github.com/UW-Madison-Lee-Lab/LLM-judge-reporting
+  - salestailor/docs/email-generation-policy-20251128.md
 
 - 2025-11-27 追加: Kangwook Lee氏のツイートで発見した重要そうなプレプリント
+- 2025-11-28 完了: ST-EMAIL-POLICY-20251128タスクの一環として調査完了。論文「Correctly Reporting LLM-as-a-judge Evaluations」(arXiv:2511.21140)のバイアス補正公式θ=(p+q0-1)/(q0+q1-1)をSalesTailorポリシーメモに統合
 
 ---
 id: TECHKNIGHT-HP-TOMIOKA
@@ -503,15 +483,17 @@ links:
 id: ST-EMAIL-POLICY-20251128
 title: SalesTailorメール生成の対応方針まとめ（プロンプト/アプリ分離＋LLM Judge）
 project_id: salestailor
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-11-28
 tags: [salestailor, email, prompt, policy, llm]
-links: []
+links:
+  - salestailor/docs/email-generation-policy-20251128.md
 
 - 2025-11-28 追加: プロンプト調整とアプリ改修を別軸で整理し、どこが効いて何が崩れるかを可視化する方針メモを作成する。
 - 2025-11-28 コメント: 根本解決策として「LLMでレター生成 → SLM/LLM as a Judgeで品質レビュー・修正」パイプライン案を検証対象に含める。品質向上度をテストで確認する。
+- 2025-11-28 完了: 包括的ポリシーメモ作成完了。Tiered Evaluation Pipeline設計、バイアス補正（arXiv:2511.21140）、B2B特化ルーブリック、KPIフレームワークを含む。
 
 ---
 id: ST-UPFRONT-20251128
@@ -538,3 +520,16 @@ tags: [brainbase, drive, git, governance]
 links: []
 
 - 2025-11-28 追加: brainbase関連のGoogle Driveとローカルgitリポジトリの構成差分・不足ファイルを洗い出し、同期方針を決める。急ぎ対応。
+
+---
+id: UNSON-HOKENSHO-REISSUE-20251128
+title: 世來ちゃんの保険証再発行手続き
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: null
+tags: [unson, backoffice, insurance, reissue]
+links: []
+
+- 2025-11-28 追加: 雲孫バックオフィス対応。世來ちゃんの健康保険証再発行を申請・受領まで完了させる。
