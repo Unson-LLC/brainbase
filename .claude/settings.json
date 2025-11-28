@@ -9,7 +9,10 @@
     "UserPromptSubmit": [
       {
         "matcher": "",
-        "hooks": ["/Users/ksato/workspace/.claude/hooks/notify-learning.sh"]
+        "hooks": [
+          "/Users/ksato/workspace/.claude/hooks/load-architecture.sh",
+          "/Users/ksato/workspace/.claude/hooks/notify-learning.sh"
+        ]
       }
     ]
   },

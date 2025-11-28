@@ -87,8 +87,17 @@ detect_skill_candidates() {
       *people/*.md)
         skill_name="people-meta"
         ;;
-      *customers.md|*apps.md|*orgs.md)
+      *partners/*.md)
+        skill_name="partners-meta"
+        ;;
+      *customers/*.md)
+        skill_name="customers-meta"
+        ;;
+      *customers.md|*apps.md|*orgs.md|*partners.md)
         skill_name="meta-tables"
+        ;;
+      *architecture_map.md)
+        skill_name="architecture-structure"
         ;;
     esac
 
