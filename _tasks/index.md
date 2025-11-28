@@ -211,7 +211,7 @@ links: []
 id: BRAINBASE-W1-VISION
 title: brainbase W+1: visionと01_strategyドラフト（Zeims/Aitle/SalesTailor）
 project_id: brainbase
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-11-29
@@ -221,6 +221,8 @@ links:
   - _codex/zeims/01_strategy.md
   - _codex/aitle/01_strategy.md
   - _codex/salestailor/01_strategy.md
+
+- 2025-11-28 完了: Zeims/Aitle(hp_sales)/SalesTailorの01_strategy〜05_kpi全て整備済み
 ---
 
 id: BRAINBASE-W2-KPI
@@ -510,3 +512,16 @@ links: []
 
 - 2025-11-28 追加: プロンプト調整とアプリ改修を別軸で整理し、どこが効いて何が崩れるかを可視化する方針メモを作成する。
 - 2025-11-28 コメント: 根本解決策として「LLMでレター生成 → SLM/LLM as a Judgeで品質レビュー・修正」パイプライン案を検証対象に含める。品質向上度をテストで確認する。
+
+---
+id: ST-UPFRONT-20251128
+title: SalesTailorのUpfront（初期費用）洗い出しと提示案作成
+project_id: salestailor
+status: todo
+owner: keigo
+priority: high
+due: 2025-11-28
+tags: [salestailor, pricing, upfront, cost]
+links: []
+
+- 2025-11-28 追加: SalesTailorのUpfront費用の有無と金額・内訳を急ぎ整理し、現行プランへの反映方針をまとめるタスク。
