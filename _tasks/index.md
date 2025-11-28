@@ -525,3 +525,16 @@ tags: [salestailor, pricing, upfront, cost]
 links: []
 
 - 2025-11-28 追加: SalesTailorのUpfront費用の有無と金額・内訳を急ぎ整理し、現行プランへの反映方針をまとめるタスク。
+
+---
+id: BRAINBASE-DRIVE-GIT-ALIGN-20251128
+title: Google Drive / brainbase / gitリポジトリの整合性チェック
+project_id: brainbase
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-01
+tags: [brainbase, drive, git, governance]
+links: []
+
+- 2025-11-28 追加: brainbase関連のGoogle Driveとローカルgitリポジトリの構成差分・不足ファイルを洗い出し、同期方針を決める。急ぎ対応。
