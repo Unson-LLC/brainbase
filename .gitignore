@@ -25,3 +25,9 @@ venv/
 # Claude learning temp files
 .claude/learning/execution_logs/
 .claude/learning/learning_queue/
+
+# Secrets / environment
+.env
+.env.*
+secrets/
+*.key
