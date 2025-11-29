@@ -279,7 +279,7 @@ links:
 id: DIALOGAI-OPS-EDR
 title: 全VMへCrowdStrike導入しITOT/ISMPで導入済み表示を確認
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: null
@@ -287,11 +287,13 @@ tags: [dialogai, security, edr]
 links:
   - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
 
+- 2025-11-29 完了
+
 ---
 id: DIALOGAI-OPS-C1WS
 title: C1WS導入状況をITOT/ISMPと整合させる（ホスト登録含む）
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: null
@@ -299,17 +301,21 @@ tags: [dialogai, security, antivirus]
 links:
   - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
 
+- 2025-11-29 完了
+
 ---
 id: DIALOGAI-OPS-HOSTS
 title: ITOTのホスト情報（台数・ホスト名）を実態と一致させる
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: null
 tags: [dialogai, governance, itot]
 links:
   - dialogai/ops/2025-11-25_dialogai_operations_status_and_tasks.md
+
+- 2025-11-29 完了
 
 ---
 id: DIALOGAI-OPS-OPSHEET
