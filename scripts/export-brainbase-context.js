@@ -6,6 +6,14 @@ const path = require('path');
 const CODEX_PATH = path.join(__dirname, '..', '_codex');
 const OUTPUT_PATH = path.join(__dirname, '..', 'context-output');
 
+// brainbaseプロジェクト → slack-classify-bot側の別名マッピング
+// 同じコンテキストを複数の名前で出力する
+const PROJECT_ALIASES = {
+  'techknight': ['tech-knight-board'],
+  'ncom': ['dialogai'],
+  // 必要に応じて追加
+};
+
 function readMarkdownFiles(dirPath) {
   const content = [];
 
@@ -184,6 +192,14 @@ function main() {
       console.log(`  Exported: ${outputFile}`);
       console.log(`  Stats: ${stats.docs} docs, ${stats.customers} customers, ${stats.people} people, ${stats.orgs} orgs`);
       exported++;
+
+      // エイリアスがあれば同じ内容を別名でも出力
+      const aliases = PROJECT_ALIASES[projectId] || [];
+      for (const alias of aliases) {
+        const aliasFile = path.join(OUTPUT_PATH, `${alias}.txt`);
+        fs.writeFileSync(aliasFile, textContent);
+        console.log(`  Alias: ${aliasFile}`);
+      }
     }
   }
 
