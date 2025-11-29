@@ -13,6 +13,18 @@ const PROJECT_ALIASES = {
   'ncom': ['dialogai'],
 };
 
+// 複数プロジェクトを結合する特殊マッピング
+const COMBINED_PROJECTS = {
+  'unson-board': {
+    include: ['baao', 'brainbase', 'mywa', 'salestailor', 'senrigan', 'techknight', 'zeims'],
+    exclude: ['ncom']
+  },
+  'unson-os': {
+    include: ['baao', 'brainbase', 'mywa', 'salestailor', 'senrigan', 'techknight', 'zeims'],
+    exclude: ['ncom']
+  },
+};
+
 function readMarkdownFiles(dirPath) {
   const content = [];
 
@@ -203,6 +215,31 @@ function main() {
   }
 
   console.log(`\n=== Done: ${exported} projects exported to ${OUTPUT_PATH} ===`);
+
+  // 複合コンテキストの生成
+  console.log('\n=== Generating combined contexts ===\n');
+
+  for (const [combinedName, config] of Object.entries(COMBINED_PROJECTS)) {
+    console.log(`Processing combined: ${combinedName}`);
+
+    let combinedText = `# 複合プロジェクトコンテキスト: ${combinedName}\n\n`;
+    combinedText += `エクスポート日時: ${new Date().toISOString()}\n`;
+    combinedText += `含まれるプロジェクト: ${config.include.join(', ')}\n\n`;
+    combinedText += `---\n\n`;
+
+    for (const projectId of config.include) {
+      const sourceFile = path.join(OUTPUT_PATH, `${projectId}.txt`);
+      if (fs.existsSync(sourceFile)) {
+        const content = fs.readFileSync(sourceFile, 'utf8');
+        combinedText += content;
+        combinedText += `\n\n${'='.repeat(80)}\n\n`;
+      }
+    }
+
+    const outputFile = path.join(OUTPUT_PATH, `${combinedName}.txt`);
+    fs.writeFileSync(outputFile, combinedText);
+    console.log(`  Exported: ${outputFile} (${Math.round(combinedText.length / 1024)}KB)`);
+  }
 }
 
 main();
