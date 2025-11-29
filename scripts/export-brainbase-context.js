@@ -65,8 +65,29 @@ function exportProjectContext(projectId) {
     project_docs: [],
     related_customers: [],
     related_people: [],
-    related_orgs: []
+    related_orgs: [],
+    glossary: []
   };
+
+  // 0. 共通用語集を読み込む
+  const commonGlossaryPath = path.join(CODEX_PATH, 'common', 'meta', 'glossary.md');
+  if (fs.existsSync(commonGlossaryPath)) {
+    const glossaryContent = fs.readFileSync(commonGlossaryPath, 'utf8');
+    context.glossary.push({
+      file: 'common/meta/glossary.md',
+      content: glossaryContent
+    });
+  }
+
+  // 0.1 プロジェクト固有の用語集があれば追加
+  const projectGlossaryPath = path.join(projectPath, 'glossary.md');
+  if (fs.existsSync(projectGlossaryPath)) {
+    const projectGlossaryContent = fs.readFileSync(projectGlossaryPath, 'utf8');
+    context.glossary.push({
+      file: `projects/${projectId}/glossary.md`,
+      content: projectGlossaryContent
+    });
+  }
 
   // 1. プロジェクトドキュメント
   context.project_docs = readMarkdownFiles(projectPath);
@@ -127,6 +148,15 @@ function exportProjectContext(projectId) {
 function formatContextAsText(context) {
   let text = `# プロジェクトコンテキスト: ${context.project_id}\n\n`;
   text += `エクスポート日時: ${context.exported_at}\n\n`;
+
+  // 用語集を最初に配置（LLMが最初に参照できるように）
+  if (context.glossary && context.glossary.length > 0) {
+    text += `## 用語集（固有名詞の正しい表記）\n\n`;
+    text += `**重要**: 以下の用語集に従って、音声認識の誤りを修正してください。\n\n`;
+    for (const doc of context.glossary) {
+      text += `${doc.content}\n\n---\n\n`;
+    }
+  }
 
   if (context.project_docs.length > 0) {
     text += `## プロジェクトドキュメント\n\n`;
