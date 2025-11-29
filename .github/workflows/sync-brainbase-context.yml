@@ -1,0 +1,40 @@
+name: Sync Brainbase Context to S3
+
+on:
+  push:
+    paths:
+      - '_codex/**'
+  workflow_dispatch:
+
+env:
+  S3_BUCKET: brainbase-context-593793022993
+  AWS_REGION: us-east-1
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Export context
+        run: node scripts/export-brainbase-context.js
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync to S3
+        run: |
+          aws s3 sync ./context-output s3://${{ env.S3_BUCKET }}/ --delete
+          echo "Synced to s3://${{ env.S3_BUCKET }}/"
+          aws s3 ls s3://${{ env.S3_BUCKET }}/

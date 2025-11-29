@@ -533,3 +533,16 @@ tags: [unson, backoffice, insurance, reissue]
 links: []
 
 - 2025-11-28 追加: 雲孫バックオフィス対応。世來ちゃんの健康保険証再発行を申請・受領まで完了させる。
+
+---
+id: NCOM-1BS2BS-REVISIT-20251128
+title: 1BS/2BS特化レポートの省庁対応＆表記修正
+project_id: ncom
+status: todo
+owner: keigo
+priority: high
+due: 2025-11-30
+tags: [ncom, report, 1bs, 2bs, public]
+links: []
+
+- 2025-11-28 追加: 鈴木さんフィードバック対応。公共レポートが自治体偏重に見える点の修正、省庁向けの差分/全体動向（例: 国レベル施策連動）を補足。表記揺れ「公共：2BS、金融：1BS」に修正。

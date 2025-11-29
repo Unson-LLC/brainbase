@@ -31,3 +31,4 @@ venv/
 .env.*
 secrets/
 *.key
+context-output/
