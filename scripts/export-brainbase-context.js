@@ -9,9 +9,8 @@ const OUTPUT_PATH = path.join(__dirname, '..', 'context-output');
 // brainbaseプロジェクト → slack-classify-bot側の別名マッピング
 // 同じコンテキストを複数の名前で出力する
 const PROJECT_ALIASES = {
-  'techknight': ['tech-knight-board'],
+  'techknight': ['tech-knight-board', 'aitle'],
   'ncom': ['dialogai'],
-  // 必要に応じて追加
 };
 
 function readMarkdownFiles(dirPath) {
