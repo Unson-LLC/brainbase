@@ -1,7 +1,7 @@
 #!/bin/bash
 # .claude/hooks/notify-learning.sh
-# ユーザーがプロンプトを送信する度に学習候補をチェック
-# 学習候補が多い場合はブロックして強制通知
+# UserPromptSubmit時に学習候補をチェックして通知
+# 3件以上溜まっていたらコンテキストとして通知を追加
 
 set -e
 
@@ -10,24 +10,40 @@ LEARNING_QUEUE="$LEARNING_DIR/learning_queue"
 
 # 学習候補の数をカウント
 count_learning_candidates() {
-  local count=$(ls -1 "$LEARNING_QUEUE"/*.json 2>/dev/null | wc -l | tr -d ' ')
+  local count=0
+  if [[ -d "$LEARNING_QUEUE" ]]; then
+    count=$(ls -1 "$LEARNING_QUEUE"/*.json 2>/dev/null | wc -l | tr -d ' ')
+  fi
   echo "$count"
+}
+
+# 学習候補の詳細を取得
+get_candidates_summary() {
+  local candidates=""
+  for f in "$LEARNING_QUEUE"/*.json; do
+    if [[ -f "$f" ]]; then
+      local skill_name=$(jq -r '.skill_name' "$f" 2>/dev/null)
+      local timestamp=$(jq -r '.timestamp' "$f" 2>/dev/null | cut -d'T' -f1)
+      candidates="${candidates}  • ${skill_name} (${timestamp})\n"
+    fi
+  done
+  echo -e "$candidates"
 }
 
 # メイン処理
 main() {
   local count=$(count_learning_candidates)
-  local block_threshold=10  # 10件以上でブロック通知
+  local notify_threshold=3  # 3件以上で通知
 
-  # 学習候補が少なければ何もしない
-  if [[ $count -lt $block_threshold ]]; then
+  # 学習候補が閾値未満なら何もしない
+  if [[ $count -lt $notify_threshold ]]; then
     exit 0
   fi
 
-  # 前回通知から一定時間経過しているかチェック
+  # 前回通知から一定時間経過しているかチェック（1時間に1回）
   local last_notification_file="$LEARNING_DIR/.last_notification"
   local current_time=$(date +%s)
-  local notification_interval=86400  # 24時間（1日1回）
+  local notification_interval=3600  # 1時間
 
   if [[ -f "$last_notification_file" ]]; then
     local last_notification=$(cat "$last_notification_file")
@@ -41,12 +57,22 @@ main() {
   # 通知時刻を記録
   echo "$current_time" > "$last_notification_file"
 
-  # ブロック通知（ユーザーに表示される）
+  # 候補のサマリーを取得
+  local summary=$(get_candidates_summary)
+
+  # コンテキストとして通知を追加（stdoutに出力）
   cat <<EOF
-{
-  "decision": "block",
-  "reason": "📚 Skills学習候補が ${count} 件溜まっています。\n\n学習を実行: /learn-skills\nスキップ: 再度メッセージを送信\n\n※この通知は1日1回表示されます"
-}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 Skills学習候補: ${count} 件
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${summary}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 学習を実行: /learn-skills
+   後で確認: そのまま続けてください
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
 }
 
