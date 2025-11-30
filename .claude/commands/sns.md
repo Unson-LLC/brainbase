@@ -7,7 +7,8 @@
 作成前に必ず以下を読み込んでください：
 1. `_codex/sns/sns_strategy_os.md` - 戦略・ポジショニング
 2. `_codex/sns/rules.md` - ガードレール
-3. `_codex/sns/x_account_profile.md` - アカウント情報
+3. `_codex/sns/x_account_profile.md` - アカウント情報・人格定義
+4. `_codex/sns/post_log.md` - 投稿履歴（ネタ被り防止用）
 
 ## アカウント軸
 
@@ -30,19 +31,15 @@
 
 ```
 ━━━━━━━━━━━━━━━━━━━━
-📝 案1
+📝 案1（投稿の型）
 ━━━━━━━━━━━━━━━━━━━━
 
 【本文】
-（280文字以内のX投稿文）
+（280文字以内のX投稿文。人格定義に従った口調で）
 
-【図解ポイント】（インフォグラフィック用）
-- ポイント1
-- ポイント2
-- ポイント3
-
-【タグ案】#OS設計 #会社OS など
+【タグ案】なし or #タグ
 【CTA】問いかけ形式（例：「〜な人いる？」「みんなはどうしてる？」）
+【テンプレ】infographic / exploded / dashboard / framework
 
 ━━━━━━━━━━━━━━━━━━━━
 ```
@@ -51,13 +48,15 @@
 
 ### Step 1: ネタ収集
 1. `git log --oneline --since="midnight"` で今日のコミット確認
-2. ユーザー入力がなければコミット内容からネタ抽出
-3. 戦略ファイルを読み込み
+2. `_codex/sns/post_log.md` を読み、過去に投稿したトピックを確認
+3. ユーザー入力がなければコミット内容からネタ抽出（既出トピックは除外）
+4. 戦略ファイル・人格定義を読み込み
 
 ### Step 2: ドラフト作成
 1. 「OSのどこが変わるか」の視点で再構成
-2. ガードレールをチェックしながら2-3案作成
-3. 各案に【図解ポイント】を含める
+2. 人格定義に従った口調・表現で作成（「〜なんよな」「マジで」等）
+3. ガードレールをチェックしながら2-3案作成
+4. 各案に【テンプレ】を指定（infographic / exploded / dashboard / framework）
 
 ### Step 3: ユーザー選択
 案を提示したら、AskUserQuestionで選択を求める：
@@ -72,15 +71,24 @@
 ```
 
 ### Step 4: 画像生成
-選択された案の【図解ポイント】を使ってNano Banana Proで画像生成：
+選択された案の【テンプレ】を使ってNano Banana Proで画像生成：
 
 ```bash
-/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/scripts/sns_post.py \
-  --title "タイトル" \
-  --body "投稿本文" \
-  --points "ポイント1" "ポイント2" "ポイント3" \
-  --dry-run
+# テンプレート一覧確認
+/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/scripts/nano_banana.py --list
+
+# 画像生成（本文から自動でポイント抽出）
+/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/scripts/nano_banana.py \
+  -t <template> \
+  "トピック" \
+  "ポイント1" "ポイント2" "ポイント3"
 ```
+
+テンプレート：
+- `infographic` - ビジネス図解（ポイント整理向け）
+- `exploded` - 3D分解図（システム構造向け）
+- `dashboard` - ダッシュボード（KPI向け）
+- `framework` - 概念図（フレームワーク向け）
 
 ### Step 5: 投稿確認
 生成された画像パスを確認後、最終確認：
@@ -91,12 +99,14 @@
 
 ```bash
 /Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/scripts/sns_post.py \
-  --title "タイトル" \
+  --title "トピック要約" \
   --body "投稿本文" \
-  --points "ポイント1" "ポイント2" "ポイント3"
+  --image <生成された画像パス>
 ```
 
-投稿完了後、URLを報告。
+投稿完了後：
+1. URLを報告
+2. `post_log.md` に自動記録される
 
 ## オプション
 

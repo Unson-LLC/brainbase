@@ -103,13 +103,30 @@ def post_with_infographic(
             )
             result["post_result"] = post_result
             result["success"] = True
-            print(f"\nPosted: {post_result.get('url', 'unknown')}")
+            url = post_result.get('url', 'unknown')
+            print(f"\nPosted: {url}")
+
+            # 投稿ログに記録
+            log_post(url=url, topic=title)
         except Exception as e:
             result["post_error"] = str(e)
             result["success"] = False
             print(f"Post failed: {e}")
 
     return result
+
+
+def log_post(url: str, topic: str, template: str = "infographic"):
+    """投稿をログに記録"""
+    log_path = Path(__file__).parent.parent / "_codex" / "sns" / "post_log.md"
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    log_entry = f"| {timestamp} | {url} | {topic} | {template} |\n"
+
+    with open(log_path, "a") as f:
+        f.write(log_entry)
+
+    print(f"Logged: {topic}")
 
 
 def save_draft(title: str, body: str, points: list[str] | None = None):
