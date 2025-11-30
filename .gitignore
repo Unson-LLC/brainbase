@@ -33,3 +33,9 @@ venv/
 secrets/
 *.key
 context-output/
+
+# Hook state files
+.claude/hooks/state/
+
+# Python cache
+__pycache__/
