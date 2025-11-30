@@ -9,7 +9,7 @@ LOG_FILE="$WORKSPACE_ROOT/.claude/hooks/state/metadata-check.log"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] check-metadata.sh fired" >> "$LOG_FILE"
 
 # チェック実行（エラーがあれば終了コード1）
-node "$WORKSPACE_ROOT/scripts/check-metadata-integrity.js" >> "$LOG_FILE" 2>&1
+node "$WORKSPACE_ROOT/_codex/common/ops/scripts/check-metadata-integrity.js" >> "$LOG_FILE" 2>&1
 
 exit_code=$?
 
