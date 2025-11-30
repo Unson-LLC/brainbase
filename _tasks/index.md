@@ -531,7 +531,7 @@ links: []
 id: UNSON-HOKENSHO-REISSUE-20251128
 title: 世來ちゃんの保険証再発行手続き
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: null
@@ -539,16 +539,23 @@ tags: [unson, backoffice, insurance, reissue]
 links: []
 
 - 2025-11-28 追加: 雲孫バックオフィス対応。世來ちゃんの健康保険証再発行を申請・受領まで完了させる。
+- 2025-11-30 完了: 申請方法を調査し、梅田さんへ資格確認書交付申請を依頼。協会けんぽ東京支部への申請書類は梅田さんが対応予定。
 
 ---
 id: NCOM-1BS2BS-REVISIT-20251128
 title: 1BS/2BS特化レポートの省庁対応＆表記修正
 project_id: ncom
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-11-30
 tags: [ncom, report, 1bs, 2bs, public]
-links: []
+links:
+  - ncom-catalyst/reports/1bs-2bs-research/1bs-2bs-report.md
 
 - 2025-11-28 追加: 鈴木さんフィードバック対応。公共レポートが自治体偏重に見える点の修正、省庁向けの差分/全体動向（例: 国レベル施策連動）を補足。表記揺れ「公共：2BS、金融：1BS」に修正。
+- 2025-11-30 完了: 以下の修正を実施
+  - タイトル・見出しを「1BS（金融）/2BS（公共）」形式に統一
+  - 省庁向けセクションを追加（デジタル庁ガイドライン、ガバメントAI、GENIAC、広島AIプロセス、中央省庁活用実績）
+  - 実務アクションを省庁向け/自治体向けに分離
+  - 参考資料に国レベル施策・ガイドラインを追加
