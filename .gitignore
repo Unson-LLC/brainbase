@@ -13,6 +13,7 @@
 # Special directories
 /_archive/
 /_inbox/
+/_notes/
 /_ops/
 
 # macOS cruft
