@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "google-calendar": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@cocal/google-calendar-mcp"
+      ],
+      "env": {
+        "GOOGLE_OAUTH_CREDENTIALS": "/Users/ksato/.config/google-calendar-mcp/gcp-oauth.keys.json"
+      }
+    }
+  }
+}
