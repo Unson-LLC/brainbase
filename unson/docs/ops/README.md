@@ -1,15 +1,20 @@
 # 運用ドキュ入口（Unson）
 
-正本は `_codex/unson/` に集約。ここはリンクと参照先メモのみ。
+正本は brainbase (`_codex/`) に集約。ここはリンクと参照先のメモのみ。
 
-- 戦略: `_codex/unson/01_strategy.md`
-- オファー: `_codex/unson/02_offer/`
-- 営業オペ: `_codex/unson/03_sales_ops/`
-- デリバリー/CS: `_codex/unson/04_delivery/`
-- KPI: `_codex/unson/05_kpi/`
-- 意思決定プロトコル/共通ルール: `_codex/00_common/decision_protocol.md`, `_codex/00_common/rules.md`
-- 価値観・判断原典: `_codex/00_common/knowledge/principles.md`
-- 人/組織/契約/RACI: `_codex/meta/people.md`, `_codex/meta/orgs.md`, `_codex/meta/customers.md`, `_codex/meta/raci/unson.md`（要追加）
-- MaC/Automation: `docs/ops/mac.md`（共通ガイド/AGENTS/Cursor Rules への導線）
+## 組織情報（正本）
+- **組織MVV**: [_codex/orgs/unson.md](../../../../_codex/orgs/unson.md)
 
-更新は `_codex` 側で行い、必要に応じてここに追記リンクのみ追加する。
+※ Unsonは法人・持株組織のため、事業別project.mdは各事業リポジトリ（zeims, salestailor等）を参照
+
+## 共通ルール・意思決定
+- 意思決定プロトコル: [_codex/common/decision_protocol.md](../../../../_codex/common/decision_protocol.md)
+- 共通ルール: [_codex/common/rules.md](../../../../_codex/common/rules.md)
+
+## 人・組織・RACI
+- 人物情報: [_codex/common/meta/people.md](../../../../_codex/common/meta/people.md)
+- 顧客情報: [_codex/common/meta/customers.md](../../../../_codex/common/meta/customers.md)
+- RACI: [_codex/common/meta/raci/](../../../../_codex/common/meta/raci/)
+
+---
+更新は _codex 側で行い、必要に応じてここに追記リンクのみ追加する。
