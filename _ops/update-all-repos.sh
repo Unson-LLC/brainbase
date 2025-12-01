@@ -54,7 +54,11 @@ for r in $REPOS; do
     continue
   fi
   if [[ $FF_ONLY -eq 1 ]]; then
-    (cd "$r" && git pull --ff-only) || echo " ! pull failed: $r"
+    # ff-only失敗時は自動でrebaseを試みる
+    (cd "$r" && git pull --ff-only 2>/dev/null) || {
+      echo " → ff-only failed, trying rebase..."
+      (cd "$r" && git pull --rebase) || echo " ! rebase also failed: $r"
+    }
   else
     (cd "$r" && git pull) || echo " ! pull failed: $r"
   fi

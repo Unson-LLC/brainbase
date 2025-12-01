@@ -680,6 +680,10 @@ tags: [dialogai, meeting, estimate]
 links: []
 
 - 2025-12-01 追加: 大槻氏との認識合わせミーティングを今週中に設定（機能・費用・保守契約位置づけ・営業/PM役割を確認）。
+- 2025-12-01 確定: **12/2（月）17:00-17:30** 大槻氏とMTG。確認事項：
+  - 月額6万円運用サポートの位置づけ（追加開発分のみ or 既存含む全体）
+  - 2年間無料運用からの切り替え有無
+  - Sランク脆弱性3時間以内対応・夜間休日対応のカバー範囲
 
 ---
 id: DIALOGAI-MAINT-CONTRACT-REVIEW-20251205
@@ -690,9 +694,11 @@ owner: keigo
 priority: high
 due: 2025-12-05
 tags: [dialogai, maintenance, contract, sla]
-links: []
+links:
+  - 雲孫ドライブ/ncom/営業資料/DialogAI追加開発2025Q4見積もり_キュリオシティ株式会社_20251128.pptx
 
 - 2025-12-01 追加: 現行契約の期間・金額・対応範囲を資料化し、新規見積（月額6万円運用サポート）の位置づけを判別。
+- 2025-12-01 追記: 大槻氏に確認が必要。大槻氏は上記見積もりファイルで提出済み。機能・費用・保守契約の位置づけを認識合わせする。
 
 ---
 id: DIALOGAI-VULN-FLOW-20251205
@@ -810,3 +816,18 @@ tags: [accenture, alumni, sourcing, outreach]
 links: []
 
 - 2025-12-01 追加: 山本さんがアクセスできるアクセンチュアアルム内ネットワークに案件・人材情報を投げてもらうようメッセージで依頼する。
+
+---
+id: ST-ANALYSIS-BASE-TEMPLATE-20251201
+title: SalesTailor分析ベーステンプレート作成（C→Aの基盤）
+project_id: salestailor
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-05
+tags: [salestailor, pdca, analysis, template]
+links:
+  - salestailor/meetings/2025-12-01_pdca-progress-video-prep-meeting.md
+
+- 2025-12-01 追加: 渡辺さんMTGより。分析内容の変動問題に対応するため、ベースとなるプロトタイプ/テンプレートを作成する。「こういうのをベースにとりあえず回せそうだ」という形を整える。
+- 背景: C（Check）からA（Action）への橋渡しで、分析結果が変動しても安定した改善提案を出せる基盤が必要。
