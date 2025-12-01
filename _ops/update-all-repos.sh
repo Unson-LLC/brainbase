@@ -10,16 +10,28 @@ if [[ "${1-}" == "--no-ff-only" ]]; then
   FF_ONLY=0
 fi
 
-REPOS=$(find . -maxdepth 5 -name .git -print \
+REPOS=$(find . -maxdepth 5 -name .git -type d -print \
   | sed 's|/.git$||' | grep -v '^\.$')
 
 DIRTY=()
+BROKEN=()
 for r in $REPOS; do
-  STATUS=$(cd "$r" && git status --porcelain)
+  STATUS=$(cd "$r" && git status --porcelain 2>&1) || {
+    BROKEN+=("$r")
+    continue
+  }
   if [[ -n "$STATUS" ]]; then
     DIRTY+=("$r")
   fi
 done
+
+if [[ ${#BROKEN[@]:-0} -gt 0 ]]; then
+  echo "Broken repositories (skipped):"
+  for b in "${BROKEN[@]}"; do
+    echo " - $b"
+  done
+  echo
+fi
 
 if [[ ${#DIRTY[@]:-0} -gt 0 ]]; then
   echo "Dirty repositories (skipped):"
@@ -31,6 +43,11 @@ fi
 
 for r in $REPOS; do
   echo "== $r =="
+  if printf '%s\n' "${BROKEN[@]:-}" | grep -qx "$r"; then
+    echo " ! broken repo, skipped."
+    echo
+    continue
+  fi
   if printf '%s\n' "${DIRTY[@]:-}" | grep -qx "$r"; then
     echo " ! dirty working tree, skipped."
     echo
