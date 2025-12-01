@@ -518,7 +518,7 @@ links: []
 id: BRAINBASE-DRIVE-GIT-ALIGN-20251128
 title: Google Drive / brainbase / gitリポジトリの整合性チェック
 project_id: brainbase
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-12-01
@@ -526,6 +526,7 @@ tags: [brainbase, drive, git, governance]
 links: []
 
 - 2025-11-28 追加: brainbase関連のGoogle Driveとローカルgitリポジトリの構成差分・不足ファイルを洗い出し、同期方針を決める。急ぎ対応。
+- 2025-12-01 完了
 
 ---
 id: UNSON-HOKENSHO-REISSUE-20251128
@@ -564,13 +565,14 @@ links:
 id: DIALOGAI-SEC020-DEC
 title: 【12/19〆】NW装置セキュリティ対策（CDP/LLDP無効化、IPソースルーティング無効化、SmartInstall無効化、OS改ざんチェック）
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-12-19
 tags: [dialogai, security, nw, jimuren020]
 links:
   - 雲孫ドライブ/_inbox/【事務連情セキ第020号】
+  - _codex/projects/ncom/dialogai/ops/sec020_report_draft_202512.md
 
 - 2025-12-01 追加: 事務連情セキ第020号（2025-11-17発出）
 - 対象: 全ネットワーク装置（物理/仮想含む）
@@ -579,6 +581,7 @@ links:
 - 依頼3: Cisco Smart Install無効化
 - 依頼4: OS改ざんチェック（Cisco製品対象、正規ファームウェア確認）
 - 報告: 別紙１「実施結果報告書」の「2025年12月報告分」シートに記入
+- 2025-12-01 完了: AWS環境調査完了。依頼1/3/4は対象外（AWSマネージド/Cisco製品なし）、依頼2はSSMで確認済み（accept_source_route=0）。報告書ドラフト作成完了。
 
 ---
 id: DIALOGAI-SEC020-MAR
@@ -607,19 +610,21 @@ links:
 id: DIALOGAI-SEC018-SURVEY
 title: 【12/16〆】システム保持情報の棚卸ヒアリングシート回答
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-12-16
 tags: [dialogai, security, data, jimuren018]
 links:
   - 雲孫ドライブ/_inbox/【事務連情セキ第018号】
+  - _codex/projects/ncom/dialogai/ops/sec018_survey_draft_202512.md
 
 - 2025-12-01 追加: 事務連情セキ第018号（2025-11-11発出）
 - 背景: 2025年2月不正アクセス事案を受けた全社セキュリティガバナンス推進PJ施策
 - 対象: 社内全ITシステム（ITOT資産管理システム登録済みシステム）
 - 依頼: 別紙1「ヒアリングシート_システムが保持する情報の管理・不要な情報の削除について」に回答
 - 注意: 業務主管・サービス主管との連携が必要な場合あり
+- 2025-12-01 完了: RDS 17テーブル・S3バケット調査完了。User/Attendee/Meeting等の個人情報含むデータ特定。保持期間30日設定確認。ヒアリングシート回答ドラフト作成完了。
 
 ---
 id: DIALOGAI-SEC018-DELETE
@@ -636,3 +641,172 @@ links:
 - 2025-12-01 追加: 事務連情セキ第018号（2025-11-11発出）
 - 依頼: ヒアリングシートで判別された不要情報を削除
 - 証跡: 削除ログやスクリーンショット等を取得・保管（提出方法は後日案内）
+
+---
+id: DIALOGAI-RA-GW-CHECK-20251201
+title: RAゲートウェイ要否の確認照会（SSM方式の妥当性確認）
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-02
+tags: [dialogai, security, ra, gateway, access]
+links: []
+
+- 2025-12-01 追加: 鈴木氏経由で初回可能性発見AIに現行SSM＋ポートフォワーディング方式が要件を満たすか照会し、明確でなければ田中氏にセカンドオピニオンを取る。河合氏への直接照会は回避。
+
+---
+id: DIALOGAI-HS-REWRITE-20251202
+title: 特権アカウント管理ヒアリングシート備考修正
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-05
+tags: [dialogai, security, ra, documentation]
+links: []
+
+- 2025-12-01 追加: 備考欄の「SSH・SSM・PM2」記載を最新運用（送信元IP制限＋SSMのみ）に更新し、照会結果を反映。
+
+---
+id: DIALOGAI-ESTIMATE-MTG-20251202
+title: DialogAI追加開発見積もり説明会の設定
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-02
+tags: [dialogai, meeting, estimate]
+links: []
+
+- 2025-12-01 追加: 大槻氏との認識合わせミーティングを今週中に設定（機能・費用・保守契約位置づけ・営業/PM役割を確認）。
+
+---
+id: DIALOGAI-MAINT-CONTRACT-REVIEW-20251205
+title: 既存保守契約内容の整理（期間・金額・SLA）
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-05
+tags: [dialogai, maintenance, contract, sla]
+links: []
+
+- 2025-12-01 追加: 現行契約の期間・金額・対応範囲を資料化し、新規見積（月額6万円運用サポート）の位置づけを判別。
+
+---
+id: DIALOGAI-VULN-FLOW-20251205
+title: Ubuntu脆弱性通知の運用フロー策定（S/A/B/C対応含む）
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-05
+tags: [dialogai, security, vulnerability, ops]
+links: []
+
+- 2025-12-01 追加: Sランク3時間以内対応を含む現実的フロー案を作成（夜間・土日・年末年始のシャットダウン等オプション含む）。
+
+---
+id: DIALOGAI-VULN-MAIL-ADD-20251205
+title: 脆弱性通知メールの佐藤氏宛配信設定
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-05
+tags: [dialogai, security, notification]
+links: []
+
+- 2025-12-01 追加: ITOTへ依頼し、脆弱性通知に佐藤氏のメールアドレスを追加。
+
+---
+id: DIALOGAI-SEC-REPORTS-20251205
+title: 18号・20号セキュリティ報告の記載完了とレビュー設定
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-05
+tags: [dialogai, security, reporting]
+links: []
+
+- 2025-12-01 追加: 18号（棚卸・不要情報削除）と20号（NW対策）Excelの記載を完了させ、根拠資料を添付した上で確認MTGを設定。
+
+---
+id: DIALOGAI-ORG-CHART-20251205
+title: 保守体制図・エスカレーションフロー更新
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: 2025-12-05
+tags: [dialogai, governance, organization]
+links: []
+
+- 2025-12-01 追加: 保守メンバー・権限保有者・エスカレーションルートを明示する体制図を更新し、保守契約見直し案と整合させる。
+
+---
+id: ZEIMS-STRIPE-ACCOUNT-20251201
+title: Zeims用Stripeアカウント新設とメール受信不具合解消
+project_id: zeims
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-02
+tags: [zeims, stripe, billing, email, account]
+links: []
+
+- 2025-12-01 追加: zeims@unson.jpでStripe新規アカウントを作成・認証し、太田葉音(wellyorpq@gmail.com)・川合秀明を招待。現在Stripe招待メールがinfo@unson.jpへ転送されない不具合が発生中（個人メールは受信可）。転送設定/許可リスト再確認と必要な認証書類リストアップを実施する。
+
+---
+id: NCOM-OHTSUKI-SEARCH-20251201
+title: 大槻さんmeeting検索をMCP対応（ncomプロジェクト）
+project_id: ncom
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-02
+tags: [ncom, meeting, search, mcp, metadata]
+links: []
+
+- 2025-12-01 追加: 大槻さん（キュリオシティ契約）がncomプロジェクトに含まれることを明示し、ncom-catalyst配下の大槻関連ミーティングがMCP検索でヒットするようメタデータ整備・動作確認を実施。
+
+---
+id: DIALOGAI-PW-UPDATE-CHECK-20251128
+title: DialogAIのパスワード更新確認
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-02
+tags: [dialogai, security, password]
+links: []
+
+- 2025-12-01 追加: DialogAI各システム/アカウントのパスワード更新が実施済みか確認し、未実施箇所は即時更新・証跡取得まで行う。
+
+---
+id: ST-VIDEO-HORI-20251203
+title: 堀さん動画仕上げ（SalesTailor）
+project_id: salestailor
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-03
+tags: [salestailor, video, deliverable]
+links: []
+
+- 2025-12-01 追加: 堀さん依頼のSalesTailor動画を仕上げる。締切12/3。
+
+---
+id: ACC-ALUM-YAMAMOTO-OUTREACH-20251201
+title: 山本さんにアクセンチュアアルム内で案件/人材投げ込みを依頼
+project_id: general
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-02
+tags: [accenture, alumni, sourcing, outreach]
+links: []
+
+- 2025-12-01 追加: 山本さんがアクセスできるアクセンチュアアルム内ネットワークに案件・人材情報を投げてもらうようメッセージで依頼する。
