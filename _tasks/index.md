@@ -559,3 +559,80 @@ links:
   - 省庁向けセクションを追加（デジタル庁ガイドライン、ガバメントAI、GENIAC、広島AIプロセス、中央省庁活用実績）
   - 実務アクションを省庁向け/自治体向けに分離
   - 参考資料に国レベル施策・ガイドラインを追加
+
+---
+id: DIALOGAI-SEC020-DEC
+title: 【12/19〆】NW装置セキュリティ対策（CDP/LLDP無効化、IPソースルーティング無効化、SmartInstall無効化、OS改ざんチェック）
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-19
+tags: [dialogai, security, nw, jimuren020]
+links:
+  - 雲孫ドライブ/_inbox/【事務連情セキ第020号】
+
+- 2025-12-01 追加: 事務連情セキ第020号（2025-11-17発出）
+- 対象: 全ネットワーク装置（物理/仮想含む）
+- 依頼1: CDP/LLDP等の検出プロトコル無効化
+- 依頼2: IPソースルーティング無効化
+- 依頼3: Cisco Smart Install無効化
+- 依頼4: OS改ざんチェック（Cisco製品対象、正規ファームウェア確認）
+- 報告: 別紙１「実施結果報告書」の「2025年12月報告分」シートに記入
+
+---
+id: DIALOGAI-SEC020-MAR
+title: 【3/13〆】NW装置セキュリティ対策（構成図最新化、認証有効化、脆弱プロトコル無効化、パスワードハッシュ、SNMP制御、改ざんチェック）
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: 2026-03-13
+tags: [dialogai, security, nw, jimuren020]
+links:
+  - 雲孫ドライブ/_inbox/【事務連情セキ第020号】
+
+- 2025-12-01 追加: 事務連情セキ第020号（2025-11-17発出）
+- 対象: 全ネットワーク装置
+- 依頼5: ネットワーク構成図の最新化
+- 依頼6: OSPF/BGP/HSRP認証機能有効化
+- 依頼7: 脆弱プロトコル無効化（Telnet/FTP/TFTP/SSHv1/HTTP）
+- 依頼8: パスワード保存時の安全なハッシュアルゴリズム使用
+- 依頼9: 管理トラフィックのインターネットアクセス制限
+- 依頼10: SNMPアクセス制御（ACL、コミュニティ名変更、権限最小化、v3検討）
+- 依頼11: 設定ファイルの改ざんチェック
+- 報告: 別紙１「実施結果報告書」の「2026年3月報告分」シートに記入
+
+---
+id: DIALOGAI-SEC018-SURVEY
+title: 【12/16〆】システム保持情報の棚卸ヒアリングシート回答
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-16
+tags: [dialogai, security, data, jimuren018]
+links:
+  - 雲孫ドライブ/_inbox/【事務連情セキ第018号】
+
+- 2025-12-01 追加: 事務連情セキ第018号（2025-11-11発出）
+- 背景: 2025年2月不正アクセス事案を受けた全社セキュリティガバナンス推進PJ施策
+- 対象: 社内全ITシステム（ITOT資産管理システム登録済みシステム）
+- 依頼: 別紙1「ヒアリングシート_システムが保持する情報の管理・不要な情報の削除について」に回答
+- 注意: 業務主管・サービス主管との連携が必要な場合あり
+
+---
+id: DIALOGAI-SEC018-DELETE
+title: 【2/27〆】不要情報の削除（ヒアリング結果に基づく）
+project_id: unson
+status: todo
+owner: keigo
+priority: medium
+due: 2026-02-27
+tags: [dialogai, security, data, jimuren018]
+links:
+  - 雲孫ドライブ/_inbox/【事務連情セキ第018号】
+
+- 2025-12-01 追加: 事務連情セキ第018号（2025-11-11発出）
+- 依頼: ヒアリングシートで判別された不要情報を削除
+- 証跡: 削除ログやスクリーンショット等を取得・保管（提出方法は後日案内）
