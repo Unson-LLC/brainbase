@@ -646,7 +646,7 @@ links:
 id: DIALOGAI-RA-GW-CHECK-20251201
 title: RAゲートウェイ要否の確認照会（SSM方式の妥当性確認）
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-12-02
@@ -654,6 +654,7 @@ tags: [dialogai, security, ra, gateway, access]
 links: []
 
 - 2025-12-01 追加: 鈴木氏経由で初回可能性発見AIに現行SSM＋ポートフォワーディング方式が要件を満たすか照会し、明確でなければ田中氏にセカンドオピニオンを取る。河合氏への直接照会は回避。
+- 2025-12-02 完了
 
 ---
 id: DIALOGAI-HS-REWRITE-20251202
@@ -782,7 +783,7 @@ links: []
 id: DIALOGAI-PW-UPDATE-CHECK-20251128
 title: DialogAIのパスワード更新確認
 project_id: unson
-status: todo
+status: done
 owner: keigo
 priority: high
 due: 2025-12-02
@@ -790,6 +791,7 @@ tags: [dialogai, security, password]
 links: []
 
 - 2025-12-01 追加: DialogAI各システム/アカウントのパスワード更新が実施済みか確認し、未実施箇所は即時更新・証跡取得まで行う。
+- 2025-12-02 完了
 
 ---
 id: ST-VIDEO-HORI-20251203
