@@ -851,3 +851,77 @@ links:
   - 全メール受信時にGeminiで「返信が必要か」を判定
   - 返信が必要な場合、Geminiに下書きを自動作成させる
 - メリット: n8n/difyと違いGCP設定不要、Google系は初期連携済み。定型返信を大幅削減可能。
+
+---
+id: SATO-PORTFOLIO-TEMPLATE-20251202
+title: brainbaseテンプレートリポジトリ作成（初回手動コピー）
+project_id: sato-portfolio
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-06
+tags: [sato-portfolio, brainbase, template, github, public]
+links:
+  - _codex/projects/sato-portfolio/project.md
+
+- 2025-12-02 追加: brainbase運用OSのテンプレートリポジトリを作成し公開。
+- 内容:
+  - GitHubに `brainbase-template` リポジトリを作成
+  - CLAUDE.md、.claude/（hooks/commands/skills）、_codex/common/templates/、_codex/sources/global/ を初回コピー
+  - 非公開対象（meta/、projects/、orgs/、slack-classify-bot等）を除外
+  - READMEを追加して公開
+
+---
+id: SATO-PORTFOLIO-LP-20251202
+title: ポートフォリオLP実装（Next.js + Vercel）
+project_id: sato-portfolio
+status: done
+owner: keigo
+priority: high
+due: 2025-12-13
+tags: [sato-portfolio, lp, nextjs, vercel, web]
+links:
+  - _codex/projects/sato-portfolio/project.md
+  - /Users/ksato/workspace/sato-portfolio
+
+- 2025-12-02 追加: Xプロフィール用の振り分けフィルター型ポートフォリオLP作成。
+- 構成: Bento Grid型（事業カード7枚 + 経歴 + SNSリンク）
+- 技術: Next.js + Tailwind CSS + Vercel
+- 前提: SATO-PORTFOLIO-LINKS-20251202（リンク先URL確定）完了後に公開
+- 2025-12-02 完了: Vercelデプロイ完了
+  - URL: https://sato-portfolio-nuyxk41l7-tech-knights-projects.vercel.app
+  - リポジトリ: /Users/ksato/workspace/sato-portfolio
+
+---
+id: SATO-PORTFOLIO-LINKS-20251202
+title: ポートフォリオLP リンク先URL確定
+project_id: sato-portfolio
+status: done
+owner: keigo
+priority: high
+due: 2025-12-13
+tags: [sato-portfolio, lp, links]
+links:
+  - _codex/projects/sato-portfolio/project.md
+
+- 2025-12-02 追加: LP各カードのリンク先URLを確定する。
+- 2025-12-02 完了: 全リンク確定（Zeims: Coming Soon、LinkedIn: 後で作成）
+
+---
+id: SATO-PORTFOLIO-ACTIONS-20251202
+title: brainbaseテンプレ同期用GitHub Actions設定（任意）
+project_id: sato-portfolio
+status: todo
+owner: keigo
+priority: low
+due: 2025-12-20
+tags: [sato-portfolio, brainbase, github-actions, automation]
+links:
+  - _codex/projects/sato-portfolio/project.md
+
+- 2025-12-02 追加: workspaceリポジトリからbrainbase-templateへの週1自動同期を設定。
+- 内容:
+  - .template-exclude ファイル作成
+  - sync-to-template.sh スクリプト作成
+  - GitHub Actions workflow作成（週1実行）
+- 備考: 手動同期でも運用可能なため優先度低
