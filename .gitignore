@@ -47,3 +47,4 @@ __pycache__/
 *.oauth2_token.json
 .x_oauth2_token.json
 .claude/learning/.last_notification
+_codex/common/ops/.env
