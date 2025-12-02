@@ -831,3 +831,21 @@ links:
 
 - 2025-12-01 追加: 渡辺さんMTGより。分析内容の変動問題に対応するため、ベースとなるプロトタイプ/テンプレートを作成する。「こういうのをベースにとりあえず回せそうだ」という形を整える。
 - 背景: C（Check）からA（Action）への橋渡しで、分析結果が変動しても安定した改善提案を出せる基盤が必要。
+
+---
+id: BRAINBASE-WORKSPACE-FLOWS-20251202
+title: Google Workspace Flowsでメール自動返信下書き作成を設定
+project_id: brainbase
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [brainbase, automation, email, gemini, workspace-flows]
+links:
+  - https://x.com/ai_agent_dev/status/1992402392491676149
+
+- 2025-12-02 追加: @ai_agent_devの投稿を参考に、Google Workspace Flowsでメール自動化を設定する。
+- 内容:
+  - 全メール受信時にGeminiで「返信が必要か」を判定
+  - 返信が必要な場合、Geminiに下書きを自動作成させる
+- メリット: n8n/difyと違いGCP設定不要、Google系は初期連携済み。定型返信を大幅削減可能。
