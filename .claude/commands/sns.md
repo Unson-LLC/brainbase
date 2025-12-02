@@ -21,6 +21,7 @@
 
 - ❌ 禁止: ツール感想だけ / 一般論だけ / 事業OSと無関係なAIニュース
 - ✅ 「OSのどこが変わるか」を最低1行入れる
+- ✅ **「悩み→判断→結果」型を必ず1案は出す**（何に悩み、なぜその判断をし、どうなったか）
 - ✅ 問いかけCTAで締める（「〜な人いる？」「みんなはどうしてる？」など）
 - ❌ DM誘導は避ける（ハードルが高い）
 - ✅ トーン: 簡潔・具体・再現性。誇張NG、数字は根拠付き
@@ -53,10 +54,15 @@
 4. 戦略ファイル・人格定義を読み込み
 
 ### Step 2: ドラフト作成
-1. 「OSのどこが変わるか」の視点で再構成
-2. 人格定義に従った口調・表現で作成（「〜なんよな」「マジで」等）
-3. ガードレールをチェックしながら2-3案作成
-4. 各案に【テンプレ】を指定（infographic / exploded / dashboard / framework）
+1. **「悩み→判断→結果」型を必ず1案は含める**
+   - 何に悩んだか（トレードオフ、選択肢の比較）
+   - なぜその判断をしたか（理由、根拠）
+   - どうなったか（結果、学び）
+   - ※ユーザーに「何を悩んだか」をヒアリングして深掘りする
+2. 「OSのどこが変わるか」の視点で再構成
+3. 人格定義に従った口調・表現で作成（「〜なんよな」「マジで」等）
+4. ガードレールをチェックしながら2-3案作成
+5. 各案に【テンプレ】を指定（infographic / exploded / dashboard / framework）
 
 ### Step 3: ユーザー選択
 案を提示したら、AskUserQuestionで選択を求める：
@@ -75,10 +81,10 @@
 
 ```bash
 # テンプレート一覧確認
-/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/scripts/nano_banana.py --list
+/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/_codex/common/ops/scripts/nano_banana.py --list
 
 # 画像生成（本文から自動でポイント抽出）
-/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/scripts/nano_banana.py \
+/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/_codex/common/ops/scripts/nano_banana.py \
   -t <template> \
   "トピック" \
   "ポイント1" "ポイント2" "ポイント3"
@@ -98,7 +104,7 @@
 ### Step 6: 投稿実行
 
 ```bash
-/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/scripts/sns_post.py \
+/Users/ksato/workspace/.venv/bin/python /Users/ksato/workspace/_codex/common/ops/scripts/sns_post.py \
   --title "トピック要約" \
   --body "投稿本文" \
   --image <生成された画像パス>
