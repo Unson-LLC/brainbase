@@ -46,11 +46,18 @@ jobs:
             --output _codex/sources/global/x_bookmarks/cache/latest.json
 
       - name: Update token secret
+        if: ${{ secrets.GH_PAT != '' }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           # 新しいトークンをSecretに保存
           gh secret set X_OAUTH_TOKEN < /tmp/x_oauth2_token.json
+          echo "Token secret updated"
+
+      - name: Warn if GH_PAT not set
+        if: ${{ secrets.GH_PAT == '' }}
+        run: |
+          echo "::warning::GH_PAT not set - token will not be persisted. Set GH_PAT secret to enable automatic token refresh."
 
       - name: Commit results
         run: |
