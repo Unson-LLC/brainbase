@@ -7,6 +7,11 @@
   - カレントから1階層下までの子リポジトリを自動検出して `git pull --ff-only` 実行。
   - オプション `--no-ff-only` で通常の `git pull`。
 
+- `sync-slack-to-dynamodb.js`
+  - brainbase YAML（`_codex/common/meta/slack/channels.yml`）をDynamoDBへ同期。
+  - オプション `--dry-run` で実際の更新をスキップして確認のみ。
+  - マスタ: YAML、キャッシュ: DynamoDB（slack-classify-bot-projects）
+
 ## 使い方
 ```
 # workspace直下で実行
