@@ -1,0 +1,71 @@
+name: Fetch X Bookmarks
+
+on:
+  schedule:
+    # 毎日 6:00 JST (21:00 UTC 前日)
+    - cron: '0 21 * * *'
+  workflow_dispatch:  # 手動実行用
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  fetch-bookmarks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # リポジトリへのコミット用
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Restore token from secret
+        run: |
+          echo '${{ secrets.X_OAUTH_TOKEN }}' > /tmp/x_oauth2_token.json
+
+      - name: Fetch bookmarks
+        id: fetch
+        env:
+          X_CLIENT_ID: ${{ secrets.X_CLIENT_ID }}
+          X_CLIENT_SECRET: ${{ secrets.X_CLIENT_SECRET }}
+          X_TOKEN_FILE: /tmp/x_oauth2_token.json
+        run: |
+          python _codex/common/ops/scripts/x_oauth2_actions.py \
+            --bookmarks 100 \
+            --json \
+            --output _codex/sources/global/x_bookmarks/cache/latest.json
+
+      - name: Update token secret
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          # 新しいトークンをSecretに保存
+          gh secret set X_OAUTH_TOKEN < /tmp/x_oauth2_token.json
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 変更があればコミット
+          if git diff --quiet _codex/sources/global/x_bookmarks/cache/latest.json; then
+            echo "No changes to commit"
+          else
+            git add _codex/sources/global/x_bookmarks/cache/latest.json
+            git commit -m "chore: X Bookmarks自動取得 ($(date +%Y-%m-%d))"
+            git push
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/x_oauth2_token.json
