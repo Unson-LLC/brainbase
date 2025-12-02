@@ -29,9 +29,19 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Restore token from secret
+      - name: Restore token
+        env:
+          TOKEN_KEY: ${{ secrets.X_TOKEN_KEY }}
         run: |
-          echo '${{ secrets.X_OAUTH_TOKEN }}' > /tmp/x_oauth2_token.json
+          # 暗号化ファイルがあれば復号、なければSecretから
+          TOKEN_FILE="_codex/common/ops/scripts/.x_oauth2_token.json.enc"
+          if [ -f "$TOKEN_FILE" ] && [ -n "$TOKEN_KEY" ]; then
+            echo "Decrypting token from repo..."
+            openssl enc -aes-256-cbc -d -pbkdf2 -in "$TOKEN_FILE" -out /tmp/x_oauth2_token.json -pass pass:"$TOKEN_KEY"
+          else
+            echo "Using token from secret..."
+            echo '${{ secrets.X_OAUTH_TOKEN }}' > /tmp/x_oauth2_token.json
+          fi
 
       - name: Fetch bookmarks
         id: fetch
@@ -45,28 +55,30 @@ jobs:
             --json \
             --output _codex/sources/global/x_bookmarks/cache/latest.json
 
-      - name: Update token secret
-        continue-on-error: true
+      - name: Encrypt updated token
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          TOKEN_KEY: ${{ secrets.X_TOKEN_KEY }}
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::warning::GH_PAT not set - token will not be persisted"
-            exit 0
+          if [ -n "$TOKEN_KEY" ]; then
+            openssl enc -aes-256-cbc -pbkdf2 -in /tmp/x_oauth2_token.json -out _codex/common/ops/scripts/.x_oauth2_token.json.enc -pass pass:"$TOKEN_KEY"
+            echo "Token encrypted"
+          else
+            echo "::warning::X_TOKEN_KEY not set - token will not be persisted"
           fi
-          gh secret set X_OAUTH_TOKEN < /tmp/x_oauth2_token.json
-          echo "Token secret updated"
 
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # 変更をステージング
+          git add _codex/sources/global/x_bookmarks/cache/latest.json
+          git add _codex/common/ops/scripts/.x_oauth2_token.json.enc 2>/dev/null || true
+
           # 変更があればコミット
-          if git diff --quiet _codex/sources/global/x_bookmarks/cache/latest.json; then
+          if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git add _codex/sources/global/x_bookmarks/cache/latest.json
             git commit -m "chore: X Bookmarks自動取得 ($(date +%Y-%m-%d))"
             git push
           fi
