@@ -4,8 +4,8 @@ title: ご飯を食べる
 project_id: general
 status: todo
 owner: 佐藤-圭吾
-priority: medium
-due: null
+priority: high
+due: 2025-12-02
 tags: [slack, auto-import]
 links: []
 ---
