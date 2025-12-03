@@ -1,4 +1,20 @@
 ---
+id: SLACK-2025-12-03-MIPG9HMM
+title: 名刺作成：オプチャQR挿入可否・メールアドレス種別の確認
+project_id: baao
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-03 Slackから自動取り込み: 卯田 剛史から依頼
+- 背景: ロゴ挿入完了済み。名刺作成において、①オプチャのQR挿入の要否、②卯田氏の名刺に記載するメールアドレス（個人アドレスまたはsupport@baao.or.jp）について確認・回答が必要
+- Slack: https://unson-inc.slack.com/archives/C09L3EKAUEA/p1764732649812239
+
+---
 id: ASANA-1211976942811252
 title: NTTのR&D申し込み
 project_id: general
