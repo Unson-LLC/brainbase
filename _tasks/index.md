@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-03-MIQ2Q2DA
+title: ご飯を食べる
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-03 Slackから自動取り込み: k.satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: ご飯を食べる
+- Slack: https://unson-inc.slack.com/archives/C08SYTDR7R8/p1764770380176329
+
+---
 id: SLACK-2025-12-03-MIQ2A0LX
 title: 運動する
 project_id: general
