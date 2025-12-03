@@ -28,6 +28,7 @@ projects:
         - "hp_techknight/**/*"
         - "docs/**/*"
         - "ops/**/*"
+        - "meetings/**/*"
 
   - id: baao
     local:

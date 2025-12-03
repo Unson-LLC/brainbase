@@ -1064,3 +1064,32 @@ tags: [techknight, estimate, ai-dev, training]
 links: []
 
 - 2025-12-03 追加: AI駆動開発および研修メニューの標準見積もりを作成（カスタマイズ前提、最低価格を含む）。
+
+---
+id: BAAO-OPENCHAT-BRAINBASE-20251203
+title: オプチャとbrainbaseの連携
+project_id: baao
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [baao, openchat, line, brainbase, integration]
+links: []
+
+- 2025-12-03 追加: オプチャの管理者権限を取得。オプチャとbrainbaseを連携する仕組みを構築する。
+
+---
+id: UNSON-NENCHO-20251203
+title: 年末調整の控除証明書をクラウドパートナーに送付
+project_id: unson
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-08
+tags: [unson, backoffice, tax, nencho]
+links: []
+
+- 2025-12-03 追加: 年末調整用の控除証明書（生命保険控除等）を来週月曜までに送付。
+- 対象: 佐藤本人 + 奥さん両方
+- 形式: PDF推奨（写真でも可）
+- 無ければ無いで連絡

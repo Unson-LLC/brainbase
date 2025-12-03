@@ -4,7 +4,7 @@ description: Claude Code用 brainbase内部OS運用ドキュメント
 author: workspace運用チーム
 project: brainbase - 共通リポジトリOS（全事業統一管理基盤）
 version: 1.0
-last_updated: 2025-11-25
+last_updated: 2025-12-02
 language: ja
 encoding: UTF-8
 tags:
@@ -32,6 +32,7 @@ tags:
 2. 変更は必ず `_codex` 配下の正本を編集（プロジェクト側はリンクのみ）
 3. 秘密情報（APIキー・トークン・認証情報）はコミットしない
 4. 破壊的変更（大規模削除など）は実行前に必ず確認
+5. **プロジェクト探索は必ず `config.yml` の `local.path` を起点とする**（検索結果やシンボリックリンク先に飛びつかない）
 
 ## 📂 brainbaseディレクトリ構造
 
@@ -44,12 +45,9 @@ _codex/
 │   │   ├── organizations.md   # 組織・法人情報
 │   │   ├── clients.md         # 顧客・契約情報
 │   │   └── raci.md            # RACI（責任と決裁ライン）
-│   ├── decisions/             # 重要な決定記録
-│   ├── kpi/                   # 全社共通KPI定義
-│   └── templates/             # テンプレート集
-│
-├── knowledge/                 # フレーム/定石/価値観の原典（任意・参照）
-│   └── *.md                   # スキル・ナレッジ（フロントマター必須）
+│   ├── templates/             # テンプレート集
+│   ├── ops/                   # 運用スクリプト・手順
+│   └── assets/                # 共通アセット
 │
 ├── orgs/                      # 組織別MVV
 │   ├── unson.md
@@ -58,13 +56,26 @@ _codex/
 │   ├── techknight.md
 │   └── zeims.md
 │
-└── projects/                  # プロジェクト別運用ドキュメント
-    └── <project>/
-        ├── 01_strategy.md     # 戦略骨子
-        ├── 02_offer/          # 価格・オファー関連
-        ├── 03_sales_ops/      # 営業オペ・反論対応
-        ├── 04_delivery/       # 導入〜CSの手順
-        └── 05_kpi/            # KPI定義・ダッシュボード
+├── projects/                  # プロジェクト別運用ドキュメント
+│   └── <project>/
+│       ├── 01_strategy.md     # 戦略骨子
+│       ├── 02_offer/          # 価格・オファー関連
+│       ├── 03_sales_ops/      # 営業オペ・反論対応
+│       ├── 04_delivery/       # 導入〜CSの手順
+│       └── 05_kpi/            # KPI定義・ダッシュボード
+│
+├── brand/                     # ブランドガイド・アセット
+│   └── assets/
+│
+├── sns/                       # SNS運用
+│   ├── templates/
+│   ├── drafts/
+│   ├── log/
+│   └── images/
+│
+└── sources/                   # ナレッジソース（参照用）
+    ├── global/                # 全体共通のナレッジ
+    └── by_project/            # プロジェクト別ソース
 ```
 
 ### 📌 プロジェクト側（参照用リンクのみ配置）
@@ -145,7 +156,7 @@ granularity: "task | workflow | framework"
 ```
 
 ### 2. 二段階ロード
-1. **索引構築フェーズ**: 対話開始時に `_codex/knowledge/*.md` のフロントマターを読み込み、索引を作成
+1. **索引構築フェーズ**: 対話開始時に `_codex/sources/global/*.md` のフロントマターを読み込み、索引を作成
 2. **本文参照フェーズ**: ユーザー依頼が索引の `primary_use` / `triggers` / `inputs` に合致したら、該当スキル本文を追加読み込み
 
 ### 3. 検証ルール
@@ -343,6 +354,6 @@ brainbase運用に特化したカスタムコマンド：
 
 ---
 
-最終更新: 2025-11-25
+最終更新: 2025-12-02
 バージョン: 1.0
 管理者: workspace運用チーム
