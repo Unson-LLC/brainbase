@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-03-MIQ0BM65
+title: テストの実施
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-03 Slackから自動取り込み: k.satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: テストをしてほしいとの依頼。具体的な対象や内容は不明。
+- Slack: https://unson-inc.slack.com/archives/C08SYTDR7R8/p1764766345398139
+
+---
 id: SLACK-2025-12-03-MIPGH928
 title: 名刺のメールアドレス選択について確認
 project_id: baao
