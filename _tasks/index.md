@@ -1,4 +1,20 @@
 ---
+id: SLACK-2025-12-03-MIPGAQEF
+title: 名刺のアドレス選択とオプチャQR挿入可否の確認
+project_id: baao
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-03 Slackから自動取り込み: 卯田 剛史から依頼
+- 背景: ロゴ挿入完了済み。確認事項：①オプチャのQRコードを名刺に入れるか、②卯田氏の名刺作成時のメールアドレスを個人アドレスにするかsupport@baao.or.jpにするか
+- Slack: https://unson-inc.slack.com/archives/C09L3EKAUEA/p1764732649812239
+
+---
 id: SLACK-2025-12-03-MIPG9HMM
 title: 名刺作成：オプチャQR挿入可否・メールアドレス種別の確認
 project_id: baao
