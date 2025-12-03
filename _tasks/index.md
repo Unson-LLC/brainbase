@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-03-MIQ0G44G
+title: テストの実施
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-03 Slackから自動取り込み: k.satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: テストを実施する必要がある。具体的な内容や範囲は明示されていない。
+- Slack: https://unson-inc.slack.com/archives/C08SYTDR7R8/p1764766555355009
+
+---
 id: SLACK-2025-12-03-MIQ0CZDU
 title: テストの実施
 project_id: general
