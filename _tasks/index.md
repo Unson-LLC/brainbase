@@ -882,7 +882,7 @@ due: 2025-12-13
 tags: [sato-portfolio, lp, nextjs, vercel, web]
 links:
   - _codex/projects/sato-portfolio/project.md
-  - /Users/ksato/workspace/sato-portfolio
+  - /Users/ksato/workspace/personal/sato-portfolio
 
 - 2025-12-02 追加: Xプロフィール用の振り分けフィルター型ポートフォリオLP作成。
 - 構成: Bento Grid型（事業カード7枚 + 経歴 + SNSリンク）
@@ -890,7 +890,7 @@ links:
 - 前提: SATO-PORTFOLIO-LINKS-20251202（リンク先URL確定）完了後に公開
 - 2025-12-02 完了: Vercelデプロイ完了
   - URL: https://sato-portfolio-nuyxk41l7-tech-knights-projects.vercel.app
-  - リポジトリ: /Users/ksato/workspace/sato-portfolio
+  - リポジトリ: /Users/ksato/workspace/personal/sato-portfolio
 
 ---
 id: SATO-PORTFOLIO-LINKS-20251202
@@ -925,3 +925,94 @@ links:
   - sync-to-template.sh スクリプト作成
   - GitHub Actions workflow作成（週1実行）
 - 備考: 手動同期でも運用可能なため優先度低
+
+---
+id: ST-DEV-STATUS-FLOW-20251203
+title: 開発ステータス遷移フローの再整理
+project_id: salestailor
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-10
+tags: [salestailor, dev-process, status-flow]
+links: []
+
+- 2025-12-03 追加: 開発ステータスの遷移フローを再整理する。
+
+---
+id: ST-LLM-AS-JUDGE-20251203
+title: LLMアズアジャッジ方式の試行と実装可能性検証
+project_id: salestailor
+status: todo
+owner: keigo
+priority: medium
+due: null
+tags: [salestailor, llm, evaluation, ai]
+links: []
+
+- 2025-12-03 追加: LLM-as-a-Judge方式の試行と実装可能性を検証する（継続タスク）。
+
+---
+id: ST-SLACK-MERGE-NOTIFY-20251203
+title: マージ時のSlack自動通知設定見直し
+project_id: salestailor
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-06
+tags: [salestailor, slack, ci-cd, notification]
+links: []
+
+- 2025-12-03 追加: PRマージ時のSlackへの自動通知設定を見直す。
+
+---
+id: ST-TEST-SCENARIO-20251203
+title: テストシナリオ（定常系・異常系）の作成と共有
+project_id: salestailor
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-10
+tags: [salestailor, test, qa, scenario]
+links: []
+
+- 2025-12-03 追加: 定常系・異常系のテストシナリオを作成し、チームに共有する。
+
+---
+id: BAAO-MEISHI-SCAN-20251203
+title: 残り約1000枚の名刺スキャンと小川への引き渡し
+project_id: baao
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-06
+tags: [baao, meishi, data, ogawa]
+links: []
+
+- 2025-12-03 追加: 残り約1000枚の名刺をスキャンし、全件データを小川に引き渡す。
+
+---
+id: BAAO-DOJO-GLOSSARY-20251203
+title: 道場用語の統一リストをGitHubからWikiに反映
+project_id: baao
+status: todo
+owner: keigo
+priority: medium
+due: 2025-12-10
+tags: [baao, dojo, glossary, wiki]
+links: []
+
+- 2025-12-03 追加: 道場用語の統一リストをGitHubからWikiに反映する。
+
+---
+id: TK-AI-DEV-ESTIMATE-20251203
+title: AI駆動開発および研修メニューの標準見積もり作成
+project_id: techknight
+status: todo
+owner: keigo
+priority: high
+due: 2025-12-10
+tags: [techknight, estimate, ai-dev, training]
+links: []
+
+- 2025-12-03 追加: AI駆動開発および研修メニューの標準見積もりを作成（カスタマイズ前提、最低価格を含む）。
