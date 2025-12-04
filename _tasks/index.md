@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-04-MIQSEGM0
+title: セキュリティ通知対応フロー整備とフォーマット作成
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-04 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: セキュリティ通知対応のフローを整備し、最適なフォーマットを作成する。ISMP通知の項目精査と完了基準の定義を含む。来週までの対応。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764813440375719
+
+---
 id: SLACK-2025-12-04-MIQSEG2K
 title: IDCジャパンAIブリーフィング質問事項の事前共有
 project_id: general
