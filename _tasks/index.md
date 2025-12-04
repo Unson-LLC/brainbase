@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-04-MIQQZG9U
+title: 佐藤のタスクを登録
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-04 Slackから自動取り込み: k.satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: Slackチャンネル「0120-ncom」でk.satoより「佐藤のタスクを登録して」という依頼。スレッドには会議要約と詳細議事録のファイル（12-04 Ding Li Hui Yi A関連）が添付されている文脈がある。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764811126299179
+
+---
 id: SLACK-2025-12-03-MIQ5HNHD
 title: ご飯を食べる
 project_id: general
