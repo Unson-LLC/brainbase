@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-04-MIQS6A3M
+title: undefined
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-04 Slackから自動取り込み: undefinedから依頼
+- 担当: 佐藤 圭吾
+
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764813058893999
+
+---
 id: SLACK-2025-12-04-MIQS4YGD
 title: undefined
 project_id: general
