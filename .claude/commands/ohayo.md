@@ -24,8 +24,14 @@
 
 2. **今日のカレンダー**
    - `mcp__google-calendar__list-events` で今日の予定を取得
-   - calendarId: "primary"
+   - calendarId: 以下の5つを配列で指定
+     - "k.sato.unson@gmail.com"
+     - "k.sato.ncom@gmail.com"
+     - "sin310135@gmail.com"
+     - "k0127s@gmail.com"
+     - "k.sato@sales-tailor.jp"
    - timeMin/timeMax: 今日の0:00〜23:59
+   - timeZone: "Asia/Tokyo"
 
 3. **未完了タスク**
    - `_tasks/index.md` を読み込み
