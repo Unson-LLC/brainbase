@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-04-MIQSCUUT
+title: IDCジャパンのAIブリーフィング質問事項の共有
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: 2024-12-27
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-04 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: IDCジャパンのAIブリーフィングに向けて、気になる質問や確認事項があれば事前に共有する。来週までに対応。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764813058893999
+
+---
 id: SLACK-2025-12-04-MIQSCUER
 title: RAゲートウェイ導入の対応スケジュール確認と回答
 project_id: ncom
