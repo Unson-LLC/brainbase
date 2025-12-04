@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-04-MIQSEFIS
+title: RAゲートウェイ導入スケジュール確認と事務局回答
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2024-12-19
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-04 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: RAゲートウェイ導入の対応スケジュールを確認し、12月19日までの完了可否について事務局に回答する必要がある。今週中の対応が求められている。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764813440375719
+
+---
 id: SLACK-2025-12-04-MIQSD2PG
 title: セキュリティ通知対応フロー整備
 project_id: ncom
