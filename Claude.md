@@ -4,7 +4,7 @@ description: Claude Code用 brainbase内部OS運用ドキュメント
 author: workspace運用チーム
 project: brainbase - 共通リポジトリOS（全事業統一管理基盤）
 version: 1.0
-last_updated: 2025-12-02
+last_updated: 2025-12-05
 language: ja
 encoding: UTF-8
 tags:
@@ -218,6 +218,56 @@ RACI運用率 = (RACI定義済みタスク数) / (全タスク数) × 100%
 ```
 目標: 100%
 
+## 🎙️ 会議管理（meetings/）
+
+### 二層構造の原則
+会議記録は**transcript（生データ）とminutes（整形済み）を分離**して管理する。
+
+### ディレクトリ構造
+
+**単一事業プロジェクト**（tech-knight, salestailor等）
+```
+<project>/meetings/
+├── minutes/           # 整形済み議事録
+│   └── YYYY-MM-DD_<topic>.md
+└── transcripts/       # 生の文字起こし
+    └── YYYY-MM-DD_<topic>.txt
+```
+
+**複数事業を束ねるプロジェクト**（unson等）
+```
+<project>/meetings/
+├── <sub-project>/
+│   ├── minutes/
+│   └── transcripts/
+└── <sub-project>/
+    ├── minutes/
+    └── transcripts/
+```
+
+### minutes/*.md 必須フォーマット
+```markdown
+---
+transcript_ref: ../transcripts/YYYY-MM-DD_<topic>.txt
+date: YYYY-MM-DD
+---
+
+# YYYY-MM-DD <topic>
+
+## 要約
+<1-3文の要約>
+
+---
+{json形式のminutes本文とactions}
+```
+
+### 運用ルール
+1. **transcriptが先、minutesは後**: 会議後はまずtranscriptを保存
+2. **重要会議のみminutes化**: 意思決定・アクション発生した会議
+3. **旧形式の移行**: 生transcriptのみのmd → `transcripts/*.txt`に移動
+
+詳細: `_codex/common/templates/meeting_template.md`
+
 ## 📊 主要KPI一覧
 
 1. **タスク一本化率**: `_tasks/index.md` への集約率 → 目標90%
@@ -358,6 +408,6 @@ brainbase運用に特化したカスタムコマンド：
 
 ---
 
-最終更新: 2025-12-02
+最終更新: 2025-12-05
 バージョン: 1.0
 管理者: workspace運用チーム
