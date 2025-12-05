@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS80I3M
+title: SS運用範囲・体制・マニュアル内容の共有
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: 2024-12-06
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: ソリューションサービス部の運用範囲・体制・マニュアル内容を畑氏へ共有する。担当は今村。今週中に完了予定。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
+
+---
 id: SLACK-2025-12-05-MIS80HP7
 title: 保守契約の考え方を整理した資料作成
 project_id: ncom
