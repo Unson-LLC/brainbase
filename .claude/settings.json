@@ -22,10 +22,6 @@
           {
             "type": "command",
             "command": "/Users/ksato/workspace/.claude/hooks/load-architecture.sh"
-          },
-          {
-            "type": "command",
-            "command": "/Users/ksato/workspace/.claude/hooks/notify-learning.sh"
           }
         ]
       }

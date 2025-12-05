@@ -1,133 +1,107 @@
-# 学習キューからSkills更新案を生成（自動分析）
+# 学習候補の確認・適用
 
-学習キューに溜まった実行ログを**自動的に**分析し、Skillsの更新案を生成します。
+セッション履歴から自動抽出された学習候補を確認し、brainbaseのナレッジに反映します。
 
-## 動作モード
+## 実行手順
 
-### 🔔 自動通知モード（推奨）
+1. `.claude/learning/learning_queue/` の候補を読み込む
+2. 各候補の内容を表示
+3. 適用先を判断して提案
+4. ユーザー承認後に適用
 
-学習候補が3件以上溜まると、**次回のプロンプト送信時に自動通知**：
+## 学習候補の確認
+
+まず学習キューの内容を確認してください：
+
+```bash
+ls -la /Users/ksato/workspace/.claude/learning/learning_queue/
+```
+
+各候補ファイル（`candidate_*.json`）を読み込んで、以下の形式で表示してください：
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📚 Skills学習候補: 3 件
+📚 学習候補レビュー
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  • Skill: strategy-template
-    検出: 2025-11-25T16:30:45+09:00
+## 候補 #1: [title]
+カテゴリ: [category]
+信頼度: [confidence]
+タグ: [tags]
 
-  • Skill: task-format
-    検出: 2025-11-25T16:32:00+09:00
+### 学習内容
+[content]
 
-  • Skill: raci-format
-    検出: 2025-11-25T16:34:00+09:00
+### 提案される適用先
+- [ ] _codex/sources/global/[適切なファイル].md に追加
+- [ ] _codex/projects/[project]/project.md に反映
+- [ ] .claude/skills/[skill]/SKILL.md を更新
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💡 これらの実行ログからSkillsを自動更新できます。
-
-  自動分析を開始する場合:
-    /learn-skills
-
-  後で確認する場合:
-    そのまま続けてください
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### ⚡ 手動実行モード
-
-いつでも手動で実行可能：
-
-```
-/learn-skills
-```
-
-## 実行内容
-
-1. **学習候補を自動分析**
-   - `.claude/learning/scripts/auto_learn.sh` を実行
-   - 実行ログと既存Skillsを比較
-   - 新しいパターンやベストプラクティスを抽出
-
-2. **更新案を自動生成**
-   - 信頼度を自動計算（0.0〜1.0）
-   - 更新内容を具体的に提案
-
-3. **ユーザーに提示**
-   - 更新案を読みやすい形式で表示
-   - ワンクリック承認コマンド提案
-
-## 出力例
-
-```
-📚 Skills学習レポート
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-## 学習キュー
-合計: 3 候補
-
-### 候補 #1732534800
-- Skill: strategy-template
-- 検出日時: 2025-11-25 16:30:45
-- ステータス: 差分検出済み
-- ファイル: _codex/projects/salestailor/01_strategy.md
-
-### 候補 #1732534920
-- Skill: task-format
-- 検出日時: 2025-11-25 16:32:00
-- ステータス: 保留中
-
-### 候補 #1732535040
-- Skill: raci-format
-- 検出日時: 2025-11-25 16:34:00
-- ステータス: 保留中
+### アクション
+- 適用する場合: 「候補#1を適用」と入力
+- スキップする場合: 「候補#1をスキップ」と入力
+- 削除する場合: 「候補#1を削除」と入力
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-## 更新案 #1
-
-### Skill: strategy-template
-**種別**: 既存Skill更新
-**信頼度**: 85%
-
-**更新内容**:
-以下をInstructionsセクションに追加：
-
-```markdown
-### 6. 定量性チェック
-
-プロダクト概要、ICP、約束する価値に定量的な要素が含まれているか確認：
-
-- プロダクト概要: ユーザー数・規模の範囲
-- ICP: 企業規模（従業員数）、売上規模
-- 約束する価値: %向上、日数短縮など具体的な数値
 ```
 
-**理由**:
-実行ログから、ユーザーが毎回「定量的な要素を含めてください」と指示していることを検出。これをSkillに組み込むことで、初回から定量的な戦略書を作成できる。
+## 適用処理
 
-**承認コマンド**:
-```
-/approve-skill 1
-```
+ユーザーが「適用」を選んだ場合：
 
-**却下コマンド**:
-```
-/reject-skill 1
-```
+1. 適用先ファイルを確認・編集
+2. 候補ファイルを `.claude/learning/history/` に移動（完了マーク）
+3. 変更をコミット
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 手動抽出の実行
 
-💡 ヒント: 承認されたSkillsは自動的に更新され、履歴に記録されます。
+新しい学習候補を手動で抽出したい場合：
+
+```bash
+/Users/ksato/workspace/_codex/common/ops/scripts/extract-learnings.sh
 ```
 
-## 注意事項
+これは通常6時間ごとに自動実行されますが、手動でも実行できます。
 
-- 更新案は**ユーザー承認が必須**です。自動適用されません。
-- 承認後もロールバック可能です（履歴から復元）。
-- 学習キューは定期的にクリーンアップされます（古い候補は自動削除）。
+## 自動抽出の仕組み
+
+```
+~/.claude/projects/-Users-ksato-workspace/*.jsonl
+        │
+        ▼ 6時間ごと（launchd）
+┌─────────────────────────────────────┐
+│ extract-learnings.sh                │
+│   │                                 │
+│   ├─ 未処理のtranscriptを取得       │
+│   ├─ tmuxでClaude起動（Max plan内） │
+│   ├─ 会話内容を分析                 │
+│   └─ 学習候補をJSON保存             │
+└─────────────────────────────────────┘
+        │
+        ▼
+.claude/learning/learning_queue/*.json
+        │
+        ▼ /learn-skills
+ユーザーレビュー → 承認 → brainbase反映
+```
+
+## launchdサービスの管理
+
+```bash
+# インストール
+ln -sf /Users/ksato/workspace/_codex/common/ops/launchd/com.brainbase.extract-learnings.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.brainbase.extract-learnings.plist
+
+# ステータス確認
+launchctl list | grep brainbase
+
+# 手動実行
+launchctl start com.brainbase.extract-learnings
+
+# アンインストール
+launchctl unload ~/Library/LaunchAgents/com.brainbase.extract-learnings.plist
+```
 
 ---
 
-このコマンドを使うことで、Agentの実行経験からSkillsを継続的に進化させることができます。
+学習キューを確認して、候補を表示してください。
