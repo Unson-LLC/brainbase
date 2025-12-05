@@ -25,6 +25,8 @@
 # Node/venv/etc. (safety)
 node_modules/
 venv/
+.venv/
+.venv*/
 
 # Claude learning temp files
 .claude/learning/execution_logs/
@@ -55,3 +57,6 @@ __pycache__/
 .x_oauth2_token.json
 .claude/learning/.last_notification
 _codex/common/ops/.env
+
+# Slack history (synced from S3, too large for git)
+_codex/sources/slack/

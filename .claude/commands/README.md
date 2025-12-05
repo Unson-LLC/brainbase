@@ -27,6 +27,12 @@
 | `/learn-skills` | 学習キューからSkills更新案を自動生成 |
 | `/approve-skill` | 生成された更新案を承認・適用 |
 
+## 名刺OCR / データ化
+
+| コマンド | 説明 |
+|---------|------|
+| `/meishi <subcommand>` | Mistral OCRを使った名刺→CSV自動化フロー（詳細は `meishi.md`） |
+
 ## オプション例
 
 ```bash
