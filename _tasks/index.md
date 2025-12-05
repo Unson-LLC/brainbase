@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS7Z8WZ
+title: 開発提案書をユーザー視点で再構成
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2025-01-XX
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 開発提案書をユーザー視点で再構成する。ファシリテーション強化・UI/UX改善の2軸で整理。金額表記に変更し、同時接続数を「30名安定稼働/理論値50～60」に修正。利用者の声と開発側要望を表で区分け。見積もり提出期限に合わせて今日中に完了。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900136838159
+
+---
 id: SLACK-2025-12-05-MIS7Z86P
 title: undefined
 project_id: general
