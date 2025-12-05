@@ -18,13 +18,15 @@ exit_code=$?
 cat "$TMP_OUTPUT" >> "$LOG_FILE"
 
 if [ $exit_code -ne 0 ]; then
-    echo ""
-    echo "⚠️  メタデータ整合性エラー:"
-    echo ""
-    # エラー行と警告行のみ抽出して表示
-    grep -E "^❌|^⚠️|^   -" "$TMP_OUTPUT"
-    echo ""
-    echo "詳細: $LOG_FILE"
+    {
+        echo ""
+        echo "⚠️  メタデータ整合性エラー:"
+        echo ""
+        # エラー行と警告行のみ抽出して表示
+        grep -E "^❌|^⚠️|^   -" "$TMP_OUTPUT" || true
+        echo ""
+        echo "詳細: $LOG_FILE"
+    } >&2  # stderrに出力（Claude Codeに表示される）
 fi
 
 rm -f "$TMP_OUTPUT"
