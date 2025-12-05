@@ -6,10 +6,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/ksato/workspace/.claude/hooks/detect-changes.sh"
-          },
-          {
-            "type": "command",
             "command": "/Users/ksato/workspace/.claude/hooks/check-metadata.sh"
           }
         ]
