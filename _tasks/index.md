@@ -1108,3 +1108,94 @@ links: []
 <!-- AI PMによるSlackからのタスク自動取り込み用 -->
 <!-- フォーマット: YAML front matter + Markdown -->
 
+---
+id: FREEE-MCP-2025-12-04
+title: freee MCP連携ツール開発
+project_id: brainbase
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: null
+tags: [mcp, freee, integration, development]
+links: []
+---
+
+## 概要
+freee会計APIとClaude MCPを連携するツールの開発。取引作成・口座確認・証憑アップロードなどをClaude経由で実行可能にする。
+
+## 実装手順
+
+### 1. freeeアプリ登録
+- freee Developersで新規アプリを作成
+- 控えるもの: CLIENT_ID, CLIENT_SECRET, REDIRECT_URI (例: http://localhost:3333/callback)
+- 権限スコープ: read/write系で取引/口座/証憑をカバー
+- 審査が必要なスコープは申請
+
+### 2. リポジトリ準備
+- 新フォルダ: `tools/freee-mcp/`
+- `.env.example` に CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, TOKEN_ENCRYPTION_KEY を配置
+- 実値は `.env` にのみ
+
+### 3. MCP Server スケルトン作成
+**技術スタック:**
+- TypeScript
+- Express (HTTP)
+- @anthropic-ai/mcp-sdk (MCPサーバ用)
+- node-fetch/axios (freee API呼び出し)
+- simple-oauth2 (PKCE/refresh)
+- crypto (token暗号化保存)
+
+**主なエンドポイント:**
+- `GET /auth/start`: 認可URL生成→ブラウザ起動
+- `GET /callback`: code受信→token交換→暗号化保存
+- `POST /refresh`: refresh tokenで再取得
+
+**MCPツール（最小セット）:**
+- `list_companies` (GET /api/1/companies)
+- `list_accounts` (GET /api/1/accounts?company_id)
+- `create_deal` (POST /api/1/deals)
+- `upload_receipt` (POST /api/1/receipts, multipart)
+- `list_walletables` (GET /api/1/walletables)
+
+**エラーハンドリング:**
+- 401: 自動refresh→再実行
+- 429: 指数バックオフ
+
+### 4. 開発用ファイル構成
+```
+src/
+├── config.ts        # env読み込み + バリデーション
+├── token-store.ts   # 暗号化保存・ロード
+├── freee-client.ts  # APIクライアント（共通ヘッダ、retry）
+├── tools.ts         # MCPツール実装
+└── server.ts        # MCPエクスポート + OAuthエンドポイント
+```
+- package.json, tsconfig.json, nodemon.json
+- README.md: セットアップとClaude側mcp_servers設定例
+
+### 5. ローカル動作確認
+1. `npm install`
+2. `.env` 設置
+3. `npm run dev` でサーバ起動（http://localhost:3333）
+4. ブラウザで http://localhost:3333/auth/start → freeeログイン → token保存
+5. `npm run test:ping` で list_companies 疎通確認
+
+### 6. Claude側設定例
+```json
+{
+  "mcp_servers": {
+    "freee": {
+      "transport": "http",
+      "url": "http://localhost:3333"
+    }
+  }
+}
+```
+ツール呼び出し例: `freee.list_companies`
+
+### 7. セキュリティ/運用メモ
+- tokenファイルは暗号化し .gitignore
+- CLIENT_SECRET は .env のみ（CIに流さない）
+- 本番は HTTPS + 実サーバ or localhost専用リダイレクト
+- 会社IDは毎リクエスト必須
+
