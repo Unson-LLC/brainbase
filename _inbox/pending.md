@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-05-MIS8DOVD
+channel: 0151-mywa
+sender: 小松原 遼羽
+timestamp: 1764900818.831549
+status: pending
+---
+
+### 11:13 | #0151-mywa | 小松原 遼羽
+
+<@U07LNUP582X>
+mywaLPのGithub書き込み権限が与えられてなかったみたいなので追加お願いします！
+
+[Slack](https://unson-inc.slack.com/archives/C08UZHDGSPL/p1764900818831549)
+
+---
 id: INBOX-2025-12-05-MIS4NVS6
 channel: 0120-ncom
 sender: 小川未来
