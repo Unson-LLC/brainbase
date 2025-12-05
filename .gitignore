@@ -29,6 +29,13 @@ venv/
 # Claude learning temp files
 .claude/learning/execution_logs/
 .claude/learning/learning_queue/
+.claude/learning/.processed_sessions
+.claude/learning/last_result_*.txt
+.claude/learning/logs/
+
+# Separate projects (managed in own repos)
+brainbase-ui/
+mana/
 
 # Secrets / environment
 .env
