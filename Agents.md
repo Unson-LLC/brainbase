@@ -1,43 +1,67 @@
-# Agents Guide (workspace root)
+---
+title: brainbase運用ガイド（共通エージェント向け）
+description: brainbase内部OSの正本を扱うための運用ガイド
+project: brainbase - 共通リポジトリOS（全事業統一管理基盤）
+version: 1.0
+last_updated: 2025-12-02
+language: ja
+encoding: UTF-8
+tags:
+  - brainbase
+  - operations
+  - knowledge-management
+  - multi-project
+---
 
-このワークスペースで Claude / Codex などのエージェントを動かすときの共通ルールをまとめています。各プロジェクト個別のガイドがある場合は、そちらを最優先してください。
+# 🧠 brainbase運用ガイド
 
-## 1. まず config.yml で対象プロジェクトを確認
-- 設定ファイル: `config.yml`
-- `projects[].id` と `local.path` を見て、作業するリポジトリに `cd` してから着手してください。
-- 例: `id: salestailor` → `cd salestailor`
-- **重要**: 検索結果やシンボリックリンク先（`code/` 配下など）に飛びつかず、必ず `config.yml` の `local.path` を正本パスとして使用すること。
+全事業を統一OS（判断基準・テンプレ・KPI・RACI・ブランド資産）で動かし、創業者が現場にいなくても週次30分レビューだけで継続運転できる状態をつくる内部運用システム。
 
-## 2. プロジェクト固有のガイドを読む
-以下のリポジトリには専用のガイドがあります。作業前に必ず目を通してください。
-- `tech-knight/app/Aitle/AGENTS.md`
-- `personal/FX/AGENTS.md`
-- `unson/app/ncom-catalyst/AGENTS.md`
+## 📚 クイックリファレンス
 
-## 3. 共通方針
-- 言語: 日本語で応答・ドキュメント化する（既存方針に従う）。
-- 変更範囲は依頼されたプロジェクトに限定し、他プロジェクトのファイルは触らない。
-- 秘密情報（APIキー・トークン・認証情報）はコミットしない。`.env` 類はテンプレートを使用。
-- 破壊的コマンド（大規模削除、`git reset --hard` など）は実行前に必ず確認。
+### 🎯 brainbaseの4大原則
+1. **情報の一本化**: すべてのナレッジ・判断基準は `_codex` に集約
+2. **タスクの正本化**: タスクは `_tasks/index.md` を唯一の正とする
+3. **RACI明確化**: 役割・責任・決裁ラインを `_codex/common/meta/` で一意管理
+4. **90日仕組み化**: 新規事業は90日以内に自律運転できる状態をつくる
 
-## 4. 運用ドキュ構造（codex と各プロジェクトの対応）
-- 正本は `_codex/` 配下に集約。プロジェクト内 `docs/ops/` はリンクのみを置き、編集は `_codex` 側で行う。
-- codex の構成（概略）
-- `_codex/common/` 必須ルール・決裁・KPI・決定プロトコル（義務）、テンプレ、ナレッジ
-- `_codex/knowledge/` フレーム/定石/価値観の原典（任意・参照）
-- `_codex/common/meta/` 人・組織タグ・顧客/契約・RACIの正本（責任と契約ラインの一意表）
-- `_codex/orgs/<org>.md` 法人/組織のMVV（例: unson, baao, salestailor, techknight）
-- `_codex/projects/<project>/01_strategy.md` 戦略骨子
-- `_codex/projects/<project>/02_offer/` 価格・オファー関連
-- `_codex/projects/<project>/03_sales_ops/` 営業オペ・反論対応など
-- `_codex/projects/<project>/04_delivery/` 導入〜CSの手順
-- `_codex/projects/<project>/05_kpi/` KPI定義・ダッシュボードリンク
-- プロジェクト側（例: zeims/, salestailor/, tech-knight/app/Aitle/, unson/）
-  - `docs/ops/README.md` と 01〜05 の各 md を配置し、正本の `_codex` パスのみ明記（参照用）。
-  - 人/組織/契約/RACI は `_codex/meta` を参照（プロジェクト側はリンクのみ）。
-  - 変更が必要な場合は `_codex` を編集し、プロジェクト側はリンク先を更新するだけ。
+### 🔧 基本運用ルール
+1. 日本語で応答・ドキュメント化
+2. 変更は必ず `_codex` 配下の正本を編集（プロジェクト側はリンクのみ）
+3. 秘密情報（APIキー・トークン・認証情報）はコミットしない
+4. 破壊的変更（大規模削除など）は実行前に必ず確認
+5. **プロジェクト探索は必ず `config.yml` の `local.path` を起点とする**（検索結果やシンボリックリンク先に飛びつかない）
 
-## 4. 参考：config.yml に登録されているプロジェクト
+## 📂 ディレクトリ構造
+
+### ✅ 正本（編集対象）
+```
+_codex/
+├── common/                    # 必須ルール・決裁・KPI・テンプレ・ナレッジ
+│   ├── meta/                  # 人・組織・顧客/契約・RACIの正本
+│   ├── templates/             # テンプレート集
+│   ├── ops/                   # 運用スクリプト・手順
+│   └── assets/                # 共通アセット
+├── orgs/                      # 組織別MVV
+├── projects/<project>/        # 01–05 の運用ドキュメント
+├── brand/                     # ブランドガイド・アセット
+├── sns/                       # SNS運用
+└── sources/                   # ナレッジソース（参照用）
+```
+
+### 📌 プロジェクト側（参照リンクのみ）
+```
+<project-repo>/
+└── docs/ops/
+    ├── README.md          # _codex へのリンク集
+    ├── 01_strategy.md     # → _codex/projects/<project>/01_strategy.md
+    ├── 02_offer.md        # → _codex/projects/<project>/02_offer/
+    ├── 03_sales_ops.md    # → _codex/projects/<project>/03_sales_ops/
+    ├── 04_delivery.md     # → _codex/projects/<project>/04_delivery/
+    └── 05_kpi.md          # → _codex/projects/<project>/05_kpi/
+```
+
+## 🎯 対象プロジェクト（config.yml より）
 - `salestailor` → `salestailor/`
 - `zeims` → `zeims/`
 - `tech-knight` → `tech-knight/`
@@ -46,11 +70,112 @@
 - `ai-wolf` → `personal/ai-wolf/`
 - `sato-portfolio` → `personal/sato-portfolio/`
 
-不明点があれば、対象リポジトリ内の AGENTS/CLAUDE ガイドか README を先に確認してください。
+## 📝 ドキュメント作成・更新ルール
 
-## 5. Knowledge Skills の参照とメタデータ運用
-- 対話開始時に `_codex/knowledge/*.md` のフロントマターを読み、`skill_id` をキーに {title, primary_use, triggers, inputs, outputs, granularity} の索引を自分のシステムプロンプトへ載せること。
-- ユーザ依頼が索引の primary_use / triggers / inputs に合致したら、そのスキル本文を追加で読み込み、回答に活用する（二段階ロード）。合致しないときは他ソースを探索。
-- フロントマター仕様（必須）: 先頭 `---` で囲む YAML / ASCII 推奨。`skill_id`, `title`, `source_type`, `primary_use`, `triggers`, `inputs`, `outputs`, `granularity` を含める。
-- YAML が壊れている、または必須項目が欠落するスキルは無効化し、警告を残す。参照対象は `_codex` 内のみ（外部スキルは未承認として扱う）。
-- 依頼に応じる際は、まず索引を確認し、該当スキルがあれば優先的に参照すること。毎回この手順を忘れない。
+### 01_strategy.md 必須項目
+```
+## <project> 01_strategy｜戦略骨子
+### プロダクト概要（1文）
+### ICP（1文）
+### 約束する価値（1文）
+### 価格・前受け（内部運用方針）
+### TTFV目標
+### 主要KPI案
+### 次のアクション
+```
+
+### 02_offer/ 構成
+- 価格設定の根拠
+- オファー構成（パッケージ・プラン）
+- 前受けルール（原則100%前受け）
+
+### 03_sales_ops/ 構成
+- 営業オペレーション手順
+- よくある反論への対応
+- セールストーク・スクリプト
+
+### 04_delivery/ 構成
+- 導入フロー
+- CS手順
+- オンボーディング資料
+
+### 05_kpi/ 構成
+- KPI定義・目標値
+- ダッシュボードリンク
+- 計測方法
+
+## 🔄 Knowledge Skills 参照ルール
+1) 対話開始時に `_codex/sources/global/*.md` のフロントマターを読み、`skill_id` をキーに索引を作成  
+2) ユーザー依頼が索引の `primary_use` / `triggers` / `inputs` に合致した場合のみ本文を追加読み込み  
+3) フロントマター必須項目: `skill_id`, `title`, `source_type`, `primary_use`, `triggers`, `inputs`, `outputs`, `granularity`  
+4) YAML破損・欠落は無効化し、警告を残す。参照対象は `_codex` 内のみ。
+
+## ✅ タスク管理（_tasks/index.md）
+- すべてのタスクは `_tasks/index.md` を唯一の正とする
+- プロジェクト固有のタスクも集約
+- 記載必須: `[PROJECT-WEEK]` 形式のID / 担当者（R） / 期限 / 成果物
+- タスク一本化率目標: 90%以上
+
+## 🔒 RACI運用
+- 正本: `_codex/common/meta/raci.md`
+- 変更は正本を更新し、プロジェクト側はリンク参照のみ
+- RACI運用率目標: 80%以上
+
+## 🎨 ブランドガイド
+- `_codex/orgs/<org>.md` にMVVを定義（全組織で整備率100%を目標）
+
+## 📊 主要KPI
+1. タスク一本化率 (目標90%)
+2. 01–05充足率 (目標100%)
+3. RACI運用率 (目標80%)
+4. ブランドガイド整備率 (目標100%)
+5. 引き継ぎリードタイム ≤7日
+
+## 🚀 90日仕組み化チェックリスト
+```
+□ 01_strategy.md 作成
+□ 02_offer/ 作成
+□ 03_sales_ops/ 作成
+□ 04_delivery/ 作成
+□ 05_kpi/ 作成
+□ RACI定義（_codex/common/meta/raci.md）
+□ ブランドガイド（_codex/orgs/<org>.md）
+□ 会議リズム設定（週次/四半期）
+□ タスク一本化（_tasks/index.md）
+□ 自律運転テスト（創業者不在でも運営可能か）
+```
+
+## 📦 コミットガイド（簡潔版）
+- 小さく・こまめに（1論理変更 = 1コミット）
+- type例: feat / fix / docs / refactor / chore / style
+- 例: `docs: 01_strategy のICPを更新`
+- タスクIDがあれば含める（例: `[BRAINBASE-W3] feat: ...`）
+
+## 📐 カスタムプロンプト（共通）
+- `/dc`: 技術ドキュメント作成・更新
+- `/60`: 既存ドキュメントを100%完成度へ引き上げ
+- `/rr`: Web検索による連鎖的深掘り調査（5回反復）
+- `/ss`: 全ソースコードの完全分析（3回反復）
+- `/uu`: システム・モジュール間インターフェース整合性調査
+- `/cr`: コードレビュー・品質保証
+- `/ck`: 修正前後の比較チェック
+- `/as`: ask cipher（読み出し）
+- `/re`: remember cipher（書き込み）
+- `/ag`: conductor-agent（最適エージェント自動選択）
+- `/tt`: 完全解決まで5回反復サイクル
+- `/commit`: 標準コミット実行（ガイドに従ったメッセージ生成）
+- `/co`: /compact（コンテキスト圧縮）
+- `/ws`: MCP Web検索専用
+
+## 🛡️ 運用上の注意
+1. 正本を編集する（_codex 配下）
+2. 変更範囲を依頼プロジェクトに限定
+3. 破壊的コマンドは事前確認
+4. 秘密情報のコミット禁止
+
+## 🔗 参考
+- `config.yml` : プロジェクトの正本パス
+- `_tasks/index.md` : タスク一元管理
+- `_codex/common/meta/` : 人・組織・RACIの正本
+
+最終更新: 2025-12-02 / バージョン: 1.0
