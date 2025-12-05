@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS81TKC
+title: 保守契約の考え方を整理した資料を作成
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2024-12-05
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 前回契約と今回契約の違い、算定根拠、ホワイトボード図を含めた保守契約の考え方を整理した資料を作成する。今日中（12/5）が期限。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
+
+---
 id: SLACK-2025-12-05-MIS81T20
 title: ポンチ絵形式の説明資料を作成し見積もりを再提出
 project_id: ncom
