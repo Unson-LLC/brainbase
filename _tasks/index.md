@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS81UYC
+title: 開発項目の最終精査MTG再設定
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: low
+due: 2024-12-13
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 不明点があれば来週MTGを再設定し、開発項目の最終精査を行う。担当は畑貴之氏、来週が期限。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
+
+---
 id: SLACK-2025-12-05-MIS81UF1
 title: 同時接続数拡張の妥当性を数学的に計算
 project_id: ncom
