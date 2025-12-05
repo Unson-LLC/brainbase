@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS88BJ6
+title: ポンチ絵形式の説明資料作成と見積もり再提出
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2024-12-05
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 開発項目ごとのビフォーアフター、アンケート起因/自発的改善の区別を明示したポンチ絵形式の説明資料を作成し、見積もりを再提出する。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
+
+---
 id: SLACK-2025-12-05-MIS873DN
 title: RA Gateway申請に必要な情報準備と申請書作成
 project_id: ncom
