@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS7Z7N7
+title: RA Gateway申請書作成
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: today
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: RA Gateway申請に必要な接続元情報・プロトコル設定・特権ID情報を準備し、マイハブで申請書を作成する。今日中に完了。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900136838159
+
+---
 id: SLACK-2025-12-05-MIS7Z74N
 title: 開発提案書をユーザー視点で再構成
 project_id: ncom
