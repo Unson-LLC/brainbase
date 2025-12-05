@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS80GTZ
+title: ポンチ絵形式の説明資料作成と見積もり再提出
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2024-12-05
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 開発項目ごとのビフォーアフターを示し、アンケート起因か自発的改善かの区別を明示したポンチ絵形式の説明資料を作成し、見積もりを再提出する。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
+
+---
 id: SLACK-2025-12-05-MIS80FOS
 title: 開発項目の最終精査MTG再設定
 project_id: ncom
