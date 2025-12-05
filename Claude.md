@@ -41,7 +41,11 @@ tags:
 _codex/
 ├── common/                    # 必須ルール・決裁・KPI・テンプレ・ナレッジ（義務）
 │   ├── meta/                  # 人・組織・顧客/契約・RACIの正本
-│   │   ├── people.md          # 人物情報の一元管理
+│   │   ├── people.md          # 人物情報の一元管理（稼働メンバー・ステークホルダー）
+│   │   ├── contacts/          # 名刺ベースの外部連絡先
+│   │   │   ├── data/          # CSVデータ（scanned_*.csv, eight_*.csv）
+│   │   │   ├── segments.md    # セグメント定義
+│   │   │   └── ng_list.md     # 連絡不可リスト
 │   │   ├── organizations.md   # 組織・法人情報
 │   │   ├── clients.md         # 顧客・契約情報
 │   │   └── raci.md            # RACI（責任と決裁ライン）
