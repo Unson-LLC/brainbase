@@ -1,18 +1,35 @@
 ---
-id: SLACK-2025-12-05-MIS80F09
-title: undefined
-project_id: general
+id: SLACK-2025-12-05-MIS80F7M
+title: 同時接続数拡張の妥当性を数学的に計算
+project_id: ncom
 status: todo
 owner: 佐藤-圭吾
 priority: medium
-due: null
+due: 2024-12-09
 tags: [slack, auto-import]
 links: []
 ---
 
-- 2025-12-05 Slackから自動取り込み: undefinedから依頼
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
+- 背景: 利用者数と被り確率を用いて同時接続数拡張の妥当性を数学的に計算し、70名対応の要否を再判断する。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
 
+---
+id: SLACK-2025-12-05-MIS80ERG
+title: SS運用範囲・体制・マニュアル内容の共有
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: 2024-12-06
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: ソリューションサービス部の運用範囲・体制・マニュアル内容を畑氏へ共有する。担当は今村氏。
 - Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
 
 ---
