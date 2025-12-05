@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS7Z86P
+title: undefined
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: undefinedから依頼
+- 担当: 佐藤 圭吾
+
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900136838159
+
+---
 id: SLACK-2025-12-05-MIS7Z7N7
 title: RA Gateway申請書作成
 project_id: ncom
