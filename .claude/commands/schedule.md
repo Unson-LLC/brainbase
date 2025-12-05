@@ -79,7 +79,14 @@ $ARGUMENTS から以下を抽出（あれば）:
 
 ### 6. ファイルへの保存
 
-生成したタイムスケジュールを以下のファイルに保存（上書き）:
-`_schedules/YYYY-MM-DD.md` (例: `_schedules/2025-12-05.md`)
+### 6. ファイルへの保存
 
-保存後、ユーザーに「保存しました: _schedules/YYYY-MM-DD.md」と通知。
+以下のシェルコマンドを実行して、生成したタイムスケジュールをファイルに保存してください（内容は生成したMarkdownに置き換えること）:
+
+```bash
+cat <<EOF > /Users/ksato/workspace/_schedules/$(date +%Y-%m-%d).md
+(ここに生成したタイムスケジュールMarkdownを挿入)
+EOF
+```
+
+保存後、ユーザーに「保存しました: /Users/ksato/workspace/_schedules/$(date +%Y-%m-%d).md」と通知。
