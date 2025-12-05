@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS7XRIL
+title: ネクストアクションのタスクを追加
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 会議（12-05 Hui Yi Kai Fa）のネクストアクションに関するタスクの追加依頼。会議要約と詳細議事録が共有されており、そこから抽出されたアクションアイテムをタスクとして登録する必要がある。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900070201049
+
+---
 id: SLACK-2025-12-05-MIS7XQ92
 title: ネクストアクションのタスクを追加
 project_id: ncom
