@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-05-MIS85P1M
+title: ネクストアクションのタスクを追加
+project_id: ncom
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 0120-ncomチャンネルにて、ネクストアクションに関するタスクの追加依頼。具体的な内容は要確認。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900070201049
+
+---
 id: SLACK-2025-12-05-MIS81UYC
 title: 開発項目の最終精査MTG再設定
 project_id: ncom
