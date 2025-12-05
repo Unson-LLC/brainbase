@@ -1,18 +1,18 @@
 ---
-id: SLACK-2025-12-05-MIS80ERG
-title: SS運用範囲・体制・マニュアル内容の共有
-project_id: ncom
+id: SLACK-2025-12-05-MIS80F09
+title: undefined
+project_id: general
 status: todo
 owner: 佐藤-圭吾
 priority: medium
-due: 2024-12-06
+due: null
 tags: [slack, auto-import]
 links: []
 ---
 
-- 2025-12-05 Slackから自動取り込み: k.​satoから依頼
+- 2025-12-05 Slackから自動取り込み: undefinedから依頼
 - 担当: 佐藤 圭吾
-- 背景: ソリューションサービス部の運用範囲・体制・マニュアル内容を畑氏へ共有する。担当は今村氏。
+
 - Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
 
 ---
