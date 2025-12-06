@@ -73,10 +73,10 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 export async function getMembers(options: {
   activeOnly?: boolean;
 } = {}): Promise<Person[]> {
-  let endpoint = '/People?$select=id,fullName,preferredName,email,role,status,code,IPersonSetting/BillableRate,latestTimeEntryTime,workStartDate,createdAt,updatedAt';
+  let endpoint = '/People';
 
   if (options.activeOnly) {
-    endpoint += "&$filter=status eq 'Joined'";
+    endpoint += "?$filter=status eq 'Joined'";
   }
 
   const response = await apiRequest<ODataResponse<Person>>(endpoint);
@@ -87,7 +87,7 @@ export async function getMembers(options: {
  * Get a specific member by ID
  */
 export async function getMember(personId: string): Promise<Person> {
-  const endpoint = `/People('${personId}')?$select=id,fullName,preferredName,email,role,status,code,IPersonSetting/BillableRate,latestTimeEntryTime,workStartDate,createdAt,updatedAt`;
+  const endpoint = `/People('${personId}')`;
   return apiRequest<Person>(endpoint);
 }
 
