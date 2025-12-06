@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-06-MIUCUEDW
+title: 知識共有・情報提供
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: low
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-06 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: k.satoからの質問依頼。相手が知っている情報や知識の共有を求められている。
+- Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765029242037789
+
+---
 id: SLACK-2025-12-05-MIS88DB2
 title: 開発項目最終精査のためのMTG再設定
 project_id: ncom
