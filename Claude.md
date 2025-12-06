@@ -63,10 +63,10 @@ _codex/
 │   │   ├── capital.md         # 資本構造（株・出資・持分）
 │   │   ├── contracts/         # 契約台帳
 │   │   │   └── index.md       # 契約一覧
-│   │   ├── financials/        # 財務情報
-│   │   │   ├── revenue_streams.md  # 収益源定義
-│   │   │   ├── cost_structure.md   # コスト構造
-│   │   │   └── cashflow.md         # キャッシュフロー方針
+│   │   ├── financials/        # 財務情報（テンプレート・方針）
+│   │   │   ├── revenue_streams.md  # 収益タイプ分類
+│   │   │   ├── cost_structure.md   # コストカテゴリ分類
+│   │   │   └── cashflow.md         # 入出金方針・ルール
 │   │   └── raci/              # RACI（責任と決裁ライン）
 │   ├── templates/             # テンプレート集
 │   ├── ops/                   # 運用スクリプト・手順
@@ -81,10 +81,7 @@ _codex/
 │
 ├── projects/                  # プロジェクト別運用ドキュメント
 │   └── <project>/
-│       ├── project.md         # 戦略・ICP・KPI（正本）
-│       ├── financials/        # プロジェクト別のお金の流れ
-│       │   ├── revenue.md     # 収益の因数分解
-│       │   └── scorecard.md   # 週次スコアカード
+│       ├── project.md         # 戦略・価格・KPI（正本・1ファイル完結）
 │       ├── decisions/         # 意思決定ログ
 │       └── history.md         # 経緯（オプション）
 │
