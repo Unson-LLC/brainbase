@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "jibble": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/Users/ksato/workspace/.claude/mcp/jibble/src/index.ts"
+      ]
+    },
     "airtable": {
       "type": "stdio",
       "command": "npx",
