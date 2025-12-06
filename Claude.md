@@ -27,6 +27,17 @@ tags:
 3. **RACI明確化**: 役割・責任・決裁ラインを `_codex/common/meta/` で一意管理
 4. **90日仕組み化**: 新規事業は90日以内に自律運転できる状態をつくる
 
+### 💰 持続資本論（3資本モデル）
+法人の「立ち位置」を3つの資本で診断する（橘玲『幸福の資本論』の法人版）:
+
+| 資本 | 定義 | 正本 |
+|-----|------|------|
+| **財務資本** | お金・株・契約 | `capital.md`, `contracts/`, `financials/` |
+| **組織資本** | 人・能力・仕組み | `people.md`, `raci.md`, `orgs/` |
+| **関係資本** | 顧客・パートナー・信用 | `customers.md`, `partners.md`, `contacts/` |
+
+詳細: `_codex/common/architecture_map.md` の「持続資本論」セクション
+
 ### 🔧 基本運用ルール
 1. 日本語で応答・ドキュメント化
 2. 変更は必ず `_codex` 配下の正本を編集（プロジェクト側はリンクのみ）
@@ -47,8 +58,16 @@ _codex/
 │   │   │   ├── segments.md    # セグメント定義
 │   │   │   └── ng_list.md     # 連絡不可リスト
 │   │   ├── organizations.md   # 組織・法人情報
-│   │   ├── clients.md         # 顧客・契約情報
-│   │   └── raci.md            # RACI（責任と決裁ライン）
+│   │   ├── customers.md       # 顧客・契約情報
+│   │   ├── partners.md        # パートナー（仕入・協業）台帳
+│   │   ├── capital.md         # 資本構造（株・出資・持分）
+│   │   ├── contracts/         # 契約台帳
+│   │   │   └── index.md       # 契約一覧
+│   │   ├── financials/        # 財務情報
+│   │   │   ├── revenue_streams.md  # 収益源定義
+│   │   │   ├── cost_structure.md   # コスト構造
+│   │   │   └── cashflow.md         # キャッシュフロー方針
+│   │   └── raci/              # RACI（責任と決裁ライン）
 │   ├── templates/             # テンプレート集
 │   ├── ops/                   # 運用スクリプト・手順
 │   └── assets/                # 共通アセット
@@ -62,11 +81,12 @@ _codex/
 │
 ├── projects/                  # プロジェクト別運用ドキュメント
 │   └── <project>/
-│       ├── 01_strategy.md     # 戦略骨子
-│       ├── 02_offer/          # 価格・オファー関連
-│       ├── 03_sales_ops/      # 営業オペ・反論対応
-│       ├── 04_delivery/       # 導入〜CSの手順
-│       └── 05_kpi/            # KPI定義・ダッシュボード
+│       ├── project.md         # 戦略・ICP・KPI（正本）
+│       ├── financials/        # プロジェクト別のお金の流れ
+│       │   ├── revenue.md     # 収益の因数分解
+│       │   └── scorecard.md   # 週次スコアカード
+│       ├── decisions/         # 意思決定ログ
+│       └── history.md         # 経緯（オプション）
 │
 ├── brand/                     # ブランドガイド・アセット
 │   └── assets/
@@ -201,6 +221,33 @@ granularity: "task | workflow | framework"
 RACI運用率 = (RACI定義済みタスク数) / (全タスク数) × 100%
 ```
 目標: 80%以上
+
+## 💰 お金の流れ管理
+
+立ち位置を決める重要な要素として、資本・契約・収益を一元管理する。
+
+### 正本の所在
+- `capital.md` - 資本構造（株・出資・持分関係）
+- `contracts/index.md` - 契約台帳（売上側・仕入側）
+- `financials/revenue_streams.md` - 収益源定義
+- `financials/cost_structure.md` - コスト構造
+- `financials/cashflow.md` - キャッシュフロー方針
+
+### 更新ルール
+1. **資本イベント発生時**: 出資・株式譲渡・増資があれば `capital.md` を即更新
+2. **契約締結・変更時**: `contracts/index.md` に追加・更新
+3. **価格変更時**: `revenue_streams.md` を更新
+4. **固定費変更時**: `cost_structure.md` を更新
+5. **入金サイクル変更時**: `cashflow.md` を更新
+
+### 前受けルール（brainbase標準）
+- SaaS・研修: **100%前払い**
+- 受託開発: **着手時50%、納品時50%**
+- 権利譲渡: **100%一括**（分割は例外承認要）
+
+### 機微情報の取り扱い
+- 金額・持分比率等はコミット時に内容確認
+- 必要に応じて `.gitignore` で除外
 
 ## 🎨 ブランドガイド整備
 
