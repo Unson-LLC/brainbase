@@ -3,6 +3,27 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-06-MITK6MYX
+channel: 0031-dialogai-dev
+sender: 金田光平 / Kohei Kaneta
+timestamp: 1764981109.778789
+status: pending
+---
+
+### 09:31 | #0031-dialogai-dev | 金田光平 / Kohei Kaneta
+
+<@U07LNUP582X>
+承知しました。
+現状NextjsのAPI Routesを使用しているので、バックエンドはHono経由での実装になるかと思います。
+
+**スレッドの文脈:**
+> **k.​sato** (09:36): <@U089CNQ4D1A>
+今回スコープには入れなかったのですが、今後DaialogAIをAPI化する可能性があるためバックエンド側をAPI化することを構想に踏まえて整理しておいていただけると助かります。
+
+
+[Slack](https://unson-inc.slack.com/archives/C08A6ETSSR2/p1764981109778789)
+
+---
 id: INBOX-2025-12-05-MIS8DOVD
 channel: 0151-mywa
 sender: 小松原 遼羽
