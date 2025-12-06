@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-06-MIUF1ZMP
+title: AIの知識範囲と保持情報の確認
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: low
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-06 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: AIが持っている知識や情報の範囲について確認したい。どこまでの知識を保持しているかを知りたい。
+- Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765032958470889
+
+---
 id: SLACK-2025-12-06-MIUD29HR
 title: 知識・情報の共有依頼
 project_id: general
