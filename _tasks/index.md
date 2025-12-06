@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-06-MIUCVS2B
+title: 知識・情報の共有依頼
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: low
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-06 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 送信者から「あなたの知ってることを教えて」という情報提供の依頼。具体的なテーマや範囲は指定されていないため、詳細の確認が必要。
+- Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765029242037789
+
+---
 id: SLACK-2025-12-06-MIUCUF7N
 title: 知識・情報の共有依頼
 project_id: general
