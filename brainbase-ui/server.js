@@ -187,12 +187,13 @@ async function getSessionStatus() {
         for (const [sessionId, session] of activeSessions) {
             let isRunning = false;
             let isWorking = false;
+            let isDone = false;
 
             // Priority 1: Check Hook Status
             if (sessionHookStatus.has(sessionId)) {
                 const hookData = sessionHookStatus.get(sessionId);
                 if (hookData.status === 'working') isWorking = true;
-                // If hook says 'done', we leave isWorking=false
+                else if (hookData.status === 'done') isDone = true;
             }
 
             try {
@@ -234,7 +235,7 @@ async function getSessionStatus() {
                 // console.error(`[DEBUG:${sessionId}] Error: ${err.message}`);
             }
 
-            status[sessionId] = { isRunning, isWorking };
+            status[sessionId] = { isRunning, isWorking, isDone };
         }
         return status;
 

@@ -259,6 +259,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${task.priority ? `<span class="next-task-priority ${task.priority}">${task.priority}</span>` : ''}
                         </div>
                     </div>
+                    <div class="next-task-actions">
+                        <button class="next-task-action start-task-btn" data-id="${task.id}" title="Start Session">
+                            <i data-lucide="terminal-square"></i>
+                        </button>
+                        <button class="next-task-action edit-task-btn" data-id="${task.id}" title="Edit">
+                            <i data-lucide="edit-2"></i>
+                        </button>
+                        <button class="next-task-action delete-task-btn" data-id="${task.id}" title="Delete">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </div>
                 </div>
             `;
         });
@@ -271,6 +282,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const taskId = checkbox.dataset.id;
                 completeTaskWithAnimation(taskId, `.next-task-item[data-task-id="${taskId}"]`);
+            };
+        });
+
+        // Start session handlers
+        nextTasksListEl.querySelectorAll('.start-task-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.id;
+                const task = tasks.find(t => t.id === taskId);
+                if (task) startTaskSession(task);
+            };
+        });
+
+        // Edit handlers
+        nextTasksListEl.querySelectorAll('.edit-task-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.id;
+                const task = tasks.find(t => t.id === taskId);
+                if (task) openEditModal(task);
+            };
+        });
+
+        // Delete handlers
+        nextTasksListEl.querySelectorAll('.delete-task-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.id;
+                if (confirm('Delete task?')) deleteTask(taskId);
             };
         });
 
@@ -708,6 +748,46 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTasks();
     }
 
+    // --- Edit Modal Logic ---
+    function openEditModal(task) {
+        if (!editModal) return;
+        editTaskId.value = task.id;
+        editTaskTitle.value = task.name || '';
+        editTaskProject.value = task.project || '';
+        editTaskPriority.value = task.priority || 'medium';
+        editTaskDue.value = task.due || '';
+        editModal.classList.add('active');
+    }
+
+    function closeEditModal() {
+        if (editModal) editModal.classList.remove('active');
+    }
+
+    if (closeModalBtns) {
+        closeModalBtns.forEach(btn => {
+            btn.onclick = closeEditModal;
+        });
+    }
+
+    if (saveTaskBtn) {
+        saveTaskBtn.onclick = async () => {
+            const id = editTaskId.value;
+            const updates = {
+                name: editTaskTitle.value,
+                project: editTaskProject.value,
+                priority: editTaskPriority.value,
+                due: editTaskDue.value || null
+            };
+            await fetch(`/api/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+            closeEditModal();
+            loadTasks();
+        };
+    }
+
     addSessionBtn.addEventListener('click', () => createNewSession());
 
     // --- Session Status Polling ---
@@ -778,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 indicator.className = 'session-activity-indicator working';
                 item.appendChild(indicator);
                 console.log(`Added WORKING indicator to ${sessionId}`);
-            } else if (isUnread && currentSessionId !== sessionId) {
+            } else if (currentSessionId !== sessionId && (status?.isDone || isUnread)) {
                 const indicator = document.createElement('div');
                 indicator.className = 'session-activity-indicator done';
                 item.appendChild(indicator);
