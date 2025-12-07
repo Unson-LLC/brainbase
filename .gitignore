@@ -36,7 +36,6 @@ venv/
 .claude/learning/logs/
 
 # Separate projects (managed in own repos)
-brainbase-ui/
 mana/
 
 # Secrets / environment

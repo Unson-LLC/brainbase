@@ -6,6 +6,7 @@ import net from 'net';
 import util from 'util';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Import our modules
 import { TaskParser } from './lib/task-parser.js';
@@ -35,6 +36,7 @@ app.use(express.json());
 
 // State
 let activeSessions = new Map(); // sessionId -> { port, process }
+let sessionHookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp: number }
 let nextPort = 3001;
 
 // Initialize State Store
@@ -48,79 +50,81 @@ const storage = multer.diskStorage({
     filename: function (req, file, cb) {
         // Keep original extension
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname))
+        cb(null, uniqueSuffix + path.extname(file.originalname))
     }
 });
 const upload = multer({ storage: storage });
 
-// --- API Endpoints ---
+// Proxy Middleware for ttyd consoles
+// Route: /console/:sessionId -> http://localhost:PORT/console/:sessionId
+const ttydProxy = createProxyMiddleware({
+    ws: true, // Enable WebSocket proxying
+    changeOrigin: true,
+    pathRewrite: function (path, req) {
+        // Handle both full path (Upgrade) and stripped path (Express)
+        // If it starts with /console, leave it (ttyd expects /console/SESSION_ID...)
+        if (path.startsWith('/console')) {
+            return path;
+        }
+        // Otherwise prepend /console
+        return '/console' + path;
+    },
+    router: function (req) {
+        // Handle both full path (Upgrade) and stripped path (Express)
+        const url = req.url;
 
-// File Upload Endpoint
-app.post('/api/upload', upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-    // Return absolute path
-    const absolutePath = path.resolve(req.file.path);
-    res.json({ path: absolutePath });
-});
-
-// Send Input to Session Endpoint
-app.post('/api/sessions/:id/input', async (req, res) => {
-    const { id } = req.params;
-    const { input, type } = req.body; // type: 'text' (default) or 'key'
-    
-    const session = activeSessions.get(id);
-    if (!session) {
-        return res.status(404).json({ error: 'Session not found' });
-    }
-
-    if (!input) {
-        return res.status(400).json({ error: 'Input is required' });
-    }
-
-    const sendCommand = async (cmd, retries = 5) => {
-        try {
-            await execPromise(cmd);
-        } catch (err) {
-            // Check for both stdout and stderr for error messages
-            const errorMsg = (err.stderr || '') + (err.stdout || '');
-            if (retries > 0 && errorMsg.includes("can't find pane")) {
-                console.log(`[Input] Session ${id} not ready, retrying... (${retries})`);
-                await new Promise(r => setTimeout(r, 500));
-                await sendCommand(cmd, retries - 1);
-            } else {
-                throw err;
+        // 1. Try full path match: /console/SESSION_ID/...
+        let match = url.match(/^\/console\/([^/]+)/);
+        if (match) {
+            const sessionId = match[1];
+            if (activeSessions.has(sessionId)) {
+                return `http://localhost:${activeSessions.get(sessionId).port}`;
             }
         }
-    };
 
-    try {
-        if (type === 'key') {
-            // Send as key command (no quotes, trust the input is a valid key)
-            if (/^[a-zA-Z0-9-]+$/.test(input)) {
-                await sendCommand(`tmux send-keys -t "${id}" ${input}`);
-            } else {
-                return res.status(400).json({ error: 'Invalid key format' });
+        // 2. Try stripped path match: /SESSION_ID/...
+        match = url.match(/^\/?([^/]+)/);
+        if (match) {
+            const sessionId = match[1];
+            if (activeSessions.has(sessionId)) {
+                return `http://localhost:${activeSessions.get(sessionId).port}`;
             }
-        } else {
-            // Use tmux send-keys to paste the text
-            const escapedInput = input.replace(/"/g, '\\"'); // Basic escaping
-            await sendCommand(`tmux send-keys -t "${id}" "${escapedInput}"`);
         }
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Failed to send input:', error);
-        res.status(500).json({ error: 'Failed to send input' });
+
+        return null; // 404 if session not found
+    },
+    onProxyReqWs: (proxyReq, req, socket, options, head) => {
+        // Rewrite Origin to match the target (ttyd)
+        const url = req.url;
+        let match = url.match(/^\/console\/([^/]+)/);
+        if (!match) match = url.match(/^\/?([^/]+)/); // Fallback
+
+        if (match) {
+            const sessionId = match[1];
+            if (activeSessions.has(sessionId)) {
+                const port = activeSessions.get(sessionId).port;
+                proxyReq.setHeader('Origin', `http://localhost:${port}`);
+            }
+        }
+    },
+    onError: (err, req, res) => {
+        console.error('Proxy Error:', err);
+        if (res && res.status) {
+            res.status(500).send('Proxy Error');
+        }
     }
 });
 
+app.use('/console', ttydProxy);
+
+
+// API Routes
 app.get('/api/tasks', async (req, res) => {
-    const tasks = await taskParser.getTasks();
+    const tasks = await taskParser.getAllTasks();
     res.json(tasks);
 });
 
-app.put('/api/tasks/:id', async (req, res) => {
+app.post('/api/tasks/:id', async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     const success = await taskParser.updateTask(id, updates);
@@ -145,10 +149,26 @@ app.post('/api/state', async (req, res) => {
     res.json(newState);
 });
 
+// Endpoint for hooks to report activity
+app.post('/api/sessions/report_activity', (req, res) => {
+    const { sessionId, status } = req.body;
+    if (!sessionId || !status) {
+        return res.status(400).json({ error: 'Missing sessionId or status' });
+    }
+
+    console.log(`[Hook] Received status update from ${sessionId}: ${status}`);
+    sessionHookStatus.set(sessionId, {
+        status,
+        timestamp: Date.now()
+    });
+
+    res.json({ success: true });
+});
+
 // Helper to get process tree
 async function getSessionStatus() {
     try {
-        // 1. Get all processes once
+        // 1. Get all processes once (still useful for isRunning check)
         const { stdout: psOutput } = await execPromise('ps -ef');
         const lines = psOutput.split('\n').slice(1);
         const processes = lines.map(line => {
@@ -167,51 +187,49 @@ async function getSessionStatus() {
         for (const [sessionId, session] of activeSessions) {
             let isRunning = false;
             let isWorking = false;
-            
+
+            // Priority 1: Check Hook Status
+            if (sessionHookStatus.has(sessionId)) {
+                const hookData = sessionHookStatus.get(sessionId);
+                if (hookData.status === 'working') isWorking = true;
+                // If hook says 'done', we leave isWorking=false
+            }
+
             try {
                 // Get tmux pane PID for this session
                 const { stdout: tmuxPidOutput } = await execPromise(`tmux list-panes -t "${sessionId}" -F "#{pane_pid}"`);
                 const shellPid = parseInt(tmuxPidOutput.trim());
 
                 if (shellPid) {
-                     // BFS to find 'claude' in descendants of the shell
+                    // BFS to find 'claude' in descendants of the shell
                     const queue = [shellPid];
                     const visited = new Set([shellPid]);
 
                     while (queue.length > 0) {
                         const currentPid = queue.shift();
-                        
+
                         const children = processes.filter(p => p.ppid === currentPid);
                         for (const child of children) {
                             if (visited.has(child.pid)) continue;
                             visited.add(child.pid);
                             queue.push(child.pid);
 
-                            // Loose matching for node/claude AND sleep for testing
-                            if (child.cmd.includes('claude') || child.cmd.includes('node') || child.cmd.includes('sleep')) {
-                                // console.log(`[DEBUG:${sessionId}] Found relevant process: ${child.cmd}`);
+                            if (child.cmd.includes('claude') || child.cmd.includes('node')) {
                                 isRunning = true;
                             }
                         }
                         if (isRunning) break;
                     }
-
-                    // If claude is running, check if it's working (not at prompt)
-                    if (isRunning) {
-                        const { stdout: paneContent } = await execPromise(`tmux capture-pane -t "${sessionId}" -p | tail -n 20`);
-                        
-                        const trimmed = paneContent.trim();
-                        // Relaxed prompt check: > or ❯, or standard shell prompt $
-                        // If it ends with > or ❯ or $ or %, we assume waiting for input
-                        const hasPrompt = />\s*$/.test(trimmed) || /❯\s*$/.test(trimmed) || /[$%]\s*$/.test(trimmed);
-                        isWorking = !hasPrompt;
-                        
-                        // Debug log 
-                        console.log(`[DEBUG:${sessionId}] isWorking: ${isWorking} (Prompt found: ${hasPrompt}, Tail: "${trimmed.slice(-20)}")`);
-                    } else {
-                        console.log(`[DEBUG:${sessionId}] Not running claude/node/sleep`);
-                    }
                 }
+
+                // If we don't have hook data, fallback to polling Prompt detection
+                if (!sessionHookStatus.has(sessionId) && isRunning) {
+                    const { stdout: paneContent } = await execPromise(`tmux capture-pane -t "${sessionId}" -p | tail -n 20`);
+                    const trimmed = paneContent.trim();
+                    const hasPrompt = />\s*$/.test(trimmed) || /❯\s*$/.test(trimmed) || /[$%]\s*$/.test(trimmed);
+                    isWorking = !hasPrompt;
+                }
+
             } catch (err) {
                 // console.error(`[DEBUG:${sessionId}] Error: ${err.message}`);
             }
@@ -252,7 +270,7 @@ function findFreePort(startPort) {
 async function cleanupOrphans() {
     try {
         console.log('Cleaning up orphaned ttyd processes...');
-        await execPromise('pkill ttyd').catch(() => {}); // Ignore error if no processes found
+        await execPromise('pkill ttyd').catch(() => { }); // Ignore error if no processes found
     } catch (err) {
         console.error('Error cleaning up orphans:', err);
     }
@@ -261,34 +279,39 @@ async function cleanupOrphans() {
 // Session Management API
 app.post('/api/sessions/start', async (req, res) => {
     const { sessionId, initialCommand, cwd } = req.body;
-    
+
     if (!sessionId) {
         return res.status(400).json({ error: 'sessionId is required' });
     }
 
     // Check if already running
     if (activeSessions.has(sessionId)) {
-        return res.json({ port: activeSessions.get(sessionId).port });
+        return res.json({ port: activeSessions.get(sessionId).port, proxyPath: `/console/${sessionId}` });
     }
 
     try {
         // Allocate new port
         const port = await findFreePort(nextPort);
         nextPort = port + 1;
-        
+
         console.log(`Starting ttyd for session '${sessionId}' on port ${port}...`);
         if (cwd) console.log(`Working directory: ${cwd}`);
-        
-        // Spawn ttyd
+
+        // Spawn ttyd with Base Path
         const scriptPath = path.join(__dirname, 'login_script.sh');
         const customIndexPath = path.join(__dirname, 'custom_ttyd_index.html');
+        // IMPORTANT: ttyd base path must match the proxy route
+        const basePath = `/console/${sessionId}`;
+
         const args = [
-            '-p', port.toString(), 
-            '-W', 
+            '-p', port.toString(),
+            '-W',
+            '-b', basePath, // Set Base Path
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
+            '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-I', customIndexPath, // Use custom index
-            'bash', 
-            scriptPath, 
+            'bash',
+            scriptPath,
             sessionId
         ];
         if (initialCommand) {
@@ -299,7 +322,7 @@ app.post('/api/sessions/start', async (req, res) => {
         const spawnOptions = {
             stdio: 'pipe'
         };
-        
+
         // Set CWD if provided
         if (cwd) {
             spawnOptions.cwd = cwd;
@@ -318,18 +341,18 @@ app.post('/api/sessions/start', async (req, res) => {
         ttyd.on('error', (err) => {
             console.error(`Failed to start ttyd for ${sessionId}:`, err);
         });
-        
+
         ttyd.on('exit', (code) => {
             console.log(`ttyd for ${sessionId} exited with code ${code}`);
             activeSessions.delete(sessionId);
         });
 
         activeSessions.set(sessionId, { port, process: ttyd });
-        
+
         // Give ttyd a moment to bind to the port and verify it's still running
         setTimeout(() => {
             if (activeSessions.has(sessionId)) {
-                res.json({ port });
+                res.json({ port, proxyPath: basePath });
             } else {
                 res.status(500).json({ error: 'Session failed to start (process exited)' });
             }
@@ -350,11 +373,64 @@ process.on('SIGINT', () => {
     process.exit();
 });
 
+// Endpoint to send input to terminal (keys or text)
+const ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'Enter', 'Escape'];
+app.post('/api/sessions/:id/input', async (req, res) => {
+    const { id } = req.params;
+    const { input, type } = req.body;
+
+    if (!input) {
+        return res.status(400).json({ error: 'Input required' });
+    }
+
+    try {
+        if (type === 'key') {
+            if (!ALLOWED_KEYS.includes(input)) {
+                return res.status(400).json({ error: 'Key not allowed' });
+            }
+            await execPromise(`tmux send-keys -t "${id}" ${input}`);
+        } else if (type === 'text') {
+            // Use -l for literal text (don't interpret special keys)
+            // Escape double quotes in input
+            const escaped = input.replace(/"/g, '\\"');
+            await execPromise(`tmux send-keys -t "${id}" -l "${escaped}"`);
+        } else {
+            return res.status(400).json({ error: 'Type must be key or text' });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error(`Failed to send input to ${id}:`, err.message);
+        res.status(500).json({ error: 'Failed to send input' });
+    }
+});
+
+// Endpoint to get terminal content (history)
+app.get('/api/sessions/:id/content', async (req, res) => {
+    const { id } = req.params;
+    const lines = parseInt(req.query.lines) || 500;
+
+    // We can run tmux capture-pane even if activeSessions doesn't track it locally
+    // (e.g. if server restarted but tmux session is alive)
+    // But checking activeSessions is good practice if we only want managed sessions.
+    // For now, let's just try running the command.
+
+    try {
+        const { stdout } = await execPromise(`tmux capture-pane -t "${id}" -p -S -${lines}`);
+        res.json({ content: stdout });
+    } catch (err) {
+        // console.error(`Failed to capture pane for ${id}:`, err.message);
+        res.status(500).json({ error: 'Failed to capture content' });
+    }
+});
+
 // Start server
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
     await cleanupOrphans();
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
     console.log(`Reading tasks from: ${TASKS_FILE}`);
     console.log(`Reading schedules from: ${SCHEDULES_DIR}`);
 });
+
+// Handle WebSocket Upgrades
+server.on('upgrade', ttydProxy.upgrade);

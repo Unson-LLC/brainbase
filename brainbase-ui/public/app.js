@@ -4,17 +4,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSessionId = null;
     let tasks = [];
     let schedule = null;
-    let currentFilter = 'focus';
-    let searchQuery = '';
+    let showAllTasks = false;
+    const MAX_VISIBLE_TASKS = 3; // ミラーの法則: 表示は3件まで
 
     const terminalFrame = document.getElementById('terminal-frame');
     const sessionList = document.getElementById('session-list');
-    const taskList = document.getElementById('task-list');
-    const scheduleList = document.getElementById('schedule-list');
     const addSessionBtn = document.getElementById('add-session-btn');
-    const searchInput = document.getElementById('search-input');
-    const tabs = document.querySelectorAll('.tab');
-    
+
+    // New UI Elements
+    const focusTaskEl = document.getElementById('focus-task');
+    const timelineListEl = document.getElementById('timeline-list');
+    const nextTasksListEl = document.getElementById('next-tasks-list');
+    const remainingToggleEl = document.getElementById('remaining-tasks-toggle');
+    const remainingCountEl = document.getElementById('remaining-count');
+    const showMoreBtn = document.getElementById('show-more-tasks');
+
     // Modal Elements
     const editModal = document.getElementById('edit-task-modal');
     const editTaskId = document.getElementById('edit-task-id');
@@ -25,28 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtns = document.querySelectorAll('.close-modal-btn');
     const saveTaskBtn = document.getElementById('save-task-btn');
 
-    // Archive Toggle
-    const showArchivedToggle = document.createElement('div');
-    showArchivedToggle.className = 'session-controls';
-    showArchivedToggle.innerHTML = `
-        <div class="toggle-wrapper">
-             <label class="toggle-switch">
-                <input type="checkbox" id="show-archived-checkbox">
-                <span class="slider round"></span>
-                <span class="label-text">Show Archived</span>
-            </label>
-        </div>
-    `;
-    // Insert before session list
-    document.getElementById('sidebar').insertBefore(showArchivedToggle, sessionList);
-    
-    let showArchived = false;
-    const showArchivedCheckbox = document.getElementById('show-archived-checkbox');
-    showArchivedCheckbox.addEventListener('change', (e) => {
-        showArchived = e.target.checked;
-        renderSessionList();
-    });
+    // Terminal Copy Modal Elements
+    const copyTerminalBtn = document.getElementById('copy-terminal-btn');
+    const copyTerminalModal = document.getElementById('copy-terminal-modal');
+    const terminalContentDisplay = document.getElementById('terminal-content-display');
+    const copyContentBtn = document.getElementById('copy-content-btn');
 
+    // Archive Toggle
+    let showArchived = false;
     const CORE_PROJECTS = ['brainbase', 'unson', 'tech-knight', 'salestailor', 'zeims', 'baao', 'ncom', 'senrigan'];
 
     // --- Data Loading ---
@@ -55,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/state');
             const state = await res.json();
             sessions = state.sessions || [];
-            
+
             // Check active session from URL or state
             if (!currentSessionId && sessions.length > 0) {
                 // Optional: Auto-select first session
@@ -69,19 +59,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadTasks() {
         try {
-            // Add cache-busting timestamp
             const res = await fetch(`/api/tasks?t=${Date.now()}`);
             if (res.ok) {
                 const text = await res.text();
-                // Ensure we parse standard JSON array
-                tasks = JSON.parse(text); 
-                renderTasks();
+                tasks = JSON.parse(text);
+                renderRightPanel();
             } else {
                 console.error("Failed to fetch tasks:", res.status);
             }
         } catch (error) {
             console.error('Failed to load tasks:', error);
-            taskList.innerHTML = '<div class="error">Failed to load tasks</div>';
+            nextTasksListEl.innerHTML = '<div class="error">Failed to load tasks</div>';
         }
     }
 
@@ -89,11 +77,252 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/schedule/today');
             schedule = await res.json();
-            renderSchedule();
+            renderRightPanel();
         } catch (error) {
             console.error('Failed to load schedule:', error);
-            scheduleList.innerHTML = '<div class="error">Failed to load schedule</div>';
+            timelineListEl.innerHTML = '<div class="error">Failed to load schedule</div>';
         }
+    }
+
+    // --- Right Panel Rendering (UX Redesign) ---
+    function renderRightPanel() {
+        renderFocusTask();
+        renderTimeline();
+        renderNextTasks();
+        lucide.createIcons();
+    }
+
+    function getFocusTask() {
+        // Priority: in-progress > high priority with due date > high priority > todo
+        const activeTasks = tasks.filter(t => t.status !== 'done');
+
+        // 1. in-progress tasks first
+        const inProgress = activeTasks.find(t => t.status === 'in-progress');
+        if (inProgress) return inProgress;
+
+        // 2. High priority with nearest due date
+        const highWithDue = activeTasks
+            .filter(t => t.priority === 'high' && t.due)
+            .sort((a, b) => new Date(a.due) - new Date(b.due));
+        if (highWithDue.length > 0) return highWithDue[0];
+
+        // 3. Any high priority
+        const high = activeTasks.find(t => t.priority === 'high');
+        if (high) return high;
+
+        // 4. First todo
+        return activeTasks[0] || null;
+    }
+
+    function renderFocusTask() {
+        const focusTask = getFocusTask();
+
+        if (!focusTask) {
+            focusTaskEl.innerHTML = `
+                <div class="focus-empty">
+                    <i data-lucide="check-circle-2"></i>
+                    <div>タスクなし</div>
+                </div>
+            `;
+            return;
+        }
+
+        const isUrgent = focusTask.due && new Date(focusTask.due) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const dueText = focusTask.due ? formatDueDate(focusTask.due) : '';
+
+        focusTaskEl.innerHTML = `
+            <div class="focus-card" data-task-id="${focusTask.id}">
+                <div class="focus-card-title">${focusTask.name}</div>
+                <div class="focus-card-meta">
+                    <span class="project-tag">${focusTask.project || 'general'}</span>
+                    ${dueText ? `<span class="due-tag ${isUrgent ? 'urgent' : ''}"><i data-lucide="clock"></i>${dueText}</span>` : ''}
+                </div>
+                <div class="focus-card-actions">
+                    <button class="focus-btn-complete" data-id="${focusTask.id}">
+                        <i data-lucide="check"></i> 完了
+                    </button>
+                    <button class="focus-btn-defer" data-id="${focusTask.id}">
+                        <i data-lucide="arrow-right"></i> 後で
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Event handlers
+        focusTaskEl.querySelector('.focus-btn-complete').onclick = (e) => {
+            e.stopPropagation();
+            completeTaskWithAnimation(focusTask.id, '.focus-card');
+        };
+
+        focusTaskEl.querySelector('.focus-btn-defer').onclick = (e) => {
+            e.stopPropagation();
+            deferTask(focusTask.id);
+        };
+    }
+
+    function renderTimeline() {
+        const events = schedule?.items || [];
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+
+        if (events.length === 0) {
+            timelineListEl.innerHTML = '<div class="timeline-empty">予定なし</div>';
+            return;
+        }
+
+        // Sort events by start time
+        const sortedEvents = [...events].sort((a, b) => {
+            const timeA = a.start || '00:00';
+            const timeB = b.start || '00:00';
+            return timeA.localeCompare(timeB);
+        });
+
+        let html = '<div class="timeline">';
+        let nowInserted = false;
+
+        sortedEvents.forEach((event, idx) => {
+            const eventTime = event.start || '00:00';
+
+            // Insert "now" marker at appropriate position
+            if (!nowInserted && eventTime > currentTimeStr) {
+                html += `
+                    <div class="timeline-now">
+                        <span class="timeline-now-label">現在 ${currentTimeStr}</span>
+                    </div>
+                `;
+                nowInserted = true;
+            }
+
+            const timeStr = event.start + (event.end ? '-' + event.end : '');
+            const isCurrent = eventTime <= currentTimeStr && (!event.end || event.end > currentTimeStr);
+
+            html += `
+                <div class="timeline-item is-event ${isCurrent ? 'is-current' : ''}">
+                    <div class="timeline-marker"></div>
+                    <span class="timeline-time">${timeStr}</span>
+                    <span class="timeline-content">${event.task}</span>
+                </div>
+            `;
+        });
+
+        // If now marker not yet inserted (all events are past)
+        if (!nowInserted) {
+            html += `
+                <div class="timeline-now">
+                    <span class="timeline-now-label">現在 ${currentTimeStr}</span>
+                </div>
+            `;
+        }
+
+        html += '</div>';
+        timelineListEl.innerHTML = html;
+    }
+
+    function renderNextTasks() {
+        const focusTask = getFocusTask();
+        const otherTasks = tasks
+            .filter(t => t.status !== 'done' && (!focusTask || t.id !== focusTask.id))
+            .sort((a, b) => {
+                // Sort by priority then due date
+                const priorityOrder = { high: 0, medium: 1, low: 2 };
+                const pA = priorityOrder[a.priority] ?? 1;
+                const pB = priorityOrder[b.priority] ?? 1;
+                if (pA !== pB) return pA - pB;
+                if (a.due && b.due) return new Date(a.due) - new Date(b.due);
+                if (a.due) return -1;
+                if (b.due) return 1;
+                return 0;
+            });
+
+        const visibleTasks = showAllTasks ? otherTasks : otherTasks.slice(0, MAX_VISIBLE_TASKS);
+        const remainingCount = otherTasks.length - MAX_VISIBLE_TASKS;
+
+        if (otherTasks.length === 0) {
+            nextTasksListEl.innerHTML = '<div class="timeline-empty">他のタスクなし</div>';
+            remainingToggleEl.style.display = 'none';
+            return;
+        }
+
+        let html = '';
+        visibleTasks.forEach(task => {
+            html += `
+                <div class="next-task-item" data-task-id="${task.id}">
+                    <div class="next-task-checkbox" data-id="${task.id}">
+                        <i data-lucide="check"></i>
+                    </div>
+                    <div class="next-task-content">
+                        <div class="next-task-title">${task.name}</div>
+                        <div class="next-task-meta">
+                            <span class="next-task-project">${task.project || 'general'}</span>
+                            ${task.priority ? `<span class="next-task-priority ${task.priority}">${task.priority}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        nextTasksListEl.innerHTML = html;
+
+        // Checkbox handlers
+        nextTasksListEl.querySelectorAll('.next-task-checkbox').forEach(checkbox => {
+            checkbox.onclick = (e) => {
+                e.stopPropagation();
+                const taskId = checkbox.dataset.id;
+                completeTaskWithAnimation(taskId, `.next-task-item[data-task-id="${taskId}"]`);
+            };
+        });
+
+        // Show/hide remaining toggle
+        if (remainingCount > 0 && !showAllTasks) {
+            remainingToggleEl.style.display = 'block';
+            remainingCountEl.textContent = remainingCount;
+        } else {
+            remainingToggleEl.style.display = 'none';
+        }
+    }
+
+    // --- Helper Functions ---
+    function formatDueDate(dateStr) {
+        const due = new Date(dateStr);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        if (due < today) return '期限切れ';
+        if (due.toDateString() === today.toDateString()) return '今日';
+        if (due.toDateString() === tomorrow.toDateString()) return '明日';
+        return `${due.getMonth() + 1}/${due.getDate()}`;
+    }
+
+    async function completeTaskWithAnimation(taskId, selector) {
+        const el = document.querySelector(selector);
+        if (el) {
+            el.classList.add('completing');
+            await new Promise(r => setTimeout(r, 400));
+        }
+        await updateTaskStatus(taskId, 'done');
+    }
+
+    async function deferTask(taskId) {
+        // Move to backlog by removing priority
+        await fetch(`/api/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ priority: 'low' })
+        });
+        loadTasks();
+    }
+
+    // Show more tasks toggle
+    if (showMoreBtn) {
+        showMoreBtn.onclick = () => {
+            showAllTasks = !showAllTasks;
+            renderNextTasks();
+            lucide.createIcons();
+        };
     }
 
     // --- Rendering ---
@@ -102,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Group sessions by project path
         const output = {}; // ProjectName -> [Sessions]
-        
+
         // Filter sessions based on archived state
         const filteredSessions = sessions.filter(s => showArchived ? true : !s.archived);
 
@@ -127,10 +356,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         for (const [project, projectSessions] of Object.entries(output)) {
-            
+
             const groupDiv = document.createElement('div');
             groupDiv.className = 'session-group';
-            
+
             // Collapse state logic could go here
             const isExpanded = true; // Default expanded
 
@@ -141,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="group-title">${project}</span>
                 <button class="add-project-session-btn" title="New Session in ${project}"><i data-lucide="plus"></i></button>
             `;
-            
+
             // Toggle expand
             header.addEventListener('click', (e) => {
                 if (!e.target.closest('.add-project-session-btn')) {
@@ -168,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const childrenDiv = document.createElement('div');
             childrenDiv.className = 'session-group-children';
-            
+
             projectSessions.forEach(session => {
                 const childRow = document.createElement('div');
                 childRow.className = `session-child-row ${currentSessionId === session.id ? 'active' : ''}`;
@@ -176,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 childRow.dataset.id = session.id;
 
                 const displayName = session.name || session.id;
-                
+
                 childRow.innerHTML = `
                     <div class="session-name-container">
                         <span class="session-icon"><i data-lucide="terminal-square"></i></span>
@@ -196,23 +425,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         switchSession(session.id, session.path, session.initialCommand);
                     }
                 });
-                
+
                 // Rename Logic
                 const renameBtn = childRow.querySelector('.rename-session-btn');
                 renameBtn.onclick = (e) => {
                     e.stopPropagation();
                     const nameSpan = childRow.querySelector('.session-name');
                     const currentName = session.name || session.id;
-                    
+
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.value = currentName;
                     input.className = 'rename-input';
                     input.onclick = (ev) => ev.stopPropagation();
-                    
+
                     nameSpan.replaceWith(input);
                     input.focus();
-                    
+
                     const saveName = async () => {
                         const newName = input.value.trim();
                         if (newName && newName !== currentName) {
@@ -220,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             try {
                                 const res = await fetch('/api/state');
                                 const currentState = await res.json();
-                                const updatedSessions = currentState.sessions.map(s => 
+                                const updatedSessions = currentState.sessions.map(s =>
                                     s.id === session.id ? { ...s, name: newName } : s
                                 );
                                 await fetch('/api/state', {
@@ -252,13 +481,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             const res = await fetch('/api/state');
                             const currentState = await res.json();
                             const updatedSessions = currentState.sessions.filter(s => s.id !== session.id);
-                            
+
                             await fetch('/api/state', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ sessions: updatedSessions })
                             });
-                            
+
                             if (currentSessionId === session.id) {
                                 terminalFrame.src = 'about:blank';
                                 currentSessionId = null;
@@ -276,15 +505,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.stopPropagation();
                     const newArchivedState = !session.archived;
                     const actionName = newArchivedState ? 'archive' : 'unarchive';
-                    
+
                     if (newArchivedState && !confirm(`Are you sure you want to archive session "${displayName}"?`)) {
-                        return; 
+                        return;
                     }
 
                     try {
                         const res = await fetch('/api/state');
                         const currentState = await res.json();
-                        const updatedSessions = currentState.sessions.map(s => 
+                        const updatedSessions = currentState.sessions.map(s =>
                             s.id === session.id ? { ...s, archived: newArchivedState } : s
                         );
                         await fetch('/api/state', {
@@ -305,110 +534,9 @@ document.addEventListener('DOMContentLoaded', () => {
             groupDiv.appendChild(childrenDiv);
             sessionList.appendChild(groupDiv);
         }
-        
+
         lucide.createIcons();
         updateSessionIndicators(); // Restore indicators
-    }
-
-    function renderTasks() {
-        taskList.innerHTML = '';
-        const filteredTasks = tasks.filter(task => {
-            // Apply status filter
-            if (currentFilter === 'focus') return task.status === 'in-progress' || task.status === 'todo'; // or based on urgency
-            if (currentFilter === 'backlog') return task.status === 'todo' || !task.status;
-            if (currentFilter === 'done') return task.status === 'done';
-            return true;
-        }).filter(task => {
-            // Apply search filter
-            if (!searchQuery) return true;
-            return task.name.toLowerCase().includes(searchQuery.toLowerCase());
-        });
-
-        filteredTasks.forEach(task => {
-            const el = document.createElement('div');
-            el.className = 'task-card';
-            // Determine project color class? (CSS variables usually)
-            
-            el.innerHTML = `
-                <div class="task-header">
-                    <button class="task-checkbox ${task.status === 'done' ? 'checked' : ''}"><i data-lucide="check"></i></button>
-                    <span class="task-title">${task.name}</span>
-                    <div class="task-actions">
-                         <button class="task-action-btn edit" title="Edit"><i data-lucide="edit-2"></i></button>
-                         <button class="task-action-btn delete" title="Delete"><i data-lucide="trash-2"></i></button>
-                    </div>
-                </div>
-                <div class="task-meta">
-                    <span class="task-project">${task.project || 'General'}</span>
-                    <span class="task-priority ${task.priority}">${task.priority || 'Medium'}</span>
-                    ${task.due ? `<span class="task-due">${task.due}</span>` : ''}
-                </div>
-                ${task.status !== 'done' ? `<button class="start-task-btn" title="Start Working (Open Terminal)"><i data-lucide="terminal-square"></i></button>` : ''}
-                ${(currentSessionId && task.status === 'in-progress') ? `<button class="complete-task-btn" title="Complete Task"><i data-lucide="check-circle-2"></i> Complete</button>` : ''}
-            `;
-
-            // Checkbox logic
-            const checkbox = el.querySelector('.task-checkbox');
-            checkbox.onclick = (e) => {
-                e.stopPropagation();
-                // Toggle status (simple optimistic UI)
-                const newStatus = task.status === 'done' ? 'todo' : 'done';
-                updateTaskStatus(task.id, newStatus);
-            };
-
-            // Start Session Logic
-            const startBtn = el.querySelector('.start-task-btn');
-            if (startBtn) {
-                startBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    startTaskSession(task);
-                };
-            }
-            
-            // Edit / Delete logic
-            el.querySelector('.edit').onclick = (e) => {
-                e.stopPropagation();
-                openEditModal(task);
-            };
-            el.querySelector('.delete').onclick = (e) => {
-                e.stopPropagation();
-                if(confirm('Delete task?')) deleteTask(task.id);
-            };
-
-            taskList.appendChild(el);
-        });
-        
-        lucide.createIcons();
-    }
-
-    function renderSchedule() {
-        scheduleList.innerHTML = '';
-        if (!schedule) {
-             scheduleList.innerHTML = 'No schedule';
-             return;
-        }
-
-        const events = schedule.timeline || []; // Assuming parser returns timeline array
-        
-        const timelineDiv = document.createElement('div');
-        timelineDiv.className = 'timeline';
-
-        events.forEach(item => {
-            const el = document.createElement('div');
-            el.className = 'timeline-item';
-            if (item.task && item.task.includes('OHAYO')) el.classList.add('ohayo-item');
-
-            el.innerHTML = `
-                <div class="timeline-marker"></div>
-                <div class="timeline-content">
-                    <div class="timeline-time">${item.time}</div>
-                    <div class="timeline-task">${item.task}</div>
-                </div>
-            `;
-            timelineDiv.appendChild(el);
-        });
-        
-        scheduleList.appendChild(timelineDiv);
     }
 
     // --- Actions ---
@@ -419,24 +547,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // Find path for project
         // This is a simplification. Ideally backend provides project paths.
         // We will assume a standard workspace structure or prompt?
-        
+
         let cwd = null;
         if (project !== 'General' && project !== 'general') {
-             // Hardcoded common paths for now based on user context
-             const mapping = {
-                 'unson': '/Users/ksato/workspace/unson/web',
-                 'tech-knight': '/Users/ksato/workspace/tech-knight/app/hp-site',
-                 'brainbase': '/Users/ksato/workspace/brainbase-ui',
-                 // Add others as needed or default to workspace root + project name
-             };
-             cwd = mapping[project] || `/Users/ksato/workspace/${project}`; 
+            // Hardcoded common paths for now based on user context
+            const mapping = {
+                'unson': '/Users/ksato/workspace/unson/web',
+                'tech-knight': '/Users/ksato/workspace/tech-knight/app/hp-site',
+                'brainbase': '/Users/ksato/workspace/brainbase-ui',
+                // Add others as needed or default to workspace root + project name
+            };
+            cwd = mapping[project] || `/Users/ksato/workspace/${project}`;
         }
 
         const name = prompt('Enter session name:', `New ${project} Session`);
         if (!name) return;
 
         const initialCommand = prompt('Initial command (optional):', '');
-        
+
         const sessionId = `session-${Date.now()}`; // Generate ID
 
         try {
@@ -448,8 +576,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (res.ok) {
-                const { port } = await res.json();
-                
+                const { port, proxyPath } = await res.json();
+
                 // Save to state
                 const resState = await fetch('/api/state');
                 const currentState = await resState.json();
@@ -460,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     initialCommand,
                     archived: false
                 }];
-                
+
                 await fetch('/api/state', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -482,27 +610,27 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startTaskSession(task) {
         // Map task project to CWD
         let cwd = null;
-         if (task.project) {
-             const mapping = {
-                 'unson': '/Users/ksato/workspace/unson/web',
-                 'tech-knight': '/Users/ksato/workspace/tech-knight/app/hp-site',
-                 'brainbase': '/Users/ksato/workspace/brainbase-ui',
-             };
-             cwd = mapping[task.project] || `/Users/ksato/workspace/${task.project}`; 
+        if (task.project) {
+            const mapping = {
+                'unson': '/Users/ksato/workspace/unson/web',
+                'tech-knight': '/Users/ksato/workspace/tech-knight/app/hp-site',
+                'brainbase': '/Users/ksato/workspace/brainbase-ui',
+            };
+            cwd = mapping[task.project] || `/Users/ksato/workspace/${task.project}`;
         }
 
         const sessionId = `task-${task.id}-${Date.now()}`;
         const name = `Task: ${task.name}`;
-        
+
         try {
-             // Start backend process
+            // Start backend process
             const res = await fetch('/api/sessions/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId, cwd })
             });
 
-             if (res.ok) {
+            if (res.ok) {
                 // Update state
                 const resState = await fetch('/api/state');
                 const currentState = await resState.json();
@@ -514,18 +642,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     archived: false
                 }];
                 // Also update task status to in-progress?
-                
-                 await fetch('/api/state', {
+
+                await fetch('/api/state', {
                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sessions: newSessions })
                 });
-                
+
                 await updateTaskStatus(task.id, 'in-progress');
 
                 await loadSessions();
                 switchSession(sessionId, cwd);
-             }
+            }
         } catch (error) {
             console.error('Error starting task session:', error);
         }
@@ -533,7 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function switchSession(id, path, initialCommand) {
         currentSessionId = id;
-        
+
         // Update UI active state
         document.querySelectorAll('.session-child-row').forEach(row => {
             row.classList.remove('active');
@@ -543,15 +671,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Ensure backend process is running and get port
         try {
             const res = await fetch('/api/sessions/start', {
-                 method: 'POST',
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId: id, initialCommand, cwd: path })
             });
-            const { port } = await res.json();
-            
+            const { port, proxyPath } = await res.json();
+
             // Update iframe
-            terminalFrame.src = `http://localhost:${port}`;
-            
+            terminalFrame.src = proxyPath;
+
             // Clear unread
             if (sessionUnreadMap.get(id)) {
                 sessionUnreadMap.set(id, false);
@@ -572,7 +700,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         loadTasks();
     }
-    
+
     async function deleteTask(id) {
         await fetch(`/api/tasks/${id}`, {
             method: 'DELETE'
@@ -582,16 +710,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     addSessionBtn.addEventListener('click', () => createNewSession());
 
-    // Schedule Trigger
-    document.getElementById('update-schedule-btn').addEventListener('click', async () => {
-         // Copy command to clipboard
-         const command = 'gs_schedule_update';
-         await navigator.clipboard.writeText(command);
-         alert('Copied schedule update command to clipboard!');
-         // In future, trigger via API if meaningful
-    });
-
-
     // --- Session Status Polling ---
     const sessionStatusMap = new Map(); // sessionId -> { isRunning, isWorking }
     const sessionUnreadMap = new Map(); // sessionId -> boolean (true if finished working but not viewed)
@@ -600,20 +718,20 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/sessions/status');
             const status = await res.json();
-            
+
             // Debug Log
             console.log('Poll Status Result:', status);
 
             // Update map and handle transitions
             for (const [sessionId, newStatus] of Object.entries(status)) {
                 const oldStatus = sessionStatusMap.get(sessionId);
-                
+
                 // Transition: Working -> Idle (Done)
                 // Only if NOT the current session
                 if (oldStatus?.isWorking && !newStatus.isWorking && currentSessionId !== sessionId) {
                     sessionUnreadMap.set(sessionId, true);
                 }
-                
+
                 // If currently working, it's not unread (it's active)
                 if (newStatus.isWorking) {
                     sessionUnreadMap.set(sessionId, false);
@@ -634,7 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const sessionId = item.dataset.id;
             const status = sessionStatusMap.get(sessionId);
             const isUnread = sessionUnreadMap.get(sessionId);
-            
+
             console.log(`Updating indicator for ${sessionId}: current=${currentSessionId}, isWorking=${status?.isWorking}, isUnread=${isUnread}`);
 
             // Remove existing indicator
@@ -646,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Determine if we should show indicator
             // 1. Working: Always show (Green Pulse) - EVEN IF CURRENT SESSION
             // 2. Unread: Show (Green Static) - ONLY IF NOT CURRENT SESSION (handled by map logic but safe to check)
-            
+
             if (currentSessionId === sessionId) {
                 // If looking at it, clear unread
                 if (sessionUnreadMap.get(sessionId)) {
@@ -671,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Drag & Drop File Upload ---
     const consoleArea = document.querySelector('.console-area');
-    
+
     // Prevent default drag behaviors
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         consoleArea.addEventListener(eventName, preventDefaults, false);
@@ -724,17 +842,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (!uploadRes.ok) throw new Error('Upload failed');
-            
+
             const { path } = await uploadRes.json();
-            
+
             // 2. Paste path into terminal
             // We need to send this input to the session
             await fetch(`/api/sessions/${currentSessionId}/input`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input: path }) // Just paste the path
+                body: JSON.stringify({ input: path, type: 'text' })
             });
 
         } catch (error) {
@@ -752,9 +870,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     await fetch(`/api/sessions/${currentSessionId}/input`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            input: 'M-Enter', 
-                            type: 'key' 
+                        body: JSON.stringify({
+                            input: 'M-Enter',
+                            type: 'key'
                         })
                     });
                 } catch (error) {
@@ -768,7 +886,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSessions();
     loadSchedule();
     loadTasks();
-    
+
     // Periodic Refresh (every 5 minutes)
     setInterval(() => {
         loadSchedule();
@@ -779,4 +897,71 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(pollSessionStatus, 3000);
     // Initial poll
     pollSessionStatus();
+
+    // --- Terminal Copy Functionality ---
+    if (copyTerminalBtn) {
+        copyTerminalBtn.onclick = async () => {
+            if (!currentSessionId) {
+                alert('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/content?lines=500`);
+                if (!res.ok) throw new Error('Failed to fetch content');
+
+                const { content } = await res.json();
+                terminalContentDisplay.textContent = content;
+                copyTerminalModal.classList.add('active');
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Failed to get terminal content:', error);
+                alert('ターミナル内容の取得に失敗しました');
+            }
+        };
+    }
+
+    if (copyContentBtn) {
+        copyContentBtn.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(terminalContentDisplay.textContent);
+                copyContentBtn.classList.add('copied');
+                copyContentBtn.innerHTML = '<i data-lucide="check"></i> コピー完了';
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    copyContentBtn.classList.remove('copied');
+                    copyContentBtn.innerHTML = '<i data-lucide="copy"></i> コピー';
+                    lucide.createIcons();
+                }, 2000);
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                // Fallback: select all text
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(terminalContentDisplay);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        };
+    }
+
+    // Close terminal copy modal
+    copyTerminalModal?.querySelectorAll('.close-modal-btn').forEach(btn => {
+        btn.onclick = () => copyTerminalModal.classList.remove('active');
+    });
+
+    // Close modal on backdrop click
+    copyTerminalModal?.addEventListener('click', (e) => {
+        if (e.target === copyTerminalModal) {
+            copyTerminalModal.classList.remove('active');
+        }
+    });
+
+    // Close modal on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && copyTerminalModal?.classList.contains('active')) {
+            copyTerminalModal.classList.remove('active');
+        }
+    });
 });
