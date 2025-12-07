@@ -1,4 +1,21 @@
 ---
+id: SLACK-2025-12-07-MIVOM8K9
+title: 板橋区の天気を確認
+project_id: general
+status: todo
+owner: 佐藤-圭吾
+priority: low
+due: null
+tags: [slack, auto-import]
+links: []
+---
+
+- 2025-12-07 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: 今日の板橋区の天気情報を確認する
+- Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765109483854439
+
+---
 id: SLACK-2025-12-06-MIUF9Z01
 title: AIの知識範囲と能力の説明
 project_id: general
