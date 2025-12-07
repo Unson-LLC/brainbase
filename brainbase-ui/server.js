@@ -405,6 +405,16 @@ app.post('/api/sessions/:id/input', async (req, res) => {
     }
 });
 
+// File Upload Endpoint
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const absolutePath = path.resolve(__dirname, 'uploads', req.file.filename);
+    res.json({ path: absolutePath, filename: req.file.filename });
+});
+
 // Endpoint to get terminal content (history)
 app.get('/api/sessions/:id/content', async (req, res) => {
     const { id } = req.params;

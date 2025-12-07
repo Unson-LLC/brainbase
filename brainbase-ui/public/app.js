@@ -869,45 +869,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Drag & Drop File Upload ---
     const consoleArea = document.querySelector('.console-area');
+    const dropOverlay = document.getElementById('drop-overlay');
+    let dragCounter = 0;
 
-    // Prevent default drag behaviors
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        consoleArea.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
+    // Prevent default drag behaviors on document level
+    document.addEventListener('dragenter', (e) => {
         e.preventDefault();
         e.stopPropagation();
-    }
-
-    // Highlight drop zone
-    ['dragenter', 'dragover'].forEach(eventName => {
-        consoleArea.addEventListener(eventName, highlight, false);
+        // Add dragging class to disable iframe pointer events
+        consoleArea.classList.add('dragging');
     });
 
-    ['dragleave', 'drop'].forEach(eventName => {
-        consoleArea.addEventListener(eventName, unhighlight, false);
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
     });
 
-    function highlight(e) {
-        consoleArea.classList.add('highlight');
-    }
+    document.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only remove if leaving the document
+        if (e.relatedTarget === null) {
+            consoleArea.classList.remove('dragging');
+            dropOverlay.classList.remove('active');
+            dragCounter = 0;
+        }
+    });
 
-    function unhighlight(e) {
-        consoleArea.classList.remove('highlight');
-    }
+    document.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        consoleArea.classList.remove('dragging');
+        dropOverlay.classList.remove('active');
+        dragCounter = 0;
+    });
 
-    // Handle Drop
-    consoleArea.addEventListener('drop', handleDrop, false);
+    // Show overlay when dragging over console area
+    consoleArea.addEventListener('dragenter', (e) => {
+        dragCounter++;
+        dropOverlay.classList.add('active');
+        lucide.createIcons();
+    });
 
-    async function handleDrop(e) {
+    consoleArea.addEventListener('dragleave', (e) => {
+        dragCounter--;
+        if (dragCounter === 0) {
+            dropOverlay.classList.remove('active');
+        }
+    });
+
+    // Handle drop on overlay
+    dropOverlay.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    dropOverlay.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter = 0;
+        consoleArea.classList.remove('dragging');
+        dropOverlay.classList.remove('active');
+
         const dt = e.dataTransfer;
         const files = dt.files;
 
         if (files.length > 0) {
             await handleFiles(files);
         }
-    }
+    });
 
     async function handleFiles(files) {
         const file = files[0]; // Handle single file for now
@@ -940,6 +970,26 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('File upload failed');
         }
     }
+
+    // --- Clipboard Paste Image Support ---
+    document.addEventListener('paste', async (e) => {
+        // Check if we're focused on terminal area
+        if (!currentSessionId) return;
+
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) {
+                    await handleFiles([file]);
+                }
+                return;
+            }
+        }
+    });
 
     // --- Custom Key Handling (Shift+Enter) ---
     window.addEventListener('message', async (event) => {
