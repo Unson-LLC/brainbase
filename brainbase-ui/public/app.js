@@ -138,6 +138,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${dueText ? `<span class="due-tag ${isUrgent ? 'urgent' : ''}"><i data-lucide="clock"></i>${dueText}</span>` : ''}
                 </div>
                 <div class="focus-card-actions">
+                    <button class="focus-btn-start" data-id="${focusTask.id}">
+                        <i data-lucide="terminal-square"></i> 開始
+                    </button>
                     <button class="focus-btn-complete" data-id="${focusTask.id}">
                         <i data-lucide="check"></i> 完了
                     </button>
@@ -149,6 +152,11 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         // Event handlers
+        focusTaskEl.querySelector('.focus-btn-start').onclick = (e) => {
+            e.stopPropagation();
+            startTaskSession(focusTask);
+        };
+
         focusTaskEl.querySelector('.focus-btn-complete').onclick = (e) => {
             e.stopPropagation();
             completeTaskWithAnimation(focusTask.id, '.focus-card');
@@ -774,54 +782,81 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function startTaskSession(task) {
-        // Map task project to CWD
-        let cwd = null;
-        if (task.project) {
-            const mapping = {
-                'unson': '/Users/ksato/workspace/unson/web',
-                'tech-knight': '/Users/ksato/workspace/tech-knight/app/hp-site',
-                'brainbase': '/Users/ksato/workspace/brainbase-ui',
-            };
-            cwd = mapping[task.project] || `/Users/ksato/workspace/${task.project}`;
+        // Map task project to repo path (for worktree)
+        const mapping = {
+            'unson': '/Users/ksato/workspace/unson',
+            'tech-knight': '/Users/ksato/workspace/tech-knight',
+            'brainbase': '/Users/ksato/workspace/brainbase-ui',
+            'salestailor': '/Users/ksato/workspace/salestailor',
+            'zeims': '/Users/ksato/workspace/zeims',
+            'baao': '/Users/ksato/workspace/baao',
+            'ncom': '/Users/ksato/workspace/ncom',
+            'senrigan': '/Users/ksato/workspace/senrigan',
+        };
+
+        let repoPath = mapping[task.project] || `/Users/ksato/workspace/${task.project}`;
+        if (!task.project) {
+            repoPath = '/Users/ksato/workspace';
         }
 
         const sessionId = `task-${task.id}-${Date.now()}`;
         const name = `Task: ${task.name}`;
+        const initialCommand = `/task ${task.id}`;
 
         try {
-            // Start backend process
-            const res = await fetch('/api/sessions/start', {
+            // Try to create session with worktree first
+            const res = await fetch('/api/sessions/create-with-worktree', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId, cwd })
+                body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
             });
 
             if (res.ok) {
-                // Update state
-                const resState = await fetch('/api/state');
-                const currentState = await resState.json();
-                const newSessions = [...(currentState.sessions || []), {
-                    id: sessionId,
-                    name: name,
-                    path: cwd,
-                    taskId: task.id,
-                    archived: false
-                }];
-                // Also update task status to in-progress?
-
-                await fetch('/api/state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessions: newSessions })
-                });
+                const { proxyPath, session } = await res.json();
+                console.log('Created task session with worktree:', session);
 
                 await updateTaskStatus(task.id, 'in-progress');
-
                 await loadSessions();
-                switchSession(sessionId, cwd);
+                switchSession(sessionId, session.path, initialCommand);
+            } else {
+                // Fallback to regular session (non-git repo)
+                console.log('Worktree creation failed, falling back to regular session');
+                const fallbackRes = await fetch('/api/sessions/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId, initialCommand, cwd: repoPath })
+                });
+
+                if (fallbackRes.ok) {
+                    // Save to state manually
+                    const resState = await fetch('/api/state');
+                    const currentState = await resState.json();
+                    const newSessions = [...(currentState.sessions || []), {
+                        id: sessionId,
+                        name: name,
+                        path: repoPath,
+                        taskId: task.id,
+                        initialCommand,
+                        archived: false,
+                        created: new Date().toISOString()
+                    }];
+
+                    await fetch('/api/state', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessions: newSessions })
+                    });
+
+                    await updateTaskStatus(task.id, 'in-progress');
+                    await loadSessions();
+                    switchSession(sessionId, repoPath, initialCommand);
+                } else {
+                    alert('セッションの開始に失敗しました');
+                }
             }
         } catch (error) {
             console.error('Error starting task session:', error);
+            alert('セッション作成エラー');
         }
     }
 

@@ -136,6 +136,29 @@ app.post('/api/tasks/:id', async (req, res) => {
     }
 });
 
+// PUT endpoint for updating tasks (client uses PUT)
+app.put('/api/tasks/:id', async (req, res) => {
+    const { id } = req.params;
+    const updates = req.body;
+    const success = await taskParser.updateTask(id, updates);
+    if (success) {
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Task not found or update failed' });
+    }
+});
+
+// DELETE endpoint for removing tasks
+app.delete('/api/tasks/:id', async (req, res) => {
+    const { id } = req.params;
+    const success = await taskParser.deleteTask(id);
+    if (success) {
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Task not found or delete failed' });
+    }
+});
+
 app.get('/api/schedule/today', async (req, res) => {
     const schedule = await scheduleParser.getTodaySchedule();
     res.json(schedule);

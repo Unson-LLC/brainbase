@@ -499,6 +499,7 @@ body {
     gap: 8px;
 }
 
+.focus-btn-start,
 .focus-btn-complete,
 .focus-btn-defer {
     flex: 1;
@@ -513,6 +514,19 @@ body {
     gap: 6px;
     transition: all 0.2s;
 }
+
+.focus-btn-start {
+    background: var(--accent-color);
+    border: none;
+    color: white;
+}
+
+.focus-btn-start:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.focus-btn-start i { width: 16px; height: 16px; }
 
 .focus-btn-complete {
     background: var(--success-color);
