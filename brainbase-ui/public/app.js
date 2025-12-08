@@ -310,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.onclick = (e) => {
                 e.stopPropagation();
                 const taskId = btn.dataset.id;
-                if (confirm('Delete task?')) deleteTask(taskId);
+                if (confirm('タスクを削除しますか？')) deleteTask(taskId);
             };
         });
 
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const deleteBtn = childRow.querySelector('.delete-session-btn');
                 deleteBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    if (confirm(`Are you sure you want to delete session "${displayName}"?`)) {
+                    if (confirm(`セッション「${displayName}」を削除しますか？`)) {
                         try {
                             const res = await fetch('/api/state');
                             const currentState = await res.json();
@@ -559,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (mergeBtn) {
                     mergeBtn.onclick = async (e) => {
                         e.stopPropagation();
-                        if (!confirm(`Merge session "${displayName}" changes to main branch?`)) {
+                        if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？`)) {
                             return;
                         }
 
@@ -571,14 +571,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             const result = await res.json();
 
                             if (result.success) {
-                                alert('Merged successfully!');
+                                alert('マージが完了しました');
                                 loadSessions();
                             } else {
-                                alert(`Merge failed: ${result.error}`);
+                                alert(`マージに失敗しました: ${result.error}`);
                             }
                         } catch (err) {
                             console.error('Failed to merge', err);
-                            alert('Failed to merge session');
+                            alert('マージに失敗しました');
                         }
                     };
                 }
@@ -601,24 +601,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             if (result.needsConfirmation) {
                                 // Show merge confirmation dialog
-                                const choice = confirm(
-                                    `Session "${displayName}" has unmerged changes:\n` +
-                                    `- ${result.status.commitsAhead || 0} commits ahead\n` +
-                                    `- ${result.status.hasUncommittedChanges ? 'Has uncommitted changes' : 'No uncommitted changes'}\n\n` +
-                                    `Do you want to merge before archiving?\n\n` +
-                                    `Click OK to merge, or Cancel to discard changes and archive anyway.`
+                                const mergeChoice = confirm(
+                                    `「${displayName}」に未マージの変更があります:\n` +
+                                    `・${result.status.commitsAhead || 0} コミット先行\n` +
+                                    `・${result.status.hasUncommittedChanges ? '未コミットの変更あり' : '未コミットの変更なし'}\n\n` +
+                                    `マージしてからアーカイブしますか？\n\n` +
+                                    `OK = マージしてアーカイブ\nキャンセル = 何もしない`
                                 );
 
-                                if (choice) {
-                                    // Merge first
-                                    const mergeRes = await fetch(`/api/sessions/${session.id}/merge`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' }
-                                    });
-                                    const mergeResult = await mergeRes.json();
+                                if (!mergeChoice) {
+                                    // User cancelled - do nothing
+                                    return;
+                                }
 
-                                    if (!mergeResult.success) {
-                                        alert(`Merge failed: ${mergeResult.error}\nArchive cancelled.`);
+                                // Merge first
+                                const mergeRes = await fetch(`/api/sessions/${session.id}/merge`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                const mergeResult = await mergeRes.json();
+
+                                if (!mergeResult.success) {
+                                    // Merge failed - ask if they want to discard
+                                    const discardChoice = confirm(
+                                        `マージに失敗しました: ${mergeResult.error}\n\n` +
+                                        `変更を破棄してアーカイブしますか？\n\n` +
+                                        `OK = 破棄してアーカイブ\nキャンセル = 何もしない`
+                                    );
+                                    if (!discardChoice) {
                                         return;
                                     }
                                 }
@@ -746,12 +756,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     await loadSessions();
                     switchSession(sessionId, repoPath, initialCommand);
                 } else {
-                    alert('Failed to start session');
+                    alert('セッションの開始に失敗しました');
                 }
             }
         } catch (error) {
             console.error('Error creating session:', error);
-            alert('Error creating session');
+            alert('セッション作成エラー');
         }
     }
 
@@ -1075,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('File upload failed:', error);
-            alert('File upload failed');
+            alert('ファイルアップロードに失敗しました');
         }
     }
 
