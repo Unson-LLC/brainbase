@@ -873,6 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function startTaskSession(task) {
+        console.log('### startTaskSession called with task:', task);
         // Map task project to repo path (for worktree)
         const mapping = {
             'unson': '/Users/ksato/workspace/unson',
@@ -896,16 +897,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // Try to create session with worktree first
+            console.log('### Calling /api/sessions/create-with-worktree');
+            console.log('### sessionId:', sessionId, 'repoPath:', repoPath);
             const res = await fetch('/api/sessions/create-with-worktree', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
             });
+            console.log('### API response status:', res.status, res.ok);
 
             if (res.ok) {
                 const { proxyPath, session } = await res.json();
-                console.log('Created task session with worktree:', session);
-                console.log('proxyPath:', proxyPath);
+                console.log('### Created task session with worktree:', session);
+                console.log('### proxyPath:', proxyPath);
 
                 await updateTaskStatus(task.id, 'in-progress');
                 await loadSessions();
@@ -920,14 +924,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 terminalFrame.src = proxyPath;
             } else {
                 // Fallback to regular session (non-git repo)
-                console.log('Worktree creation failed, falling back to regular session');
+                // Use workspace root if specific repo doesn't exist
+                const fallbackCwd = '/Users/ksato/workspace';
+                console.log('### Worktree failed, using fallback with cwd:', fallbackCwd);
                 const fallbackRes = await fetch('/api/sessions/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, initialCommand, cwd: repoPath })
+                    body: JSON.stringify({ sessionId, initialCommand, cwd: fallbackCwd })
                 });
+                console.log('### Fallback response:', fallbackRes.status, fallbackRes.ok);
 
                 if (fallbackRes.ok) {
+                    const { proxyPath } = await fallbackRes.json();
+                    console.log('### Fallback proxyPath:', proxyPath);
+
                     // Save to state manually
                     const resState = await fetch('/api/state');
                     const currentState = await resState.json();
@@ -949,7 +959,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     await updateTaskStatus(task.id, 'in-progress');
                     await loadSessions();
-                    switchSession(sessionId, repoPath, initialCommand);
+
+                    // Use proxyPath directly
+                    currentSessionId = sessionId;
+                    console.log('### Setting terminalFrame.src (fallback):', proxyPath);
+                    terminalFrame.src = proxyPath;
                 } else {
                     alert('セッションの開始に失敗しました');
                 }
