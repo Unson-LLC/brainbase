@@ -60,3 +60,14 @@ _codex/common/ops/.env
 # Slack history (synced from S3, too large for git)
 _codex/sources/slack/
 .worktrees/
+
+# MCP credentials (contains OAuth tokens)
+.claude/mcp/gmail/
+
+# brainbase-ui runtime files
+brainbase-ui/state.json
+brainbase-ui/test-results/
+brainbase-ui/uploads/
+
+# SNS generated images (large files)
+_codex/common/ops/_codex/sns/images/
