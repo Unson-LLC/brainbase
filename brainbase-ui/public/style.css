@@ -300,6 +300,49 @@ body {
     100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 
+/* Session Drag & Drop */
+.drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    opacity: 0;
+    cursor: grab;
+    padding: 0 4px;
+    transition: opacity 0.15s;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.drag-handle i {
+    width: 12px;
+    height: 12px;
+}
+
+.session-child-row:hover .drag-handle {
+    opacity: 0.6;
+}
+
+.session-child-row:hover .drag-handle:hover {
+    opacity: 1;
+}
+
+.session-child-row.dragging {
+    opacity: 0.5;
+    background-color: rgba(59, 130, 246, 0.2);
+}
+
+.session-child-row.drag-over {
+    border-top: 2px solid var(--accent-color);
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.session-child-row[draggable="true"] {
+    user-select: none;
+}
+
 /* =========================================
    4. Main Content: Console
    ========================================= */

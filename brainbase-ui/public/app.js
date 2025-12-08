@@ -39,6 +39,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let showArchived = false;
     const CORE_PROJECTS = ['brainbase', 'unson', 'tech-knight', 'salestailor', 'zeims', 'baao', 'ncom', 'senrigan'];
 
+    // Session Drag & Drop State
+    let draggedSessionId = null;
+    let draggedSessionProject = null;
+
     // --- Data Loading ---
     async function loadSessions() {
         try {
@@ -468,6 +472,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 childRow.className = `session-child-row ${currentSessionId === session.id ? 'active' : ''}`;
                 if (session.archived) childRow.classList.add('archived');
                 childRow.dataset.id = session.id;
+                childRow.dataset.project = project;
+                childRow.setAttribute('draggable', 'true');
 
                 const displayName = session.name || session.id;
                 const hasWorktree = !!session.worktree;
@@ -484,6 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 childRow.innerHTML = `
+                    <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
                     <div class="session-name-container">
                         <span class="session-icon"><i data-lucide="terminal-square"></i></span>
                         <span class="session-name">${displayName}</span>
@@ -697,6 +704,73 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 };
+
+                // --- Session Drag & Drop ---
+                childRow.addEventListener('dragstart', (e) => {
+                    draggedSessionId = session.id;
+                    draggedSessionProject = project;
+                    childRow.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', session.id);
+                });
+
+                childRow.addEventListener('dragend', () => {
+                    draggedSessionId = null;
+                    draggedSessionProject = null;
+                    childRow.classList.remove('dragging');
+                    document.querySelectorAll('.session-child-row.drag-over').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
+                });
+
+                childRow.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (draggedSessionId && draggedSessionProject === project && draggedSessionId !== session.id) {
+                        e.dataTransfer.dropEffect = 'move';
+                        childRow.classList.add('drag-over');
+                    }
+                });
+
+                childRow.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    childRow.classList.remove('drag-over');
+                });
+
+                childRow.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    childRow.classList.remove('drag-over');
+
+                    if (!draggedSessionId || draggedSessionProject !== project || draggedSessionId === session.id) {
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch('/api/state');
+                        const currentState = await res.json();
+                        const sessionList = currentState.sessions || [];
+
+                        const draggedIndex = sessionList.findIndex(s => s.id === draggedSessionId);
+                        const targetIndex = sessionList.findIndex(s => s.id === session.id);
+
+                        if (draggedIndex === -1 || targetIndex === -1) return;
+
+                        const [draggedSession] = sessionList.splice(draggedIndex, 1);
+                        const newTargetIndex = sessionList.findIndex(s => s.id === session.id);
+                        sessionList.splice(newTargetIndex, 0, draggedSession);
+
+                        await fetch('/api/state', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sessions: sessionList })
+                        });
+
+                        loadSessions();
+                    } catch (err) {
+                        console.error('Failed to reorder sessions', err);
+                    }
+                });
 
                 childrenDiv.appendChild(childRow);
             });
