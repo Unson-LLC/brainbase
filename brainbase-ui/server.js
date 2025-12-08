@@ -12,6 +12,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 import { TaskParser } from './lib/task-parser.js';
 import { ScheduleParser } from './lib/schedule-parser.js';
 import { StateStore } from './lib/state-store.js';
+import { ConfigParser } from './lib/config-parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,11 +26,14 @@ const TASKS_FILE = path.join(__dirname, '../_tasks/index.md');
 const SCHEDULES_DIR = path.join(__dirname, '../_schedules');
 const STATE_FILE = path.join(__dirname, 'state.json');
 const WORKTREES_DIR = path.join(__dirname, '../.worktrees');
+const CODEX_PATH = path.join(__dirname, '../_codex');
+const CONFIG_PATH = path.join(__dirname, '../config.yml');
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
 const stateStore = new StateStore(STATE_FILE);
+const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH);
 
 // Middleware
 app.use(express.static('public'));
@@ -171,6 +175,44 @@ app.get('/api/state', (req, res) => {
 app.post('/api/state', async (req, res) => {
     const newState = await stateStore.update(req.body);
     res.json(newState);
+});
+
+// --- Config API ---
+
+// Get all config (Slack + Projects)
+app.get('/api/config', async (req, res) => {
+    const config = await configParser.getAll();
+    res.json(config);
+});
+
+// Get Slack workspaces
+app.get('/api/config/slack/workspaces', async (req, res) => {
+    const workspaces = await configParser.getWorkspaces();
+    res.json(workspaces);
+});
+
+// Get Slack channels
+app.get('/api/config/slack/channels', async (req, res) => {
+    const channels = await configParser.getChannels();
+    res.json(channels);
+});
+
+// Get Slack members
+app.get('/api/config/slack/members', async (req, res) => {
+    const members = await configParser.getMembers();
+    res.json(members);
+});
+
+// Get projects from config.yml
+app.get('/api/config/projects', async (req, res) => {
+    const projects = await configParser.getProjects();
+    res.json(projects);
+});
+
+// Check integrity
+app.get('/api/config/integrity', async (req, res) => {
+    const result = await configParser.checkIntegrity();
+    res.json(result);
 });
 
 // Endpoint for hooks to report activity

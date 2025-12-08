@@ -79,3 +79,38 @@ projects:
         - "meetings/**/*"
         - "ops/**/*"
         - "research/**/*"
+
+  # --- Slackマッピング専用プロジェクト（ローカルパスなし） ---
+
+  - id: dialogai
+    # ncom配下のサブプロジェクト。_codex/projects/ncom/dialogai/を参照
+
+  - id: notionconnect
+    # Notion連携プロジェクト
+
+  - id: emporio
+    # Emporioプロジェクト
+
+  - id: toranomon
+    # 虎ノ門セミナー
+
+  - id: aitle
+    # Aitle（Tech Knight配下）。_codex/projects/techknight/aitle/を参照
+
+  - id: postio
+    # Postioプロジェクト
+
+  - id: mywa
+    # MyWaプロジェクト。_codex/projects/mywa/を参照
+
+  - id: unson-os
+    # UNSON OSプロジェクト。_codex/projects/unson-os/を参照
+
+  - id: unson-board
+    # UNSON取締役会
+
+  - id: back-office
+    # バックオフィス運用
+
+  - id: yakumokai
+    # 八雲会コミュニティ
