@@ -1232,3 +1232,339 @@ body {
 .btn-primary.copied::after {
     content: ' ✓';
 }
+
+/* =========================================
+   15. Settings View
+   ========================================= */
+
+/* Sidebar Footer with Settings Link */
+.sidebar-footer {
+    margin-top: auto;
+    padding: 0.5rem;
+}
+
+.sidebar-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 0.5rem 0;
+}
+
+.settings-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s ease;
+}
+
+.settings-link:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.settings-link.active {
+    background: var(--accent-color);
+    color: white;
+}
+
+.settings-link i {
+    width: 18px;
+    height: 18px;
+}
+
+/* Settings View Container */
+.settings-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.settings-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.settings-header h2 i {
+    width: 20px;
+    height: 20px;
+    color: var(--text-secondary);
+}
+
+/* Integrity Summary */
+.integrity-summary {
+    padding: 1rem 1.5rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.integrity-stats {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.stat-item .count {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.stat-item.error .count { color: var(--danger-color); }
+.stat-item.warning .count { color: var(--warning-color); }
+.stat-item.success .count { color: var(--success-color); }
+
+.integrity-issues {
+    margin-top: 1rem;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.issue-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+}
+
+.issue-item.error { background: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
+.issue-item.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
+.issue-item.info { background: rgba(59, 130, 246, 0.1); color: var(--accent-color); }
+
+/* Settings Tabs */
+.settings-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 1.5rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s ease;
+}
+
+.settings-tab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.settings-tab.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}
+
+.settings-tab i {
+    width: 16px;
+    height: 16px;
+}
+
+/* Settings Content */
+.settings-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+.settings-panel {
+    display: none;
+}
+
+.settings-panel.active {
+    display: block;
+}
+
+.settings-section {
+    margin-bottom: 2rem;
+}
+
+.settings-section h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Filter Bar */
+.filter-bar {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.filter-bar .form-input {
+    flex: 1;
+    max-width: 300px;
+}
+
+/* Config List (Workspaces) */
+.config-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.config-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.config-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.config-card-header h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.config-card-id {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+.config-card-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.config-card-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Config Table */
+.config-table-container {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.config-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.config-table th,
+.config-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.config-table th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    position: sticky;
+    top: 0;
+}
+
+.config-table tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.config-table tr:last-child td {
+    border-bottom: none;
+}
+
+.config-table .mono {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.config-table .badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.badge-workspace {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-color);
+}
+
+.badge-type {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-color);
+}
+
+.badge-project {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-color);
+}
+
+/* Empty state */
+.config-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+/* Scrollable table container */
+.config-table-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
