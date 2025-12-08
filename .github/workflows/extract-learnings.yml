@@ -1,0 +1,29 @@
+name: Extract Learnings from Sessions
+
+on:
+  schedule:
+    # 6時間ごと (0:00, 6:00, 12:00, 18:00 JST)
+    - cron: '0 15,21,3,9 * * *'
+  workflow_dispatch:  # 手動実行用
+
+jobs:
+  extract:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract learnings from Claude sessions
+        run: |
+          bash _codex/common/ops/scripts/extract-learnings.sh
+        env:
+          HOME: /Users/ksato
+
+      - name: Show results
+        run: |
+          echo "=== Learning Queue ==="
+          ls -la /Users/ksato/workspace/.claude/learning/learning_queue/ 2>/dev/null || echo "Queue empty"
+          echo ""
+          echo "=== Recent Log ==="
+          tail -20 /Users/ksato/workspace/.claude/learning/logs/extract-learnings.log 2>/dev/null || echo "No log"
