@@ -450,8 +450,11 @@ brainbase運用に特化したカスタムコマンド：
 - **[_tasks/index.md](/Users/ksato/workspace/_tasks/index.md)** - タスク一元管理
 - **[_codex/common/meta/](/Users/ksato/workspace/_codex/common/meta/)** - 人・組織・RACI正本
 
+### プロジェクト固有Skills
+- **[mana Lambda デプロイ](/Users/ksato/workspace/mana/.claude/skills/lambda-deployment/SKILL.md)** - mana AWS Lambdaデプロイ手順（パッケージサイズ制限対応含む）
+
 ---
 
-最終更新: 2025-12-05
+最終更新: 2025-12-08
 バージョン: 1.0
 管理者: workspace運用チーム
