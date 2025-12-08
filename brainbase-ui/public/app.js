@@ -3,6 +3,7 @@ import { MAX_VISIBLE_TASKS, CORE_PROJECTS } from './modules/state.js';
 import { formatDueDate } from './modules/ui-helpers.js';
 import { initSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearUnread, startPolling } from './modules/session-indicators.js';
+import { initFileUpload } from './modules/file-upload.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Elements ---
@@ -1061,150 +1062,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Session Status Polling ---
     // Moved to modules/session-indicators.js
 
-    // --- Drag & Drop File Upload ---
-    const consoleArea = document.querySelector('.console-area');
-    const dropOverlay = document.getElementById('drop-overlay');
-    let dragCounter = 0;
-
-    // Prevent default drag behaviors on document level
-    document.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Add dragging class to disable iframe pointer events
-        consoleArea.classList.add('dragging');
-    });
-
-    document.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    document.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Only remove if leaving the document
-        if (e.relatedTarget === null) {
-            consoleArea.classList.remove('dragging');
-            dropOverlay.classList.remove('active');
-            dragCounter = 0;
-        }
-    });
-
-    document.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        consoleArea.classList.remove('dragging');
-        dropOverlay.classList.remove('active');
-        dragCounter = 0;
-    });
-
-    // Show overlay when dragging over console area
-    consoleArea.addEventListener('dragenter', (e) => {
-        dragCounter++;
-        dropOverlay.classList.add('active');
-        lucide.createIcons();
-    });
-
-    consoleArea.addEventListener('dragleave', (e) => {
-        dragCounter--;
-        if (dragCounter === 0) {
-            dropOverlay.classList.remove('active');
-        }
-    });
-
-    // Handle drop on overlay
-    dropOverlay.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    dropOverlay.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dragCounter = 0;
-        consoleArea.classList.remove('dragging');
-        dropOverlay.classList.remove('active');
-
-        const dt = e.dataTransfer;
-        const files = dt.files;
-
-        if (files.length > 0) {
-            await handleFiles(files);
-        }
-    });
-
-    async function handleFiles(files) {
-        const file = files[0]; // Handle single file for now
-        if (!currentSessionId) return;
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            // 1. Upload File
-            const uploadRes = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!uploadRes.ok) throw new Error('Upload failed');
-
-            const { path } = await uploadRes.json();
-
-            // 2. Paste path into terminal
-            // We need to send this input to the session
-            await fetch(`/api/sessions/${currentSessionId}/input`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input: path, type: 'text' })
-            });
-
-        } catch (error) {
-            console.error('File upload failed:', error);
-            alert('ファイルアップロードに失敗しました');
-        }
-    }
-
-    // --- Clipboard Paste Image Support ---
-    document.addEventListener('paste', async (e) => {
-        // Check if we're focused on terminal area
-        if (!currentSessionId) return;
-
-        const items = e.clipboardData?.items;
-        if (!items) return;
-
-        for (const item of items) {
-            if (item.type.startsWith('image/')) {
-                e.preventDefault();
-                const file = item.getAsFile();
-                if (file) {
-                    await handleFiles([file]);
-                }
-                return;
-            }
-        }
-    });
-
-    // --- Custom Key Handling (Shift+Enter) ---
-    window.addEventListener('message', async (event) => {
-        if (event.data && event.data.type === 'SHIFT_ENTER') {
-            if (currentSessionId) {
-                console.log('Received SHIFT_ENTER from iframe, sending M-Enter to session');
-                try {
-                    await fetch(`/api/sessions/${currentSessionId}/input`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            input: 'M-Enter',
-                            type: 'key'
-                        })
-                    });
-                } catch (error) {
-                    console.error('Failed to send key command:', error);
-                }
-            }
-        }
-    });
+    // --- Drag & Drop, Clipboard, Key Handling ---
+    // Moved to modules/file-upload.js
 
     // Initial Load
     loadSessions();
@@ -1213,6 +1072,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Settings Module
     initSettings();
+
+    // Initialize File Upload (Drag & Drop, Clipboard)
+    initFileUpload(() => currentSessionId);
 
     // Periodic Refresh (every 5 minutes)
     setInterval(() => {
