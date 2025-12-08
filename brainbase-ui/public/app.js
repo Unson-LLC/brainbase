@@ -2,6 +2,7 @@
 import { MAX_VISIBLE_TASKS, CORE_PROJECTS } from './modules/state.js';
 import { formatDueDate } from './modules/ui-helpers.js';
 import { initSettings } from './modules/settings.js';
+import { pollSessionStatus, updateSessionIndicators, clearUnread, startPolling } from './modules/session-indicators.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Elements ---
@@ -989,11 +990,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update iframe
             terminalFrame.src = proxyPath;
 
-            // Clear unread
-            if (sessionUnreadMap.get(id)) {
-                sessionUnreadMap.set(id, false);
-                updateSessionIndicators();
-            }
+            // Clear unread (using imported module)
+            clearUnread(id);
+            updateSessionIndicators(currentSessionId);
 
         } catch (error) {
             console.error('Failed to switch session:', error);
@@ -1060,81 +1059,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addSessionBtn.addEventListener('click', () => createNewSession());
 
     // --- Session Status Polling ---
-    const sessionStatusMap = new Map(); // sessionId -> { isRunning, isWorking }
-    const sessionUnreadMap = new Map(); // sessionId -> boolean (true if finished working but not viewed)
-
-    async function pollSessionStatus() {
-        try {
-            const res = await fetch('/api/sessions/status');
-            const status = await res.json();
-
-            // Debug Log
-            console.log('Poll Status Result:', status);
-
-            // Update map and handle transitions
-            for (const [sessionId, newStatus] of Object.entries(status)) {
-                const oldStatus = sessionStatusMap.get(sessionId);
-
-                // Transition: Working -> Idle (Done)
-                // Only if NOT the current session
-                if (oldStatus?.isWorking && !newStatus.isWorking && currentSessionId !== sessionId) {
-                    sessionUnreadMap.set(sessionId, true);
-                }
-
-                // If currently working, it's not unread (it's active)
-                if (newStatus.isWorking) {
-                    sessionUnreadMap.set(sessionId, false);
-                }
-
-                sessionStatusMap.set(sessionId, newStatus);
-            }
-
-            updateSessionIndicators();
-        } catch (error) {
-            console.error('Failed to poll session status:', error);
-        }
-    }
-
-    function updateSessionIndicators() {
-        const sessionItems = document.querySelectorAll('.session-child-row');
-        sessionItems.forEach(item => {
-            const sessionId = item.dataset.id;
-            const status = sessionStatusMap.get(sessionId);
-            const isUnread = sessionUnreadMap.get(sessionId);
-
-            console.log(`Updating indicator for ${sessionId}: current=${currentSessionId}, isWorking=${status?.isWorking}, isUnread=${isUnread}`);
-
-            // Remove existing indicator
-            const existingIndicator = item.querySelector('.session-activity-indicator');
-            if (existingIndicator) {
-                existingIndicator.remove();
-            }
-
-            // Determine if we should show indicator
-            // 1. Working: Always show (Green Pulse) - EVEN IF CURRENT SESSION
-            // 2. Unread: Show (Green Static) - ONLY IF NOT CURRENT SESSION (handled by map logic but safe to check)
-
-            if (currentSessionId === sessionId) {
-                // If looking at it, clear unread
-                if (sessionUnreadMap.get(sessionId)) {
-                    sessionUnreadMap.set(sessionId, false);
-                    // No return here, proceed to check isWorking
-                }
-            }
-
-            if (status?.isWorking) {
-                const indicator = document.createElement('div');
-                indicator.className = 'session-activity-indicator working';
-                item.appendChild(indicator);
-                console.log(`Added WORKING indicator to ${sessionId}`);
-            } else if (currentSessionId !== sessionId && (status?.isDone || isUnread)) {
-                const indicator = document.createElement('div');
-                indicator.className = 'session-activity-indicator done';
-                item.appendChild(indicator);
-                console.log(`Added DONE indicator to ${sessionId}`);
-            }
-        });
-    }
+    // Moved to modules/session-indicators.js
 
     // --- Drag & Drop File Upload ---
     const consoleArea = document.querySelector('.console-area');
@@ -1295,10 +1220,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTasks();
     }, 5 * 60 * 1000);
 
-    // Status Polling (every 3 seconds)
-    setInterval(pollSessionStatus, 3000);
-    // Initial poll
-    pollSessionStatus();
+    // Status Polling (every 3 seconds) - using imported module
+    startPolling(() => currentSessionId, 3000);
 
     // --- Terminal Copy Functionality ---
     if (copyTerminalBtn) {
