@@ -126,7 +126,7 @@ links: []
 id: SLACK-2025-12-06-MIUCVS2B
 title: 知識・情報の共有依頼
 project_id: general
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: low
 due: null
@@ -228,7 +228,7 @@ links: []
 id: SLACK-2025-12-05-MIS88BZT
 title: 保守契約の考え方整理資料作成
 project_id: ncom
-status: todo
+status: in-progress
 owner: 佐藤-圭吾
 priority: high
 due: 2024-12-05
@@ -897,7 +897,7 @@ src/
 id: TK-2025-12-08-TOMIOKA
 title: 冨岡開発 社長に電話
 project_id: tech-knight
-status: todo
+status: in-progress
 owner: 佐藤-圭吾
 priority: high
 due: 2025-12-08
@@ -908,3 +908,64 @@ links: []
 - 2025-12-07 手動追加
 - 担当: 佐藤 圭吾
 - 背景: 冨岡開発の社長に電話連絡
+
+---
+id: ST-2025-12-08-PLG-RESEARCH
+title: PLG（プロダクト主導成長）の金脈調査
+project_id: salestailor
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2025-12-31
+tags: [plg, strategy, archetype-feedback]
+links: [meetings/minutes/2025-12-08_archetype-ventures-stella-meeting.md]
+---
+
+- 2025-12-08 Archetype Ventures面談から抽出
+- 担当: 佐藤 圭吾
+- 背景: 福井氏より「PLGの金脈が見つかれば投資家説得が爆発的に楽になる」とのフィードバック。セールスレッド以外の「パチッとはまったら営業しなくても儲かる世界」を探る。
+- 具体的アクション:
+  - PLG成功事例のリサーチ（OpenAI, Notion, Figma等）
+  - SalesTailorで適用可能なセルフサーブ機能の洗い出し
+  - フリーミアムモデルの検討
+
+---
+id: ST-2025-12-08-GITHUB-AI-OS
+title: GitHub×AI一元管理のプロダクト応用検討
+project_id: salestailor
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2025-12-31
+tags: [plg, product, archetype-feedback, brainbase]
+links: [meetings/minutes/2025-12-08_archetype-ventures-stella-meeting.md]
+---
+
+- 2025-12-08 Archetype Ventures面談から抽出
+- 担当: 佐藤 圭吾
+- 背景: 会議中にキング（佐藤CTO）が説明した「GitHubで議事録・文字起こし・意思決定履歴を一元管理しAIに読ませる仕組み」に福井氏が強い関心。「全国の中小事業者が欲しがっているもの」との自覚あり。
+- 検討事項:
+  - 現在のbrainbase運用ノウハウのプロダクト化可能性
+  - 「情報一元管理×AI」のMVP設計
+  - SalesTailorとの統合 or 別プロダクト化
+- 福井氏コメント: 「週末その辺を整理しようと思っていた」→ 次回接点の可能性
+
+---
+id: ST-2025-12-08-PLG-HYBRID
+title: PLG×SLGハイブリッドモデルの設計
+project_id: salestailor
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: 2026-01-31
+tags: [plg, slg, strategy, archetype-feedback]
+links: [meetings/minutes/2025-12-08_archetype-ventures-stella-meeting.md]
+---
+
+- 2025-12-08 Archetype Ventures面談から抽出
+- 担当: 佐藤 圭吾
+- 背景: 福井氏より「T2D3→Q2T3時代のキープレイヤーはPLGとSLGのハイブリッド」との示唆。OpenAIは数百ドル取れており、エンタープライズも取れている。
+- 検討事項:
+  - セルフサーブで始めてエンタープライズに転換するフロー設計
+  - 価格帯ごとの機能制限設計
+  - アップセルトリガーの定義
