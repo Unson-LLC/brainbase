@@ -445,13 +445,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 childRow.dataset.id = session.id;
 
                 const displayName = session.name || session.id;
+                const hasWorktree = !!session.worktree;
+                const isMerged = session.worktree?.merged;
+
+                // Build worktree badge
+                let worktreeBadge = '';
+                if (hasWorktree) {
+                    if (isMerged) {
+                        worktreeBadge = '<span class="worktree-badge merged" title="Merged"><i data-lucide="git-merge"></i></span>';
+                    } else {
+                        worktreeBadge = '<span class="worktree-badge" title="Has worktree"><i data-lucide="git-branch"></i></span>';
+                    }
+                }
 
                 childRow.innerHTML = `
                     <div class="session-name-container">
                         <span class="session-icon"><i data-lucide="terminal-square"></i></span>
-                        <span class="session-name">${displayName}</span> ${session.archived ? '(Archived)' : ''}
+                        <span class="session-name">${displayName}</span>
+                        ${worktreeBadge}
+                        ${session.archived ? '<span class="archived-label">(Archived)</span>' : ''}
                     </div>
                     <div class="child-actions">
+                        ${hasWorktree && !isMerged ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>' : ''}
                         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
                         <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
                         <button class="archive-session-btn" title="${session.archived ? 'Unarchive' : 'Archive'}">
@@ -539,31 +554,104 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
-                // Archive Logic
+                // Merge Logic (for worktree sessions)
+                const mergeBtn = childRow.querySelector('.merge-session-btn');
+                if (mergeBtn) {
+                    mergeBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Merge session "${displayName}" changes to main branch?`)) {
+                            return;
+                        }
+
+                        try {
+                            const res = await fetch(`/api/sessions/${session.id}/merge`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            const result = await res.json();
+
+                            if (result.success) {
+                                alert('Merged successfully!');
+                                loadSessions();
+                            } else {
+                                alert(`Merge failed: ${result.error}`);
+                            }
+                        } catch (err) {
+                            console.error('Failed to merge', err);
+                            alert('Failed to merge session');
+                        }
+                    };
+                }
+
+                // Archive Logic (with worktree merge check)
                 const archiveBtn = childRow.querySelector('.archive-session-btn');
                 archiveBtn.onclick = async (e) => {
                     e.stopPropagation();
                     const newArchivedState = !session.archived;
-                    const actionName = newArchivedState ? 'archive' : 'unarchive';
 
-                    if (newArchivedState && !confirm(`Are you sure you want to archive session "${displayName}"?`)) {
-                        return;
-                    }
+                    if (newArchivedState) {
+                        // Archiving - use new API with merge check
+                        try {
+                            const res = await fetch(`/api/sessions/${session.id}/archive`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ skipMergeCheck: false })
+                            });
+                            const result = await res.json();
 
-                    try {
-                        const res = await fetch('/api/state');
-                        const currentState = await res.json();
-                        const updatedSessions = currentState.sessions.map(s =>
-                            s.id === session.id ? { ...s, archived: newArchivedState } : s
-                        );
-                        await fetch('/api/state', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sessions: updatedSessions })
-                        });
-                        loadSessions(); // Reload list
-                    } catch (err) {
-                        console.error('Failed to update archive state', err);
+                            if (result.needsConfirmation) {
+                                // Show merge confirmation dialog
+                                const choice = confirm(
+                                    `Session "${displayName}" has unmerged changes:\n` +
+                                    `- ${result.status.commitsAhead || 0} commits ahead\n` +
+                                    `- ${result.status.hasUncommittedChanges ? 'Has uncommitted changes' : 'No uncommitted changes'}\n\n` +
+                                    `Do you want to merge before archiving?\n\n` +
+                                    `Click OK to merge, or Cancel to discard changes and archive anyway.`
+                                );
+
+                                if (choice) {
+                                    // Merge first
+                                    const mergeRes = await fetch(`/api/sessions/${session.id}/merge`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' }
+                                    });
+                                    const mergeResult = await mergeRes.json();
+
+                                    if (!mergeResult.success) {
+                                        alert(`Merge failed: ${mergeResult.error}\nArchive cancelled.`);
+                                        return;
+                                    }
+                                }
+
+                                // Archive with skip merge check
+                                await fetch(`/api/sessions/${session.id}/archive`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ skipMergeCheck: true })
+                                });
+                            }
+
+                            loadSessions();
+                        } catch (err) {
+                            console.error('Failed to archive session', err);
+                        }
+                    } else {
+                        // Unarchiving - simple state update
+                        try {
+                            const res = await fetch('/api/state');
+                            const currentState = await res.json();
+                            const updatedSessions = currentState.sessions.map(s =>
+                                s.id === session.id ? { ...s, archived: false } : s
+                            );
+                            await fetch('/api/state', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ sessions: updatedSessions })
+                            });
+                            loadSessions();
+                        } catch (err) {
+                            console.error('Failed to unarchive session', err);
+                        }
                     }
                 };
 
@@ -584,20 +672,23 @@ document.addEventListener('DOMContentLoaded', () => {
     async function createNewSession(project = 'general') {
         console.log('createNewSession called for project:', project);
 
-        // Find path for project
-        // This is a simplification. Ideally backend provides project paths.
-        // We will assume a standard workspace structure or prompt?
+        // Find repo path for project
+        const mapping = {
+            'unson': '/Users/ksato/workspace/unson',
+            'tech-knight': '/Users/ksato/workspace/tech-knight',
+            'brainbase': '/Users/ksato/workspace/brainbase-ui',
+            'salestailor': '/Users/ksato/workspace/salestailor',
+            'zeims': '/Users/ksato/workspace/zeims',
+            'baao': '/Users/ksato/workspace/baao',
+            'ncom': '/Users/ksato/workspace/ncom',
+            'senrigan': '/Users/ksato/workspace/senrigan',
+        };
 
-        let cwd = null;
+        let repoPath = null;
         if (project !== 'General' && project !== 'general') {
-            // Hardcoded common paths for now based on user context
-            const mapping = {
-                'unson': '/Users/ksato/workspace/unson/web',
-                'tech-knight': '/Users/ksato/workspace/tech-knight/app/hp-site',
-                'brainbase': '/Users/ksato/workspace/brainbase-ui',
-                // Add others as needed or default to workspace root + project name
-            };
-            cwd = mapping[project] || `/Users/ksato/workspace/${project}`;
+            repoPath = mapping[project] || `/Users/ksato/workspace/${project}`;
+        } else {
+            repoPath = '/Users/ksato/workspace';
         }
 
         const name = prompt('Enter session name:', `New ${project} Session`);
@@ -608,38 +699,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const sessionId = `session-${Date.now()}`; // Generate ID
 
         try {
-            // Start backend process
-            const res = await fetch('/api/sessions/start', {
+            // Try to create session with worktree first
+            const res = await fetch('/api/sessions/create-with-worktree', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId, initialCommand, cwd })
+                body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
             });
 
             if (res.ok) {
-                const { port, proxyPath } = await res.json();
-
-                // Save to state
-                const resState = await fetch('/api/state');
-                const currentState = await resState.json();
-                const newSessions = [...(currentState.sessions || []), {
-                    id: sessionId,
-                    name: name,
-                    path: cwd || '/Users/ksato/workspace', // Default
-                    initialCommand,
-                    archived: false
-                }];
-
-                await fetch('/api/state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessions: newSessions })
-                });
+                const { proxyPath, session } = await res.json();
+                console.log('Created session with worktree:', session);
 
                 // Reload and switch
                 await loadSessions();
-                switchSession(sessionId, cwd, initialCommand);
+                switchSession(sessionId, session.path, initialCommand);
             } else {
-                alert('Failed to start session backend');
+                // Fallback to regular session (non-git repo)
+                console.log('Worktree creation failed, falling back to regular session');
+                const fallbackRes = await fetch('/api/sessions/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId, initialCommand, cwd: repoPath })
+                });
+
+                if (fallbackRes.ok) {
+                    const { proxyPath } = await fallbackRes.json();
+
+                    // Save to state manually
+                    const resState = await fetch('/api/state');
+                    const currentState = await resState.json();
+                    const newSessions = [...(currentState.sessions || []), {
+                        id: sessionId,
+                        name: name,
+                        path: repoPath,
+                        initialCommand,
+                        archived: false,
+                        created: new Date().toISOString()
+                    }];
+
+                    await fetch('/api/state', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessions: newSessions })
+                    });
+
+                    await loadSessions();
+                    switchSession(sessionId, repoPath, initialCommand);
+                } else {
+                    alert('Failed to start session');
+                }
             }
         } catch (error) {
             console.error('Error creating session:', error);

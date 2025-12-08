@@ -24,6 +24,7 @@ const PORT = 3000;
 const TASKS_FILE = path.join(__dirname, '../_tasks/index.md');
 const SCHEDULES_DIR = path.join(__dirname, '../_schedules');
 const STATE_FILE = path.join(__dirname, 'state.json');
+const WORKTREES_DIR = path.join(__dirname, '../.worktrees');
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
@@ -277,6 +278,140 @@ async function cleanupOrphans() {
     }
 }
 
+// --- Worktree Management ---
+
+// Ensure worktrees directory exists
+async function ensureWorktreesDir() {
+    try {
+        await fs.mkdir(WORKTREES_DIR, { recursive: true });
+    } catch (err) {
+        console.error('Failed to create worktrees directory:', err);
+    }
+}
+
+// Create a new worktree for a session
+async function createWorktree(sessionId, repoPath) {
+    await ensureWorktreesDir();
+
+    const repoName = path.basename(repoPath);
+    const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
+    const branchName = `session/${sessionId}`;
+
+    try {
+        // Check if repo is a git repository
+        await execPromise(`git -C "${repoPath}" rev-parse --git-dir`);
+
+        // Create worktree with new branch
+        await execPromise(`git -C "${repoPath}" worktree add "${worktreePath}" -b "${branchName}"`);
+
+        console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
+        return { worktreePath, branchName, repoPath };
+    } catch (err) {
+        console.error(`Failed to create worktree for ${sessionId}:`, err.message);
+        // If worktree creation fails (e.g., not a git repo), return null
+        return null;
+    }
+}
+
+// Remove a worktree
+async function removeWorktree(sessionId, repoPath) {
+    const repoName = path.basename(repoPath);
+    const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
+    const branchName = `session/${sessionId}`;
+
+    try {
+        // Remove worktree
+        await execPromise(`git -C "${repoPath}" worktree remove "${worktreePath}" --force`);
+        console.log(`Removed worktree at ${worktreePath}`);
+
+        // Delete branch
+        await execPromise(`git -C "${repoPath}" branch -D "${branchName}"`).catch(() => {});
+        console.log(`Deleted branch ${branchName}`);
+
+        return true;
+    } catch (err) {
+        console.error(`Failed to remove worktree for ${sessionId}:`, err.message);
+        return false;
+    }
+}
+
+// Check if worktree has unmerged changes
+async function getWorktreeStatus(sessionId, repoPath) {
+    const repoName = path.basename(repoPath);
+    const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
+    const branchName = `session/${sessionId}`;
+
+    try {
+        // Check if worktree exists
+        await fs.access(worktreePath);
+
+        // Get main branch name
+        const { stdout: mainBranch } = await execPromise(
+            `git -C "${repoPath}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"`
+        );
+        const mainBranchName = mainBranch.trim() || 'main';
+
+        // Check if branch has commits ahead of main
+        const { stdout: aheadBehind } = await execPromise(
+            `git -C "${worktreePath}" rev-list --left-right --count ${mainBranchName}...HEAD 2>/dev/null || echo "0 0"`
+        );
+        const [behind, ahead] = aheadBehind.trim().split(/\s+/).map(Number);
+
+        // Check for uncommitted changes
+        const { stdout: statusOutput } = await execPromise(
+            `git -C "${worktreePath}" status --porcelain`
+        );
+        const hasUncommittedChanges = statusOutput.trim().length > 0;
+
+        return {
+            exists: true,
+            worktreePath,
+            branchName,
+            mainBranch: mainBranchName,
+            commitsAhead: ahead || 0,
+            commitsBehind: behind || 0,
+            hasUncommittedChanges,
+            needsMerge: (ahead || 0) > 0 || hasUncommittedChanges
+        };
+    } catch (err) {
+        return {
+            exists: false,
+            worktreePath,
+            branchName,
+            needsMerge: false
+        };
+    }
+}
+
+// Merge worktree branch into main
+async function mergeWorktree(sessionId, repoPath) {
+    const repoName = path.basename(repoPath);
+    const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
+    const branchName = `session/${sessionId}`;
+
+    try {
+        // Get main branch name
+        const { stdout: mainBranch } = await execPromise(
+            `git -C "${repoPath}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"`
+        );
+        const mainBranchName = mainBranch.trim() || 'main';
+
+        // Checkout main branch in original repo
+        await execPromise(`git -C "${repoPath}" checkout ${mainBranchName}`);
+
+        // Merge session branch
+        const { stdout: mergeOutput } = await execPromise(
+            `git -C "${repoPath}" merge ${branchName} --no-ff -m "Merge session/${sessionId}"`
+        );
+
+        console.log(`Merged ${branchName} into ${mainBranchName}`);
+        return { success: true, message: mergeOutput };
+    } catch (err) {
+        console.error(`Failed to merge worktree for ${sessionId}:`, err.message);
+        return { success: false, error: err.message };
+    }
+}
+
 // Session Management API
 app.post('/api/sessions/start', async (req, res) => {
     const { sessionId, initialCommand, cwd } = req.body;
@@ -432,6 +567,228 @@ app.get('/api/sessions/:id/content', async (req, res) => {
         // console.error(`Failed to capture pane for ${id}:`, err.message);
         res.status(500).json({ error: 'Failed to capture content' });
     }
+});
+
+// --- Worktree API Endpoints ---
+
+// Create session with worktree
+app.post('/api/sessions/create-with-worktree', async (req, res) => {
+    const { sessionId, repoPath, name, initialCommand } = req.body;
+
+    if (!sessionId || !repoPath) {
+        return res.status(400).json({ error: 'sessionId and repoPath are required' });
+    }
+
+    try {
+        // Create worktree
+        const worktreeResult = await createWorktree(sessionId, repoPath);
+
+        if (!worktreeResult) {
+            return res.status(500).json({ error: 'Failed to create worktree. Is this a git repository?' });
+        }
+
+        const { worktreePath, branchName } = worktreeResult;
+
+        // Start ttyd session with worktree as cwd
+        const port = await findFreePort(nextPort);
+        nextPort = port + 1;
+
+        console.log(`Starting ttyd for session '${sessionId}' on port ${port} with worktree...`);
+
+        const scriptPath = path.join(__dirname, 'login_script.sh');
+        const customIndexPath = path.join(__dirname, 'custom_ttyd_index.html');
+        const basePath = `/console/${sessionId}`;
+
+        const args = [
+            '-p', port.toString(),
+            '-W',
+            '-b', basePath,
+            '-t', 'disableLeaveAlert=true',
+            '-t', 'enableClipboard=true',
+            '-I', customIndexPath,
+            'bash',
+            scriptPath,
+            sessionId
+        ];
+        if (initialCommand) {
+            args.push(initialCommand);
+        }
+
+        const ttyd = spawn('ttyd', args, { stdio: 'pipe', cwd: worktreePath });
+
+        ttyd.stdout.on('data', (data) => {
+            console.log(`[ttyd:${sessionId}] ${data}`);
+        });
+
+        ttyd.stderr.on('data', (data) => {
+            console.error(`[ttyd:${sessionId}] ${data}`);
+        });
+
+        ttyd.on('error', (err) => {
+            console.error(`Failed to start ttyd for ${sessionId}:`, err);
+        });
+
+        ttyd.on('exit', (code) => {
+            console.log(`ttyd for ${sessionId} exited with code ${code}`);
+            activeSessions.delete(sessionId);
+        });
+
+        activeSessions.set(sessionId, { port, process: ttyd });
+
+        // Update state with worktree info
+        const currentState = stateStore.get();
+        const newSession = {
+            id: sessionId,
+            name: name || sessionId,
+            path: worktreePath,
+            initialCommand,
+            worktree: {
+                repo: repoPath,
+                branch: branchName
+            },
+            archived: false,
+            created: new Date().toISOString()
+        };
+
+        const updatedSessions = [...(currentState.sessions || []), newSession];
+        await stateStore.update({ sessions: updatedSessions });
+
+        setTimeout(() => {
+            if (activeSessions.has(sessionId)) {
+                res.json({
+                    port,
+                    proxyPath: basePath,
+                    worktreePath,
+                    branchName,
+                    session: newSession
+                });
+            } else {
+                // Cleanup worktree if session failed
+                removeWorktree(sessionId, repoPath);
+                res.status(500).json({ error: 'Session failed to start' });
+            }
+        }, 500);
+
+    } catch (error) {
+        console.error('Failed to create session with worktree:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get worktree status for a session
+app.get('/api/sessions/:id/worktree-status', async (req, res) => {
+    const { id } = req.params;
+
+    // Get session from state
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.worktree) {
+        return res.json({ hasWorktree: false });
+    }
+
+    const status = await getWorktreeStatus(id, session.worktree.repo);
+    res.json({ hasWorktree: true, ...status });
+});
+
+// Merge worktree for a session
+app.post('/api/sessions/:id/merge', async (req, res) => {
+    const { id } = req.params;
+
+    // Get session from state
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.worktree) {
+        return res.status(400).json({ error: 'Session does not have a worktree' });
+    }
+
+    const result = await mergeWorktree(id, session.worktree.repo);
+
+    if (result.success) {
+        // Update session state to mark as merged
+        const updatedSessions = state.sessions.map(s =>
+            s.id === id ? { ...s, worktree: { ...s.worktree, merged: true } } : s
+        );
+        await stateStore.update({ sessions: updatedSessions });
+    }
+
+    res.json(result);
+});
+
+// Delete worktree for a session
+app.delete('/api/sessions/:id/worktree', async (req, res) => {
+    const { id } = req.params;
+
+    // Get session from state
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.worktree) {
+        return res.json({ success: true, message: 'No worktree to remove' });
+    }
+
+    const success = await removeWorktree(id, session.worktree.repo);
+
+    if (success) {
+        // Remove worktree info from session, keep session for reference
+        const updatedSessions = state.sessions.map(s =>
+            s.id === id ? { ...s, worktree: null, path: s.worktree.repo } : s
+        );
+        await stateStore.update({ sessions: updatedSessions });
+    }
+
+    res.json({ success });
+});
+
+// Archive session (with optional merge check)
+app.post('/api/sessions/:id/archive', async (req, res) => {
+    const { id } = req.params;
+    const { skipMergeCheck } = req.body;
+
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Check if worktree needs merge
+    if (session.worktree && !skipMergeCheck) {
+        const status = await getWorktreeStatus(id, session.worktree.repo);
+        if (status.needsMerge) {
+            return res.json({
+                needsConfirmation: true,
+                status,
+                message: 'Session has unmerged changes'
+            });
+        }
+    }
+
+    // Remove worktree if exists
+    if (session.worktree) {
+        await removeWorktree(id, session.worktree.repo);
+    }
+
+    // Archive session
+    const updatedSessions = state.sessions.map(s =>
+        s.id === id ? { ...s, archived: true, worktree: null } : s
+    );
+    await stateStore.update({ sessions: updatedSessions });
+
+    res.json({ success: true, archived: true });
 });
 
 // Start server

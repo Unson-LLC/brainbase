@@ -186,6 +186,27 @@ body {
     flex: 1;
 }
 
+/* Worktree Badge */
+.worktree-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--warning-color);
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+.worktree-badge i { width: 12px; height: 12px; }
+.worktree-badge.merged {
+    color: var(--success-color);
+}
+
+/* Archived Label */
+.archived-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
 /* Input for renaming */
 .rename-input {
     background: var(--bg-primary);
@@ -199,9 +220,10 @@ body {
 }
 
 /* Action Buttons (Shared Style) */
-.icon-btn, 
+.icon-btn,
 .add-session-btn-icon,
 .add-project-session-btn,
+.merge-session-btn,
 .rename-session-btn,
 .delete-session-btn,
 .archive-session-btn {
@@ -220,6 +242,7 @@ body {
 .icon-btn:hover,
 .add-session-btn-icon:hover,
 .add-project-session-btn:hover,
+.merge-session-btn:hover,
 .rename-session-btn:hover,
 .delete-session-btn:hover,
 .archive-session-btn:hover {
@@ -227,10 +250,20 @@ body {
     background-color: var(--hover-bg);
 }
 
+/* Merge button special color */
+.merge-session-btn {
+    color: var(--success-color);
+}
+.merge-session-btn:hover {
+    color: var(--text-primary);
+    background-color: var(--success-color);
+}
+
 .icon-btn i, .add-session-btn-icon i { width: 16px; height: 16px; }
-.add-project-session-btn i, 
-.rename-session-btn i, 
-.delete-session-btn i, 
+.add-project-session-btn i,
+.merge-session-btn i,
+.rename-session-btn i,
+.delete-session-btn i,
 .archive-session-btn i { width: 13px; height: 13px; }
 
 /* Contextual Visibility for Buttons */
