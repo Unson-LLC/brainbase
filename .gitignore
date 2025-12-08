@@ -59,3 +59,4 @@ _codex/common/ops/.env
 
 # Slack history (synced from S3, too large for git)
 _codex/sources/slack/
+.worktrees/
