@@ -1,3 +1,6 @@
+// ES Modules imports
+import { MAX_VISIBLE_TASKS, CORE_PROJECTS } from './modules/state.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Elements ---
     let sessions = [];
@@ -5,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let tasks = [];
     let schedule = null;
     let showAllTasks = false;
-    const MAX_VISIBLE_TASKS = 3; // ミラーの法則: 表示は3件まで
+    // MAX_VISIBLE_TASKS moved to modules/state.js
 
     const terminalFrame = document.getElementById('terminal-frame');
     const sessionList = document.getElementById('session-list');
@@ -37,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Archive Toggle
     let showArchived = false;
-    const CORE_PROJECTS = ['brainbase', 'unson', 'tech-knight', 'salestailor', 'zeims', 'baao', 'ncom', 'senrigan'];
+    // CORE_PROJECTS moved to modules/state.js
 
     // Session Drag & Drop State
     let draggedSessionId = null;
