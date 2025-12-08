@@ -90,6 +90,38 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTimeline();
         renderNextTasks();
         lucide.createIcons();
+        // Set focus task events AFTER lucide replaces icons
+        setupFocusTaskEvents();
+    }
+
+    function setupFocusTaskEvents() {
+        const startBtn = focusTaskEl.querySelector('.focus-btn-start');
+        if (startBtn) {
+            console.log('### FOCUS: setupFocusTaskEvents - setting onclick');
+            startBtn.onclick = (e) => {
+                console.log('### FOCUS: CLICK DETECTED (after lucide)');
+                e.stopPropagation();
+                const taskId = startBtn.dataset.id;
+                const task = tasks.find(t => t.id === taskId);
+                if (task) startTaskSession(task);
+            };
+        }
+        const completeBtn = focusTaskEl.querySelector('.focus-btn-complete');
+        if (completeBtn) {
+            completeBtn.onclick = (e) => {
+                e.stopPropagation();
+                const taskId = completeBtn.dataset.id;
+                completeTaskWithAnimation(taskId, '.focus-card');
+            };
+        }
+        const deferBtn = focusTaskEl.querySelector('.focus-btn-defer');
+        if (deferBtn) {
+            deferBtn.onclick = (e) => {
+                e.stopPropagation();
+                const taskId = deferBtn.dataset.id;
+                deferTask(taskId);
+            };
+        }
     }
 
     function getFocusTask() {
@@ -150,22 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
         `;
-
-        // Event handlers
-        focusTaskEl.querySelector('.focus-btn-start').onclick = (e) => {
-            e.stopPropagation();
-            startTaskSession(focusTask);
-        };
-
-        focusTaskEl.querySelector('.focus-btn-complete').onclick = (e) => {
-            e.stopPropagation();
-            completeTaskWithAnimation(focusTask.id, '.focus-card');
-        };
-
-        focusTaskEl.querySelector('.focus-btn-defer').onclick = (e) => {
-            e.stopPropagation();
-            deferTask(focusTask.id);
-        };
+        // Event handlers are set in setupFocusTaskEvents() after lucide.createIcons()
     }
 
     function renderTimeline() {
@@ -814,10 +831,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 const { proxyPath, session } = await res.json();
                 console.log('Created task session with worktree:', session);
+                console.log('proxyPath:', proxyPath);
 
                 await updateTaskStatus(task.id, 'in-progress');
                 await loadSessions();
-                switchSession(sessionId, session.path, initialCommand);
+
+                // Use proxyPath directly instead of calling switchSession
+                currentSessionId = sessionId;
+                document.querySelectorAll('.session-child-row').forEach(row => {
+                    row.classList.remove('active');
+                    if (row.dataset.id === sessionId) row.classList.add('active');
+                });
+                console.log('Setting terminalFrame.src to:', proxyPath);
+                terminalFrame.src = proxyPath;
             } else {
                 // Fallback to regular session (non-git repo)
                 console.log('Worktree creation failed, falling back to regular session');
