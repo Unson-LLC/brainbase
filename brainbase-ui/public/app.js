@@ -1,5 +1,6 @@
 // ES Modules imports
 import { MAX_VISIBLE_TASKS, CORE_PROJECTS } from './modules/state.js';
+import { formatDueDate } from './modules/ui-helpers.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Elements ---
@@ -356,18 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Helper Functions ---
-    function formatDueDate(dateStr) {
-        const due = new Date(dateStr);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        if (due < today) return '期限切れ';
-        if (due.toDateString() === today.toDateString()) return '今日';
-        if (due.toDateString() === tomorrow.toDateString()) return '明日';
-        return `${due.getMonth() + 1}/${due.getDate()}`;
-    }
+    // formatDueDate moved to modules/ui-helpers.js
 
     async function completeTaskWithAnimation(taskId, selector) {
         const el = document.querySelector(selector);
