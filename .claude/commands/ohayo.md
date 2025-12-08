@@ -24,12 +24,15 @@
 
 2. **今日のカレンダー**
    - `mcp__google-calendar__list-events` で今日の予定を取得
-   - calendarId: 以下の5つを配列で指定
+   - account: "unson"（k.sato.unson@gmail.comアカウント）
+   - calendarId: 以下の7つを配列で指定
      - "k.sato.unson@gmail.com"
      - "k.sato.ncom@gmail.com"
-     - "sin310135@gmail.com"
-     - "k0127s@gmail.com"
      - "k.sato@sales-tailor.jp"
+     - "k.sato.baao@gmail.com"
+     - "k.sato.knllc@gmail.com"
+     - "k0127s@gmail.com"
+     - "sin310135@gmail.com"
    - timeMin/timeMax: 今日の0:00〜23:59
    - timeZone: "Asia/Tokyo"
 
@@ -39,6 +42,11 @@
 
 4. **昨日の活動**
    - `git log --since="yesterday 00:00" --until="today 00:00" --oneline` で昨日のコミットを取得
+
+5. **Slack未対応メンション**
+   - `_inbox/pending.md` を読み込み
+   - status が `pending` のものを抽出
+   - 自分宛メンション（@k.sato）を優先表示
 
 ### Phase 2: サマリー出力
 
@@ -58,12 +66,15 @@
 📊 昨日の活動: {コミット数}件
 {直近3件のコミットメッセージ要約}
 
+💬 Slack未対応: {件数}件
+{未対応メンションの概要を箇条書き、送信者・チャンネル・要約}
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ### Phase 3: フォーカス提案
 
-タスク・カレンダー・昨日の活動から **今日の最優先事項** をAIが1つ提案：
+タスク・カレンダー・昨日の活動・**Slackメンション**から **今日の最優先事項** をAIが1つ提案：
 
 ```
 💡 今日のフォーカス提案:
@@ -117,6 +128,11 @@ Phase 2のサマリー情報を元に、以下のフォーマットでファイ�
 
 **その他**
 - [ ] タスク名
+
+### Slack未対応
+| 時刻 | チャンネル | 送信者 | 概要 |
+|------|-----------|--------|------|
+| HH:MM | #channel | 名前 | 要約 |
 ```
 
 保存先: `/Users/ksato/workspace/_schedules/YYYY-MM-DD.md`
