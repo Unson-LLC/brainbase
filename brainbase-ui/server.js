@@ -419,14 +419,51 @@ async function mergeWorktree(sessionId, repoPath, sessionName = null) {
         );
         const mainBranchName = mainBranch.trim() || 'main';
 
+        // Check for uncommitted changes in main repo before merge
+        try {
+            const { stdout: statusOutput } = await execPromise(
+                `git -C "${repoPath}" status --porcelain`
+            );
+            if (statusOutput.trim()) {
+                return {
+                    success: false,
+                    error: `マージ前にmainブランチの未コミット変更をコミットしてください:\n${statusOutput}`,
+                    needsCommit: true
+                };
+            }
+        } catch (statusErr) {
+            console.error('Failed to check git status:', statusErr.message);
+        }
+
         // Checkout main branch in original repo
         await execPromise(`git -C "${repoPath}" checkout ${mainBranchName}`);
+
+        // Pre-merge conflict check (dry-run)
+        try {
+            await execPromise(
+                `git -C "${repoPath}" merge --no-commit --no-ff ${branchName}`
+            );
+            // No conflicts - abort this dry-run merge
+            await execPromise(`git -C "${repoPath}" merge --abort`);
+        } catch (dryRunErr) {
+            // Conflicts detected - abort and return error
+            try {
+                await execPromise(`git -C "${repoPath}" merge --abort`);
+            } catch (abortErr) {
+                // Ignore abort errors
+            }
+            return {
+                success: false,
+                error: `マージコンフリクトが検出されました。手動で解決してください:\n${dryRunErr.message}`,
+                hasConflicts: true
+            };
+        }
 
         // Build merge message
         const displayName = sessionName || sessionId;
         const mergeMessage = `Merge session: ${displayName}`;
 
-        // Merge session branch
+        // Merge session branch (actual merge)
         const { stdout: mergeOutput } = await execPromise(
             `git -C "${repoPath}" merge ${branchName} --no-ff -m "${mergeMessage}"`
         );
