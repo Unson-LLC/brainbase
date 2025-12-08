@@ -140,7 +140,7 @@ body {
 .session-child-row {
     display: flex;
     align-items: center;
-    padding: 6px 10px 6px 24px; /* Indent for child items */
+    padding: 6px 10px 6px 15px; /* Indent for child items */
     cursor: pointer;
     border-left: 2px solid transparent;
     transition: background-color 0.15s;
