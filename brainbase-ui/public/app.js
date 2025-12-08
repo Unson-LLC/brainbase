@@ -571,10 +571,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             const result = await res.json();
 
                             if (result.success) {
-                                alert('マージが完了しました');
+                                if (result.noChanges) {
+                                    alert('マージする変更がありません');
+                                } else {
+                                    alert('マージが完了しました');
+                                }
                                 loadSessions();
                             } else {
-                                alert(`マージに失敗しました: ${result.error}`);
+                                if (result.hasUncommittedChanges) {
+                                    alert('未コミットの変更があります。\n\nセッション内で /commit を実行してからマージしてください。');
+                                } else {
+                                    alert(`マージに失敗しました: ${result.error}`);
+                                }
                             }
                         } catch (err) {
                             console.error('Failed to merge', err);

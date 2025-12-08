@@ -384,7 +384,7 @@ async function getWorktreeStatus(sessionId, repoPath) {
 }
 
 // Merge worktree branch into main
-async function mergeWorktree(sessionId, repoPath) {
+async function mergeWorktree(sessionId, repoPath, sessionName = null) {
     const repoName = path.basename(repoPath);
     const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
     const branchName = `session/${sessionId}`;
@@ -399,9 +399,13 @@ async function mergeWorktree(sessionId, repoPath) {
         // Checkout main branch in original repo
         await execPromise(`git -C "${repoPath}" checkout ${mainBranchName}`);
 
+        // Build merge message
+        const displayName = sessionName || sessionId;
+        const mergeMessage = `Merge session: ${displayName}`;
+
         // Merge session branch
         const { stdout: mergeOutput } = await execPromise(
-            `git -C "${repoPath}" merge ${branchName} --no-ff -m "Merge session/${sessionId}"`
+            `git -C "${repoPath}" merge ${branchName} --no-ff -m "${mergeMessage}"`
         );
 
         console.log(`Merged ${branchName} into ${mainBranchName}`);
@@ -711,7 +715,26 @@ app.post('/api/sessions/:id/merge', async (req, res) => {
         return res.status(400).json({ error: 'Session does not have a worktree' });
     }
 
-    const result = await mergeWorktree(id, session.worktree.repo);
+    // Check for uncommitted changes before merge
+    const status = await getWorktreeStatus(id, session.worktree.repo);
+    if (status.hasUncommittedChanges) {
+        return res.status(400).json({
+            success: false,
+            error: '未コミットの変更があります。先にコミットしてください。',
+            hasUncommittedChanges: true
+        });
+    }
+
+    // Check if there are any commits to merge
+    if (status.commitsAhead === 0) {
+        return res.json({
+            success: true,
+            message: 'マージする変更がありません',
+            noChanges: true
+        });
+    }
+
+    const result = await mergeWorktree(id, session.worktree.repo, session.name);
 
     if (result.success) {
         // Update session state to mark as merged
