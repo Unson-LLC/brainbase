@@ -279,7 +279,7 @@ links: []
 id: SLACK-2025-12-05-MIS872VL
 title: 開発提案書をユーザー視点で再構成
 project_id: ncom
-status: todo
+status: in-progress
 owner: 佐藤-圭吾
 priority: high
 due: 2024-01-XX
@@ -377,16 +377,6 @@ links: []
 - 背景: 前回契約と今回契約の違い、算定根拠、ホワイトボード図を含めた保守契約の考え方を整理した資料を作成する。今日中（12/5）が期限。
 - Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
 
----
-id: SLACK-2025-12-05-MIS81T20
-title: ポンチ絵形式の説明資料を作成し見積もりを再提出
-project_id: ncom
-status: todo
-owner: 佐藤-圭吾
-priority: high
-due: 2024-12-05
-tags: [slack, auto-import]
-links: []
 ---
 
 - 2025-12-05 Slackから自動取り込み: k.​satoから依頼
@@ -951,6 +941,44 @@ links: [meetings/minutes/2025-12-08_archetype-ventures-stella-meeting.md]
 - 福井氏コメント: 「週末その辺を整理しようと思っていた」→ 次回接点の可能性
 
 ---
+id: ST-2025-11-28-FREE-DEMO-FIX
+title: 【改善依頼】無料デモ - 表記・文面ルール修正
+project_id: salestailor
+status: todo
+owner: 渡邊-博昭
+priority: high
+due: null
+tags: [slack, improvement, letter-quality]
+links: []
+---
+
+- 2025-11-28 Slackから取り込み: 堀 汐里から依頼
+- 担当: 渡邊博昭（開発）
+- チャンネル: #eng
+- Slack thread_ts: 1764310750.561739
+
+## 依頼内容
+
+### 1. 誤表記の修正
+- 「CTA設定」→「無料デモ」への表記修正
+- 要件一覧で「無料デモ」検索してもヒットしない状態
+
+### 2. 文面ルールの修正（5点）
+| # | 現状 | 修正後 |
+|---|------|--------|
+| 1 | 冒頭の名乗りが長い | 社名+名前のみに簡潔化 |
+| 2 | 「承知しております」 | 「お見受けしております」 |
+| 3 | 「こうした」 | 「このような」 |
+| 4 | 「この」 | 「このような」 |
+| 5 | CTA非連動（提案と言いつつ日程なし） | CTAを日程調整URLに |
+
+### 3. 品質劣化の原因調査
+- 上記以外はとても良い仕上がりだが、本番環境のレター品質が崩れている原因を調査
+
+## 添付
+- 画像4枚（具体例のスクリーンショット）
+
+---
 id: ST-2025-12-08-PLG-HYBRID
 title: PLG×SLGハイブリッドモデルの設計
 project_id: salestailor
@@ -969,3 +997,20 @@ links: [meetings/minutes/2025-12-08_archetype-ventures-stella-meeting.md]
   - セルフサーブで始めてエンタープライズに転換するフロー設計
   - 価格帯ごとの機能制限設計
   - アップセルトリガーの定義
+
+---
+id: TK-2025-12-08-CAREER-PARTNERS
+title: キャリアパートナーズ 研修見積もり作成
+project_id: baao
+status: done
+owner: 佐藤-圭吾
+priority: high
+due: null
+tags: [sales, estimate, training]
+links: [_codex/projects/baao/training/estimate_career_partners.md]
+---
+
+- 2025-12-08 手動追加
+- 担当: 佐藤 圭吾
+- 背景: キャリアパートナーズとの研修案件の見積もりを作成する
+- 完了: 2025-12-08 見積もり書作成完了（estimate_career_partners.md）
