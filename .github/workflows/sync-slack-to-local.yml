@@ -1,0 +1,26 @@
+name: Sync Slack to Local
+
+on:
+  schedule:
+    # 毎日 6:00 JST (21:00 UTC 前日)
+    - cron: '0 21 * * *'
+  workflow_dispatch:  # 手動実行用
+
+jobs:
+  sync:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync Slack from S3
+        run: |
+          bash _codex/common/ops/scripts/sync-slack-to-local.sh 7
+        env:
+          AWS_PROFILE: k.sato
+
+      - name: Show result
+        run: |
+          echo "=== Sync completed ==="
+          ls -la /Users/ksato/workspace/_codex/sources/slack/ 2>/dev/null || echo "Directory not found"
