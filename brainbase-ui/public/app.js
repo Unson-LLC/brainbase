@@ -1,3 +1,10 @@
+// ES Modules imports
+import { MAX_VISIBLE_TASKS, CORE_PROJECTS } from './modules/state.js';
+import { formatDueDate } from './modules/ui-helpers.js';
+import { initSettings } from './modules/settings.js';
+import { pollSessionStatus, updateSessionIndicators, clearUnread, startPolling } from './modules/session-indicators.js';
+import { initFileUpload } from './modules/file-upload.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Elements ---
     let sessions = [];
@@ -5,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let tasks = [];
     let schedule = null;
     let showAllTasks = false;
-    const MAX_VISIBLE_TASKS = 3; // ミラーの法則: 表示は3件まで
+    // MAX_VISIBLE_TASKS moved to modules/state.js
 
     const terminalFrame = document.getElementById('terminal-frame');
     const sessionList = document.getElementById('session-list');
@@ -37,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Archive Toggle
     let showArchived = false;
-    const CORE_PROJECTS = ['brainbase', 'unson', 'tech-knight', 'salestailor', 'zeims', 'baao', 'ncom', 'senrigan'];
+    // CORE_PROJECTS moved to modules/state.js
 
     // Session Drag & Drop State
     let draggedSessionId = null;
@@ -353,18 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Helper Functions ---
-    function formatDueDate(dateStr) {
-        const due = new Date(dateStr);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        if (due < today) return '期限切れ';
-        if (due.toDateString() === today.toDateString()) return '今日';
-        if (due.toDateString() === tomorrow.toDateString()) return '明日';
-        return `${due.getMonth() + 1}/${due.getDate()}`;
-    }
+    // formatDueDate moved to modules/ui-helpers.js
 
     async function completeTaskWithAnimation(taskId, selector) {
         const el = document.querySelector(selector);
@@ -995,11 +991,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update iframe
             terminalFrame.src = proxyPath;
 
-            // Clear unread
-            if (sessionUnreadMap.get(id)) {
-                sessionUnreadMap.set(id, false);
-                updateSessionIndicators();
-            }
+            // Clear unread (using imported module)
+            clearUnread(id);
+            updateSessionIndicators(currentSessionId);
 
         } catch (error) {
             console.error('Failed to switch session:', error);
@@ -1066,231 +1060,21 @@ document.addEventListener('DOMContentLoaded', () => {
     addSessionBtn.addEventListener('click', () => createNewSession());
 
     // --- Session Status Polling ---
-    const sessionStatusMap = new Map(); // sessionId -> { isRunning, isWorking }
-    const sessionUnreadMap = new Map(); // sessionId -> boolean (true if finished working but not viewed)
+    // Moved to modules/session-indicators.js
 
-    async function pollSessionStatus() {
-        try {
-            const res = await fetch('/api/sessions/status');
-            const status = await res.json();
-
-            // Debug Log
-            console.log('Poll Status Result:', status);
-
-            // Update map and handle transitions
-            for (const [sessionId, newStatus] of Object.entries(status)) {
-                const oldStatus = sessionStatusMap.get(sessionId);
-
-                // Transition: Working -> Idle (Done)
-                // Only if NOT the current session
-                if (oldStatus?.isWorking && !newStatus.isWorking && currentSessionId !== sessionId) {
-                    sessionUnreadMap.set(sessionId, true);
-                }
-
-                // If currently working, it's not unread (it's active)
-                if (newStatus.isWorking) {
-                    sessionUnreadMap.set(sessionId, false);
-                }
-
-                sessionStatusMap.set(sessionId, newStatus);
-            }
-
-            updateSessionIndicators();
-        } catch (error) {
-            console.error('Failed to poll session status:', error);
-        }
-    }
-
-    function updateSessionIndicators() {
-        const sessionItems = document.querySelectorAll('.session-child-row');
-        sessionItems.forEach(item => {
-            const sessionId = item.dataset.id;
-            const status = sessionStatusMap.get(sessionId);
-            const isUnread = sessionUnreadMap.get(sessionId);
-
-            console.log(`Updating indicator for ${sessionId}: current=${currentSessionId}, isWorking=${status?.isWorking}, isUnread=${isUnread}`);
-
-            // Remove existing indicator
-            const existingIndicator = item.querySelector('.session-activity-indicator');
-            if (existingIndicator) {
-                existingIndicator.remove();
-            }
-
-            // Determine if we should show indicator
-            // 1. Working: Always show (Green Pulse) - EVEN IF CURRENT SESSION
-            // 2. Unread: Show (Green Static) - ONLY IF NOT CURRENT SESSION (handled by map logic but safe to check)
-
-            if (currentSessionId === sessionId) {
-                // If looking at it, clear unread
-                if (sessionUnreadMap.get(sessionId)) {
-                    sessionUnreadMap.set(sessionId, false);
-                    // No return here, proceed to check isWorking
-                }
-            }
-
-            if (status?.isWorking) {
-                const indicator = document.createElement('div');
-                indicator.className = 'session-activity-indicator working';
-                item.appendChild(indicator);
-                console.log(`Added WORKING indicator to ${sessionId}`);
-            } else if (currentSessionId !== sessionId && (status?.isDone || isUnread)) {
-                const indicator = document.createElement('div');
-                indicator.className = 'session-activity-indicator done';
-                item.appendChild(indicator);
-                console.log(`Added DONE indicator to ${sessionId}`);
-            }
-        });
-    }
-
-    // --- Drag & Drop File Upload ---
-    const consoleArea = document.querySelector('.console-area');
-    const dropOverlay = document.getElementById('drop-overlay');
-    let dragCounter = 0;
-
-    // Prevent default drag behaviors on document level
-    document.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Add dragging class to disable iframe pointer events
-        consoleArea.classList.add('dragging');
-    });
-
-    document.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    document.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Only remove if leaving the document
-        if (e.relatedTarget === null) {
-            consoleArea.classList.remove('dragging');
-            dropOverlay.classList.remove('active');
-            dragCounter = 0;
-        }
-    });
-
-    document.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        consoleArea.classList.remove('dragging');
-        dropOverlay.classList.remove('active');
-        dragCounter = 0;
-    });
-
-    // Show overlay when dragging over console area
-    consoleArea.addEventListener('dragenter', (e) => {
-        dragCounter++;
-        dropOverlay.classList.add('active');
-        lucide.createIcons();
-    });
-
-    consoleArea.addEventListener('dragleave', (e) => {
-        dragCounter--;
-        if (dragCounter === 0) {
-            dropOverlay.classList.remove('active');
-        }
-    });
-
-    // Handle drop on overlay
-    dropOverlay.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    });
-
-    dropOverlay.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dragCounter = 0;
-        consoleArea.classList.remove('dragging');
-        dropOverlay.classList.remove('active');
-
-        const dt = e.dataTransfer;
-        const files = dt.files;
-
-        if (files.length > 0) {
-            await handleFiles(files);
-        }
-    });
-
-    async function handleFiles(files) {
-        const file = files[0]; // Handle single file for now
-        if (!currentSessionId) return;
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            // 1. Upload File
-            const uploadRes = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!uploadRes.ok) throw new Error('Upload failed');
-
-            const { path } = await uploadRes.json();
-
-            // 2. Paste path into terminal
-            // We need to send this input to the session
-            await fetch(`/api/sessions/${currentSessionId}/input`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ input: path, type: 'text' })
-            });
-
-        } catch (error) {
-            console.error('File upload failed:', error);
-            alert('ファイルアップロードに失敗しました');
-        }
-    }
-
-    // --- Clipboard Paste Image Support ---
-    document.addEventListener('paste', async (e) => {
-        // Check if we're focused on terminal area
-        if (!currentSessionId) return;
-
-        const items = e.clipboardData?.items;
-        if (!items) return;
-
-        for (const item of items) {
-            if (item.type.startsWith('image/')) {
-                e.preventDefault();
-                const file = item.getAsFile();
-                if (file) {
-                    await handleFiles([file]);
-                }
-                return;
-            }
-        }
-    });
-
-    // --- Custom Key Handling (Shift+Enter) ---
-    window.addEventListener('message', async (event) => {
-        if (event.data && event.data.type === 'SHIFT_ENTER') {
-            if (currentSessionId) {
-                console.log('Received SHIFT_ENTER from iframe, sending M-Enter to session');
-                try {
-                    await fetch(`/api/sessions/${currentSessionId}/input`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            input: 'M-Enter',
-                            type: 'key'
-                        })
-                    });
-                } catch (error) {
-                    console.error('Failed to send key command:', error);
-                }
-            }
-        }
-    });
+    // --- Drag & Drop, Clipboard, Key Handling ---
+    // Moved to modules/file-upload.js
 
     // Initial Load
     loadSessions();
     loadSchedule();
     loadTasks();
+
+    // Initialize Settings Module
+    initSettings();
+
+    // Initialize File Upload (Drag & Drop, Clipboard)
+    initFileUpload(() => currentSessionId);
 
     // Periodic Refresh (every 5 minutes)
     setInterval(() => {
@@ -1298,10 +1082,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadTasks();
     }, 5 * 60 * 1000);
 
-    // Status Polling (every 3 seconds)
-    setInterval(pollSessionStatus, 3000);
-    // Initial poll
-    pollSessionStatus();
+    // Status Polling (every 3 seconds) - using imported module
+    startPolling(() => currentSessionId, 3000);
 
     // --- Terminal Copy Functionality ---
     if (copyTerminalBtn) {
@@ -1370,337 +1152,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // =========================================
-    // Settings View
-    // =========================================
-
-    const settingsBtn = document.getElementById('settings-btn');
-    const settingsView = document.getElementById('settings-view');
-    const consoleArea = document.getElementById('console-area');
-    const closeSettingsBtn = document.getElementById('close-settings-btn');
-    const settingsTabs = document.querySelectorAll('.settings-tab');
-    const settingsPanels = document.querySelectorAll('.settings-panel');
-
-    // Settings state
-    let configData = null;
-    let integrityData = null;
-
-    // Open settings view
-    settingsBtn?.addEventListener('click', async () => {
-        consoleArea.style.display = 'none';
-        settingsView.style.display = 'flex';
-        settingsBtn.classList.add('active');
-
-        // Deselect any session
-        document.querySelectorAll('.session-item').forEach(item => {
-            item.classList.remove('active');
-        });
-
-        // Load config data
-        await loadConfigData();
-
-        // Re-init lucide icons for new content
-        lucide.createIcons();
-    });
-
-    // Close settings view
-    closeSettingsBtn?.addEventListener('click', () => {
-        settingsView.style.display = 'none';
-        consoleArea.style.display = 'flex';
-        settingsBtn.classList.remove('active');
-    });
-
-    // Tab switching
-    settingsTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetTab = tab.dataset.tab;
-
-            // Update tab active state
-            settingsTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            // Update panel visibility
-            settingsPanels.forEach(panel => {
-                panel.classList.remove('active');
-                if (panel.id === `${targetTab}-panel`) {
-                    panel.classList.add('active');
-                }
-            });
-        });
-    });
-
-    // Load all config data
-    async function loadConfigData() {
-        try {
-            const [configRes, integrityRes] = await Promise.all([
-                fetch('/api/config'),
-                fetch('/api/config/integrity')
-            ]);
-
-            configData = await configRes.json();
-            integrityData = await integrityRes.json();
-
-            renderIntegritySummary();
-            renderWorkspaces();
-            renderChannels();
-            renderMembers();
-            renderProjects();
-
-        } catch (err) {
-            console.error('Failed to load config:', err);
-        }
-    }
-
-    // Render integrity summary
-    function renderIntegritySummary() {
-        const container = document.getElementById('integrity-summary');
-        if (!integrityData) {
-            container.innerHTML = '<div class="config-empty">Failed to load integrity data</div>';
-            return;
-        }
-
-        const { stats, summary, issues } = integrityData;
-
-        let html = `
-            <div class="integrity-stats">
-                <div class="stat-item success">
-                    <span class="label">Workspaces</span>
-                    <span class="count">${stats.workspaces}</span>
-                </div>
-                <div class="stat-item success">
-                    <span class="label">Channels</span>
-                    <span class="count">${stats.channels}</span>
-                </div>
-                <div class="stat-item success">
-                    <span class="label">Members</span>
-                    <span class="count">${stats.members}</span>
-                </div>
-                <div class="stat-item success">
-                    <span class="label">Projects</span>
-                    <span class="count">${stats.projects}</span>
-                </div>
-                ${summary.errors > 0 ? `
-                    <div class="stat-item error">
-                        <span class="label">Errors</span>
-                        <span class="count">${summary.errors}</span>
-                    </div>
-                ` : ''}
-                ${summary.warnings > 0 ? `
-                    <div class="stat-item warning">
-                        <span class="label">Warnings</span>
-                        <span class="count">${summary.warnings}</span>
-                    </div>
-                ` : ''}
-            </div>
-        `;
-
-        if (issues.length > 0) {
-            html += `
-                <div class="integrity-issues">
-                    ${issues.map(issue => `
-                        <div class="issue-item ${issue.severity}">
-                            <i data-lucide="${issue.severity === 'error' ? 'alert-circle' : issue.severity === 'warning' ? 'alert-triangle' : 'info'}"></i>
-                            <span>${issue.message}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        container.innerHTML = html;
-    }
-
-    // Render workspaces
-    function renderWorkspaces() {
-        const container = document.getElementById('workspaces-list');
-        const workspaces = configData?.slack?.workspaces || {};
-        const channels = configData?.slack?.channels || [];
-
-        if (Object.keys(workspaces).length === 0) {
-            container.innerHTML = '<div class="config-empty">No workspaces found</div>';
-            return;
-        }
-
-        // Count channels per workspace
-        const channelCounts = {};
-        channels.forEach(ch => {
-            channelCounts[ch.workspace] = (channelCounts[ch.workspace] || 0) + 1;
-        });
-
-        const html = Object.entries(workspaces).map(([key, ws]) => `
-            <div class="config-card">
-                <div class="config-card-header">
-                    <h4>${ws.name}</h4>
-                    ${ws.default ? '<span class="badge badge-type">Default</span>' : ''}
-                </div>
-                <div class="config-card-id">${ws.id}</div>
-                <div class="config-card-stats">
-                    <div class="config-card-stat">
-                        <i data-lucide="hash"></i>
-                        <span>${channelCounts[key] || 0} channels</span>
-                    </div>
-                    <div class="config-card-stat">
-                        <i data-lucide="folder"></i>
-                        <span>${(ws.projects || []).length} projects</span>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-
-        container.innerHTML = html;
-
-        // Populate workspace filter
-        const workspaceFilter = document.getElementById('workspace-filter');
-        workspaceFilter.innerHTML = '<option value="">All Workspaces</option>' +
-            Object.entries(workspaces).map(([key, ws]) =>
-                `<option value="${key}">${ws.name}</option>`
-            ).join('');
-    }
-
-    // Render channels table
-    function renderChannels(filter = '', workspaceFilter = '') {
-        const container = document.getElementById('channels-list');
-        let channels = configData?.slack?.channels || [];
-
-        if (channels.length === 0) {
-            container.innerHTML = '<div class="config-empty">No channels found</div>';
-            return;
-        }
-
-        // Apply filters
-        if (filter) {
-            const lowerFilter = filter.toLowerCase();
-            channels = channels.filter(ch =>
-                ch.channel_name.toLowerCase().includes(lowerFilter) ||
-                ch.project_id.toLowerCase().includes(lowerFilter)
-            );
-        }
-        if (workspaceFilter) {
-            channels = channels.filter(ch => ch.workspace === workspaceFilter);
-        }
-
-        const html = `
-            <table class="config-table">
-                <thead>
-                    <tr>
-                        <th>Channel</th>
-                        <th>Workspace</th>
-                        <th>Project</th>
-                        <th>Type</th>
-                        <th>ID</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${channels.map(ch => `
-                        <tr>
-                            <td>#${ch.channel_name}</td>
-                            <td><span class="badge badge-workspace">${ch.workspace}</span></td>
-                            <td><span class="badge badge-project">${ch.project_id}</span></td>
-                            <td><span class="badge badge-type">${ch.type || '-'}</span></td>
-                            <td class="mono">${ch.channel_id}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-
-        container.innerHTML = html;
-    }
-
-    // Render members table
-    function renderMembers(filter = '') {
-        const container = document.getElementById('members-list');
-        let members = configData?.slack?.members || [];
-
-        if (members.length === 0) {
-            container.innerHTML = '<div class="config-empty">No members found</div>';
-            return;
-        }
-
-        // Apply filter
-        if (filter) {
-            const lowerFilter = filter.toLowerCase();
-            members = members.filter(m =>
-                m.slack_name.toLowerCase().includes(lowerFilter) ||
-                m.brainbase_name.toLowerCase().includes(lowerFilter)
-            );
-        }
-
-        const html = `
-            <table class="config-table">
-                <thead>
-                    <tr>
-                        <th>Slack Name</th>
-                        <th>Brainbase Name</th>
-                        <th>Workspace</th>
-                        <th>Slack ID</th>
-                        <th>Note</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${members.map(m => `
-                        <tr>
-                            <td>@${m.slack_name}</td>
-                            <td>${m.brainbase_name}</td>
-                            <td><span class="badge badge-workspace">${m.workspace}</span></td>
-                            <td class="mono">${m.slack_id}</td>
-                            <td class="mono">${m.note || '-'}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-
-        container.innerHTML = html;
-    }
-
-    // Render projects table
-    function renderProjects() {
-        const container = document.getElementById('projects-list');
-        const projects = configData?.projects?.projects || [];
-        const root = configData?.projects?.root || '';
-
-        if (projects.length === 0) {
-            container.innerHTML = '<div class="config-empty">No projects found</div>';
-            return;
-        }
-
-        const html = `
-            <table class="config-table">
-                <thead>
-                    <tr>
-                        <th>Project ID</th>
-                        <th>Local Path</th>
-                        <th>Included Globs</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${projects.map(p => `
-                        <tr>
-                            <td><span class="badge badge-project">${p.id}</span></td>
-                            <td class="mono">${root}/${p.local?.path || '-'}</td>
-                            <td class="mono">${(p.local?.glob_include || []).slice(0, 3).join(', ')}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-
-        container.innerHTML = html;
-    }
-
-    // Filter event listeners
-    document.getElementById('channel-filter')?.addEventListener('input', (e) => {
-        const workspaceFilter = document.getElementById('workspace-filter')?.value || '';
-        renderChannels(e.target.value, workspaceFilter);
-    });
-
-    document.getElementById('workspace-filter')?.addEventListener('change', (e) => {
-        const textFilter = document.getElementById('channel-filter')?.value || '';
-        renderChannels(textFilter, e.target.value);
-    });
-
-    document.getElementById('member-filter')?.addEventListener('input', (e) => {
-        renderMembers(e.target.value);
-    });
+    // Settings View - moved to modules/settings.js
 });
