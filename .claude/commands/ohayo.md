@@ -9,7 +9,9 @@
 
 まず全リポジトリを最新状態に同期：
 
-1. `_ops/update-all-repos.sh` を実行
+1. **必ず `/Users/ksato/workspace` ディレクトリから** `_ops/update-all-repos.sh` を実行
+   - worktreeから実行する場合: `cd /Users/ksato/workspace && ./_ops/update-all-repos.sh`
+   - スクリプトはカレントディレクトリからの相対パスで `.git` を探すため、worktreeから直接実行すると失敗する
 2. dirtyなリポジトリがあれば報告（コミット/stash提案）
 3. pull失敗があれば報告
 
