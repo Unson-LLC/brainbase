@@ -797,7 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'salestailor': '/Users/ksato/workspace/salestailor',
             'zeims': '/Users/ksato/workspace/zeims',
             'baao': '/Users/ksato/workspace/baao',
-            'ncom': '/Users/ksato/workspace/ncom',
+            'ncom': '/Users/ksato/workspace/ncom-catalyst',
             'senrigan': '/Users/ksato/workspace/senrigan',
         };
 
@@ -882,7 +882,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'salestailor': '/Users/ksato/workspace/salestailor',
             'zeims': '/Users/ksato/workspace/zeims',
             'baao': '/Users/ksato/workspace/baao',
-            'ncom': '/Users/ksato/workspace/ncom',
+            'ncom': '/Users/ksato/workspace/ncom-catalyst',
             'senrigan': '/Users/ksato/workspace/senrigan',
         };
 
