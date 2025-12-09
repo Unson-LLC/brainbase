@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYEYR62
+title: 佐藤の宿題を_taskに入れる
+project_id: general
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08SX913NER
+thread_ts: "1765274673.574629"
+created_at: "2025-12-09T10:04:38.282Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 佐藤圭吾さんの宿題を_taskに登録する作業
+- Slack: https://unson-inc.slack.com/archives/C08SX913NER/p1765274673574629
+
+---
 id: SLACK-2025-12-09-MIY31F81
 title: サブ口座を確認する
 project_id: general
