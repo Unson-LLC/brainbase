@@ -8,18 +8,24 @@
 2. **正本編集**: `_codex/` 配下のみ編集（プロジェクト側はリンクのみ）
 3. **秘密情報禁止**: APIキー・トークン・認証情報はコミットしない
 4. **破壊的変更確認**: 大規模削除・`git reset --hard` は実行前に確認
-5. **worktree注意**: 正本パスは常に `/Users/ksato/workspace/` を使用
+5. **コミット先分離**: 正本→main直接、プロジェクトコード→セッションブランチ
 
-## パス解決（クイックリファレンス）
+## 正本ディレクトリ（シンボリックリンク方式）
 
-| 種別 | パス |
-|------|------|
-| 正本（_codex） | `/Users/ksato/workspace/_codex/` |
-| タスク | `/Users/ksato/workspace/_tasks/index.md` |
-| 受信箱 | `/Users/ksato/workspace/_inbox/pending.md` |
-| スケジュール | `/Users/ksato/workspace/_schedules/` |
-| 共通スクリプト | `/Users/ksato/workspace/_ops/` |
-| 設定 | `/Users/ksato/workspace/config.yml` |
+worktreeでは以下が正本へのシンボリックリンクになる。編集はworktree内で可能、コミットはmain直接。
+
+| 正本ディレクトリ | コミット先 |
+|-----------------|------------|
+| `_codex/` | main直接 |
+| `_tasks/` | main直接 |
+| `_inbox/` | main直接 |
+| `_schedules/` | main直接 |
+| `_ops/` | main直接 |
+| `.claude/` | main直接 |
+| `config.yml` | main直接 |
+
+※ 正本パス: `/Users/ksato/workspace/`
+※ 詳細: `skill: branch-worktree-rules`
 
 ## 主要プロジェクト
 

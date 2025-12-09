@@ -1,196 +1,146 @@
 ---
 name: knowledge-frontmatter
-description: brainbaseにおけるKnowledge Skills（_codex/knowledge/*.md）のYAMLフロントマター標準仕様。必須8項目（skill_id, title, source_type, primary_use, triggers, inputs, outputs, granularity）と二段階ロード方式を定義。新規Knowledge Skillを作成する際に使用。
+description: Claude Skillsの登録フォーマットと作成手順。新規Skillを.claude/skills/に追加する際に使用。
 ---
 
-# Knowledge Skills フロントマター仕様
+# Claude Skills 登録ガイド
 
-brainbaseにおけるKnowledge Skills（`_codex/knowledge/*.md`）のフロントマター標準仕様です。
+brainbaseにおけるClaude Skills（`.claude/skills/*/SKILL.md`）の作成手順と標準フォーマット。
 
-## Instructions
+## フォーマット
 
-### 1. 標準フォーマット
-
-マークダウンファイルの先頭に配置するYAML形式のメタデータ：
+### 基本構造
 
 ```yaml
 ---
-skill_id: "skill_name_YYYY_MM_DD"
-title: "スキル名（日本語OK）"
-source_type: "knowledge"
-primary_use: "このスキルの主な用途を1文で説明"
-triggers:
-  - "検索キーワード1"
-  - "検索キーワード2"
-  - "検索キーワード3"
-inputs:
-  - "必要な入力情報1"
-  - "必要な入力情報2"
-outputs:
-  - "生成される出力1"
-  - "生成される出力2"
-granularity: "task"
+name: skill-name
+description: Skillの説明文（Claude Codeの利用可能スキル一覧に表示される）
 ---
 
-# <スキル名>
+# スキル名
 
-スキルの本文をここに記載...
+本文をMarkdownで記載...
 ```
 
-### 2. 必須項目の詳細
+### フロントマター（必須）
 
-**skill_id**（必須）:
-- 形式: `[a-z_]+_YYYY_MM_DD`
-- 命名規則: 英小文字とアンダースコアのみ、日付をサフィックスに
-- 一意性: 重複不可
+| 項目 | 説明 | 例 |
+|------|------|-----|
+| `name` | スキル識別子（kebab-case） | `nano-banana-pro-tips` |
+| `description` | 説明文（用途・トリガー条件を含む） | `〜する際に使用` |
 
-**title**（必須）:
-- 形式: 任意の文字列（日本語OK）
-- 推奨: 30文字以内、わかりやすい名前
+### description の書き方
 
-**source_type**（必須）:
-- 選択肢: `"knowledge"` | `"decision"` | `"template"`
+Claude Codeがスキルを選択する際の判断材料になるため、以下を含める：
 
-**primary_use**（必須）:
-- 形式: 1文で用途を説明
-- 推奨: 30〜80文字、具体的に
+1. **何のスキルか**（簡潔に）
+2. **いつ使うか**（トリガー条件）
 
-**triggers**（必須）:
-- 形式: 配列（3〜5個推奨）
-- 目的: Claudeがユーザー入力とマッチングするためのキーワード
-- 日本語・英語両方含める
+```yaml
+# 良い例
+description: Nano Banana Pro活用術。文字描写・図解・写真合成のテクニックと、nano_banana.pyとの連携方法を参照する際に使用。
 
-**inputs**（必須）:
-- 形式: 配列（1〜3個推奨）
-- このスキルを使うために必要な入力情報
+# 悪い例（トリガー条件がない）
+description: 画像生成について
+```
 
-**outputs**（必須）:
-- 形式: 配列（1〜3個推奨）
-- このスキルを使った結果、何が生成されるか
+---
 
-**granularity**（必須）:
-- 選択肢: `"task"` | `"workflow"` | `"framework"`
+## 作成手順
 
-### 3. 検証ルール
+### 1. ディレクトリ作成
 
-必須項目8つすべて存在することを確認：
 ```bash
-# 必須項目チェック
-grep -q "^skill_id:" file.md || echo "❌ skill_id が欠落"
-grep -q "^title:" file.md || echo "❌ title が欠落"
-grep -q "^source_type:" file.md || echo "❌ source_type が欠落"
-grep -q "^primary_use:" file.md || echo "❌ primary_use が欠落"
-grep -q "^triggers:" file.md || echo "❌ triggers が欠落"
-grep -q "^inputs:" file.md || echo "❌ inputs が欠落"
-grep -q "^outputs:" file.md || echo "❌ outputs が欠落"
-grep -q "^granularity:" file.md || echo "❌ granularity が欠落"
+mkdir -p /Users/ksato/workspace/.claude/skills/{skill-name}
 ```
 
-### 4. 二段階ロード方式
+### 2. SKILL.md 作成
 
-**フェーズ1: 索引構築**（対話開始時）
-- _codex/knowledge/*.md のフロントマターのみを読み込み
-- skill_id, title, triggers の索引を作成
-
-**フェーズ2: 本文参照**（マッチング時）
-- ユーザー入力が triggers に合致したら、該当スキル本文を追加読み込み
-
-## Examples
-
-### 例1: マーケティングフレームワーク
-
-```yaml
----
-skill_id: "ai_driven_marketing_2024_11_24"
-title: "AI活用マーケティング戦略"
-source_type: "knowledge"
-primary_use: "AI活用マーケティング戦略を立案する際のフレームワークと実践手順を提供"
-triggers:
-  - "marketing"
-  - "マーケティング"
-  - "genai"
-  - "ai活用"
-  - "戦略立案"
-inputs:
-  - "対象顧客セグメント"
-  - "製品・サービス概要"
-  - "競合情報"
-outputs:
-  - "AI活用マーケティング戦略書"
-  - "施策ロードマップ"
-  - "KPI定義"
-granularity: "framework"
----
-
-# AI活用マーケティング戦略
-
-本スキルは、GenAI時代のマーケティング戦略立案フレームワークです...
+```bash
+# 正本パスで作成
+/Users/ksato/workspace/.claude/skills/{skill-name}/SKILL.md
 ```
 
-### 例2: テンプレート
+### 3. README.md に追加
 
-```yaml
----
-skill_id: "strategy_template_2024_11_25"
-title: "01_strategy.md テンプレート"
-source_type: "template"
-primary_use: "新規プロジェクトの戦略骨子（01_strategy.md）を作成する際の標準テンプレート"
-triggers:
-  - "strategy"
-  - "戦略"
-  - "01_strategy"
-  - "プロダクト概要"
-  - "ICP"
-inputs:
-  - "プロジェクト名"
-  - "プロダクト概要"
-  - "ICP"
-outputs:
-  - "01_strategy.md"
-granularity: "task"
----
-
-# 01_strategy.md テンプレート
-
-新規プロジェクトの戦略骨子を作成するためのテンプレートです...
-```
-
-### よくある失敗パターン
-
-**❌ 失敗例1: skill_id の形式ミス**
-```yaml
-skill_id: "Marketing-2024"  # ❌ ハイフン・大文字
-```
-→ **修正**:
-```yaml
-skill_id: "marketing_2024_11_25"  # ✅
-```
-
-**❌ 失敗例2: triggers が少なすぎる**
-```yaml
-triggers:
-  - "marketing"  # ❌ 1つだけ
-```
-→ **修正**:
-```yaml
-triggers:
-  - "marketing"
-  - "マーケティング"
-  - "戦略"
-  - "ai活用"
-```
-
-**❌ 失敗例3: フロントマターの囲みミス**
 ```markdown
----  # ← OK
-skill_id: "test"
-title: "テスト"
----  # ← 閉じ忘れ ❌
+# /Users/ksato/workspace/.claude/skills/README.md
 
-# スキル本文
+| Skill | 用途 |
+|-------|------|
+| `{skill-name}` | {簡潔な説明} |
 ```
-→ **修正**: 必ず `---` で囲む
+
+### 4. Skills数を更新
+
+README.md最下部の `Skills数: N` を更新。
 
 ---
 
-このフロントマター仕様に従うことで、brainbaseの「Knowledge Skills 二段階ロード」が正しく機能します。
+## 本文の推奨構成
+
+```markdown
+# スキル名
+
+概要を1-2文で。
+
+## 出典（あれば）
+
+書籍名、URL、著者など。
+
+## Triggers（任意）
+
+以下の状況で使用：
+- トリガー条件1
+- トリガー条件2
+
+## 本文
+
+内容をMarkdownで自由に記載。
+- 見出し（##, ###）で構造化
+- コードブロックで実例
+- テーブルで比較・一覧
+
+---
+
+最終更新: YYYY-MM-DD
+```
+
+---
+
+## 命名規則
+
+| 項目 | ルール | 例 |
+|------|--------|-----|
+| ディレクトリ名 | kebab-case | `nano-banana-pro-tips` |
+| `name` | ディレクトリ名と同じ | `nano-banana-pro-tips` |
+| ファイル名 | 常に `SKILL.md` | - |
+
+---
+
+## カテゴリ（README.mdの分類）
+
+| カテゴリ | 用途 |
+|---------|------|
+| brainbase運用 | タスク管理、RACI、KPI、Git運用など |
+| マーケティング・営業 | フレームワーク、営業手法、コピーライティング |
+| 経営・組織 | EOS、仕組み化、組織設計 |
+| SaaS/プロダクト | ロードマップ、PM実践 |
+| SNS運用 | 投稿ワークフロー、画像生成 |
+| その他 | 上記に当てはまらないもの |
+
+---
+
+## チェックリスト
+
+新規Skill作成時の確認事項：
+
+- [ ] ディレクトリ名がkebab-case
+- [ ] `name`と`description`がフロントマターにある
+- [ ] `description`にトリガー条件が含まれている
+- [ ] README.mdの該当カテゴリに追加
+- [ ] README.mdのSkills数を更新
+
+---
+
+最終更新: 2025-12-09

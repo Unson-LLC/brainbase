@@ -1,139 +1,173 @@
 ---
 name: branch-worktree-rules
-description: brainbaseにおけるブランチ運用とworktree管理のルール。セッションベースワークフロー、コミット先の確認、パス解決を定義。worktreeで作業する際に使用。
+description: brainbaseにおけるブランチ運用とworktree管理のルール。正本ディレクトリのシンボリックリンク方式、コミット先の分離を定義。worktreeで作業する際に使用。
 ---
 
 # ブランチ・Worktree運用ルール
 
 brainbase-uiのセッション管理とgit worktree運用の標準ルールです。
 
-## Instructions
+## 基本原則
 
-### 1. セッションベースワークフロー
+**ファイルの性質によってコミット先を分離する:**
+
+| ファイル種別 | 性質 | コミット先 |
+|-------------|------|------------|
+| 正本ディレクトリ | 全セッションで共有 | main直接 |
+| プロジェクトコード | ブランチごとに異なりうる | セッションブランチ |
+
+---
+
+## 正本ディレクトリの定義
+
+以下は「正本」として、全worktreeで共有される：
 
 ```
-セッション開始
-  └─ worktree作成 + session/{id} ブランチ自動作成
-
-作業中
-  └─ session/{id} ブランチにコミット（小さく・こまめに）
-
-セッション終了（アーカイブ）
-  └─ UIで「アーカイブ」→ mainへマージ
-  └─ マージコミット: "Merge session: {name}"
-  └─ worktree削除
+/Users/ksato/workspace/
+├── _codex/          # ナレッジ正本
+├── _tasks/          # タスク正本
+├── _inbox/          # 受信箱
+├── _schedules/      # スケジュール
+├── _ops/            # 共通スクリプト
+├── .claude/         # Claude設定・Skills
+└── config.yml       # 設定ファイル
 ```
 
-### 2. コミット先の確認
+**正本の特徴:**
+- 常に最新を全セッションで共有したい
+- ブランチ分岐の対象ではない
+- mainに直接コミットする
 
-**重要**: コミット前に現在のブランチを確認すること。
+---
 
-```bash
-git branch
-# * session/session-XXXX  ← これにコミット（正しい）
-# main ← 直接コミットしない
+## Worktree構造（シンボリックリンク方式）
+
+worktree作成時、正本ディレクトリはシンボリックリンクで正本パスを参照：
+
+```
+/Users/ksato/workspace/.worktrees/session-xxx/
+├── _codex -> /Users/ksato/workspace/_codex      # シンボリックリンク
+├── _tasks -> /Users/ksato/workspace/_tasks      # シンボリックリンク
+├── _inbox -> /Users/ksato/workspace/_inbox      # シンボリックリンク
+├── _schedules -> /Users/ksato/workspace/_schedules
+├── _ops -> /Users/ksato/workspace/_ops
+├── .claude -> /Users/ksato/workspace/.claude
+├── config.yml -> /Users/ksato/workspace/config.yml
+├── CLAUDE.md                                     # 実ファイル（各worktreeに存在）
+├── brainbase-ui/                                # 実ファイル（ブランチローカル）
+└── projects/                                    # 実ファイル（ブランチローカル）
 ```
 
-### 3. ブランチ運用ルール
+**メリット:**
+- どのworktreeからでも同じ正本を編集
+- 正本の変更はmainに自動的に属する
+- パス解決の混乱がない
 
-| 状況 | コミット先 | マージ方法 |
-|-----|----------|-----------|
-| セッション内の通常作業 | `session/{id}` | UIからアーカイブ時にマージ |
-| 緊急hotfix | `main` 直接可 | - |
-| セッション外の軽微修正 | `main` 直接可 | - |
+---
 
-### 4. mainへの直接コミットが許容されるケース
+## コミットフロー
 
-- 緊急のhotfix（本番障害対応など）
-- セッション外での軽微な修正（typo、設定値変更）
-- CI/CD関連の設定変更
+### 1. プロジェクトコード（セッションブランチ経由）
 
-### 5. Worktree運用時のパス解決
-
-brainbase-uiでセッションを開始すると、`.worktrees/` 配下にgit worktreeが作成される。
-
-**正本パスは常に `/Users/ksato/workspace/` を使用**：
-
-| ファイル種別 | 参照先 |
-|-------------|--------|
-| 正本（_codex, _tasks, _inbox） | `/Users/ksato/workspace/` |
-| プロジェクトコード | worktree内（`.worktrees/<session>/`） |
-| 共通スクリプト（_ops） | `/Users/ksato/workspace/_ops/` |
-| スケジュール（_schedules） | `/Users/ksato/workspace/_schedules/` |
-
-### 6. workspaceスクリプトの実行
-
-`_ops/update-all-repos.sh` などのスクリプトは**必ず `/Users/ksato/workspace/` から実行**：
-
-```bash
-# worktreeから実行する場合
-cd /Users/ksato/workspace && ./_ops/update-all-repos.sh
 ```
-
-理由: スクリプトがカレントディレクトリからの相対パスで `.git` を探すため
-
-### 7. アーカイブ時の注意
-
-- 未コミットの変更がある場合、UIで確認ダイアログが表示される
-- マージ前にdry-runでコンフリクトチェックが行われる
-- コンフリクト発生時は手動解決が必要
-
-## Examples
-
-### 例1: セッション内での作業
+worktreeで編集 → セッションブランチにコミット → mainにマージ
+```
 
 ```bash
 # 現在のブランチを確認
 git branch
-# * session/session-1765194163310
+# * session/session-XXXX
 
-# 変更をコミット
-git add .
-git commit -m "feat: 機能追加..."
+# コードの変更をコミット
+git add brainbase-ui/
+git commit -m "feat: 機能追加"
 
-# pushは不要（ローカルworktree）
+# アーカイブ時にmainにマージ
 ```
 
-### 例2: 正本ファイルの編集
+### 2. 正本ファイル（main直接コミット）
+
+```
+worktreeで編集（シンボリックリンク経由）→ mainで直接コミット
+```
 
 ```bash
-# worktree内からでも、正本は絶対パスで参照
-cat /Users/ksato/workspace/_tasks/index.md
+# 正本ファイルを編集（シンボリックリンク経由で自動的に正本を編集）
+vim _codex/projects/salestailor/project.md
+vim .claude/skills/new-skill/SKILL.md
 
-# 編集も絶対パスで
-vim /Users/ksato/workspace/_codex/projects/salestailor/project.md
+# mainに直接コミット
+cd /Users/ksato/workspace
+git add _codex/ .claude/
+git commit -m "docs: ナレッジ追加"
 ```
-
-### 例3: リポジトリ同期
-
-```bash
-# worktreeから同期スクリプトを実行
-cd /Users/ksato/workspace && ./_ops/update-all-repos.sh
-
-# 元のworktreeに戻る
-cd /Users/ksato/workspace/.worktrees/session-1765194163310-brainbase-ui
-```
-
-### よくある失敗パターン
-
-**❌ 失敗例1: worktreeから相対パスでスクリプト実行**
-```bash
-./_ops/update-all-repos.sh  # ❌ 失敗
-```
-→ **修正**: `cd /Users/ksato/workspace && ./_ops/update-all-repos.sh`
-
-**❌ 失敗例2: worktree側の正本を編集**
-```bash
-vim _tasks/index.md  # ❌ worktree側のコピーを編集
-```
-→ **修正**: `vim /Users/ksato/workspace/_tasks/index.md`
-
-**❌ 失敗例3: mainに直接コミット（セッション中）**
-```bash
-git checkout main && git commit  # ❌
-```
-→ **修正**: セッションブランチにコミット
 
 ---
 
-このルールに従うことで、worktreeとブランチの混乱を防げます。
+## /merge コマンドの動作
+
+セッション終了時の `/merge` コマンドは以下を実行：
+
+1. **セッションブランチの変更確認**
+   - プロジェクトコードの変更があればセッションブランチにコミット
+
+2. **正本の変更確認**
+   - 正本ディレクトリの変更があればmainに直接コミット
+   - 「正本の変更をmainにコミットしますか？」と確認
+
+3. **マージ実行**
+   - セッションブランチをmainにマージ
+
+---
+
+## Worktree作成時のセットアップ
+
+brainbase-uiがworktree作成時に自動実行：
+
+```bash
+# worktree作成
+git worktree add .worktrees/session-xxx -b session/session-xxx
+
+# シンボリックリンク作成
+cd .worktrees/session-xxx
+rm -rf _codex _tasks _inbox _schedules _ops .claude config.yml
+ln -s /Users/ksato/workspace/_codex _codex
+ln -s /Users/ksato/workspace/_tasks _tasks
+ln -s /Users/ksato/workspace/_inbox _inbox
+ln -s /Users/ksato/workspace/_schedules _schedules
+ln -s /Users/ksato/workspace/_ops _ops
+ln -s /Users/ksato/workspace/.claude .claude
+ln -s /Users/ksato/workspace/config.yml config.yml
+```
+
+---
+
+## ルールまとめ
+
+| 状況 | 編集場所 | コミット先 |
+|-----|---------|------------|
+| Skills追加・更新 | worktree内（シンボリックリンク経由） | main直接 |
+| タスク更新 | worktree内（シンボリックリンク経由） | main直接 |
+| ナレッジ追加 | worktree内（シンボリックリンク経由） | main直接 |
+| プロジェクトコード | worktree内（実ファイル） | セッションブランチ |
+| 設定ファイル変更 | worktree内（シンボリックリンク経由） | main直接 |
+
+---
+
+## よくある質問
+
+### Q: セッションブランチで正本を編集したらどうなる？
+
+A: シンボリックリンク方式では、正本ディレクトリはworktreeにコピーされないため、「セッションブランチで正本を編集」という状況は発生しません。正本の編集は常にmainのファイルを直接編集することになります。
+
+### Q: 正本の変更をセッションブランチでレビューしたい場合は？
+
+A: 正本の変更は即座に反映されるべきナレッジなので、通常はmain直接コミットで問題ありません。レビューが必要な大きな変更の場合は、一時的にシンボリックリンクを解除して実ファイルとして編集し、セッションブランチでコミット→マージの流れも可能です。
+
+### Q: コンフリクトは発生する？
+
+A: 正本ファイルは常にmainに直接コミットされるため、ブランチ間のコンフリクトは発生しません。プロジェクトコードのみがセッションブランチ経由となります。
+
+---
+
+最終更新: 2025-12-09

@@ -369,6 +369,57 @@ async function createWorktree(sessionId, repoPath) {
         // Create worktree with new branch
         await execPromise(`git -C "${repoPath}" worktree add "${worktreePath}" -b "${branchName}"`);
 
+        // Create symlink for .env if it exists in the source repo
+        const sourceEnvPath = path.join(repoPath, '.env');
+        const targetEnvPath = path.join(worktreePath, '.env');
+        try {
+            await fs.access(sourceEnvPath);
+            await fs.symlink(sourceEnvPath, targetEnvPath);
+            console.log(`Created .env symlink at ${targetEnvPath}`);
+        } catch (envErr) {
+            // .env doesn't exist or symlink failed - not critical
+            if (envErr.code !== 'ENOENT') {
+                console.log(`Note: Could not create .env symlink: ${envErr.message}`);
+            }
+        }
+
+        // Create symlinks for canonical directories (正本ディレクトリ)
+        // These directories are shared across all worktrees and committed directly to main
+        const canonicalDirs = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude'];
+        const canonicalFiles = ['config.yml'];
+
+        for (const dir of canonicalDirs) {
+            const sourcePath = path.join(repoPath, dir);
+            const targetPath = path.join(worktreePath, dir);
+            try {
+                await fs.access(sourcePath);
+                // Remove the directory/file created by worktree
+                await fs.rm(targetPath, { recursive: true, force: true });
+                // Create symlink to canonical path
+                await fs.symlink(sourcePath, targetPath);
+                console.log(`Created canonical symlink: ${dir} -> ${sourcePath}`);
+            } catch (symlinkErr) {
+                if (symlinkErr.code !== 'ENOENT') {
+                    console.log(`Note: Could not create ${dir} symlink: ${symlinkErr.message}`);
+                }
+            }
+        }
+
+        for (const file of canonicalFiles) {
+            const sourcePath = path.join(repoPath, file);
+            const targetPath = path.join(worktreePath, file);
+            try {
+                await fs.access(sourcePath);
+                await fs.rm(targetPath, { force: true });
+                await fs.symlink(sourcePath, targetPath);
+                console.log(`Created canonical symlink: ${file} -> ${sourcePath}`);
+            } catch (symlinkErr) {
+                if (symlinkErr.code !== 'ENOENT') {
+                    console.log(`Note: Could not create ${file} symlink: ${symlinkErr.message}`);
+                }
+            }
+        }
+
         console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
         return { worktreePath, branchName, repoPath };
     } catch (err) {
