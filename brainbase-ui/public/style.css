@@ -1260,6 +1260,43 @@ body {
    15. Settings View
    ========================================= */
 
+/* Archive Toggle Button */
+.archive-toggle-container {
+    padding: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.archive-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s ease;
+}
+
+.archive-toggle-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.archive-toggle-btn.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.archive-toggle-btn i {
+    width: 14px;
+    height: 14px;
+}
+
 /* Sidebar Footer with Settings Link */
 .sidebar-footer {
     margin-top: auto;
