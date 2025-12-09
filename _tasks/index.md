@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQPF7E
+title: LLM as Judgeプロトタイプの完成と渡辺氏への引き渡し
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2024-12-14
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08U2EX2NEA
+thread_ts: "1765294371.536769"
+created_at: "2025-12-09T15:33:18.266Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: レター品質を自動評価する仕組みの設計完了。Tier 0/1/2/3の3段階構造に再設計済み。プロトタイプを今週末までに渡辺氏に引き渡し、Slackに品質スコア通知が届く体制を構築。
+- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
+
+---
 id: SLACK-2025-12-09-MIYQPEQ9
 title: 顧客KPI（お試しプラン含む）の正確な把握と定義
 project_id: salestailor
