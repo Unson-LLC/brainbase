@@ -265,7 +265,32 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=module1"></script>
+    <!-- Archive Sessions Modal -->
+    <div id="archive-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3><i data-lucide="archive"></i> 過去のセッション</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="archive-filters">
+                    <input type="text" id="archive-search" class="form-input" placeholder="セッション名で検索...">
+                    <select id="archive-project-filter" class="form-input">
+                        <option value="">すべてのプロジェクト</option>
+                    </select>
+                </div>
+                <div id="archive-list" class="archive-list">
+                    <!-- Archived sessions will be loaded here -->
+                </div>
+                <div id="archive-empty" class="archive-empty" style="display: none;">
+                    <i data-lucide="inbox"></i>
+                    <p>アーカイブされたセッションはありません</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=module6"></script>
     <script>
         lucide.createIcons();
     </script>

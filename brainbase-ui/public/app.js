@@ -44,8 +44,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const terminalContentDisplay = document.getElementById('terminal-content-display');
     const copyContentBtn = document.getElementById('copy-content-btn');
 
-    // Archive Toggle
-    let showArchived = false;
+    // Archive Modal
+    const archiveModal = document.getElementById('archive-modal');
+    const archiveSearchInput = document.getElementById('archive-search');
+    const archiveProjectFilter = document.getElementById('archive-project-filter');
+    const archiveListEl = document.getElementById('archive-list');
+    const archiveEmptyEl = document.getElementById('archive-empty');
     const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
     // CORE_PROJECTS moved to modules/state.js
 
@@ -433,8 +437,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Group sessions by project path
         const output = {}; // ProjectName -> [Sessions]
 
-        // Filter sessions based on archived state
-        const filteredSessions = sessions.filter(s => showArchived ? true : !s.archived);
+        // Filter: show only active sessions (not archived)
+        const filteredSessions = sessions.filter(s => !s.archived);
 
         filteredSessions.forEach(session => {
             let projectName = 'General';
@@ -457,7 +461,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         for (const [project, projectSessions] of Object.entries(output)) {
-
             const groupDiv = document.createElement('div');
             groupDiv.className = 'session-group';
 
@@ -1095,25 +1098,187 @@ document.addEventListener('DOMContentLoaded', () => {
 
     addSessionBtn.addEventListener('click', () => createNewSession());
 
-    // Archive Toggle Handler
+    // Archive Modal Handler
     if (toggleArchivedBtn) {
         toggleArchivedBtn.onclick = () => {
-            showArchived = !showArchived;
-            const iconEl = toggleArchivedBtn.querySelector('i');
-            const textEl = toggleArchivedBtn.querySelector('span');
-            if (showArchived) {
-                toggleArchivedBtn.classList.add('active');
-                iconEl.setAttribute('data-lucide', 'archive-restore');
-                textEl.textContent = 'アーカイブを隠す';
-            } else {
-                toggleArchivedBtn.classList.remove('active');
-                iconEl.setAttribute('data-lucide', 'archive');
-                textEl.textContent = 'アーカイブを表示';
-            }
-            lucide.createIcons();
-            renderSessionList();
+            openArchiveModal();
         };
     }
+
+    function openArchiveModal() {
+        if (!archiveModal) return;
+
+        // Populate project filter options
+        const projects = [...new Set(sessions.filter(s => s.archived).map(s => {
+            if (s.path) {
+                for (const proj of CORE_PROJECTS) {
+                    if (s.path.includes(proj)) return proj;
+                }
+            }
+            return 'General';
+        }))].sort();
+
+        archiveProjectFilter.innerHTML = '<option value="">すべてのプロジェクト</option>';
+        projects.forEach(proj => {
+            archiveProjectFilter.innerHTML += `<option value="${proj}">${proj}</option>`;
+        });
+
+        // Clear search
+        archiveSearchInput.value = '';
+
+        // Render archive list
+        renderArchiveList();
+
+        // Show modal
+        archiveModal.classList.add('active');
+        lucide.createIcons();
+
+        // Focus search input
+        archiveSearchInput.focus();
+    }
+
+    function renderArchiveList() {
+        const searchTerm = archiveSearchInput?.value.toLowerCase() || '';
+        const projectFilter = archiveProjectFilter?.value || '';
+
+        let archivedSessions = sessions.filter(s => s.archived);
+
+        // Apply search filter
+        if (searchTerm) {
+            archivedSessions = archivedSessions.filter(s =>
+                (s.name || s.id).toLowerCase().includes(searchTerm)
+            );
+        }
+
+        // Apply project filter
+        if (projectFilter) {
+            archivedSessions = archivedSessions.filter(s => {
+                if (!s.path) return projectFilter === 'General';
+                return s.path.includes(projectFilter);
+            });
+        }
+
+        // Sort by created date (newest first)
+        archivedSessions.sort((a, b) => {
+            const dateA = new Date(a.created || 0);
+            const dateB = new Date(b.created || 0);
+            return dateB - dateA;
+        });
+
+        if (archivedSessions.length === 0) {
+            archiveListEl.innerHTML = '';
+            archiveEmptyEl.style.display = 'block';
+            return;
+        }
+
+        archiveEmptyEl.style.display = 'none';
+
+        archiveListEl.innerHTML = archivedSessions.map(session => {
+            const name = session.name || session.id;
+            let project = 'General';
+            if (session.path) {
+                for (const proj of CORE_PROJECTS) {
+                    if (session.path.includes(proj)) {
+                        project = proj;
+                        break;
+                    }
+                }
+            }
+            const date = session.created ? new Date(session.created).toLocaleDateString('ja-JP') : '';
+
+            return `
+                <div class="archive-item" data-id="${session.id}">
+                    <div class="archive-item-info">
+                        <div class="archive-item-name">${name}</div>
+                        <div class="archive-item-meta">
+                            <span class="archive-item-project">${project}</span>
+                            ${date ? `<span class="archive-item-date">${date}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="archive-item-actions">
+                        <button class="archive-restore-btn" data-id="${session.id}">
+                            <i data-lucide="archive-restore"></i> 復元
+                        </button>
+                        <button class="archive-delete-btn" data-id="${session.id}">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add event handlers
+        archiveListEl.querySelectorAll('.archive-restore-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const sessionId = btn.dataset.id;
+                await restoreSession(sessionId);
+            };
+        });
+
+        archiveListEl.querySelectorAll('.archive-delete-btn').forEach(btn => {
+            btn.onclick = async () => {
+                const sessionId = btn.dataset.id;
+                const session = sessions.find(s => s.id === sessionId);
+                if (confirm(`「${session?.name || sessionId}」を完全に削除しますか？`)) {
+                    await deleteSession(sessionId);
+                }
+            };
+        });
+
+        lucide.createIcons();
+    }
+
+    async function restoreSession(sessionId) {
+        try {
+            const res = await fetch('/api/state');
+            const currentState = await res.json();
+            const updatedSessions = currentState.sessions.map(s =>
+                s.id === sessionId ? { ...s, archived: false } : s
+            );
+            await fetch('/api/state', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessions: updatedSessions })
+            });
+            await loadSessions();
+            renderArchiveList();
+        } catch (err) {
+            console.error('Failed to restore session', err);
+        }
+    }
+
+    async function deleteSession(sessionId) {
+        try {
+            const res = await fetch('/api/state');
+            const currentState = await res.json();
+            const updatedSessions = currentState.sessions.filter(s => s.id !== sessionId);
+            await fetch('/api/state', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessions: updatedSessions })
+            });
+            await loadSessions();
+            renderArchiveList();
+        } catch (err) {
+            console.error('Failed to delete session', err);
+        }
+    }
+
+    // Archive search/filter handlers
+    if (archiveSearchInput) {
+        archiveSearchInput.oninput = () => renderArchiveList();
+    }
+    if (archiveProjectFilter) {
+        archiveProjectFilter.onchange = () => renderArchiveList();
+    }
+
+    // Close archive modal
+    archiveModal?.querySelectorAll('.close-modal-btn').forEach(btn => {
+        btn.onclick = () => archiveModal.classList.remove('active');
+    });
+    archiveModal?.addEventListener('click', (e) => {
+        if (e.target === archiveModal) archiveModal.classList.remove('active');
+    });
 
     // --- Session Status Polling ---
     // Moved to modules/session-indicators.js
