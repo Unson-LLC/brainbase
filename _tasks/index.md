@@ -274,9 +274,9 @@ links: []
 id: SLACK-2025-12-05-MIS88BZT
 title: 保守契約の考え方整理資料作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
-priority: low
+priority: high
 due: 2024-12-05
 tags: [slack, auto-import]
 links: []
@@ -325,9 +325,9 @@ links: []
 id: SLACK-2025-12-05-MIS872VL
 title: 開発提案書をユーザー視点で再構成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
-priority: medium
+priority: high
 due: 2024-01-XX
 tags: [slack, auto-import]
 links: []
@@ -791,9 +791,9 @@ links: []
 id: SLACK-2025-12-04-MIQSKX3L
 title: セキュリティ通知対応フロー整備
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
-priority: low
+priority: medium
 due: 2024-12-27
 tags: [slack, auto-import]
 links: []
@@ -935,7 +935,7 @@ title: 冨岡開発 社長に電話
 project_id: tech-knight
 status: todo
 owner: 佐藤-圭吾
-priority: medium
+priority: low
 due: 2025-12-08
 tags: [phone, sales]
 links: []
@@ -1060,3 +1060,78 @@ links: [_codex/projects/baao/training/estimate_career_partners.md]
 - 担当: 佐藤 圭吾
 - 背景: キャリアパートナーズとの研修案件の見積もりを作成する
 - 完了: 2025-12-08 見積もり書作成完了（estimate_career_partners.md）
+
+---
+id: TK-2025-12-09-HAGIWARA-PROPOSAL
+title: 萩原氏への株式処遇提案（A・B・C案）スライド作成
+project_id: tech-knight
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2025-12-15
+tags: [meeting, equity, presentation]
+links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
+---
+
+- 2025-12-09 UnsonOS定例から抽出
+- 担当: 佐藤 圭吾
+- 背景: 萩原氏のA種優先株15%処遇について3案を提示する
+  - A案: 即時株式譲渡＋現金報酬
+  - B案: 成功報酬型（疑似Equity）
+  - C案: ストックオプション（ベスティング条件付き）
+- 成果物: ノートブックLM形式でスライド化
+
+---
+id: TK-2025-12-09-AI-PHONE-PROTOTYPE
+title: AI電話システム プロトタイプ開発（Pipecat + Deepgram + Cartesia）
+project_id: tech-knight
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2025-12-16
+tags: [development, naxa, ai-phone]
+links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
+---
+
+- 2025-12-09 UnsonOS定例から抽出
+- 担当: 佐藤 圭吾
+- 背景: NAXA案件のレジャーホテル向けAI電話システム
+- 技術スタック:
+  - OSS基盤: Pipecat
+  - STT: Deepgram Nova-3
+  - TTS: Cartesia Sonic
+- 目標: レイテンシー500ms以下、1通話あたり約15.5円
+
+---
+id: TK-2025-12-09-CARTESIA-DICTIONARY
+title: Cartesia日本語カスタム辞書作成
+project_id: tech-knight
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [development, naxa, ai-phone, tts]
+links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
+---
+
+- 2025-12-09 UnsonOS定例から抽出
+- 担当: 佐藤 圭吾
+- 背景: Cartesia Sonicの固有名詞（ホテル名・部屋タイプ）読み間違い対策
+- 前提: AI電話プロトタイプ完成後に着手
+
+---
+id: TK-2025-12-09-HOTEL-LP-BACKEND
+title: ホテル向けLP（無料プラン）構造設計とバックエンド整備
+project_id: tech-knight
+status: todo
+owner: 佐藤-圭吾
+priority: high
+due: 2025-12-11
+tags: [development, lp, hotel]
+links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
+---
+
+- 2025-12-09 UnsonOS定例から抽出
+- 担当: 佐藤 圭吾
+- 背景: 12月11日の忘年会（ホテル内覧会）までにデモサイト完成
+- 分業: 佐藤がバックエンド構造整備 → 石田氏がUI実装（Bolt.new使用）
