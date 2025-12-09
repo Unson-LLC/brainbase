@@ -209,6 +209,12 @@ app.get('/api/config/projects', async (req, res) => {
     res.json(projects);
 });
 
+// Get GitHub mappings from config.yml
+app.get('/api/config/github', async (req, res) => {
+    const github = await configParser.getGitHubMappings();
+    res.json(github);
+});
+
 // Check integrity
 app.get('/api/config/integrity', async (req, res) => {
     const result = await configParser.checkIntegrity();
