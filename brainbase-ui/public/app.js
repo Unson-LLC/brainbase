@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Archive Toggle
     let showArchived = false;
+    const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
     // CORE_PROJECTS moved to modules/state.js
 
     // Session Drag & Drop State
@@ -1093,6 +1094,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     addSessionBtn.addEventListener('click', () => createNewSession());
+
+    // Archive Toggle Handler
+    if (toggleArchivedBtn) {
+        toggleArchivedBtn.onclick = () => {
+            showArchived = !showArchived;
+            const iconEl = toggleArchivedBtn.querySelector('i');
+            const textEl = toggleArchivedBtn.querySelector('span');
+            if (showArchived) {
+                toggleArchivedBtn.classList.add('active');
+                iconEl.setAttribute('data-lucide', 'archive-restore');
+                textEl.textContent = 'アーカイブを隠す';
+            } else {
+                toggleArchivedBtn.classList.remove('active');
+                iconEl.setAttribute('data-lucide', 'archive');
+                textEl.textContent = 'アーカイブを表示';
+            }
+            lucide.createIcons();
+            renderSessionList();
+        };
+    }
 
     // --- Session Status Polling ---
     // Moved to modules/session-indicators.js
