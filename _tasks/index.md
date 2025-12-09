@@ -1,3 +1,26 @@
+---
+id: SLACK-2025-12-09-MIY31F81
+title: サブ口座を確認する
+project_id: general
+status: todo
+owner: k.​sato
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08Q5V2S2AW
+thread_ts: "1765254639.381049"
+created_at: "2025-12-09T04:30:47.377Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-09 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: バックオフィス業務として、サブ口座の確認が必要。
+- Slack: https://unson-inc.slack.com/archives/C08Q5V2S2AW/p1765254639381049
+
 # Tasks Index
 
 <!-- AI PMによるSlackからのタスク自動取り込み用 -->
