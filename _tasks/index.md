@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQPFOZ
+title: 返信追跡機能・方式1（OAuth連携）の実現可能性再検討
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2024-12-13
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08U2EX2NEA
+thread_ts: "1765294371.536769"
+created_at: "2025-12-09T15:33:18.899Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 返信・再返信まで追跡可能な方式1（OAuth連携）について、メール委任設定を含めた実現可能性を再検討。堀CEOの要件（返信・再返信追跡、フォーム送信での専用アドレス必須）を満たす技術的検討。
+- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
+
+---
 id: SLACK-2025-12-09-MIYQPF7E
 title: LLM as Judgeプロトタイプの完成と渡辺氏への引き渡し
 project_id: salestailor
