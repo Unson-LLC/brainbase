@@ -52,7 +52,7 @@ projects:
         - "web/**/*"
     github:
       owner: Unson-LLC
-      repo: baao-lark
+      repo: baao-project
       branch: main
 
   - id: unson
