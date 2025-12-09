@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-09-MIYFRXUT
+channel: 0031-dialogai-dev
+sender: 星野 秀弥
+timestamp: 1765276037.409669
+status: pending
+---
+
+### 19:27 | #0031-dialogai-dev | 星野 秀弥
+
+<@U07LNUP582X>
+ローカルからもCIからも、Stagingと本番ともにssh接続できないのですが、先日のインシデント対応の影響でしょうか？
+いずれもpemを使用して接続しようとしています。
+
+[Slack](https://unson-inc.slack.com/archives/C08A6ETSSR2/p1765276037409669)
+
+---
 id: INBOX-2025-12-09-MIXYYY79
 channel: 0011-zeims-dev
 sender: 梅田 遼/Haruka Umeda
