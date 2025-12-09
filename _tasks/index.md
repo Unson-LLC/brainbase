@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQPEC6
+title: 標準フロー・異常フローの定義（たたき台作成）
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2024-12-16
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08U2EX2NEA
+thread_ts: "1765294371.536769"
+created_at: "2025-12-09T15:33:17.142Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 開発完了基準の明確化のため、標準フローと異常フローのたたき台を作成し、来週の会議で協議する。12月29日の堀氏による実使用テストに向けた準備。
+- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
+
+---
 id: SLACK-2025-12-09-MIYPWTON
 title: 佐藤のタスクを_taskに登録
 project_id: general
