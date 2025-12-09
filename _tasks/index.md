@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQQUJ3
+title: ステージング環境のURL・ID・パスを藤井に共有
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08SX913NER
+thread_ts: "1765294451.986849"
+created_at: "2025-12-09T15:34:24.783Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: ドッグフィーディング実施のため、藤井志穂にステージング環境の接続情報を共有する。今週中の対応が必要。
+- Slack: https://unson-inc.slack.com/archives/C08SX913NER/p1765294451986849
+
+---
 id: SLACK-2025-12-09-MIYQPGPD
 title: 中長期開発計画（4月以降）の策定
 project_id: salestailor
