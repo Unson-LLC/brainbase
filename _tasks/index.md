@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQPG57
+title: 短期開発計画（1-3月）のマイルストーン再設定
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-01-15
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08U2EX2NEA
+thread_ts: "1765294371.536769"
+created_at: "2025-12-09T15:33:19.483Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 当初の「分析改善機能2月末」「ダッシュボード2月末」などの計画を、開発完了基準明確化の議論を踏まえて再設定。来月の役員会までにマイルストーンを提示。
+- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
+
+---
 id: SLACK-2025-12-09-MIYQPFOZ
 title: 返信追跡機能・方式1（OAuth連携）の実現可能性再検討
 project_id: salestailor
