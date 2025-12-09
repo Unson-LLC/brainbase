@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQQWXZ
+title: リード用語の削除・具体的指標名への変更
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: low
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08SX913NER
+thread_ts: "1765294451.986849"
+created_at: "2025-12-09T15:34:27.911Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 「リード」の定義が曖昧なため、デフォルト表示から削除し「返信数」「返信率」など具体的な指標名に変更。優先度見直し後に対応予定。
+- Slack: https://unson-inc.slack.com/archives/C08SX913NER/p1765294451986849
+
+---
 id: SLACK-2025-12-09-MIYQQWFV
 title: 商談化率表示の改善（薄暗い表示を目立たせる）
 project_id: salestailor
