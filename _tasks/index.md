@@ -228,9 +228,9 @@ links: []
 id: SLACK-2025-12-05-MIS88BZT
 title: 保守契約の考え方整理資料作成
 project_id: ncom
-status: in-progress
+status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: low
 due: 2024-12-05
 tags: [slack, auto-import]
 links: []
