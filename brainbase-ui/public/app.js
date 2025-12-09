@@ -1136,6 +1136,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 terminalContentDisplay.textContent = content;
                 copyTerminalModal.classList.add('active');
                 lucide.createIcons();
+                // モーダル表示後にスクロールを最下段に設定
+                setTimeout(() => {
+                    terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
+                }, 50);
             } catch (error) {
                 console.error('Failed to get terminal content:', error);
                 alert('ターミナル内容の取得に失敗しました');
