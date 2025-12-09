@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYPPZXX
+title: 佐藤のタスクを全て_taskに登録
+project_id: general
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08U2EX2NEA
+thread_ts: "1765292737.545469"
+created_at: "2025-12-09T15:05:45.525Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 佐藤圭吾さんのタスクを全て_taskシステムに登録する作業。具体的なタスク内容の詳細は別途確認が必要。
+- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765292737545469
+
+---
 id: SLACK-2025-12-09-MIYEYR62
 title: 佐藤の宿題を_taskに入れる
 project_id: general
