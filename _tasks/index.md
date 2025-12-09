@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQQV0Z
+title: 「要対応」「未入力」の定義を渡辺氏に確認
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08SX913NER
+thread_ts: "1765294451.986849"
+created_at: "2025-12-09T15:34:25.427Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 分析画面のKPIサマリーにおける「要対応系ペア」「未入力系ペア」の定義が不明確。渡辺氏との議論時に決められた内容のため、復帰後に確認が必要。
+- Slack: https://unson-inc.slack.com/archives/C08SX913NER/p1765294451986849
+
+---
 id: SLACK-2025-12-09-MIYQQUJ3
 title: ステージング環境のURL・ID・パスを藤井に共有
 project_id: salestailor
