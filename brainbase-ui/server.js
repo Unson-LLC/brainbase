@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Configuration
 const TASKS_FILE = path.join(__dirname, '../_tasks/index.md');

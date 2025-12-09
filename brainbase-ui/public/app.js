@@ -126,17 +126,20 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
         const deferBtn = focusTaskEl.querySelector('.focus-btn-defer');
+        console.log('### DEFER: deferBtn found:', deferBtn);
         if (deferBtn) {
             deferBtn.onclick = (e) => {
+                console.log('### DEFER: CLICK DETECTED');
                 e.stopPropagation();
                 const taskId = deferBtn.dataset.id;
+                console.log('### DEFER: taskId:', taskId);
                 deferTask(taskId);
             };
         }
     }
 
     function getFocusTask() {
-        // Priority: in-progress > high priority with due date > high priority > todo
+        // Priority: in-progress > high priority with due date > high priority > medium/normal > exclude low
         const activeTasks = tasks.filter(t => t.status !== 'done');
 
         // 1. in-progress tasks first
@@ -153,8 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const high = activeTasks.find(t => t.priority === 'high');
         if (high) return high;
 
-        // 4. First todo
-        return activeTasks[0] || null;
+        // 4. First non-low priority todo (low = deferred/backlog)
+        const nonLow = activeTasks.filter(t => t.priority !== 'low');
+        return nonLow[0] || null;
     }
 
     function renderFocusTask() {
@@ -372,13 +376,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deferTask(taskId) {
-        // Move to backlog by removing priority
-        await fetch(`/api/tasks/${taskId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ priority: 'low' })
-        });
-        loadTasks();
+        console.log('### DEFER: deferTask called with taskId:', taskId);
+        // Move to backlog: set priority to low AND status back to todo
+        try {
+            const res = await fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ priority: 'low', status: 'todo' })
+            });
+            console.log('### DEFER: API response status:', res.status);
+            if (!res.ok) {
+                console.error('### DEFER: API error:', await res.text());
+            }
+            loadTasks();
+        } catch (err) {
+            console.error('### DEFER: Error:', err);
+        }
     }
 
     // Show more tasks toggle
