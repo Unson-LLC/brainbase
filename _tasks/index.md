@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQPGPD
+title: 中長期開発計画（4月以降）の策定
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-01-31
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08U2EX2NEA
+thread_ts: "1765294371.536769"
+created_at: "2025-12-09T15:33:20.209Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 1月役員会で提示予定の中長期開発計画を策定。4月以降の開発ロードマップを明確化する。
+- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
+
+---
 id: SLACK-2025-12-09-MIYQPG57
 title: 短期開発計画（1-3月）のマイルストーン再設定
 project_id: salestailor
