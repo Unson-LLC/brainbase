@@ -279,9 +279,9 @@ links: []
 id: SLACK-2025-12-05-MIS872VL
 title: 開発提案書をユーザー視点で再構成
 project_id: ncom
-status: in-progress
+status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2024-01-XX
 tags: [slack, auto-import]
 links: []
@@ -745,9 +745,9 @@ links: []
 id: SLACK-2025-12-04-MIQSKX3L
 title: セキュリティ通知対応フロー整備
 project_id: ncom
-status: in-progress
+status: todo
 owner: 佐藤-圭吾
-priority: medium
+priority: low
 due: 2024-12-27
 tags: [slack, auto-import]
 links: []
@@ -887,9 +887,9 @@ src/
 id: TK-2025-12-08-TOMIOKA
 title: 冨岡開発 社長に電話
 project_id: tech-knight
-status: in-progress
+status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2025-12-08
 tags: [phone, sales]
 links: []
