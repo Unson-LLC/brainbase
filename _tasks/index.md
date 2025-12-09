@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYPWTON
+title: 佐藤のタスクを_taskに登録
+project_id: general
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08U2EX2NEA
+thread_ts: "1765293057.720219"
+created_at: "2025-12-09T15:11:04.007Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: She Nei MTGの議事録から佐藤圭吾氏に割り当てられたタスクを抽出し、_taskチャンネルに登録する作業。スレッド内で既に1件のタスクが登録済みであることが確認されている。
+- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765293057720219
+
+---
 id: SLACK-2025-12-09-MIYPPZXX
 title: 佐藤のタスクを全て_taskに登録
 project_id: general
