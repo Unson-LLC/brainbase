@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-09-MIYQQVFF
+title: ステージング環境の複数バージョンについて渡辺氏に確認
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08SX913NER
+thread_ts: "1765294451.986849"
+created_at: "2025-12-09T15:34:25.947Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 親ステージングと子ステージングが存在し、どちらで確認依頼をしていたか不明。渡辺氏復帰後に確認が必要。
+- Slack: https://unson-inc.slack.com/archives/C08SX913NER/p1765294451986849
+
+---
 id: SLACK-2025-12-09-MIYQQV0Z
 title: 「要対応」「未入力」の定義を渡辺氏に確認
 project_id: salestailor
