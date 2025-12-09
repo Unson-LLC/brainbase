@@ -739,6 +739,29 @@ body {
     min-height: 0;
 }
 
+.task-filter {
+    padding: 0 1rem 0.5rem;
+}
+
+.task-filter input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+.task-filter input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.task-filter input::placeholder {
+    color: var(--text-secondary);
+}
+
 #next-tasks-list {
     flex: 1;
     overflow-y: auto;

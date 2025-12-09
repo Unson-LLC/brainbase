@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const remainingToggleEl = document.getElementById('remaining-tasks-toggle');
     const remainingCountEl = document.getElementById('remaining-count');
     const showMoreBtn = document.getElementById('show-more-tasks');
+    const taskFilterInput = document.getElementById('task-filter-input');
+    let taskFilter = '';
 
     // Modal Elements
     const editModal = document.getElementById('edit-task-modal');
@@ -262,8 +264,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderNextTasks() {
         const focusTask = getFocusTask();
+        const filterLower = taskFilter.toLowerCase();
         const otherTasks = tasks
             .filter(t => t.status !== 'done' && (!focusTask || t.id !== focusTask.id))
+            .filter(t => !filterLower ||
+                t.name?.toLowerCase().includes(filterLower) ||
+                t.project?.toLowerCase().includes(filterLower))
             .sort((a, b) => {
                 // Sort by priority then due date
                 const priorityOrder = { high: 0, medium: 1, low: 2 };
@@ -377,14 +383,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function deferTask(taskId) {
         console.log('### DEFER: deferTask called with taskId:', taskId);
-        // Move to backlog: set priority to low AND status back to todo
+        // Lower priority by one level and set status back to todo
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const priorityOrder = ['high', 'medium', 'low'];
+        const currentIndex = priorityOrder.indexOf(task.priority || 'medium');
+        const newPriority = priorityOrder[Math.min(currentIndex + 1, priorityOrder.length - 1)];
+
         try {
             const res = await fetch(`/api/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ priority: 'low', status: 'todo' })
+                body: JSON.stringify({ priority: newPriority, status: 'todo' })
             });
-            console.log('### DEFER: API response status:', res.status);
+            console.log('### DEFER: API response status:', res.status, 'new priority:', newPriority);
             if (!res.ok) {
                 console.error('### DEFER: API error:', await res.text());
             }
@@ -398,6 +411,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (showMoreBtn) {
         showMoreBtn.onclick = () => {
             showAllTasks = !showAllTasks;
+            renderNextTasks();
+            lucide.createIcons();
+        };
+    }
+
+    // Task filter input
+    if (taskFilterInput) {
+        taskFilterInput.oninput = () => {
+            taskFilter = taskFilterInput.value;
             renderNextTasks();
             lucide.createIcons();
         };
