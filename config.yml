@@ -9,6 +9,10 @@ projects:
         - "docs/**/*"
         - "ops/**/*"
         - "drive/**/*"
+    github:
+      owner: Unson-LLC
+      repo: salestailor-project
+      branch: main
 
   - id: zeims
     local:
@@ -19,6 +23,10 @@ projects:
         - "drive/**/*"
         - "docs/**/*"
         - "ops/**/*"
+    github:
+      owner: Unson-LLC
+      repo: zeims-project
+      branch: main
 
   - id: tech-knight
     local:
@@ -29,6 +37,10 @@ projects:
         - "docs/**/*"
         - "ops/**/*"
         - "meetings/**/*"
+    github:
+      owner: Tech-Knight-inc
+      repo: tech-knight-project
+      branch: main
 
   - id: baao
     local:
@@ -38,6 +50,10 @@ projects:
         - "docs/**/*"
         - "ops/**/*"
         - "web/**/*"
+    github:
+      owner: Unson-LLC
+      repo: baao-lark
+      branch: main
 
   - id: unson
     local:
@@ -48,6 +64,10 @@ projects:
         - "docs/**/*"
         - "ops/**/*"
         - "drive/**/*"
+    github:
+      owner: Unson-LLC
+      repo: Drive
+      branch: main
 
   - id: ncom
     local:
@@ -56,18 +76,27 @@ projects:
         - "docs/**/*"
         - "meetings/**/*"
         - "scripts/**/*"
+    github:
+      owner: Unson-LLC
+      repo: ncom-catalyst
+      branch: main
 
   - id: ai-wolf
     local:
       path: personal/ai-wolf
       glob_include:
         - "**/*"
+    # github: なし（個人プロジェクト）
 
   - id: sato-portfolio
     local:
       path: personal/sato-portfolio
       glob_include:
         - "**/*"
+    github:
+      owner: sintariran
+      repo: sato-portfolio
+      branch: main
 
   - id: senrigan
     local:
@@ -79,8 +108,35 @@ projects:
         - "meetings/**/*"
         - "ops/**/*"
         - "research/**/*"
+    github:
+      owner: Unson-LLC
+      repo: senrigan-project
+      branch: main
 
-  # --- Slackマッピング専用プロジェクト（ローカルパスなし） ---
+  - id: brainbase
+    local:
+      path: brainbase
+      glob_include:
+        - "_codex/**/*"
+        - "_tasks/**/*"
+        - "config.yml"
+    github:
+      owner: sintariran
+      repo: brainbase
+      branch: main
+
+  - id: mana
+    local:
+      path: mana
+      glob_include:
+        - "api/**/*"
+        - "docs/**/*"
+    github:
+      owner: sintariran
+      repo: mana
+      branch: main
+
+  # --- Slackマッピング専用プロジェクト（ローカルパス・GitHubなし） ---
 
   - id: dialogai
     # ncom配下のサブプロジェクト。_codex/projects/ncom/dialogai/を参照
@@ -96,6 +152,10 @@ projects:
 
   - id: aitle
     # Aitle（Tech Knight配下）。_codex/projects/techknight/aitle/を参照
+    github:
+      owner: Tech-Knight-inc
+      repo: tech-knight-project
+      branch: main
 
   - id: postio
     # Postioプロジェクト

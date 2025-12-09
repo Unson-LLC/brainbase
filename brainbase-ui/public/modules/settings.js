@@ -33,6 +33,7 @@ async function loadConfigData() {
         renderChannels();
         renderMembers();
         renderProjects();
+        renderGitHub();
 
     } catch (err) {
         console.error('Failed to load config:', err);
@@ -66,6 +67,10 @@ function renderIntegritySummary() {
             <div class="stat-item success">
                 <span class="label">Projects</span>
                 <span class="count">${stats.projects}</span>
+            </div>
+            <div class="stat-item success">
+                <span class="label">GitHub</span>
+                <span class="count">${stats.github || 0}</span>
             </div>
             ${summary.errors > 0 ? `
                 <div class="stat-item error">
@@ -264,6 +269,43 @@ function renderProjects() {
                         <td><span class="badge badge-project">${p.id}</span></td>
                         <td class="mono">${root}/${p.local?.path || '-'}</td>
                         <td class="mono">${(p.local?.glob_include || []).slice(0, 3).join(', ')}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+
+    container.innerHTML = html;
+}
+
+function renderGitHub() {
+    const container = document.getElementById('github-list');
+    const github = configData?.github || [];
+
+    if (github.length === 0) {
+        container.innerHTML = '<div class="config-empty">No GitHub mappings found</div>';
+        return;
+    }
+
+    const html = `
+        <table class="config-table">
+            <thead>
+                <tr>
+                    <th>Project ID</th>
+                    <th>Owner</th>
+                    <th>Repository</th>
+                    <th>Branch</th>
+                    <th>URL</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${github.map(g => `
+                    <tr>
+                        <td><span class="badge badge-project">${g.project_id}</span></td>
+                        <td class="mono">${g.owner}</td>
+                        <td class="mono">${g.repo}</td>
+                        <td><span class="badge badge-type">${g.branch}</span></td>
+                        <td><a href="${g.url}" target="_blank" class="config-link">${g.url}</a></td>
                     </tr>
                 `).join('')}
             </tbody>

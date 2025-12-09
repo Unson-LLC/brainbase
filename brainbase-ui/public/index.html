@@ -87,6 +87,9 @@
                     <button class="settings-tab" data-tab="projects">
                         <i data-lucide="folder-git-2"></i> Projects
                     </button>
+                    <button class="settings-tab" data-tab="github">
+                        <i data-lucide="github"></i> GitHub
+                    </button>
                 </div>
 
                 <!-- Tab Content -->
@@ -129,6 +132,17 @@
                         <div class="settings-section">
                             <h3>Project Mappings</h3>
                             <div id="projects-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GitHub Tab -->
+                    <div class="settings-panel" id="github-panel">
+                        <div class="settings-section">
+                            <h3>GitHub Repository Mappings</h3>
+                            <p class="settings-section-desc">プロジェクトとGitHubリポジトリの対応関係（正本: config.yml）</p>
+                            <div id="github-list" class="config-table-container">
                                 <div class="loading">Loading...</div>
                             </div>
                         </div>

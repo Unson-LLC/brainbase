@@ -82,14 +82,40 @@ export class ConfigParser {
     }
 
     /**
+     * GitHubマッピングを取得（config.ymlから抽出）
+     */
+    async getGitHubMappings() {
+        try {
+            const content = await fs.readFile(this.configPath, 'utf-8');
+            const data = yaml.load(content);
+            const projects = data.projects || [];
+
+            // githubセクションを持つプロジェクトのみ抽出
+            return projects
+                .filter(p => p.github)
+                .map(p => ({
+                    project_id: p.id,
+                    owner: p.github.owner,
+                    repo: p.github.repo,
+                    branch: p.github.branch || 'main',
+                    url: `https://github.com/${p.github.owner}/${p.github.repo}`
+                }));
+        } catch (err) {
+            console.error('Failed to load GitHub mappings:', err.message);
+            return [];
+        }
+    }
+
+    /**
      * 全設定を統合して取得
      */
     async getAll() {
-        const [workspaces, channels, members, projectConfig] = await Promise.all([
+        const [workspaces, channels, members, projectConfig, githubMappings] = await Promise.all([
             this.getWorkspaces(),
             this.getChannels(),
             this.getMembers(),
-            this.getProjects()
+            this.getProjects(),
+            this.getGitHubMappings()
         ]);
 
         return {
@@ -98,7 +124,8 @@ export class ConfigParser {
                 channels,
                 members
             },
-            projects: projectConfig
+            projects: projectConfig,
+            github: githubMappings
         };
     }
 
@@ -107,13 +134,15 @@ export class ConfigParser {
      * - チャンネルに定義されているが、プロジェクトに存在しないproject_id
      * - ワークスペースに定義されているが、チャンネルがないワークスペース
      * - 重複したSlack ID
+     * - GitHubマッピングの検証
      */
     async checkIntegrity() {
-        const [workspaces, channels, members, projectConfig] = await Promise.all([
+        const [workspaces, channels, members, projectConfig, githubMappings] = await Promise.all([
             this.getWorkspaces(),
             this.getChannels(),
             this.getMembers(),
-            this.getProjects()
+            this.getProjects(),
+            this.getGitHubMappings()
         ]);
 
         const issues = [];
@@ -212,6 +241,41 @@ export class ConfigParser {
             }
         });
 
+        // 5. GitHubマッピングの検証
+        // 5a. ローカルパスがあるがGitHubがないプロジェクト
+        const projectsWithLocal = projectConfig.projects.filter(p => p.local?.path);
+        const githubProjectIds = new Set(githubMappings.map(g => g.project_id));
+
+        projectsWithLocal.forEach(p => {
+            if (!githubProjectIds.has(p.id)) {
+                issues.push({
+                    type: 'missing_github',
+                    severity: 'info',
+                    message: `Project "${p.id}" has local path but no GitHub mapping`,
+                    source: 'config.yml'
+                });
+            }
+        });
+
+        // 5b. GitHubマッピングの重複チェック
+        const repoCount = {};
+        githubMappings.forEach(g => {
+            const key = `${g.owner}/${g.repo}`;
+            if (!repoCount[key]) repoCount[key] = [];
+            repoCount[key].push(g.project_id);
+        });
+
+        Object.entries(repoCount).forEach(([repo, projectIds]) => {
+            if (projectIds.length > 1) {
+                issues.push({
+                    type: 'shared_github_repo',
+                    severity: 'info',
+                    message: `GitHub repo "${repo}" is shared by projects: ${projectIds.join(', ')}`,
+                    source: 'config.yml'
+                });
+            }
+        });
+
         return {
             issues,
             summary: {
@@ -224,7 +288,8 @@ export class ConfigParser {
                 workspaces: Object.keys(workspaces).length,
                 channels: channels.length,
                 members: members.length,
-                projects: projectConfig.projects.length
+                projects: projectConfig.projects.length,
+                github: githubMappings.length
             }
         };
     }

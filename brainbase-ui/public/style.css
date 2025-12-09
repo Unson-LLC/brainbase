@@ -1625,3 +1625,22 @@ body {
     max-height: 400px;
     overflow-y: auto;
 }
+
+/* Config link (for GitHub URLs) */
+.config-link {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+.config-link:hover {
+    text-decoration: underline;
+}
+
+/* Settings section description */
+.settings-section-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
