@@ -19,7 +19,8 @@ let draggedSessionProject = null;
 
 // --- Constants ---
 export const MAX_VISIBLE_TASKS = 3;
-export const CORE_PROJECTS = ['brainbase', 'unson', 'tech-knight', 'salestailor', 'zeims', 'baao', 'ncom', 'senrigan'];
+// CORE_PROJECTS moved to project-mapping.js (re-export for compatibility)
+export { CORE_PROJECTS } from './project-mapping.js';
 
 // --- Getters ---
 export function getSessions() {

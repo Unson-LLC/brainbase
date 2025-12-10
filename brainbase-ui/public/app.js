@@ -1,9 +1,21 @@
 // ES Modules imports
-import { MAX_VISIBLE_TASKS, CORE_PROJECTS } from './modules/state.js';
+import { MAX_VISIBLE_TASKS } from './modules/state.js';
 import { formatDueDate } from './modules/ui-helpers.js';
 import { initSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearUnread, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
+// New refactored modules
+import { getProjectPath, getProjectFromPath } from './modules/project-mapping.js';
+import { fetchState, saveState, updateSession, removeSession, addSession } from './modules/state-api.js';
+import { getFocusTask, sortTasksByPriority, filterTasks, getNextPriority } from './modules/task-manager.js';
+import { groupSessionsByProject, createSessionId, buildSessionObject } from './modules/session-manager.js';
+import { renderSessionRowHTML, renderSessionGroupHeaderHTML } from './modules/session-list-renderer.js';
+import { renderFocusTaskHTML, renderNextTaskItemHTML, renderTimelineEventHTML } from './modules/right-panel-renderer.js';
+import { renderArchiveListHTML } from './modules/archive-modal-renderer.js';
+import { formatTimelineHTML, getCurrentTimeStr } from './modules/timeline-controller.js';
+import { loadTasksFromAPI, completeTask, deferTaskPriority, updateTask, deleteTaskById } from './modules/task-controller.js';
+import { filterArchivedSessions, sortByCreatedDate, getUniqueProjects } from './modules/archive-modal-controller.js';
+import { archiveSessionAPI, mergeSession } from './modules/session-controller.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Elements ---
@@ -51,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const archiveListEl = document.getElementById('archive-list');
     const archiveEmptyEl = document.getElementById('archive-empty');
     const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
-    // CORE_PROJECTS moved to modules/state.js
 
     // Session Drag & Drop State
     let draggedSessionId = null;
@@ -60,8 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Data Loading ---
     async function loadSessions() {
         try {
-            const res = await fetch('/api/state');
-            const state = await res.json();
+            const state = await fetchState();
             sessions = state.sessions || [];
 
             // Check active session from URL or state
@@ -115,9 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupFocusTaskEvents() {
         const startBtn = focusTaskEl.querySelector('.focus-btn-start');
         if (startBtn) {
-            console.log('### FOCUS: setupFocusTaskEvents - setting onclick');
             startBtn.onclick = (e) => {
-                console.log('### FOCUS: CLICK DETECTED (after lucide)');
                 e.stopPropagation();
                 const taskId = startBtn.dataset.id;
                 const task = tasks.find(t => t.id === taskId);
@@ -133,43 +141,19 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
         const deferBtn = focusTaskEl.querySelector('.focus-btn-defer');
-        console.log('### DEFER: deferBtn found:', deferBtn);
         if (deferBtn) {
             deferBtn.onclick = (e) => {
-                console.log('### DEFER: CLICK DETECTED');
                 e.stopPropagation();
                 const taskId = deferBtn.dataset.id;
-                console.log('### DEFER: taskId:', taskId);
                 deferTask(taskId);
             };
         }
     }
 
-    function getFocusTask() {
-        // Priority: in-progress > high priority with due date > high priority > medium/normal > exclude low
-        const activeTasks = tasks.filter(t => t.status !== 'done');
-
-        // 1. in-progress tasks first
-        const inProgress = activeTasks.find(t => t.status === 'in-progress');
-        if (inProgress) return inProgress;
-
-        // 2. High priority with nearest due date
-        const highWithDue = activeTasks
-            .filter(t => t.priority === 'high' && t.due)
-            .sort((a, b) => new Date(a.due) - new Date(b.due));
-        if (highWithDue.length > 0) return highWithDue[0];
-
-        // 3. Any high priority
-        const high = activeTasks.find(t => t.priority === 'high');
-        if (high) return high;
-
-        // 4. First non-low priority todo (low = deferred/backlog)
-        const nonLow = activeTasks.filter(t => t.priority !== 'low');
-        return nonLow[0] || null;
-    }
+    // getFocusTask moved to modules/task-manager.js
 
     function renderFocusTask() {
-        const focusTask = getFocusTask();
+        const focusTask = getFocusTask(tasks);
 
         if (!focusTask) {
             focusTaskEl.innerHTML = `
@@ -209,83 +193,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTimeline() {
         const events = schedule?.items || [];
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
-
-        if (events.length === 0) {
-            timelineListEl.innerHTML = '<div class="timeline-empty">予定なし</div>';
-            return;
-        }
-
-        // Sort events by start time
-        const sortedEvents = [...events].sort((a, b) => {
-            const timeA = a.start || '00:00';
-            const timeB = b.start || '00:00';
-            return timeA.localeCompare(timeB);
-        });
-
-        let html = '<div class="timeline">';
-        let nowInserted = false;
-
-        sortedEvents.forEach((event, idx) => {
-            const eventTime = event.start || '00:00';
-
-            // Insert "now" marker at appropriate position
-            if (!nowInserted && eventTime > currentTimeStr) {
-                html += `
-                    <div class="timeline-now">
-                        <span class="timeline-now-label">現在 ${currentTimeStr}</span>
-                    </div>
-                `;
-                nowInserted = true;
-            }
-
-            const timeStr = event.start + (event.end ? '-' + event.end : '');
-            const isCurrent = eventTime <= currentTimeStr && (!event.end || event.end > currentTimeStr);
-
-            html += `
-                <div class="timeline-item is-event ${isCurrent ? 'is-current' : ''}">
-                    <div class="timeline-marker"></div>
-                    <span class="timeline-time">${timeStr}</span>
-                    <span class="timeline-content">${event.task}</span>
-                </div>
-            `;
-        });
-
-        // If now marker not yet inserted (all events are past)
-        if (!nowInserted) {
-            html += `
-                <div class="timeline-now">
-                    <span class="timeline-now-label">現在 ${currentTimeStr}</span>
-                </div>
-            `;
-        }
-
-        html += '</div>';
-        timelineListEl.innerHTML = html;
+        timelineListEl.innerHTML = formatTimelineHTML(events, getCurrentTimeStr());
     }
 
     function renderNextTasks() {
-        const focusTask = getFocusTask();
-        const filterLower = taskFilter.toLowerCase();
-        const otherTasks = tasks
-            .filter(t => t.status !== 'done' && (!focusTask || t.id !== focusTask.id))
-            .filter(t => !filterLower ||
-                t.name?.toLowerCase().includes(filterLower) ||
-                t.project?.toLowerCase().includes(filterLower))
-            .sort((a, b) => {
-                // Sort by priority then due date
-                const priorityOrder = { high: 0, medium: 1, low: 2 };
-                const pA = priorityOrder[a.priority] ?? 1;
-                const pB = priorityOrder[b.priority] ?? 1;
-                if (pA !== pB) return pA - pB;
-                if (a.due && b.due) return new Date(a.due) - new Date(b.due);
-                if (a.due) return -1;
-                if (b.due) return 1;
-                return 0;
-            });
+        const focusTask = getFocusTask(tasks);
+        // Use imported filterTasks and sortTasksByPriority
+        const activeTasks = tasks.filter(t => t.status !== 'done' && (!focusTask || t.id !== focusTask.id));
+        const filteredTasks = filterTasks(activeTasks, taskFilter);
+        const otherTasks = sortTasksByPriority(filteredTasks);
 
         const visibleTasks = showAllTasks ? otherTasks : otherTasks.slice(0, MAX_VISIBLE_TASKS);
         const remainingCount = otherTasks.length - MAX_VISIBLE_TASKS;
@@ -296,34 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let html = '';
-        visibleTasks.forEach(task => {
-            html += `
-                <div class="next-task-item" data-task-id="${task.id}">
-                    <div class="next-task-checkbox" data-id="${task.id}">
-                        <i data-lucide="check"></i>
-                    </div>
-                    <div class="next-task-content">
-                        <div class="next-task-title">${task.name}</div>
-                        <div class="next-task-meta">
-                            <span class="next-task-project">${task.project || 'general'}</span>
-                            ${task.priority ? `<span class="next-task-priority ${task.priority}">${task.priority}</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="next-task-actions">
-                        <button class="next-task-action start-task-btn" data-id="${task.id}" title="Start Session">
-                            <i data-lucide="terminal-square"></i>
-                        </button>
-                        <button class="next-task-action edit-task-btn" data-id="${task.id}" title="Edit">
-                            <i data-lucide="edit-2"></i>
-                        </button>
-                        <button class="next-task-action delete-task-btn" data-id="${task.id}" title="Delete">
-                            <i data-lucide="trash-2"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
+        // Use imported renderNextTaskItemHTML
+        const html = visibleTasks.map(task => renderNextTaskItemHTML(task)).join('');
 
         nextTasksListEl.innerHTML = html;
 
@@ -361,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.onclick = (e) => {
                 e.stopPropagation();
                 const taskId = btn.dataset.id;
-                if (confirm('タスクを削除しますか？')) deleteTask(taskId);
+                if (confirm('タスクを削除しますか？')) deleteTaskLocal(taskId);
             };
         });
 
@@ -387,28 +277,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deferTask(taskId) {
-        console.log('### DEFER: deferTask called with taskId:', taskId);
-        // Lower priority by one level and set status back to todo
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
-
-        const priorityOrder = ['high', 'medium', 'low'];
-        const currentIndex = priorityOrder.indexOf(task.priority || 'medium');
-        const newPriority = priorityOrder[Math.min(currentIndex + 1, priorityOrder.length - 1)];
-
         try {
-            const res = await fetch(`/api/tasks/${taskId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ priority: newPriority, status: 'todo' })
-            });
-            console.log('### DEFER: API response status:', res.status, 'new priority:', newPriority);
-            if (!res.ok) {
-                console.error('### DEFER: API error:', await res.text());
-            }
+            await deferTaskPriority(taskId, task.priority);
             loadTasks();
         } catch (err) {
-            console.error('### DEFER: Error:', err);
+            console.error('Failed to defer task:', err);
         }
     }
 
@@ -434,67 +309,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSessionList() {
         sessionList.innerHTML = '';
 
-        // Group sessions by project path
-        const output = {}; // ProjectName -> [Sessions]
-
-        // Filter: show only active sessions (not archived)
-        const filteredSessions = sessions.filter(s => !s.archived);
-
-        filteredSessions.forEach(session => {
-            let projectName = 'General';
-            // Try to match path with CORE_PROJECTS
-            if (session.path) {
-                for (const proj of CORE_PROJECTS) {
-                    if (session.path.includes(proj)) {
-                        projectName = proj;
-                        break;
-                    }
-                }
-            }
-            if (!output[projectName]) output[projectName] = [];
-            output[projectName].push(session);
-        });
-
-        // Add empty core projects if not present (to show "add" button)
-        CORE_PROJECTS.forEach(proj => {
-            if (!output[proj]) output[proj] = [];
+        // Use imported groupSessionsByProject
+        const output = groupSessionsByProject(sessions, {
+            excludeArchived: true,
+            includeEmptyProjects: true
         });
 
         for (const [project, projectSessions] of Object.entries(output)) {
             const groupDiv = document.createElement('div');
             groupDiv.className = 'session-group';
 
-            // Collapse state logic could go here
-            const isExpanded = true; // Default expanded
-
+            // Use imported renderSessionGroupHeaderHTML
+            const isExpanded = true;
             const header = document.createElement('div');
-            header.className = 'session-group-header';
-            header.innerHTML = `
-                <span class="folder-icon"><i data-lucide="${isExpanded ? 'folder-open' : 'folder'}"></i></span>
-                <span class="group-title">${project}</span>
-                <button class="add-project-session-btn" title="New Session in ${project}"><i data-lucide="plus"></i></button>
-            `;
+            header.innerHTML = renderSessionGroupHeaderHTML(project, { isExpanded });
+            const headerEl = header.firstElementChild;
 
             // Toggle expand
-            header.addEventListener('click', (e) => {
+            headerEl.addEventListener('click', (e) => {
                 if (!e.target.closest('.add-project-session-btn')) {
-                    // Toggle visibility of children container
                     const container = groupDiv.querySelector('.session-group-children');
                     container.style.display = container.style.display === 'none' ? 'block' : 'none';
-                    // Update icon
-                    const icon = header.querySelector('.folder-icon i');
-                    if (container.style.display === 'none') {
-                        icon.setAttribute('data-lucide', 'folder');
-                    } else {
-                        icon.setAttribute('data-lucide', 'folder-open');
-                    }
+                    const icon = headerEl.querySelector('.folder-icon i');
+                    icon.setAttribute('data-lucide', container.style.display === 'none' ? 'folder' : 'folder-open');
                     lucide.createIcons();
                 }
             });
 
             // Add new session to project
-            const addBtn = header.querySelector('.add-project-session-btn');
-            addBtn.addEventListener('click', (e) => {
+            headerEl.querySelector('.add-project-session-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
                 createNewSession(project);
             });
@@ -503,37 +346,13 @@ document.addEventListener('DOMContentLoaded', () => {
             childrenDiv.className = 'session-group-children';
 
             projectSessions.forEach(session => {
-                const childRow = document.createElement('div');
-                childRow.className = `session-child-row ${currentSessionId === session.id ? 'active' : ''}`;
-                if (session.archived) childRow.classList.add('archived');
-                childRow.dataset.id = session.id;
-                childRow.dataset.project = project;
-                childRow.setAttribute('draggable', 'true');
-
-                const displayName = session.name || session.id;
-                const hasWorktree = !!session.worktree;
-
-                // Build worktree badge
-                const worktreeBadge = hasWorktree
-                    ? '<span class="worktree-badge" title="Has worktree"><i data-lucide="git-branch"></i></span>'
-                    : '';
-
-                childRow.innerHTML = `
-                    <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
-                    <div class="session-name-container">
-                        <span class="session-icon"><i data-lucide="terminal-square"></i></span>
-                        <span class="session-name">${displayName}</span>
-                        ${worktreeBadge}
-                        ${session.archived ? '<span class="archived-label">(Archived)</span>' : ''}
-                    </div>
-                    <div class="child-actions">
-                        <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
-                        <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
-                        <button class="archive-session-btn" title="${session.archived ? 'Unarchive' : 'Archive'}">
-                            <i data-lucide="${session.archived ? 'archive-restore' : 'archive'}"></i>
-                        </button>
-                    </div>
-                `;
+                // Use imported renderSessionRowHTML
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = renderSessionRowHTML(session, {
+                    isActive: currentSessionId === session.id,
+                    project
+                });
+                const childRow = wrapper.firstElementChild;
 
                 childRow.addEventListener('click', (e) => {
                     if (!e.target.closest('button') && !e.target.closest('input')) {
@@ -560,24 +379,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const saveName = async () => {
                         const newName = input.value.trim();
                         if (newName && newName !== currentName) {
-                            // Update state
                             try {
-                                const res = await fetch('/api/state');
-                                const currentState = await res.json();
-                                const updatedSessions = currentState.sessions.map(s =>
-                                    s.id === session.id ? { ...s, name: newName } : s
-                                );
-                                await fetch('/api/state', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ sessions: updatedSessions })
-                                });
-                                loadSessions(); // Reload list
+                                await updateSession(session.id, { name: newName });
+                                loadSessions();
                             } catch (err) {
                                 console.error('Failed to rename', err);
                             }
                         } else {
-                            loadSessions(); // Revert
+                            loadSessions();
                         }
                     };
 
@@ -587,22 +396,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 };
 
-                // Delete Logic
+                // Delete Logic - use imported removeSession
                 const deleteBtn = childRow.querySelector('.delete-session-btn');
+                const displayName = session.name || session.id;
                 deleteBtn.onclick = async (e) => {
                     e.stopPropagation();
                     if (confirm(`セッション「${displayName}」を削除しますか？`)) {
                         try {
-                            const res = await fetch('/api/state');
-                            const currentState = await res.json();
-                            const updatedSessions = currentState.sessions.filter(s => s.id !== session.id);
-
-                            await fetch('/api/state', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ sessions: updatedSessions })
-                            });
-
+                            await removeSession(session.id);
                             if (currentSessionId === session.id) {
                                 terminalFrame.src = 'about:blank';
                                 currentSessionId = null;
@@ -621,17 +422,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newArchivedState = !session.archived;
 
                     if (newArchivedState) {
-                        // Archiving - use new API with merge check
+                        // Archiving - use imported archiveSessionAPI and mergeSession
                         try {
-                            const res = await fetch(`/api/sessions/${session.id}/archive`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ skipMergeCheck: false })
-                            });
-                            const result = await res.json();
+                            const result = await archiveSessionAPI(session.id);
 
                             if (result.needsConfirmation) {
-                                // Show merge confirmation dialog
                                 const mergeChoice = confirm(
                                     `「${displayName}」に未マージの変更があります:\n` +
                                     `・${result.status.commitsAhead || 0} コミット先行\n` +
@@ -640,36 +435,20 @@ document.addEventListener('DOMContentLoaded', () => {
                                     `OK = マージしてアーカイブ\nキャンセル = 何もしない`
                                 );
 
-                                if (!mergeChoice) {
-                                    // User cancelled - do nothing
-                                    return;
-                                }
+                                if (!mergeChoice) return;
 
-                                // Merge first
-                                const mergeRes = await fetch(`/api/sessions/${session.id}/merge`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' }
-                                });
-                                const mergeResult = await mergeRes.json();
+                                const mergeResult = await mergeSession(session.id);
 
                                 if (!mergeResult.success) {
-                                    // Merge failed - ask if they want to discard
                                     const discardChoice = confirm(
                                         `マージに失敗しました: ${mergeResult.error}\n\n` +
                                         `変更を破棄してアーカイブしますか？\n\n` +
                                         `OK = 破棄してアーカイブ\nキャンセル = 何もしない`
                                     );
-                                    if (!discardChoice) {
-                                        return;
-                                    }
+                                    if (!discardChoice) return;
                                 }
 
-                                // Archive with skip merge check
-                                await fetch(`/api/sessions/${session.id}/archive`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ skipMergeCheck: true })
-                                });
+                                await archiveSessionAPI(session.id);
                             }
 
                             loadSessions();
@@ -677,18 +456,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             console.error('Failed to archive session', err);
                         }
                     } else {
-                        // Unarchiving - simple state update
+                        // Unarchiving - use imported updateSession
                         try {
-                            const res = await fetch('/api/state');
-                            const currentState = await res.json();
-                            const updatedSessions = currentState.sessions.map(s =>
-                                s.id === session.id ? { ...s, archived: false } : s
-                            );
-                            await fetch('/api/state', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ sessions: updatedSessions })
-                            });
+                            await updateSession(session.id, { archived: false });
                             loadSessions();
                         } catch (err) {
                             console.error('Failed to unarchive session', err);
@@ -738,25 +508,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     try {
-                        const res = await fetch('/api/state');
-                        const currentState = await res.json();
+                        const currentState = await fetchState();
                         const sessionList = currentState.sessions || [];
 
                         const draggedIndex = sessionList.findIndex(s => s.id === draggedSessionId);
                         const targetIndex = sessionList.findIndex(s => s.id === session.id);
-
                         if (draggedIndex === -1 || targetIndex === -1) return;
 
                         const [draggedSession] = sessionList.splice(draggedIndex, 1);
                         const newTargetIndex = sessionList.findIndex(s => s.id === session.id);
                         sessionList.splice(newTargetIndex, 0, draggedSession);
 
-                        await fetch('/api/state', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sessions: sessionList })
-                        });
-
+                        await saveState({ sessions: sessionList });
                         loadSessions();
                     } catch (err) {
                         console.error('Failed to reorder sessions', err);
@@ -766,7 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 childrenDiv.appendChild(childRow);
             });
 
-            groupDiv.appendChild(header);
+            groupDiv.appendChild(headerEl);
             groupDiv.appendChild(childrenDiv);
             sessionList.appendChild(groupDiv);
         }
@@ -778,33 +541,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Actions ---
 
     async function createNewSession(project = 'general') {
-        console.log('createNewSession called for project:', project);
-
-        // Find repo path for project
-        const mapping = {
-            'unson': '/Users/ksato/workspace/unson',
-            'tech-knight': '/Users/ksato/workspace/tech-knight',
-            'brainbase': '/Users/ksato/workspace/brainbase-ui',
-            'salestailor': '/Users/ksato/workspace/salestailor',
-            'zeims': '/Users/ksato/workspace/zeims',
-            'baao': '/Users/ksato/workspace/baao',
-            'ncom': '/Users/ksato/workspace/ncom-catalyst',
-            'senrigan': '/Users/ksato/workspace/senrigan',
-        };
-
-        let repoPath = null;
-        if (project !== 'General' && project !== 'general') {
-            repoPath = mapping[project] || `/Users/ksato/workspace/${project}`;
-        } else {
-            repoPath = '/Users/ksato/workspace';
-        }
-
+        // Use imported getProjectPath and createSessionId
+        const repoPath = getProjectPath(project);
         const name = prompt('Enter session name:', `New ${project} Session`);
         if (!name) return;
 
         const initialCommand = prompt('Initial command (optional):', '');
-
-        const sessionId = `session-${Date.now()}`; // Generate ID
+        const sessionId = createSessionId('session');
 
         try {
             // Try to create session with worktree first
@@ -816,14 +559,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok) {
                 const { proxyPath, session } = await res.json();
-                console.log('Created session with worktree:', session);
 
                 // Reload and switch
                 await loadSessions();
                 switchSession(sessionId, session.path, initialCommand);
             } else {
                 // Fallback to regular session (non-git repo)
-                console.log('Worktree creation failed, falling back to regular session');
                 const fallbackRes = await fetch('/api/sessions/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -833,23 +574,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fallbackRes.ok) {
                     const { proxyPath } = await fallbackRes.json();
 
-                    // Save to state manually
-                    const resState = await fetch('/api/state');
-                    const currentState = await resState.json();
-                    const newSessions = [...(currentState.sessions || []), {
+                    // Use imported buildSessionObject and addSession
+                    const newSession = buildSessionObject({
                         id: sessionId,
-                        name: name,
+                        name,
                         path: repoPath,
-                        initialCommand,
-                        archived: false,
-                        created: new Date().toISOString()
-                    }];
-
-                    await fetch('/api/state', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ sessions: newSessions })
+                        initialCommand
                     });
+                    await addSession(newSession);
 
                     await loadSessions();
                     switchSession(sessionId, repoPath, initialCommand);
@@ -864,43 +596,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function startTaskSession(task) {
-        console.log('### startTaskSession called with task:', task);
-        // Map task project to repo path (for worktree)
-        const mapping = {
-            'unson': '/Users/ksato/workspace/unson',
-            'tech-knight': '/Users/ksato/workspace/tech-knight',
-            'brainbase': '/Users/ksato/workspace/brainbase-ui',
-            'salestailor': '/Users/ksato/workspace/salestailor',
-            'zeims': '/Users/ksato/workspace/zeims',
-            'baao': '/Users/ksato/workspace/baao',
-            'ncom': '/Users/ksato/workspace/ncom-catalyst',
-            'senrigan': '/Users/ksato/workspace/senrigan',
-        };
-
-        let repoPath = mapping[task.project] || `/Users/ksato/workspace/${task.project}`;
-        if (!task.project) {
-            repoPath = '/Users/ksato/workspace';
-        }
-
-        const sessionId = `task-${task.id}-${Date.now()}`;
+        // Use imported getProjectPath and createSessionId
+        const repoPath = getProjectPath(task.project);
+        const sessionId = createSessionId('task', task.id);
         const name = `Task: ${task.name}`;
         const initialCommand = `/task ${task.id}`;
 
         try {
             // Try to create session with worktree first
-            console.log('### Calling /api/sessions/create-with-worktree');
-            console.log('### sessionId:', sessionId, 'repoPath:', repoPath);
             const res = await fetch('/api/sessions/create-with-worktree', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
             });
-            console.log('### API response status:', res.status, res.ok);
 
             if (res.ok) {
                 const { proxyPath, session } = await res.json();
-                console.log('### Created task session with worktree:', session);
-                console.log('### proxyPath:', proxyPath);
 
                 await updateTaskStatus(task.id, 'in-progress');
                 await loadSessions();
@@ -911,49 +622,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     row.classList.remove('active');
                     if (row.dataset.id === sessionId) row.classList.add('active');
                 });
-                console.log('Setting terminalFrame.src to:', proxyPath);
                 terminalFrame.src = proxyPath;
             } else {
                 // Fallback to regular session (non-git repo)
                 // Use workspace root if specific repo doesn't exist
                 const fallbackCwd = '/Users/ksato/workspace';
-                console.log('### Worktree failed, using fallback with cwd:', fallbackCwd);
                 const fallbackRes = await fetch('/api/sessions/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sessionId, initialCommand, cwd: fallbackCwd })
                 });
-                console.log('### Fallback response:', fallbackRes.status, fallbackRes.ok);
 
                 if (fallbackRes.ok) {
                     const { proxyPath } = await fallbackRes.json();
-                    console.log('### Fallback proxyPath:', proxyPath);
 
-                    // Save to state manually
-                    const resState = await fetch('/api/state');
-                    const currentState = await resState.json();
-                    const newSessions = [...(currentState.sessions || []), {
+                    // Use imported buildSessionObject and addSession
+                    const newSession = buildSessionObject({
                         id: sessionId,
-                        name: name,
+                        name,
                         path: repoPath,
                         taskId: task.id,
-                        initialCommand,
-                        archived: false,
-                        created: new Date().toISOString()
-                    }];
-
-                    await fetch('/api/state', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ sessions: newSessions })
+                        initialCommand
                     });
+                    await addSession(newSession);
 
                     await updateTaskStatus(task.id, 'in-progress');
                     await loadSessions();
 
-                    // Use proxyPath directly
                     currentSessionId = sessionId;
-                    console.log('### Setting terminalFrame.src (fallback):', proxyPath);
                     terminalFrame.src = proxyPath;
                 } else {
                     alert('セッションの開始に失敗しました');
@@ -997,18 +693,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function updateTaskStatus(id, status) {
-        await fetch(`/api/tasks/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
-        });
+        await updateTask(id, { status });
         loadTasks();
     }
 
-    async function deleteTask(id) {
-        await fetch(`/api/tasks/${id}`, {
-            method: 'DELETE'
-        });
+    async function deleteTaskLocal(id) {
+        await deleteTaskById(id);
         loadTasks();
     }
 
@@ -1064,15 +754,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function openArchiveModal() {
         if (!archiveModal) return;
 
-        // Populate project filter options
-        const projects = [...new Set(sessions.filter(s => s.archived).map(s => {
-            if (s.path) {
-                for (const proj of CORE_PROJECTS) {
-                    if (s.path.includes(proj)) return proj;
-                }
-            }
-            return 'General';
-        }))].sort();
+        // Use imported getUniqueProjects
+        const projects = getUniqueProjects(sessions);
 
         archiveProjectFilter.innerHTML = '<option value="">すべてのプロジェクト</option>';
         projects.forEach(proj => {
@@ -1094,32 +777,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderArchiveList() {
-        const searchTerm = archiveSearchInput?.value.toLowerCase() || '';
+        const searchTerm = archiveSearchInput?.value || '';
         const projectFilter = archiveProjectFilter?.value || '';
 
-        let archivedSessions = sessions.filter(s => s.archived);
-
-        // Apply search filter
-        if (searchTerm) {
-            archivedSessions = archivedSessions.filter(s =>
-                (s.name || s.id).toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Apply project filter
-        if (projectFilter) {
-            archivedSessions = archivedSessions.filter(s => {
-                if (!s.path) return projectFilter === 'General';
-                return s.path.includes(projectFilter);
-            });
-        }
-
-        // Sort by created date (newest first)
-        archivedSessions.sort((a, b) => {
-            const dateA = new Date(a.created || 0);
-            const dateB = new Date(b.created || 0);
-            return dateB - dateA;
-        });
+        // Use imported functions
+        const filtered = filterArchivedSessions(sessions, searchTerm, projectFilter);
+        const archivedSessions = sortByCreatedDate(filtered);
 
         if (archivedSessions.length === 0) {
             archiveListEl.innerHTML = '';
@@ -1131,15 +794,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         archiveListEl.innerHTML = archivedSessions.map(session => {
             const name = session.name || session.id;
-            let project = 'General';
-            if (session.path) {
-                for (const proj of CORE_PROJECTS) {
-                    if (session.path.includes(proj)) {
-                        project = proj;
-                        break;
-                    }
-                }
-            }
+            const project = getProjectFromPath(session.path) || 'General';
             const date = session.created ? new Date(session.created).toLocaleDateString('ja-JP') : '';
 
             return `
@@ -1186,17 +841,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function restoreSession(sessionId) {
         try {
-            const res = await fetch('/api/state');
-            const currentState = await res.json();
+            const currentState = await fetchState();
             const restoredSession = currentState.sessions.find(s => s.id === sessionId);
-            const updatedSessions = currentState.sessions.map(s =>
-                s.id === sessionId ? { ...s, archived: false } : s
-            );
-            await fetch('/api/state', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessions: updatedSessions })
-            });
+            await updateSession(sessionId, { archived: false });
             await loadSessions();
             renderArchiveList();
 
@@ -1212,14 +859,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function deleteSession(sessionId) {
         try {
-            const res = await fetch('/api/state');
-            const currentState = await res.json();
-            const updatedSessions = currentState.sessions.filter(s => s.id !== sessionId);
-            await fetch('/api/state', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessions: updatedSessions })
-            });
+            await removeSession(sessionId);
             await loadSessions();
             renderArchiveList();
         } catch (err) {
