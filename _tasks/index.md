@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MIZZANSG
+title: 小川とのタスク分担および進捗管理体制の確立
+project_id: general
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09AEA6DBA7
+thread_ts: "1765369281.002249"
+created_at: "2025-12-10T12:21:32.272Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 小川とのタスク分担および進捗管理体制の確立と運用を開始する。まなちゃんを活用し、タスク管理と進捗報告を自動化する仕組みを構築中。
+- Slack: https://unson-inc.slack.com/archives/C09AEA6DBA7/p1765369281002249
+
+---
 id: SLACK-2025-12-10-MIZZANAO
 title: GitHubおよびGoogleドライブのドキュメント管理体制展開
 project_id: general
