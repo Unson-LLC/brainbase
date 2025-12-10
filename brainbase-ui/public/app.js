@@ -415,6 +415,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
+                // Merge Logic - Send /merge command to Claude Code
+                const mergeBtn = childRow.querySelector('.merge-session-btn');
+                if (mergeBtn) {
+                    mergeBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`)) {
+                            return;
+                        }
+
+                        try {
+                            // Send /merge command to Claude Code via tmux
+                            await fetch(`/api/sessions/${session.id}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: '/merge', type: 'text' })
+                            });
+                            // Send Enter key to execute the command
+                            await fetch(`/api/sessions/${session.id}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: 'Enter', type: 'key' })
+                            });
+
+                            alert('Claude Codeに /merge コマンドを送信しました。\nターミナルで進捗を確認してください。');
+                        } catch (err) {
+                            console.error('Failed to send merge command', err);
+                            alert('/merge コマンドの送信に失敗しました');
+                        }
+                    };
+                }
+
                 // Archive Logic (with worktree merge check)
                 const archiveBtn = childRow.querySelector('.archive-session-btn');
                 archiveBtn.onclick = async (e) => {
@@ -540,58 +571,125 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Actions ---
 
-    async function createNewSession(project = 'general') {
-        // Use imported getProjectPath and createSessionId
-        const repoPath = getProjectPath(project);
-        const name = prompt('Enter session name:', `New ${project} Session`);
-        if (!name) return;
+    // Projects that are .gitignored (no need for worktree)
+    const GITIGNORED_PROJECTS = ['baao', 'salestailor', 'tech-knight', 'unson', 'zeims', 'ncom', 'senrigan'];
 
-        const initialCommand = prompt('Initial command (optional):', '');
+    // Create Session Modal elements
+    const createSessionModal = document.getElementById('create-session-modal');
+    const sessionNameInput = document.getElementById('session-name-input');
+    const sessionCommandInput = document.getElementById('session-command-input');
+    const useWorktreeCheckbox = document.getElementById('use-worktree-checkbox');
+    const worktreeHint = document.getElementById('worktree-hint');
+    const createSessionBtn = document.getElementById('create-session-btn');
+    let pendingSessionProject = 'general';
+
+    function openCreateSessionModal(project = 'general') {
+        pendingSessionProject = project;
+        const isGitignored = GITIGNORED_PROJECTS.includes(project.toLowerCase());
+
+        // Set defaults
+        sessionNameInput.value = `New ${project} Session`;
+        sessionCommandInput.value = '';
+        useWorktreeCheckbox.checked = !isGitignored;
+
+        // Update hint based on project
+        if (isGitignored) {
+            worktreeHint.textContent = `${project}は.gitignore対象のため、通常セッションを推奨`;
+        } else {
+            worktreeHint.textContent = 'ブランチを分離して安全に作業できます';
+        }
+
+        createSessionModal.classList.add('active');
+        sessionNameInput.focus();
+        sessionNameInput.select();
+    }
+
+    function closeCreateSessionModal() {
+        createSessionModal.classList.remove('active');
+    }
+
+    // Modal event listeners
+    createSessionModal.querySelectorAll('.close-modal-btn').forEach(btn => {
+        btn.addEventListener('click', closeCreateSessionModal);
+    });
+    createSessionModal.addEventListener('click', (e) => {
+        if (e.target === createSessionModal) closeCreateSessionModal();
+    });
+
+    createSessionBtn.addEventListener('click', () => {
+        const name = sessionNameInput.value.trim();
+        if (!name) {
+            sessionNameInput.focus();
+            return;
+        }
+        closeCreateSessionModal();
+        executeCreateSession(pendingSessionProject, name, sessionCommandInput.value, useWorktreeCheckbox.checked);
+    });
+
+    // Enter key to submit
+    sessionNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') createSessionBtn.click();
+    });
+    sessionCommandInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') createSessionBtn.click();
+    });
+
+    function createNewSession(project = 'general') {
+        openCreateSessionModal(project);
+    }
+
+    async function executeCreateSession(project, name, initialCommand, useWorktree) {
+        const repoPath = getProjectPath(project);
         const sessionId = createSessionId('session');
 
         try {
-            // Try to create session with worktree first
-            const res = await fetch('/api/sessions/create-with-worktree', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
-            });
-
-            if (res.ok) {
-                const { proxyPath, session } = await res.json();
-
-                // Reload and switch
-                await loadSessions();
-                switchSession(sessionId, session.path, initialCommand);
-            } else {
-                // Fallback to regular session (non-git repo)
-                const fallbackRes = await fetch('/api/sessions/start', {
+            if (useWorktree) {
+                // Create session with worktree
+                const res = await fetch('/api/sessions/create-with-worktree', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, initialCommand, cwd: repoPath })
+                    body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
                 });
 
-                if (fallbackRes.ok) {
-                    const { proxyPath } = await fallbackRes.json();
-
-                    // Use imported buildSessionObject and addSession
-                    const newSession = buildSessionObject({
-                        id: sessionId,
-                        name,
-                        path: repoPath,
-                        initialCommand
-                    });
-                    await addSession(newSession);
-
+                if (res.ok) {
+                    const { proxyPath, session } = await res.json();
                     await loadSessions();
-                    switchSession(sessionId, repoPath, initialCommand);
+                    switchSession(sessionId, session.path, initialCommand);
                 } else {
-                    alert('セッションの開始に失敗しました');
+                    alert('Worktreeセッションの作成に失敗しました。通常セッションで作成します。');
+                    await createRegularSession(sessionId, name, repoPath, initialCommand);
                 }
+            } else {
+                // Create regular session (no worktree)
+                await createRegularSession(sessionId, name, repoPath, initialCommand);
             }
         } catch (error) {
             console.error('Error creating session:', error);
             alert('セッション作成エラー');
+        }
+    }
+
+    async function createRegularSession(sessionId, name, repoPath, initialCommand) {
+        const res = await fetch('/api/sessions/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId, initialCommand, cwd: repoPath })
+        });
+
+        if (res.ok) {
+            // Use imported buildSessionObject and addSession
+            const newSession = buildSessionObject({
+                id: sessionId,
+                name,
+                path: repoPath,
+                initialCommand
+            });
+            await addSession(newSession);
+
+            await loadSessions();
+            switchSession(sessionId, repoPath, initialCommand);
+        } else {
+            alert('セッションの開始に失敗しました');
         }
     }
 

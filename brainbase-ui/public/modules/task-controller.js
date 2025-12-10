@@ -24,7 +24,7 @@ export async function loadTasksFromAPI() {
  */
 export async function completeTask(taskId) {
   await fetch(`/api/tasks/${taskId}`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: 'completed' })
   });
@@ -38,7 +38,7 @@ export async function completeTask(taskId) {
 export async function deferTaskPriority(taskId, currentPriority) {
   const newPriority = getNextPriority(currentPriority);
   await fetch(`/api/tasks/${taskId}`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ priority: newPriority })
   });
@@ -51,7 +51,7 @@ export async function deferTaskPriority(taskId, currentPriority) {
  */
 export async function updateTask(taskId, updates) {
   await fetch(`/api/tasks/${taskId}`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates)
   });

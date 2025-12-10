@@ -265,6 +265,37 @@
         </div>
     </div>
 
+    <!-- Create Session Modal -->
+    <div id="create-session-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="plus-circle"></i> 新規セッション</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="session-name-input">セッション名</label>
+                    <input type="text" id="session-name-input" class="form-input" placeholder="セッション名を入力">
+                </div>
+                <div class="form-group">
+                    <label for="session-command-input">初期コマンド（省略可）</label>
+                    <input type="text" id="session-command-input" class="form-input" placeholder="例: /task 123">
+                </div>
+                <div class="form-group" id="worktree-option-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="use-worktree-checkbox">
+                        <span>Git worktreeを使用</span>
+                    </label>
+                    <p class="form-hint" id="worktree-hint">ブランチを分離して安全に作業できます</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn">キャンセル</button>
+                <button class="btn-primary" id="create-session-btn">作成</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Archive Sessions Modal -->
     <div id="archive-modal" class="modal">
         <div class="modal-content modal-large">

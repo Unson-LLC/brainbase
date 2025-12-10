@@ -1202,6 +1202,27 @@ body {
 }
 .btn-secondary:hover { background-color: var(--hover-bg); }
 
+/* Checkbox Label */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+}
+.form-hint {
+    margin: 4px 0 0 26px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
 /* Terminal Copy Modal */
 .modal-large {
     width: 80%;

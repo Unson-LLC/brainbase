@@ -51,7 +51,7 @@ describe('task-controller', () => {
       await completeTask('task-123');
 
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed' })
       });
@@ -68,7 +68,7 @@ describe('task-controller', () => {
       await deferTaskPriority('task-123', 'high');
 
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priority: 'medium' })
       });
@@ -83,7 +83,7 @@ describe('task-controller', () => {
       await deferTaskPriority('task-123', 'medium');
 
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priority: 'low' })
       });
@@ -98,7 +98,7 @@ describe('task-controller', () => {
       await deferTaskPriority('task-123', 'low');
 
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priority: 'low' })
       });
@@ -115,7 +115,7 @@ describe('task-controller', () => {
       await updateTask('task-123', { name: 'Updated', priority: 'high' });
 
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Updated', priority: 'high' })
       });
