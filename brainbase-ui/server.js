@@ -369,17 +369,9 @@ async function createWorktree(sessionId, repoPath) {
             }
         }
 
-        // Restore git tracking state for symlinked directories
-        // This prevents git from seeing "deleted files + untracked symlink" as uncommitted changes
-        const allCanonical = [...canonicalDirs, ...canonicalFiles];
-        for (const item of allCanonical) {
-            try {
-                await execPromise(`git -C "${worktreePath}" checkout -- "${item}" 2>/dev/null || true`);
-            } catch (checkoutErr) {
-                // Ignore errors - some items may not be tracked
-            }
-        }
-        console.log(`Restored git tracking state for canonical symlinks`);
+        // Note: 正本ディレクトリはシンボリックリンクとして維持
+        // gitのトラッキング状態は変わるが、実ファイルは正本を参照するため問題なし
+        // git statusで"deleted"と表示されるのは正常な動作
 
         console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
         return { worktreePath, branchName, repoPath };
