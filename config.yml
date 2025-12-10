@@ -13,6 +13,9 @@ projects:
       owner: Unson-LLC
       repo: salestailor-project
       branch: main
+    airtable:
+      base_id: app8uhkD8PcnxPvVx
+      base_name: SalesTailor
 
   - id: zeims
     local:
@@ -27,6 +30,9 @@ projects:
       owner: Unson-LLC
       repo: zeims-project
       branch: main
+    airtable:
+      base_id: appg1DeWomuFuYnri
+      base_name: Zeims
 
   - id: tech-knight
     local:
@@ -112,6 +118,9 @@ projects:
       owner: Unson-LLC
       repo: senrigan-project
       branch: main
+    airtable:
+      base_id: appDd7TdJf1t23PCm
+      base_name: Senrigan
 
   - id: brainbase
     local:
@@ -140,6 +149,27 @@ projects:
 
   - id: dialogai
     # ncom配下のサブプロジェクト。_codex/projects/ncom/dialogai/を参照
+    airtable:
+      base_id: appLXuHKJGitc6CGd
+      base_name: DialogAI
+
+  - id: eve-topi
+    # イベント管理PF（Tech Knight配下）。_codex/projects/techknight/eve-topi/を参照
+    airtable:
+      base_id: appsticSxr1PQsZam
+      base_name: eve-topi
+
+  - id: hp_sales
+    # Aitle HPライン（Tech Knight配下）。_codex/projects/techknight/hp_sales/を参照
+    airtable:
+      base_id: appXvthGPhEO1ZEOv
+      base_name: HP Sales
+
+  - id: smartfront
+    # Smart Front（Tech Knight配下）。_codex/projects/techknight/smartfront/を参照
+    airtable:
+      base_id: appXLSkrAKrykJJQm
+      base_name: Smart Front
 
   - id: notionconnect
     # Notion連携プロジェクト
@@ -156,12 +186,18 @@ projects:
       owner: Tech-Knight-inc
       repo: tech-knight-project
       branch: main
+    airtable:
+      base_id: appvZv4ybVDsBXtvC
+      base_name: Aitle
 
   - id: postio
     # Postioプロジェクト
 
   - id: mywa
     # MyWaプロジェクト。_codex/projects/mywa/を参照
+    airtable:
+      base_id: appJeMbMQcz507E9g
+      base_name: Mywa
 
   - id: unson-os
     # UNSON OSプロジェクト。_codex/projects/unson-os/を参照

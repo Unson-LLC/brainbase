@@ -34,6 +34,7 @@ async function loadConfigData() {
         renderMembers();
         renderProjects();
         renderGitHub();
+        renderAirtable();
 
     } catch (err) {
         console.error('Failed to load config:', err);
@@ -71,6 +72,10 @@ function renderIntegritySummary() {
             <div class="stat-item success">
                 <span class="label">GitHub</span>
                 <span class="count">${stats.github || 0}</span>
+            </div>
+            <div class="stat-item success">
+                <span class="label">Airtable</span>
+                <span class="count">${stats.airtable || 0}</span>
             </div>
             ${summary.errors > 0 ? `
                 <div class="stat-item error">
@@ -306,6 +311,41 @@ function renderGitHub() {
                         <td class="mono">${g.repo}</td>
                         <td><span class="badge badge-type">${g.branch}</span></td>
                         <td><a href="${g.url}" target="_blank" class="config-link">${g.url}</a></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+
+    container.innerHTML = html;
+}
+
+function renderAirtable() {
+    const container = document.getElementById('airtable-list');
+    const airtable = configData?.airtable || [];
+
+    if (airtable.length === 0) {
+        container.innerHTML = '<div class="config-empty">No Airtable mappings found</div>';
+        return;
+    }
+
+    const html = `
+        <table class="config-table">
+            <thead>
+                <tr>
+                    <th>Project ID</th>
+                    <th>Base Name</th>
+                    <th>Base ID</th>
+                    <th>URL</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${airtable.map(a => `
+                    <tr>
+                        <td><span class="badge badge-project">${a.project_id}</span></td>
+                        <td>${a.base_name}</td>
+                        <td class="mono">${a.base_id}</td>
+                        <td><a href="${a.url}" target="_blank" class="config-link">${a.url}</a></td>
                     </tr>
                 `).join('')}
             </tbody>
