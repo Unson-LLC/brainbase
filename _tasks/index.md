@@ -188,7 +188,7 @@ title: 返信追跡機能・方式1（OAuth連携）の実現可能性再検討
 project_id: salestailor
 status: todo
 owner: 佐藤圭吾
-priority: high
+priority: medium
 due: 2024-12-13
 tags: [slack, auto-import]
 links: []
@@ -275,22 +275,6 @@ requester: 佐藤圭吾
 - Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
 
 ---
-id: SLACK-2025-12-09-MIYPWTON
-title: 佐藤のタスクを_taskに登録
-project_id: general
-status: todo
-owner: 佐藤圭吾
-priority: medium
-due: null
-tags: [slack, auto-import]
-links: []
-source: slack
-channel_id: C08U2EX2NEA
-thread_ts: "1765293057.720219"
-created_at: "2025-12-09T15:11:04.007Z"
-owner_slack_id: U08FB9S7HUL
-requester: 佐藤圭吾
----
 
 - 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
 - 担当: 佐藤圭吾
@@ -298,44 +282,12 @@ requester: 佐藤圭吾
 - Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765293057720219
 
 ---
-id: SLACK-2025-12-09-MIYPPZXX
-title: 佐藤のタスクを全て_taskに登録
-project_id: general
-status: todo
-owner: 佐藤圭吾
-priority: medium
-due: null
-tags: [slack, auto-import]
-links: []
-source: slack
-channel_id: C08U2EX2NEA
-thread_ts: "1765292737.545469"
-created_at: "2025-12-09T15:05:45.525Z"
-owner_slack_id: U08FB9S7HUL
-requester: 佐藤圭吾
----
 
 - 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
 - 担当: 佐藤圭吾
 - 背景: 佐藤圭吾さんのタスクを全て_taskシステムに登録する作業。具体的なタスク内容の詳細は別途確認が必要。
 - Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765292737545469
 
----
-id: SLACK-2025-12-09-MIYEYR62
-title: 佐藤の宿題を_taskに入れる
-project_id: general
-status: todo
-owner: 佐藤圭吾
-priority: medium
-due: null
-tags: [slack, auto-import]
-links: []
-source: slack
-channel_id: C08SX913NER
-thread_ts: "1765274673.574629"
-created_at: "2025-12-09T10:04:38.282Z"
-owner_slack_id: U08FB9S7HUL
-requester: 佐藤圭吾
 ---
 
 - 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
@@ -349,7 +301,7 @@ title: サブ口座を確認する
 project_id: general
 status: todo
 owner: k.​sato
-priority: medium
+priority: low
 due: null
 tags: [slack, auto-import]
 links: []
@@ -372,32 +324,12 @@ requester: k.​sato
 <!-- フォーマット: YAML front matter + Markdown -->
 
 ---
-id: SLACK-2025-12-07-MIVP33Z5
-title: 板橋区の天気確認
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-07 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
 - 背景: 今日の板橋区の天気を確認する
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765110271070309
 
----
-id: SLACK-2025-12-07-MIVOM8K9
-title: 板橋区の天気を確認
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
 ---
 
 - 2025-12-07 Slackから自動取り込み: k.​satoから依頼
@@ -406,32 +338,12 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765109483854439
 
 ---
-id: SLACK-2025-12-06-MIUF9Z01
-title: AIの知識範囲と能力の説明
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-06 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
 - 背景: AIが持っている知識の範囲について質問。どこまでの知識を持っているかの確認を求められている。
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765032958470889
 
----
-id: SLACK-2025-12-06-MIUF3G4S
-title: AIの知識範囲について情報提供
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
 ---
 
 - 2025-12-06 Slackから自動取り込み: k.​satoから依頼
@@ -440,16 +352,6 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765032958470889
 
 ---
-id: SLACK-2025-12-06-MIUF22LO
-title: AIの知識範囲と能力の説明
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-06 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
@@ -457,32 +359,12 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765032958470889
 
 ---
-id: SLACK-2025-12-06-MIUF1ZMP
-title: AIの知識範囲と保持情報の確認
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-06 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
 - 背景: AIが持っている知識や情報の範囲について確認したい。どこまでの知識を保持しているかを知りたい。
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765032958470889
 
----
-id: SLACK-2025-12-06-MIUD29HR
-title: 知識・情報の共有依頼
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
 ---
 
 - 2025-12-06 Slackから自動取り込み: k.​satoから依頼
@@ -508,16 +390,6 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765029242037789
 
 ---
-id: SLACK-2025-12-06-MIUCUF7N
-title: 知識・情報の共有依頼
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-06 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
@@ -525,32 +397,12 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765029242037789
 
 ---
-id: SLACK-2025-12-06-MIUCUEDW
-title: 知識共有・情報提供
-project_id: general
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: null
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-06 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
 - 背景: k.satoからの質問依頼。相手が知っている情報や知識の共有を求められている。
 - Slack: https://unson-inc.slack.com/archives/C0971UHK4KA/p1765029242037789
 
----
-id: SLACK-2025-12-05-MIS88DB2
-title: 開発項目最終精査のためのMTG再設定
-project_id: ncom
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: 2024-12-09
-tags: [slack, auto-import]
-links: []
 ---
 
 - 2025-12-05 Slackから自動取り込み: k.​satoから依頼
@@ -562,7 +414,7 @@ links: []
 id: SLACK-2025-12-05-MIS88CVN
 title: 同時接続数拡張の妥当性を数学的に計算
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-09
@@ -579,7 +431,7 @@ links: []
 id: SLACK-2025-12-05-MIS88CEH
 title: SS運用範囲・体制・マニュアル内容の畑氏への共有
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-06
@@ -613,9 +465,9 @@ links: []
 id: SLACK-2025-12-05-MIS88BJ6
 title: ポンチ絵形式の説明資料作成と見積もり再提出
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2024-12-05
 tags: [slack, auto-import]
 links: []
@@ -630,9 +482,9 @@ links: []
 id: SLACK-2025-12-05-MIS873DN
 title: RA Gateway申請に必要な情報準備と申請書作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2024-01-XX
 tags: [slack, auto-import]
 links: []
@@ -664,7 +516,7 @@ links: []
 id: SLACK-2025-12-05-MIS85P1M
 title: ネクストアクションのタスクを追加
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: null
@@ -678,16 +530,6 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900070201049
 
 ---
-id: SLACK-2025-12-05-MIS81UYC
-title: 開発項目の最終精査MTG再設定
-project_id: ncom
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: 2024-12-13
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-05 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
@@ -698,7 +540,7 @@ links: []
 id: SLACK-2025-12-05-MIS81UF1
 title: 同時接続数拡張の妥当性を数学的に計算
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-13
@@ -715,7 +557,7 @@ links: []
 id: SLACK-2025-12-05-MIS81TZE
 title: SSの運用範囲・体制・マニュアル内容を畑氏へ共有
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-06
@@ -732,7 +574,7 @@ links: []
 id: SLACK-2025-12-05-MIS81TKC
 title: 保守契約の考え方を整理した資料を作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2024-12-05
@@ -756,7 +598,7 @@ links: []
 id: SLACK-2025-12-05-MIS80LV8
 title: RA Gateway申請書作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2024-01-XX
@@ -773,7 +615,7 @@ links: []
 id: SLACK-2025-12-05-MIS80LFG
 title: 開発提案書をユーザー視点で再構成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2024-01-XX
@@ -787,16 +629,6 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900136838159
 
 ---
-id: SLACK-2025-12-05-MIS80J2P
-title: 開発項目最終精査のための来週MTG設定
-project_id: ncom
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: 2024-12-09
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-05 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
@@ -807,7 +639,7 @@ links: []
 id: SLACK-2025-12-05-MIS80IK9
 title: 同時接続数拡張の妥当性を数学的に計算
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-09
@@ -824,7 +656,7 @@ links: []
 id: SLACK-2025-12-05-MIS80I3M
 title: SS運用範囲・体制・マニュアル内容の共有
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-06
@@ -841,7 +673,7 @@ links: []
 id: SLACK-2025-12-05-MIS80HP7
 title: 保守契約の考え方を整理した資料作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2024-12-05
@@ -858,7 +690,7 @@ links: []
 id: SLACK-2025-12-05-MIS80GTZ
 title: ポンチ絵形式の説明資料作成と見積もり再提出
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2024-12-05
@@ -872,16 +704,6 @@ links: []
 - Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1764900191166319
 
 ---
-id: SLACK-2025-12-05-MIS80FOS
-title: 開発項目の最終精査MTG再設定
-project_id: ncom
-status: todo
-owner: 佐藤-圭吾
-priority: low
-due: 2024-12-09
-tags: [slack, auto-import]
-links: []
----
 
 - 2025-12-05 Slackから自動取り込み: k.​satoから依頼
 - 担当: 佐藤 圭吾
@@ -892,7 +714,7 @@ links: []
 id: SLACK-2025-12-05-MIS80F7M
 title: 同時接続数拡張の妥当性を数学的に計算
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-09
@@ -909,7 +731,7 @@ links: []
 id: SLACK-2025-12-05-MIS80ERG
 title: SS運用範囲・体制・マニュアル内容の共有
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: 2024-12-06
@@ -926,7 +748,7 @@ links: []
 id: SLACK-2025-12-05-MIS80EAS
 title: 保守契約の考え方整理資料作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2024-12-05
@@ -943,7 +765,7 @@ links: []
 id: SLACK-2025-12-05-MIS80DU7
 title: ポンチ絵形式の説明資料作成と見積もり再提出
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2024-12-05
@@ -960,7 +782,7 @@ links: []
 id: SLACK-2025-12-05-MIS7Z9C1
 title: RA Gateway申請書作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2025-01-XX
@@ -977,7 +799,7 @@ links: []
 id: SLACK-2025-12-05-MIS7Z8WZ
 title: 開発提案書をユーザー視点で再構成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: 2025-01-XX
@@ -994,7 +816,7 @@ links: []
 id: SLACK-2025-12-05-MIS7Z86P
 title: undefined
 project_id: general
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: null
@@ -1011,7 +833,7 @@ links: []
 id: SLACK-2025-12-05-MIS7Z7N7
 title: RA Gateway申請書作成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: today
@@ -1028,7 +850,7 @@ links: []
 id: SLACK-2025-12-05-MIS7Z74N
 title: 開発提案書をユーザー視点で再構成
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: high
 due: today
@@ -1045,7 +867,7 @@ links: []
 id: SLACK-2025-12-05-MIS7Z6FW
 title: ネクストアクションのタスクを追加
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: null
@@ -1062,7 +884,7 @@ links: []
 id: SLACK-2025-12-05-MIS7XVH3
 title: ネクストアクションのタスクを追加
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: null
@@ -1079,7 +901,7 @@ links: []
 id: SLACK-2025-12-05-MIS7XRIL
 title: ネクストアクションのタスクを追加
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: null
@@ -1096,7 +918,7 @@ links: []
 id: SLACK-2025-12-05-MIS7XQ92
 title: ネクストアクションのタスクを追加
 project_id: ncom
-status: todo
+status: done
 owner: 佐藤-圭吾
 priority: medium
 due: null
@@ -1132,7 +954,7 @@ title: IDCジャパンAIブリーフィング事前質問共有
 project_id: ncom
 status: todo
 owner: 佐藤-圭吾
-priority: medium
+priority: low
 due: 2024-12-27
 tags: [slack, auto-import]
 links: []
@@ -1166,7 +988,7 @@ title: freee MCP連携ツール開発
 project_id: brainbase
 status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: low
 due: null
 tags: [mcp, freee, integration, development]
 links: []
@@ -1273,7 +1095,7 @@ title: PLG（プロダクト主導成長）の金脈調査
 project_id: salestailor
 status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2025-12-31
 tags: [plg, strategy, archetype-feedback]
 links: [meetings/minutes/2025-12-08_archetype-ventures-stella-meeting.md]
@@ -1293,7 +1115,7 @@ title: GitHub×AI一元管理のプロダクト応用検討
 project_id: salestailor
 status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2025-12-31
 tags: [plg, product, archetype-feedback, brainbase]
 links: [meetings/minutes/2025-12-08_archetype-ventures-stella-meeting.md]
@@ -1314,7 +1136,7 @@ title: 【改善依頼】無料デモ - 表記・文面ルール修正
 project_id: salestailor
 status: todo
 owner: 渡邊-博昭
-priority: high
+priority: medium
 due: null
 tags: [slack, improvement, letter-quality]
 links: []
@@ -1389,7 +1211,7 @@ title: 萩原氏への株式処遇提案（A・B・C案）スライド作成
 project_id: tech-knight
 status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2025-12-15
 tags: [meeting, equity, presentation]
 links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
@@ -1409,7 +1231,7 @@ title: AI電話システム プロトタイプ開発（Pipecat + Deepgram + Cart
 project_id: tech-knight
 status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2025-12-16
 tags: [development, naxa, ai-phone]
 links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
@@ -1447,7 +1269,7 @@ title: ホテル向けLP（無料プラン）構造設計とバックエンド�
 project_id: tech-knight
 status: todo
 owner: 佐藤-圭吾
-priority: high
+priority: medium
 due: 2025-12-11
 tags: [development, lp, hotel]
 links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
