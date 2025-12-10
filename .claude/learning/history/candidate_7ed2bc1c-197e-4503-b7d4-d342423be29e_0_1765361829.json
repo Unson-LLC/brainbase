@@ -1,0 +1,17 @@
+{
+  "title": "brainbaseによる議事録品質向上パターン",
+  "category": "pattern",
+  "content": "トランスクリプト→MeetingRouter→Slack投稿のフローで、Googleドライブ連携・固有名詞認識・AI要約を組み合わせることで議事録品質が大幅向上。起点はトランスクリプトで問題なく、そこからbrainbaseの各機能（タスク管理・SNS投稿等）へ派生させる構造が有効",
+  "tags": [
+    "議事録",
+    "transcript",
+    "meeting-router",
+    "slack"
+  ],
+  "confidence": 0.85,
+  "id": "7ed2bc1c-197e-4503-b7d4-d342423be29e_0_1765361829",
+  "session_id": "7ed2bc1c-197e-4503-b7d4-d342423be29e",
+  "timestamp": "2025-12-10T10:17:09Z",
+  "status": "pending",
+  "source": "debug_recovery"
+}

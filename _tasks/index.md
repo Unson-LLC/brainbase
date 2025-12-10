@@ -347,9 +347,9 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQPF7E
 title: LLM as Judgeプロトタイプの完成と渡辺氏への引き渡し
 project_id: salestailor
-status: todo
+status: in-progress
 owner: 佐藤圭吾
-priority: high
+priority: medium
 due: 2024-12-14
 tags: [slack, auto-import]
 links: []
@@ -370,7 +370,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQPEQ9
 title: 顧客KPI（お試しプラン含む）の正確な把握と定義
 project_id: salestailor
-status: todo
+status: in-progress
 owner: 佐藤圭吾
 priority: high
 due: 2024-12-16
