@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-003
+source_id: SLACK-2025-12-10-MJ0IREQ3
+title: デモ動画の構成をまとめて仕上げる
+project_id: general
+status: todo
+owner: k.​sato
+priority: medium
+due: 2025-12-12
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0A2L9FEKEJ
+thread_ts: "1765401980.665769"
+created_at: "2025-12-10T21:26:26.379Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: タスク追加テスト。デモ動画の構成をまとめて金曜日までに仕上げる
+- Slack: https://unson-inc.slack.com/archives/C0A2L9FEKEJ/p1765401980665769
+
+---
 id: SLACK-2025-12-10-MJ0GZJAI
 title: 展示会用デモ動画を金曜日までに仕上げる
 project_id: mktg
