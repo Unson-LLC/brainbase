@@ -107,15 +107,40 @@ export class ConfigParser {
     }
 
     /**
+     * Airtableマッピングを取得（config.ymlから抽出）
+     */
+    async getAirtableMappings() {
+        try {
+            const content = await fs.readFile(this.configPath, 'utf-8');
+            const data = yaml.load(content);
+            const projects = data.projects || [];
+
+            // airtableセクションを持つプロジェクトのみ抽出
+            return projects
+                .filter(p => p.airtable)
+                .map(p => ({
+                    project_id: p.id,
+                    base_id: p.airtable.base_id,
+                    base_name: p.airtable.base_name,
+                    url: `https://airtable.com/${p.airtable.base_id}`
+                }));
+        } catch (err) {
+            console.error('Failed to load Airtable mappings:', err.message);
+            return [];
+        }
+    }
+
+    /**
      * 全設定を統合して取得
      */
     async getAll() {
-        const [workspaces, channels, members, projectConfig, githubMappings] = await Promise.all([
+        const [workspaces, channels, members, projectConfig, githubMappings, airtableMappings] = await Promise.all([
             this.getWorkspaces(),
             this.getChannels(),
             this.getMembers(),
             this.getProjects(),
-            this.getGitHubMappings()
+            this.getGitHubMappings(),
+            this.getAirtableMappings()
         ]);
 
         return {
@@ -125,7 +150,8 @@ export class ConfigParser {
                 members
             },
             projects: projectConfig,
-            github: githubMappings
+            github: githubMappings,
+            airtable: airtableMappings
         };
     }
 
@@ -137,12 +163,13 @@ export class ConfigParser {
      * - GitHubマッピングの検証
      */
     async checkIntegrity() {
-        const [workspaces, channels, members, projectConfig, githubMappings] = await Promise.all([
+        const [workspaces, channels, members, projectConfig, githubMappings, airtableMappings] = await Promise.all([
             this.getWorkspaces(),
             this.getChannels(),
             this.getMembers(),
             this.getProjects(),
-            this.getGitHubMappings()
+            this.getGitHubMappings(),
+            this.getAirtableMappings()
         ]);
 
         const issues = [];
@@ -276,6 +303,21 @@ export class ConfigParser {
             }
         });
 
+        // 6. Airtableマッピングの検証
+        // 6a. ローカルパスがあるがAirtableがないプロジェクト
+        const airtableProjectIds = new Set(airtableMappings.map(a => a.project_id));
+
+        projectsWithLocal.forEach(p => {
+            if (!airtableProjectIds.has(p.id)) {
+                issues.push({
+                    type: 'missing_airtable',
+                    severity: 'info',
+                    message: `Project "${p.id}" has local path but no Airtable mapping`,
+                    source: 'config.yml'
+                });
+            }
+        });
+
         return {
             issues,
             summary: {
@@ -289,7 +331,8 @@ export class ConfigParser {
                 channels: channels.length,
                 members: members.length,
                 projects: projectConfig.projects.length,
-                github: githubMappings.length
+                github: githubMappings.length,
+                airtable: airtableMappings.length
             }
         };
     }
