@@ -621,39 +621,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
-                // Merge Logic (for worktree sessions)
+                // Merge Logic (for worktree sessions) - Send /merge command to Claude Code
                 const mergeBtn = childRow.querySelector('.merge-session-btn');
                 if (mergeBtn) {
                     mergeBtn.onclick = async (e) => {
                         e.stopPropagation();
-                        if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？`)) {
+                        if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`)) {
                             return;
                         }
 
                         try {
-                            const res = await fetch(`/api/sessions/${session.id}/merge`, {
+                            // Send /merge command to Claude Code via tmux
+                            await fetch(`/api/sessions/${session.id}/input`, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' }
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: '/merge', type: 'text' })
                             });
-                            const result = await res.json();
+                            // Send Enter key to execute the command
+                            await fetch(`/api/sessions/${session.id}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: 'Enter', type: 'key' })
+                            });
 
-                            if (result.success) {
-                                if (result.noChanges) {
-                                    alert('マージする変更がありません');
-                                } else {
-                                    alert('マージが完了しました');
-                                }
-                                loadSessions();
-                            } else {
-                                if (result.hasUncommittedChanges) {
-                                    alert('未コミットの変更があります。\n\nセッション内で /commit を実行してからマージしてください。');
-                                } else {
-                                    alert(`マージに失敗しました: ${result.error}`);
-                                }
-                            }
+                            alert('Claude Codeに /merge コマンドを送信しました。\nターミナルで進捗を確認してください。');
                         } catch (err) {
-                            console.error('Failed to merge', err);
-                            alert('マージに失敗しました');
+                            console.error('Failed to send merge command', err);
+                            alert('/merge コマンドの送信に失敗しました');
                         }
                     };
                 }
