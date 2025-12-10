@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-10-MIZQ62HQ
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1765353959.375899
+status: pending
+---
+
+### 17:06 | #0120-ncom | 小川未来
+
+<@U07LNUP582X> 
+今日夜19時半以降で空いている時間帯ありますか？少しncomについてお話ししたいです。
+それまでに話す内容まとめます。
+
+[Slack](https://unson-inc.slack.com/archives/C091KFKE3RS/p1765353959375899)
+
+---
 id: INBOX-2025-12-10-MIZDK1QP
 channel: 0031-dialogai-dev
 sender: 小川未来
