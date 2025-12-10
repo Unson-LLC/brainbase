@@ -7,7 +7,8 @@ export class ScheduleParser {
     }
 
     async getTodaySchedule() {
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        // Use JST (Asia/Tokyo) for date calculation
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }); // YYYY-MM-DD
         const filePath = path.join(this.schedulesDir, `${today}.md`);
 
         try {
