@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-10-MIZSRDIU
+channel: 0111-baao-ai-dojo
+sender: 梅田 遼/Haruka Umeda
+timestamp: 1765358312.826019
+status: pending
+---
+
+### 18:18 | #0111-baao-ai-dojo | 梅田 遼/Haruka Umeda
+
+<@U07LNUP582X> 
+20:00了解です！
+すみません、佐藤さんがメインにしてるカレンダーのアカウントを呼ばないといけなかったですね…
+
+[Slack](https://unson-inc.slack.com/archives/C09L3EKAUEA/p1765358312826019)
+
+---
 id: INBOX-2025-12-10-MIZQ62HQ
 channel: 0120-ncom
 sender: 小川未来
