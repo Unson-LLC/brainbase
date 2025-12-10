@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MIZZ6FCW
+title: PL表を月次単位に修正し共有
+project_id: zeims
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09V8RW3THS
+thread_ts: "1765369085.338919"
+created_at: "2025-12-10T12:18:14.720Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 現在クォーター単位で作成されているPL表を月次ベースに修正する。月次でないと「どの月がヤバいか」「いつ黒字化するか」が見えないため、必ず月次で管理する必要がある。
+- Slack: https://unson-inc.slack.com/archives/C09V8RW3THS/p1765369085338919
+
+---
 id: SLACK-2025-12-10-MIZZ5FOY
 title: 12月21日定例の別日程調整
 project_id: ncom
