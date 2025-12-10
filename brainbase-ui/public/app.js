@@ -1188,6 +1188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/state');
             const currentState = await res.json();
+            const restoredSession = currentState.sessions.find(s => s.id === sessionId);
             const updatedSessions = currentState.sessions.map(s =>
                 s.id === sessionId ? { ...s, archived: false } : s
             );
@@ -1198,6 +1199,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             await loadSessions();
             renderArchiveList();
+
+            // 復元後、アーカイブモーダルを閉じてセッションを自動で開く
+            if (restoredSession) {
+                archiveModal.style.display = 'none';
+                switchSession(sessionId, restoredSession.path, restoredSession.initialCommand);
+            }
         } catch (err) {
             console.error('Failed to restore session', err);
         }
