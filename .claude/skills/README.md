@@ -19,6 +19,7 @@ brainbase運用で使用するSkillsの一覧。`skill: <name>` で呼び出し�
 | `google-drive-structure` | Google Drive共有ドライブのフォルダ構成 |
 | `git-commit-rules` | Gitコミットのルールとフォーマット |
 | `branch-worktree-rules` | ブランチ運用とworktree管理のルール |
+| `mana-slack-test` | mana（Slackボット）のE2Eテスト実行手順 |
 
 ## マーケティング・営業
 
@@ -86,4 +87,4 @@ skill: task-format
 ---
 
 最終更新: 2025-12-11
-Skills数: 41
+Skills数: 42
