@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MIZZ5FOY
+title: 12月21日定例の別日程調整
+project_id: ncom
+status: todo
+owner: k.​sato
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08A6ETSSR2
+thread_ts: "1765369041.829949"
+created_at: "2025-12-10T12:17:28.498Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 12月21日の定例MTGについて、金田が他の用事で参加不可のため、別日程への調整が必要。会議要約のアクションアイテムとして佐藤が今週中に調整することになっている。
+- Slack: https://unson-inc.slack.com/archives/C08A6ETSSR2/p1765369041829949
+
+---
 id: SLACK-2025-12-09-MIYQQWXZ
 title: リード用語の削除・具体的指標名への変更
 project_id: salestailor
