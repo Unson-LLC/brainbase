@@ -1,24 +1,27 @@
 /**
  * session-indicators.js - Session status indicator management
  *
- * Handles polling session status and updating visual indicators.
+ * Simple logic:
+ * - Orange (working): Hook reports 'working' (AI started)
+ * - Green (done): Hook reports 'done' (AI stopped) AND not current session
+ * - Hidden: Current session OR no hook status
  */
 
 // --- Module State ---
-const sessionStatusMap = new Map(); // sessionId -> { isRunning, isWorking }
-const sessionUnreadMap = new Map(); // sessionId -> boolean (true if finished working but not viewed)
+const sessionStatusMap = new Map(); // sessionId -> { isWorking, isDone }
 
 // --- State Accessors ---
 export function getSessionStatus(sessionId) {
     return sessionStatusMap.get(sessionId);
 }
 
-export function isSessionUnread(sessionId) {
-    return sessionUnreadMap.get(sessionId);
-}
-
-export function clearUnread(sessionId) {
-    sessionUnreadMap.set(sessionId, false);
+// Clear done status when session is opened
+export function clearDone(sessionId) {
+    const status = sessionStatusMap.get(sessionId);
+    if (status) {
+        status.isDone = false;
+        sessionStatusMap.set(sessionId, status);
+    }
 }
 
 // --- Core Functions ---
@@ -32,24 +35,8 @@ export async function pollSessionStatus(currentSessionId) {
         const res = await fetch('/api/sessions/status');
         const status = await res.json();
 
-        // Debug Log
-        console.log('Poll Status Result:', status);
-
-        // Update map and handle transitions
+        // Update map
         for (const [sessionId, newStatus] of Object.entries(status)) {
-            const oldStatus = sessionStatusMap.get(sessionId);
-
-            // Transition: Working -> Idle (Done)
-            // Only if NOT the current session
-            if (oldStatus?.isWorking && !newStatus.isWorking && currentSessionId !== sessionId) {
-                sessionUnreadMap.set(sessionId, true);
-            }
-
-            // If currently working, it's not unread (it's active)
-            if (newStatus.isWorking) {
-                sessionUnreadMap.set(sessionId, false);
-            }
-
             sessionStatusMap.set(sessionId, newStatus);
         }
 
@@ -68,9 +55,6 @@ export function updateSessionIndicators(currentSessionId) {
     sessionItems.forEach(item => {
         const sessionId = item.dataset.id;
         const status = sessionStatusMap.get(sessionId);
-        const isUnread = sessionUnreadMap.get(sessionId);
-
-        console.log(`Updating indicator for ${sessionId}: current=${currentSessionId}, isWorking=${status?.isWorking}, isUnread=${isUnread}`);
 
         // Remove existing indicator
         const existingIndicator = item.querySelector('.session-activity-indicator');
@@ -78,28 +62,19 @@ export function updateSessionIndicators(currentSessionId) {
             existingIndicator.remove();
         }
 
-        // Determine if we should show indicator
-        // 1. Working: Always show (Green Pulse) - EVEN IF CURRENT SESSION
-        // 2. Unread: Show (Green Static) - ONLY IF NOT CURRENT SESSION
-
-        if (currentSessionId === sessionId) {
-            // If looking at it, clear unread
-            if (sessionUnreadMap.get(sessionId)) {
-                sessionUnreadMap.set(sessionId, false);
-                // No return here, proceed to check isWorking
-            }
-        }
+        // Simple logic:
+        // 1. Orange: isWorking (AI running)
+        // 2. Green: isDone AND not current session
+        // 3. Hidden: current session OR no status
 
         if (status?.isWorking) {
             const indicator = document.createElement('div');
             indicator.className = 'session-activity-indicator working';
             item.appendChild(indicator);
-            console.log(`Added WORKING indicator to ${sessionId}`);
-        } else if (currentSessionId !== sessionId && (status?.isDone || isUnread)) {
+        } else if (status?.isDone && currentSessionId !== sessionId) {
             const indicator = document.createElement('div');
             indicator.className = 'session-activity-indicator done';
             item.appendChild(indicator);
-            console.log(`Added DONE indicator to ${sessionId}`);
         }
     });
 }

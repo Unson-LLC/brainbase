@@ -2,7 +2,7 @@
 import { MAX_VISIBLE_TASKS } from './modules/state.js';
 import { formatDueDate } from './modules/ui-helpers.js';
 import { initSettings } from './modules/settings.js';
-import { pollSessionStatus, updateSessionIndicators, clearUnread, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
 // New refactored modules
 import { getProjectPath, getProjectFromPath } from './modules/project-mapping.js';
@@ -787,8 +787,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update iframe
             terminalFrame.src = proxyPath;
 
-            // Clear unread (using imported module)
-            clearUnread(id);
+            // Clear done indicator when opening session
+            clearDone(id);
             updateSessionIndicators(currentSessionId);
 
         } catch (error) {

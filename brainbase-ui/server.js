@@ -237,88 +237,29 @@ app.post('/api/sessions/report_activity', (req, res) => {
     res.json({ success: true });
 });
 
-// Helper to get process tree
-async function getSessionStatus() {
-    try {
-        // 1. Get all processes once (still useful for isRunning check)
-        const { stdout: psOutput } = await execPromise('ps -ef');
-        const lines = psOutput.split('\n').slice(1);
-        const processes = lines.map(line => {
-            const parts = line.trim().split(/\s+/);
-            if (parts.length < 8) return null;
-            return {
-                pid: parseInt(parts[1]),
-                ppid: parseInt(parts[2]),
-                cmd: parts.slice(7).join(' ')
-            };
-        }).filter(p => p !== null);
+// Get session status from Hook reports only
+function getSessionStatus() {
+    const status = {};
 
-        const status = {};
+    for (const [sessionId] of activeSessions) {
+        let isWorking = false;
+        let isDone = false;
 
-        // 2. Check each active session
-        for (const [sessionId, session] of activeSessions) {
-            let isRunning = false;
-            let isWorking = false;
-            let isDone = false;
-
-            // Priority 1: Check Hook Status
-            if (sessionHookStatus.has(sessionId)) {
-                const hookData = sessionHookStatus.get(sessionId);
-                if (hookData.status === 'working') isWorking = true;
-                else if (hookData.status === 'done') isDone = true;
-            }
-
-            try {
-                // Get tmux pane PID for this session
-                const { stdout: tmuxPidOutput } = await execPromise(`tmux list-panes -t "${sessionId}" -F "#{pane_pid}"`);
-                const shellPid = parseInt(tmuxPidOutput.trim());
-
-                if (shellPid) {
-                    // BFS to find 'claude' in descendants of the shell
-                    const queue = [shellPid];
-                    const visited = new Set([shellPid]);
-
-                    while (queue.length > 0) {
-                        const currentPid = queue.shift();
-
-                        const children = processes.filter(p => p.ppid === currentPid);
-                        for (const child of children) {
-                            if (visited.has(child.pid)) continue;
-                            visited.add(child.pid);
-                            queue.push(child.pid);
-
-                            if (child.cmd.includes('claude') || child.cmd.includes('node')) {
-                                isRunning = true;
-                            }
-                        }
-                        if (isRunning) break;
-                    }
-                }
-
-                // If we don't have hook data, fallback to polling Prompt detection
-                if (!sessionHookStatus.has(sessionId) && isRunning) {
-                    const { stdout: paneContent } = await execPromise(`tmux capture-pane -t "${sessionId}" -p | tail -n 20`);
-                    const trimmed = paneContent.trim();
-                    const hasPrompt = />\s*$/.test(trimmed) || /❯\s*$/.test(trimmed) || /[$%]\s*$/.test(trimmed);
-                    isWorking = !hasPrompt;
-                }
-
-            } catch (err) {
-                // console.error(`[DEBUG:${sessionId}] Error: ${err.message}`);
-            }
-
-            status[sessionId] = { isRunning, isWorking, isDone };
+        // Hook Status only - simple logic
+        if (sessionHookStatus.has(sessionId)) {
+            const hookData = sessionHookStatus.get(sessionId);
+            if (hookData.status === 'working') isWorking = true;
+            else if (hookData.status === 'done') isDone = true;
         }
-        return status;
 
-    } catch (error) {
-        console.error('Error checking process status:', error);
-        return {};
+        status[sessionId] = { isWorking, isDone };
     }
+
+    return status;
 }
 
-app.get('/api/sessions/status', async (req, res) => {
-    const status = await getSessionStatus();
+app.get('/api/sessions/status', (req, res) => {
+    const status = getSessionStatus();
     res.json(status);
 });
 
