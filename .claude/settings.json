@@ -38,6 +38,13 @@
       "env": {
         "CODEX_PATH": "/Users/ksato/workspace/_codex"
       }
+    },
+    "airtable": {
+      "command": "npx",
+      "args": ["-y", "airtable-mcp-server"],
+      "env": {
+        "AIRTABLE_API_KEY": "${AIRTABLE_API_KEY}"
+      }
     }
   }
 }
