@@ -473,11 +473,34 @@ async function getWorktreeStatus(sessionId, repoPath) {
         );
         const mainBranchName = mainBranch.trim() || 'main';
 
-        // Check if branch has commits ahead of main
-        const { stdout: aheadBehind } = await execPromise(
-            `git -C "${worktreePath}" rev-list --left-right --count ${mainBranchName}...HEAD 2>/dev/null || echo "0 0"`
+        // Check if branch has commits ahead of main (use repoPath's main, not worktree's)
+        // This ensures we compare against the canonical main branch, not a stale worktree reference
+        const { stdout: mainCommit } = await execPromise(
+            `git -C "${repoPath}" rev-parse ${mainBranchName} 2>/dev/null || echo ""`
         );
-        const [behind, ahead] = aheadBehind.trim().split(/\s+/).map(Number);
+        const { stdout: headCommit } = await execPromise(
+            `git -C "${worktreePath}" rev-parse HEAD 2>/dev/null || echo ""`
+        );
+
+        // Check if session branch commit is an ancestor of main (already merged)
+        let ahead = 0;
+        let behind = 0;
+        if (mainCommit.trim() && headCommit.trim()) {
+            // Check if HEAD is ancestor of main (meaning it's been merged)
+            const { stdout: mergeBase } = await execPromise(
+                `git -C "${repoPath}" merge-base ${mainCommit.trim()} ${headCommit.trim()} 2>/dev/null || echo ""`
+            );
+            if (mergeBase.trim() === headCommit.trim()) {
+                // Session branch is ancestor of main = already merged
+                ahead = 0;
+            } else {
+                // Count commits ahead
+                const { stdout: aheadCount } = await execPromise(
+                    `git -C "${repoPath}" rev-list --count ${mainCommit.trim()}..${headCommit.trim()} 2>/dev/null || echo "0"`
+                );
+                ahead = parseInt(aheadCount.trim()) || 0;
+            }
+        }
 
         // Check for uncommitted changes
         const { stdout: statusOutput } = await execPromise(
