@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-001
+source_id: SLACK-2025-12-10-MJ0EZATP
+title: Airtable同期機能のE2Eテスト
+project_id: general
+status: todo
+owner: k.​sato
+priority: high
+due: 2024-12-13
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0A2L9FEKEJ
+thread_ts: "1765395630.417559"
+created_at: "2025-12-10T19:40:36.109Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: Airtable同期機能のE2Eテストを実施する。優先度高で12/13期限。
+- Slack: https://unson-inc.slack.com/archives/C0A2L9FEKEJ/p1765395630417559
+
+---
 id: SLACK-2025-12-10-MIZZANSG
 title: 小川とのタスク分担および進捗管理体制の確立
 project_id: general
