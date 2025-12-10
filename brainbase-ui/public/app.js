@@ -512,17 +512,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const displayName = session.name || session.id;
                 const hasWorktree = !!session.worktree;
-                const isMerged = session.worktree?.merged;
 
                 // Build worktree badge
-                let worktreeBadge = '';
-                if (hasWorktree) {
-                    if (isMerged) {
-                        worktreeBadge = '<span class="worktree-badge merged" title="Merged"><i data-lucide="git-merge"></i></span>';
-                    } else {
-                        worktreeBadge = '<span class="worktree-badge" title="Has worktree"><i data-lucide="git-branch"></i></span>';
-                    }
-                }
+                const worktreeBadge = hasWorktree
+                    ? '<span class="worktree-badge" title="Has worktree"><i data-lucide="git-branch"></i></span>'
+                    : '';
 
                 childRow.innerHTML = `
                     <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
@@ -533,7 +527,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${session.archived ? '<span class="archived-label">(Archived)</span>' : ''}
                     </div>
                     <div class="child-actions">
-                        ${hasWorktree && !isMerged ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>' : ''}
                         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
                         <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
                         <button class="archive-session-btn" title="${session.archived ? 'Unarchive' : 'Archive'}">
@@ -620,37 +613,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 };
-
-                // Merge Logic (for worktree sessions) - Send /merge command to Claude Code
-                const mergeBtn = childRow.querySelector('.merge-session-btn');
-                if (mergeBtn) {
-                    mergeBtn.onclick = async (e) => {
-                        e.stopPropagation();
-                        if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`)) {
-                            return;
-                        }
-
-                        try {
-                            // Send /merge command to Claude Code via tmux
-                            await fetch(`/api/sessions/${session.id}/input`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ input: '/merge', type: 'text' })
-                            });
-                            // Send Enter key to execute the command
-                            await fetch(`/api/sessions/${session.id}/input`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ input: 'Enter', type: 'key' })
-                            });
-
-                            alert('Claude Codeに /merge コマンドを送信しました。\nターミナルで進捗を確認してください。');
-                        } catch (err) {
-                            console.error('Failed to send merge command', err);
-                            alert('/merge コマンドの送信に失敗しました');
-                        }
-                    };
-                }
 
                 // Archive Logic (with worktree merge check)
                 const archiveBtn = childRow.querySelector('.archive-session-btn');
