@@ -32,10 +32,19 @@ ls -la /Users/ksato/workspace/.claude/learning/learning_queue/
 ### 学習内容
 [content]
 
-### 提案される適用先
-- [ ] _codex/sources/global/[適切なファイル].md に追加
+### 提案される適用先（カテゴリ別）
+
+**navigation/shortcut/gotcha/config** → スキルに追加
+- [ ] .claude/skills/[既存skill]/SKILL.md を更新
+- [ ] .claude/skills/[新規skill]/SKILL.md を新規作成
+
+**プロジェクト固有の学習** → プロジェクトに追加
 - [ ] _codex/projects/[project]/project.md に反映
-- [ ] .claude/skills/[skill]/SKILL.md を更新
+
+**ドキュメントの誤り** → 元ファイルを直接修正
+- [ ] [該当ファイル] のパス・内容を修正
+
+※ `_codex/sources/` は外部参照情報専用のため学習先には使用しない
 
 ### アクション
 - 適用する場合: 「候補#1を適用」と入力
