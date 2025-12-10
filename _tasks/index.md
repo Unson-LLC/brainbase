@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MIZZANAO
+title: GitHubおよびGoogleドライブのドキュメント管理体制展開
+project_id: general
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09AEA6DBA7
+thread_ts: "1765369281.002249"
+created_at: "2025-12-10T12:21:31.632Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: GitHubおよびGoogleドライブ上のドキュメント管理体制を全関係者に展開し共有開始する。議事録・ドキュメント管理の仕組みを構築し、AIによる会議内容の自動処理と検索性向上を推進。
+- Slack: https://unson-inc.slack.com/archives/C09AEA6DBA7/p1765369281002249
+
+---
 id: SLACK-2025-12-10-MIZZAMVP
 title: 戦略レポート作成とサンキョウ向け提案資料準備
 project_id: general
