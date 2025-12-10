@@ -321,7 +321,27 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=module6"></script>
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3 id="confirm-modal-title"><i data-lucide="alert-circle"></i> 確認</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-modal-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="confirm-cancel-btn">キャンセル</button>
+                <button class="btn-danger" id="confirm-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="app.js?v=module7"></script>
     <script>
         lucide.createIcons();
     </script>

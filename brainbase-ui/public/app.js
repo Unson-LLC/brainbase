@@ -16,6 +16,8 @@ import { formatTimelineHTML, getCurrentTimeStr } from './modules/timeline-contro
 import { loadTasksFromAPI, completeTask, deferTaskPriority, updateTask, deleteTaskById } from './modules/task-controller.js';
 import { filterArchivedSessions, sortByCreatedDate, getUniqueProjects } from './modules/archive-modal-controller.js';
 import { archiveSessionAPI, mergeSession } from './modules/session-controller.js';
+import { showToast, showSuccess, showError, showInfo } from './modules/toast.js';
+import { showConfirm } from './modules/confirm-modal.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- State & Elements ---
@@ -248,10 +250,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Delete handlers
         nextTasksListEl.querySelectorAll('.delete-task-btn').forEach(btn => {
-            btn.onclick = (e) => {
+            btn.onclick = async (e) => {
                 e.stopPropagation();
                 const taskId = btn.dataset.id;
-                if (confirm('タスクを削除しますか？')) deleteTaskLocal(taskId);
+                if (await showConfirm('タスクを削除しますか？', { title: '削除確認', okText: '削除' })) {
+                    deleteTaskLocal(taskId);
+                }
             };
         });
 
@@ -401,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const displayName = session.name || session.id;
                 deleteBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    if (confirm(`セッション「${displayName}」を削除しますか？`)) {
+                    if (await showConfirm(`セッション「${displayName}」を削除しますか？`, { title: '削除確認', okText: '削除' })) {
                         try {
                             await removeSession(session.id);
                             if (currentSessionId === session.id) {
@@ -420,7 +424,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (mergeBtn) {
                     mergeBtn.onclick = async (e) => {
                         e.stopPropagation();
-                        if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`)) {
+                        if (!await showConfirm(
+                            `「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`,
+                            { title: 'マージ確認', okText: 'マージ', danger: false }
+                        )) {
                             return;
                         }
 
@@ -438,10 +445,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 body: JSON.stringify({ input: 'Enter', type: 'key' })
                             });
 
-                            alert('Claude Codeに /merge コマンドを送信しました。\nターミナルで進捗を確認してください。');
+                            showSuccess('/merge コマンドを送信しました');
                         } catch (err) {
                             console.error('Failed to send merge command', err);
-                            alert('/merge コマンドの送信に失敗しました');
+                            showError('/merge コマンドの送信に失敗しました');
                         }
                     };
                 }
@@ -458,12 +465,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             const result = await archiveSessionAPI(session.id);
 
                             if (result.needsConfirmation) {
-                                const mergeChoice = confirm(
+                                const mergeChoice = await showConfirm(
                                     `「${displayName}」に未マージの変更があります:\n` +
                                     `・${result.status.commitsAhead || 0} コミット先行\n` +
                                     `・${result.status.hasUncommittedChanges ? '未コミットの変更あり' : '未コミットの変更なし'}\n\n` +
-                                    `マージしてからアーカイブしますか？\n\n` +
-                                    `OK = マージしてアーカイブ\nキャンセル = 何もしない`
+                                    `マージしてからアーカイブしますか？`,
+                                    { title: '未マージの変更', okText: 'マージしてアーカイブ', danger: false }
                                 );
 
                                 if (!mergeChoice) return;
@@ -471,10 +478,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const mergeResult = await mergeSession(session.id);
 
                                 if (!mergeResult.success) {
-                                    const discardChoice = confirm(
+                                    const discardChoice = await showConfirm(
                                         `マージに失敗しました: ${mergeResult.error}\n\n` +
-                                        `変更を破棄してアーカイブしますか？\n\n` +
-                                        `OK = 破棄してアーカイブ\nキャンセル = 何もしない`
+                                        `変更を破棄してアーカイブしますか？`,
+                                        { title: 'マージ失敗', okText: '破棄してアーカイブ' }
                                     );
                                     if (!discardChoice) return;
                                 }
@@ -656,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await loadSessions();
                     switchSession(sessionId, session.path, initialCommand);
                 } else {
-                    alert('Worktreeセッションの作成に失敗しました。通常セッションで作成します。');
+                    showError('Worktreeセッションの作成に失敗。通常セッションで作成します。');
                     await createRegularSession(sessionId, name, repoPath, initialCommand);
                 }
             } else {
@@ -665,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Error creating session:', error);
-            alert('セッション作成エラー');
+            showError('セッション作成エラー');
         }
     }
 
@@ -689,7 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await loadSessions();
             switchSession(sessionId, repoPath, initialCommand);
         } else {
-            alert('セッションの開始に失敗しました');
+            showError('セッションの開始に失敗しました');
         }
     }
 
@@ -750,12 +757,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentSessionId = sessionId;
                     terminalFrame.src = proxyPath;
                 } else {
-                    alert('セッションの開始に失敗しました');
+                    showError('セッションの開始に失敗しました');
                 }
             }
         } catch (error) {
             console.error('Error starting task session:', error);
-            alert('セッション作成エラー');
+            showError('セッション作成エラー');
         }
     }
 
@@ -928,7 +935,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.onclick = async () => {
                 const sessionId = btn.dataset.id;
                 const session = sessions.find(s => s.id === sessionId);
-                if (confirm(`「${session?.name || sessionId}」を完全に削除しますか？`)) {
+                if (await showConfirm(`「${session?.name || sessionId}」を完全に削除しますか？`, { title: '完全削除', okText: '削除' })) {
                     await deleteSession(sessionId);
                 }
             };
@@ -1011,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (copyTerminalBtn) {
         copyTerminalBtn.onclick = async () => {
             if (!currentSessionId) {
-                alert('セッションを選択してください');
+                showInfo('セッションを選択してください');
                 return;
             }
 
@@ -1029,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 50);
             } catch (error) {
                 console.error('Failed to get terminal content:', error);
-                alert('ターミナル内容の取得に失敗しました');
+                showError('ターミナル内容の取得に失敗しました');
             }
         };
     }
