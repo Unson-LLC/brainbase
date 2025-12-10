@@ -3,6 +3,25 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-10-MJ02XHK5
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1765375394.194869
+status: pending
+---
+
+### 23:03 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+
+**スレッドの文脈:**
+> **Slackbot** (23:00): 
+> **小川未来** (23:02): <https://www.notion.so/nttcoms/2c5ffa9fddce80fe8a28d3b53469b6c1?source=copy_link>
+
+
+[Slack](https://unson-inc.slack.com/archives/C091KFKE3RS/p1765375394194869)
+
+---
 id: INBOX-2025-12-10-MIZSRDIU
 channel: 0111-baao-ai-dojo
 sender: 梅田 遼/Haruka Umeda
