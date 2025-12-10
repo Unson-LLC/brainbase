@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MJ0GZJAI
+title: 展示会用デモ動画を金曜日までに仕上げる
+project_id: mktg
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08G8C5TYQ2
+thread_ts: "1765398998.628039"
+created_at: "2025-12-10T20:36:46.314Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-10 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 展示会まであと1週間。セキュリティインシデント対応により当初予定より遅れているが、金曜日までに動画を完成させる。
+- Slack: https://unson-inc.slack.com/archives/C08G8C5TYQ2/p1765398998628039
+
+---
 id: SLACK-2025-12-10-MJ0GZIYJ
 title: 展示会用デモ動画の構成を文章ベースでまとめる
 project_id: mktg
