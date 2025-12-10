@@ -1,0 +1,16 @@
+{
+  "title": "SalesTailor通数カウントはCOMPLETEDのみ",
+  "category": "architecture",
+  "content": "SalesTailorのプラン通数カウントロジックは、sending-limit-service.tsでstatus: 'COMPLETED'のみをカウント対象としている。失敗（FAILED）したメール・フォーム送信は通数にカウントされない。",
+  "tags": [
+    "salestailor",
+    "billing",
+    "sending-limit"
+  ],
+  "confidence": 0.95,
+  "id": "f39c2916-02a4-4c99-97cf-e083c2bc85d6_0_1765361830",
+  "session_id": "f39c2916-02a4-4c99-97cf-e083c2bc85d6",
+  "timestamp": "2025-12-10T10:17:10Z",
+  "status": "pending",
+  "source": "debug_recovery"
+}

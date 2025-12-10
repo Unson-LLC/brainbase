@@ -391,11 +391,13 @@ async function createWorktree(sessionId, repoPath) {
 
         // Create symlinks for canonical directories (正本ディレクトリ)
         // These directories are shared across all worktrees and committed directly to main
+        // IMPORTANT: 正本は常に /Users/ksato/workspace にある（プロジェクトリポジトリではない）
+        const CANONICAL_ROOT = path.join(__dirname, '..');  // /Users/ksato/workspace
         const canonicalDirs = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude'];
         const canonicalFiles = ['config.yml'];
 
         for (const dir of canonicalDirs) {
-            const sourcePath = path.join(repoPath, dir);
+            const sourcePath = path.join(CANONICAL_ROOT, dir);
             const targetPath = path.join(worktreePath, dir);
             try {
                 await fs.access(sourcePath);
@@ -412,7 +414,7 @@ async function createWorktree(sessionId, repoPath) {
         }
 
         for (const file of canonicalFiles) {
-            const sourcePath = path.join(repoPath, file);
+            const sourcePath = path.join(CANONICAL_ROOT, file);
             const targetPath = path.join(worktreePath, file);
             try {
                 await fs.access(sourcePath);
@@ -425,6 +427,18 @@ async function createWorktree(sessionId, repoPath) {
                 }
             }
         }
+
+        // Restore git tracking state for symlinked directories
+        // This prevents git from seeing "deleted files + untracked symlink" as uncommitted changes
+        const allCanonical = [...canonicalDirs, ...canonicalFiles];
+        for (const item of allCanonical) {
+            try {
+                await execPromise(`git -C "${worktreePath}" checkout -- "${item}" 2>/dev/null || true`);
+            } catch (checkoutErr) {
+                // Ignore errors - some items may not be tracked
+            }
+        }
+        console.log(`Restored git tracking state for canonical symlinks`);
 
         console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
         return { worktreePath, branchName, repoPath };

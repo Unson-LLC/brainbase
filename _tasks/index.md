@@ -1,4 +1,142 @@
 ---
+id: SLACK-2025-12-10-MIZZANSG
+title: 小川とのタスク分担および進捗管理体制の確立
+project_id: general
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09AEA6DBA7
+thread_ts: "1765369281.002249"
+created_at: "2025-12-10T12:21:32.272Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 小川とのタスク分担および進捗管理体制の確立と運用を開始する。まなちゃんを活用し、タスク管理と進捗報告を自動化する仕組みを構築中。
+- Slack: https://unson-inc.slack.com/archives/C09AEA6DBA7/p1765369281002249
+
+---
+id: SLACK-2025-12-10-MIZZANAO
+title: GitHubおよびGoogleドライブのドキュメント管理体制展開
+project_id: general
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09AEA6DBA7
+thread_ts: "1765369281.002249"
+created_at: "2025-12-10T12:21:31.632Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: GitHubおよびGoogleドライブ上のドキュメント管理体制を全関係者に展開し共有開始する。議事録・ドキュメント管理の仕組みを構築し、AIによる会議内容の自動処理と検索性向上を推進。
+- Slack: https://unson-inc.slack.com/archives/C09AEA6DBA7/p1765369281002249
+
+---
+id: SLACK-2025-12-10-MIZZAMVP
+title: 戦略レポート作成とサンキョウ向け提案資料準備
+project_id: general
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09AEA6DBA7
+thread_ts: "1765369281.002249"
+created_at: "2025-12-10T12:21:31.093Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: Senriganのヒアリング内容をもとに戦略レポートを作成し、サンキョウ向け提案資料を準備する。事業構造・ICP・提供価値を整理した上で三共向け提案資料として展開する方針。
+- Slack: https://unson-inc.slack.com/archives/C09AEA6DBA7/p1765369281002249
+
+---
+id: SLACK-2025-12-10-MIZZ6FRY
+title: Zeims DriveからZeims Projectリポジトリへ移行
+project_id: zeims
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09V8RW3THS
+thread_ts: "1765369085.338919"
+created_at: "2025-12-10T12:18:15.262Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: プロジェクト管理体制の見直しに伴い、Zeims DriveをZeims Projectリポジトリに統合・最新化する。AIエージェント（mana）が全プロジェクトの情報を横断的に管理できる体制を構築。
+- Slack: https://unson-inc.slack.com/archives/C09V8RW3THS/p1765369085338919
+
+---
+id: SLACK-2025-12-10-MIZZ6FCW
+title: PL表を月次単位に修正し共有
+project_id: zeims
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09V8RW3THS
+thread_ts: "1765369085.338919"
+created_at: "2025-12-10T12:18:14.720Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 現在クォーター単位で作成されているPL表を月次ベースに修正する。月次でないと「どの月がヤバいか」「いつ黒字化するか」が見えないため、必ず月次で管理する必要がある。
+- Slack: https://unson-inc.slack.com/archives/C09V8RW3THS/p1765369085338919
+
+---
+id: SLACK-2025-12-10-MIZZ5FOY
+title: 12月21日定例の別日程調整
+project_id: ncom
+status: todo
+owner: k.​sato
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08A6ETSSR2
+thread_ts: "1765369041.829949"
+created_at: "2025-12-10T12:17:28.498Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 12月21日の定例MTGについて、金田が他の用事で参加不可のため、別日程への調整が必要。会議要約のアクションアイテムとして佐藤が今週中に調整することになっている。
+- Slack: https://unson-inc.slack.com/archives/C08A6ETSSR2/p1765369041829949
+
+---
 id: SLACK-2025-12-09-MIYQQWXZ
 title: リード用語の削除・具体的指標名への変更
 project_id: salestailor
@@ -209,9 +347,9 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQPF7E
 title: LLM as Judgeプロトタイプの完成と渡辺氏への引き渡し
 project_id: salestailor
-status: todo
+status: in-progress
 owner: 佐藤圭吾
-priority: high
+priority: medium
 due: 2024-12-14
 tags: [slack, auto-import]
 links: []
@@ -232,7 +370,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQPEQ9
 title: 顧客KPI（お試しプラン含む）の正確な把握と定義
 project_id: salestailor
-status: todo
+status: in-progress
 owner: 佐藤圭吾
 priority: high
 due: 2024-12-16

@@ -6,6 +6,7 @@ brainbase運用で使用するSkillsの一覧。`skill: <name>` で呼び出し�
 
 | Skill | 用途 |
 |-------|------|
+| `learning-extraction` | セッションからの学習自動抽出システムの操作・トラブルシューティング |
 | `task-format` | タスク管理ファイル（_tasks/index.md）の標準フォーマット |
 | `raci-format` | 体制図（RACI）の標準フォーマット |
 | `kpi-calculation` | 主要KPI（タスク一本化率、RACI運用率等）の計測ロジック |
@@ -84,5 +85,5 @@ skill: task-format
 
 ---
 
-最終更新: 2025-12-10
-Skills数: 40
+最終更新: 2025-12-11
+Skills数: 41
