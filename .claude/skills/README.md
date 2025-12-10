@@ -54,6 +54,7 @@ brainbase運用で使用するSkillsの一覧。`skill: <name>` で呼び出し�
 |-------|------|
 | `saas-ai-roadmap-playbook` | SaaS/AIスタートアップのロードマップ策定 |
 | `all-for-saas-playbook` | ALL for SaaS：0→1立ち上げとPM実践 |
+| `pm-shigoto-practice` | プロダクトマネージャーのしごと実践ガイド：COREスキル・ステークホルダー管理・優先順位付け |
 
 ## SNS運用
 
@@ -83,5 +84,5 @@ skill: task-format
 
 ---
 
-最終更新: 2025-12-09
-Skills数: 39
+最終更新: 2025-12-10
+Skills数: 40
