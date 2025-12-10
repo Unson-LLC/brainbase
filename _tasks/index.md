@@ -1,4 +1,24 @@
 ---
+id: ZEIMS-2025-12-11-CODEX-SYNC
+title: zeims-project _codex自動同期の仕組み構築
+project_id: zeims
+status: todo
+owner: k.sato
+priority: medium
+due: null
+tags: [milestone, automation]
+links: []
+source: manual
+created_at: "2025-12-11T04:35:00.000Z"
+---
+
+- 2025-12-11 手動追加
+- 担当: k.sato
+- 背景: brainbase `_codex/projects/zeims/` を正本とし、zeims-projectにコピー運用中。将来的にGitHub ActionsまたはHookで自動同期を構築する。
+- 現状: 手動コピー運用（同期コマンドは `zeims-project/_codex/README.md` に記載）
+- 同期対象: project.md, history.md, brand.md, org.md, glossary.md, decisions/
+
+---
 id: SLACK-2025-12-10-MIZZANSG
 title: 小川とのタスク分担および進捗管理体制の確立
 project_id: general
@@ -71,7 +91,7 @@ requester: k.​sato
 id: SLACK-2025-12-10-MIZZ6FRY
 title: Zeims DriveからZeims Projectリポジトリへ移行
 project_id: zeims
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: null
