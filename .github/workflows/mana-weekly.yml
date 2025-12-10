@@ -1,0 +1,26 @@
+name: mana週次処理
+
+on:
+  schedule:
+    # 金曜18:00 JST = 金曜09:00 UTC
+    - cron: '0 9 * * 5'
+  workflow_dispatch:
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run mana weekly processing
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: node _codex/common/ops/scripts/mana-weekly.js
