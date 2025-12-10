@@ -65,90 +65,6 @@
                 </div>
             </div>
 
-            <!-- Settings View (hidden by default) -->
-            <div class="settings-view" id="settings-view" style="display: none;">
-                <div class="settings-header">
-                    <h2><i data-lucide="settings"></i> Settings</h2>
-                    <button id="close-settings-btn" class="icon-btn" title="Close">
-                        <i data-lucide="x"></i>
-                    </button>
-                </div>
-
-                <!-- Integrity Summary -->
-                <div class="integrity-summary" id="integrity-summary">
-                    <div class="loading">Loading...</div>
-                </div>
-
-                <!-- Settings Tabs -->
-                <div class="settings-tabs">
-                    <button class="settings-tab active" data-tab="slack">
-                        <i data-lucide="hash"></i> Slack
-                    </button>
-                    <button class="settings-tab" data-tab="projects">
-                        <i data-lucide="folder-git-2"></i> Projects
-                    </button>
-                    <button class="settings-tab" data-tab="github">
-                        <i data-lucide="github"></i> GitHub
-                    </button>
-                </div>
-
-                <!-- Tab Content -->
-                <div class="settings-content">
-                    <!-- Slack Tab -->
-                    <div class="settings-panel active" id="slack-panel">
-                        <div class="settings-section">
-                            <h3>Workspaces</h3>
-                            <div id="workspaces-list" class="config-list">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h3>Channel Mappings</h3>
-                            <div class="filter-bar">
-                                <input type="text" id="channel-filter" placeholder="Search channels..." class="form-input">
-                                <select id="workspace-filter" class="form-input">
-                                    <option value="">All Workspaces</option>
-                                </select>
-                            </div>
-                            <div id="channels-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h3>Member Mappings</h3>
-                            <div class="filter-bar">
-                                <input type="text" id="member-filter" placeholder="Search members..." class="form-input">
-                            </div>
-                            <div id="members-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Projects Tab -->
-                    <div class="settings-panel" id="projects-panel">
-                        <div class="settings-section">
-                            <h3>Project Mappings</h3>
-                            <div id="projects-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- GitHub Tab -->
-                    <div class="settings-panel" id="github-panel">
-                        <div class="settings-section">
-                            <h3>GitHub Repository Mappings</h3>
-                            <p class="settings-section-desc">プロジェクトとGitHubリポジトリの対応関係（正本: config.yml）</p>
-                            <div id="github-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </main>
 
         <!-- Right Sidebar (Context: Today's Page) -->
@@ -316,6 +232,92 @@
                 <div id="archive-empty" class="archive-empty" style="display: none;">
                     <i data-lucide="inbox"></i>
                     <p>アーカイブされたセッションはありません</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content modal-fullscreen" id="settings-view">
+            <div class="modal-header settings-header">
+                <h3><i data-lucide="settings"></i> Settings</h3>
+                <button class="close-modal-btn" id="close-settings-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body settings-body">
+                <!-- Integrity Summary -->
+                <div class="integrity-summary" id="integrity-summary">
+                    <div class="loading">Loading...</div>
+                </div>
+
+                <!-- Settings Tabs -->
+                <div class="settings-tabs">
+                    <button class="settings-tab active" data-tab="slack">
+                        <i data-lucide="hash"></i> Slack
+                    </button>
+                    <button class="settings-tab" data-tab="projects">
+                        <i data-lucide="folder-git-2"></i> Projects
+                    </button>
+                    <button class="settings-tab" data-tab="github">
+                        <i data-lucide="github"></i> GitHub
+                    </button>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="settings-content">
+                    <!-- Slack Tab -->
+                    <div class="settings-panel active" id="slack-panel">
+                        <div class="settings-section">
+                            <h3>Workspaces</h3>
+                            <div id="workspaces-list" class="config-list">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>Channel Mappings</h3>
+                            <div class="filter-bar">
+                                <input type="text" id="channel-filter" placeholder="Search channels..." class="form-input">
+                                <select id="workspace-filter" class="form-input">
+                                    <option value="">All Workspaces</option>
+                                </select>
+                            </div>
+                            <div id="channels-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>Member Mappings</h3>
+                            <div class="filter-bar">
+                                <input type="text" id="member-filter" placeholder="Search members..." class="form-input">
+                            </div>
+                            <div id="members-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Projects Tab -->
+                    <div class="settings-panel" id="projects-panel">
+                        <div class="settings-section">
+                            <h3>Project Mappings</h3>
+                            <div id="projects-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GitHub Tab -->
+                    <div class="settings-panel" id="github-panel">
+                        <div class="settings-section">
+                            <h3>GitHub Repository Mappings</h3>
+                            <p class="settings-section-desc">プロジェクトとGitHubリポジトリの対応関係（正本: config.yml）</p>
+                            <div id="github-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

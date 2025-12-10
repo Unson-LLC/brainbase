@@ -1302,6 +1302,29 @@ body {
     padding: 0;
 }
 
+/* Fullscreen Modal (Settings) */
+.modal-fullscreen {
+    width: 90%;
+    max-width: 1200px;
+    height: 85vh;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-fullscreen .modal-body {
+    flex: 1;
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Settings Modal Body */
+.settings-body {
+    overflow-y: auto;
+}
+
 .modal-header-actions {
     display: flex;
     gap: 8px;
@@ -1431,36 +1454,30 @@ body {
     height: 18px;
 }
 
-/* Settings View Container */
+/* Settings View Container (now in modal) */
 .settings-view {
-    flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: var(--bg-primary);
+    background: var(--bg-secondary);
 }
 
 .settings-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
 }
 
-.settings-header h2 {
+.settings-header h3 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 1.1rem;
-    font-weight: 600;
     margin: 0;
 }
 
-.settings-header h2 i {
-    width: 20px;
-    height: 20px;
+.settings-header h3 i {
+    width: 18px;
+    height: 18px;
     color: var(--text-secondary);
 }
 

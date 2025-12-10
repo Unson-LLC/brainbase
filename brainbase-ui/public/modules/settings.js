@@ -11,8 +11,8 @@ let integrityData = null;
 
 // --- DOM Elements (initialized in init) ---
 let settingsBtn = null;
+let settingsModal = null;
 let settingsView = null;
-let consoleArea = null;
 let closeSettingsBtn = null;
 let settingsTabs = null;
 let settingsPanels = null;
@@ -317,16 +317,10 @@ function renderGitHub() {
 
 // --- Event Listeners Setup ---
 function setupEventListeners() {
-    // Open settings view
+    // Open settings modal
     settingsBtn?.addEventListener('click', async () => {
-        consoleArea.style.display = 'none';
-        settingsView.style.display = 'flex';
+        settingsModal.classList.add('active');
         settingsBtn.classList.add('active');
-
-        // Deselect any session
-        document.querySelectorAll('.session-item').forEach(item => {
-            item.classList.remove('active');
-        });
 
         // Load config data
         await loadConfigData();
@@ -335,11 +329,18 @@ function setupEventListeners() {
         lucide.createIcons();
     });
 
-    // Close settings view
+    // Close settings modal via X button
     closeSettingsBtn?.addEventListener('click', () => {
-        settingsView.style.display = 'none';
-        consoleArea.style.display = 'flex';
+        settingsModal.classList.remove('active');
         settingsBtn.classList.remove('active');
+    });
+
+    // Close settings modal via backdrop click
+    settingsModal?.addEventListener('click', (e) => {
+        if (e.target === settingsModal) {
+            settingsModal.classList.remove('active');
+            settingsBtn.classList.remove('active');
+        }
     });
 
     // Tab switching
@@ -386,8 +387,8 @@ function setupEventListeners() {
 export function initSettings() {
     // Get DOM elements
     settingsBtn = document.getElementById('settings-btn');
+    settingsModal = document.getElementById('settings-modal');
     settingsView = document.getElementById('settings-view');
-    consoleArea = document.getElementById('console-area');
     closeSettingsBtn = document.getElementById('close-settings-btn');
     settingsTabs = document.querySelectorAll('.settings-tab');
     settingsPanels = document.querySelectorAll('.settings-panel');
@@ -400,9 +401,8 @@ export function initSettings() {
  * Close settings view (callable from outside)
  */
 export function closeSettings() {
-    if (settingsView && consoleArea && settingsBtn) {
-        settingsView.style.display = 'none';
-        consoleArea.style.display = 'flex';
+    if (settingsModal && settingsBtn) {
+        settingsModal.classList.remove('active');
         settingsBtn.classList.remove('active');
     }
 }
@@ -411,5 +411,5 @@ export function closeSettings() {
  * Check if settings view is open
  */
 export function isSettingsOpen() {
-    return settingsView?.style.display === 'flex';
+    return settingsModal?.classList.contains('active');
 }
