@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MIZZ6FRY
+title: Zeims DriveからZeims Projectリポジトリへ移行
+project_id: zeims
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09V8RW3THS
+thread_ts: "1765369085.338919"
+created_at: "2025-12-10T12:18:15.262Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: プロジェクト管理体制の見直しに伴い、Zeims DriveをZeims Projectリポジトリに統合・最新化する。AIエージェント（mana）が全プロジェクトの情報を横断的に管理できる体制を構築。
+- Slack: https://unson-inc.slack.com/archives/C09V8RW3THS/p1765369085338919
+
+---
 id: SLACK-2025-12-10-MIZZ6FCW
 title: PL表を月次単位に修正し共有
 project_id: zeims
