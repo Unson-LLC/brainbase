@@ -502,11 +502,20 @@ async function getWorktreeStatus(sessionId, repoPath) {
             }
         }
 
-        // Check for uncommitted changes
+        // Check for uncommitted changes (excluding symlinked directories like .claude/)
         const { stdout: statusOutput } = await execPromise(
             `git -C "${worktreePath}" status --porcelain`
         );
-        const hasUncommittedChanges = statusOutput.trim().length > 0;
+        // Filter out symlinked directories (they show as deleted but are actually fine)
+        const significantChanges = statusOutput.trim().split('\n').filter(line => {
+            if (!line.trim()) return false;
+            // Exclude .claude/ directory changes (symlink to canonical)
+            if (line.includes('.claude/')) return false;
+            // Exclude _codex/, _tasks/, _inbox/, _schedules/, _ops/ (all symlinked)
+            if (line.match(/\s(_codex|_tasks|_inbox|_schedules|_ops)\//)) return false;
+            return true;
+        });
+        const hasUncommittedChanges = significantChanges.length > 0;
 
         return {
             exists: true,
