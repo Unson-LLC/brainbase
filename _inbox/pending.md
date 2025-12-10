@@ -3,6 +3,52 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-10-MIZANHBB
+channel: 0031-dialogai-dev
+sender: 星野 秀弥
+timestamp: 1765327896.642959
+status: pending
+---
+
+### 09:51 | #0031-dialogai-dev | 星野 秀弥
+
+<@U07LNUP582X>
+まだエラーになってしまうようでした。
+EC2インスタンスだけでなく、SSM Documentへのアクセス権限が必要と言われている気がします。
+お手数ですが、ご確認をお願いいたします。
+```An error occurred (AccessDeniedException) when calling the StartSession operation: User: arn:aws:iam::593793022993:user/h.hoshino is not authorized to perform: ssm:StartSession on resource: arn:aws:ssm:ap-northeast-1:593793022993:document/SSM-SessionManagerRunShell because no identity-based policy allows the ssm:StartSession action```
+
+**スレッドの文脈:**
+> **k.​sato** (22:38): <@U0971EHBDHB>
+特段ステージングの方は触ってないはずです。
+本番はNWを遮断しているということなので本番にアクセスできないのかもしれません（私はSSMでアクセスできてます）
+> **k.​sato** (08:53): <@U0971EHBDHB>
+星野さんはSSMは使ってないんでしたっけ？
+> **星野 秀弥** (09:22): なるほど、ありがとうございます。
+
+&gt; 星野さんはSSMは使ってないんでしたっけ？
+本番はSSMを使えていましたが、ステージングは`ssm:StartSession`の権限が足りなく接続できていませんでした。
+> **k.​sato** (09:28): ステージングは私の方で権限自由に振れますので、追加しますね
+<@U0971EHBDHB>
+> **星野 秀弥** (09:29): ありがとうございます！
+> **k.​sato** (09:43): ```追加した権限
+
+  h.hoshino に DialogAI-SSM-Session-Policy をアタッチしました。
+
+  | 許可アクション                 | 対象                              |
+  |-------------------------|---------------------------------|
+  | ssm:StartSession        | meetingAI (i-05780fcd49253977a) |
+  | ssm:TerminateSession    | 同上                              |
+  | ssm:ResumeSession       | 同上                              |
+  | ssm:DescribeSessions    | 同上                              |
+  | ssm:GetConnectionStatus | 同上                              |```
+  星野さんはこれでステージング環境（meetingAI）にSSM接続できるはずです。
+<@U0971EHBDHB>
+
+
+[Slack](https://unson-inc.slack.com/archives/C08A6ETSSR2/p1765327896642959)
+
+---
 id: INBOX-2025-12-09-MIYFRXUT
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
