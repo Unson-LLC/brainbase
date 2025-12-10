@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MIZZAMVP
+title: 戦略レポート作成とサンキョウ向け提案資料準備
+project_id: general
+status: todo
+owner: k.​sato
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C09AEA6DBA7
+thread_ts: "1765369281.002249"
+created_at: "2025-12-10T12:21:31.093Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-10 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: Senriganのヒアリング内容をもとに戦略レポートを作成し、サンキョウ向け提案資料を準備する。事業構造・ICP・提供価値を整理した上で三共向け提案資料として展開する方針。
+- Slack: https://unson-inc.slack.com/archives/C09AEA6DBA7/p1765369281002249
+
+---
 id: SLACK-2025-12-10-MIZZ6FRY
 title: Zeims DriveからZeims Projectリポジトリへ移行
 project_id: zeims
