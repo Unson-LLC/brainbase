@@ -1,4 +1,27 @@
 ---
+id: SLACK-2025-12-10-MJ0GZIYJ
+title: 展示会用デモ動画の構成を文章ベースでまとめる
+project_id: mktg
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08G8C5TYQ2
+thread_ts: "1765398998.628039"
+created_at: "2025-12-10T20:36:45.883Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-10 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: 展示会まであと1週間。木曜mtgで確認予定だったが、セキュリティインシデント対応により遅延。動画の構成を文章ベースでまとめて金曜日に仕上げる予定。
+- Slack: https://unson-inc.slack.com/archives/C08G8C5TYQ2/p1765398998628039
+
+---
 id: ZEIMS-2025-12-11-CODEX-SYNC
 title: zeims-project _codex自動同期の仕組み構築
 project_id: zeims
