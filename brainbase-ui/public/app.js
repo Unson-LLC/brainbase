@@ -66,6 +66,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const archiveEmptyEl = document.getElementById('archive-empty');
     const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
 
+    // Inbox Elements
+    const inboxTriggerBtn = document.getElementById('inbox-trigger-btn');
+    const inboxDropdown = document.getElementById('inbox-dropdown');
+    const inboxListEl = document.getElementById('inbox-list');
+    const inboxBadge = document.getElementById('inbox-badge');
+    const markAllDoneBtn = document.getElementById('mark-all-done-btn');
+    let inboxItems = [];
+    let inboxOpen = false;
+
     // Session Drag & Drop State
     let draggedSessionId = null;
     let draggedSessionProject = null;
@@ -112,6 +121,141 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Failed to load schedule:', error);
             timelineListEl.innerHTML = '<div class="error">Failed to load schedule</div>';
         }
+    }
+
+    // --- Inbox Loading & Rendering ---
+    async function loadInbox() {
+        try {
+            const res = await fetch(`/api/inbox/pending?t=${Date.now()}`);
+            if (res.ok) {
+                inboxItems = await res.json();
+                renderInbox();
+            } else {
+                console.error("Failed to fetch inbox:", res.status);
+            }
+        } catch (error) {
+            console.error('Failed to load inbox:', error);
+            inboxListEl.innerHTML = '<div class="error">Failed to load inbox</div>';
+        }
+    }
+
+    function renderInbox() {
+        // Show/hide trigger based on items
+        if (inboxItems.length === 0) {
+            inboxTriggerBtn.style.display = 'none';
+            inboxDropdown.classList.remove('open');
+            inboxOpen = false;
+            return;
+        }
+
+        inboxTriggerBtn.style.display = 'flex';
+        inboxBadge.textContent = inboxItems.length;
+
+        inboxListEl.innerHTML = inboxItems.map(item => {
+            const time = item.title ? item.title.split(' | ')[0] : '';
+            const channel = item.channel || '';
+            const sender = item.sender || '';
+            const message = item.message || '';
+
+            return `
+                <div class="inbox-item" data-id="${item.id}">
+                    <div class="inbox-item-message">${escapeHtml(message)}</div>
+                    <div class="inbox-item-meta">
+                        <span class="inbox-item-sender">${sender}</span>
+                        <span class="inbox-item-channel">#${channel}</span>
+                    </div>
+                    <div class="inbox-item-footer">
+                        ${item.slackUrl ? `<a href="${item.slackUrl}" target="_blank" class="inbox-slack-link">Slackで開く</a>` : ''}
+                        <button class="inbox-done-btn" data-id="${item.id}">確認済み</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add event listeners
+        inboxListEl.querySelectorAll('.inbox-done-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                await markInboxItemDone(btn.dataset.id);
+            };
+        });
+
+        lucide.createIcons();
+    }
+
+    // Toggle inbox dropdown
+    if (inboxTriggerBtn) {
+        inboxTriggerBtn.onclick = (e) => {
+            e.stopPropagation();
+            inboxOpen = !inboxOpen;
+            inboxDropdown.classList.toggle('open', inboxOpen);
+        };
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', (e) => {
+        if (inboxOpen && !inboxDropdown.contains(e.target) && !inboxTriggerBtn.contains(e.target)) {
+            inboxOpen = false;
+            inboxDropdown.classList.remove('open');
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function markInboxItemDone(itemId) {
+        try {
+            const res = await fetch(`/api/inbox/${encodeURIComponent(itemId)}/done`, {
+                method: 'POST'
+            });
+            if (res.ok) {
+                // Animate removal
+                const itemEl = inboxListEl.querySelector(`[data-id="${itemId}"]`);
+                if (itemEl) {
+                    itemEl.classList.add('fade-out');
+                    setTimeout(() => {
+                        loadInbox();
+                    }, 300);
+                } else {
+                    loadInbox();
+                }
+            } else {
+                showError('確認済みにできませんでした');
+            }
+        } catch (error) {
+            console.error('Failed to mark inbox item done:', error);
+            showError('確認済みにできませんでした');
+        }
+    }
+
+    async function markAllInboxDone() {
+        try {
+            const res = await fetch('/api/inbox/mark-all-done', {
+                method: 'POST'
+            });
+            if (res.ok) {
+                showSuccess('すべて確認済みにしました');
+                loadInbox();
+            } else {
+                showError('処理に失敗しました');
+            }
+        } catch (error) {
+            console.error('Failed to mark all inbox done:', error);
+            showError('処理に失敗しました');
+        }
+    }
+
+    // Mark All Done button handler
+    if (markAllDoneBtn) {
+        markAllDoneBtn.onclick = async () => {
+            if (inboxItems.length === 0) return;
+            if (await showConfirm(`${inboxItems.length}件すべてを確認済みにしますか？`, { title: '一括確認', okText: '確認済みにする' })) {
+                await markAllInboxDone();
+            }
+        };
     }
 
     // --- Right Panel Rendering (UX Redesign) ---
@@ -1013,6 +1157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSessions();
     loadSchedule();
     loadTasks();
+    loadInbox();
 
     // Initialize Settings Module
     initSettings();
@@ -1024,6 +1169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(() => {
         loadSchedule();
         loadTasks();
+        loadInbox();
     }, 5 * 60 * 1000);
 
     // Status Polling (every 3 seconds) - using imported module

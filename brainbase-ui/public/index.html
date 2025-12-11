@@ -41,6 +41,26 @@
             <!-- Settings Link -->
             <div class="sidebar-footer">
                 <div class="sidebar-divider"></div>
+                <!-- Inbox Notification -->
+                <div class="inbox-trigger-container">
+                    <button id="inbox-trigger-btn" class="inbox-trigger" style="display: none;">
+                        <i data-lucide="bell"></i>
+                        <span>通知</span>
+                        <span class="inbox-badge" id="inbox-badge">0</span>
+                    </button>
+                    <!-- Inbox Dropdown -->
+                    <div id="inbox-dropdown" class="inbox-dropdown">
+                        <div class="inbox-dropdown-header">
+                            <span>未対応メンション</span>
+                            <button id="mark-all-done-btn" class="inbox-mark-all" title="すべて確認済み">
+                                <i data-lucide="check-check"></i>
+                            </button>
+                        </div>
+                        <div id="inbox-list" class="inbox-dropdown-list">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
                 <button id="settings-btn" class="settings-link">
                     <i data-lucide="settings"></i>
                     <span>Settings</span>
@@ -69,6 +89,7 @@
 
         <!-- Right Sidebar (Context: Today's Page) -->
         <aside class="context-sidebar" id="context-sidebar">
+
             <!-- Focus Section: 最重要タスク1つ -->
             <div class="focus-section" id="focus-section">
                 <div class="section-header">
