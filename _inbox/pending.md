@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-11-MJ23BQ7T
+channel: 9990-unson-board
+sender: 山本力弥
+timestamp: 1765496988.609529
+status: pending
+---
+
+### 08:49 | #9990-unson-board | 山本力弥
+
+<@U07LNUP582X>
+会議ですが<tel:1617301830|16日の1730-1830>はいかがでしょうか。　来週から結構忘年会の予定がずらしにくくて・・・
+
+[Slack](https://unson-inc.slack.com/archives/C0971UHK4KA/p1765496988609529)
+
+---
 id: INBOX-2025-12-11-MJ2275PC
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
