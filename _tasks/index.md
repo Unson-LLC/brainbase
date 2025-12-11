@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-006
+source_id: SLACK-2025-12-11-MJ181TOH
+title: notion完成→Wordに転記
+project_id: ncom
+status: todo
+owner: k.​sato
+priority: high
+due: 2025-12-12
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C091KFKE3RS
+thread_ts: "1765444456.994779"
+created_at: "2025-12-11T09:14:22.721Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-11 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 明日までにnotionを完成させてWordに転記。特に以下を対応：(1)記載重複している部分の修正、(2)RDBに格納されているデータは○○、個人情報・機密情報ではない旨を明記（申請内容と合わせる）
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1765444456994779
+
+---
 task_id: T-2512-005
 source_id: SLACK-2025-12-11-MJ180SCG
 title: notion完成⇒Wordに転記
