@@ -3,6 +3,39 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-11-MJ2275PC
+channel: 0031-dialogai-dev
+sender: 星野 秀弥
+timestamp: 1765495095.340239
+status: pending
+---
+
+### 08:18 | #0031-dialogai-dev | 星野 秀弥
+
+<@U07LNUP582X>
+<https://nttcoms.notion.site/DialogAI-2c5ffa9fddce80198179d4fb1ffa48fa#2c6ffa9fddce80868056fbb4bee4b4dc|必須対応事項> にある内容でしょうか？
+似た内容の調査はやったことがあります。
+また、<https://nttcoms.notion.site/DialogAI-2c5ffa9fddce80198179d4fb1ffa48fa#2c6ffa9fddce8073b373f8c975d394aa|11.推奨事項>の短期対策・中期対策にある内容も同様です。
+
+**スレッドの文脈:**
+> **k.​sato** (09:14): <@U089CNQ4D1A> <@U0971EHBDHB>
+急ぎインシデント周りで作業をお願いしたいのですが、今日明日お時間取れますか
+> **星野 秀弥** (09:28): 今日はあまり時間が取れない気がします。
+明日は18時以降でしたら対応可能です。
+> **k.​sato** (09:29): かしこまりました。
+> **星野 秀弥** (17:03): <@U07LNUP582X> <@U089CNQ4D1A> 
+インシデント周りで今日何か自分の方でお手伝いできることはございますでしょうか？
+> **k.​sato** (17:22): 一旦自分の方でバックアップファイルの提出も行いましたので、とても急ぎというものはないです。
+最終版の調査レポートを共有しますので、こちらの今後の必要な対応をご確認ください
+<https://nttcoms.notion.site/DialogAI-2c5ffa9fddce80198179d4fb1ffa48fa?source=copy_link|https://nttcoms.notion.site/DialogAI-2c5ffa9fddce80198179d4fb1ffa48fa?source=copy_link>
+> **k.​sato** (23:24): <@U0971EHBDHB>
+最終版として修正完了しました。
+星野さんはこの辺の内容わかりますかね？前職でこういった調査やったことありますか？
+
+
+[Slack](https://unson-inc.slack.com/archives/C08A6ETSSR2/p1765495095340239)
+
+---
 id: INBOX-2025-12-11-MJ15IILE
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
