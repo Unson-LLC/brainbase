@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-005
+source_id: SLACK-2025-12-11-MJ180SCG
+title: notion完成⇒Wordに転記
+project_id: ncom
+status: todo
+owner: k.​sato
+priority: high
+due: 2025-12-12
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C091KFKE3RS
+thread_ts: "1765444406.078259"
+created_at: "2025-12-11T09:13:34.336Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-11 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: notionを完成させWordに転記する。記載重複部分の修正、RDBに格納されているデータの明記（個人情報・機密情報ではない旨を申請内容と合わせて記載）を実施。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1765444406078259
+
+---
 task_id: T-2512-004
 source_id: SLACK-2025-12-11-MJ112XUS
 title: Stripeアカウントの設定情報を埋める
