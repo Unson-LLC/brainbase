@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-11-MJ23C3GH
+channel: 0120-ncom
+sender: 山本力弥
+timestamp: 1765497007.889049
+status: pending
+---
+
+### 08:50 | #0120-ncom | 山本力弥
+
+<@U07LNUP582X> <@U08DE1DFN4W>
+火曜日日中30分とかいかがでしょうか。
+いくつか候補の時間いただけませんか
+
+[Slack](https://unson-inc.slack.com/archives/C091KFKE3RS/p1765497007889049)
+
+---
 id: INBOX-2025-12-11-MJ23BQ7T
 channel: 9990-unson-board
 sender: 山本力弥
