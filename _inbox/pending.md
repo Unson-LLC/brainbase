@@ -461,7 +461,7 @@ id: INBOX-2025-12-10-MJ03K33C
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765376447.983449
-status: pending
+status: done
 ---
 
 ### 23:20 | #0120-ncom | 小川未来
@@ -504,7 +504,7 @@ id: INBOX-2025-12-10-MJ02XHK5
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765375394.194869
-status: pending
+status: done
 ---
 
 ### 23:03 | #0120-ncom | 小川未来
@@ -523,7 +523,7 @@ id: INBOX-2025-12-10-MIZSRDIU
 channel: 0111-baao-ai-dojo
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1765358312.826019
-status: pending
+status: done
 ---
 
 ### 18:18 | #0111-baao-ai-dojo | 梅田 遼/Haruka Umeda
@@ -539,7 +539,7 @@ id: INBOX-2025-12-10-MIZQ62HQ
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765353959.375899
-status: pending
+status: done
 ---
 
 ### 17:06 | #0120-ncom | 小川未来
@@ -555,7 +555,7 @@ id: INBOX-2025-12-10-MIZDK1QP
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1765332773.156499
-status: pending
+status: done
 ---
 
 ### 11:12 | #0031-dialogai-dev | 小川未来
@@ -623,7 +623,7 @@ id: INBOX-2025-12-10-MIZANHBB
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765327896.642959
-status: pending
+status: done
 ---
 
 ### 09:51 | #0031-dialogai-dev | 星野 秀弥
@@ -669,7 +669,7 @@ id: INBOX-2025-12-09-MIYFRXUT
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765276037.409669
-status: pending
+status: done
 ---
 
 ### 19:27 | #0031-dialogai-dev | 星野 秀弥
@@ -685,7 +685,7 @@ id: INBOX-2025-12-09-MIXYYY79
 channel: 0011-zeims-dev
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1765247808.408859
-status: pending
+status: done
 ---
 
 ### 11:36 | #0011-zeims-dev | 梅田 遼/Haruka Umeda
@@ -839,7 +839,7 @@ id: INBOX-2025-12-06-MITK6MYX
 channel: 0031-dialogai-dev
 sender: 金田光平 / Kohei Kaneta
 timestamp: 1764981109.778789
-status: pending
+status: done
 ---
 
 ### 09:31 | #0031-dialogai-dev | 金田光平 / Kohei Kaneta
@@ -860,7 +860,7 @@ id: INBOX-2025-12-05-MIS8DOVD
 channel: 0151-mywa
 sender: 小松原 遼羽
 timestamp: 1764900818.831549
-status: pending
+status: done
 ---
 
 ### 11:13 | #0151-mywa | 小松原 遼羽
@@ -875,7 +875,7 @@ id: INBOX-2025-12-05-MIS4NVS6
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1764894575.221669
-status: pending
+status: done
 ---
 
 ### 09:29 | #0120-ncom | 小川未来
@@ -904,7 +904,7 @@ id: INBOX-2025-12-03-MIQ84ME0
 channel: test-channel
 sender: テストユーザー
 timestamp: 1764779464.936
-status: pending
+status: done
 ---
 
 ### 01:31 | #test-channel | テストユーザー
