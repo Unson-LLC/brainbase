@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ksato/workspace/.claude/hooks/notify-start.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
