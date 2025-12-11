@@ -3,6 +3,29 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-11-MJ15IILE
+channel: 0031-dialogai-dev
+sender: 星野 秀弥
+timestamp: 1765440198.144499
+status: pending
+---
+
+### 17:03 | #0031-dialogai-dev | 星野 秀弥
+
+<@U07LNUP582X> <@U089CNQ4D1A> 
+インシデント周りで今日何か自分の方でお手伝いできることはございますでしょうか？
+
+**スレッドの文脈:**
+> **k.​sato** (09:14): <@U089CNQ4D1A> <@U0971EHBDHB>
+急ぎインシデント周りで作業をお願いしたいのですが、今日明日お時間取れますか
+> **星野 秀弥** (09:28): 今日はあまり時間が取れない気がします。
+明日は18時以降でしたら対応可能です。
+> **k.​sato** (09:29): かしこまりました。
+
+
+[Slack](https://unson-inc.slack.com/archives/C08A6ETSSR2/p1765440198144499)
+
+---
 id: INBOX-2025-12-11-MJ10UD29
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
