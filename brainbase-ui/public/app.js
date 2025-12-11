@@ -537,28 +537,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 childRow.addEventListener('drop', async (e) => {
+                    // Capture values immediately before async operations (dragend may reset them)
+                    const droppedSessionId = draggedSessionId;
+                    const droppedSessionProject = draggedSessionProject;
+
                     e.preventDefault();
                     e.stopPropagation();
                     childRow.classList.remove('drag-over');
 
-                    if (!draggedSessionId || draggedSessionProject !== project || draggedSessionId === session.id) {
+                    if (!droppedSessionId || droppedSessionProject !== project || droppedSessionId === session.id) {
                         return;
                     }
 
                     try {
                         const currentState = await fetchState();
-                        const sessionList = currentState.sessions || [];
+                        const sessions = currentState.sessions || [];
 
-                        const draggedIndex = sessionList.findIndex(s => s.id === draggedSessionId);
-                        const targetIndex = sessionList.findIndex(s => s.id === session.id);
+                        const draggedIndex = sessions.findIndex(s => s.id === droppedSessionId);
+                        const targetIndex = sessions.findIndex(s => s.id === session.id);
                         if (draggedIndex === -1 || targetIndex === -1) return;
 
-                        const [draggedSession] = sessionList.splice(draggedIndex, 1);
-                        const newTargetIndex = sessionList.findIndex(s => s.id === session.id);
-                        sessionList.splice(newTargetIndex, 0, draggedSession);
+                        // Remove dragged item from array
+                        const [draggedSession] = sessions.splice(draggedIndex, 1);
 
-                        await saveState({ sessions: sessionList });
-                        loadSessions();
+                        // Calculate new target index after removal
+                        const adjustedTargetIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+
+                        // Insert at the adjusted target position
+                        sessions.splice(adjustedTargetIndex, 0, draggedSession);
+
+                        await saveState({ ...currentState, sessions });
+
+                        // Update DOM directly instead of full reload
+                        const draggedEl = document.querySelector(`.session-child-row[data-id="${droppedSessionId}"]`);
+                        const targetEl = document.querySelector(`.session-child-row[data-id="${session.id}"]`);
+                        if (draggedEl && targetEl) {
+                            targetEl.parentNode.insertBefore(draggedEl, targetEl);
+                        }
                     } catch (err) {
                         console.error('Failed to reorder sessions', err);
                     }
