@@ -3,6 +3,80 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-11-MJ10MN23
+channel: 0011-zeims-dev
+sender: 川合秀明 / Hideaki Kawai
+timestamp: 1765431994.478619
+status: pending
+---
+
+### 14:46 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
+
+<@U07LNUP582X> 
+
+**スレッドの文脈:**
+> **太田葉音** (09:00): <@U090R3E72UA> cc  <@U07Q7CUC60J>
+Strip のアカウントのidとpasswordを共有していただきたいです。
+おそらく、Mywaで使っているものがあるとは思うのですが、
+片方の変更によってもう片方が壊れるのが怖いので、できればzeims用のアカウントを作成していただきたいです
+> **梅田 遼/Haruka Umeda** (12:10): <@U07LNUP582X>
+アドレスを川合さんに変えたらいいですかね？
+> **k.​sato** (12:29): はい、川合さん個人で！
+> **梅田 遼/Haruka Umeda** (12:55): <@U07Q7CUC60J> cc <@U07LNUP582X>
+川合さん新しいアカウント作りましたか？アドレスが使えなくて:pleading_face:
+> **川合秀明 / Hideaki Kawai** (13:09): あー、個人でstripeのアカウント持ってるからかもしれません。
+<mailto:h.kawai.tech+zeims@gmail.com|h.kawai.tech+zeims@gmail.com>
+もしくは、
+<mailto:hidechannu@cloud.com|hidechannu@cloud.com>
+
+こちらでお願いしたいです:bow:
+> **梅田 遼/Haruka Umeda** (10:29): <@U07Q7CUC60J>
+<mailto:h.kawai.tech+zeims@gmail.com|h.kawai.tech+zeims@gmail.com>
+こちらにめーーる送りましたが何か来てませんか？
+> **川合秀明 / Hideaki Kawai** (10:31): <@U090R3E72UA> 
+ありがとうございます！
+来ました。
+zeims@unson.jpで使ってたパスワード求められたんですけど何でしたっけ？
+> **川合秀明 / Hideaki Kawai** (10:33): ありがとうございます
+メールアドレス変更できました
+> **梅田 遼/Haruka Umeda** (10:34): ありがとうございます！
+登録進められます！
+> **梅田 遼/Haruka Umeda** (11:36): <@U07LNUP582X>
+<@U07Q7CUC60J>
+<@U085FM467AP>
+お疲れ様です。遅くなってすみません本番使えるようになりました。こんなメッセージ出たんですけど、どうしたらいいですか？
+> **太田葉音** (18:29): <@U090R3E72UA>
+対応ありがとうございます！
+一旦「データをコピーしない」でお願いします。
+> **太田葉音** (18:30): <@U090R3E72UA>. cc <@U07Q7CUC60J>
+• ちょっと触っていると、二段階認証が求められると思うのですが、パスキーは採用しないで頂きたいです！
+• 最近のサービスはめっちゃパスキーを押してくるので、ポップアップされてきたものをつい押してしまった場合、複数人でのログインが煩雑になってしまいます。
+二段階認証が求められなければスルーで
+大丈夫です。
+> **梅田 遼/Haruka Umeda** (23:23): <@U085FM467AP>
+パスキーの件了解です！コピーしませんでした！
+ここに太田さんを招待したらいいですか？
+> **梅田 遼/Haruka Umeda** (13:28): <@U07LNUP582X>
+<@U07Q7CUC60J>
+<@U085FM467AP>
+この件、一旦ステイですか？
+> **太田葉音** (13:30): すいません。
+返信漏れてました。
+招待お願いします！
+> **梅田 遼/Haruka Umeda** (13:34): <@U07Q7CUC60J>
+すみません！太田さんの招待のための確認メールが届いてると思うのでリンク押してくれませんか？
+<mailto:h.kawai.tech+zeims@gmail.com|h.kawai.tech+zeims@gmail.com>
+ここに送ってます！
+> **川合秀明 / Hideaki Kawai** (14:29): かくにんします！
+> **k.​sato** (14:39): 796115
+> **k.​sato** (14:39): 113740
+> **川合秀明 / Hideaki Kawai** (14:40): <@U07LNUP582X>
+何度もすみません、再度リクエストしたので最新の6桁お願いします:man-bowing:
+
+
+[Slack](https://unson-inc.slack.com/archives/C07QX6DN9M0/p1765431994478619)
+
+---
 id: INBOX-2025-12-11-MJ10EXSP
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
