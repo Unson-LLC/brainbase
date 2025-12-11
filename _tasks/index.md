@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-004
+source_id: SLACK-2025-12-11-MJ112XUS
+title: Stripeアカウントの設定情報を埋める
+project_id: zeims
+status: todo
+owner: k.​sato
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C07QX6DN9M0
+thread_ts: "1765432748.808099"
+created_at: "2025-12-11T05:59:17.476Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-11 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: Stripeアカウントで一部設定が足りていない警告が出ているため、ログインして設定情報を埋める必要がある。太田さんからの依頼。
+- Slack: https://unson-inc.slack.com/archives/C07QX6DN9M0/p1765432748808099
+
+---
 task_id: T-2512-003
 source_id: SLACK-2025-12-10-MJ0IREQ3
 title: デモ動画の構成をまとめて仕上げる
