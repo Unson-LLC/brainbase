@@ -54,6 +54,7 @@ worktreeでは以下が正本へのシンボリックリンクになる。編集
 | KPI計算 | `skill: kpi-calculation` |
 | 新規事業チェック | `skill: 90day-checklist` |
 | 戦略テンプレート | `skill: strategy-template` |
+| Actionsヘルスチェック | `.github/workflows/actions-healthcheck.yml`（Slack DM/チャンネル通知、mana Bot再利用可） |
 
 ## よく使うコマンド
 
