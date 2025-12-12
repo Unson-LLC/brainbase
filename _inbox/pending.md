@@ -7,7 +7,7 @@ id: INBOX-2025-12-11-MJ23C3GH
 channel: 0120-ncom
 sender: 山本力弥
 timestamp: 1765497007.889049
-status: pending
+status: done
 ---
 
 ### 08:50 | #0120-ncom | 山本力弥
@@ -23,7 +23,7 @@ id: INBOX-2025-12-11-MJ23BQ7T
 channel: 9990-unson-board
 sender: 山本力弥
 timestamp: 1765496988.609529
-status: pending
+status: done
 ---
 
 ### 08:49 | #9990-unson-board | 山本力弥
@@ -38,7 +38,7 @@ id: INBOX-2025-12-11-MJ2275PC
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765495095.340239
-status: pending
+status: done
 ---
 
 ### 08:18 | #0031-dialogai-dev | 星野 秀弥
@@ -71,7 +71,7 @@ id: INBOX-2025-12-11-MJ15IILE
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765440198.144499
-status: pending
+status: done
 ---
 
 ### 17:03 | #0031-dialogai-dev | 星野 秀弥
@@ -94,7 +94,7 @@ id: INBOX-2025-12-11-MJ10UD29
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
 timestamp: 1765432355.152809
-status: pending
+status: done
 ---
 
 ### 14:52 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
@@ -162,7 +162,7 @@ id: INBOX-2025-12-11-MJ10RZSM
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
 timestamp: 1765432244.477009
-status: pending
+status: done
 ---
 
 ### 14:50 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
@@ -236,7 +236,7 @@ id: INBOX-2025-12-11-MJ10MN23
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
 timestamp: 1765431994.478619
-status: pending
+status: done
 ---
 
 ### 14:46 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
@@ -310,7 +310,7 @@ id: INBOX-2025-12-11-MJ10EXSP
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
 timestamp: 1765431632.600979
-status: pending
+status: done
 ---
 
 ### 14:40 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
@@ -385,7 +385,7 @@ id: INBOX-2025-12-11-MJ0XURF3
 channel: 0011-zeims-dev
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1765427331.480149
-status: pending
+status: done
 ---
 
 ### 13:28 | #0011-zeims-dev | 梅田 遼/Haruka Umeda
