@@ -15,12 +15,18 @@ export function renderSessionRowHTML(session, options = {}) {
   const { isActive = false, project = 'General' } = options;
   const displayName = session.name || session.id;
   const hasWorktree = !!session.worktree;
+  const engine = session.engine || 'claude';
   const activeClass = isActive ? ' active' : '';
   const archivedClass = session.archived ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
 
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
+
+  // Engine badge: codexの場合のみ表示（claudeはデフォルトなので省略）
+  const engineBadge = engine === 'codex'
+    ? '<span class="engine-badge engine-codex" title="OpenAI Codex">Codex</span>'
+    : '';
 
   const archivedLabel = session.archived
     ? '<span class="archived-label">(Archived)</span>'
@@ -32,11 +38,12 @@ export function renderSessionRowHTML(session, options = {}) {
     : '';
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}" data-id="${session.id}" data-project="${project}" draggable="true">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
         <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
         <span class="session-name">${displayName}</span>
+        ${engineBadge}
         ${archivedLabel}
       </div>
       <div class="child-actions">

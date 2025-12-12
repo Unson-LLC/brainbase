@@ -596,10 +596,15 @@ async function mergeWorktree(sessionId, repoPath, sessionName = null) {
 
 // Session Management API
 app.post('/api/sessions/start', async (req, res) => {
-    const { sessionId, initialCommand, cwd } = req.body;
+    const { sessionId, initialCommand, cwd, engine = 'claude' } = req.body;
 
     if (!sessionId) {
         return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    // Validate engine
+    if (!['claude', 'codex'].includes(engine)) {
+        return res.status(400).json({ error: 'engine must be "claude" or "codex"' });
     }
 
     // Check if already running
@@ -612,7 +617,7 @@ app.post('/api/sessions/start', async (req, res) => {
         const port = await findFreePort(nextPort);
         nextPort = port + 1;
 
-        console.log(`Starting ttyd for session '${sessionId}' on port ${port}...`);
+        console.log(`Starting ttyd for session '${sessionId}' on port ${port} with engine '${engine}'...`);
         if (cwd) console.log(`Working directory: ${cwd}`);
 
         // Spawn ttyd with Base Path
@@ -634,7 +639,10 @@ app.post('/api/sessions/start', async (req, res) => {
         ];
         if (initialCommand) {
             args.push(initialCommand);
+        } else {
+            args.push(''); // Empty initial command
         }
+        args.push(engine); // Add engine as 3rd argument
 
         // Options for spawn
         const spawnOptions = {
@@ -755,10 +763,15 @@ app.get('/api/sessions/:id/content', async (req, res) => {
 
 // Create session with worktree
 app.post('/api/sessions/create-with-worktree', async (req, res) => {
-    const { sessionId, repoPath, name, initialCommand } = req.body;
+    const { sessionId, repoPath, name, initialCommand, engine = 'claude' } = req.body;
 
     if (!sessionId || !repoPath) {
         return res.status(400).json({ error: 'sessionId and repoPath are required' });
+    }
+
+    // Validate engine
+    if (!['claude', 'codex'].includes(engine)) {
+        return res.status(400).json({ error: 'engine must be "claude" or "codex"' });
     }
 
     try {
@@ -775,7 +788,7 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
         const port = await findFreePort(nextPort);
         nextPort = port + 1;
 
-        console.log(`Starting ttyd for session '${sessionId}' on port ${port} with worktree...`);
+        console.log(`Starting ttyd for session '${sessionId}' on port ${port} with worktree and engine '${engine}'...`);
 
         const scriptPath = path.join(__dirname, 'login_script.sh');
         const customIndexPath = path.join(__dirname, 'custom_ttyd_index.html');
@@ -794,7 +807,10 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
         ];
         if (initialCommand) {
             args.push(initialCommand);
+        } else {
+            args.push(''); // Empty initial command
         }
+        args.push(engine); // Add engine as 3rd argument
 
         const ttyd = spawn('ttyd', args, { stdio: 'pipe', cwd: worktreePath });
 
@@ -822,6 +838,7 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
         const newSession = {
             id: sessionId,
             name: name || sessionId,
+            engine,  // claude or codex
             path: worktreePath,
             initialCommand,
             worktree: {

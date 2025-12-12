@@ -788,8 +788,9 @@ document.addEventListener('DOMContentLoaded', () => {
             sessionNameInput.focus();
             return;
         }
+        const engine = document.querySelector('input[name="session-engine"]:checked')?.value || 'claude';
         closeCreateSessionModal();
-        executeCreateSession(pendingSessionProject, name, sessionCommandInput.value, useWorktreeCheckbox.checked);
+        executeCreateSession(pendingSessionProject, name, sessionCommandInput.value, useWorktreeCheckbox.checked, engine);
     });
 
     // Enter key to submit
@@ -804,7 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
         openCreateSessionModal(project);
     }
 
-    async function executeCreateSession(project, name, initialCommand, useWorktree) {
+    async function executeCreateSession(project, name, initialCommand, useWorktree, engine = 'claude') {
         const repoPath = getProjectPath(project);
         const sessionId = createSessionId('session');
 
@@ -814,7 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('/api/sessions/create-with-worktree', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
+                    body: JSON.stringify({ sessionId, repoPath, name, initialCommand, engine })
                 });
 
                 if (res.ok) {
@@ -823,11 +824,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     switchSession(sessionId, session.path, initialCommand);
                 } else {
                     showError('Worktreeセッションの作成に失敗。通常セッションで作成します。');
-                    await createRegularSession(sessionId, name, repoPath, initialCommand);
+                    await createRegularSession(sessionId, name, repoPath, initialCommand, engine);
                 }
             } else {
                 // Create regular session (no worktree)
-                await createRegularSession(sessionId, name, repoPath, initialCommand);
+                await createRegularSession(sessionId, name, repoPath, initialCommand, engine);
             }
         } catch (error) {
             console.error('Error creating session:', error);
@@ -835,11 +836,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function createRegularSession(sessionId, name, repoPath, initialCommand) {
+    async function createRegularSession(sessionId, name, repoPath, initialCommand, engine = 'claude') {
         const res = await fetch('/api/sessions/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, initialCommand, cwd: repoPath })
+            body: JSON.stringify({ sessionId, initialCommand, cwd: repoPath, engine })
         });
 
         if (res.ok) {
@@ -848,7 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: sessionId,
                 name,
                 path: repoPath,
-                initialCommand
+                initialCommand,
+                engine
             });
             await addSession(newSession);
 

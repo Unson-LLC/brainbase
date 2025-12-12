@@ -218,6 +218,19 @@
                     <label for="session-command-input">初期コマンド（省略可）</label>
                     <input type="text" id="session-command-input" class="form-input" placeholder="例: /task 123">
                 </div>
+                <div class="form-group">
+                    <label>AI Engine</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="session-engine" value="claude" checked>
+                            <span>Claude Code</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="session-engine" value="codex">
+                            <span>OpenAI Codex</span>
+                        </label>
+                    </div>
+                </div>
                 <div class="form-group" id="worktree-option-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="use-worktree-checkbox">
