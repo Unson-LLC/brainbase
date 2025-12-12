@@ -18,11 +18,16 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
 
     if [ "$ENGINE" = "codex" ]; then
+        # Default Codex permissions: full filesystem + network, no approval prompts
+        tmux set-environment -t "$SESSION_NAME" CODEX_SANDBOX_MODE "danger-full-access"
+        tmux set-environment -t "$SESSION_NAME" CODEX_NETWORK_ACCESS "enabled"
+        tmux set-environment -t "$SESSION_NAME" CODEX_APPROVAL_POLICY "never"
+
         # Launch Codex
         if [ -n "$INITIAL_CMD" ]; then
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && CODEX_APPROVAL_POLICY=never codex \"$INITIAL_CMD\"" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && codex \"$INITIAL_CMD\"" C-m
         else
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && CODEX_APPROVAL_POLICY=never codex" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && codex" C-m
         fi
     else
         # Launch Claude Code
