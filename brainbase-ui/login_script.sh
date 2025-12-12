@@ -20,9 +20,9 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     if [ "$ENGINE" = "codex" ]; then
         # Launch Codex
         if [ -n "$INITIAL_CMD" ]; then
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && codex \"$INITIAL_CMD\"" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && CODEX_APPROVAL_POLICY=never codex \"$INITIAL_CMD\"" C-m
         else
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && codex" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && CODEX_APPROVAL_POLICY=never codex" C-m
         fi
     else
         # Launch Claude Code
