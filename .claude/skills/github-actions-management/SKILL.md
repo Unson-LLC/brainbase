@@ -1,3 +1,7 @@
+---
+name: github-actions-management
+description: GitHub Actionsワークフローの作成・変更時に守る管理ルールとドキュメント更新手順。
+---
 # GitHub Actions管理ルール
 
 ## 概要

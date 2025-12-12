@@ -494,10 +494,12 @@ async function getWorktreeStatus(sessionId, repoPath) {
         // Filter out symlinked directories/files (they show as deleted/typechange but are actually fine)
         const significantChanges = statusOutput.trim().split('\n').filter(line => {
             if (!line.trim()) return false;
-            // Exclude .claude/ directory changes (symlink to canonical)
-            if (line.includes('.claude/')) return false;
+            // Exclude .claude directory/file changes (symlink to canonical)
+            // Matches: ".claude/xxx", ".claude" (standalone), "?? .claude"
+            if (line.includes('.claude')) return false;
             // Exclude _codex/, _tasks/, _inbox/, _schedules/, _ops/ (all symlinked to canonical)
-            if (line.match(/(_codex|_tasks|_inbox|_schedules|_ops)(\/|$)/)) return false;
+            // Also exclude the directory names themselves when shown as untracked
+            if (line.match(/(_codex|_tasks|_inbox|_schedules|_ops)(\/|$|\s*$)/)) return false;
             // Exclude config.yml (symlinked to canonical)
             if (line.includes('config.yml')) return false;
             return true;

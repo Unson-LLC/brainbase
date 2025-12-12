@@ -1,3 +1,7 @@
+---
+name: worktree-dev-server
+description: worktreeで開発サーバーを起動する際のポート競合回避と手順まとめ。
+---
 # worktree開発サーバー起動
 
 worktreeから開発サーバーを起動する際の手順。ポート競合を自動回避。

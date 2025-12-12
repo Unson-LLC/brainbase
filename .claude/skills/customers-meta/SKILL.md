@@ -1,4 +1,6 @@
 ---
+name: customers-meta
+description: 顧客詳細メタ情報の標準フォーマットと記述手順。組織図・決裁ライン・キーマン整理時に使用。
 skill_id: customers-meta
 title: 顧客詳細メタ情報フォーマット
 version: 1.0.0
