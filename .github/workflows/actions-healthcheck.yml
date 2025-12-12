@@ -1,0 +1,114 @@
+name: Actions Healthcheck
+
+on:
+  schedule:
+    # JST 09:00-23:00 を30分間隔（UTC 00-14時）で監視
+    - cron: '0,30 0-14 * * *'
+  workflow_dispatch:
+
+jobs:
+  healthcheck:
+    runs-on: ubuntu-latest
+    env:
+      # 監視対象リポジトリ（owner/repo 形式）
+      REPOS: |
+        sintariran/brainbase
+        Unson-LLC/Drive
+        Unson-LLC/zeims-project
+        Unson-LLC/salestailor-project
+        Tech-Knight-inc/tech-knight-project
+      MAX_AGE_HOURS: "24"
+    steps:
+      - name: Check workflows and runners
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ACTIONS_MONITOR_PAT }}
+          script: |
+            const repos = process.env.REPOS.trim().split(/\s+/);
+            const maxAgeHours = Number(process.env.MAX_AGE_HOURS || 24);
+            const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+            const now = Date.now();
+            const issues = [];
+            const runnerAlerts = [];
+
+            for (const repo of repos) {
+              const [owner, name] = repo.split('/');
+              // 1) 直近失敗ラン検出
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRunsForRepo,
+                { owner, repo: name, per_page: 50, status: 'completed', exclude_pull_requests: true }
+              );
+              const recentFailed = runs.find(
+                (r) => r.conclusion !== 'success' && now - new Date(r.created_at).getTime() <= maxAgeMs
+              );
+              if (recentFailed) {
+                issues.push({
+                  repo,
+                  workflow: recentFailed.name,
+                  runId: recentFailed.id,
+                  html_url: recentFailed.html_url,
+                  conclusion: recentFailed.conclusion,
+                  created_at: recentFailed.created_at,
+                });
+              }
+
+              // 2) self-hosted runner オフライン検知
+              const runners = await github.paginate(
+                github.rest.actions.listSelfHostedRunnersForRepo,
+                { owner, repo: name, per_page: 50 }
+              );
+              runners
+                .filter((r) => r.labels.some((l) => l.name === 'self-hosted'))
+                .filter((r) => r.status !== 'online')
+                .forEach((r) => runnerAlerts.push({ repo, name: r.name, status: r.status }));
+            }
+
+            core.setOutput('has_issues', issues.length > 0 || runnerAlerts.length > 0 ? 'true' : 'false');
+            core.setOutput('issues', JSON.stringify(issues));
+            core.setOutput('runner_alerts', JSON.stringify(runnerAlerts));
+
+      - name: Notify Slack on issues
+        if: steps.check.outputs.has_issues == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}      # mana Botトークンを流用可能
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}    # DMならユーザーID、チャンネルならCで始まるID
+          ISSUES: ${{ steps.check.outputs.issues }}
+          RUNNER_ALERTS: ${{ steps.check.outputs.runner_alerts }}
+        run: |
+          format_list() {
+            python - <<'PY' <<< "$1"
+import json,sys
+raw=sys.stdin.read()
+items=json.loads(raw) if raw.strip() else []
+for i in items:
+    if 'runId' in i:
+        print(f"• {i['repo']}: {i['workflow']} ({i['conclusion']}) -> {i['html_url']}")
+    else:
+        print(f"• {i['repo']}: runner {i['name']} is {i['status']}")
+PY
+          }
+
+          failed=$(format_list "$ISSUES")
+          runners=$(format_list "$RUNNER_ALERTS")
+          text="[Actions Healthcheck]\n"
+          [ -n "$failed" ] && text+="❌ Failed workflows (24h):\n$failed\n"
+          [ -n "$runners" ] && text+="⚠️ Offline self-hosted runners:\n$runners\n"
+
+          if [ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_CHANNEL_ID" ]; then
+            curl -sS -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H 'Content-type: application/json; charset=utf-8' \
+              --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$text" '{channel:$channel,text:$text}')"
+          elif [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl -sS -X POST -H 'Content-type: application/json' \
+              --data "$(jq -Rn --arg t "$text" '{text: $t}')" "$SLACK_WEBHOOK_URL"
+          else
+            echo "No Slack token/channel or webhook configured; skipping notification."
+          fi
+
+      - name: No issues found
+        if: steps.check.outputs.has_issues != 'true'
+        run: echo "No failures or offline runners in the last ${MAX_AGE_HOURS}h."
+
