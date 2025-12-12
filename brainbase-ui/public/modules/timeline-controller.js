@@ -37,7 +37,11 @@ export function formatTimelineHTML(events, currentTime) {
     return '<div class="timeline-empty">予定なし</div>';
   }
 
-  const sortedEvents = sortEventsByTime(events);
+  // Separate timed events from tasks
+  const timedEvents = events.filter(e => e.start);
+  const tasks = events.filter(e => !e.start && e.isTask);
+
+  const sortedEvents = sortEventsByTime(timedEvents);
   let html = '<div class="timeline">';
   let nowInserted = false;
 
@@ -56,11 +60,12 @@ export function formatTimelineHTML(events, currentTime) {
       (event.end ? event.end > currentTime : true);
 
     const currentClass = isCurrent ? ' current is-current' : '';
+    const workTimeClass = event.isWorkTime ? ' is-worktime' : '';
     const timeLabel = event.allDay ? '終日' : (event.start + (event.end ? '-' + event.end : ''));
     const title = event.title || event.task || '';
 
     html += `
-      <div class="timeline-item is-event${currentClass}">
+      <div class="timeline-item is-event${currentClass}${workTimeClass}">
         <div class="timeline-marker"></div>
         <span class="timeline-time">${timeLabel}</span>
         <span class="timeline-content">${title}</span>
@@ -71,6 +76,21 @@ export function formatTimelineHTML(events, currentTime) {
   // Insert now marker at end if all events are past
   if (!nowInserted) {
     html += `<div class="timeline-now"><span class="timeline-now-label">現在 ${currentTime}</span></div>`;
+  }
+
+  // Add today's tasks section if any
+  if (tasks.length > 0) {
+    html += '<div class="timeline-tasks-section">';
+    html += '<div class="timeline-tasks-header">今日のタスク</div>';
+    tasks.forEach((task) => {
+      html += `
+        <div class="timeline-item is-task">
+          <div class="timeline-marker task-marker"></div>
+          <span class="timeline-content">${task.task}</span>
+        </div>
+      `;
+    });
+    html += '</div>';
   }
 
   html += '</div>';

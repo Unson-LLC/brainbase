@@ -188,6 +188,9 @@ body {
 }
 .session-icon i { width: 14px; height: 14px; }
 .session-child-row.active .session-icon { opacity: 1; color: var(--accent-color); }
+/* Worktreeセッションはオレンジ色のgit-mergeアイコン */
+.session-child-row.has-worktree .session-icon { color: var(--warning-color); opacity: 1; }
+.session-child-row.has-worktree.active .session-icon { color: var(--warning-color); }
 
 .session-name {
     white-space: nowrap;
@@ -196,19 +199,7 @@ body {
     flex: 1;
 }
 
-/* Worktree Badge */
-.worktree-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--warning-color);
-    opacity: 0.8;
-    flex-shrink: 0;
-}
-.worktree-badge i { width: 12px; height: 12px; }
-.worktree-badge.merged {
-    color: var(--success-color);
-}
+/* Worktree Badge (deprecated - now using session-icon instead) */
 
 /* Archived Label */
 .archived-label {

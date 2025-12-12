@@ -32,6 +32,7 @@ export async function completeTask(taskId) {
 
 /**
  * タスクの優先度を下げる（defer）
+ * statusもtodoに戻す（in-progressのままだとフォーカスに選ばれ続けるため）
  * @param {string} taskId
  * @param {string} currentPriority
  */
@@ -40,7 +41,7 @@ export async function deferTaskPriority(taskId, currentPriority) {
   await fetch(`/api/tasks/${taskId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ priority: newPriority })
+    body: JSON.stringify({ priority: newPriority, status: 'todo' })
   });
 }
 

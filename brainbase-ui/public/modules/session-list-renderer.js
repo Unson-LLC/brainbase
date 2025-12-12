@@ -17,10 +17,10 @@ export function renderSessionRowHTML(session, options = {}) {
   const hasWorktree = !!session.worktree;
   const activeClass = isActive ? ' active' : '';
   const archivedClass = session.archived ? ' archived' : '';
+  const worktreeClass = hasWorktree ? ' has-worktree' : '';
 
-  const worktreeBadge = hasWorktree
-    ? '<span class="worktree-badge" title="Has worktree"><i data-lucide="git-branch"></i></span>'
-    : '';
+  // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
+  const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
 
   const archivedLabel = session.archived
     ? '<span class="archived-label">(Archived)</span>'
@@ -32,12 +32,11 @@ export function renderSessionRowHTML(session, options = {}) {
     : '';
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}" data-id="${session.id}" data-project="${project}" draggable="true">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}" data-id="${session.id}" data-project="${project}" draggable="true">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
-        <span class="session-icon"><i data-lucide="terminal-square"></i></span>
+        <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
         <span class="session-name">${displayName}</span>
-        ${worktreeBadge}
         ${archivedLabel}
       </div>
       <div class="child-actions">
