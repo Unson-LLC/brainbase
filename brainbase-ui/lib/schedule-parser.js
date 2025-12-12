@@ -28,12 +28,19 @@ export class ScheduleParser {
         const lines = content.split('\n');
         const items = [];
         let inOhayoSection = false;
+        let currentSection = null;
 
         // Simple parsing logic - looks for time blocks like "09:00 - 10:00 Task"
         // Also prioritizes /ohayo section if present
         for (const line of lines) {
             if (line.includes('/ohayo')) {
                 inOhayoSection = true;
+                continue;
+            }
+
+            // Track section headers
+            if (line.startsWith('### ')) {
+                currentSection = line.replace('### ', '').trim();
                 continue;
             }
 
@@ -58,6 +65,34 @@ export class ScheduleParser {
                     start,
                     end: end || null,
                     task: task.trim(),
+                    isOhayo: inOhayoSection
+                });
+                continue;
+            }
+
+            // 作業可能時間 format: - 午前: 10:30 〜 12:00
+            const workTimeMatch = line.match(/^-\s*(午前|午後|夜)[:：]\s*(\d{1,2}:\d{2})\s*[〜～-]\s*(\d{1,2}:\d{2})/);
+            if (workTimeMatch && currentSection === '作業可能時間') {
+                const [_, period, start, end] = workTimeMatch;
+                items.push({
+                    start: start.padStart(5, '0'),
+                    end: end.padStart(5, '0'),
+                    task: `${period} 作業可能`,
+                    isWorkTime: true,
+                    isOhayo: inOhayoSection
+                });
+                continue;
+            }
+
+            // Priority tasks: - [ ] タスク名
+            const taskMatch = line.match(/^-\s*\[[ x]\]\s*(.+)$/);
+            if (taskMatch && currentSection?.includes('タスク')) {
+                const [_, taskName] = taskMatch;
+                items.push({
+                    start: null,
+                    end: null,
+                    task: taskName.trim(),
+                    isTask: true,
                     isOhayo: inOhayoSection
                 });
             }

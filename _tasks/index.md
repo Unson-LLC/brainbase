@@ -1,4 +1,76 @@
 ---
+task_id: T-2512-006
+source_id: SLACK-2025-12-11-MJ181TOH
+title: notion完成→Wordに転記
+project_id: ncom
+status: todo
+owner: k.​sato
+priority: high
+due: 2025-12-12
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C091KFKE3RS
+thread_ts: "1765444456.994779"
+created_at: "2025-12-11T09:14:22.721Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-11 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 明日までにnotionを完成させてWordに転記。特に以下を対応：(1)記載重複している部分の修正、(2)RDBに格納されているデータは○○、個人情報・機密情報ではない旨を明記（申請内容と合わせる）
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1765444456994779
+
+---
+task_id: T-2512-005
+source_id: SLACK-2025-12-11-MJ180SCG
+title: notion完成⇒Wordに転記
+project_id: ncom
+status: todo
+owner: k.​sato
+priority: high
+due: 2025-12-12
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C091KFKE3RS
+thread_ts: "1765444406.078259"
+created_at: "2025-12-11T09:13:34.336Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-11 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: notionを完成させWordに転記する。記載重複部分の修正、RDBに格納されているデータの明記（個人情報・機密情報ではない旨を申請内容と合わせて記載）を実施。
+- Slack: https://unson-inc.slack.com/archives/C091KFKE3RS/p1765444406078259
+
+---
+task_id: T-2512-004
+source_id: SLACK-2025-12-11-MJ112XUS
+title: Stripeアカウントの設定情報を埋める
+project_id: zeims
+status: todo
+owner: k.​sato
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C07QX6DN9M0
+thread_ts: "1765432748.808099"
+created_at: "2025-12-11T05:59:17.476Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-11 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: Stripeアカウントで一部設定が足りていない警告が出ているため、ログインして設定情報を埋める必要がある。太田さんからの依頼。
+- Slack: https://unson-inc.slack.com/archives/C07QX6DN9M0/p1765432748808099
+
+---
 task_id: T-2512-003
 source_id: SLACK-2025-12-10-MJ0IREQ3
 title: デモ動画の構成をまとめて仕上げる

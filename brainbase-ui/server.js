@@ -13,6 +13,7 @@ import { TaskParser } from './lib/task-parser.js';
 import { ScheduleParser } from './lib/schedule-parser.js';
 import { StateStore } from './lib/state-store.js';
 import { ConfigParser } from './lib/config-parser.js';
+import { InboxParser } from './lib/inbox-parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,12 +33,14 @@ const STATE_FILE = path.join(__dirname, 'state.json');
 const WORKTREES_DIR = path.join(__dirname, '../.worktrees');
 const CODEX_PATH = path.join(__dirname, '../_codex');
 const CONFIG_PATH = path.join(__dirname, '../config.yml');
+const INBOX_FILE = path.join(__dirname, '../_inbox/pending.md');
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
 const stateStore = new StateStore(STATE_FILE);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH);
+const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
 app.use(express.static('public'));
@@ -223,6 +226,37 @@ app.get('/api/config/github', async (req, res) => {
 app.get('/api/config/integrity', async (req, res) => {
     const result = await configParser.checkIntegrity();
     res.json(result);
+});
+
+// --- Inbox API ---
+
+// Get all pending inbox items
+app.get('/api/inbox/pending', async (req, res) => {
+    const items = await inboxParser.getPendingItems();
+    res.json(items);
+});
+
+// Get pending count
+app.get('/api/inbox/count', async (req, res) => {
+    const count = await inboxParser.getPendingCount();
+    res.json({ count });
+});
+
+// Mark single item as done
+app.post('/api/inbox/:id/done', async (req, res) => {
+    const { id } = req.params;
+    const success = await inboxParser.markAsDone(id);
+    if (success) {
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Item not found or already done' });
+    }
+});
+
+// Mark all items as done
+app.post('/api/inbox/mark-all-done', async (req, res) => {
+    const success = await inboxParser.markAllAsDone();
+    res.json({ success });
 });
 
 // Endpoint for hooks to report activity
