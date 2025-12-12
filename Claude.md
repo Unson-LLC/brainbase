@@ -62,6 +62,7 @@ worktreeでは以下が正本へのシンボリックリンクになる。編集
 | `/ohayo` | 朝のダッシュボード |
 | `/commit` | 標準コミット |
 | `/compact` | コンテキスト圧縮 |
+| `/ohayo`拡張予定 | Actionsヘルスチェックを追加予定（actions-healthcheck.yml連携） |
 
 ---
 最終更新: 2025-12-09
