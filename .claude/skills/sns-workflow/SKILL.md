@@ -56,7 +56,7 @@ SNS投稿に使用するスクリプトのパスと実行コマンドの正本�
 
 ## 画像保存先
 
-生成画像: `/Users/ksato/workspace/_codex/common/ops/_codex/sns/images/`
+生成画像: `/Users/ksato/workspace/_codex/sns/images/`
 
 ## 関連ファイル
 
