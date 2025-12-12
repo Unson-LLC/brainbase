@@ -15,11 +15,17 @@ export function renderSessionRowHTML(session, options = {}) {
   const { isActive = false, project = 'General' } = options;
   const displayName = session.name || session.id;
   const hasWorktree = !!session.worktree;
+  const engine = session.engine || 'claude';
   const activeClass = isActive ? ' active' : '';
   const archivedClass = session.archived ? ' archived' : '';
 
   const worktreeBadge = hasWorktree
     ? '<span class="worktree-badge" title="Has worktree"><i data-lucide="git-branch"></i></span>'
+    : '';
+
+  // Engine badge: codexの場合のみ表示（claudeはデフォルトなので省略）
+  const engineBadge = engine === 'codex'
+    ? '<span class="engine-badge engine-codex" title="OpenAI Codex">Codex</span>'
     : '';
 
   const archivedLabel = session.archived
@@ -32,11 +38,12 @@ export function renderSessionRowHTML(session, options = {}) {
     : '';
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}" data-id="${session.id}" data-project="${project}" draggable="true">
+    <div class="session-child-row${activeClass}${archivedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
         <span class="session-icon"><i data-lucide="terminal-square"></i></span>
         <span class="session-name">${displayName}</span>
+        ${engineBadge}
         ${worktreeBadge}
         ${archivedLabel}
       </div>
