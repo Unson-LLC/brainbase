@@ -3,6 +3,24 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-12-MJ2P3259
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1765533536.325369
+status: pending
+---
+
+### 18:58 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+ちょっとRAGWやばそうなので、もうすでにされているかもですが、マニュアル全部一回見ておきますね！
+
+現在開発側で対応してるかどうかは彼らに直接聞いてみます。役割分担だけ合ってるかどうかみていただけると！
+<https://unson.slack.com/archives/C091KFKE3RS/p1765517994108329?thread_ts=1765353712.956009&amp;cid=C091KFKE3RS>
+
+[Slack](https://unson-inc.slack.com/archives/C091KFKE3RS/p1765533536325369)
+
+---
 id: INBOX-2025-12-12-MJ2O211Z
 channel: 0120-ncom
 sender: 小川未来
