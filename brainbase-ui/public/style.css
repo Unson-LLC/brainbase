@@ -1381,6 +1381,27 @@ body {
     gap: 8px;
 }
 
+/* Focus Engine Modal */
+.engine-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.engine-select-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.engine-select-btn i {
+    width: 18px;
+    height: 18px;
+}
+
 .btn-primary, .btn-secondary {
     padding: 6px 16px;
     border-radius: 4px;

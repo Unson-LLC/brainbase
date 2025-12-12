@@ -57,6 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyTerminalModal = document.getElementById('copy-terminal-modal');
     const terminalContentDisplay = document.getElementById('terminal-content-display');
     const copyContentBtn = document.getElementById('copy-content-btn');
+    // Focus Engine Modal Elements
+    const focusEngineModal = document.getElementById('focus-engine-modal');
+    const focusEngineButtons = focusEngineModal?.querySelectorAll('.engine-select-btn');
+    const focusBtn = document.getElementById('focus-btn');
+    let pendingFocusTask = null;
 
     // Archive Modal
     const archiveModal = document.getElementById('archive-modal');
@@ -275,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const taskId = startBtn.dataset.id;
                 const task = tasks.find(t => t.id === taskId);
-                if (task) startTaskSession(task);
+                if (task) openFocusEngineModal(task);
             };
         }
         const completeBtn = focusTaskEl.querySelector('.focus-btn-complete');
@@ -378,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const taskId = btn.dataset.id;
                 const task = tasks.find(t => t.id === taskId);
-                if (task) startTaskSession(task);
+                if (task) openFocusEngineModal(task);
             };
         });
 
@@ -861,19 +866,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function startTaskSession(task) {
+    async function startTaskSession(task, engineOverride) {
         // Use imported getProjectPath and createSessionId
         const repoPath = getProjectPath(task.project);
         const sessionId = createSessionId('task', task.id);
         const name = `Task: ${task.name}`;
         const initialCommand = `/task ${task.id}`;
+        const engine = engineOverride || 'claude';
 
         try {
             // Try to create session with worktree first
             const res = await fetch('/api/sessions/create-with-worktree', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId, repoPath, name, initialCommand })
+                body: JSON.stringify({ sessionId, repoPath, name, initialCommand, engine })
             });
 
             if (res.ok) {
@@ -896,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fallbackRes = await fetch('/api/sessions/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, initialCommand, cwd: fallbackCwd })
+                    body: JSON.stringify({ sessionId, initialCommand, cwd: fallbackCwd, engine })
                 });
 
                 if (fallbackRes.ok) {
@@ -908,7 +914,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         name,
                         path: repoPath,
                         taskId: task.id,
-                        initialCommand
+                        initialCommand,
+                        engine
                     });
                     await addSession(newSession);
 
@@ -1009,6 +1016,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     addSessionBtn.addEventListener('click', () => createNewSession());
+
+    // Focus footer button -> open engine selector for current focus task
+    if (focusBtn) {
+        focusBtn.onclick = () => {
+            const focusTask = getFocusTask(tasks);
+            if (!focusTask) {
+                showInfo('フォーカスタスクがありません');
+                return;
+            }
+            openFocusEngineModal(focusTask);
+        };
+    }
+
+    function openFocusEngineModal(task) {
+        pendingFocusTask = task;
+        if (!focusEngineModal) return startTaskSession(task);
+        focusEngineModal.classList.add('active');
+        lucide.createIcons();
+    }
+
+    // Engine selection buttons inside modal
+    focusEngineButtons?.forEach(btn => {
+        btn.onclick = () => {
+            const engine = btn.dataset.engine || 'claude';
+            if (pendingFocusTask) startTaskSession(pendingFocusTask, engine);
+            focusEngineModal.classList.remove('active');
+            pendingFocusTask = null;
+        };
+    });
+
+    // Close modal via X or backdrop
+    focusEngineModal?.querySelectorAll('.close-modal-btn').forEach(btn => {
+        btn.onclick = () => {
+            focusEngineModal.classList.remove('active');
+            pendingFocusTask = null;
+        };
+    });
+    focusEngineModal?.addEventListener('click', (e) => {
+        if (e.target === focusEngineModal) {
+            focusEngineModal.classList.remove('active');
+            pendingFocusTask = null;
+        }
+    });
 
     // Archive Modal Handler
     if (toggleArchivedBtn) {
