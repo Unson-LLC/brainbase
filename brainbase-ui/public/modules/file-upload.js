@@ -61,6 +61,8 @@ function setupDragDropEvents() {
     document.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        // Safari requires explicitly setting dropEffect to allow file drops
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
     });
 
     document.addEventListener('dragleave', (e) => {
@@ -79,6 +81,12 @@ function setupDragDropEvents() {
         consoleArea?.classList.remove('dragging');
         dropOverlay?.classList.remove('active');
         dragCounter = 0;
+
+        // Fallback: handle drops even if overlay didn't activate (Safari)
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            handleFiles(files);
+        }
     });
 
     // Show overlay when dragging over console area
@@ -95,10 +103,31 @@ function setupDragDropEvents() {
         }
     });
 
+    // Allow dropping directly on console area (Safari may skip overlay)
+    consoleArea?.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+
+    consoleArea?.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter = 0;
+        consoleArea?.classList.remove('dragging');
+        dropOverlay?.classList.remove('active');
+
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            await handleFiles(files);
+        }
+    });
+
     // Handle drop on overlay
     dropOverlay?.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
     });
 
     dropOverlay?.addEventListener('drop', async (e) => {
