@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-011
+source_id: SLACK-2025-12-13-MJ4WDN2U
+title: mana機能テストのレポートをまとめる
+project_id: general
+status: todo
+owner: k.​sato
+priority: medium
+due: 2025-12-20
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0A2L9FEKEJ
+thread_ts: "1765666717.074099"
+created_at: "2025-12-13T22:58:43.350Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-13 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 機能テスト5: mana機能テストのレポートをまとめる作業。12/20が期限。
+- Slack: https://unson.slack.com/archives/C0A2L9FEKEJ/p1765666717074099?thread_ts=1765666717.074099&cid=C0A2L9FEKEJ
+
+---
 task_id: T-2512-010
 source_id: SLACK-2025-12-13-MJ4UYMVN
 title: テスト用ダミータスクを登録
