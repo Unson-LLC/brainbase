@@ -60,45 +60,6 @@ jobs:
             core.setOutput('issues', JSON.stringify(issues));
             core.setOutput('runner_alerts', JSON.stringify(runnerAlerts));
 
-      - name: Notify Slack on issues
-        if: steps.check.outputs.has_issues == 'true'
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-          ISSUES: ${{ steps.check.outputs.issues }}
-          RUNNER_ALERTS: ${{ steps.check.outputs.runner_alerts }}
-        run: |
-          format_list() {
-            python3 - <<'PY' <<< "$1"
-import json, sys
-raw = sys.stdin.read()
-items = json.loads(raw) if raw.strip() else []
-for i in items:
-    if 'runId' in i:
-        print(f"• {i['repo']}: {i['workflow']} ({i['conclusion']}) -> {i['html_url']}")
-    else:
-        print(f"• {i['repo']}: runner {i['name']} is {i['status']}")
-PY
-          }
-
-          failed=$(format_list "$ISSUES")
-          runners=$(format_list "$RUNNER_ALERTS")
-          text="[Actions Healthcheck]\n"
-          [ -n "$failed" ] && text+="❌ Failed workflows (24h):\n$failed\n"
-          [ -n "$runners" ] && text+="⚠️ Offline self-hosted runners:\n$runners\n"
-
-          if [ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_CHANNEL_ID" ]; then
-            curl -sS -X POST https://slack.com/api/chat.postMessage \
-              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-              -H 'Content-type: application/json; charset=utf-8' \
-              --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$text" '{channel:$channel,text:$text}')"
-          elif [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -sS -X POST -H 'Content-type: application/json' --data "$(jq -Rn --arg t "$text" '{text: $t}')" "$SLACK_WEBHOOK_URL"
-          else
-            echo "No Slack token/channel or webhook configured; skipping notification."
-          fi
-
       - name: No issues found
         if: steps.check.outputs.has_issues != 'true'
         run: echo "No failures or offline runners in the last ${MAX_AGE_HOURS}h."
