@@ -11,7 +11,7 @@ projects:
         - "drive/**/*"
     github:
       owner: Unson-LLC
-      repo: salestailor-project
+      repo: salestailor
       branch: main
     airtable:
       base_id: app8uhkD8PcnxPvVx
@@ -149,12 +149,20 @@ projects:
 
   - id: dialogai
     # ncom配下のサブプロジェクト。_codex/projects/ncom/dialogai/を参照
+    github:
+      owner: Unson-LLC
+      repo: dialog_ai
+      branch: main
     airtable:
       base_id: appLXuHKJGitc6CGd
       base_name: DialogAI
 
   - id: eve-topi
     # イベント管理PF（Tech Knight配下）。_codex/projects/techknight/eve-topi/を参照
+    github:
+      owner: Tech-Knight-inc
+      repo: eve-topi
+      branch: main
     airtable:
       base_id: appsticSxr1PQsZam
       base_name: eve-topi
@@ -167,6 +175,10 @@ projects:
 
   - id: smartfront
     # Smart Front（Tech Knight配下）。_codex/projects/techknight/smartfront/を参照
+    github:
+      owner: Tech-Knight-inc
+      repo: smartfront
+      branch: main
     airtable:
       base_id: appXLSkrAKrykJJQm
       base_name: Smart Front
@@ -184,7 +196,7 @@ projects:
     # Aitle（Tech Knight配下）。_codex/projects/techknight/aitle/を参照
     github:
       owner: Tech-Knight-inc
-      repo: tech-knight-project
+      repo: Aitle
       branch: main
     airtable:
       base_id: appvZv4ybVDsBXtvC
@@ -195,12 +207,20 @@ projects:
 
   - id: mywa
     # MyWaプロジェクト。_codex/projects/mywa/を参照
+    github:
+      owner: Unson-LLC
+      repo: MyWa
+      branch: main
     airtable:
       base_id: appJeMbMQcz507E9g
       base_name: Mywa
 
   - id: unson-os
     # UNSON OSプロジェクト。_codex/projects/unson-os/を参照
+    github:
+      owner: Unson-LLC
+      repo: unson_os
+      branch: main
 
   - id: unson-board
     # UNSON取締役会
