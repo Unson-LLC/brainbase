@@ -64,6 +64,9 @@ projects:
       owner: Unson-LLC
       repo: baao-project
       branch: main
+    airtable:
+      base_id: appCysQGZowfOd58i
+      base_name: BAAO
 
   - id: unson
     emoji: "🏢"
@@ -92,6 +95,9 @@ projects:
       owner: Unson-LLC
       repo: ncom-catalyst
       branch: main
+    airtable:
+      base_id: appQwscGj355IMsfS
+      base_name: NCOM
 
   - id: ai-wolf
     emoji: "🐺"
@@ -177,7 +183,7 @@ projects:
       repo: eve-topi
       branch: main
     airtable:
-      base_id: appsticSxr1PQsZam
+      base_id: appXLSkrAKrykJJQm
       base_name: eve-topi
 
   - id: hp_sales
@@ -195,8 +201,8 @@ projects:
       repo: smartfront
       branch: main
     airtable:
-      base_id: appXLSkrAKrykJJQm
-      base_name: Smart Front
+      base_id: appsticSxr1PQsZam
+      base_name: SmartFront
 
   - id: notionconnect
     emoji: "📝"
@@ -255,6 +261,9 @@ projects:
   - id: back-office
     emoji: "🗂️"
     # バックオフィス運用
+    airtable:
+      base_id: appxybW7Hn5qjaIwP
+      base_name: BackOffice
 
   - id: yakumokai
     emoji: "☁️"
