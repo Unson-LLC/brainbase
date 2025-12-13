@@ -1165,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 復元後、アーカイブモーダルを閉じてセッションを自動で開く
             if (restoredSession) {
-                archiveModal.style.display = 'none';
+                archiveModal.classList.remove('active');
                 switchSession(sessionId, restoredSession.path, restoredSession.initialCommand);
             }
         } catch (err) {
