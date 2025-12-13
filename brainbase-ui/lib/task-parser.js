@@ -67,7 +67,7 @@ export class TaskParser {
                         if (key.trim() === 'priority') task.priority = value;
                         if (key.trim() === 'due') task.due = value === 'null' ? null : value;
                         if (key.trim() === 'project_id') task.project = value;
-                        if (key.trim() === 'id') {
+                        if (key.trim() === 'id' || key.trim() === 'task_id') {
                             task.id = value;
                             isTaskBlock = true;
                         }
@@ -200,8 +200,8 @@ export class TaskParser {
                 const newBlocks = blocks.map(block => {
                     if (!block.trim()) return block;
 
-                    // Check if this block has the target ID
-                    if (block.includes(`id: ${taskId}`)) {
+                    // Check if this block has the target ID (supports both id: and task_id:)
+                    if (block.includes(`id: ${taskId}`) || block.includes(`task_id: ${taskId}`)) {
                         updated = true;
                         let newBlock = block;
 
@@ -248,10 +248,10 @@ export class TaskParser {
                 const content = await fs.readFile(this.tasksFilePath, 'utf-8');
                 const blocks = content.split(/^---$/gm);
 
-                // Filter out the block with the matching ID
+                // Filter out the block with the matching ID (supports both id: and task_id:)
                 const newBlocks = blocks.filter(block => {
                     if (!block.trim()) return true; // Keep empty blocks (separators) if needed, but split creates them
-                    return !block.includes(`id: ${taskId}`);
+                    return !block.includes(`id: ${taskId}`) && !block.includes(`task_id: ${taskId}`);
                 });
 
                 if (newBlocks.length < blocks.length) {
