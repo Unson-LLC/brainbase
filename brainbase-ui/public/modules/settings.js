@@ -8,6 +8,7 @@
 // --- Module State ---
 let configData = null;
 let integrityData = null;
+let unifiedData = null;
 
 // --- DOM Elements (initialized in init) ---
 let settingsBtn = null;
@@ -20,15 +21,18 @@ let settingsPanels = null;
 // --- Data Loading ---
 async function loadConfigData() {
     try {
-        const [configRes, integrityRes] = await Promise.all([
+        const [configRes, integrityRes, unifiedRes] = await Promise.all([
             fetch('/api/config'),
-            fetch('/api/config/integrity')
+            fetch('/api/config/integrity'),
+            fetch('/api/config/unified')
         ]);
 
         configData = await configRes.json();
         integrityData = await integrityRes.json();
+        unifiedData = await unifiedRes.json();
 
         renderIntegritySummary();
+        renderUnifiedView();
         renderWorkspaces();
         renderChannels();
         renderMembers();
@@ -103,6 +107,130 @@ function renderIntegritySummary() {
                 `).join('')}
             </div>
         `;
+    }
+
+    container.innerHTML = html;
+}
+
+function renderUnifiedView() {
+    const container = document.getElementById('unified-view');
+    if (!unifiedData) {
+        container.innerHTML = '<div class="config-empty">Failed to load unified data</div>';
+        return;
+    }
+
+    const { workspaces, orphanedChannels, orphanedProjects } = unifiedData;
+
+    if (!workspaces || workspaces.length === 0) {
+        container.innerHTML = '<div class="config-empty">No workspaces found</div>';
+        return;
+    }
+
+    let html = '';
+
+    // Render each workspace section
+    for (const ws of workspaces) {
+        html += `
+            <div class="unified-workspace" data-workspace="${ws.key}">
+                <h3 class="workspace-header">
+                    <span class="workspace-name">${ws.name}</span>
+                    <span class="workspace-id mono">${ws.id || '-'}</span>
+                </h3>
+        `;
+
+        if (ws.projects.length === 0) {
+            html += '<div class="config-empty">No projects in this workspace</div>';
+        } else {
+            html += `
+                <table class="config-table unified-table">
+                    <thead>
+                        <tr>
+                            <th>Project</th>
+                            <th>Slack Channels</th>
+                            <th>GitHub</th>
+                            <th>Airtable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const proj of ws.projects) {
+                const hasGithub = !!proj.github;
+                const hasAirtable = !!proj.airtable;
+                const warningClass = (!hasGithub || !hasAirtable) ? 'warning-row' : '';
+
+                html += `
+                    <tr data-project="${proj.id}" class="${warningClass}">
+                        <td><span class="badge badge-project">${proj.id}</span></td>
+                        <td>
+                            ${proj.channels.length > 0
+                                ? proj.channels.slice(0, 3).map(ch =>
+                                    `<span class="channel-tag" title="${ch.type}">#${ch.name}</span>`
+                                ).join(' ')
+                                : '<span class="status-missing">-</span>'
+                            }
+                            ${proj.channels.length > 3 ? `<span class="channel-count">+${proj.channels.length - 3}</span>` : ''}
+                        </td>
+                        <td class="${!hasGithub ? 'missing' : ''}">
+                            ${hasGithub
+                                ? `<a href="${proj.github.url}" target="_blank" class="config-link">${proj.github.owner}/${proj.github.repo}</a>
+                                   ${proj.github.paths && proj.github.paths.length > 0
+                                       ? `<span class="paths-hint">[${proj.github.paths.slice(0, 2).join(', ')}${proj.github.paths.length > 2 ? '...' : ''}]</span>`
+                                       : ''
+                                   }`
+                                : '<span class="status-missing">❌ 未設定</span>'
+                            }
+                        </td>
+                        <td class="${!hasAirtable ? 'missing' : ''}">
+                            ${hasAirtable
+                                ? `<a href="${proj.airtable.url}" target="_blank" class="config-link">${proj.airtable.base_name}</a>`
+                                : '<span class="status-missing">❌ 未設定</span>'
+                            }
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += '</tbody></table>';
+        }
+
+        html += '</div>';
+    }
+
+    // Orphaned items section
+    if ((orphanedProjects && orphanedProjects.length > 0) || (orphanedChannels && orphanedChannels.length > 0)) {
+        html += `
+            <div class="unified-orphans">
+                <h3 class="orphans-header">⚠️ Orphaned Items</h3>
+        `;
+
+        if (orphanedProjects && orphanedProjects.length > 0) {
+            html += `
+                <div class="orphan-section">
+                    <h4>Unassigned Projects</h4>
+                    <ul>
+                        ${orphanedProjects.map(p =>
+                            `<li><span class="badge badge-project">${p.id}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, Airtable: ${p.hasAirtable ? '✅' : '❌'}, Channels: ${p.channelCount})</li>`
+                        ).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        if (orphanedChannels && orphanedChannels.length > 0) {
+            html += `
+                <div class="orphan-section">
+                    <h4>Unmapped Channels</h4>
+                    <ul>
+                        ${orphanedChannels.map(ch =>
+                            `<li>#${ch.name} (${ch.workspace}) → ${ch.project_id || 'no project'}</li>`
+                        ).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        html += '</div>';
     }
 
     container.innerHTML = html;
