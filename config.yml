@@ -2,6 +2,7 @@ root: /Users/ksato/workspace
 
 projects:
   - id: salestailor
+    emoji: "✉️"
     local:
       path: salestailor
       glob_include:
@@ -18,6 +19,7 @@ projects:
       base_name: SalesTailor
 
   - id: zeims
+    emoji: "🤖"
     local:
       path: zeims
       glob_include:
@@ -35,6 +37,7 @@ projects:
       base_name: Zeims
 
   - id: tech-knight
+    emoji: "⚔️"
     local:
       path: tech-knight
       glob_include:
@@ -49,6 +52,7 @@ projects:
       branch: main
 
   - id: baao
+    emoji: "🎓"
     local:
       path: baao
       glob_include:
@@ -62,6 +66,7 @@ projects:
       branch: main
 
   - id: unson
+    emoji: "🏢"
     local:
       path: unson
       glob_include:
@@ -76,6 +81,7 @@ projects:
       branch: main
 
   - id: ncom
+    emoji: "📡"
     local:
       path: ncom-catalyst
       glob_include:
@@ -88,6 +94,7 @@ projects:
       branch: main
 
   - id: ai-wolf
+    emoji: "🐺"
     local:
       path: personal/ai-wolf
       glob_include:
@@ -95,6 +102,7 @@ projects:
     # github: なし（個人プロジェクト）
 
   - id: sato-portfolio
+    emoji: "👤"
     local:
       path: personal/sato-portfolio
       glob_include:
@@ -105,6 +113,7 @@ projects:
       branch: main
 
   - id: senrigan
+    emoji: "👁️"
     local:
       path: senrigan
       glob_include:
@@ -123,6 +132,7 @@ projects:
       base_name: Senrigan
 
   - id: brainbase
+    emoji: "🧠"
     local:
       path: brainbase
       glob_include:
@@ -135,6 +145,7 @@ projects:
       branch: main
 
   - id: mana
+    emoji: "🌸"
     local:
       path: mana
       glob_include:
@@ -148,6 +159,7 @@ projects:
   # --- Slackマッピング専用プロジェクト（ローカルパス・GitHubなし） ---
 
   - id: dialogai
+    emoji: "💬"
     # ncom配下のサブプロジェクト。_codex/projects/ncom/dialogai/を参照
     github:
       owner: Unson-LLC
@@ -158,6 +170,7 @@ projects:
       base_name: DialogAI
 
   - id: eve-topi
+    emoji: "🎪"
     # イベント管理PF（Tech Knight配下）。_codex/projects/techknight/eve-topi/を参照
     github:
       owner: Tech-Knight-inc
@@ -168,12 +181,14 @@ projects:
       base_name: eve-topi
 
   - id: hp_sales
+    emoji: "🏥"
     # Aitle HPライン（Tech Knight配下）。_codex/projects/techknight/hp_sales/を参照
     airtable:
       base_id: appXvthGPhEO1ZEOv
       base_name: HP Sales
 
   - id: smartfront
+    emoji: "📞"
     # Smart Front（Tech Knight配下）。_codex/projects/techknight/smartfront/を参照
     github:
       owner: Tech-Knight-inc
@@ -184,15 +199,22 @@ projects:
       base_name: Smart Front
 
   - id: notionconnect
+    emoji: "📝"
+    archived: true
     # Notion連携プロジェクト
 
   - id: emporio
+    emoji: "🛒"
+    archived: true
     # Emporioプロジェクト
 
   - id: toranomon
+    emoji: "🏛️"
+    archived: true
     # 虎ノ門セミナー
 
   - id: aitle
+    emoji: "🤖"
     # Aitle（Tech Knight配下）。_codex/projects/techknight/aitle/を参照
     github:
       owner: Tech-Knight-inc
@@ -203,9 +225,12 @@ projects:
       base_name: Aitle
 
   - id: postio
+    emoji: "📮"
+    archived: true
     # Postioプロジェクト
 
   - id: mywa
+    emoji: "🧘"
     # MyWaプロジェクト。_codex/projects/mywa/を参照
     github:
       owner: Unson-LLC
@@ -216,6 +241,7 @@ projects:
       base_name: Mywa
 
   - id: unson-os
+    emoji: "⚙️"
     # UNSON OSプロジェクト。_codex/projects/unson-os/を参照
     github:
       owner: Unson-LLC
@@ -223,13 +249,18 @@ projects:
       branch: main
 
   - id: unson-board
+    emoji: "📊"
     # UNSON取締役会
 
   - id: back-office
+    emoji: "🗂️"
     # バックオフィス運用
 
   - id: yakumokai
+    emoji: "☁️"
+    archived: true
     # 八雲会コミュニティ
 
   - id: other
+    emoji: "📁"
     # 汎用/その他チャンネル用のダミープロジェクト（Slack proj_other 用）
