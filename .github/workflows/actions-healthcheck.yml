@@ -34,14 +34,12 @@ jobs:
 
             for (const repo of repos) {
               const [owner, name] = repo.split('/');
-              // 1) 直近失敗ラン検出
+              // 1) 直近の失敗取得
               const runs = await github.paginate(
                 github.rest.actions.listWorkflowRunsForRepo,
                 { owner, repo: name, per_page: 50, status: 'completed', exclude_pull_requests: true }
               );
-              const recentFailed = runs.find(
-                (r) => r.conclusion !== 'success' && now - new Date(r.created_at).getTime() <= maxAgeMs
-              );
+              const recentFailed = runs.find(r => r.conclusion !== 'success' && (now - new Date(r.created_at).getTime()) <= maxAgeMs);
               if (recentFailed) {
                 issues.push({
                   repo,
@@ -49,19 +47,16 @@ jobs:
                   runId: recentFailed.id,
                   html_url: recentFailed.html_url,
                   conclusion: recentFailed.conclusion,
-                  created_at: recentFailed.created_at,
+                  created_at: recentFailed.created_at
                 });
               }
 
               // 2) self-hosted runner オフライン検知
-              const runners = await github.paginate(
-                github.rest.actions.listSelfHostedRunnersForRepo,
-                { owner, repo: name, per_page: 50 }
-              );
+              const runners = await github.paginate(github.rest.actions.listSelfHostedRunnersForRepo, { owner, repo: name, per_page: 50 });
               runners
-                .filter((r) => r.labels.some((l) => l.name === 'self-hosted'))
-                .filter((r) => r.status !== 'online')
-                .forEach((r) => runnerAlerts.push({ repo, name: r.name, status: r.status }));
+                .filter(r => r.labels.some(l => l.name === 'self-hosted'))
+                .filter(r => r.status !== 'online')
+                .forEach(r => runnerAlerts.push({ repo, name: r.name, status: r.status }));
             }
 
             core.setOutput('has_issues', issues.length > 0 || runnerAlerts.length > 0 ? 'true' : 'false');
@@ -72,8 +67,8 @@ jobs:
         if: steps.check.outputs.has_issues == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}      # mana Botトークンを流用可能
-          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}    # DMならユーザーID、チャンネルならCで始まるID
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           ISSUES: ${{ steps.check.outputs.issues }}
           RUNNER_ALERTS: ${{ steps.check.outputs.runner_alerts }}
         run: |
@@ -102,8 +97,7 @@ PY
               -H 'Content-type: application/json; charset=utf-8' \
               --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$text" '{channel:$channel,text:$text}')"
           elif [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -sS -X POST -H 'Content-type: application/json' \
-              --data "$(jq -Rn --arg t "$text" '{text: $t}')" "$SLACK_WEBHOOK_URL"
+            curl -sS -X POST -H 'Content-type: application/json' --data "$(jq -Rn --arg t "$text" '{text: $t}')" "$SLACK_WEBHOOK_URL"
           else
             echo "No Slack token/channel or webhook configured; skipping notification."
           fi
@@ -111,4 +105,3 @@ PY
       - name: No issues found
         if: steps.check.outputs.has_issues != 'true'
         run: echo "No failures or offline runners in the last ${MAX_AGE_HOURS}h."
-
