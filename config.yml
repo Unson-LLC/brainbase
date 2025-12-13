@@ -210,3 +210,6 @@ projects:
 
   - id: yakumokai
     # 八雲会コミュニティ
+
+  - id: other
+    # 汎用/その他チャンネル用のダミープロジェクト（Slack proj_other 用）
