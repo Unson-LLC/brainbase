@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0,30 0-14 * * *'  # JST 09:00-23:00
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   healthcheck:
     runs-on: ubuntu-latest
