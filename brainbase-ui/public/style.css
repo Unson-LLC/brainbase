@@ -2334,7 +2334,9 @@ body {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        overflow: hidden;
+        overflow: visible;
+        /* Allow touch events to pass through to iframe */
+        touch-action: manipulation;
     }
 
     /* Terminal iframe - full width, proper sizing for xterm fit */
@@ -2343,6 +2345,9 @@ body {
         max-width: 100%;
         height: calc(100vh - 56px); /* Full height minus bottom nav */
         border: none;
+        /* Enable pointer events for touch scrolling inside iframe */
+        pointer-events: auto;
+        touch-action: auto;
     }
 
     /* Ensure main content doesn't overflow */

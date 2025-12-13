@@ -636,6 +636,7 @@ app.post('/api/sessions/start', async (req, res) => {
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
             '-t', 'scrollback=5000',        // Larger scrollback buffer
+            '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             '-I', customIndexPath, // Use custom index
             'bash',
             scriptPath,
@@ -806,6 +807,7 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
             '-t', 'enableClipboard=true',
             '-t', 'fontSize=14',            // Readable font size for mobile
             '-t', 'scrollback=5000',        // Larger scrollback buffer
+            '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             '-I', customIndexPath,
             'bash',
             scriptPath,
