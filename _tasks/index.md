@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-010
+source_id: SLACK-2025-12-13-MJ4UYMVN
+title: テスト用ダミータスクを登録
+project_id: general
+status: todo
+owner: k.​sato
+priority: low
+due: 2025-12-20
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0A2L9FEKEJ
+thread_ts: "1765664338.746509"
+created_at: "2025-12-13T22:19:03.635Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-13 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 機能テスト4: テスト用ダミータスクを登録（12/20まで）
+- Slack: https://unson.slack.com/archives/C0A2L9FEKEJ/p1765664338746509?thread_ts=1765664338.746509&cid=C0A2L9FEKEJ
+
+---
 task_id: T-2512-009
 source_id: SLACK-2025-12-13-MJ3TUPSX
 title: Airtableコメント通知機能を設定
