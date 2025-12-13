@@ -1299,4 +1299,105 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Settings View - moved to modules/settings.js
+
+    // --- Mobile Bottom Sheet Logic ---
+    const mobileSessionsBtn = document.getElementById('mobile-sessions-btn');
+    const mobileTasksBtn = document.getElementById('mobile-tasks-btn');
+    const sessionsSheetOverlay = document.getElementById('sessions-sheet-overlay');
+    const tasksSheetOverlay = document.getElementById('tasks-sheet-overlay');
+    const sessionsBottomSheet = document.getElementById('sessions-bottom-sheet');
+    const tasksBottomSheet = document.getElementById('tasks-bottom-sheet');
+    const closeSessionsSheetBtn = document.getElementById('close-sessions-sheet');
+    const closeTasksSheetBtn = document.getElementById('close-tasks-sheet');
+    const mobileSessionList = document.getElementById('mobile-session-list');
+    const mobileTasksContent = document.getElementById('mobile-tasks-content');
+
+    function openSessionsSheet() {
+        // Clone session list content for mobile
+        const sessionListContent = sessionList?.innerHTML || '';
+        if (mobileSessionList) {
+            mobileSessionList.innerHTML = sessionListContent;
+            // Re-attach click handlers for mobile session items
+            mobileSessionList.querySelectorAll('.session-child-row').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    if (e.target.closest('button')) return;
+                    const id = row.dataset.id;
+                    const path = row.dataset.path;
+                    const initialCommand = row.dataset.initialCommand;
+                    switchSession(id, path, initialCommand);
+                    closeSessionsSheet();
+                });
+            });
+        }
+        sessionsSheetOverlay?.classList.add('active');
+        sessionsBottomSheet?.classList.add('active');
+        lucide.createIcons();
+    }
+
+    function closeSessionsSheet() {
+        sessionsSheetOverlay?.classList.remove('active');
+        sessionsBottomSheet?.classList.remove('active');
+    }
+
+    function openTasksSheet() {
+        // Clone context sidebar content for mobile
+        const contextSidebar = document.getElementById('context-sidebar');
+        if (mobileTasksContent && contextSidebar) {
+            mobileTasksContent.innerHTML = contextSidebar.innerHTML;
+            // Re-attach click handlers for task items
+            mobileTasksContent.querySelectorAll('.next-task-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const taskItem = checkbox.closest('.next-task-item');
+                    const taskId = taskItem?.dataset.taskId;
+                    if (taskId) {
+                        await completeTask(taskId);
+                        loadTasks();
+                        closeTasksSheet();
+                    }
+                });
+            });
+        }
+        tasksSheetOverlay?.classList.add('active');
+        tasksBottomSheet?.classList.add('active');
+        lucide.createIcons();
+    }
+
+    function closeTasksSheet() {
+        tasksSheetOverlay?.classList.remove('active');
+        tasksBottomSheet?.classList.remove('active');
+    }
+
+    // Event listeners for mobile navigation
+    mobileSessionsBtn?.addEventListener('click', openSessionsSheet);
+    mobileTasksBtn?.addEventListener('click', openTasksSheet);
+    closeSessionsSheetBtn?.addEventListener('click', closeSessionsSheet);
+    closeTasksSheetBtn?.addEventListener('click', closeTasksSheet);
+    sessionsSheetOverlay?.addEventListener('click', closeSessionsSheet);
+    tasksSheetOverlay?.addEventListener('click', closeTasksSheet);
+
+    // Close sheets on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (sessionsBottomSheet?.classList.contains('active')) closeSessionsSheet();
+            if (tasksBottomSheet?.classList.contains('active')) closeTasksSheet();
+        }
+    });
+
+    // Swipe down to close bottom sheets
+    let touchStartY = 0;
+    [sessionsBottomSheet, tasksBottomSheet].forEach(sheet => {
+        sheet?.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        sheet?.addEventListener('touchmove', (e) => {
+            const touchY = e.touches[0].clientY;
+            const diff = touchY - touchStartY;
+            if (diff > 100) {
+                if (sheet === sessionsBottomSheet) closeSessionsSheet();
+                if (sheet === tasksBottomSheet) closeTasksSheet();
+            }
+        }, { passive: true });
+    });
 });
