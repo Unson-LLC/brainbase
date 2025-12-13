@@ -17,7 +17,7 @@ jobs:
         sintariran/brainbase
       MAX_AGE_HOURS: "24"
     steps:
-      - name: Check workflows and runners
+      - name: Check workflows (failures only)
         id: check
         uses: actions/github-script@v7
         with:
@@ -28,7 +28,6 @@ jobs:
             const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
             const now = Date.now();
             const issues = [];
-            const runnerAlerts = [];
 
             for (const repo of repos) {
               const [owner, name] = repo.split('/');
@@ -44,27 +43,16 @@ jobs:
                 issues.push({
                   repo,
                   workflow: recentFailed.name,
-                  runId: recentFailed.id,
                   html_url: recentFailed.html_url,
                   conclusion: recentFailed.conclusion,
                   created_at: recentFailed.created_at,
                 });
               }
-
-              const runners = await github.paginate(
-                github.rest.actions.listSelfHostedRunnersForRepo,
-                { owner, repo: name, per_page: 50 }
-              );
-              runners
-                .filter((r) => r.labels.some((l) => l.name === 'self-hosted'))
-                .filter((r) => r.status !== 'online')
-                .forEach((r) => runnerAlerts.push({ repo, name: r.name, status: r.status }));
             }
 
-            core.setOutput('has_issues', issues.length > 0 || runnerAlerts.length > 0 ? 'true' : 'false');
+            core.setOutput('has_issues', issues.length > 0 ? 'true' : 'false');
             core.setOutput('issues', JSON.stringify(issues));
-            core.setOutput('runner_alerts', JSON.stringify(runnerAlerts));
 
       - name: No issues found
         if: steps.check.outputs.has_issues != 'true'
-        run: echo "No failures or offline runners in the last ${MAX_AGE_HOURS}h."
+        run: echo "No failed workflows in the last ${MAX_AGE_HOURS}h."
