@@ -10,7 +10,6 @@ jobs:
   healthcheck:
     runs-on: ubuntu-latest
     env:
-      # 監視対象リポジトリ（owner/repo 形式）
       REPOS: |
         sintariran/brainbase
         Unson-LLC/Drive
@@ -23,7 +22,7 @@ jobs:
         id: check
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.ACTIONS_MONITOR_PAT }}
+          github-token: ${{ secrets.ACTIONS_MONITOR_PAT || github.token }}
           script: |
             const repos = process.env.REPOS.trim().split(/\s+/);
             const maxAgeHours = Number(process.env.MAX_AGE_HOURS || 24);
@@ -34,7 +33,6 @@ jobs:
 
             for (const repo of repos) {
               const [owner, name] = repo.split('/');
-              // 1) 直近の失敗取得
               const runs = await github.paginate(
                 github.rest.actions.listWorkflowRunsForRepo,
                 { owner, repo: name, per_page: 50, status: 'completed', exclude_pull_requests: true }
@@ -51,7 +49,6 @@ jobs:
                 });
               }
 
-              // 2) self-hosted runner オフライン検知
               const runners = await github.paginate(github.rest.actions.listSelfHostedRunnersForRepo, { owner, repo: name, per_page: 50 });
               runners
                 .filter(r => r.labels.some(l => l.name === 'self-hosted'))
@@ -73,7 +70,7 @@ jobs:
           RUNNER_ALERTS: ${{ steps.check.outputs.runner_alerts }}
         run: |
           format_list() {
-            python - <<'PY' <<< "$1"
+            python3 - <<'PY' <<< "$1"
 import json, sys
 raw = sys.stdin.read()
 items = json.loads(raw) if raw.strip() else []
