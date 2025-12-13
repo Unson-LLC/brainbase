@@ -16,17 +16,13 @@ jobs:
     env:
       REPOS: |
         sintariran/brainbase
-        Unson-LLC/Drive
-        Unson-LLC/zeims-project
-        Unson-LLC/salestailor-project
-        Tech-Knight-inc/tech-knight-project
       MAX_AGE_HOURS: "24"
     steps:
       - name: Check workflows and runners
         id: check
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.ACTIONS_MONITOR_PAT }}
+          github-token: ${{ secrets.ACTIONS_MONITOR_PAT || github.token }}
           script: |
             const repos = process.env.REPOS.trim().split(/\s+/);
             const maxAgeHours = Number(process.env.MAX_AGE_HOURS || 24);
