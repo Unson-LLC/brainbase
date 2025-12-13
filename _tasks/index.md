@@ -1,4 +1,76 @@
 ---
+task_id: T-2512-009
+source_id: SLACK-2025-12-13-MJ3TUPSX
+title: Airtableコメント通知機能を設定
+project_id: general
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08SX913NER
+thread_ts: "1765602006.481219"
+created_at: "2025-12-13T05:00:15.009Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-13 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: Airtableのタスクにコメントが書き込まれた際にSlackへ通知する機能を設定する。Airtable Automationsを使用する方法が推奨されている（When record is updated → コメントフィールド変更 → Slack通知）。佐藤圭吾が「いけそうですね 設定しときます」と対応を表明。
+- Slack: https://salestailor.slack.com/archives/C08SX913NER/p1765602006481219?thread_ts=1765599329.019109&cid=C08SX913NER
+
+---
+task_id: T-2512-008
+source_id: SLACK-2025-12-13-MJ3RNYP5
+title: ZeimsリポジトリにGemini GitHub連携を設定
+project_id: zeims
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C07QX6DN9M0
+thread_ts: "1765598332.139369"
+created_at: "2025-12-13T03:59:00.713Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-13 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: Gemini GitHubをzeimsで使えるように設定する。info@unson.jpのアカウントを使用。GitHubリポジトリのオーナー権限が必要なため佐藤が対応。太田より使い勝手が良いとのフィードバックあり。
+- Slack: https://unson.slack.com/archives/C07QX6DN9M0/p1765598332139369?thread_ts=1765582766.259189&cid=C07QX6DN9M0
+
+---
+task_id: T-2512-007
+source_id: SLACK-2025-12-13-MJ3RNXF2
+title: ZeimsリポジトリにGemini GitHub連携を設定
+project_id: zeims
+status: todo
+owner: 佐藤-圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C07QX6DN9M0
+thread_ts: "1765598332.139369"
+created_at: "2025-12-13T03:58:59.054Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-13 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤 圭吾
+- 背景: Gemini Code Assist (https://github.com/apps/gemini-code-assist) をZeimsで使えるように設定する。info@unson.jpのGoogleアカウントを使用。GitHubリポジトリのオーナー権限が必要なため佐藤が対応。参考資料: https://qiita.com/nero-15/items/6657f6308bb47f2e3e48
+- Slack: https://unson.slack.com/archives/C07QX6DN9M0/p1765598332139369?thread_ts=1765582766.259189&cid=C07QX6DN9M0
+
+---
 task_id: T-2512-006
 source_id: SLACK-2025-12-11-MJ181TOH
 title: notion完成→Wordに転記
