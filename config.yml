@@ -258,7 +258,6 @@ projects:
 
   - id: yakumokai
     emoji: "☁️"
-    archived: true
     # 八雲会コミュニティ
 
   - id: other
