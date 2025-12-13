@@ -189,6 +189,10 @@ projects:
   - id: hp_sales
     emoji: "🏥"
     # Aitle HPライン（Tech Knight配下）。_codex/projects/techknight/hp_sales/を参照
+    github:
+      owner: Tech-Knight-inc
+      repo: hotel-hp-template
+      branch: main
     airtable:
       base_id: appXvthGPhEO1ZEOv
       base_name: HP Sales
@@ -261,6 +265,10 @@ projects:
   - id: back-office
     emoji: "🗂️"
     # バックオフィス運用
+    github:
+      owner: Unson-LLC
+      repo: back_office
+      branch: main
     airtable:
       base_id: appxybW7Hn5qjaIwP
       base_name: BackOffice
