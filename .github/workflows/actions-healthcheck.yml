@@ -1,10 +1,10 @@
 name: Actions Healthcheck
 
 on:
+  workflow_dispatch:
   schedule:
     # JST 09:00-23:00 を30分間隔（UTC 00-14時）で監視
     - cron: '0,30 0-14 * * *'
-  workflow_dispatch:
 
 jobs:
   healthcheck:
