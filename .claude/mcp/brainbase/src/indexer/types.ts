@@ -47,13 +47,42 @@ export interface Organization extends BaseEntity {
 }
 
 // RACI entity from common/meta/raci/*.md
+// Updated to support new "立ち位置" (position-based) format
 export interface RACI extends BaseEntity {
   type: 'raci';
-  project_id: string;
-  entries: RACIEntry[];
+  org_id: string;        // 法人ID (e.g., 'unson', 'techknight')
+  name: string;          // 法人名
+  members: string[];     // メンバーID一覧 (people/*.md のファイル名)
+  positions: PositionEntry[];   // 立ち位置テーブル
+  decisions: DecisionEntry[];   // 決裁テーブル
+  assignments: AssignmentEntry[]; // 主な担当テーブル
+  products: string[];    // 管轄プロダクト・ブランド
   content: string;
+  // Legacy support
+  entries?: RACIEntry[];
+  project_id?: string;
 }
 
+// 立ち位置エントリ（新形式）
+export interface PositionEntry {
+  person: string;        // 人（名前）
+  assets: string;        // 資産（実績、信頼、歴史、ネットワーク等）
+  authority: string;     // 権利の範囲
+}
+
+// 決裁エントリ（新形式）
+export interface DecisionEntry {
+  domain: string;        // 領域
+  decider: string;       // 決裁者
+}
+
+// 主な担当エントリ
+export interface AssignmentEntry {
+  person: string;        // 人
+  areas: string;         // 領域
+}
+
+// Legacy RACI entry (backward compatibility)
 export interface RACIEntry {
   item: string;
   responsible: string;   // R

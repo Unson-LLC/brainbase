@@ -6,7 +6,7 @@
 import { readdir, readFile, stat } from 'fs/promises';
 import { join, basename } from 'path';
 import { parseMarkdownFile, parseMarkdownString, ensureArray, extractIdFromPath } from './frontmatter.js';
-import { parseAppsTable, parseCustomersTable, parseRACITable } from './table.js';
+import { parseAppsTable, parseCustomersTable, parseRACITable, parsePositionTable, parseDecisionTable, parseAssignmentTable, parseProductsList } from './table.js';
 import type {
   EntityIndex,
   Project,
@@ -227,33 +227,54 @@ async function indexOrgs(index: EntityIndex): Promise<void> {
 
 /**
  * Index all RACI definitions from _codex/common/meta/raci/*.md
+ * Supports new "立ち位置" (position-based) format
  */
 async function indexRACIs(index: EntityIndex): Promise<void> {
   const raciDir = join(codexBasePath, 'common', 'meta', 'raci');
   const files = await scanDirectory(raciDir);
 
   for (const filePath of files) {
+    // Skip README.md
+    if (basename(filePath) === 'README.md') continue;
+
     try {
       const content = await readFile(filePath, 'utf-8');
       const raciId = extractIdFromPath(filePath);
 
-      // Parse frontmatter for project_id
+      // Parse frontmatter for org_id, name, members
       const parsed = parseMarkdownString<{
-        project_id?: string;
+        org_id?: string;
+        name?: string;
+        members?: string | string[];
+        project_id?: string;  // Legacy
         updated?: string;
       }>(content);
 
-      // Parse RACI table from content
+      // Parse new position-based tables
+      const positions = parsePositionTable(content);
+      const decisions = parseDecisionTable(content);
+      const assignments = parseAssignmentTable(content);
+      const products = parseProductsList(content);
+
+      // Parse legacy RACI table (for backward compatibility)
       const entries = parseRACITable(content);
 
       const raci: RACI = {
         id: raciId,
         filePath,
         type: 'raci',
-        project_id: parsed.data.project_id || raciId,
-        entries,
+        org_id: parsed.data.org_id || raciId,
+        name: parsed.data.name || raciId,
+        members: ensureArray(parsed.data.members),
+        positions,
+        decisions,
+        assignments,
+        products,
         content: parsed.content,
         updated: parsed.data.updated,
+        // Legacy support
+        entries: entries.length > 0 ? entries : undefined,
+        project_id: parsed.data.project_id,
       };
 
       index.raci.set(raciId, raci);
@@ -435,8 +456,8 @@ export function searchEntities(index: EntityIndex, query: string): Entity[] {
   ];
 
   for (const entity of allEntities) {
-    // Check name/title
-    const name = 'name' in entity ? entity.name : entity.id;
+    // Check name/title - all entity types now have 'name' property
+    const name = (entity as { name?: string }).name || entity.id;
     if (name.toLowerCase().includes(lowerQuery)) {
       results.push(entity);
       continue;
@@ -525,9 +546,17 @@ export function getContextForTopic(index: EntityIndex, topic: string): {
           if (org) related.push(org);
         }
       }
-      // Get RACI
-      const raci = index.raci.get(primary.project_id);
-      if (raci) related.push(raci);
+      // Get RACI for related orgs (new format: RACI is per-org, not per-project)
+      for (const orgTag of primary.orgs) {
+        const orgId = resolveOrgId(index, orgTag);
+        if (orgId) {
+          const raci = index.raci.get(orgId);
+          if (raci && !related.includes(raci)) related.push(raci);
+        }
+      }
+      // Legacy: try project_id based RACI
+      const legacyRaci = index.raci.get(primary.project_id);
+      if (legacyRaci && !related.includes(legacyRaci)) related.push(legacyRaci);
     } else if (primary.type === 'person') {
       // Get person's projects
       for (const projectId of primary.projects) {
@@ -555,6 +584,9 @@ export function getContextForTopic(index: EntityIndex, topic: string): {
           related.push(person);
         }
       }
+      // Get RACI for this org
+      const raci = index.raci.get(primary.org_id);
+      if (raci) related.push(raci);
     }
   }
 

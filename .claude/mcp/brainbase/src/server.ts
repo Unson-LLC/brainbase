@@ -63,14 +63,59 @@ function formatEntity(entity: unknown): string {
     lines.push(e.content);
   }
 
-  // RACI entries
-  if (Array.isArray(e.entries) && e.entries.length > 0) {
+  // New position-based RACI format
+  if (Array.isArray(e.positions) && e.positions.length > 0) {
     lines.push('');
-    lines.push('### RACI Matrix');
-    lines.push('| 項目 | R | A | C | I |');
-    lines.push('|------|---|---|---|---|');
-    for (const entry of e.entries as Array<{ item: string; responsible: string; accountable: string; consulted: string; informed: string }>) {
-      lines.push(`| ${entry.item} | ${entry.responsible} | ${entry.accountable} | ${entry.consulted} | ${entry.informed} |`);
+    lines.push('### 立ち位置');
+    lines.push('| 人 | 資産 | 権利の範囲 |');
+    lines.push('|---|------|-----------|');
+    for (const pos of e.positions as Array<{ person: string; assets: string; authority: string }>) {
+      lines.push(`| ${pos.person} | ${pos.assets} | ${pos.authority} |`);
+    }
+  }
+
+  if (Array.isArray(e.decisions) && e.decisions.length > 0) {
+    lines.push('');
+    lines.push('### 決裁');
+    lines.push('| 領域 | 決裁者 |');
+    lines.push('|------|--------|');
+    for (const dec of e.decisions as Array<{ domain: string; decider: string }>) {
+      lines.push(`| ${dec.domain} | ${dec.decider} |`);
+    }
+  }
+
+  if (Array.isArray(e.assignments) && e.assignments.length > 0) {
+    lines.push('');
+    lines.push('### 主な担当');
+    lines.push('| 人 | 領域 |');
+    lines.push('|---|------|');
+    for (const assign of e.assignments as Array<{ person: string; areas: string }>) {
+      lines.push(`| ${assign.person} | ${assign.areas} |`);
+    }
+  }
+
+  if (Array.isArray(e.products) && e.products.length > 0) {
+    lines.push('');
+    lines.push('### 管轄プロダクト');
+    for (const product of e.products as string[]) {
+      lines.push(`- ${product}`);
+    }
+  }
+
+  // Legacy RACI entries (backward compatibility) - only show if there's actual data
+  if (Array.isArray(e.entries) && e.entries.length > 0) {
+    // Filter out empty entries (from misparse of position tables)
+    const validEntries = (e.entries as Array<{ item: string; responsible: string; accountable: string; consulted: string; informed: string }>)
+      .filter(entry => entry.item.trim() || entry.responsible.trim() || entry.accountable.trim());
+
+    if (validEntries.length > 0) {
+      lines.push('');
+      lines.push('### RACI Matrix (Legacy)');
+      lines.push('| 項目 | R | A | C | I |');
+      lines.push('|------|---|---|---|---|');
+      for (const entry of validEntries) {
+        lines.push(`| ${entry.item} | ${entry.responsible} | ${entry.accountable} | ${entry.consulted} | ${entry.informed} |`);
+      }
     }
   }
 
