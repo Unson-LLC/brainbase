@@ -412,6 +412,48 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
+    <!-- Mobile Bottom Navigation (hidden on desktop) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+        <button id="mobile-sessions-btn">
+            <i data-lucide="layers"></i>
+            <span>Sessions</span>
+        </button>
+        <button id="mobile-tasks-btn">
+            <i data-lucide="list-todo"></i>
+            <span>Tasks</span>
+        </button>
+    </nav>
+
+    <!-- Sessions Bottom Sheet -->
+    <div id="sessions-sheet-overlay" class="bottom-sheet-overlay"></div>
+    <div id="sessions-bottom-sheet" class="bottom-sheet">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-header">
+            <h3><i data-lucide="layers"></i> Sessions</h3>
+            <button class="bottom-sheet-close" id="close-sessions-sheet">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="bottom-sheet-content" id="mobile-session-list">
+            <!-- Sessions will be cloned here -->
+        </div>
+    </div>
+
+    <!-- Tasks Bottom Sheet -->
+    <div id="tasks-sheet-overlay" class="bottom-sheet-overlay"></div>
+    <div id="tasks-bottom-sheet" class="bottom-sheet">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-header">
+            <h3><i data-lucide="list-todo"></i> Tasks</h3>
+            <button class="bottom-sheet-close" id="close-tasks-sheet">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="bottom-sheet-content" id="mobile-tasks-content">
+            <!-- Tasks will be cloned here -->
+        </div>
+    </div>
+
     <script type="module" src="app.js?v=module7"></script>
     <script>
         lucide.createIcons();

@@ -634,6 +634,8 @@ app.post('/api/sessions/start', async (req, res) => {
             '-b', basePath, // Set Base Path
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
+            '-t', 'fontSize=14',            // Readable font size for mobile
+            '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-I', customIndexPath, // Use custom index
             'bash',
             scriptPath,
@@ -802,6 +804,8 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
             '-b', basePath,
             '-t', 'disableLeaveAlert=true',
             '-t', 'enableClipboard=true',
+            '-t', 'fontSize=14',            // Readable font size for mobile
+            '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-I', customIndexPath,
             'bash',
             scriptPath,
