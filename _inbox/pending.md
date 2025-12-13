@@ -3,6 +3,27 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-13-MJ3XTLDF
+channel: 0011-zeims-dev
+sender: 太田葉音
+timestamp: 1765608676.825499
+status: pending
+---
+
+### 15:51 | #0011-zeims-dev | 太田葉音
+
+<@U07Q7CUC60J> <@U07LNUP582X>
+• Xserver が仮想通貨のマイニングに使用されていました。=&gt; 現在はおそらく大丈夫です。
+• DifyがNext.jsを使っているのですが、最近のNext.jsの脆弱性をつかれ、任意のコードが実行されました。
+• コードの内容は、仮想通貨マイニングのスクリプトをダウンロードし、実行することです。
+• Next.jsを使っているコンテナを停止し、一旦CPU使用量は落ち着いています。
+• Zeims で使っているのはAPIで、Next.jsで動くUIは使って内です。
+• 対策としては、Difyのバージョンを上げれば大丈夫です。
+後でnotionにもう少し詳しく書きます。
+
+[Slack](https://unson.slack.com/archives/C07QX6DN9M0/p1765608676825499)
+
+---
 id: INBOX-2025-12-13-MJ3RDYVP
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
