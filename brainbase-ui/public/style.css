@@ -2212,13 +2212,15 @@ body {
     border-radius: 16px 16px 0 0;
     z-index: 1002;
     transform: translateY(100%);
-    transition: transform 0.3s ease;
+    transition: transform 0.3s ease, visibility 0.3s;
     display: flex;
     flex-direction: column;
+    visibility: hidden;
 }
 
 .bottom-sheet.active {
     transform: translateY(0);
+    visibility: visible;
 }
 
 .bottom-sheet-handle {
@@ -2306,11 +2308,15 @@ body {
 
     /* Hide desktop sidebars */
     .sidebar {
-        display: none;
+        display: none !important;
+        width: 0 !important;
+        visibility: hidden !important;
     }
 
     .context-sidebar {
-        display: none;
+        display: none !important;
+        width: 0 !important;
+        visibility: hidden !important;
     }
 
     /* Main content takes full width */
