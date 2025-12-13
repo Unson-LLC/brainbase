@@ -3,6 +3,31 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-13-MJ3RDYVP
+channel: 0011-zeims-dev
+sender: 川合秀明 / Hideaki Kawai
+timestamp: 1765597868.821179
+status: pending
+---
+
+### 12:51 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
+
+<@U07LNUP582X>
+雲孫で使えるGeminiアカウントってありましたっけ？
+Zeimsリポジトリにインテグレーションお願いしたいです:man-bowing:
+
+**スレッドの文脈:**
+> **太田葉音** (08:39): <@U07Q7CUC60J>
+<https://github.com/apps/gemini-code-assist>
+でgemini github をzeimsで使えるように設定して頂きたいです。
+> **太田葉音** (08:42): 個人で使っていて、使い勝手がいいです。
+
+<https://qiita.com/nero-15/items/6657f6308bb47f2e3e48>
+
+
+[Slack](https://unson.slack.com/archives/C07QX6DN9M0/p1765597868821179?thread_ts=1765582766.259189&cid=C07QX6DN9M0)
+
+---
 id: INBOX-2025-12-12-MJ2QA6VZ
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
