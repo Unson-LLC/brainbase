@@ -75,7 +75,7 @@ task_id: T-2512-006
 source_id: SLACK-2025-12-11-MJ181TOH
 title: notion完成→Wordに転記
 project_id: ncom
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: 2025-12-12
@@ -99,7 +99,7 @@ task_id: T-2512-005
 source_id: SLACK-2025-12-11-MJ180SCG
 title: notion完成⇒Wordに転記
 project_id: ncom
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: 2025-12-12
@@ -629,7 +629,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQPF7E
 title: LLM as Judgeプロトタイプの完成と渡辺氏への引き渡し
 project_id: salestailor
-status: in-progress
+status: done
 owner: 佐藤圭吾
 priority: medium
 due: 2024-12-14

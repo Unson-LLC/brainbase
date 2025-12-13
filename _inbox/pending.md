@@ -53,7 +53,7 @@ id: INBOX-2025-12-12-MJ2QA6VZ
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765535547.171249
-status: pending
+status: done
 ---
 
 ### 19:32 | #0031-dialogai-dev | 星野 秀弥
@@ -92,7 +92,7 @@ id: INBOX-2025-12-12-MJ2PVR17
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1765534873.902549
-status: pending
+status: done
 ---
 
 ### 19:21 | #0031-dialogai-dev | 小川未来
