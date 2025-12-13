@@ -215,6 +215,8 @@ export class ConfigParser {
 
                 wsProjects.push({
                     id: projId,
+                    emoji: project.emoji || null,
+                    archived: project.archived || false,
                     channels: projectChannels.filter(ch => ch.workspace === wsKey),
                     github: github ? {
                         owner: github.owner,

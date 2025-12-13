@@ -138,7 +138,10 @@ function renderUnifiedView() {
                 </h3>
         `;
 
-        if (ws.projects.length === 0) {
+        // Filter out archived projects
+        const activeProjects = ws.projects.filter(p => !p.archived);
+
+        if (activeProjects.length === 0) {
             html += '<div class="config-empty">No projects in this workspace</div>';
         } else {
             html += `
@@ -154,14 +157,14 @@ function renderUnifiedView() {
                     <tbody>
             `;
 
-            for (const proj of ws.projects) {
+            for (const proj of activeProjects) {
                 const hasGithub = !!proj.github;
                 const hasAirtable = !!proj.airtable;
                 const warningClass = (!hasGithub || !hasAirtable) ? 'warning-row' : '';
 
                 html += `
                     <tr data-project="${proj.id}" class="${warningClass}">
-                        <td><span class="badge badge-project">${proj.id}</span></td>
+                        <td><span class="badge badge-project">${proj.emoji ? proj.emoji + ' ' : ''}${proj.id}</span></td>
                         <td>
                             ${proj.channels.length > 0
                                 ? proj.channels.slice(0, 3).map(ch =>
@@ -379,8 +382,11 @@ function renderMembers(filter = '') {
 
 function renderProjects() {
     const container = document.getElementById('projects-list');
-    const projects = configData?.projects?.projects || [];
+    const allProjects = configData?.projects?.projects || [];
     const root = configData?.projects?.root || '';
+
+    // Filter out archived projects
+    const projects = allProjects.filter(p => !p.archived);
 
     if (projects.length === 0) {
         container.innerHTML = '<div class="config-empty">No projects found</div>';
@@ -399,7 +405,7 @@ function renderProjects() {
             <tbody>
                 ${projects.map(p => `
                     <tr>
-                        <td><span class="badge badge-project">${p.id}</span></td>
+                        <td><span class="badge badge-project">${p.emoji ? p.emoji + ' ' : ''}${p.id}</span></td>
                         <td class="mono">${root}/${p.local?.path || '-'}</td>
                         <td class="mono">${(p.local?.glob_include || []).slice(0, 3).join(', ')}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
                     </tr>
