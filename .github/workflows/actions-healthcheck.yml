@@ -6,7 +6,65 @@ on:
     - cron: '0,30 0-14 * * *'  # JST 09:00-23:00
 
 jobs:
-  hello:
+  healthcheck:
     runs-on: ubuntu-latest
+    env:
+      REPOS: |
+        sintariran/brainbase
+        Unson-LLC/Drive
+        Unson-LLC/zeims-project
+        Unson-LLC/salestailor-project
+        Tech-Knight-inc/tech-knight-project
+      MAX_AGE_HOURS: "24"
     steps:
-      - run: echo "healthcheck bootstrap"
+      - name: Check workflows and runners
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ACTIONS_MONITOR_PAT || github.token }}
+          script: |
+            const repos = process.env.REPOS.trim().split(/\s+/);
+            const maxAgeHours = Number(process.env.MAX_AGE_HOURS || 24);
+            const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+            const now = Date.now();
+            const issues = [];
+            const runnerAlerts = [];
+
+            for (const repo of repos) {
+              const [owner, name] = repo.split('/');
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRunsForRepo,
+                { owner, repo: name, per_page: 50, status: 'completed', exclude_pull_requests: true }
+              );
+              const recentFailed = runs.find(
+                (r) => r.conclusion !== 'success' &&
+                       (now - new Date(r.created_at).getTime()) <= maxAgeMs
+              );
+              if (recentFailed) {
+                issues.push({
+                  repo,
+                  workflow: recentFailed.name,
+                  runId: recentFailed.id,
+                  html_url: recentFailed.html_url,
+                  conclusion: recentFailed.conclusion,
+                  created_at: recentFailed.created_at,
+                });
+              }
+
+              const runners = await github.paginate(
+                github.rest.actions.listSelfHostedRunnersForRepo,
+                { owner, repo: name, per_page: 50 }
+              );
+              runners
+                .filter((r) => r.labels.some((l) => l.name === 'self-hosted'))
+                .filter((r) => r.status !== 'online')
+                .forEach((r) => runnerAlerts.push({ repo, name: r.name, status: r.status }));
+            }
+
+            core.setOutput('has_issues', issues.length > 0 || runnerAlerts.length > 0 ? 'true' : 'false');
+            core.setOutput('issues', JSON.stringify(issues));
+            core.setOutput('runner_alerts', JSON.stringify(runnerAlerts));
+
+      - name: No issues found
+        if: steps.check.outputs.has_issues != 'true'
+        run: echo "No failures or offline runners in the last ${MAX_AGE_HOURS}h."
