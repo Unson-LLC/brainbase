@@ -131,6 +131,143 @@ export class ConfigParser {
     }
 
     /**
+     * 統合ビュー: Workspace → Project → Slack/GitHub/Airtable の関係を一覧
+     */
+    async getUnifiedView() {
+        const [workspaces, channels, projectConfig, githubMappings, airtableMappings] = await Promise.all([
+            this.getWorkspaces(),
+            this.getChannels(),
+            this.getProjects(),
+            this.getGitHubMappings(),
+            this.getAirtableMappings()
+        ]);
+
+        // プロジェクト情報をIDでインデックス化
+        const projectsById = {};
+        for (const p of projectConfig.projects) {
+            projectsById[p.id] = p;
+        }
+
+        // チャンネルをproject_idでグループ化
+        const channelsByProjectId = {};
+        for (const ch of channels) {
+            // proj_xxx → xxx に正規化
+            const normalizedId = ch.project_id?.replace(/^proj_/, '') || '';
+            if (!channelsByProjectId[normalizedId]) {
+                channelsByProjectId[normalizedId] = [];
+            }
+            channelsByProjectId[normalizedId].push({
+                id: ch.channel_id,
+                name: ch.channel_name,
+                type: ch.type || 'general',
+                workspace: ch.workspace
+            });
+        }
+
+        // GitHubマッピングをproject_idでインデックス化
+        const githubByProjectId = {};
+        for (const g of githubMappings) {
+            githubByProjectId[g.project_id] = g;
+        }
+
+        // AirtableマッピングをインデックID化
+        const airtableByProjectId = {};
+        for (const a of airtableMappings) {
+            airtableByProjectId[a.project_id] = a;
+        }
+
+        // ワークスペースごとにプロジェクトを整理
+        const result = {
+            workspaces: [],
+            orphanedChannels: [],
+            orphanedProjects: []
+        };
+
+        // 使用済みプロジェクトを追跡
+        const usedProjectIds = new Set();
+
+        for (const [wsKey, ws] of Object.entries(workspaces)) {
+            const wsProjects = [];
+
+            // ワークスペースに紐づくプロジェクトを処理
+            const projectIds = ws.projects || [];
+            for (const projId of projectIds) {
+                usedProjectIds.add(projId);
+
+                const project = projectsById[projId] || {};
+                const github = githubByProjectId[projId];
+                const airtable = airtableByProjectId[projId];
+                const projectChannels = channelsByProjectId[projId] || [];
+
+                // glob_include からパスを抽出
+                let paths = null;
+                if (project.local?.glob_include) {
+                    paths = project.local.glob_include.map(g => {
+                        const match = g.match(/^([^*]+)/);
+                        return match ? match[1].replace(/\/$/, '') + '/' : null;
+                    }).filter(p => p);
+                }
+
+                wsProjects.push({
+                    id: projId,
+                    channels: projectChannels.filter(ch => ch.workspace === wsKey),
+                    github: github ? {
+                        owner: github.owner,
+                        repo: github.repo,
+                        branch: github.branch,
+                        url: github.url,
+                        paths: paths
+                    } : null,
+                    airtable: airtable ? {
+                        base_id: airtable.base_id,
+                        base_name: airtable.base_name,
+                        url: airtable.url
+                    } : null
+                });
+            }
+
+            result.workspaces.push({
+                key: wsKey,
+                name: ws.name,
+                id: ws.id,
+                projects: wsProjects
+            });
+        }
+
+        // 孤立プロジェクト（どのワークスペースにも属していない）
+        for (const p of projectConfig.projects) {
+            if (!usedProjectIds.has(p.id)) {
+                result.orphanedProjects.push({
+                    id: p.id,
+                    hasGithub: !!githubByProjectId[p.id],
+                    hasAirtable: !!airtableByProjectId[p.id],
+                    channelCount: (channelsByProjectId[p.id] || []).length
+                });
+            }
+        }
+
+        // 孤立チャンネル（proj_otherや未マッピング）
+        const allMappedProjectIds = new Set([
+            ...Object.keys(projectsById),
+            ...Object.values(workspaces).flatMap(ws => ws.projects || [])
+        ]);
+
+        for (const ch of channels) {
+            const normalizedId = ch.project_id?.replace(/^proj_/, '') || '';
+            if (!allMappedProjectIds.has(normalizedId) && normalizedId !== 'other') {
+                result.orphanedChannels.push({
+                    id: ch.channel_id,
+                    name: ch.channel_name,
+                    workspace: ch.workspace,
+                    project_id: ch.project_id
+                });
+            }
+        }
+
+        return result;
+    }
+
+    /**
      * 全設定を統合して取得
      */
     async getAll() {

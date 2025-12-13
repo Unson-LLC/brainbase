@@ -228,6 +228,12 @@ app.get('/api/config/integrity', async (req, res) => {
     res.json(result);
 });
 
+// Get unified view (Workspace → Project → Slack/GitHub/Airtable)
+app.get('/api/config/unified', async (req, res) => {
+    const unified = await configParser.getUnifiedView();
+    res.json(unified);
+});
+
 // --- Inbox API ---
 
 // Get all pending inbox items

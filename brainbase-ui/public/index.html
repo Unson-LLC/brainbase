@@ -307,7 +307,10 @@
 
                 <!-- Settings Tabs -->
                 <div class="settings-tabs">
-                    <button class="settings-tab active" data-tab="slack">
+                    <button class="settings-tab active" data-tab="unified">
+                        <i data-lucide="layout-grid"></i> Overview
+                    </button>
+                    <button class="settings-tab" data-tab="slack">
                         <i data-lucide="hash"></i> Slack
                     </button>
                     <button class="settings-tab" data-tab="projects">
@@ -323,8 +326,19 @@
 
                 <!-- Tab Content -->
                 <div class="settings-content">
+                    <!-- Unified Overview Tab -->
+                    <div class="settings-panel active" id="unified-panel">
+                        <div class="settings-section">
+                            <h3>Unified Configuration Overview</h3>
+                            <p class="settings-section-desc">Workspace → Project → Slack/GitHub/Airtable の統合マッピング</p>
+                            <div id="unified-view" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Slack Tab -->
-                    <div class="settings-panel active" id="slack-panel">
+                    <div class="settings-panel" id="slack-panel">
                         <div class="settings-section">
                             <h3>Workspaces</h3>
                             <div id="workspaces-list" class="config-list">

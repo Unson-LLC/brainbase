@@ -2011,6 +2011,125 @@ body {
 }
 
 /* =========================================
+   Unified View Styles
+   ========================================= */
+
+.unified-workspace {
+    margin-bottom: 2rem;
+}
+
+.unified-workspace:last-child {
+    margin-bottom: 0;
+}
+
+.workspace-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-secondary);
+    border-radius: 8px 8px 0 0;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    margin: 0;
+}
+
+.workspace-name {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.workspace-id {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+
+.unified-table {
+    border-radius: 0 0 8px 8px;
+}
+
+.unified-table tr.warning-row {
+    background: rgba(255, 180, 0, 0.05);
+}
+
+.unified-table tr.warning-row:hover {
+    background: rgba(255, 180, 0, 0.1);
+}
+
+.unified-table td.missing {
+    color: var(--text-secondary);
+}
+
+.status-missing {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.channel-tag {
+    display: inline-block;
+    background: var(--bg-secondary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.channel-count {
+    display: inline-block;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+.paths-hint {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.unified-orphans {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: rgba(255, 180, 0, 0.05);
+    border: 1px solid rgba(255, 180, 0, 0.2);
+    border-radius: 8px;
+}
+
+.orphans-header {
+    margin: 0 0 1rem 0;
+    color: #ffb400;
+    font-size: 1rem;
+}
+
+.orphan-section {
+    margin-bottom: 1rem;
+}
+
+.orphan-section:last-child {
+    margin-bottom: 0;
+}
+
+.orphan-section h4 {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0 0 0.5rem 0;
+}
+
+.orphan-section ul {
+    margin: 0;
+    padding-left: 1.5rem;
+    font-size: 0.8rem;
+}
+
+.orphan-section li {
+    margin-bottom: 0.25rem;
+}
+
+/* =========================================
    Archive Modal
    ========================================= */
 
