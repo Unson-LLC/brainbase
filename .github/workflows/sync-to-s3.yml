@@ -1,0 +1,109 @@
+# GitHub Actions workflow to sync source code to S3 for mana
+#
+# Setup:
+# 1. Copy this file to your repo: .github/workflows/sync-to-s3.yml
+# 2. Add AWS credentials as repository secrets:
+#    - AWS_ACCESS_KEY_ID
+#    - AWS_SECRET_ACCESS_KEY
+# 3. Update REPO_NAME below
+
+name: Sync Source to S3
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:  # Manual trigger
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: brainbase-source-593793022993  # Update with your account ID
+  # Format: {owner}/{repo}/{branch}
+  REPO_OWNER: ${{ github.repository_owner }}
+  REPO_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get branch name
+        id: branch
+        run: echo "name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+      - name: Remove sensitive files
+        run: |
+          # Remove files that should not be synced
+          find . -name ".env*" -type f -delete
+          find . -name "*.pem" -type f -delete
+          find . -name "*.key" -type f -delete
+          find . -name "*.secret*" -type f -delete
+          find . -name "credentials*" -type f -delete
+          find . -name "*.credentials" -type f -delete
+          rm -rf .git
+          rm -rf node_modules
+          rm -rf __pycache__
+          rm -rf .pytest_cache
+          rm -rf dist
+          rm -rf build
+          rm -rf .next
+          rm -rf .nuxt
+          echo "Cleaned sensitive and build files"
+
+      - name: Generate file index
+        run: |
+          # Generate index of all source files
+          find . -type f \( \
+            -name "*.ts" -o \
+            -name "*.tsx" -o \
+            -name "*.js" -o \
+            -name "*.jsx" -o \
+            -name "*.py" -o \
+            -name "*.go" -o \
+            -name "*.rs" -o \
+            -name "*.java" -o \
+            -name "*.md" -o \
+            -name "*.json" -o \
+            -name "*.yaml" -o \
+            -name "*.yml" -o \
+            -name "*.toml" -o \
+            -name "*.sql" \
+          \) -not -path "*/node_modules/*" \
+             -not -path "*/.git/*" \
+             -not -path "*/dist/*" \
+             -not -path "*/build/*" | \
+          while read f; do
+            size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null)
+            echo "{\"path\":\"${f#./}\",\"size\":${size:-0}}"
+          done | jq -s '{files: ., generated_at: now | todate, branch: "${{ steps.branch.outputs.name }}"}' > _index.json
+          echo "Generated _index.json with $(jq '.files | length' _index.json) files"
+
+      - name: Sync to S3
+        run: |
+          S3_PATH="s3://${S3_BUCKET}/${REPO_OWNER}/${REPO_NAME}/${{ steps.branch.outputs.name }}/"
+          echo "Syncing to: ${S3_PATH}"
+
+          aws s3 sync . "${S3_PATH}" \
+            --exclude "node_modules/*" \
+            --exclude ".git/*" \
+            --exclude "dist/*" \
+            --exclude "build/*" \
+            --exclude ".next/*" \
+            --exclude ".nuxt/*" \
+            --exclude "__pycache__/*" \
+            --exclude "*.pyc" \
+            --exclude ".DS_Store" \
+            --delete
+
+          echo "Sync complete!"
+          echo "Files available at: ${S3_PATH}"
