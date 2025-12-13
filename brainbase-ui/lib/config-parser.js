@@ -183,8 +183,11 @@ export class ConfigParser {
             orphanedProjects: []
         };
 
-        // 使用済みプロジェクトを追跡
+        // 使用済みプロジェクトを追跡（正規化後のID）
         const usedProjectIds = new Set();
+
+        // ID正規化ヘルパー: proj_zeims → zeims
+        const normalizeId = (id) => id?.replace(/^proj_/, '') || '';
 
         for (const [wsKey, ws] of Object.entries(workspaces)) {
             const wsProjects = [];
@@ -192,12 +195,14 @@ export class ConfigParser {
             // ワークスペースに紐づくプロジェクトを処理
             const projectIds = ws.projects || [];
             for (const projId of projectIds) {
-                usedProjectIds.add(projId);
+                // proj_zeims → zeims に正規化してマッチング
+                const normalizedProjId = normalizeId(projId);
+                usedProjectIds.add(normalizedProjId);
 
-                const project = projectsById[projId] || {};
-                const github = githubByProjectId[projId];
-                const airtable = airtableByProjectId[projId];
-                const projectChannels = channelsByProjectId[projId] || [];
+                const project = projectsById[normalizedProjId] || {};
+                const github = githubByProjectId[normalizedProjId];
+                const airtable = airtableByProjectId[normalizedProjId];
+                const projectChannels = channelsByProjectId[normalizedProjId] || [];
 
                 // glob_include からパスを抽出
                 let paths = null;
