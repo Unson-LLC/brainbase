@@ -1385,19 +1385,70 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Swipe down to close bottom sheets
-    let touchStartY = 0;
+    let sheetTouchStartY = 0;
     [sessionsBottomSheet, tasksBottomSheet].forEach(sheet => {
         sheet?.addEventListener('touchstart', (e) => {
-            touchStartY = e.touches[0].clientY;
+            sheetTouchStartY = e.touches[0].clientY;
         }, { passive: true });
 
         sheet?.addEventListener('touchmove', (e) => {
             const touchY = e.touches[0].clientY;
-            const diff = touchY - touchStartY;
+            const diff = touchY - sheetTouchStartY;
             if (diff > 100) {
                 if (sheet === sessionsBottomSheet) closeSessionsSheet();
                 if (sheet === tasksBottomSheet) closeTasksSheet();
             }
         }, { passive: true });
     });
+
+    // Mobile touch scroll for terminal iframe
+    (function initTerminalTouchScroll() {
+        const consoleArea = document.querySelector('.console-area');
+        if (!consoleArea) return;
+
+        let touchStartY = 0;
+        let isTouching = false;
+
+        consoleArea.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isTouching = true;
+                touchStartY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        consoleArea.addEventListener('touchmove', (e) => {
+            if (!isTouching || e.touches.length !== 1) return;
+
+            const iframe = document.getElementById('terminal-frame');
+            if (!iframe) return;
+
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (!iframeDoc) return;
+
+                const viewport = iframeDoc.querySelector('.xterm-viewport');
+                if (!viewport) return;
+
+                const touchY = e.touches[0].clientY;
+                const deltaY = touchStartY - touchY;
+
+                // Apply scroll to viewport
+                viewport.scrollTop += deltaY * 2; // Multiply for faster scroll
+                touchStartY = touchY; // Update for continuous scroll
+            } catch (err) {
+                // Cross-origin restriction - can't access iframe content
+                console.log('Cannot access iframe content for scroll');
+            }
+        }, { passive: true });
+
+        consoleArea.addEventListener('touchend', () => {
+            isTouching = false;
+        }, { passive: true });
+
+        consoleArea.addEventListener('touchcancel', () => {
+            isTouching = false;
+        }, { passive: true });
+
+        console.log('Terminal touch scroll initialized');
+    })();
 });

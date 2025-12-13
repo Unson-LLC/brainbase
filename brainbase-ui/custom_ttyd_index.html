@@ -24,3 +24,171 @@
     }, true); // Use capture phase
 })();
 </script>
+
+<!-- Mobile Touch Scroll Support for xterm.js -->
+<script>
+(function() {
+    // xterm.js doesn't natively support touch scroll
+    // Convert swipe gestures to scroll commands
+    let touchStartY = 0;
+    let lastScrollTime = 0;
+    const scrollThreshold = 20; // pixels to trigger scroll
+    const scrollCooldown = 30; // ms between scroll events
+    
+    function waitForTerminal(callback, maxAttempts) {
+        let attempts = 0;
+        const check = function() {
+            attempts++;
+            if (window.term) {
+                callback(window.term);
+            } else if (attempts < maxAttempts) {
+                setTimeout(check, 100);
+            }
+        };
+        check();
+    }
+    
+    waitForTerminal(function(term) {
+        const container = document.getElementById('terminal-container');
+        if (!container) return;
+        
+        container.addEventListener('touchstart', function(e) {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        
+        container.addEventListener('touchmove', function(e) {
+            const now = Date.now();
+            if (now - lastScrollTime < scrollCooldown) return;
+            
+            const touchY = e.touches[0].clientY;
+            const diff = touchStartY - touchY;
+            
+            if (Math.abs(diff) > scrollThreshold) {
+                // Scroll lines based on swipe distance
+                const lines = diff > 0 ? 3 : -3;
+                if (term.scrollLines) {
+                    term.scrollLines(lines);
+                }
+                lastScrollTime = now;
+                touchStartY = touchY; // Reset for continuous scrolling
+            }
+        }, { passive: true });
+        
+        console.log('Touch scroll support enabled for xterm.js');
+    }, 50);
+})();
+</script>
+
+<!-- Mobile Touch Scroll Support v2 - DOM-based approach -->
+<script>
+(function() {
+    // Wait for DOM to be ready and xterm elements to exist
+    function initTouchScroll() {
+        const viewport = document.querySelector('.xterm-viewport');
+        const screen = document.querySelector('.xterm-screen');
+        
+        if (!viewport || !screen) {
+            // Retry if elements not found yet
+            setTimeout(initTouchScroll, 200);
+            return;
+        }
+        
+        let touchStartY = 0;
+        let scrollStartTop = 0;
+        let isTouching = false;
+        
+        // Make screen pass-through for touch but listen on parent
+        screen.style.touchAction = 'none';
+        
+        screen.addEventListener('touchstart', function(e) {
+            if (e.touches.length === 1) {
+                isTouching = true;
+                touchStartY = e.touches[0].clientY;
+                scrollStartTop = viewport.scrollTop;
+            }
+        }, { passive: true });
+        
+        screen.addEventListener('touchmove', function(e) {
+            if (!isTouching || e.touches.length !== 1) return;
+            
+            const touchY = e.touches[0].clientY;
+            const deltaY = touchStartY - touchY;
+            
+            // Directly manipulate viewport scroll position
+            viewport.scrollTop = scrollStartTop + deltaY;
+        }, { passive: true });
+        
+        screen.addEventListener('touchend', function(e) {
+            isTouching = false;
+        }, { passive: true });
+        
+        screen.addEventListener('touchcancel', function(e) {
+            isTouching = false;
+        }, { passive: true });
+        
+        console.log('Touch scroll v2 enabled for xterm.js (DOM-based)');
+    }
+    
+    // Start initialization
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(initTouchScroll, 500);
+        });
+    } else {
+        setTimeout(initTouchScroll, 500);
+    }
+})();
+</script>
+
+<!-- Mobile Touch Scroll Support v3 - Mouse wheel emulation -->
+<script>
+(function() {
+    function initTouchScroll() {
+        const container = document.body;
+        let touchStartY = 0;
+        let lastTouchY = 0;
+        
+        container.addEventListener('touchstart', function(e) {
+            if (e.touches.length === 1) {
+                touchStartY = e.touches[0].clientY;
+                lastTouchY = touchStartY;
+            }
+        }, { passive: false });
+        
+        container.addEventListener('touchmove', function(e) {
+            if (e.touches.length !== 1) return;
+            
+            const touchY = e.touches[0].clientY;
+            const deltaY = lastTouchY - touchY;
+            lastTouchY = touchY;
+            
+            // Only scroll if significant movement
+            if (Math.abs(deltaY) < 3) return;
+            
+            // Dispatch wheel event to trigger xterm scroll
+            const wheelEvent = new WheelEvent('wheel', {
+                deltaY: deltaY * 3,
+                deltaMode: 0, // DOM_DELTA_PIXEL
+                bubbles: true,
+                cancelable: true
+            });
+            
+            const target = document.querySelector('.xterm-screen') || 
+                           document.querySelector('.xterm') ||
+                           document.body;
+            target.dispatchEvent(wheelEvent);
+            
+            // Prevent page scroll
+            e.preventDefault();
+        }, { passive: false });
+        
+        console.log('Touch scroll v3 enabled (wheel emulation)');
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTouchScroll);
+    } else {
+        initTouchScroll();
+    }
+})();
+</script>
