@@ -74,9 +74,9 @@ jobs:
         run: |
           format_list() {
             python - <<'PY' <<< "$1"
-import json,sys
-raw=sys.stdin.read()
-items=json.loads(raw) if raw.strip() else []
+import json, sys
+raw = sys.stdin.read()
+items = json.loads(raw) if raw.strip() else []
 for i in items:
     if 'runId' in i:
         print(f"• {i['repo']}: {i['workflow']} ({i['conclusion']}) -> {i['html_url']}")
