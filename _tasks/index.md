@@ -723,7 +723,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQPEC6
 title: 標準フロー・異常フローの定義（たたき台作成）
 project_id: salestailor
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: 2024-12-16
