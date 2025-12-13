@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
   actions: read
-  # runner監視は後段でPAT化した際にadministrationも付与予定
+  administration: read
 
 jobs:
   healthcheck:
@@ -16,19 +16,24 @@ jobs:
     env:
       REPOS: |
         sintariran/brainbase
+        Unson-LLC/Drive
+        Unson-LLC/zeims-project
+        Unson-LLC/salestailor-project
+        Tech-Knight-inc/tech-knight-project
       MAX_AGE_HOURS: "24"
     steps:
-      - name: Check workflows (failures only)
+      - name: Check workflows and runners
         id: check
         uses: actions/github-script@v7
         with:
-          github-token: ${{ github.token }}
+          github-token: ${{ secrets.ACTIONS_MONITOR_PAT }}
           script: |
             const repos = process.env.REPOS.trim().split(/\s+/);
             const maxAgeHours = Number(process.env.MAX_AGE_HOURS || 24);
             const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
             const now = Date.now();
             const issues = [];
+            const runnerAlerts = [];
 
             for (const repo of repos) {
               const [owner, name] = repo.split('/');
@@ -49,25 +54,35 @@ jobs:
                   created_at: recentFailed.created_at,
                 });
               }
+
+              const runners = await github.paginate(
+                github.rest.actions.listSelfHostedRunnersForRepo,
+                { owner, repo: name, per_page: 50 }
+              );
+              runners
+                .filter((r) => r.labels.some((l) => l.name === 'self-hosted'))
+                .filter((r) => r.status !== 'online')
+                .forEach((r) => runnerAlerts.push({ repo, name: r.name, status: r.status }));
             }
 
-            core.setOutput('has_issues', issues.length > 0 ? 'true' : 'false');
+            core.setOutput('has_issues', issues.length > 0 || runnerAlerts.length > 0 ? 'true' : 'false');
             core.setOutput('issues', JSON.stringify(issues));
             core.setOutput('issues_text', issues.map(i => `• ${i.repo}: ${i.workflow} (${i.conclusion}) -> ${i.html_url}`).join('\n'));
+            core.setOutput('runner_alerts', JSON.stringify(runnerAlerts));
+            core.setOutput('runner_text', runnerAlerts.map(r => `• ${r.repo}: runner ${r.name} is ${r.status}`).join('\n'));
 
-      - name: No issues found
-        if: steps.check.outputs.has_issues != 'true'
-        run: echo "No failed workflows in the last ${MAX_AGE_HOURS}h."
-
-      - name: Notify Slack (issues only)
+      - name: Notify Slack (issues or runners)
         if: steps.check.outputs.has_issues == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           ISSUES_TEXT: ${{ steps.check.outputs.issues_text }}
+          RUNNER_TEXT: ${{ steps.check.outputs.runner_text }}
         run: |
-          text="[Actions Healthcheck]\n❌ Failed workflows (24h):\n${ISSUES_TEXT}"
+          text="[Actions Healthcheck]\n"
+          [ -n "$ISSUES_TEXT" ] && text+="❌ Failed workflows (24h):\n$ISSUES_TEXT\n"
+          [ -n "$RUNNER_TEXT" ] && text+="⚠️ Offline self-hosted runners:\n$RUNNER_TEXT\n"
 
           if [ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_CHANNEL_ID" ]; then
             curl -sS -X POST https://slack.com/api/chat.postMessage \
@@ -79,3 +94,7 @@ jobs:
           else
             echo "No Slack config; skipping notification."
           fi
+
+      - name: No issues found
+        if: steps.check.outputs.has_issues != 'true'
+        run: echo "No failures or offline runners in the last ${MAX_AGE_HOURS}h."
