@@ -23,6 +23,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install dependencies
+        run: npm install js-yaml
+
       - name: Export context
         run: node _codex/common/ops/scripts/export-brainbase-context.js
 
