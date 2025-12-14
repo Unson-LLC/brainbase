@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-012
+source_id: SLACK-2025-12-14-MJ5BVM2G
+title: β版リリースに向けたタスクの整理
+project_id: zeims
+status: todo
+owner: k.​sato
+priority: high
+due: 2025-12-20
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C07QX6DN9M0
+thread_ts: "1765692744.121419"
+created_at: "2025-12-14T06:12:36.088Z"
+owner_slack_id: U07Q7CUC60J
+requester: k.​sato
+---
+
+- 2025-12-14 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: Zeimsプロジェクトのβ版リリース（12月末目標）に向けたタスク整理が必要。現在M2マイルストーンは40%進捗で、決済機能実装（#151）が主なブロッカーとなっている。次週の重点タスクとして、決済機能の実装完了、hono-apiリファクタリング着手、βリリースに向けた機能統合が挙げられている。決済機能については、太田さんがStripe決済フロー実装、プラン選択UI、サブスクリプション管理画面、請求書発行を年内に完了できる見込み。
+- Slack: https://unson.slack.com/archives/C07QX6DN9M0/p1765692744121419?thread_ts=1765690385.108219&cid=C07QX6DN9M0
+
+---
 task_id: T-2512-011
 source_id: SLACK-2025-12-13-MJ4WDN2U
 title: mana機能テストのレポートをまとめる
