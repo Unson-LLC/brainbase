@@ -1,0 +1,211 @@
+name: mana自己改善 (LLM-as-Judge)
+
+on:
+  schedule:
+    # 毎日 22:00 JST = 13:00 UTC
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: '評価対象日 (YYYY-MM-DD)。空欄で前日'
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  evaluate-and-improve:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout mana repository
+        uses: actions/checkout@v4
+        with:
+          repository: sintariran/mana
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: mana
+
+      - name: Set target date
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.target_date }}" ]; then
+            echo "date=${{ github.event.inputs.target_date }}" >> $GITHUB_OUTPUT
+          else
+            # 前日の日付 (JST)
+            echo "date=$(TZ=Asia/Tokyo date -v-1d +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download mana conversations from S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          TARGET_DATE="${{ steps.date.outputs.date }}"
+          mkdir -p /tmp/mana-judge
+
+          # 各ワークスペースの会話データを取得
+          for workspace in unson salestailor techknight; do
+            S3_KEY="slack/${workspace}/mana-conversations/${TARGET_DATE}.json"
+            aws s3 cp "s3://brainbase-context-593793022993/${S3_KEY}" \
+              "/tmp/mana-judge/${workspace}_${TARGET_DATE}.json" 2>/dev/null || true
+          done
+
+          # 取得したファイル一覧
+          echo "=== Downloaded files ==="
+          ls -la /tmp/mana-judge/
+
+      - name: Check if conversations exist
+        id: check
+        run: |
+          FILE_COUNT=$(ls /tmp/mana-judge/*.json 2>/dev/null | wc -l || echo 0)
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No conversations found for ${{ steps.date.outputs.date }}"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            TOTAL=$(cat /tmp/mana-judge/*.json 2>/dev/null | jq -s 'map(.messages) | flatten | length' || echo 0)
+            echo "total=$TOTAL" >> $GITHUB_OUTPUT
+            echo "Found $TOTAL conversations"
+          fi
+
+      - name: Run Claude Code for evaluation and improvement
+        if: steps.check.outputs.skip != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TARGET_DATE: ${{ steps.date.outputs.date }}
+        working-directory: mana
+        run: |
+          # Claude Code用のプロンプトファイルを作成
+          cat > /tmp/mana-judge/prompt.md << 'PROMPT_EOF'
+          # mana応答品質評価と改善タスク
+
+          ## あなたの役割
+          あなたはmana（Slack Bot）の品質改善担当です。
+          manaは佐藤圭吾の代理としてSlack上で質問応答やタスク管理を行うAIアシスタントです。
+
+          ## 評価対象データ
+          `/tmp/mana-judge/` に会話データがあります。各ファイルは以下の形式：
+          ```json
+          {
+            "messages": [
+              {
+                "id": "channel-timestamp",
+                "user_message": "ユーザーの質問/依頼",
+                "mana_response": "manaの応答",
+                "message_type": "question|image_analysis|task"
+              }
+            ]
+          }
+          ```
+
+          ## タスク
+
+          ### 1. 評価 (LLM-as-Judge)
+          各会話を以下の観点で1-5スコアで評価：
+          - **有用性**: ユーザーの意図に対して有用な回答か
+          - **正確性**: 事実に基づいた正確な情報か
+          - **簡潔性**: 冗長でなく適切な長さか
+          - **トーン**: 佐藤の代理として適切なトーンか
+
+          ### 2. 問題特定
+          スコアが低い（3以下）の会話について：
+          - 具体的な問題点
+          - 改善すべきコード/プロンプト箇所
+
+          ### 3. 改善実装
+          問題が特定できた場合、`api/index.js` または関連ファイルを修正。
+          - プロンプトの改善
+          - ロジックの修正
+          - エッジケースの対応
+
+          ### 4. 結果出力
+          `/tmp/mana-judge/report.json` に以下を出力：
+          ```json
+          {
+            "date": "YYYY-MM-DD",
+            "total_conversations": N,
+            "evaluations": [...],
+            "average_scores": {...},
+            "issues_found": [...],
+            "changes_made": [...]
+          }
+          ```
+
+          ## 注意事項
+          - 改善が必要ない場合は何も変更しない
+          - 変更する場合は最小限の修正に留める
+          - 破壊的変更は避ける
+          PROMPT_EOF
+
+          # Claude Codeを実行（非対話モード）
+          $HOME/.local/bin/claude --dangerously-skip-permissions \
+            --print \
+            --model claude-3-5-haiku-latest \
+            "$(cat /tmp/mana-judge/prompt.md)
+
+          対象日: $TARGET_DATE
+          会話データ: /tmp/mana-judge/*.json を読んでください。"
+
+      - name: Check for changes
+        if: steps.check.outputs.skip != 'true'
+        id: changes
+        working-directory: mana
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "=== Changes ==="
+            git diff --stat
+          fi
+
+      - name: Create Pull Request
+        if: steps.check.outputs.skip != 'true' && steps.changes.outputs.has_changes == 'true'
+        working-directory: mana
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_DATE: ${{ steps.date.outputs.date }}
+        run: |
+          BRANCH_NAME="mana-improve/${TARGET_DATE}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH_NAME"
+          git add -A
+          git commit -m "fix(mana): LLM-as-Judge による改善 ($TARGET_DATE)
+
+          Claude Code (Haiku) が会話データを評価し、自動改善を実施。
+
+          Generated with [Claude Code](https://claude.com/claude-code)
+
+          Co-Authored-By: Claude Haiku <noreply@anthropic.com>"
+
+          git push -u origin "$BRANCH_NAME"
+
+          gh pr create \
+            --title "fix(mana): $TARGET_DATE の会話評価に基づく改善" \
+            --body "## Summary
+          - 対象日: $TARGET_DATE
+          - 評価済み会話数: ${{ steps.check.outputs.total }}
+          - Claude Code (Haiku) による自動評価・改善
+
+          ## 変更内容
+          $(git diff HEAD~1 --stat)
+
+          ## 評価レポート
+          詳細は \`/tmp/mana-judge/report.json\` を参照
+
+          ---
+          Generated with [Claude Code](https://claude.com/claude-code)" \
+            --base main
+
+      - name: Upload evaluation report
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-report-${{ steps.date.outputs.date }}
+          path: /tmp/mana-judge/report.json
+          if-no-files-found: ignore
