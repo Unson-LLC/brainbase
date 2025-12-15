@@ -354,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeTasks = tasks.filter(t =>
             t.status !== 'done' &&
             (!focusTask || t.id !== focusTask.id) &&
-            (t.owner === '佐藤圭吾' || !t.owner) // Show tasks with no owner assigned as well
+            t.owner === '佐藤圭吾'
         );
         const filteredTasks = filterTasks(activeTasks, taskFilter);
         const otherTasks = sortTasksByPriority(filteredTasks);
