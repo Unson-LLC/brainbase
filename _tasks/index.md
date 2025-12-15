@@ -167,7 +167,7 @@ task_id: T-2512-012
 source_id: SLACK-2025-12-14-MJ5BVM2G
 title: β版リリースに向けたタスクの整理
 project_id: zeims
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: 2025-12-20
@@ -185,6 +185,162 @@ requester: k.​sato
 - 担当: k.​sato
 - 背景: Zeimsプロジェクトのβ版リリース（12月末目標）に向けたタスク整理が必要。現在M2マイルストーンは40%進捗で、決済機能実装（#151）が主なブロッカーとなっている。次週の重点タスクとして、決済機能の実装完了、hono-apiリファクタリング着手、βリリースに向けた機能統合が挙げられている。決済機能については、太田さんがStripe決済フロー実装、プラン選択UI、サブスクリプション管理画面、請求書発行を年内に完了できる見込み。
 - Slack: https://unson.slack.com/archives/C07QX6DN9M0/p1765692744121419?thread_ts=1765690385.108219&cid=C07QX6DN9M0
+
+---
+task_id: T-2512-018
+source_id: MILESTONE-M2-KR1
+title: 【M2】決済機能実装完了（Stripe決済フロー稼働）
+project_id: zeims
+status: in_progress
+owner: 川合秀明
+priority: high
+due: 2025-12-25
+tags: [milestone, m2, payment, critical]
+links: []
+source: milestone
+created_at: "2025-12-16T07:30:00.000Z"
+requester: 佐藤圭吾
+progress: 40
+---
+
+**M2マイルストーン Key Result #1**
+
+## 目標
+決済フロー（Stripe連携）を完全稼働させ、β版で有料化を可能にする
+
+## 実装スコープ
+- [ ] Stripe決済フロー実装
+- [ ] プラン選択UI
+- [ ] サブスクリプション管理画面
+- [ ] 請求書発行機能
+
+## 完了条件
+- 実際にテスト決済が通る
+- 月額3,000円 + オートチャージ方式が稼働
+- サブスクリプション管理画面で契約状況が確認できる
+
+## 参照
+- milestone_spf_pmf.md:115-126
+- 進捗: 40% → 100%（期限: 12/25）
+
+---
+task_id: T-2512-019
+source_id: MILESTONE-M2-KR2
+title: 【M2】ChatGPT-5.1切り替え実装
+project_id: zeims
+status: todo
+owner: 太田葉音
+priority: high
+due: 2025-12-27
+tags: [milestone, m2, llm, model-upgrade]
+links: []
+source: milestone
+created_at: "2025-12-16T07:30:00.000Z"
+requester: 佐藤圭吾
+---
+
+**M2マイルストーン Key Result #2**
+
+## 目標
+ChatGPT-5.1（または最新モデル）への切り替えを完了
+
+## 実装スコープ
+- [ ] モデルバージョンの更新
+- [ ] 既存プロンプトの互換性確認
+- [ ] レスポンス品質の検証
+- [ ] コスト影響の確認
+
+## 完了条件
+- 本番環境でChatGPT-5.1が稼働
+- 既存機能（チャット/ディープリサーチ/事務所ルール）が正常動作
+- 回答品質が劣化していないことを確認
+
+## 参照
+- milestone_spf_pmf.md:122
+
+---
+task_id: T-2512-020
+source_id: MILESTONE-M2-KR3
+title: 【M2】LP正式公開（ロゴ掲載4件）
+project_id: zeims
+status: todo
+owner: 川合秀明
+priority: high
+due: 2025-12-30
+tags: [milestone, m2, marketing, landing-page]
+links: []
+source: milestone
+created_at: "2025-12-16T07:30:00.000Z"
+requester: 佐藤圭吾
+---
+
+**M2マイルストーン Key Result #3**
+
+## 目標
+LP（service.zeims.ai）を正式公開し、βパートナーのロゴ掲載を完了
+
+## 実装スコープ
+- [ ] βパートナー4社のロゴ掲載許可取得
+- [ ] LP デザイン最終調整
+- [ ] 価格ページの公開
+- [ ] FAQ / 利用規約の整備
+
+## 完了条件
+- service.zeims.ai が正式公開状態
+- βパートナーロゴが4件以上掲載
+- 価格ページ・利用規約がアクセス可能
+
+## 参照
+- milestone_spf_pmf.md:123
+
+---
+task_id: T-2512-021
+source_id: MILESTONE-M2-FINAL
+title: 【M2】β版リリース最終チェックリスト
+project_id: zeims
+status: todo
+owner: 川合秀明
+priority: high
+due: 2025-12-31
+tags: [milestone, m2, release, checklist]
+links: []
+source: milestone
+created_at: "2025-12-16T07:30:00.000Z"
+requester: 佐藤圭吾
+---
+
+**M2マイルストーン 最終リリースチェック**
+
+## GTMチェックリスト
+
+### 機能確認
+- [ ] 決済機能が正常稼働（T-2512-018）
+- [ ] ChatGPT-5.1が稼働（T-2512-019）
+- [ ] LP正式公開完了（T-2512-020）
+- [ ] 全主要機能の動作確認（チャット/ディープリサーチ/事務所ルール）
+
+### ドキュメント
+- [ ] 利用規約の最終レビュー
+- [ ] プライバシーポリシー確認
+- [ ] FAQ整備
+- [ ] オンボーディング資料（M3へ繰越可）
+
+### 運用準備
+- [ ] βパートナー23社への告知準備
+- [ ] CS体制の確認（問い合わせ対応フロー）
+- [ ] 監視体制（エラー監視・アラート設定）
+
+### リリース判定
+- [ ] 川合GM最終承認
+- [ ] 佐藤CTO技術承認
+- [ ] 重大バグゼロ確認
+
+## 完了条件
+全チェック項目がクリアされ、2025/12/31にβ版（M2）が一般公開される
+
+## 参照
+- milestone_spf_pmf.md:115-128
+- zeims_task_plan.csv:91（GTMチェックリスト）
 
 ---
 task_id: T-2512-011
@@ -497,7 +653,7 @@ task_id: T-2512-001
 source_id: SLACK-2025-12-10-MJ0EZATP
 title: Airtable同期機能のE2Eテスト
 project_id: general
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: 2024-12-13
@@ -520,7 +676,7 @@ requester: k.​sato
 id: SLACK-2025-12-10-MIZZANSG
 title: 小川とのタスク分担および進捗管理体制の確立
 project_id: general
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: null
