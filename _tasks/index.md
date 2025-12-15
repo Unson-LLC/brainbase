@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-013
+source_id: SLACK-2025-12-15-MJ6K18D9
+title: 雲孫会の日程調整
+project_id: general
+status: todo
+owner: 梅田-遼/haruka umeda
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08Q5V2S2AW
+thread_ts: "1765766914.927549"
+created_at: "2025-12-15T02:48:41.373Z"
+owner_slack_id: U090R3E72UA
+requester: 梅田-遼/haruka-umeda
+---
+
+- 2025-12-15 Slackから自動取り込み: 梅田 遼/Haruka Umedaから依頼
+- 担当: 梅田 遼/Haruka Umeda
+- 背景: 木曜日に実施する月1の飲み会「雲孫会」の日程を調整さんで調整する。10月開催予定だったが、現在無期限タスクとして管理。
+- Slack: https://unson.slack.com/archives/C08Q5V2S2AW/p1765766914927549?thread_ts=1757945410.173519&cid=C08Q5V2S2AW
+
+---
 task_id: T-2512-012
 source_id: SLACK-2025-12-14-MJ5BVM2G
 title: β版リリースに向けたタスクの整理
