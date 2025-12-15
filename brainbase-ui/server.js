@@ -985,6 +985,32 @@ app.delete('/api/sessions/:id/worktree', async (req, res) => {
     res.json({ success });
 });
 
+// Stop ttyd process for a session
+async function stopTtydProcess(sessionId) {
+    if (activeSessions.has(sessionId)) {
+        const sessionData = activeSessions.get(sessionId);
+        console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port})`);
+
+        try {
+            sessionData.process.kill('SIGTERM');
+            // Give it a moment to terminate gracefully
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Force kill if still running
+            if (!sessionData.process.killed) {
+                sessionData.process.kill('SIGKILL');
+            }
+        } catch (err) {
+            console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
+        }
+
+        activeSessions.delete(sessionId);
+        sessionHookStatus.delete(sessionId);
+        return true;
+    }
+    return false;
+}
+
 // Archive session (with optional merge check)
 app.post('/api/sessions/:id/archive', async (req, res) => {
     const { id } = req.params;
@@ -1009,18 +1035,176 @@ app.post('/api/sessions/:id/archive', async (req, res) => {
         }
     }
 
+    // Stop ttyd process first (release port)
+    const ttydStopped = await stopTtydProcess(id);
+    console.log(`ttyd process stopped for ${id}: ${ttydStopped}`);
+
     // Remove worktree if exists
     if (session.worktree) {
         await removeWorktree(id, session.worktree.repo);
     }
 
-    // Archive session
+    // Archive session (keep worktree info for potential restore)
     const updatedSessions = state.sessions.map(s =>
-        s.id === id ? { ...s, archived: true, worktree: null } : s
+        s.id === id ? {
+            ...s,
+            archived: true,
+            // Keep worktree.repo for restore, but mark as removed
+            worktree: s.worktree ? { ...s.worktree, removed: true } : null
+        } : s
     );
     await stateStore.update({ sessions: updatedSessions });
 
-    res.json({ success: true, archived: true });
+    res.json({ success: true, archived: true, ttydStopped });
+});
+
+// Restore (unarchive) session - restarts ttyd process
+app.post('/api/sessions/:id/restore', async (req, res) => {
+    const { id } = req.params;
+    const { engine = 'claude' } = req.body;
+
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.archived) {
+        // Check if ttyd is already running
+        if (activeSessions.has(id)) {
+            return res.json({
+                success: true,
+                alreadyRunning: true,
+                port: activeSessions.get(id).port,
+                proxyPath: `/console/${id}`
+            });
+        }
+    }
+
+    // Determine working directory
+    let cwd = session.path;
+    let worktreeRecreated = false;
+
+    if (session.worktree && session.worktree.repo) {
+        // Worktree was removed on archive, recreate it
+        const worktreeResult = await createWorktree(id, session.worktree.repo);
+        if (worktreeResult) {
+            cwd = worktreeResult.worktreePath;
+            worktreeRecreated = true;
+
+            // Update session with new worktree path
+            const currentState = stateStore.get();
+            const updatedSessions = currentState.sessions.map(s =>
+                s.id === id ? {
+                    ...s,
+                    path: cwd,
+                    worktree: { ...s.worktree, removed: false }
+                } : s
+            );
+            await stateStore.update({ sessions: updatedSessions });
+        }
+    } else if (!cwd || cwd.includes('.worktrees')) {
+        // Path was a worktree but worktree info is lost - cannot restore
+        return res.status(400).json({
+            error: 'Cannot restore session: worktree information is missing. Please create a new session.'
+        });
+    }
+
+    // Verify cwd exists
+    try {
+        await fs.access(cwd);
+    } catch (err) {
+        return res.status(400).json({ error: `Working directory not found: ${cwd}` });
+    }
+
+    // Start ttyd process
+    try {
+        const port = await findFreePort(nextPort);
+        nextPort = port + 1;
+
+        console.log(`Restoring session '${id}' on port ${port}...`);
+
+        const scriptPath = path.join(__dirname, 'login_script.sh');
+        const customIndexPath = path.join(__dirname, 'custom_ttyd_index.html');
+        const basePath = `/console/${id}`;
+
+        const args = [
+            '-p', port.toString(),
+            '-W',
+            '-b', basePath,
+            '-t', 'disableLeaveAlert=true',
+            '-t', 'enableClipboard=true',
+            '-t', 'fontSize=14',
+            '-t', 'scrollback=5000',
+            '-t', 'scrollSensitivity=3',
+            '-I', customIndexPath,
+            'bash',
+            scriptPath,
+            id,
+            '', // Empty initial command (use claude --resume in login_script)
+            session.engine || engine
+        ];
+
+        const ttyd = spawn('ttyd', args, { stdio: 'pipe', cwd });
+
+        ttyd.stdout.on('data', (data) => {
+            console.log(`[ttyd:${id}] ${data}`);
+        });
+
+        ttyd.stderr.on('data', (data) => {
+            console.error(`[ttyd:${id}] ${data}`);
+        });
+
+        ttyd.on('error', (err) => {
+            console.error(`Failed to start ttyd for ${id}:`, err);
+        });
+
+        ttyd.on('exit', (code) => {
+            console.log(`ttyd for ${id} exited with code ${code}`);
+            activeSessions.delete(id);
+        });
+
+        activeSessions.set(id, { port, process: ttyd });
+
+        // Update session state
+        const updatedSessions = state.sessions.map(s =>
+            s.id === id ? { ...s, archived: false } : s
+        );
+        await stateStore.update({ sessions: updatedSessions });
+
+        setTimeout(() => {
+            if (activeSessions.has(id)) {
+                res.json({
+                    success: true,
+                    port,
+                    proxyPath: basePath,
+                    restored: true,
+                    worktreeRecreated,
+                    cwd
+                });
+            } else {
+                res.status(500).json({ error: 'Failed to restore session (process exited)' });
+            }
+        }, 500);
+
+    } catch (error) {
+        console.error('Failed to restore session:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Stop ttyd process only (without archiving)
+app.post('/api/sessions/:id/stop', async (req, res) => {
+    const { id } = req.params;
+
+    const stopped = await stopTtydProcess(id);
+
+    if (stopped) {
+        res.json({ success: true, message: `ttyd process for ${id} stopped` });
+    } else {
+        res.json({ success: false, message: `No active ttyd process found for ${id}` });
+    }
 });
 
 // Start server
