@@ -148,13 +148,22 @@ function setupDragDropEvents() {
 
 function setupClipboardPaste() {
     document.addEventListener('paste', async (e) => {
+        // Skip if pasting into input fields - let browser handle it
+        if (e.target.tagName === 'INPUT' ||
+            e.target.tagName === 'TEXTAREA' ||
+            e.target.isContentEditable) {
+            return;
+        }
+
         const currentSessionId = getSessionId?.();
         if (!currentSessionId) return;
 
         const items = e.clipboardData?.items;
         if (!items) return;
 
+        // Phase 2.2: Handle both images and text
         for (const item of items) {
+            // Handle images
             if (item.type.startsWith('image/')) {
                 e.preventDefault();
                 const file = item.getAsFile();
@@ -163,8 +172,90 @@ function setupClipboardPaste() {
                 }
                 return;
             }
+
+            // Handle text (Phase 2.2)
+            if (item.type === 'text/plain') {
+                e.preventDefault();
+                item.getAsString(async (text) => {
+                    await showPasteConfirmModal(text, currentSessionId);
+                });
+                return;
+            }
         }
     });
+}
+
+/**
+ * Show paste confirmation modal (Phase 2.2)
+ * @param {string} text - Text to paste
+ * @param {string} sessionId - Target session ID
+ */
+async function showPasteConfirmModal(text, sessionId) {
+    const modal = document.getElementById('paste-confirm-modal');
+    const preview = document.getElementById('paste-preview-text');
+    const confirmBtn = document.getElementById('paste-confirm-btn');
+    const cancelBtn = document.getElementById('paste-cancel-btn');
+    const closeBtn = modal.querySelector('.close-modal-btn');
+
+    if (!modal || !preview || !confirmBtn || !cancelBtn) return;
+
+    // Show preview (limit to 500 chars for display)
+    const displayText = text.length > 500 ? text.substring(0, 500) + '\n...(省略)...' : text;
+    preview.textContent = displayText;
+
+    // Show modal
+    modal.classList.add('active');
+
+    // Wait for user action
+    const result = await new Promise((resolve) => {
+        const confirm = () => {
+            cleanup();
+            resolve(true);
+        };
+        const cancel = () => {
+            cleanup();
+            resolve(false);
+        };
+        const cleanup = () => {
+            confirmBtn.removeEventListener('click', confirm);
+            cancelBtn.removeEventListener('click', cancel);
+            closeBtn.removeEventListener('click', cancel);
+            modal.removeEventListener('click', handleBackdrop);
+        };
+        const handleBackdrop = (e) => {
+            if (e.target === modal) cancel();
+        };
+
+        confirmBtn.addEventListener('click', confirm);
+        cancelBtn.addEventListener('click', cancel);
+        closeBtn.addEventListener('click', cancel);
+        modal.addEventListener('click', handleBackdrop);
+    });
+
+    modal.classList.remove('active');
+
+    // Paste to terminal if confirmed
+    if (result) {
+        await pasteTextToTerminal(sessionId, text);
+    }
+}
+
+/**
+ * Paste text to terminal (Phase 2.2)
+ * @param {string} sessionId - Session ID
+ * @param {string} text - Text to paste
+ */
+async function pasteTextToTerminal(sessionId, text) {
+    try {
+        await fetch(`/api/sessions/${sessionId}/input`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input: text, type: 'text' })
+        });
+    } catch (error) {
+        console.error('Failed to paste text:', error);
+        alert('テキストの貼り付けに失敗しました');
+    }
 }
 
 function setupKeyHandling() {

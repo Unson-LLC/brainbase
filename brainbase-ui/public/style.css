@@ -487,6 +487,117 @@ body {
     color: var(--accent-color);
 }
 
+/* Phase 3.2: Choice Overlay for terminal selections */
+.choice-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.95);
+    z-index: 150;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
+.choice-overlay.active {
+    display: flex;
+}
+
+.choice-overlay-content {
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    padding: 1.5rem;
+    max-width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+}
+
+.choice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.choice-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.choice-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.choice-close-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.choice-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.choice-btn {
+    background: var(--bg-primary);
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 1rem 1.25rem;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: all 0.2s;
+    text-align: left;
+    min-height: 60px;
+}
+
+.choice-btn:hover {
+    border-color: var(--accent-color);
+    background: var(--bg-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.choice-btn:active {
+    transform: translateY(0);
+}
+
+.choice-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    background: var(--accent-color);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.choice-text {
+    flex: 1;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
 /* =========================================
    5. Right Sidebar: Today's Page
    ========================================= */
@@ -1641,6 +1752,28 @@ body {
     background: rgba(59, 130, 246, 0.4);
 }
 
+/* Phase 2.2: Paste preview styles */
+.paste-preview {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    overflow: auto;
+    max-height: 40vh;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.modal-description {
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
 /* Copy feedback */
 .btn-primary.copied {
     background: var(--success-color);
@@ -2442,7 +2575,36 @@ body {
     padding: 12px;
 }
 
+/* Mobile FAB (Floating Action Button) */
+.mobile-fab {
+    display: none;
+}
+
 @media (max-width: 768px) {
+    /* Mobile FAB */
+    .mobile-fab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        bottom: 72px;
+        right: 16px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        z-index: 999;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .mobile-fab:active {
+        transform: scale(0.95);
+    }
+
     /* Show mobile bottom nav */
     .mobile-bottom-nav {
         display: flex;
@@ -2509,11 +2671,23 @@ body {
     }
 
     /* Console toolbar - more accessible on mobile */
+    /* Phase 2.1: Improve toolbar visibility and usability on mobile */
     .console-toolbar {
         top: auto;
         bottom: 64px;
         right: 12px;
         opacity: 1;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(8px);
+        padding: 8px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .console-btn {
+        width: 48px;
+        height: 48px;
+        padding: 12px;
     }
 
     /* Modal adjustments for mobile */
@@ -2573,5 +2747,38 @@ body {
 
     .bottom-sheet-content {
         padding: 12px;
+    }
+
+    /* Phase 1.3: Improve tap target sizes for mobile */
+    .add-session-btn-icon,
+    .add-project-session-btn,
+    .icon-btn,
+    .rename-session-btn,
+    .delete-session-btn,
+    .archive-session-btn,
+    .merge-session-btn,
+    .restart-session-btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .session-child-row {
+        padding: 14px 16px;
+        min-height: 56px;
+    }
+
+    .session-group-header {
+        padding: 12px 16px;
+        min-height: 52px;
+    }
+
+    /* Ensure bottom sheet buttons are large enough */
+    .bottom-sheet-header button {
+        min-width: 44px;
+        min-height: 44px;
     }
 }

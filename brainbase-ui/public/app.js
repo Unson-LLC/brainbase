@@ -1255,6 +1255,105 @@ document.addEventListener('DOMContentLoaded', () => {
     // Status Polling (every 3 seconds) - using imported module
     startPolling(() => currentSessionId, 3000);
 
+    // Phase 3.2: Choice Detection (every 2 seconds)
+    let choiceCheckInterval = null;
+    let lastChoiceHash = null;
+
+    function startChoiceDetection() {
+        stopChoiceDetection();
+
+        choiceCheckInterval = setInterval(async () => {
+            if (!currentSessionId) return;
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/output`);
+                const data = await res.json();
+
+                if (data.hasChoices && data.choices.length > 0) {
+                    // Check if choices changed (simple hash)
+                    const choiceHash = JSON.stringify(data.choices);
+                    if (choiceHash !== lastChoiceHash) {
+                        lastChoiceHash = choiceHash;
+                        showChoiceOverlay(data.choices);
+                        stopChoiceDetection(); // Stop polling when overlay is shown
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check for choices:', error);
+            }
+        }, 2000); // Check every 2 seconds
+    }
+
+    function stopChoiceDetection() {
+        if (choiceCheckInterval) {
+            clearInterval(choiceCheckInterval);
+            choiceCheckInterval = null;
+        }
+    }
+
+    function showChoiceOverlay(choices) {
+        const overlay = document.getElementById('choice-overlay');
+        const container = document.getElementById('choice-buttons');
+        const closeBtn = document.getElementById('close-choice-overlay');
+
+        if (!overlay || !container) return;
+
+        container.innerHTML = '';
+        choices.forEach((choice) => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.innerHTML = `
+                <span class="choice-number">${escapeHtml(choice.number)}</span>
+                <span class="choice-text">${escapeHtml(choice.text)}</span>
+            `;
+            btn.onclick = () => selectChoice(choice.number);
+            container.appendChild(btn);
+        });
+
+        overlay.classList.add('active');
+        lucide.createIcons();
+
+        // Close button
+        closeBtn.onclick = () => closeChoiceOverlay();
+    }
+
+    function closeChoiceOverlay() {
+        const overlay = document.getElementById('choice-overlay');
+        overlay?.classList.remove('active');
+        lastChoiceHash = null;
+        startChoiceDetection(); // Resume polling
+    }
+
+    // Phase 3.3: Send choice selection
+    async function selectChoice(number) {
+        if (!currentSessionId) return;
+
+        try {
+            // Send number
+            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: number, type: 'text' })
+            });
+
+            // Send Enter key
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: 'Enter', type: 'key' })
+            });
+
+            closeChoiceOverlay();
+        } catch (error) {
+            console.error('Failed to send choice:', error);
+            showError('選択の送信に失敗しました');
+        }
+    }
+
+    // Start choice detection when session is active
+    startChoiceDetection();
+
     // --- Terminal Copy Functionality ---
     if (copyTerminalBtn) {
         copyTerminalBtn.onclick = async () => {
@@ -1337,6 +1436,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const tasksBottomSheet = document.getElementById('tasks-bottom-sheet');
     const closeSessionsSheetBtn = document.getElementById('close-sessions-sheet');
     const closeTasksSheetBtn = document.getElementById('close-tasks-sheet');
+    const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn');
+    const mobileFabBtn = document.getElementById('mobile-fab');
     const mobileSessionList = document.getElementById('mobile-session-list');
     const mobileTasksContent = document.getElementById('mobile-tasks-content');
 
@@ -1345,6 +1446,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sessionListContent = sessionList?.innerHTML || '';
         if (mobileSessionList) {
             mobileSessionList.innerHTML = sessionListContent;
+
             // Re-attach click handlers for mobile session items
             mobileSessionList.querySelectorAll('.session-child-row').forEach(row => {
                 row.addEventListener('click', (e) => {
@@ -1354,6 +1456,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     const initialCommand = row.dataset.initialCommand;
                     switchSession(id, path, initialCommand);
                     closeSessionsSheet();
+                });
+            });
+
+            // Re-attach click handlers for project group plus buttons
+            mobileSessionList.querySelectorAll('.add-project-session-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const project = btn.dataset.project;
+                    createNewSession(project);
+                    closeSessionsSheet();
+                });
+            });
+
+            // Re-attach click handlers for project group headers (expand/collapse)
+            mobileSessionList.querySelectorAll('.session-group-header').forEach(header => {
+                header.addEventListener('click', (e) => {
+                    if (!e.target.closest('.add-project-session-btn')) {
+                        const groupDiv = header.closest('.session-group');
+                        const container = groupDiv.querySelector('.session-group-children');
+                        container.style.display = container.style.display === 'none' ? 'block' : 'none';
+                        const icon = header.querySelector('.folder-icon i');
+                        icon.setAttribute('data-lucide', container.style.display === 'none' ? 'folder' : 'folder-open');
+                        lucide.createIcons();
+                    }
                 });
             });
         }
@@ -1399,6 +1525,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listeners for mobile navigation
     mobileSessionsBtn?.addEventListener('click', openSessionsSheet);
     mobileTasksBtn?.addEventListener('click', openTasksSheet);
+    mobileAddSessionBtn?.addEventListener('click', () => createNewSession());
+    mobileFabBtn?.addEventListener('click', () => createNewSession());
     closeSessionsSheetBtn?.addEventListener('click', closeSessionsSheet);
     closeTasksSheetBtn?.addEventListener('click', closeTasksSheet);
     sessionsSheetOverlay?.addEventListener('click', closeSessionsSheet);
