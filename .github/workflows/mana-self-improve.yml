@@ -19,12 +19,16 @@ jobs:
     runs-on: [self-hosted, local]
 
     steps:
-      - name: Checkout mana repository
-        uses: actions/checkout@v4
-        with:
-          repository: sintariran/mana
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: mana
+      - name: Setup mana repository (local)
+        run: |
+          # セルフホストランナーなのでローカルのmanaリポジトリを使用
+          MANA_PATH="/Users/ksato/workspace/mana"
+          if [ ! -d "$MANA_PATH" ]; then
+            echo "Error: mana repository not found at $MANA_PATH"
+            exit 1
+          fi
+          echo "MANA_PATH=$MANA_PATH" >> $GITHUB_ENV
+          cd "$MANA_PATH" && git fetch origin && git checkout main && git pull
 
       - name: Set target date
         id: date
@@ -75,7 +79,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TARGET_DATE: ${{ steps.date.outputs.date }}
-        working-directory: mana
+        working-directory: ${{ env.MANA_PATH }}
         run: |
           # Claude Code用のプロンプトファイルを作成
           cat > /tmp/mana-judge/prompt.md << 'PROMPT_EOF'
@@ -151,7 +155,7 @@ jobs:
       - name: Check for changes
         if: steps.check.outputs.skip != 'true'
         id: changes
-        working-directory: mana
+        working-directory: ${{ env.MANA_PATH }}
         run: |
           if git diff --quiet; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
@@ -163,7 +167,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.check.outputs.skip != 'true' && steps.changes.outputs.has_changes == 'true'
-        working-directory: mana
+        working-directory: ${{ env.MANA_PATH }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_DATE: ${{ steps.date.outputs.date }}
