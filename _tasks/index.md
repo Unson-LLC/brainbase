@@ -71,7 +71,7 @@ task_id: T-2512-016
 source_id: SLACK-2025-12-15-MJ6NDRZ5
 title: 資料を送付
 project_id: general
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: null
@@ -395,7 +395,7 @@ task_id: T-2512-009
 source_id: SLACK-2025-12-13-MJ3TUPSX
 title: Airtableコメント通知機能を設定
 project_id: general
-status: todo
+status: in-progress
 owner: 佐藤圭吾
 priority: medium
 due: null

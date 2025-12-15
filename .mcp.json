@@ -45,7 +45,8 @@
         "@cocal/google-calendar-mcp"
       ],
       "env": {
-        "GOOGLE_OAUTH_CREDENTIALS": "/Users/ksato/.config/google-calendar-mcp/gcp-oauth.keys.json"
+        "GOOGLE_OAUTH_CREDENTIALS": "/Users/ksato/.config/google-calendar-mcp/gcp-oauth.keys.json",
+        "GOOGLE_CALENDAR_MCP_TOKEN_PATH": "/Users/ksato/.config/google-calendar-mcp/tokens.json"
       }
     }
   }
