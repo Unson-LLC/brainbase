@@ -67,6 +67,7 @@ export class TaskParser {
                         if (key.trim() === 'priority') task.priority = value;
                         if (key.trim() === 'due') task.due = value === 'null' ? null : value;
                         if (key.trim() === 'project_id') task.project = value;
+                        if (key.trim() === 'owner') task.owner = value;
                         if (key.trim() === 'id' || key.trim() === 'task_id') {
                             task.id = value;
                             isTaskBlock = true;
