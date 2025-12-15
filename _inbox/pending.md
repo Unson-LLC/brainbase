@@ -22,7 +22,7 @@ id: INBOX-2025-12-15-MJ6YXHUX
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1765791937.218239
-status: pending
+status: done
 ---
 
 ### 18:45 | #0031-dialogai-dev | 小川未来
@@ -379,7 +379,7 @@ id: INBOX-2025-12-15-MJ6MQKQF
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1765771459.401749
-status: pending
+status: done
 ---
 
 ### 13:04 | #9960-back-office | 梅田 遼/Haruka Umeda
@@ -396,7 +396,7 @@ id: INBOX-2025-12-15-MJ6KJ5I5
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1765767755.662119
-status: pending
+status: done
 ---
 
 ### 12:02 | #9960-back-office | 梅田 遼/Haruka Umeda
@@ -412,7 +412,7 @@ id: INBOX-2025-12-15-MJ6KHQU4
 channel: 9960-back-office
 sender: 吉見貴光
 timestamp: 1765767689.960939
-status: pending
+status: done
 ---
 
 ### 12:01 | #9960-back-office | 吉見貴光
@@ -432,7 +432,7 @@ id: INBOX-2025-12-15-MJ6K3FI5
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1765767021.370319
-status: pending
+status: done
 ---
 
 ### 11:50 | #9960-back-office | 梅田 遼/Haruka Umeda
@@ -563,7 +563,7 @@ id: INBOX-2025-12-14-MJ5IOWAC
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1765704197.087509
-status: pending
+status: done
 ---
 
 ### 18:23 | #0031-dialogai-dev | 小川未来
@@ -586,7 +586,7 @@ id: INBOX-2025-12-14-MJ5HTTSF
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1765702745.639419
-status: pending
+status: done
 ---
 
 ### 17:59 | #0031-dialogai-dev | 小川未来
@@ -945,7 +945,7 @@ id: INBOX-2025-12-12-MJ2P3259
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765533536.325369
-status: pending
+status: done
 ---
 
 ### 18:58 | #0120-ncom | 小川未来
@@ -963,7 +963,7 @@ id: INBOX-2025-12-12-MJ2O211Z
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765531806.977789
-status: pending
+status: done
 ---
 
 ### 18:30 | #0120-ncom | 小川未来
