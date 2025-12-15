@@ -1,0 +1,21 @@
+name: 週次タスク棚卸し
+
+on:
+  schedule:
+    # 毎週日曜 09:00 JST = 00:00 UTC
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  triage:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run task triage
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: node _codex/common/ops/scripts/task-triage.js
