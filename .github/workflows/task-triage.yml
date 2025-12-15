@@ -91,8 +91,8 @@ jobs:
           最後にサマリを出力。全体で1500文字以内。
           PROMPT_END
 
-          PROMPT=$(cat /tmp/prompt.txt)
-          claude -p "$PROMPT" --output-format text > /tmp/analysis.txt 2>&1 || echo "AI分析に失敗しました" > /tmp/analysis.txt
+          # stdinからプロンプトを渡して実行
+          cat /tmp/prompt.txt | claude --print > /tmp/analysis.txt 2>&1 || echo "AI分析に失敗しました" > /tmp/analysis.txt
 
           echo "=== 分析結果 ==="
           cat /tmp/analysis.txt
