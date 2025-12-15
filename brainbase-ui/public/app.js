@@ -1341,6 +1341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const sessionListContent = sessionList?.innerHTML || '';
         if (mobileSessionList) {
             mobileSessionList.innerHTML = sessionListContent;
+
             // Re-attach click handlers for mobile session items
             mobileSessionList.querySelectorAll('.session-child-row').forEach(row => {
                 row.addEventListener('click', (e) => {
@@ -1350,6 +1351,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     const initialCommand = row.dataset.initialCommand;
                     switchSession(id, path, initialCommand);
                     closeSessionsSheet();
+                });
+            });
+
+            // Re-attach click handlers for project group plus buttons
+            mobileSessionList.querySelectorAll('.add-project-session-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const project = btn.dataset.project;
+                    createNewSession(project);
+                    closeSessionsSheet();
+                });
+            });
+
+            // Re-attach click handlers for project group headers (expand/collapse)
+            mobileSessionList.querySelectorAll('.session-group-header').forEach(header => {
+                header.addEventListener('click', (e) => {
+                    if (!e.target.closest('.add-project-session-btn')) {
+                        const groupDiv = header.closest('.session-group');
+                        const container = groupDiv.querySelector('.session-group-children');
+                        container.style.display = container.style.display === 'none' ? 'block' : 'none';
+                        const icon = header.querySelector('.folder-icon i');
+                        icon.setAttribute('data-lucide', container.style.display === 'none' ? 'folder' : 'folder-open');
+                        lucide.createIcons();
+                    }
                 });
             });
         }
