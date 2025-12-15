@@ -444,6 +444,9 @@
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-header">
             <h3><i data-lucide="layers"></i> Sessions</h3>
+            <button class="add-session-btn-icon" id="mobile-add-session-btn" title="New Session">
+                <i data-lucide="plus"></i>
+            </button>
             <button class="bottom-sheet-close" id="close-sessions-sheet">
                 <i data-lucide="x"></i>
             </button>
@@ -467,6 +470,11 @@
             <!-- Tasks will be cloned here -->
         </div>
     </div>
+
+    <!-- Mobile FAB (Floating Action Button) -->
+    <button id="mobile-fab" class="mobile-fab" title="New Session">
+        <i data-lucide="plus"></i>
+    </button>
 
     <script type="module" src="app.js?v=20251213b"></script>
     <script>

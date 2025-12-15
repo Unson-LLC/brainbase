@@ -2442,7 +2442,36 @@ body {
     padding: 12px;
 }
 
+/* Mobile FAB (Floating Action Button) */
+.mobile-fab {
+    display: none;
+}
+
 @media (max-width: 768px) {
+    /* Mobile FAB */
+    .mobile-fab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        bottom: 72px;
+        right: 16px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        z-index: 999;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .mobile-fab:active {
+        transform: scale(0.95);
+    }
+
     /* Show mobile bottom nav */
     .mobile-bottom-nav {
         display: flex;

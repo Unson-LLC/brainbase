@@ -1331,6 +1331,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const tasksBottomSheet = document.getElementById('tasks-bottom-sheet');
     const closeSessionsSheetBtn = document.getElementById('close-sessions-sheet');
     const closeTasksSheetBtn = document.getElementById('close-tasks-sheet');
+    const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn');
+    const mobileFabBtn = document.getElementById('mobile-fab');
     const mobileSessionList = document.getElementById('mobile-session-list');
     const mobileTasksContent = document.getElementById('mobile-tasks-content');
 
@@ -1393,6 +1395,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listeners for mobile navigation
     mobileSessionsBtn?.addEventListener('click', openSessionsSheet);
     mobileTasksBtn?.addEventListener('click', openTasksSheet);
+    mobileAddSessionBtn?.addEventListener('click', () => createNewSession());
+    mobileFabBtn?.addEventListener('click', () => createNewSession());
     closeSessionsSheetBtn?.addEventListener('click', closeSessionsSheet);
     closeTasksSheetBtn?.addEventListener('click', closeTasksSheet);
     sessionsSheetOverlay?.addEventListener('click', closeSessionsSheet);
