@@ -545,7 +545,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     input.addEventListener('blur', saveName);
                     input.addEventListener('keydown', (ev) => {
-                        if (ev.key === 'Enter') saveName();
+                        if (ev.key === 'Enter' && !ev.isComposing) {
+                            saveName();
+                        }
                     });
                 };
 
@@ -820,12 +822,16 @@ document.addEventListener('DOMContentLoaded', () => {
         executeCreateSession(pendingSessionProject, name, sessionCommandInput.value, useWorktreeCheckbox.checked, engine);
     });
 
-    // Enter key to submit
+    // Enter key to submit (IME変換中は除外)
     sessionNameInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') createSessionBtn.click();
+        if (e.key === 'Enter' && !e.isComposing) {
+            createSessionBtn.click();
+        }
     });
     sessionCommandInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') createSessionBtn.click();
+        if (e.key === 'Enter' && !e.isComposing) {
+            createSessionBtn.click();
+        }
     });
 
     function createNewSession(project = 'general') {
