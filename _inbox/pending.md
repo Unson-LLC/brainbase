@@ -3,6 +3,26 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-15-MJ6KHQU4
+channel: 9960-back-office
+sender: 吉見貴光
+timestamp: 1765767689.960939
+status: pending
+---
+
+### 12:01 | #9960-back-office | 吉見貴光
+
+最終営業日ですねぇ
+
+一般的には12/26とかですが
+銀行自体は12/30までは振り込み可能なはず。(メガバンクなら12/31も対応のとこが多い)
+
+こちらは、代表判断ですかね
+<@U07LNUP582X> 
+
+[Slack](https://unson.slack.com/archives/C08Q5V2S2AW/p1765767689960939)
+
+---
 id: INBOX-2025-12-15-MJ6K3FI5
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
