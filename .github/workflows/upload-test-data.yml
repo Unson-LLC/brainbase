@@ -1,0 +1,70 @@
+name: Upload test conversation data
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: [self-hosted, local]
+    steps:
+      - name: Create and upload test data
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          cat > /tmp/test_conversations.json << 'JSONEOF'
+          {
+            "messages": [
+              {
+                "id": "C07TEST-1734200000.000001",
+                "timestamp": "2025-12-14T10:00:00.000Z",
+                "channel_id": "C07TEST",
+                "channel_name": "test-channel",
+                "user_id": "U07TEST",
+                "user_name": "佐藤圭吾",
+                "user_message": "zeimsの現在のKPIを教えて",
+                "mana_response": "zeimsの現在のKPIについてお答えします。\n\n*主要KPI*\n• MRR: 50万円\n• 有料顧客数: 5社\n• チャーン率: 2%\n\n詳細はAirtableのダッシュボードをご確認ください。",
+                "thread_ts": "1734200000.000001",
+                "response_ts": "1734200001.000001",
+                "message_type": "question",
+                "evaluation": null
+              },
+              {
+                "id": "C07TEST-1734203600.000002",
+                "timestamp": "2025-12-14T11:00:00.000Z",
+                "channel_id": "C07TEST",
+                "channel_name": "test-channel",
+                "user_id": "U07TEST2",
+                "user_name": "川合秀明",
+                "user_message": "smartfrontのリリース予定日はいつ？",
+                "mana_response": "smartfrontのリリース予定について確認しました。\n\n現時点では具体的なリリース日は未定ですが、PMFフェーズに向けて開発中です。\n\n詳細な進捗はプロジェクトのマイルストーンをご確認ください。",
+                "thread_ts": "1734203600.000002",
+                "response_ts": "1734203601.000002",
+                "message_type": "question",
+                "evaluation": null
+              },
+              {
+                "id": "C07TEST-1734207200.000003",
+                "timestamp": "2025-12-14T12:00:00.000Z",
+                "channel_id": "C07TEST",
+                "channel_name": "test-channel",
+                "user_id": "U07TEST",
+                "user_name": "佐藤圭吾",
+                "user_message": "今週のタスク一覧を見せて",
+                "mana_response": "今週のタスク一覧です。\n\n*High Priority*\n• 顧客KPIの正確な把握と定義\n• 展示会用デモ動画の構成まとめ\n• PL表を月次単位に修正\n\n*Medium Priority*\n• Airtableコメント通知機能の設定\n• ZeimsリポジトリにGemini連携設定",
+                "thread_ts": "1734207200.000003",
+                "response_ts": "1734207201.000003",
+                "message_type": "question",
+                "evaluation": null
+              }
+            ],
+            "last_updated": "2025-12-14T12:00:01.000Z"
+          }
+          JSONEOF
+
+          aws s3 cp /tmp/test_conversations.json \
+            s3://brainbase-context-593793022993/slack/unson/mana-conversations/2025-12-14.json
+
+          echo "Uploaded test data:"
+          aws s3 ls s3://brainbase-context-593793022993/slack/unson/mana-conversations/
