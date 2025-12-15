@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-15-MJ79TR4X
+channel: 0111-baao-ai-dojo
+sender: 山本力弥
+timestamp: 1765810239.682679
+status: pending
+---
+
+### 23:50 | #0111-baao-ai-dojo | 山本力弥
+
+<@U07LNUP582X> <@U08D6D2PNCC> 
+ラークの課金のところってどうなりましたでしょうか
+
+[Slack](https://unson.slack.com/archives/C09L3EKAUEA/p1765810239682679)
+
+---
 id: INBOX-2025-12-15-MJ6YXHUX
 channel: 0031-dialogai-dev
 sender: 小川未来
