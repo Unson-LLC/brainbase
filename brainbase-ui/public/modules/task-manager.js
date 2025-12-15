@@ -16,7 +16,7 @@ export function getFocusTask(tasks) {
   // Filter by owner: show only tasks assigned to 佐藤圭吾
   const activeTasks = tasks.filter(t =>
     t.status !== 'done' &&
-    (t.owner === '佐藤圭吾' || !t.owner) // Show tasks with no owner assigned as well
+    t.owner === '佐藤圭吾'
   );
 
   if (activeTasks.length === 0) return null;
