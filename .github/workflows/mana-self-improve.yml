@@ -1,5 +1,6 @@
 name: mana自己改善 (LLM-as-Judge)
 
+# GitHub Actionsによる自動品質改善
 on:
   schedule:
     # 毎日 22:00 JST = 13:00 UTC
