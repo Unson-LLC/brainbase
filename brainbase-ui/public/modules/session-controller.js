@@ -54,3 +54,18 @@ export async function mergeSession(sessionId) {
   });
   return await res.json();
 }
+
+/**
+ * セッションを復元（ttydを再起動）
+ * @param {string} sessionId
+ * @param {string} engine - 'claude' or 'codex'
+ * @returns {Promise<Object>}
+ */
+export async function restoreSessionAPI(sessionId, engine = 'claude') {
+  const res = await fetch(`/api/sessions/${sessionId}/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ engine })
+  });
+  return await res.json();
+}

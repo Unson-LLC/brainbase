@@ -20,6 +20,10 @@ export function renderSessionRowHTML(session, options = {}) {
   const archivedClass = session.archived ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
 
+  // ttydRunning: false かつ archived: false の場合は「停止中」状態
+  const needsRestart = !session.archived && session.ttydRunning === false;
+  const stoppedClass = needsRestart ? ' stopped' : '';
+
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
 
@@ -28,25 +32,35 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<span class="engine-badge engine-codex" title="OpenAI Codex">Codex</span>'
     : '';
 
-  const archivedLabel = session.archived
-    ? '<span class="archived-label">(Archived)</span>'
-    : '';
+  // ステータスラベル
+  let statusLabel = '';
+  if (session.archived) {
+    statusLabel = '<span class="archived-label">(Archived)</span>';
+  } else if (needsRestart) {
+    statusLabel = '<span class="stopped-label">(Stopped)</span>';
+  }
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
   const mergeButton = hasWorktree && !session.archived
     ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>'
     : '';
 
+  // 復元ボタン: ttyd停止中の場合に表示
+  const restartButton = needsRestart
+    ? '<button class="restart-session-btn" title="Restart terminal"><i data-lucide="play"></i></button>'
+    : '';
+
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${stoppedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
         <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
         <span class="session-name">${displayName}</span>
         ${engineBadge}
-        ${archivedLabel}
+        ${statusLabel}
       </div>
       <div class="child-actions">
+        ${restartButton}
         ${mergeButton}
         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
         <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
