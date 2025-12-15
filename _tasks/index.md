@@ -1,4 +1,72 @@
 ---
+task_id: T-2512-017
+source_id: EMAIL-2025-12-06-KOBAYASHI
+title: エンジニア候補者（小林尚司氏）の評価・面接検討
+project_id: unson
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-17
+tags: [recruitment, cxo-meeting, engineer-hiring]
+links: []
+source: email
+created_at: "2025-12-16T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+**CxO会議議題: エンジニア採用候補者の評価**
+
+## 候補者サマリー
+- **氏名**: 小林尚司（こばやし・しょうじ）
+- **年齢**: 41歳
+- **居住地**: 京都府
+- **経歴**: 18年（うちフリーランス10年）
+- **紹介者**: 川原貴大（Planna）← 山本力哉経由
+
+## 技術評価
+**技術スキル**: ★★★★★
+- Rails: 10年（SalesTailor完全一致）
+- React: 8年
+- Vue: 2年
+- TypeScript: 5年
+- OpenAI API: 実務経験あり
+
+**自律性・タスク完遂力**: ★★★★☆
+- フリーランス10年の実績
+- 複数の長期プロジェクト経験
+- 小松原タイプ（実装特化型）の可能性高
+
+## 採用要件との整合性
+✅ 技術スタック: SalesTailorに完全一致（Rails+React+OpenAI）
+✅ リモート対応: フリーランス経験から問題なし
+⚠️ 安定稼働: **要確認**（週何時間確保できるか）
+⚠️ 見積もり能力: **要確認**（タスク見積もり精度）
+
+## 面接で確認すべき事項
+1. **週次の稼働可能時間**（最重要）
+   - 現在の他案件との兼ね合い
+   - 安定的に確保できる時間帯・曜日
+2. **報酬期待値**
+   - 時給/月額の希望額
+   - 予算との整合性確認
+3. **働き方の志向**
+   - PM型 vs 実装型（小松原タイプ）の確認
+   - タスク管理・見積もりの経験とスタンス
+4. **プロジェクト選好**
+   - SalesTailor / UNSON / Tech Knight のどれに興味があるか
+
+## 次ステップ提案
+1. 面接日程調整（1週間以内）
+2. 上記確認事項のヒアリング実施
+3. トライアル案件の設定（1-2週間程度）
+4. 本格稼働の判断
+
+## 関連資料
+- 職務経歴書: `/Users/ksato/Library/CloudStorage/GoogleDrive-info@unson.jp/共有ドライブ/雲孫ドライブ/unson/採用/職務経歴書_小林尚司.pdf`
+- スキルシート: `/Users/ksato/Library/CloudStorage/GoogleDrive-info@unson.jp/共有ドライブ/雲孫ドライブ/unson/採用/スキルシート_小林尚司.pdf`
+- 初回メール: 2025-12-06 k.sato@unson.jp宛
+
+---
 task_id: T-2512-016
 source_id: SLACK-2025-12-15-MJ6NDRZ5
 title: 資料を送付
