@@ -192,3 +192,76 @@
     }
 })();
 </script>
+
+<script>
+// File path linkifier for Claude Code output
+(function() {
+    // Wait for terminal to be available
+    function addFileLinkifier() {
+        const term = window.term;
+        if (!term) {
+            setTimeout(addFileLinkifier, 500);
+            return;
+        }
+
+        // Pattern: path/to/file.ext:123 or /absolute/path/file.ext:456
+        const filePathRegex = /([a-zA-Z0-9_\-./]+\.(ts|js|tsx|jsx|md|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh)):(\d+)/;
+
+        term.registerLinkProvider({
+            provideLinks: (bufferLineNumber, callback) => {
+                const lineContent = term.buffer.active.getLine(bufferLineNumber - 1)?.translateToString(true);
+                if (!lineContent) {
+                    callback([]);
+                    return;
+                }
+
+                const links = [];
+                let match;
+                const regex = new RegExp(filePathRegex, 'g');
+                
+                while ((match = regex.exec(lineContent)) !== null) {
+                    const filePath = match[1];
+                    const line = match[3];
+                    const startIndex = match.index;
+                    const endIndex = startIndex + match[0].length;
+
+                    links.push({
+                        range: {
+                            start: { x: startIndex + 1, y: bufferLineNumber },
+                            end: { x: endIndex + 1, y: bufferLineNumber }
+                        },
+                        text: match[0],
+                        activate: () => {
+                            // Call API to open file
+                            fetch('/api/open-file', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ filePath, line })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                console.log('File opened:', data.path);
+                            })
+                            .catch(err => {
+                                console.error('Error opening file:', err);
+                            });
+                        }
+                    });
+                }
+
+                callback(links);
+            }
+        });
+
+        console.log('File path linkifier registered');
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', addFileLinkifier);
+    } else {
+        addFileLinkifier();
+    }
+})();
+</script>
+</body>
+</html>

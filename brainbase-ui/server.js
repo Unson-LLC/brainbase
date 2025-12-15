@@ -276,6 +276,40 @@ app.post('/api/inbox/mark-all-done', async (req, res) => {
     res.json({ success });
 });
 
+// Open file in editor (Cursor)
+app.post('/api/open-file', async (req, res) => {
+    try {
+        const { filePath, line } = req.body;
+
+        if (!filePath) {
+            return res.status(400).json({ error: 'filePath is required' });
+        }
+
+        // Resolve relative paths from workspace root
+        const workspaceRoot = path.join(__dirname, '..');
+        const absolutePath = path.isAbsolute(filePath)
+            ? filePath
+            : path.join(workspaceRoot, filePath);
+
+        // Build cursor command
+        const lineArg = line ? `:${line}` : '';
+        const command = `cursor "${absolutePath}${lineArg}"`;
+
+        console.log(`Opening file: ${command}`);
+
+        exec(command, (error) => {
+            if (error) {
+                console.error('Error opening file:', error);
+            }
+        });
+
+        res.json({ success: true, path: absolutePath });
+    } catch (error) {
+        console.error('Error in /api/open-file:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Endpoint for hooks to report activity
 app.post('/api/sessions/report_activity', (req, res) => {
     const { sessionId, status } = req.body;
