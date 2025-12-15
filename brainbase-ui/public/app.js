@@ -350,7 +350,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderNextTasks() {
         const focusTask = getFocusTask(tasks);
         // Use imported filterTasks and sortTasksByPriority
-        const activeTasks = tasks.filter(t => t.status !== 'done' && (!focusTask || t.id !== focusTask.id));
+        // Filter by owner: show only tasks assigned to 佐藤圭吾
+        const activeTasks = tasks.filter(t =>
+            t.status !== 'done' &&
+            (!focusTask || t.id !== focusTask.id) &&
+            (t.owner === '佐藤圭吾' || !t.owner) // Show tasks with no owner assigned as well
+        );
         const filteredTasks = filterTasks(activeTasks, taskFilter);
         const otherTasks = sortTasksByPriority(filteredTasks);
 
