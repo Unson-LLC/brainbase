@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-014
+source_id: SLACK-2025-12-15-MJ6K3LO4
+title: Google Workspace移行検証
+project_id: salestailor
+status: todo
+owner: 梅田-遼/haruka umeda
+priority: high
+due: 2025-12-31
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08Q5V2S2AW
+thread_ts: "1765767021.370319"
+created_at: "2025-12-15T02:50:31.924Z"
+owner_slack_id: U090R3E72UA
+requester: 梅田-遼/haruka-umeda
+---
+
+- 2025-12-15 Slackから自動取り込み: 梅田 遼/Haruka Umedaから依頼
+- 担当: 梅田 遼/Haruka Umeda
+- 背景: @sales-tailor.jpのドメインをムームードメインからnamecheapへ移管する際のGoogle Workspace移行検証。サポートから提案されたダミードメイン経由での移行方法（セカンダリドメイン→プライマリ変更→ドメイン名復元）の実現可能性を検証する。また、MBOXファイルからのGmailデータ復元についてはThunderbirdとImportExportTools NGを使用したIMAP経由のアップロード方法で対応可能。Googleカレンダー、メール、サービスログイン系への影響確認が必要。
+- Slack: https://unson.slack.com/archives/C08Q5V2S2AW/p1765767021370319?thread_ts=1754023574.589339&cid=C08Q5V2S2AW
+
+---
 task_id: T-2512-013
 source_id: SLACK-2025-12-15-MJ6K18D9
 title: 雲孫会の日程調整
