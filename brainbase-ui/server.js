@@ -839,12 +839,16 @@ app.get('/api/sessions/:id/output', async (req, res) => {
  * @returns {Array} Array of choice objects
  */
 function detectChoices(text) {
+    // Only check the last 15 lines of output to avoid false positives
+    const lines = text.split('\n');
+    const lastLines = lines.slice(-15).join('\n');
+
     const choices = [];
 
     // Pattern 1: "1) Option" or "1. Option"
     const pattern1 = /^\s*(\d+)[).]\s+(.+)$/gm;
     let match;
-    while ((match = pattern1.exec(text)) !== null) {
+    while ((match = pattern1.exec(lastLines)) !== null) {
         choices.push({
             number: match[1],
             text: match[2].trim(),
@@ -853,6 +857,7 @@ function detectChoices(text) {
     }
 
     // Only return if we have sequential numbers starting from 1
+    // and at least 2 choices
     if (choices.length >= 2) {
         const numbers = choices.map(c => parseInt(c.number));
         const isSequential = numbers.every((num, idx) =>
