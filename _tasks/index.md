@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-015
+source_id: SLACK-2025-12-15-MJ6K4HS4
+title: 橋本さんの振り込み確認
+project_id: general
+status: todo
+owner: 梅田-遼/haruka umeda
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08Q5V2S2AW
+thread_ts: "1765767065.773469"
+created_at: "2025-12-15T02:51:13.540Z"
+owner_slack_id: U090R3E72UA
+requester: 梅田-遼/haruka-umeda
+---
+
+- 2025-12-15 Slackから自動取り込み: 梅田 遼/Haruka Umedaから依頼
+- 担当: 梅田 遼/Haruka Umeda
+- 背景: 弁護士の橋本さんへの支払いについて、請求書が届いているか確認し、届いていれば支払い対象に入れる。11月5日に139,706円の支払い実績あり。無期限タスクとして設定。
+- Slack: https://unson.slack.com/archives/C08Q5V2S2AW/p1765767065773469?thread_ts=1764317299.053109&cid=C08Q5V2S2AW
+
+---
 task_id: T-2512-014
 source_id: SLACK-2025-12-15-MJ6K3LO4
 title: Google Workspace移行検証
