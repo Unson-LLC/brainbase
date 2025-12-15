@@ -1356,8 +1356,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Start choice detection when session is active
-    startChoiceDetection();
+    // Helper function to detect mobile devices
+    function isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    // Start choice detection only on mobile devices
+    if (isMobile()) {
+        startChoiceDetection();
+    }
+
+    // Responsive: Re-check on window resize
+    window.addEventListener('resize', () => {
+        if (isMobile() && !choiceCheckInterval) {
+            startChoiceDetection();
+        } else if (!isMobile() && choiceCheckInterval) {
+            stopChoiceDetection();
+            closeChoiceOverlay();
+        }
+    });
 
     // --- Terminal Copy Functionality ---
     if (copyTerminalBtn) {
