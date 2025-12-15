@@ -3,6 +3,24 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-15-MJ6OWBRL
+channel: 9960-back-office
+sender: 梅田 遼/Haruka Umeda
+timestamp: 1765775086.962499
+status: pending
+---
+
+### 14:04 | #9960-back-office | 梅田 遼/Haruka Umeda
+
+<@U07LNUP582X>
+橋本さんの請求書が11月末期日と12月末期日両方同時に届いてましたが、払って大丈夫ですか？
+
+<@U08MV3U925C>
+この請求書、またファイルに入れとくだけするので登録お願いできますか…？
+
+[Slack](https://unson.slack.com/archives/C08Q5V2S2AW/p1765775086962499)
+
+---
 id: INBOX-2025-12-15-MJ6MQKQF
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
