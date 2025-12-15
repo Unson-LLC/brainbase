@@ -1641,6 +1641,28 @@ body {
     background: rgba(59, 130, 246, 0.4);
 }
 
+/* Phase 2.2: Paste preview styles */
+.paste-preview {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    overflow: auto;
+    max-height: 40vh;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.modal-description {
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
 /* Copy feedback */
 .btn-primary.copied {
     background: var(--success-color);
@@ -2538,11 +2560,23 @@ body {
     }
 
     /* Console toolbar - more accessible on mobile */
+    /* Phase 2.1: Improve toolbar visibility and usability on mobile */
     .console-toolbar {
         top: auto;
         bottom: 64px;
         right: 12px;
         opacity: 1;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(8px);
+        padding: 8px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .console-btn {
+        width: 48px;
+        height: 48px;
+        padding: 12px;
     }
 
     /* Modal adjustments for mobile */

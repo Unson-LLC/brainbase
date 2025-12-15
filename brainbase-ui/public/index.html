@@ -156,6 +156,24 @@
         </div>
     </div>
 
+    <!-- Paste Confirm Modal (Phase 2.2) -->
+    <div id="paste-confirm-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>テキストをターミナルに貼り付け</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">以下のテキストをターミナルに貼り付けますか？</p>
+                <pre id="paste-preview-text" class="paste-preview"></pre>
+            </div>
+            <div class="modal-footer">
+                <button id="paste-cancel-btn" class="btn-secondary">キャンセル</button>
+                <button id="paste-confirm-btn" class="btn-primary">貼り付け</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Task Modal -->
     <div id="edit-task-modal" class="modal">
         <div class="modal-content">
