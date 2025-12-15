@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "gmail": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/Users/ksato/workspace/.claude/mcp/gmail/src/index.ts"
+      ]
+    },
     "jibble": {
       "type": "stdio",
       "command": "npx",
