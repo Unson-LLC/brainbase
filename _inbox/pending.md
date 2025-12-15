@@ -3,6 +3,23 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-15-MJ6MQKQF
+channel: 9960-back-office
+sender: 梅田 遼/Haruka Umeda
+timestamp: 1765771459.401749
+status: pending
+---
+
+### 13:04 | #9960-back-office | 梅田 遼/Haruka Umeda
+
+<@U08MV3U925C> 金田さん、今回30分多めに請求されてます。言った方がいいですか？
+
+<@U07LNUP582X>
+金田さんも複数プロジェクトされてるので、今後プロジェクト毎の勤務時間お伝えしていいですか？
+
+[Slack](https://unson.slack.com/archives/C08Q5V2S2AW/p1765771459401749)
+
+---
 id: INBOX-2025-12-15-MJ6KJ5I5
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
