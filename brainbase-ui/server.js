@@ -176,7 +176,18 @@ app.get('/api/schedule/today', async (req, res) => {
 });
 
 app.get('/api/state', (req, res) => {
-    res.json(stateStore.get());
+    const state = stateStore.get();
+
+    // Add ttyd running status to each session
+    const sessionsWithStatus = (state.sessions || []).map(session => ({
+        ...session,
+        ttydRunning: activeSessions.has(session.id)
+    }));
+
+    res.json({
+        ...state,
+        sessions: sessionsWithStatus
+    });
 });
 
 app.post('/api/state', async (req, res) => {

@@ -15,7 +15,7 @@ import { renderArchiveListHTML } from './modules/archive-modal-renderer.js';
 import { formatTimelineHTML, getCurrentTimeStr } from './modules/timeline-controller.js';
 import { loadTasksFromAPI, completeTask, deferTaskPriority, updateTask, deleteTaskById } from './modules/task-controller.js';
 import { filterArchivedSessions, sortByCreatedDate, getUniqueProjects } from './modules/archive-modal-controller.js';
-import { archiveSessionAPI, mergeSession } from './modules/session-controller.js';
+import { archiveSessionAPI, mergeSession, restoreSessionAPI } from './modules/session-controller.js';
 import { showToast, showSuccess, showError, showInfo } from './modules/toast.js';
 import { showConfirm } from './modules/confirm-modal.js';
 
@@ -598,6 +598,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         } catch (err) {
                             console.error('Failed to send merge command', err);
                             showError('/merge コマンドの送信に失敗しました');
+                        }
+                    };
+                }
+
+                // Restart Logic (ttyd未起動セッションの再起動)
+                const restartBtn = childRow.querySelector('.restart-session-btn');
+                if (restartBtn) {
+                    restartBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        try {
+                            showInfo(`「${displayName}」のターミナルを起動中...`);
+                            const result = await restoreSessionAPI(session.id, session.engine || 'claude');
+                            if (result.success || result.port) {
+                                showSuccess(`「${displayName}」のターミナルを起動しました`);
+                                await loadSessions();
+                                switchSession(session.id, session.path, session.initialCommand);
+                            } else if (result.error) {
+                                showError(`起動失敗: ${result.error}`);
+                            }
+                        } catch (err) {
+                            console.error('Failed to restart session', err);
+                            showError('ターミナルの起動に失敗しました');
                         }
                     };
                 }

@@ -226,6 +226,27 @@ body {
     opacity: 0.7;
 }
 
+/* Stopped Session (ttyd未起動) */
+.session-child-row.stopped {
+    opacity: 0.6;
+    border-left: 2px solid var(--warning-color, #f59e0b);
+}
+
+.stopped-label {
+    font-size: 0.7rem;
+    color: var(--warning-color, #f59e0b);
+    font-weight: 500;
+}
+
+.restart-session-btn {
+    color: var(--warning-color, #f59e0b);
+}
+
+.restart-session-btn:hover {
+    color: var(--text-primary);
+    background: rgba(245, 158, 11, 0.2);
+}
+
 /* Input for renaming */
 .rename-input {
     background: var(--bg-primary);
@@ -243,6 +264,7 @@ body {
 .add-session-btn-icon,
 .add-project-session-btn,
 .merge-session-btn,
+.restart-session-btn,
 .rename-session-btn,
 .delete-session-btn,
 .archive-session-btn {
@@ -262,6 +284,7 @@ body {
 .add-session-btn-icon:hover,
 .add-project-session-btn:hover,
 .merge-session-btn:hover,
+.restart-session-btn:hover,
 .rename-session-btn:hover,
 .delete-session-btn:hover,
 .archive-session-btn:hover {
