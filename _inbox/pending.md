@@ -3,6 +3,137 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-15-MJ6K3FI5
+channel: 9960-back-office
+sender: 梅田 遼/Haruka Umeda
+timestamp: 1765767021.370319
+status: pending
+---
+
+### 11:50 | #9960-back-office | 梅田 遼/Haruka Umeda
+
+<@U093QQ0NV5K> <@U090R3E72UA> <@U07LNUP582X>
+Google Workspace移行検証を期限12月31日のタスクにして
+
+**スレッドの文脈:**
+> **k.​sato** (13:46): <@U090R3E72UA>
+現在ムームードメインに入っている@sales-tailor.jpのドメインをnamecheapに移管したいです。
+<https://chatgpt.com/share/688c4612-fdf0-800e-b279-7949623b47c8>
+
+簡単に手順は調べてみました。こちらの対応お願いしたいです。
+ 注意点としてはムームードメインでgoogle workspaceの契約もしてしまっているので、それもできればSalesTailor社へ移管したいところ。
+最悪namecheapにはgoogle workspaceと紐づいていると移管できない可能性もあるので、できるかどうかの調査から始めてもらえませんか。
+<@U094J4QMKMY>
+> **k.​sato** (18:05): そこ重要なのでお願いします！
+> **梅田 遼/Haruka Umeda** (10:54): まず、同じドメインのGoogleWorkspaceアカウントを同時に存在させることができないです。
+同じドメインのままがいいなら、まず昔のGoogleWorkspaceのアカウントを削除すると24時間以内にそれが消えるので、同じドメインのGoogleWorkspaceアカウントを作ることができます。
+過去のアカウントが消えてるので当然データ移行ができないです。ドライブだけ避難できますが、それ以外はGmailなども全部消えます。
+全部バックアップもできますが（2日くらいかかる）、データとして持っておくだけで戻すことはできません。
+GmailはMBOX 形式でバックアップされるようです。
+
+同じドメインがいい場合はデータ全部消えると思ってください…
+別ドメインだと上記のデータ移行が可能です。
+> **undefined** (18:00): <@U090R3E72UA> cc: <@U07LNUP582X>
+Google Workspace移行の検証の期限が来ました:alarm_clock: *期限*: `今日 18:00` 編集:writing_hand: ボタン 完了したよ ボタン（インタラクティブ要素あり）
+> **k.​sato** (09:11): <@U090R3E72UA>
+ひとまず影響が大きいのがGoogleカレンダーと、メールとあとはアカウントを使ったサービスログイン系ですね
+ちなみにGmailはバックアップしたものから戻すことはできないんですか？MBOX形式というのはインポート不可ってことなんですかね
+> **梅田 遼/Haruka Umeda** (12:27): Gmailはバックアップから戻すことができないです…:sweat_drops:
+> **k.​sato** (13:35): えー、めっちゃだるいですねぇ
+その辺も踏まえて移行をどうするか改めて検討します！
+> **undefined** (13:35): *:alarm_clock: 「Google Workspace移行の検証」の期限が変わりました！* 期限: `昨日 18:00` → 12/31(水) 18:00 佐藤圭吾 / Keigo Satoさんが変更 :bell: 当日以降の期限と担当者の変更のみ、共有のため通知しています（インタラクティブ要素あり）
+> **梅田 遼/Haruka Umeda** (13:42): サポートにも聞いてみますね:pleading_face:
+> **k.​sato** (20:45): はい、何か良い方法がないか聞いてもらえるとありがたいです:man-bowing:
+<@U090R3E72UA>
+> **梅田 遼/Haruka Umeda** (13:34): ダミードメインを作ってデータ移行後、
+ムームーを解約して、
+ドメイン名を取り戻すやり方が見つかりました。
+以下サポートから
+
+少々お手間はかかりますが、以下の操作にて直接契約へのドメインで現在のデータをご利用いただけると想定しております。 ※下記&lt;<http://01sales-tailor.jp|01sales-tailor.jp>&gt;と&lt;<http://02sales-tailor.jp|02sales-tailor.jp>&gt;は説明のための例でございます。
+
+①直接契約後、プライマリドメイン&lt;<http://01sales-tailor.jp|01sales-tailor.jp>&gt;、セカンダリドメイン&lt;<http://02sales-tailor.jp|02sales-tailor.jp>&gt;を作成
+
+②ドメイン&lt;<http://sales-tailor.jp|sales-tailor.jp>&gt;のデータ　→　セカンダリドメイン&lt;<http://02sales-tailor.jp|02sales-tailor.jp>&gt;へ移行
+
+③販売パートナーとの解約後に、セカンダリドメイン&lt;<http://02sales-tailor.jp|02sales-tailor.jp>&gt;をプライマリドメインにする
+
+④ ③の変更後、ドメイン&lt;<http://01sales-tailor.jp|01sales-tailor.jp>&gt;を削除
+
+⑤新プライマリドメインとなった&lt;<http://02sales-tailor.jp|02sales-tailor.jp>&gt;を&lt;<http://sales-tailor.jp|sales-tailor.jp>&gt;へ再度変更
+> **梅田 遼/Haruka Umeda** (13:34): ChatGPT Proが賢すぎる…このやり方見つけてくれました…
+> **k.​sato** (13:36): <@U090R3E72UA>
+本当にできるのかな。。。
+理論上できると実際にできるが違うケースがあるのでそれが怖いところ。
+それは自分の方で検証してみます
+> **梅田 遼/Haruka Umeda** (13:41): サポートが言ったからいけるかと思いましたがダメなこともあり得ますね…
+できたら一番楽…
+
+MBOXのGmailについては、またサポートに聞いておきます。
+Thunderbird使えばいけるんじゃないかってところまで調べてます。
+> **k.​sato** (13:45): あ、サポートが言ってくれたんですね。GPT Proが言ったのかと思いました。
+> **梅田 遼/Haruka Umeda** (13:46): 紛らわしくてすみません！GPTがヒントくれたからこの可能性でサポートに問い合わせました！
+> **k.​sato** (14:12): そういうことですね！あざまるすいさんです
+> **梅田 遼/Haruka Umeda** (12:33): :pushpin: GmailへのMBOXインポートに関する報告
+■ 現状
+• *GmailにはMBOXファイルを直接インポートする機能がない。*
+• → Google Workspaceにも未実装。
+• → 今後の改善希望は <https://support.google.com/a/answer/6284762?hl=ja|機能提案フォーム>
+•  から送信可能。
+■ 代替手段：Thunderbirdを利用してGmailに戻す方法（無料）
+1. Thunderbirdの準備
+• <https://www.thunderbird.net/ja/|Thunderbird公式サイト>
+•  から最新版をインストール。
+2. アドオンの追加
+• メニュー → 「アドオンとテーマ」 → 「ImportExportTools NG」を検索・追加。
+• （Thunderbird標準ではMBOX読み込み非対応のため、アドオンが必要）
+3. MBOXファイルの読み込み
+• 左側の「ローカルフォルダー」を右クリック →
+• *ImportExportTools NG → Import MBOX file → Import directly one or more MBOX files* を選択。
+• 目的のMBOXファイルを選択してインポート。
+• ※インポート先は必ず「ローカルフォルダー」。
+4. Gmailアカウントを追加
+• Gmail側で「IMAPを有効化」する。
+• Thunderbirdの「アカウント設定」→「新しいメールアカウントを追加」でGmailを登録。
+• （OAuth2で認証）
+5. Gmailにメールを戻す
+• Thunderbird上で「ローカルフォルダー」にあるメールを、Gmailのフォルダ（例：受信トレイ）に*ドラッグ＆ドロップ*。
+• メールが自動的にIMAP経由でGmailサーバーへアップロードされる。
+• （件数が多い場合は数時間〜数日かかる）
+■ 補足
+• OutlookはMBOXを直接開けないため、Thunderbird経由が最も確実。
+• 有料ソフトでMBOX→PST変換も可能だが、日本語メールでは文字化けリスクあり。
+:black_medium_square:参考リンク
+Gmail コミュニティ
+<https://support.google.com/mail/thread/118627376?hl=ja&amp;sjid=16976827880752759856-NC|他のGmailアカウントでエクスポートした.mboxデータを別のアカウントにインポートする方法を教えてください >
+GoogleWorkspaceリンク
+<https://support.google.com/a/answer/6284762?hl=ja|Google Workspace に関する提案を投稿する - Google Workspace 管理者>
+> **梅田 遼/Haruka Umeda** (11:46): <@U093QQ0NV5K>
+タスクにして！
+> **mana** (11:46): 申し訳ございません。このスレッドで議論されている *SalesTailor* プロジェクトは、UNSONワークスペースからはアクセス権限がありません。
+
+タスクを作成するには、適切なワークスペースのManaに依頼していただく必要があります。
+
+*UNSONワークスペースでアクセス可能なプロジェクト:*
+• zeims
+• baao
+• senrigan
+• dialogai
+• ncom
+• notionconnect
+• emporio
+• toranomon
+• postio
+• mywa
+• unson-os
+• back-office
+
+上記プロジェクトに関するタスクでしたら、お手伝いできます :raised_hands:
+
+
+[Slack](https://unson.slack.com/archives/C08Q5V2S2AW/p1765767021370319?thread_ts=1754023574.589339&cid=C08Q5V2S2AW)
+
+---
 id: INBOX-2025-12-14-MJ5IOWAC
 channel: 0031-dialogai-dev
 sender: 小川未来
