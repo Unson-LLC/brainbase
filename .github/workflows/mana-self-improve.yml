@@ -164,7 +164,7 @@ PROMPT_EOF
         if: steps.check.outputs.skip != 'true' && steps.changes.outputs.has_changes == 'true'
         working-directory: ${{ env.MANA_PATH }}
         env:
-          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.ACTIONS_MONITOR_PAT }}
           TARGET_DATE: ${{ steps.date.outputs.date }}
         run: |
           BRANCH_NAME="mana-improve/${TARGET_DATE}"
