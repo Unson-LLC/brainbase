@@ -71,12 +71,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Claude Code environment
+        run: |
+          mkdir -p ~/.claude
+          echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
+
+      - name: Build prompt
+        run: |
+          cat > /tmp/prompt.txt << 'EOF'
+          あなたのタスク内容をここに記述
+          複数行のプロンプトも可能
+          EOF
+
       - name: Run Claude Code
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
-          claude -p "タスクを実行して" --allowedTools "Read,Glob,Grep"
+          cat /tmp/prompt.txt | claude --print > /tmp/result.txt 2>&1
+          cat /tmp/result.txt
 ```
+
+### 実際の稼働例
+
+以下のワークフローで実績あり：
+- `.github/workflows/task-triage.yml` - 週次タスク棚卸し
+- `.github/workflows/mana-self-improve.yml` - mana応答品質の自動改善
 
 ### Step 3: Onboarding設定（初回のみ）
 
@@ -104,12 +123,18 @@ export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-xxxxx..."
 ### headlessモードでの実行
 
 ```bash
-# 非対話的に実行
-claude -p "プロンプト" --output-format json
+# シンプルなプロンプト（特殊文字なし）
+claude -p "プロンプト" --print
+
+# 複雑なプロンプト（推奨：stdin経由）
+cat prompt.txt | claude --print
 
 # ツールを制限して実行
-claude -p "コードレビューして" --allowedTools "Read,Glob,Grep"
+claude -p "コードレビューして" --allowedTools "Read,Glob,Grep" --print
 ```
+
+**重要**: シェル特殊文字（`$`, `\``, `"`, 改行等）を含むプロンプトは `claude -p "$PROMPT"` で失敗します。
+必ず **stdinパイプ** (`cat prompt.txt | claude --print`) を使用してください。
 
 ## 5. トークン管理
 
@@ -168,6 +193,7 @@ claude setup-token
 - **検証日**: 2025-12-15
 - **Claude Code Version**: 2.0.65
 - **確認済み**: `setup-token`で「valid for 1 year」のメッセージ出力を確認
+- **稼働実績**: task-triage.yml, mana-self-improve.yml で動作確認済み
 
 ## 参考
 
