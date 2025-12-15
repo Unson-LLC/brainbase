@@ -14,8 +14,126 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run task triage
+      - name: Setup Claude Code environment
+        run: |
+          mkdir -p ~/.claude
+          echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
+
+      - name: Collect task data
+        id: collect
+        run: |
+          # タスク情報を収集
+          node -e "
+            const fs = require('fs');
+            const content = fs.readFileSync('_tasks/index.md', 'utf-8');
+            const blocks = content.split(/^---$/m).filter(b => b.trim());
+            const tasks = [];
+            for (let i = 0; i < blocks.length; i += 2) {
+              const yaml = blocks[i];
+              if (!yaml.includes('佐藤')) continue;
+              if (yaml.includes('status: done')) continue;
+              const title = (yaml.match(/^title:\s*(.+)$/m) || [])[1] || '(無題)';
+              const project = (yaml.match(/^project_id:\s*(.+)$/m) || [])[1] || 'general';
+              const priority = (yaml.match(/^priority:\s*(.+)$/m) || [])[1] || 'medium';
+              tasks.push('- [' + project + '] ' + title + ' (' + priority + ')');
+            }
+            console.log(tasks.join('\n'));
+          " > /tmp/tasks.txt
+
+          # メンバー情報を収集
+          node -e "
+            const fs = require('fs');
+            const content = fs.readFileSync('_codex/common/meta/people.md', 'utf-8');
+            const members = [];
+            for (const line of content.split('\n')) {
+              if (!line.startsWith('|') || line.includes('---') || line.includes('名前')) continue;
+              const cells = line.split('|').map(c => c.trim()).filter(c => c);
+              if (cells.length >= 5 && cells[4].includes('稼働中') && !cells[1].includes('Stakeholder')) {
+                members.push('- ' + cells[0] + ': ' + cells[1] + ' (' + cells[3] + ')');
+              }
+            }
+            console.log(members.slice(0, 15).join('\n'));
+          " > /tmp/members.txt
+
+          echo "タスク数: $(wc -l < /tmp/tasks.txt)"
+          echo "メンバー数: $(wc -l < /tmp/members.txt)"
+
+      - name: Run Claude Code analysis
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          TASKS=$(cat /tmp/tasks.txt)
+          MEMBERS=$(cat /tmp/members.txt)
+
+          cat > /tmp/prompt.txt << 'PROMPT_END'
+          佐藤圭吾のタスク棚卸しを行います。
+
+          ## タスク一覧
+          PROMPT_END
+          echo "$TASKS" >> /tmp/prompt.txt
+          cat >> /tmp/prompt.txt << 'PROMPT_END'
+
+          ## 委任先候補メンバー
+          PROMPT_END
+          echo "$MEMBERS" >> /tmp/prompt.txt
+          cat >> /tmp/prompt.txt << 'PROMPT_END'
+
+          以下の3カテゴリに分類してください：
+          - 🔵 佐藤がやるべき（戦略的意思決定、技術設計、仕組みづくり）
+          - 🟡 委任すべき（定型作業、資料作成、調査、実装）
+          - 🔴 捨てるべき（期限切れ、不要になったもの）
+
+          各タスクを以下の形式で分類：
+          🔵/🟡/🔴 [プロジェクト] タスク名
+            → 理由（1行）
+            → 委任先候補: 名前（委任の場合のみ）
+
+          最後にサマリを出力。全体で1500文字以内。
+          PROMPT_END
+
+          PROMPT=$(cat /tmp/prompt.txt)
+          claude -p "$PROMPT" --output-format text > /tmp/analysis.txt 2>&1 || echo "AI分析に失敗しました" > /tmp/analysis.txt
+
+          echo "=== 分析結果 ==="
+          cat /tmp/analysis.txt
+
+      - name: Send to Slack
+        env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: node _codex/common/ops/scripts/task-triage.js
+        run: |
+          ANALYSIS=$(cat /tmp/analysis.txt)
+          DATE=$(date '+%Y/%m/%d (%a)')
+
+          node -e "
+            const https = require('https');
+            const analysis = process.argv[1];
+            const date = process.argv[2];
+            const body = {
+              channel: 'U07LNUP582X',
+              text: '週次タスク棚卸しレポート',
+              blocks: [
+                { type: 'header', text: { type: 'plain_text', text: '📋 週次タスク棚卸しレポート', emoji: true }},
+                { type: 'context', elements: [{ type: 'mrkdwn', text: '📅 ' + date }]},
+                { type: 'divider' },
+                { type: 'section', text: { type: 'mrkdwn', text: analysis.slice(0, 2800) }}
+              ]
+            };
+            const req = https.request({
+              hostname: 'slack.com',
+              path: '/api/chat.postMessage',
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + process.env.SLACK_BOT_TOKEN,
+                'Content-Type': 'application/json'
+              }
+            }, res => {
+              let data = '';
+              res.on('data', c => data += c);
+              res.on('end', () => {
+                const result = JSON.parse(data);
+                console.log(result.ok ? '✅ Slack送信完了' : '❌ Slack送信失敗: ' + result.error);
+              });
+            });
+            req.write(JSON.stringify(body));
+            req.end();
+          " "$ANALYSIS" "$DATE"
