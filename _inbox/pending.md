@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-15-MJ6KJ5I5
+channel: 9960-back-office
+sender: 梅田 遼/Haruka Umeda
+timestamp: 1765767755.662119
+status: pending
+---
+
+### 12:02 | #9960-back-office | 梅田 遼/Haruka Umeda
+
+<@U07LNUP582X>
+佐藤さん、SalesTailerとかAitleの請求書の項目分離して渡邊さんが請求してくださってますけど、
+もしかしてBAAOみたいな請求の仕方するんですか？
+
+[Slack](https://unson.slack.com/archives/C08Q5V2S2AW/p1765767755662119)
+
+---
 id: INBOX-2025-12-15-MJ6KHQU4
 channel: 9960-back-office
 sender: 吉見貴光
