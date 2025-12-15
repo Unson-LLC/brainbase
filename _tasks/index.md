@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-016
+source_id: SLACK-2025-12-15-MJ6NDRZ5
+title: 資料を送付
+project_id: general
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0A3AGMS68M
+thread_ts: "1765772537.261089"
+created_at: "2025-12-15T04:22:25.505Z"
+owner_slack_id: U07B19N048G
+requester: 佐藤圭吾
+---
+
+- 2025-12-15 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: hp営業チャンネルで資料送付を依頼されている。まだ未対応のため早急に対応が必要。
+- Slack: https://tech-knight.slack.com/archives/C0A3AGMS68M/p1765772537261089?thread_ts=1765760058.108799&cid=C0A3AGMS68M
+
+---
 task_id: T-2512-015
 source_id: SLACK-2025-12-15-MJ6K4HS4
 title: 橋本さんの振り込み確認
