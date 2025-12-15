@@ -487,6 +487,117 @@ body {
     color: var(--accent-color);
 }
 
+/* Phase 3.2: Choice Overlay for terminal selections */
+.choice-overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.95);
+    z-index: 150;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
+.choice-overlay.active {
+    display: flex;
+}
+
+.choice-overlay-content {
+    background: var(--bg-secondary);
+    border-radius: 16px;
+    padding: 1.5rem;
+    max-width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+}
+
+.choice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.choice-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.choice-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.choice-close-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.choice-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.choice-btn {
+    background: var(--bg-primary);
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 1rem 1.25rem;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: all 0.2s;
+    text-align: left;
+    min-height: 60px;
+}
+
+.choice-btn:hover {
+    border-color: var(--accent-color);
+    background: var(--bg-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.choice-btn:active {
+    transform: translateY(0);
+}
+
+.choice-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    background: var(--accent-color);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.choice-text {
+    flex: 1;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
 /* =========================================
    5. Right Sidebar: Today's Page
    ========================================= */

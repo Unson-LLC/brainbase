@@ -1249,6 +1249,105 @@ document.addEventListener('DOMContentLoaded', () => {
     // Status Polling (every 3 seconds) - using imported module
     startPolling(() => currentSessionId, 3000);
 
+    // Phase 3.2: Choice Detection (every 2 seconds)
+    let choiceCheckInterval = null;
+    let lastChoiceHash = null;
+
+    function startChoiceDetection() {
+        stopChoiceDetection();
+
+        choiceCheckInterval = setInterval(async () => {
+            if (!currentSessionId) return;
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/output`);
+                const data = await res.json();
+
+                if (data.hasChoices && data.choices.length > 0) {
+                    // Check if choices changed (simple hash)
+                    const choiceHash = JSON.stringify(data.choices);
+                    if (choiceHash !== lastChoiceHash) {
+                        lastChoiceHash = choiceHash;
+                        showChoiceOverlay(data.choices);
+                        stopChoiceDetection(); // Stop polling when overlay is shown
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check for choices:', error);
+            }
+        }, 2000); // Check every 2 seconds
+    }
+
+    function stopChoiceDetection() {
+        if (choiceCheckInterval) {
+            clearInterval(choiceCheckInterval);
+            choiceCheckInterval = null;
+        }
+    }
+
+    function showChoiceOverlay(choices) {
+        const overlay = document.getElementById('choice-overlay');
+        const container = document.getElementById('choice-buttons');
+        const closeBtn = document.getElementById('close-choice-overlay');
+
+        if (!overlay || !container) return;
+
+        container.innerHTML = '';
+        choices.forEach((choice) => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.innerHTML = `
+                <span class="choice-number">${escapeHtml(choice.number)}</span>
+                <span class="choice-text">${escapeHtml(choice.text)}</span>
+            `;
+            btn.onclick = () => selectChoice(choice.number);
+            container.appendChild(btn);
+        });
+
+        overlay.classList.add('active');
+        lucide.createIcons();
+
+        // Close button
+        closeBtn.onclick = () => closeChoiceOverlay();
+    }
+
+    function closeChoiceOverlay() {
+        const overlay = document.getElementById('choice-overlay');
+        overlay?.classList.remove('active');
+        lastChoiceHash = null;
+        startChoiceDetection(); // Resume polling
+    }
+
+    // Phase 3.3: Send choice selection
+    async function selectChoice(number) {
+        if (!currentSessionId) return;
+
+        try {
+            // Send number
+            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: number, type: 'text' })
+            });
+
+            // Send Enter key
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: 'Enter', type: 'key' })
+            });
+
+            closeChoiceOverlay();
+        } catch (error) {
+            console.error('Failed to send choice:', error);
+            showError('選択の送信に失敗しました');
+        }
+    }
+
+    // Start choice detection when session is active
+    startChoiceDetection();
+
     // --- Terminal Copy Functionality ---
     if (copyTerminalBtn) {
         copyTerminalBtn.onclick = async () => {

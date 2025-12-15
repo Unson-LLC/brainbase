@@ -781,6 +781,59 @@ app.get('/api/sessions/:id/content', async (req, res) => {
     }
 });
 
+// Phase 3.1: Get terminal output with choice detection
+app.get('/api/sessions/:id/output', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const { stdout } = await execPromise(`tmux capture-pane -t "${id}" -p -J`);
+        const choices = detectChoices(stdout);
+
+        res.json({
+            output: stdout,
+            choices: choices,
+            hasChoices: choices.length > 0
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * Detect numbered choices in terminal output (Phase 3.1)
+ * @param {string} text - Terminal output text
+ * @returns {Array} Array of choice objects
+ */
+function detectChoices(text) {
+    const choices = [];
+
+    // Pattern 1: "1) Option" or "1. Option"
+    const pattern1 = /^\s*(\d+)[).]\s+(.+)$/gm;
+    let match;
+    while ((match = pattern1.exec(text)) !== null) {
+        choices.push({
+            number: match[1],
+            text: match[2].trim(),
+            pattern: 'numbered'
+        });
+    }
+
+    // Only return if we have sequential numbers starting from 1
+    if (choices.length >= 2) {
+        const numbers = choices.map(c => parseInt(c.number));
+        const isSequential = numbers.every((num, idx) =>
+            idx === 0 || num === numbers[idx - 1] + 1
+        );
+        const startsFromOne = numbers[0] === 1;
+
+        if (isSequential && startsFromOne) {
+            return choices;
+        }
+    }
+
+    return [];
+}
+
 // --- Worktree API Endpoints ---
 
 // Create session with worktree
