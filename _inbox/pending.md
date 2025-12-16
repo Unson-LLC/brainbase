@@ -3,6 +3,36 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ87AOP4
+channel: eng
+sender: 渡邊博昭
+timestamp: 1765866455.668099
+status: pending
+---
+
+### 15:27 | #eng | 渡邊博昭
+
+<@U09JV6DUEG7>
+CC:<@U08FB9S7HUL>
+
+以下でアカウントを再発行いたしました。
+ご確認の程よろしくお願いいたします。
+
+メールアドレス：<mailto:info@unson.jp|info@unson.jp>
+パスワード：BjKx3YH_QjCr
+
+**スレッドの文脈:**
+> **藤井志穂** (18:43): <@U08FB9S7HUL>
+すみません、開発環境のアカウントに入れず、改めてログイン情報いただけますでしょうか？？よろしくお願いします。
+> **藤井志穂** (10:41): <@U08FB9S7HUL> 
+佐藤さん、こちらいかがでしょうか、、？:woman-bowing:
+> **佐藤圭吾** (10:59): 連絡漏れていました。開発環境のDBに問題が発生したためログインできなかった可能性があります。現在は渡邉さんに新しいアカウントを作っていただいたと思うので共有お願いします！
+<@U09GQSY3AUD>
+
+
+[Slack](https://salestailor.slack.com/archives/C08SX913NER/p1765866455668099?thread_ts=1765532616.066299&cid=C08SX913NER)
+
+---
 id: INBOX-2025-12-16-MJ85KCNX
 channel: 0011-zeims-dev
 sender: 太田葉音
