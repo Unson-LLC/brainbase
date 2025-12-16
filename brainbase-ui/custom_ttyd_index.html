@@ -204,53 +204,62 @@
             return;
         }
 
+        console.log('[LinkProvider] Terminal found, registering link provider...');
+
         // Pattern: path/to/file.ext:123 or /absolute/path/file.ext:456
         const filePathRegex = /([a-zA-Z0-9_\-./]+\.(ts|js|tsx|jsx|md|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh)):(\d+)/g;
 
-        // Use registerLinkProvider API
-        term.registerLinkProvider({
-            provideLinks: (bufferLineNumber, callback) => {
-                console.log('[LinkProvider] provideLinks called for line:', bufferLineNumber);
+        // Register link provider and store disposable
+        const disposable = term.registerLinkProvider({
+            provideLinks: (y, callback) => {
+                console.log('[LinkProvider] provideLinks called for line:', y);
 
                 // Get the line text
-                const lineText = term.buffer.active.getLine(bufferLineNumber)?.translateToString(true);
+                const line = term.buffer.active.getLine(y);
+                if (!line) {
+                    console.log('[LinkProvider] No line object');
+                    callback(undefined);
+                    return;
+                }
+
+                const lineText = line.translateToString(true);
                 console.log('[LinkProvider] Line text:', JSON.stringify(lineText));
 
                 if (!lineText) {
-                    console.log('[LinkProvider] No line text, returning empty');
-                    callback([]);
+                    console.log('[LinkProvider] Empty line text');
+                    callback(undefined);
                     return;
                 }
 
                 const links = [];
-                let match;
 
-                // Reset regex index
+                // Reset regex
                 filePathRegex.lastIndex = 0;
 
                 // Find all matches in the line
+                let match;
                 while ((match = filePathRegex.exec(lineText)) !== null) {
                     const fullMatch = match[0];
                     const startIndex = match.index;
-                    const endIndex = startIndex + fullMatch.length;
+                    const length = fullMatch.length;
 
                     const link = {
                         range: {
-                            start: { x: startIndex + 1, y: bufferLineNumber },
-                            end: { x: endIndex + 1, y: bufferLineNumber }
+                            start: { x: startIndex + 1, y: y },
+                            end: { x: startIndex + length, y: y }
                         },
                         text: fullMatch,
                         activate: (event, text) => {
                             const filePath = text.substring(0, text.lastIndexOf(':'));
-                            const line = text.substring(text.lastIndexOf(':') + 1);
+                            const lineNum = text.substring(text.lastIndexOf(':') + 1);
 
-                            console.log('[LinkProvider] Link clicked:', text, 'File:', filePath, 'Line:', line);
+                            console.log('[LinkProvider] Link clicked:', text, 'File:', filePath, 'Line:', lineNum);
 
                             // Call API to open file
                             fetch('/api/open-file', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ filePath, line })
+                                body: JSON.stringify({ filePath, line: lineNum })
                             })
                             .then(res => res.json())
                             .then(data => {
@@ -262,16 +271,18 @@
                         }
                     };
 
-                    console.log('[LinkProvider] Link found:', fullMatch, 'range:', link.range);
+                    console.log('[LinkProvider] Link found:', fullMatch, 'at index', startIndex, 'range:', link.range);
                     links.push(link);
                 }
 
-                console.log('[LinkProvider] Returning', links.length, 'links for line', bufferLineNumber);
-                callback(links);
+                console.log('[LinkProvider] Returning', links.length, 'links');
+                callback(links.length > 0 ? links : undefined);
             }
         });
 
-        console.log('File path linkifier registered with registerLinkProvider');
+        // Store disposable globally for debugging
+        window.linkProviderDisposable = disposable;
+        console.log('[LinkProvider] Registered successfully, disposable:', disposable);
     }
 
     if (document.readyState === 'loading') {
