@@ -3,8 +3,8 @@ name: mana自己改善 (LLM-as-Judge)
 # GitHub Actionsによる自動品質改善
 on:
   schedule:
-    # 毎日 22:00 JST = 13:00 UTC
-    - cron: '0 13 * * *'
+    # テスト実行: 05:38 UTC (14:38 JST) - 元: 13:00 UTC (22:00 JST)
+    - cron: '38 5 * * *'
   workflow_dispatch:
     inputs:
       target_date:
