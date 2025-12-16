@@ -2459,7 +2459,7 @@ body {
     height: 56px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
-    z-index: 1000;
+    z-index: 1003; /* bottom-sheet (1002) より高く設定 */
     padding: 0 16px;
     align-items: center;
     justify-content: space-between;
