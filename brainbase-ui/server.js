@@ -185,6 +185,14 @@ app.get('/api/version', (req, res) => {
     res.json({ version: APP_VERSION });
 });
 
+// Restart server endpoint
+app.post('/api/restart', (req, res) => {
+    res.json({ message: 'Server restarting...' });
+    setTimeout(() => {
+        process.exit(0); // Exit process, assuming it's managed by a process manager
+    }, 100);
+});
+
 app.get('/api/state', (req, res) => {
     const state = stateStore.get();
 

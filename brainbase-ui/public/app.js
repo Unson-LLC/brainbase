@@ -1656,4 +1656,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load version on startup
     loadVersion();
+
+    // Restart server button
+    const restartServerBtn = document.getElementById('restart-server-btn');
+    if (restartServerBtn) {
+        restartServerBtn.onclick = async () => {
+            if (!confirm('サーバーを再起動しますか？\n\n接続が一時的に切断されます。')) {
+                return;
+            }
+            try {
+                await fetch('/api/restart', { method: 'POST' });
+                showSuccess('サーバーを再起動しています...\n\n5秒後にページをリロードします。');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            } catch (err) {
+                console.error('Failed to restart server', err);
+                showError('サーバーの再起動に失敗しました');
+            }
+        };
+    }
 });

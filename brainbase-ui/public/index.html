@@ -330,7 +330,12 @@
         <div class="modal-content modal-fullscreen" id="settings-view">
             <div class="modal-header settings-header">
                 <h3><i data-lucide="settings"></i> Settings</h3>
-                <button class="close-modal-btn" id="close-settings-btn"><i data-lucide="x"></i></button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn" id="restart-server-btn" title="Restart Server">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <button class="close-modal-btn" id="close-settings-btn"><i data-lucide="x"></i></button>
+                </div>
             </div>
             <div class="modal-body settings-body">
                 <!-- Integrity Summary -->
