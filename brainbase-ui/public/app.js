@@ -85,6 +85,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let draggedSessionProject = null;
 
     // --- Data Loading ---
+    async function loadVersion() {
+        try {
+            const response = await fetch('/api/version');
+            const data = await response.json();
+            const versionEl = document.getElementById('app-version');
+            if (versionEl) {
+                versionEl.textContent = data.version;
+            }
+        } catch (err) {
+            console.error('Failed to load version', err);
+        }
+    }
+
     async function loadSessions() {
         try {
             const state = await fetchState();
@@ -1640,4 +1653,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         console.log('Terminal touch scroll initialized');
     })();
+
+    // Load version on startup
+    loadVersion();
 });

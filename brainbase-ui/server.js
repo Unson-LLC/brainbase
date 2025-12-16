@@ -7,6 +7,7 @@ import util from 'util';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { readFileSync } from 'fs';
 
 // Import our modules
 import { TaskParser } from './lib/task-parser.js';
@@ -18,6 +19,10 @@ import { InboxParser } from './lib/inbox-parser.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
+
+// Load version from package.json
+const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+const APP_VERSION = `v${packageJson.version}`;
 
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
@@ -173,6 +178,11 @@ app.delete('/api/tasks/:id', async (req, res) => {
 app.get('/api/schedule/today', async (req, res) => {
     const schedule = await scheduleParser.getTodaySchedule();
     res.json(schedule);
+});
+
+// Version endpoint
+app.get('/api/version', (req, res) => {
+    res.json({ version: APP_VERSION });
 });
 
 app.get('/api/state', (req, res) => {

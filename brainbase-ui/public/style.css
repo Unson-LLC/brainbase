@@ -97,6 +97,16 @@ body {
     text-transform: uppercase;
 }
 
+.app-version {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--text-tertiary);
+    opacity: 0.6;
+    margin-left: 0.5rem;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
 .session-list {
     flex: 1;
     overflow-y: auto;
