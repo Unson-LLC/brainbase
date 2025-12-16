@@ -1,5 +1,29 @@
 ---
 task_id: T-2512-017
+source_id: SLACK-2025-12-16-MJ7UJZWH
+title: 採用のメール返信
+project_id: general
+status: todo
+owner: k.​sato
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0971UHK4KA
+thread_ts: "1765845053.468639"
+created_at: "2025-12-16T00:30:59.201Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-16 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: 採用関連のメールに返信する。承認を得て対応可能となった。
+- Slack: https://unson.slack.com/archives/C0971UHK4KA/p1765845053468639?thread_ts=1765837823.387609&cid=C0971UHK4KA
+
+---
+task_id: T-2512-017
 source_id: EMAIL-2025-12-06-KOBAYASHI
 title: エンジニア候補者（小林尚司氏）の評価・面接検討
 project_id: unson
