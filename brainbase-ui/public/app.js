@@ -90,8 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/version');
             const data = await response.json();
             const versionEl = document.getElementById('app-version');
+            const mobileVersionEl = document.getElementById('mobile-app-version');
             if (versionEl) {
                 versionEl.textContent = data.version;
+            }
+            if (mobileVersionEl) {
+                mobileVersionEl.textContent = data.version;
             }
         } catch (err) {
             console.error('Failed to load version', err);

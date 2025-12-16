@@ -2564,6 +2564,16 @@ body {
     color: var(--text-secondary);
 }
 
+.mobile-version-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--accent-color);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+}
+
 .bottom-sheet-close {
     background: transparent;
     border: none;
