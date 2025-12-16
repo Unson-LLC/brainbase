@@ -1,4 +1,25 @@
 ---
+task_id: T-2512-020
+title: DNS設定の教科書作成
+project_id: general
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [infrastructure, documentation, dns]
+links: []
+source: manual
+created_at: "2025-12-16T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 手動登録: DNS設定のための教科書を作成
+- 担当: 佐藤圭吾
+- 目的: DNS設定（ドメイン管理、レコード設定、トラブルシューティング等）に関する体系的なナレッジを整備
+- 成果物: `_codex/` 配下にDNS設定ガイドを作成
+
+---
+---
 task_id: T-2512-019
 source_id: SLACK-2025-12-16-MJ8027SP
 title: Instantlyのメール設定方法を確認
