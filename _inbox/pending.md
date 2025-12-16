@@ -3,6 +3,30 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ892EGG
+channel: cxo
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1765869427.566079
+status: pending
+---
+
+### 16:17 | #cxo | 堀 汐里 / Shiori Hori
+
+<@U08FB9S7HUL> Cc <@U08UZF58F0C>
+二転三転申し訳ないのですが、明日の行きも個別精算（後日振込）にてお願いできますでしょうか:woman-bowing:
+6:00ぴったりに東京駅発のぞみ自由席でお願いいたします:bullettrain_side:！！！
+
+**スレッドの文脈:**
+> **堀 汐里 / Shiori Hori** (16:18): <!channel>
+SUJの新幹線チケットなのですが、帰りはバラバラになりそうです:bow:
+各自で領収書をとっておいていただき、後日精算でも宜しいでしょうか:pray:？
+
+行き一緒の3人分は取っておきます！！:ticket:
+
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1765869427566079?thread_ts=1765264684.668089&cid=C08U2EX2NEA)
+
+---
 id: INBOX-2025-12-16-MJ87AOP4
 channel: eng
 sender: 渡邊博昭
