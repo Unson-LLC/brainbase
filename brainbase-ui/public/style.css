@@ -2503,11 +2503,13 @@ body {
     z-index: 1001;
     opacity: 0;
     transition: opacity 0.3s ease;
+    pointer-events: none; /* 非アクティブ時はクリックを通過させる */
 }
 
 .bottom-sheet-overlay.active {
     display: block;
     opacity: 1;
+    pointer-events: auto; /* アクティブ時のみクリックを受け取る */
 }
 
 /* Bottom Sheet Container */
@@ -2525,11 +2527,13 @@ body {
     display: flex;
     flex-direction: column;
     visibility: hidden;
+    pointer-events: none; /* 非アクティブ時はクリックを通過させる */
 }
 
 .bottom-sheet.active {
     transform: translateY(0);
     visibility: visible;
+    pointer-events: auto; /* アクティブ時のみクリックを受け取る */
 }
 
 .bottom-sheet-handle {
