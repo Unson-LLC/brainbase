@@ -3,6 +3,23 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ7X1UN6
+channel: eng
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1765849247.232309
+status: pending
+---
+
+### 10:40 | #eng | 堀 汐里 / Shiori Hori
+
+<@U08FB9S7HUL> 
+こちらがInstantlyのメール設定方法のようです！
+参考にできそうなやり方があるかご確認をお願いいたします:woman-bowing:！！
+<https://help.instantly.ai/en/articles/12980002-instantly-mcp-model-context-protocol|https://help.instantly.ai/en/articles/12980002-instantly-mcp-model-context-protocol>
+
+[Slack](https://salestailor.slack.com/archives/C08SX913NER/p1765849247232309)
+
+---
 id: INBOX-2025-12-16-MJ7V1250
 channel: 0111-baao-ai-dojo
 sender: 卯田 剛史
