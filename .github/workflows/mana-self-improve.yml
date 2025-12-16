@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   evaluate-and-improve:
-    runs-on: [self-hosted, local]
+    runs-on: self-hosted
 
     steps:
       - name: Setup workspace
