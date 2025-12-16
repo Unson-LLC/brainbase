@@ -1,0 +1,22 @@
+name: mana M1朝のブリーフィング
+
+on:
+  schedule:
+    # 08:30 JST = 23:30 UTC (前日)
+    - cron: '30 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  morning-brief:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run M1 morning brief
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          HOME: /Users/ksato
+        run: node _codex/common/ops/scripts/mana-m1-morning-brief.js

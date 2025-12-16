@@ -1,0 +1,22 @@
+name: mana M3期限前リマインド
+
+on:
+  schedule:
+    # 18:00 JST = 09:00 UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  deadline-reminder:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run M3 deadline reminder
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          HOME: /Users/ksato
+        run: node _codex/common/ops/scripts/mana-m3-deadline-reminder.js
