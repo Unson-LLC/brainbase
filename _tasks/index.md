@@ -1,27 +1,41 @@
 ---
-task_id: T-2512-025
-source_id: SLACK-2025-12-16-MJ8QTW5R
-title: スタートアップジャパン会場に9:05到着
-project_id: proj_salestailor
-status: todo
-owner: 谷口達彦-/ tatsuhiko taniguchi
-priority: high
-due: 2025-12-17
-tags: [slack, auto-import]
+task_id: T-2512-026
+title: 佐藤のスケジュールをNコムに共有
+project_id: ncom-catalyst
+status: done
+owner: 佐藤圭吾
+priority: highest
+due: 2025-12-16
+tags: [ncom, schedule, urgent]
 links: []
-source: slack
-channel_id: C08U2EX2NEA
-thread_ts: "1765899259.347239"
-created_at: "2025-12-16T15:34:28.623Z"
-owner_slack_id: U08EUJKRHN3
-requester: 谷口達彦-/-tatsuhiko-taniguchi
+source: manual
+created_at: "2025-12-16T09:00:00.000Z"
+requester: 佐藤圭吾
 ---
 
-- 2025-12-16 Slackから自動取り込み: 谷口達彦 / Tatsuhiko Taniguchiから依頼
-- 担当: 谷口達彦 / Tatsuhiko Taniguchi
-- 背景: スタートアップジャパンイベント参加。会場に9:05頃到着予定で承知。明日（12/17水曜日）開催。
-- Slack: https://salestailor.slack.com/archives/C08U2EX2NEA/p1765899259347239?thread_ts=1765893291.181519&cid=C08U2EX2NEA
+- 2025-12-16 手動登録: Nコムに自分のスケジュールを共有する
+- 2025-12-16 完了: 共有完了
 
+---
+---
+task_id: T-2512-025
+title: Zscalerの接続元情報をNコムに共有
+project_id: ncom-catalyst
+status: done
+owner: 佐藤圭吾
+priority: highest
+due: 2025-12-16
+tags: [ncom, security, zscaler, urgent]
+links: []
+source: manual
+created_at: "2025-12-16T09:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 手動登録: Zscalerの接続元情報をNコムに共有する
+- 2025-12-16 完了: 共有完了
+
+---
 ---
 task_id: T-2512-024
 source_id: SLACK-2025-12-16-MJ8JU4CJ
