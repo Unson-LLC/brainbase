@@ -70,3 +70,6 @@ brainbase-ui/uploads/
 
 # SNS generated images (large files)
 _codex/common/ops/_codex/sns/images/
+
+# Google Drive symlinks (local only, links won't work in CI)
+_codex/projects/*/drive
