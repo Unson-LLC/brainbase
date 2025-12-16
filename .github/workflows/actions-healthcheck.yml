@@ -36,19 +36,27 @@ jobs:
                 github.rest.actions.listWorkflowRunsForRepo,
                 { owner, repo: name, per_page: 50, status: 'completed', exclude_pull_requests: true }
               );
-              const recentFailed = runs.find(
+              const recentFailed = runs.filter(
                 (r) => r.conclusion !== 'success' &&
                        (now - new Date(r.created_at).getTime()) <= maxAgeMs
               );
-              if (recentFailed) {
-                issues.push({
-                  repo,
-                  workflow: recentFailed.name,
-                  html_url: recentFailed.html_url,
-                  conclusion: recentFailed.conclusion,
-                  created_at: recentFailed.created_at,
-                });
-              }
+              recentFailed.forEach(failed => {
+                // Check if there's a subsequent success for the same workflow
+                const hasSubsequentSuccess = runs.some(
+                  (r) => r.name === failed.name &&
+                         r.conclusion === 'success' &&
+                         new Date(r.created_at).getTime() > new Date(failed.created_at).getTime()
+                );
+                if (!hasSubsequentSuccess) {
+                  issues.push({
+                    repo,
+                    workflow: failed.name,
+                    html_url: failed.html_url,
+                    conclusion: failed.conclusion,
+                    created_at: failed.created_at,
+                  });
+                }
+              });
 
               const runners = await github.paginate(
                 github.rest.actions.listSelfHostedRunnersForRepo,
