@@ -1545,31 +1545,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Swipe down to close bottom sheets (only when content is at top)
+    // Swipe down to close bottom sheets (only when touching handle/header area)
     let sheetTouchStartY = 0;
-    let sheetScrollTop = 0;
+    let isTouchingContent = false;
     [sessionsBottomSheet, tasksBottomSheet].forEach(sheet => {
         sheet?.addEventListener('touchstart', (e) => {
             sheetTouchStartY = e.touches[0].clientY;
-            // Get scroll position of content area
+
+            // Check if touch started inside scrollable content area
             const contentEl = sheet.querySelector('.bottom-sheet-content');
-            sheetScrollTop = contentEl?.scrollTop || 0;
+            const target = e.target;
+            isTouchingContent = contentEl && contentEl.contains(target);
         }, { passive: true });
 
         sheet?.addEventListener('touchmove', (e) => {
+            // Skip swipe-to-close if touch started inside content area
+            if (isTouchingContent) return;
+
             const touchY = e.touches[0].clientY;
             const diff = touchY - sheetTouchStartY;
-            const contentEl = sheet.querySelector('.bottom-sheet-content');
-            const currentScrollTop = contentEl?.scrollTop || 0;
 
-            // Only close sheet if:
-            // 1. Swiping down (diff > 0)
-            // 2. Content is at the top (scrollTop === 0)
-            // 3. Swipe distance is large enough (diff > 100)
-            if (diff > 100 && sheetScrollTop === 0 && currentScrollTop === 0) {
+            // Close sheet if swiping down with sufficient distance
+            if (diff > 100) {
                 if (sheet === sessionsBottomSheet) closeSessionsSheet();
                 if (sheet === tasksBottomSheet) closeTasksSheet();
             }
+        }, { passive: true });
+
+        sheet?.addEventListener('touchend', () => {
+            isTouchingContent = false;
         }, { passive: true });
     });
 
