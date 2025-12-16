@@ -1558,6 +1558,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionsSheetOverlay?.classList.add('active');
         sessionsBottomSheet?.classList.add('active');
         lucide.createIcons();
+        // Load version for mobile display
+        loadVersion();
     }
 
     function closeSessionsSheet() {
