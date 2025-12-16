@@ -96,52 +96,52 @@ jobs:
           CONVERSATIONS=$(cat "$WORK_DIR/judge/"*.json | jq -s 'map(.messages) | flatten')
 
           # プロンプトを作成
-          cat > "$WORK_DIR/prompt.txt" << PROMPT_EOF
-# mana応答品質評価と改善タスク
+          cat > "$WORK_DIR/prompt.txt" <<-EOF
+			# mana応答品質評価と改善タスク
 
-あなたはmana（Slack Bot）の品質改善担当AIです。
-以下の会話データを評価し、必要に応じてコードを改善してください。
+			あなたはmana（Slack Bot）の品質改善担当AIです。
+			以下の会話データを評価し、必要に応じてコードを改善してください。
 
-## 評価対象の会話データ (${TARGET_DATE})
+			## 評価対象の会話データ (${TARGET_DATE})
 
-\`\`\`json
-${CONVERSATIONS}
-\`\`\`
+			\`\`\`json
+			${CONVERSATIONS}
+			\`\`\`
 
-## タスク
+			## タスク
 
-### 1. 評価 (LLM-as-Judge)
-各会話を以下の観点で1-5スコアで評価してください：
-- 有用性: ユーザーの意図に対して有用な回答か
-- 正確性: 事実に基づいた正確な情報か
-- 簡潔性: 冗長でなく適切な長さか
-- トーン: 適切なトーンか
+			### 1. 評価 (LLM-as-Judge)
+			各会話を以下の観点で1-5スコアで評価してください：
+			- 有用性: ユーザーの意図に対して有用な回答か
+			- 正確性: 事実に基づいた正確な情報か
+			- 簡潔性: 冗長でなく適切な長さか
+			- トーン: 適切なトーンか
 
-### 2. 問題特定と改善
-スコアが3以下の会話があれば：
-1. 問題点を特定
-2. api/index.js のプロンプトやロジックを修正
+			### 2. 問題特定と改善
+			スコアが3以下の会話があれば：
+			1. 問題点を特定
+			2. api/index.js のプロンプトやロジックを修正
 
-### 3. レポート出力
-評価結果を ${WORK_DIR}/judge/report.json に出力してください：
-\`\`\`json
-{
-  "date": "${TARGET_DATE}",
-  "total_conversations": N,
-  "evaluations": [
-    {"id": "...", "scores": {"usefulness": N, "accuracy": N, "conciseness": N, "tone": N}, "issues": "..."}
-  ],
-  "average_scores": {"usefulness": N, "accuracy": N, "conciseness": N, "tone": N},
-  "changes_made": ["変更内容の説明"]
-}
-\`\`\`
+			### 3. レポート出力
+			評価結果を ${WORK_DIR}/judge/report.json に出力してください：
+			\`\`\`json
+			{
+			  "date": "${TARGET_DATE}",
+			  "total_conversations": N,
+			  "evaluations": [
+			    {"id": "...", "scores": {"usefulness": N, "accuracy": N, "conciseness": N, "tone": N}, "issues": "..."}
+			  ],
+			  "average_scores": {"usefulness": N, "accuracy": N, "conciseness": N, "tone": N},
+			  "changes_made": ["変更内容の説明"]
+			}
+			\`\`\`
 
-## 重要な注意事項
-- CLAUDE.mdや他のシステムファイルは無視してください
-- 評価対象は上記の会話データのみです
-- 改善が不要な場合（全てスコア4以上）はコードを変更しないでください
-- 変更する場合は最小限に留めてください
-PROMPT_EOF
+			## 重要な注意事項
+			- CLAUDE.mdや他のシステムファイルは無視してください
+			- 評価対象は上記の会話データのみです
+			- 改善が不要な場合（全てスコア4以上）はコードを変更しないでください
+			- 変更する場合は最小限に留めてください
+			EOF
 
           # Claude Codeを実行（OAuthトークン認証、stdinからプロンプト）
           # セルフホストランナーのclaude CLIを使用
