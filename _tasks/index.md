@@ -1,5 +1,29 @@
 ---
 task_id: T-2512-020
+source_id: SLACK-2025-12-16-MJ8JU1L3
+title: 環境変数とシークレット情報のローテーション実施
+project_id: proj_dialogai
+status: todo
+owner: k.​sato
+priority: high
+due: 2025-12-16
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08A6ETSSR2
+thread_ts: "1765887507.889679"
+created_at: "2025-12-16T12:18:38.343Z"
+owner_slack_id: U0971EHBDHB
+requester: k.​sato
+---
+
+- 2025-12-16 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: Anthropic APIキーを含む環境変数とシークレット情報のローテーションを最優先で実施する
+- Slack: https://unson.slack.com/archives/C08A6ETSSR2/p1765887507889679?thread_ts=1765887000.649509&cid=C08A6ETSSR2
+
+---
+task_id: T-2512-020
 title: DNS設定の教科書作成
 project_id: general
 status: todo
