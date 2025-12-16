@@ -41,9 +41,9 @@ jobs:
                        (now - new Date(r.created_at).getTime()) <= maxAgeMs
               );
               recentFailed.forEach(failed => {
-                // Check if there's a subsequent success for the same workflow
+                // Check if there's a subsequent success for the same workflow (by path)
                 const hasSubsequentSuccess = runs.some(
-                  (r) => r.name === failed.name &&
+                  (r) => r.path === failed.path &&
                          r.conclusion === 'success' &&
                          new Date(r.created_at).getTime() > new Date(failed.created_at).getTime()
                 );
