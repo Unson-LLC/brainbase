@@ -3,6 +3,53 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ95SVHV
+channel: cxo
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1765924411.301219
+status: pending
+---
+
+### 07:33 | #cxo | 堀 汐里 / Shiori Hori
+
+名古屋めっちゃ降りるなw
+
+<@U08UZF58F0C> <@U08FB9S7HUL> 
+2号車に連席あります:smiley_cat:
+
+**スレッドの文脈:**
+> **堀 汐里 / Shiori Hori** (06:08): <@U08FB9S7HUL> 
+私、座れませんでした:joy:（デッキにいる）
+東京駅で埋まるとは誤算でした。。。
+
+<@U08UZF58F0C> 
+私ら指定席に変更できんかな。。。
+> **堀 汐里 / Shiori Hori** (06:18): <@U08UZF58F0C> 
+とれた！！どのへんいる？
+> **山下大輝** (06:19): 車掌探し中ー
+指定あいてるかきいてみるー
+> **堀 汐里 / Shiori Hori** (06:20): <@U08UZF58F0C> 
+ありがとう:face_holding_back_tears::sparkling_heart:
+一応2号車の16Dに荷物置いてますw
+> **堀 汐里 / Shiori Hori** (06:20): <@U08UZF58F0C> 
+私は2号車18Bに座ってる:woman-bowing:
+> **佐藤圭吾** (06:21): 朝イチは意外と人多いんすね:face_holding_back_tears:
+> **堀 汐里 / Shiori Hori** (06:21): <@U08FB9S7HUL> 
+新幹線あんま乗らないから知らなかった。。。。。:woman-bowing:
+> **堀 汐里 / Shiori Hori** (06:22): 車内販売こないかな
+コーヒー飲みたいw
+> **山下大輝** (06:23): 車内販売はもう結構前からないw
+> **堀 汐里 / Shiori Hori** (06:32): <@U08UZF58F0C> 
+wwwwwwwwwwwwwwwしらなかった
+> **堀 汐里 / Shiori Hori** (06:41): <@U08UZF58F0C> 
+しちょ座れてる！？
+> **堀 汐里 / Shiori Hori** (07:25): <@U08UZF58F0C>
+とってた席座ってなかったら名古屋で荷物引き上げるね:bow:
+
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1765924411301219?thread_ts=1765919327.248099&cid=C08U2EX2NEA)
+
+---
 id: INBOX-2025-12-16-MJ938FCT
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
