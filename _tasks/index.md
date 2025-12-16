@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-024
+source_id: SLACK-2025-12-16-MJ8JU4CJ
+title: WAFのブロックモードへの切り替え
+project_id: proj_dialogai
+status: todo
+owner: k.​sato
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08A6ETSSR2
+thread_ts: "1765887507.889679"
+created_at: "2025-12-16T12:18:41.923Z"
+owner_slack_id: U0971EHBDHB
+requester: k.​sato
+---
+
+- 2025-12-16 Slackから自動取り込み: k.​satoから依頼
+- 担当: k.​sato
+- 背景: WAFの設定をブロックモードに切り替える
+- Slack: https://unson.slack.com/archives/C08A6ETSSR2/p1765887507889679?thread_ts=1765887000.649509&cid=C08A6ETSSR2
+
+---
 task_id: T-2512-023
 source_id: SLACK-2025-12-16-MJ8JU3T3
 title: EC2インスタンス再構築実施
