@@ -2555,6 +2555,8 @@ body {
 .bottom-sheet-content {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
+    overscroll-behavior: contain; /* Prevent scroll chaining */
     padding: 16px;
     padding-bottom: 24px;
 }
