@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-019
+source_id: SLACK-2025-12-16-MJ8027SP
+title: Instantlyのメール設定方法を確認
+project_id: general
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C08SX913NER
+thread_ts: "1765854298.989249"
+created_at: "2025-12-16T03:05:07.321Z"
+owner_slack_id: U08FB9S7HUL
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 Slackから自動取り込み: 佐藤圭吾から依頼
+- 担当: 佐藤圭吾
+- 背景: Instantlyのメール設定方法について参考にできそうなやり方があるか確認する。既に一度タスク登録されているが、再度登録を依頼されたもの。
+- Slack: https://salestailor.slack.com/archives/C08SX913NER/p1765854298989249?thread_ts=1765849247.232309&cid=C08SX913NER
+
+---
 task_id: T-2512-018
 source_id: SLACK-2025-12-16-MJ7YPEST
 title: Instantlyのメール設定方法を確認
