@@ -3,6 +3,39 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ8MFQAT
+channel: eng
+sender: 渡邊博昭
+timestamp: 1765891884.354569
+status: pending
+---
+
+### 22:31 | #eng | 渡邊博昭
+
+TO<@U09JV6DUEG7>
+CC:<@U08FB9S7HUL> <@U08EUJKRHN3> <@U08FLSLMRAM> <@U08UZF58F0C>
+本日の定例MTGの際に課題となった、STG用のアカウントを上記で発行しなおしました。以降は上記のアカウントをご利用ください。
+
+**スレッドの文脈:**
+> **藤井志穂** (18:43): <@U08FB9S7HUL>
+すみません、開発環境のアカウントに入れず、改めてログイン情報いただけますでしょうか？？よろしくお願いします。
+> **藤井志穂** (10:41): <@U08FB9S7HUL> 
+佐藤さん、こちらいかがでしょうか、、？:woman-bowing:
+> **佐藤圭吾** (10:59): 連絡漏れていました。開発環境のDBに問題が発生したためログインできなかった可能性があります。現在は渡邉さんに新しいアカウントを作っていただいたと思うので共有お願いします！
+<@U09GQSY3AUD>
+> **渡邊博昭** (15:27): <@U09JV6DUEG7>
+CC:<@U08FB9S7HUL>
+
+以下でアカウントを再発行いたしました。
+ご確認の程よろしくお願いいたします。
+
+メールアドレス：<mailto:iinfo@sales-tailor.jp|iinfo@sales-tailor.jp>
+パスワード：BjKx3YH_QjCr
+
+
+[Slack](https://salestailor.slack.com/archives/C08SX913NER/p1765891884354569?thread_ts=1765532616.066299&cid=C08SX913NER)
+
+---
 id: INBOX-2025-12-16-MJ8E6Z6S
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
