@@ -1545,36 +1545,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Swipe down to close bottom sheets (only when touching handle/header area)
-    let sheetTouchStartY = 0;
-    let isTouchingContent = false;
+    // Swipe down to close bottom sheets (only on handle area)
     [sessionsBottomSheet, tasksBottomSheet].forEach(sheet => {
-        sheet?.addEventListener('touchstart', (e) => {
-            sheetTouchStartY = e.touches[0].clientY;
+        const handle = sheet?.querySelector('.bottom-sheet-handle');
+        const header = sheet?.querySelector('.bottom-sheet-header');
 
-            // Check if touch started inside scrollable content area
-            const contentEl = sheet.querySelector('.bottom-sheet-content');
-            const target = e.target;
-            isTouchingContent = contentEl && contentEl.contains(target);
-        }, { passive: true });
+        if (!handle || !header) return;
 
-        sheet?.addEventListener('touchmove', (e) => {
-            // Skip swipe-to-close if touch started inside content area
-            if (isTouchingContent) return;
+        let touchStartY = 0;
 
-            const touchY = e.touches[0].clientY;
-            const diff = touchY - sheetTouchStartY;
+        // Handle area swipe to close
+        [handle, header].forEach(area => {
+            area.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
 
-            // Close sheet if swiping down with sufficient distance
-            if (diff > 100) {
-                if (sheet === sessionsBottomSheet) closeSessionsSheet();
-                if (sheet === tasksBottomSheet) closeTasksSheet();
-            }
-        }, { passive: true });
+            area.addEventListener('touchmove', (e) => {
+                const touchY = e.touches[0].clientY;
+                const diff = touchY - touchStartY;
 
-        sheet?.addEventListener('touchend', () => {
-            isTouchingContent = false;
-        }, { passive: true });
+                // Close sheet if swiping down with sufficient distance
+                if (diff > 100) {
+                    if (sheet === sessionsBottomSheet) closeSessionsSheet();
+                    if (sheet === tasksBottomSheet) closeTasksSheet();
+                }
+            }, { passive: true });
+        });
     });
 
     // Mobile touch scroll for terminal iframe
