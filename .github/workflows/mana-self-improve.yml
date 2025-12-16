@@ -144,7 +144,8 @@ ${CONVERSATIONS}
 PROMPT_EOF
 
           # Claude Codeを実行（OAuthトークン認証、stdinからプロンプト）
-          cat "$WORK_DIR/prompt.txt" | claude --print
+          # セルフホストランナーのclaude CLIを使用
+          cat "$WORK_DIR/prompt.txt" | $HOME/.local/bin/claude --print
 
       - name: Check for changes
         if: steps.check.outputs.skip != 'true'
