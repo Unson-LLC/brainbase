@@ -572,6 +572,22 @@ export function initSettings() {
 }
 
 /**
+ * Open settings view (callable from outside)
+ */
+export async function openSettings() {
+    if (settingsModal) {
+        settingsModal.classList.add('active');
+        if (settingsBtn) {
+            settingsBtn.classList.add('active');
+        }
+        // Load config data
+        await loadConfigData();
+        // Re-init lucide icons for new content
+        lucide.createIcons();
+    }
+}
+
+/**
  * Close settings view (callable from outside)
  */
 export function closeSettings() {

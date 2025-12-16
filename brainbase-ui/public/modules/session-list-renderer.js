@@ -59,6 +59,7 @@ export function renderSessionRowHTML(session, options = {}) {
         ${engineBadge}
         ${statusLabel}
       </div>
+      <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
       <div class="child-actions">
         ${restartButton}
         ${mergeButton}

@@ -1,7 +1,7 @@
 // ES Modules imports
 import { MAX_VISIBLE_TASKS } from './modules/state.js';
 import { formatDueDate } from './modules/ui-helpers.js';
-import { initSettings } from './modules/settings.js';
+import { initSettings, openSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
 // New refactored modules
@@ -528,6 +528,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 childRow.addEventListener('click', (e) => {
                     if (!e.target.closest('button') && !e.target.closest('input')) {
                         switchSession(session.id, session.path, session.initialCommand);
+                    }
+                });
+
+                // Mobile Menu Toggle Logic
+                const menuToggle = childRow.querySelector('.session-menu-toggle');
+                const childActions = childRow.querySelector('.child-actions');
+                if (menuToggle && childActions) {
+                    menuToggle.onclick = (e) => {
+                        e.stopPropagation();
+                        // Close all other open menus
+                        document.querySelectorAll('.child-actions.active').forEach(actions => {
+                            if (actions !== childActions) {
+                                actions.classList.remove('active');
+                            }
+                        });
+                        // Toggle this menu
+                        childActions.classList.toggle('active');
+                    };
+                }
+
+                // Close menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (childActions && !childRow.contains(e.target)) {
+                        childActions.classList.remove('active');
                     }
                 });
 
@@ -1113,6 +1137,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Mobile Archive Toggle Handler
+    const mobileToggleArchivedBtn = document.getElementById('mobile-toggle-archived-btn');
+    if (mobileToggleArchivedBtn) {
+        mobileToggleArchivedBtn.onclick = () => {
+            openArchiveModal();
+        };
+    }
+
     function openArchiveModal() {
         if (!archiveModal) return;
 
@@ -1465,6 +1497,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Mobile Bottom Sheet Logic ---
     const mobileSessionsBtn = document.getElementById('mobile-sessions-btn');
     const mobileTasksBtn = document.getElementById('mobile-tasks-btn');
+    const mobileSettingsBtn = document.getElementById('mobile-settings-btn');
     const sessionsSheetOverlay = document.getElementById('sessions-sheet-overlay');
     const tasksSheetOverlay = document.getElementById('tasks-sheet-overlay');
     const sessionsBottomSheet = document.getElementById('sessions-bottom-sheet');
@@ -1560,6 +1593,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listeners for mobile navigation
     mobileSessionsBtn?.addEventListener('click', openSessionsSheet);
     mobileTasksBtn?.addEventListener('click', openTasksSheet);
+    mobileSettingsBtn?.addEventListener('click', openSettings);
     mobileAddSessionBtn?.addEventListener('click', () => createNewSession());
     mobileFabBtn?.addEventListener('click', () => createNewSession());
     closeSessionsSheetBtn?.addEventListener('click', closeSessionsSheet);
