@@ -2751,6 +2751,11 @@ body {
         padding: 12px;
     }
 
+    /* Fix: Show action buttons on mobile (hover doesn't work on touch devices) */
+    .child-actions {
+        display: flex !important;
+    }
+
     /* Phase 1.3: Improve tap target sizes for mobile */
     .add-session-btn-icon,
     .add-project-session-btn,
