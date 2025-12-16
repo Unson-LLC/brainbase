@@ -3,6 +3,29 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ91YZ7X
+channel: cxo
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1765917978.104229
+status: pending
+---
+
+### 05:46 | #cxo | 堀 汐里 / Shiori Hori
+
+<!channel> 
+おはようございます！！！！！
+
+以下お忘れないでしょうか！！！！
+
+<@U08FB9S7HUL>
+iPadとモニター宜しくお願いいたします:bow::bow::bow:
+
+<@U08FLSLMRAM>
+チラシ宜しくお願いいたします:woman-bowing::woman-bowing::woman-bowing:
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1765917978104229)
+
+---
 id: INBOX-2025-12-16-MJ8O1ENM
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
