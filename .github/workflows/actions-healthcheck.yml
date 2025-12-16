@@ -34,7 +34,7 @@ jobs:
               const [owner, name] = repo.split('/');
               const runs = await github.paginate(
                 github.rest.actions.listWorkflowRunsForRepo,
-                { owner, repo: name, per_page: 50, status: 'completed', exclude_pull_requests: true }
+                { owner, repo: name, per_page: 50, status: 'completed', exclude_pull_requests: true, branch: 'main' }
               );
               const recentFailed = runs.filter(
                 (r) => r.conclusion !== 'success' &&
