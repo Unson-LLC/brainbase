@@ -2564,14 +2564,12 @@ body {
     color: var(--text-secondary);
 }
 
-.mobile-version-badge {
-    font-size: 0.7rem;
-    font-weight: 600;
+.mobile-version-display {
+    font-size: 1.1rem;
+    font-weight: 700;
     color: var(--accent-color);
-    background: rgba(59, 130, 246, 0.1);
-    padding: 2px 8px;
-    border-radius: 12px;
-    margin-left: 8px;
+    margin: 0;
+    letter-spacing: 0.05em;
 }
 
 .bottom-sheet-close {
