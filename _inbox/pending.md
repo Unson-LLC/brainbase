@@ -3,6 +3,25 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ92RWGX
+channel: cxo
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1765919327.248099
+status: pending
+---
+
+### 06:08 | #cxo | 堀 汐里 / Shiori Hori
+
+<@U08FB9S7HUL> 
+私、座れませんでした:joy:
+東京駅で埋まるとは誤算でした。。。
+
+<@U08UZF58F0C> 
+私ら指定席に変更できんかな。。。
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1765919327248099)
+
+---
 id: INBOX-2025-12-16-MJ91YZ7X
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
