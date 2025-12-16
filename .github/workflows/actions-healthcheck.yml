@@ -1,4 +1,4 @@
-name: Actions Healthcheck
+name: brainbase Healthcheck
 
 on:
   workflow_dispatch:
@@ -74,18 +74,65 @@ jobs:
             core.setOutput('runner_alerts', JSON.stringify(runnerAlerts));
             core.setOutput('runner_text', runnerAlerts.map(r => `• ${r.repo}: runner ${r.name} is ${r.status}`).join('\n'));
 
-      - name: Notify Slack (issues or runners)
-        if: steps.check.outputs.has_issues == 'true'
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Check Lambda errors
+        id: lambda-check
+        run: |
+          LAMBDA_FUNCTIONS="mana mana-salestailor mana-techknight"
+          SINCE_MINUTES=30
+          LAMBDA_ERRORS=""
+
+          for fn in $LAMBDA_FUNCTIONS; do
+            echo "Checking $fn..."
+
+            # Get CloudWatch logs from the last 30 minutes
+            LOGS=$(aws logs tail "/aws/lambda/$fn" --since ${SINCE_MINUTES}m --format short 2>&1 || echo "")
+
+            # Check for error patterns
+            ERROR_LINES=$(echo "$LOGS" | grep -iE "ERROR|Exception|SyntaxError|Runtime\..*Error" | head -5 || echo "")
+
+            if [ -n "$ERROR_LINES" ]; then
+              LAMBDA_ERRORS+="🔴 Lambda $fn:\n"
+              # Format error lines
+              while IFS= read -r line; do
+                # Truncate long lines
+                truncated=$(echo "$line" | cut -c1-200)
+                LAMBDA_ERRORS+="  ${truncated}\n"
+              done <<< "$ERROR_LINES"
+              LAMBDA_ERRORS+="\n"
+            fi
+          done
+
+          if [ -n "$LAMBDA_ERRORS" ]; then
+            echo "lambda_errors<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$LAMBDA_ERRORS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "has_lambda_errors=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_lambda_errors=false" >> $GITHUB_OUTPUT
+            echo "All Lambda functions healthy (last ${SINCE_MINUTES}m)"
+          fi
+
+      - name: Notify Slack (issues or runners or Lambda errors)
+        if: steps.check.outputs.has_issues == 'true' || steps.lambda-check.outputs.has_lambda_errors == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           ISSUES_TEXT: ${{ steps.check.outputs.issues_text }}
           RUNNER_TEXT: ${{ steps.check.outputs.runner_text }}
+          LAMBDA_ERRORS_TEXT: ${{ steps.lambda-check.outputs.lambda_errors }}
         run: |
-          text="[Actions Healthcheck]\n"
+          text="[brainbase Healthcheck]\n"
           [ -n "$ISSUES_TEXT" ] && text+="❌ Failed workflows (24h):\n$ISSUES_TEXT\n"
           [ -n "$RUNNER_TEXT" ] && text+="⚠️ Offline self-hosted runners:\n$RUNNER_TEXT\n"
+          [ -n "$LAMBDA_ERRORS_TEXT" ] && text+="🔴 Lambda errors (30m):\n$LAMBDA_ERRORS_TEXT\n"
 
           if [ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_CHANNEL_ID" ]; then
             curl -sS -X POST https://slack.com/api/chat.postMessage \
@@ -99,5 +146,5 @@ jobs:
           fi
 
       - name: No issues found
-        if: steps.check.outputs.has_issues != 'true'
-        run: echo "No failures or offline runners in the last ${MAX_AGE_HOURS}h."
+        if: steps.check.outputs.has_issues != 'true' && steps.lambda-check.outputs.has_lambda_errors != 'true'
+        run: echo "✅ All systems healthy - no workflow failures, offline runners, or Lambda errors detected."
