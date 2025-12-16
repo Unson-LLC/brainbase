@@ -205,33 +205,42 @@
         }
 
         // Pattern: path/to/file.ext:123 or /absolute/path/file.ext:456
-        const filePathRegex = /([a-zA-Z0-9_\-./]+\.(ts|js|tsx|jsx|md|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh)):(\d+)/;
+        const filePathRegex = /([a-zA-Z0-9_\-./]+\.(ts|js|tsx|jsx|md|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh)):(\d+)/g;
 
+        // Use registerLinkProvider API
         term.registerLinkProvider({
             provideLinks: (bufferLineNumber, callback) => {
-                const lineContent = term.buffer.active.getLine(bufferLineNumber - 1)?.translateToString(true);
-                if (!lineContent) {
+                // Get the line text
+                const lineText = term.buffer.active.getLine(bufferLineNumber)?.translateToString(true);
+                if (!lineText) {
                     callback([]);
                     return;
                 }
 
                 const links = [];
                 let match;
-                const regex = new RegExp(filePathRegex, 'g');
-                
-                while ((match = regex.exec(lineContent)) !== null) {
-                    const filePath = match[1];
-                    const line = match[3];
+
+                // Reset regex index
+                filePathRegex.lastIndex = 0;
+
+                // Find all matches in the line
+                while ((match = filePathRegex.exec(lineText)) !== null) {
+                    const fullMatch = match[0];
                     const startIndex = match.index;
-                    const endIndex = startIndex + match[0].length;
+                    const endIndex = startIndex + fullMatch.length;
 
                     links.push({
                         range: {
                             start: { x: startIndex + 1, y: bufferLineNumber },
-                            end: { x: endIndex + 1, y: bufferLineNumber }
+                            end: { x: endIndex, y: bufferLineNumber }
                         },
-                        text: match[0],
-                        activate: () => {
+                        text: fullMatch,
+                        activate: (event, text) => {
+                            const filePath = text.substring(0, text.lastIndexOf(':'));
+                            const line = text.substring(text.lastIndexOf(':') + 1);
+
+                            console.log('Link clicked:', text, 'File:', filePath, 'Line:', line);
+
                             // Call API to open file
                             fetch('/api/open-file', {
                                 method: 'POST',
@@ -253,7 +262,7 @@
             }
         });
 
-        console.log('File path linkifier registered');
+        console.log('File path linkifier registered with registerLinkProvider');
     }
 
     if (document.readyState === 'loading') {
