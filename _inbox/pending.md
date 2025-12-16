@@ -3,6 +3,51 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ85KCNX
+channel: 0011-zeims-dev
+sender: 太田葉音
+timestamp: 1765863548.841279
+status: pending
+---
+
+### 14:39 | #0011-zeims-dev | 太田葉音
+
+<@U07LNUP582X>
+ありがとうございます！
+<https://github.com/Unson-LLC/zeims/pull/163>
+で動作確認できました。
+返答もでき、無料枠が広いので使いやすいです
+
+**スレッドの文脈:**
+> **太田葉音** (08:39): <@U07Q7CUC60J>
+<https://github.com/apps/gemini-code-assist>
+でgemini github をzeimsで使えるように設定して頂きたいです。
+> **太田葉音** (08:42): 個人で使っていて、使い勝手がいいです。
+
+<https://qiita.com/nero-15/items/6657f6308bb47f2e3e48>
+> **川合秀明 / Hideaki Kawai** (12:51): <@U07LNUP582X>
+雲孫で使えるGeminiアカウントってありましたっけ？
+Zeimsリポジトリにインテグレーションお願いしたいです:man-bowing:
+> **k.​sato** (12:52): <@U090R3E72UA> 
+info@unson.jpのアカウント使って設定いただけますか
+> **太田葉音** (12:57): <@U090R3E72UA> さんってgithubリポジトリのオーナー権限持ってますかね...?
+> **k.​sato** (12:58): 持ってないっすね
+じゃあ自分がやらなきゃダメですね
+> **k.​sato** (12:58): <@U093QQ0NV5K> 
+俺のタスクに入れておいて
+<@U07LNUP582X> 
+> **mana** (12:58): :white_check_mark: 1件のタスクを登録しました
+> **mana** (12:58): :white_check_mark: 1件のタスクを登録しました
+> **mana** (12:59): :x: タスク (ID: T-2512-007) をキャンセルしました
+> **k.​sato** (07:16): <@U085FM467AP>
+完了しました
+> **mana** (07:17): :white_check_mark: タスク (ID: T-2512-007) を完了しました
+> **mana** (07:17): :white_check_mark: タスク (ID: T-2512-008) を完了しました
+
+
+[Slack](https://unson.slack.com/archives/C07QX6DN9M0/p1765863548841279?thread_ts=1765582766.259189&cid=C07QX6DN9M0)
+
+---
 id: INBOX-2025-12-16-MJ85GZ86
 channel: 0120-ncom
 sender: 小川未来
