@@ -30,7 +30,7 @@ export function getProjectPath(project) {
   const normalized = project.toLowerCase();
   if (normalized === 'general') return WORKSPACE_ROOT;
 
-  return PROJECT_PATH_MAP[project] || `${WORKSPACE_ROOT}/${project}`;
+  return PROJECT_PATH_MAP[normalized] || `${WORKSPACE_ROOT}/${project}`;
 }
 
 /**
@@ -41,13 +41,21 @@ export function getProjectPath(project) {
 export function getProjectFromPath(path) {
   if (!path) return 'General';
 
-  // Worktreeパスの場合（.worktrees/session-xxx-projectname）
-  const worktreeMatch = path.match(/\.worktrees\/[^/]+-([^/]+)/);
+  // Worktreeパスの場合（.worktrees/session-xxx-workspace）
+  const worktreeMatch = path.match(/\.worktrees\/session-\d+-(.+?)(?:\/|$)/);
   if (worktreeMatch) {
     const projectHint = worktreeMatch[1];
-    // brainbase-ui -> brainbase
+    // workspace -> General
+    if (projectHint === 'workspace') return 'General';
+
+    // 完全一致を優先
     for (const proj of CORE_PROJECTS) {
-      if (projectHint.includes(proj) || PROJECT_PATH_MAP[proj]?.includes(projectHint)) {
+      if (projectHint === proj) return proj;
+    }
+
+    // 部分一致（brainbase-ui -> brainbase など）
+    for (const proj of CORE_PROJECTS) {
+      if (projectHint.includes(proj)) {
         return proj;
       }
     }
@@ -55,7 +63,8 @@ export function getProjectFromPath(path) {
 
   // 通常パスの場合
   for (const proj of CORE_PROJECTS) {
-    if (path.includes(`/${proj}/`) || path.includes(`/${proj}`)) {
+    const projectPath = PROJECT_PATH_MAP[proj];
+    if (projectPath && (path === projectPath || path.startsWith(projectPath + '/'))) {
       return proj;
     }
   }

@@ -68,7 +68,8 @@ export function buildSessionObject(params) {
     initialCommand = null,
     taskId = null,
     worktree = null,
-    archived = false
+    archived = false,
+    engine = 'claude'
   } = params;
 
   return {
@@ -79,6 +80,7 @@ export function buildSessionObject(params) {
     taskId,
     worktree,
     archived,
+    engine,
     created: new Date().toISOString()
   };
 }
