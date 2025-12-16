@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ85GZ86
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1765863388.825429
+status: pending
+---
+
+### 14:36 | #0120-ncom | 小川未来
+
+<@U07LNUP582X> 
+これますか？
+
+[Slack](https://unson.slack.com/archives/C091KFKE3RS/p1765863388825429)
+
+---
 id: INBOX-2025-12-16-MJ83ETCH
 channel: 0011-zeims-dev
 sender: 太田葉音
