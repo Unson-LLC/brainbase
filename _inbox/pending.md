@@ -3,6 +3,31 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-16-MJ8DYTHV
+channel: eng
+sender: 藤井志穂
+timestamp: 1765877659.387679
+status: pending
+---
+
+### 18:34 | #eng | 藤井志穂
+
+<@U08FB9S7HUL>
+ここで谷口さんが言ってくださっている件です！！
+
+**スレッドの文脈:**
+> **谷口達彦 / Tatsuhiko Taniguchi** (10:55): 企業管理で企業追加する時に1000件とか追加できない。が、60件ならできた。　追加できる企業件数のリミットがあるのかも
+> **佐藤圭吾** (11:08): <@U08FLSLMRAM> <@U09GQSY3AUD>
+ <https://airtable.com/app8uhkD8PcnxPvVx/tblLGybv9K8ZS7uZX/reco9WuLDHVBCnbhX>
+追加しました
+> **佐藤圭吾** (11:11): 対応としてはバルク処理で対応したほうがいいと思われます。
+その結果により以下の問題も合わせて解消するかもしれません
+<https://airtable.com/app8uhkD8PcnxPvVx/tblRBCgdT42VKx3eJ/rec1hoLstdM8Un1kN>
+
+
+[Slack](https://salestailor.slack.com/archives/C08SX913NER/p1765877659387679?thread_ts=1764294959.948259&cid=C08SX913NER)
+
+---
 id: INBOX-2025-12-16-MJ8CUUXI
 channel: 0120-ncom
 sender: 小川未来
