@@ -1554,6 +1554,129 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             });
+
+            // Re-attach click handlers for 3-dot menu toggles and action buttons
+            mobileSessionList.querySelectorAll('.session-child-row').forEach(row => {
+                const menuToggle = row.querySelector('.session-menu-toggle');
+                const childActions = row.querySelector('.child-actions');
+
+                // 3-dot menu toggle
+                if (menuToggle && childActions) {
+                    menuToggle.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        // Close all other menus
+                        mobileSessionList.querySelectorAll('.child-actions.active').forEach(actions => {
+                            if (actions !== childActions) {
+                                actions.classList.remove('active');
+                            }
+                        });
+                        // Toggle this menu
+                        childActions.classList.toggle('active');
+                    });
+                }
+
+                // Action buttons
+                const renameBtn = row.querySelector('.rename-session-btn');
+                const deleteBtn = row.querySelector('.delete-session-btn');
+                const archiveBtn = row.querySelector('.archive-session-btn');
+                const mergeBtn = row.querySelector('.merge-session-btn');
+                const restartBtn = row.querySelector('.restart-session-btn');
+
+                if (renameBtn) {
+                    renameBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const currentName = row.querySelector('.session-name')?.textContent || sessionId;
+                        const newName = prompt('新しいセッション名を入力してください:', currentName);
+                        if (newName && newName !== currentName) {
+                            try {
+                                await updateSession(sessionId, { name: newName });
+                                await loadSessions();
+                                openSessionsSheet(); // Refresh the mobile list
+                            } catch (err) {
+                                console.error('Failed to rename', err);
+                                showError('セッション名の変更に失敗しました');
+                            }
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const sessionName = row.querySelector('.session-name')?.textContent || sessionId;
+                        if (confirm(`セッション「${sessionName}」を削除しますか？`)) {
+                            try {
+                                await removeSession(sessionId);
+                                await loadSessions();
+                                openSessionsSheet(); // Refresh the mobile list
+                            } catch (err) {
+                                console.error('Failed to delete', err);
+                                showError('セッションの削除に失敗しました');
+                            }
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (archiveBtn) {
+                    archiveBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const isArchived = row.classList.contains('archived');
+                        try {
+                            if (isArchived) {
+                                await restoreSessionAPI(sessionId);
+                            } else {
+                                await archiveSessionAPI(sessionId);
+                            }
+                            await loadSessions();
+                            openSessionsSheet(); // Refresh the mobile list
+                        } catch (err) {
+                            console.error('Failed to archive/restore', err);
+                            showError('アーカイブ操作に失敗しました');
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (mergeBtn) {
+                    mergeBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const sessionName = row.querySelector('.session-name')?.textContent || sessionId;
+                        if (confirm(`セッション「${sessionName}」をmainにマージしますか？`)) {
+                            try {
+                                await mergeSession(sessionId);
+                                await loadSessions();
+                                openSessionsSheet(); // Refresh the mobile list
+                            } catch (err) {
+                                console.error('Failed to merge', err);
+                                showError('マージに失敗しました');
+                            }
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (restartBtn) {
+                    restartBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        try {
+                            await fetch(`/api/sessions/${sessionId}/restart`, { method: 'POST' });
+                            await loadSessions();
+                            openSessionsSheet(); // Refresh the mobile list
+                        } catch (err) {
+                            console.error('Failed to restart', err);
+                            showError('セッションの再起動に失敗しました');
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+            });
         }
         sessionsSheetOverlay?.classList.add('active');
         sessionsBottomSheet?.classList.add('active');
