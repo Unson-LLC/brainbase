@@ -3,6 +3,24 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9RNBR5
+channel: cxo
+sender: 山下大輝
+timestamp: 1765961106.864419
+status: pending
+---
+
+### 17:45 | #cxo | 山下大輝
+
+<@U08FB9S7HUL> マイドームの1F玄関にいます！キングの荷物もあります！
+
+**スレッドの文脈:**
+> **佐藤圭吾** (17:42): <!channel> 終わりました！
+
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1765961106864419?thread_ts=1765960940.890259&cid=C08U2EX2NEA)
+
+---
 id: INBOX-2025-12-17-MJ9R1AHB
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
