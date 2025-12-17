@@ -3,6 +3,47 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9OA2CL
+channel: 0012-zeims-board
+sender: 川合秀明 / Hideaki Kawai
+timestamp: 1765955445.215439
+status: pending
+---
+
+### 16:10 | #0012-zeims-board | 川合秀明 / Hideaki Kawai
+
+<@U07LNUP582X>
+# 報告
+• Dify React RSC脆弱性対応
+    ◦ 影響のあったコンテナの停止
+    ◦ インスタンススキャンかけて、他に悪意のあるスクリプト残ってないか調査→ひとまず大丈夫そう
+    ◦ パッチがmainマージされたらアップデート（React RSC関連の他の脆弱性突かれる可能性あるのでしばらく様子見ます。）
+• PL表作成
+    ◦ <https://docs.google.com/spreadsheets/d/1OV_c87sPEmRm76h9IJDWrQu-BqnMTBEtZt1rEJTVvtc/edit?gid=764189366#gid=764189366>
+    ◦ PLは月単位に変更
+• 音声文字起こしmainマージ完了
+    ◦ いつでもリリースできます。
+• DifyからCloudflare Vectorizeに移行設計完了
+• 支払い関連実装着手→12/31までにリリースはできそうです。
+• 既存の税理士先生へヒアリングメール送信
+• 知り合いの企業の税務会計部署へ導入提案
+    ◦ 株式会社もへじ 総務部門
+    ◦ ユニヴィスグループ（会計コンサル）
+• API費用の問題もあるので、支払い機能がリリースできたら、使ってもらえるとのことです。
+# Decision Log
+- Date: 2025-12-17
+- Project: Zeims
+- Decision Owner: 川合秀明
+- Decision Type: 機能仕様
+## 1. Goal
+• 決済機能実装
+• ナレッジのCloudflare Vectorize移行実装
+## 2. Constraints
+- 期日: ~12/31
+
+[Slack](https://unson.slack.com/archives/C09V8RW3THS/p1765955445215439)
+
+---
 id: INBOX-2025-12-17-MJ9GX6CV
 channel: cxo
 sender: 山下大輝
