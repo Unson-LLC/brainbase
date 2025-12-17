@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9WCAOM
+channel: 0031-dialogai-dev
+sender: 星野 秀弥
+timestamp: 1765968986.404979
+status: pending
+---
+
+### 19:56 | #0031-dialogai-dev | 星野 秀弥
+
+<@U07LNUP582X>
+`2025-12-10T10:11:53+09:00`に、`<http://xxx.xxx.xxx.xxx/32`(IPはDMで送ります)というCIDRがDialogAIの22番ポートのインバウンドルールに設定されたようですが、RAGWからのSSH接続のみ許可する対応のためこちらは削除してしまっても問題ないでしょうか？|xxx.xxx.xxx.xxx/32`(IPはDMで送ります)というCIDRがDialogAIの22番ポートのインバウンドルールに設定されたようですが、RAGWからのSSH接続のみ許可する対応のためこちらは削除してしまっても問題ないでしょうか？>
+
+[Slack](https://unson.slack.com/archives/C08A6ETSSR2/p1765968986404979)
+
+---
 id: INBOX-2025-12-17-MJ9VNV4P
 channel: 0031-dialogai-dev
 sender: 小川未来
