@@ -6,11 +6,7 @@
 - `update-all-repos.sh`
   - カレントから1階層下までの子リポジトリを自動検出して `git pull --ff-only` 実行。
   - オプション `--no-ff-only` で通常の `git pull`。
-
-- `sync-slack-to-dynamodb.js`
-  - brainbase YAML（`_codex/common/meta/slack/channels.yml`）をDynamoDBへ同期。
-  - オプション `--dry-run` で実際の更新をスキップして確認のみ。
-  - マスタ: YAML、キャッシュ: DynamoDB（slack-classify-bot-projects）
+  - ff-only失敗時は自動でrebaseを試行。
 
 ## 使い方
 ```
@@ -19,6 +15,9 @@
 # ff-onlyを外す場合
 ./_ops/update-all-repos.sh --no-ff-only
 ```
+
+## 備考
+- **Slackチャンネル同期**: `_codex/common/meta/slack/channels.yml` → GitHub Actions (`sync-brainbase-context.yml`) → S3 経由で自動同期
 
 ## 運用メモ
 - `_ops` は `.gitignore` されているため、必要に応じて `git add -f` でコミット。
