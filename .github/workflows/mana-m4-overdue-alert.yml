@@ -11,8 +11,15 @@ jobs:
     runs-on: [self-hosted, local]
 
     steps:
-      - name: Checkout
+      - name: Checkout brainbase
         uses: actions/checkout@v4
+
+      - name: Checkout mana
+        uses: actions/checkout@v4
+        with:
+          repository: sintariran/mana
+          path: mana
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run M4 overdue alert
         env:
