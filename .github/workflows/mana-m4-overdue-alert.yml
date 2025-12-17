@@ -27,6 +27,7 @@ jobs:
 
       - name: Run M4 overdue alert
         env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           HOME: /Users/ksato
           NODE_PATH: ${{ github.workspace }}/mana/api/node_modules
         run: node _codex/common/ops/scripts/mana-m4-overdue-alert.js

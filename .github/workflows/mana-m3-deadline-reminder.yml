@@ -27,6 +27,7 @@ jobs:
 
       - name: Run M3 deadline reminder
         env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           HOME: /Users/ksato
           NODE_PATH: ${{ github.workspace }}/mana/api/node_modules
         run: node _codex/common/ops/scripts/mana-m3-deadline-reminder.js
