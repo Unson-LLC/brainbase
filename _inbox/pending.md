@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJA16SFR
+channel: 0031-dialogai-dev
+sender: 星野 秀弥
+timestamp: 1765977127.718249
+status: pending
+---
+
+### 22:12 | #0031-dialogai-dev | 星野 秀弥
+
+<@U07LNUP582X>
+本番のEC2って今は動いていますが、止めてはいけない理由があるんでしたっけ？
+
+[Slack](https://unson.slack.com/archives/C08A6ETSSR2/p1765977127718249)
+
+---
 id: INBOX-2025-12-17-MJ9Z4BS9
 channel: hp営業
 sender: 倉本裕太
