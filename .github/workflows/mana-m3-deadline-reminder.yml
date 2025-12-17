@@ -27,8 +27,6 @@ jobs:
 
       - name: Run M3 deadline reminder
         env:
-          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           HOME: /Users/ksato
           NODE_PATH: ${{ github.workspace }}/mana/api/node_modules
         run: node _codex/common/ops/scripts/mana-m3-deadline-reminder.js
