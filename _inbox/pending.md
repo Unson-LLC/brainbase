@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9Z2GN1
+channel: 株式会社techknight
+sender: 倉本裕太
+timestamp: 1765973566.150189
+status: pending
+---
+
+### 21:12 | #株式会社techknight | 倉本裕太
+
+<@U07B19N048G>
+こんな返信が来てます
+
+[Slack](https://tech-knight.slack.com/archives/C09RPFX1403/p1765973566150189)
+
+---
 id: INBOX-2025-12-17-MJ9WCAOM
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
