@@ -21,6 +21,19 @@ jobs:
           path: mana
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Debug directory structure
+        run: |
+          echo "=== Current directory ==="
+          pwd
+          echo "=== List root ==="
+          ls -la
+          echo "=== List mana ==="
+          ls -la mana/ | head -20
+          echo "=== List _codex/common/ops/scripts ==="
+          ls -la _codex/common/ops/scripts/
+          echo "=== Check mana/api ==="
+          ls -la mana/api/ | head -10
+
       - name: Run M4 overdue alert
         env:
           AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
