@@ -3,6 +3,24 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJA6DKW4
+channel: smart-front
+sender: 倉本裕太
+timestamp: 1765985843.353839
+status: pending
+---
+
+### 00:37 | #smart-front | 倉本裕太
+
+<@U07B19N048G>
+LightrRAG部分を実装したものをmainにあげました
+使い方はReadmeに書いてます
+
+変更要望は自分に言ってください
+
+[Slack](https://tech-knight.slack.com/archives/C0A489A4EFJ/p1765985843353839)
+
+---
 id: INBOX-2025-12-17-MJA16SFR
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
