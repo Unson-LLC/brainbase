@@ -21,6 +21,10 @@ jobs:
           path: mana
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install mana dependencies
+        working-directory: mana
+        run: npm install
+
       - name: Run M1 morning brief
         env:
           AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
