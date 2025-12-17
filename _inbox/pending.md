@@ -3,6 +3,30 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9GAZ4I
+channel: 0031-dialogai-dev
+sender: 金田光平 / Kohei Kaneta
+timestamp: 1765942050.032159
+status: pending
+---
+
+### 12:27 | #0031-dialogai-dev | 金田光平 / Kohei Kaneta
+
+<@U07LNUP582X>
+確認できないのですが、<mailto:kkaneta42@gmail.com|kkaneta42@gmail.com> にメールで来る感じですかね？
+
+**スレッドの文脈:**
+> **k.​sato** (09:21): <@U089CNQ4D1A> <@U0971EHBDHB> 
+外部チームスの参加依頼が飛んでいるようです
+確認していただけますか
+> **星野 秀弥** (10:17): 参加しました！
+> **k.​sato** (10:52): 早速一つ依頼が来ているのですが、ワードの方に作業が終わった内容から随時アップデートして行っていただきたいです
+> **k.​sato** (10:52): <@U0971EHBDHB> 
+
+
+[Slack](https://unson.slack.com/archives/C08A6ETSSR2/p1765942050032159?thread_ts=1765930916.710879&cid=C08A6ETSSR2)
+
+---
 id: INBOX-2025-12-17-MJ9D24TI
 channel: cxo
 sender: 谷口達彦 / Tatsuhiko Taniguchi
