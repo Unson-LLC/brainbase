@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9Z4BS9
+channel: hp営業
+sender: 倉本裕太
+timestamp: 1765973656.236349
+status: pending
+---
+
+### 21:14 | #hp営業 | 倉本裕太
+
+<@U07B19N048G>
+こんな返信が来てます
+
+[Slack](https://tech-knight.slack.com/archives/C0A3AGMS68M/p1765973656236349)
+
+---
 id: INBOX-2025-12-17-MJ9Z2GN1
 channel: 株式会社techknight
 sender: 倉本裕太
