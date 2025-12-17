@@ -3,6 +3,26 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9VNV4P
+channel: 0031-dialogai-dev
+sender: 小川未来
+timestamp: 1765967847.227389
+status: pending
+---
+
+### 19:37 | #0031-dialogai-dev | 小川未来
+
+<@U07LNUP582X> 
+以下の内容、明日の朝会などでご説明いただけると嬉しいです！
+
+—-
+今村さんより、
+セキュアFAT -&gt; VPN -&gt; RAGW -&gt; サーバー
+以外の通り道を徹底的になくしたいという意図で、キュリオメンバーのPCからのDialog AIサーバー/AWSコンソールの接続可否について再度聞かれました。
+
+[Slack](https://unson.slack.com/archives/C08A6ETSSR2/p1765967847227389)
+
+---
 id: INBOX-2025-12-17-MJ9V17YY
 channel: 0031-dialogai-dev
 sender: 小川未来
