@@ -1426,6 +1426,55 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Terminal Copy Functionality ---
+    // Paste from clipboard to terminal
+    const pasteTerminalBtn = document.getElementById('paste-terminal-btn');
+    if (pasteTerminalBtn) {
+        pasteTerminalBtn.onclick = async () => {
+            try {
+                // Read text from clipboard
+                const text = await navigator.clipboard.readText();
+
+                if (!text) {
+                    showInfo('クリップボードが空です');
+                    return;
+                }
+
+                const terminalFrame = document.getElementById('terminal-frame');
+
+                // Try to send paste event to iframe
+                if (terminalFrame && terminalFrame.contentWindow) {
+                    // Focus the iframe
+                    terminalFrame.contentWindow.focus();
+
+                    // Create and dispatch paste event
+                    const pasteEvent = new ClipboardEvent('paste', {
+                        clipboardData: new DataTransfer(),
+                        bubbles: true,
+                        cancelable: true
+                    });
+
+                    // Set clipboard data
+                    pasteEvent.clipboardData.setData('text/plain', text);
+
+                    // Dispatch to iframe's active element or document
+                    const target = terminalFrame.contentWindow.document.activeElement || terminalFrame.contentWindow.document;
+                    target.dispatchEvent(pasteEvent);
+
+                    showSuccess(`ペーストしました: ${text.length}文字`);
+                } else {
+                    showError('ターミナルにアクセスできません');
+                }
+            } catch (error) {
+                console.error('Failed to paste:', error);
+                if (error.name === 'NotAllowedError') {
+                    showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+                } else {
+                    showError('ペーストに失敗しました');
+                }
+            }
+        };
+    }
+
     if (copyTerminalBtn) {
         copyTerminalBtn.onclick = async () => {
             if (!currentSessionId) {
