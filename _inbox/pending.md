@@ -3,6 +3,20 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-17-MJ9GX6CV
+channel: cxo
+sender: 山下大輝
+timestamp: 1765943088.121159
+status: pending
+---
+
+### 12:44 | #cxo | 山下大輝
+
+<@U08EUJKRHN3> <@U08FB9S7HUL> <@U08FLSLMRAM> 13:00にmtg終わり次第、会社からマイドームおおさか向かいますが何か必要なものありますかー？
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1765943088121159)
+
+---
 id: INBOX-2025-12-17-MJ9GAZ4I
 channel: 0031-dialogai-dev
 sender: 金田光平 / Kohei Kaneta
