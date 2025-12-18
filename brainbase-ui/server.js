@@ -458,9 +458,31 @@ async function createWorktree(sessionId, repoPath) {
             }
         }
 
-        // Note: 正本ディレクトリはシンボリックリンクとして維持
-        // gitのトラッキング状態は変わるが、実ファイルは正本を参照するため問題なし
-        // git statusで"deleted"と表示されるのは正常な動作
+        // Set skip-worktree flag for symlinked paths to prevent them from being tracked as deletions
+        // This ensures clean merges without symlink pollution
+        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        for (const p of excludePaths) {
+            try {
+                // Get all files under the path and set skip-worktree flag
+                const { stdout } = await execPromise(
+                    `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
+                );
+                if (stdout.trim()) {
+                    const files = stdout.trim().split('\n');
+                    for (const file of files) {
+                        if (file.trim()) {
+                            await execPromise(
+                                `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                            );
+                        }
+                    }
+                    console.log(`Set skip-worktree for ${files.length} files under: ${p}`);
+                }
+            } catch (skipErr) {
+                // Path doesn't exist or no files to skip - this is fine
+                console.log(`Note: No files to skip-worktree under ${p}`);
+            }
+        }
 
         console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
         return { worktreePath, branchName, repoPath };
@@ -490,6 +512,49 @@ async function removeWorktree(sessionId, repoPath) {
     } catch (err) {
         console.error(`Failed to remove worktree for ${sessionId}:`, err.message);
         return false;
+    }
+}
+
+// Fix existing worktree by setting skip-worktree flags for symlinked paths
+async function fixWorktreeSymlinks(sessionId, repoPath) {
+    const repoName = path.basename(repoPath);
+    const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
+
+    try {
+        // Check if worktree exists
+        await fs.access(worktreePath);
+
+        // Set skip-worktree flag for symlinked paths
+        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        let totalFixed = 0;
+
+        for (const p of excludePaths) {
+            try {
+                // Get all files under the path
+                const { stdout } = await execPromise(
+                    `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
+                );
+                if (stdout.trim()) {
+                    const files = stdout.trim().split('\n');
+                    for (const file of files) {
+                        if (file.trim()) {
+                            await execPromise(
+                                `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                            );
+                            totalFixed++;
+                        }
+                    }
+                }
+            } catch (skipErr) {
+                // Path doesn't exist or no files to skip - continue
+            }
+        }
+
+        console.log(`Fixed ${totalFixed} files in worktree ${sessionId}`);
+        return { success: true, filesFixed: totalFixed };
+    } catch (err) {
+        console.error(`Failed to fix worktree symlinks for ${sessionId}:`, err.message);
+        return { success: false, error: err.message };
     }
 }
 
@@ -1009,6 +1074,26 @@ app.get('/api/sessions/:id/worktree-status', async (req, res) => {
 
     const status = await getWorktreeStatus(id, session.worktree.repo);
     res.json({ hasWorktree: true, ...status });
+});
+
+// Fix worktree symlinks for a session (apply skip-worktree to existing worktrees)
+app.post('/api/sessions/:id/fix-symlinks', async (req, res) => {
+    const { id } = req.params;
+
+    // Get session from state
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.worktree) {
+        return res.status(400).json({ error: 'Session does not have a worktree' });
+    }
+
+    const result = await fixWorktreeSymlinks(id, session.worktree.repo);
+    res.json(result);
 });
 
 // Merge worktree for a session
