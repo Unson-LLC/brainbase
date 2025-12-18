@@ -1461,11 +1461,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         const { path: imagePath } = await uploadRes.json();
 
-                        // Send image path to terminal
+                        // Send image path to terminal with Enter key
                         await fetch(`/api/sessions/${currentSessionId}/input`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ input: imagePath, type: 'text' })
+                            body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
                         });
 
                         showSuccess('画像をペーストしました');
