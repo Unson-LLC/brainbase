@@ -2686,9 +2686,15 @@ body {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        overflow: visible;
-        /* Allow touch events to pass through to iframe */
-        touch-action: manipulation;
+        overflow-y: scroll; /* スクロールを有効化 */
+        overflow-x: hidden;
+        /* GPUアクセラレーションでスムーズなスクロール */
+        -webkit-overflow-scrolling: touch;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        will-change: scroll-position;
+        /* 縦スクロールのみ許可 */
+        touch-action: pan-y;
     }
 
     /* Terminal iframe - full width, proper sizing for xterm fit */
@@ -2699,7 +2705,8 @@ body {
         border: none;
         /* Enable pointer events for touch scrolling inside iframe */
         pointer-events: auto;
-        touch-action: auto;
+        /* 縦スクロールのみ、親要素と同じ設定 */
+        touch-action: pan-y;
     }
 
     /* Ensure main content doesn't overflow */
