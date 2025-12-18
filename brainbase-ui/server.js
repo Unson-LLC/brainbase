@@ -471,6 +471,32 @@ async function createWorktree(sessionId, repoPath) {
             }
         }
 
+        // Set skip-worktree flag BEFORE creating symlinks
+        // This must be done while files still exist in the worktree
+        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        for (const p of excludePaths) {
+            try {
+                // Get all files under the path and set skip-worktree flag
+                const { stdout } = await execPromise(
+                    `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
+                );
+                if (stdout.trim()) {
+                    const files = stdout.trim().split('\n');
+                    for (const file of files) {
+                        if (file.trim()) {
+                            await execPromise(
+                                `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                            );
+                        }
+                    }
+                    console.log(`Set skip-worktree for ${files.length} files under: ${p}`);
+                }
+            } catch (skipErr) {
+                // Path doesn't exist or no files to skip - this is fine
+                console.log(`Note: No files to skip-worktree under ${p}`);
+            }
+        }
+
         // Create symlinks for canonical directories (正本ディレクトリ)
         // These directories are shared across all worktrees and committed directly to main
         // IMPORTANT: 正本は常に /Users/ksato/workspace にある（プロジェクトリポジトリではない）
@@ -510,10 +536,6 @@ async function createWorktree(sessionId, repoPath) {
             }
         }
 
-        // Note: 正本ディレクトリはシンボリックリンクとして維持
-        // gitのトラッキング状態は変わるが、実ファイルは正本を参照するため問題なし
-        // git statusで"deleted"と表示されるのは正常な動作
-
         console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
         return { worktreePath, branchName, repoPath };
     } catch (err) {
@@ -542,6 +564,74 @@ async function removeWorktree(sessionId, repoPath) {
     } catch (err) {
         console.error(`Failed to remove worktree for ${sessionId}:`, err.message);
         return false;
+    }
+}
+
+// Fix existing worktree by setting skip-worktree flags for symlinked paths
+async function fixWorktreeSymlinks(sessionId, repoPath) {
+    const repoName = path.basename(repoPath);
+    const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
+
+    try {
+        // Check if worktree exists
+        await fs.access(worktreePath);
+
+        // Set skip-worktree flag for symlinked paths
+        // For existing worktrees, we need to reset the deletions first
+        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        let totalFixed = 0;
+
+        // Get all deleted files that are in canonical paths
+        const { stdout } = await execPromise(
+            `git -C "${worktreePath}" diff main --name-status --diff-filter=D`
+        );
+
+        if (stdout.trim()) {
+            const filesToFix = [];
+            const lines = stdout.trim().split('\n');
+
+            for (const line of lines) {
+                // Format: "D\tpath/to/file"
+                const match = line.match(/^D\s+(.+)$/);
+                if (match) {
+                    const file = match[1];
+                    // Check if file is in one of the canonical paths
+                    const isCanonical = excludePaths.some(p =>
+                        file === p || file.startsWith(p + '/')
+                    );
+
+                    if (isCanonical) {
+                        filesToFix.push(file);
+                    }
+                }
+            }
+
+            if (filesToFix.length > 0) {
+                // Reset the deletions in index (restore files from main branch)
+                const filesArg = filesToFix.map(f => `"${f}"`).join(' ');
+                await execPromise(
+                    `git -C "${worktreePath}" restore --source=main --staged ${filesArg}`
+                );
+
+                // Now set skip-worktree for all files
+                for (const file of filesToFix) {
+                    try {
+                        await execPromise(
+                            `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                        );
+                        totalFixed++;
+                    } catch (updateErr) {
+                        console.log(`Note: Could not set skip-worktree for ${file}: ${updateErr.message}`);
+                    }
+                }
+            }
+        }
+
+        console.log(`Fixed ${totalFixed} files in worktree ${sessionId}`);
+        return { success: true, filesFixed: totalFixed };
+    } catch (err) {
+        console.error(`Failed to fix worktree symlinks for ${sessionId}:`, err.message);
+        return { success: false, error: err.message };
     }
 }
 
@@ -1070,6 +1160,26 @@ app.get('/api/sessions/:id/worktree-status', async (req, res) => {
 
     const status = await getWorktreeStatus(id, session.worktree.repo);
     res.json({ hasWorktree: true, ...status });
+});
+
+// Fix worktree symlinks for a session (apply skip-worktree to existing worktrees)
+app.post('/api/sessions/:id/fix-symlinks', async (req, res) => {
+    const { id } = req.params;
+
+    // Get session from state
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.worktree) {
+        return res.status(400).json({ error: 'Session does not have a worktree' });
+    }
+
+    const result = await fixWorktreeSymlinks(id, session.worktree.repo);
+    res.json(result);
 });
 
 // Merge worktree for a session
