@@ -27,27 +27,6 @@
 # 🔥 最優先タスク（12/19-20対応）
 
 ---
-task_id: T-2512-033
-source_id: AIRTABLE-NCOM-recmwrPEXi0JKinjR
-title: 文字起こしデータ365日自動削除設定
-project_id: ncom-catalyst
-status: todo
-owner: 佐藤圭吾
-priority: high
-due: 2025-12-19
-tags: [airtable, s3, data-retention]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 佐藤圭吾
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 佐藤圭吾
-- 背景: S3ライフサイクルポリシーで文字起こしデータの365日経過後自動削除を設定
-- Airtable: recmwrPEXi0JKinjR
-
----
 task_id: T-2512-021
 source_id: SLACK-2025-12-16-MJ8JU2HC
 title: ステージング環境のセキュリティ調査と環境変数ローテーション
