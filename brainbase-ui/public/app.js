@@ -1430,6 +1430,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const pasteTerminalBtn = document.getElementById('paste-terminal-btn');
     if (pasteTerminalBtn) {
         pasteTerminalBtn.onclick = async () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
             try {
                 // Read text from clipboard
                 const text = await navigator.clipboard.readText();
@@ -1439,31 +1444,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const terminalFrame = document.getElementById('terminal-frame');
+                // Send text to terminal via tmux (same method as /merge command)
+                await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: text, type: 'text' })
+                });
 
-                // Try to send paste event to iframe
-                if (terminalFrame && terminalFrame.contentWindow) {
-                    // Focus the iframe
-                    terminalFrame.contentWindow.focus();
-
-                    // Create and dispatch paste event
-                    const pasteEvent = new ClipboardEvent('paste', {
-                        clipboardData: new DataTransfer(),
-                        bubbles: true,
-                        cancelable: true
-                    });
-
-                    // Set clipboard data
-                    pasteEvent.clipboardData.setData('text/plain', text);
-
-                    // Dispatch to iframe's active element or document
-                    const target = terminalFrame.contentWindow.document.activeElement || terminalFrame.contentWindow.document;
-                    target.dispatchEvent(pasteEvent);
-
-                    showSuccess(`ペーストしました: ${text.length}文字`);
-                } else {
-                    showError('ターミナルにアクセスできません');
-                }
+                showSuccess(`ペーストしました: ${text.length}文字`);
             } catch (error) {
                 console.error('Failed to paste:', error);
                 if (error.name === 'NotAllowedError') {
