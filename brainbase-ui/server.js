@@ -419,6 +419,32 @@ async function createWorktree(sessionId, repoPath) {
             }
         }
 
+        // Set skip-worktree flag BEFORE creating symlinks
+        // This must be done while files still exist in the worktree
+        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        for (const p of excludePaths) {
+            try {
+                // Get all files under the path and set skip-worktree flag
+                const { stdout } = await execPromise(
+                    `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
+                );
+                if (stdout.trim()) {
+                    const files = stdout.trim().split('\n');
+                    for (const file of files) {
+                        if (file.trim()) {
+                            await execPromise(
+                                `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                            );
+                        }
+                    }
+                    console.log(`Set skip-worktree for ${files.length} files under: ${p}`);
+                }
+            } catch (skipErr) {
+                // Path doesn't exist or no files to skip - this is fine
+                console.log(`Note: No files to skip-worktree under ${p}`);
+            }
+        }
+
         // Create symlinks for canonical directories (正本ディレクトリ)
         // These directories are shared across all worktrees and committed directly to main
         // IMPORTANT: 正本は常に /Users/ksato/workspace にある（プロジェクトリポジトリではない）
@@ -455,32 +481,6 @@ async function createWorktree(sessionId, repoPath) {
                 if (symlinkErr.code !== 'ENOENT') {
                     console.log(`Note: Could not create ${file} symlink: ${symlinkErr.message}`);
                 }
-            }
-        }
-
-        // Set skip-worktree flag for symlinked paths to prevent them from being tracked as deletions
-        // This ensures clean merges without symlink pollution
-        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
-        for (const p of excludePaths) {
-            try {
-                // Get all files under the path and set skip-worktree flag
-                const { stdout } = await execPromise(
-                    `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
-                );
-                if (stdout.trim()) {
-                    const files = stdout.trim().split('\n');
-                    for (const file of files) {
-                        if (file.trim()) {
-                            await execPromise(
-                                `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
-                            );
-                        }
-                    }
-                    console.log(`Set skip-worktree for ${files.length} files under: ${p}`);
-                }
-            } catch (skipErr) {
-                // Path doesn't exist or no files to skip - this is fine
-                console.log(`Note: No files to skip-worktree under ${p}`);
             }
         }
 
@@ -525,23 +525,29 @@ async function fixWorktreeSymlinks(sessionId, repoPath) {
         await fs.access(worktreePath);
 
         // Set skip-worktree flag for symlinked paths
+        // For existing worktrees, we need to get the file list from main branch
         const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
         let totalFixed = 0;
 
         for (const p of excludePaths) {
             try {
-                // Get all files under the path
+                // Get all files under the path from main branch
                 const { stdout } = await execPromise(
-                    `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
+                    `git -C "${repoPath}" ls-tree -r --name-only main ${p} 2>/dev/null || echo ""`
                 );
                 if (stdout.trim()) {
                     const files = stdout.trim().split('\n');
                     for (const file of files) {
                         if (file.trim()) {
-                            await execPromise(
-                                `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
-                            );
-                            totalFixed++;
+                            // Try to set skip-worktree, ignore errors if file doesn't exist in worktree
+                            try {
+                                await execPromise(
+                                    `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                                );
+                                totalFixed++;
+                            } catch (updateErr) {
+                                // File might not exist in this worktree - that's ok
+                            }
                         }
                     }
                 }
