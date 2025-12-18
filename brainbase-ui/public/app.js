@@ -1577,6 +1577,84 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Upload image from file picker
+    const uploadImageBtn = document.getElementById('upload-image-btn');
+    const imageFileInput = document.getElementById('image-file-input');
+
+    if (uploadImageBtn && imageFileInput) {
+        uploadImageBtn.onclick = () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+            imageFileInput.click();
+        };
+
+        imageFileInput.onchange = async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showError('画像ファイルを選択してください');
+                return;
+            }
+
+            try {
+                showInfo('画像を圧縮中...');
+                console.log('Selected file:', file.type, file.size, 'bytes');
+
+                // 圧縮前のサイズ
+                const originalSize = (file.size / 1024 / 1024).toFixed(2);
+                console.log('Original size:', originalSize, 'MB');
+
+                // 画像を圧縮
+                const compressedBlob = await compressImage(file);
+                console.log('Image compressed:', compressedBlob.size, 'bytes');
+
+                // 圧縮後のサイズ
+                const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+                console.log('Compressed size:', compressedSize, 'MB');
+
+                showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+
+                // Upload compressed image to server
+                const formData = new FormData();
+                formData.append('file', compressedBlob, file.name.replace(/\.[^.]+$/, '.jpg'));
+
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadRes.ok) {
+                    const errorText = await uploadRes.text();
+                    console.error('Upload failed:', uploadRes.status, errorText);
+                    showError(`画像のアップロードに失敗しました (${uploadRes.status})`);
+                    return;
+                }
+
+                const { path: imagePath } = await uploadRes.json();
+                console.log('Image uploaded:', imagePath);
+
+                // Send image path to terminal with Enter key
+                await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
+                });
+
+                showSuccess(`画像をアップロードしました (圧縮率: ${((1 - compressedBlob.size / file.size) * 100).toFixed(0)}%)`);
+
+                // Reset file input
+                imageFileInput.value = '';
+            } catch (error) {
+                console.error('Image upload failed:', error);
+                showError(`画像のアップロードに失敗しました: ${error.message || error.name}`);
+                imageFileInput.value = '';
+            }
+        };
+    }
+
     if (copyTerminalBtn) {
         copyTerminalBtn.onclick = async () => {
             if (!currentSessionId) {
