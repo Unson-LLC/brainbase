@@ -48,7 +48,17 @@ const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH);
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
-app.use(express.static('public'));
+// HTMLファイルはキャッシュ無効化、その他の静的ファイルは通常通り
+app.use(express.static('public', {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.html')) {
+            // HTMLはキャッシュしない（常に最新を取得）
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
 app.use(express.json());
 
 // State
