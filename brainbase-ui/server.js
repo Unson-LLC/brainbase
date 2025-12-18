@@ -525,34 +525,53 @@ async function fixWorktreeSymlinks(sessionId, repoPath) {
         await fs.access(worktreePath);
 
         // Set skip-worktree flag for symlinked paths
-        // For existing worktrees, we need to get the file list from main branch
+        // For existing worktrees, we need to reset the deletions first
         const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
         let totalFixed = 0;
 
-        for (const p of excludePaths) {
-            try {
-                // Get all files under the path from main branch
-                const { stdout } = await execPromise(
-                    `git -C "${repoPath}" ls-tree -r --name-only main ${p} 2>/dev/null || echo ""`
-                );
-                if (stdout.trim()) {
-                    const files = stdout.trim().split('\n');
-                    for (const file of files) {
-                        if (file.trim()) {
-                            // Try to set skip-worktree, ignore errors if file doesn't exist in worktree
-                            try {
-                                await execPromise(
-                                    `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
-                                );
-                                totalFixed++;
-                            } catch (updateErr) {
-                                // File might not exist in this worktree - that's ok
-                            }
-                        }
+        // Get all deleted files that are in canonical paths
+        const { stdout } = await execPromise(
+            `git -C "${worktreePath}" diff main --name-status --diff-filter=D`
+        );
+
+        if (stdout.trim()) {
+            const filesToFix = [];
+            const lines = stdout.trim().split('\n');
+
+            for (const line of lines) {
+                // Format: "D\tpath/to/file"
+                const match = line.match(/^D\s+(.+)$/);
+                if (match) {
+                    const file = match[1];
+                    // Check if file is in one of the canonical paths
+                    const isCanonical = excludePaths.some(p =>
+                        file === p || file.startsWith(p + '/')
+                    );
+
+                    if (isCanonical) {
+                        filesToFix.push(file);
                     }
                 }
-            } catch (skipErr) {
-                // Path doesn't exist or no files to skip - continue
+            }
+
+            if (filesToFix.length > 0) {
+                // Reset the deletions in index (restore files from main branch)
+                const filesArg = filesToFix.map(f => `"${f}"`).join(' ');
+                await execPromise(
+                    `git -C "${worktreePath}" restore --source=main --staged ${filesArg}`
+                );
+
+                // Now set skip-worktree for all files
+                for (const file of filesToFix) {
+                    try {
+                        await execPromise(
+                            `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                        );
+                        totalFixed++;
+                    } catch (updateErr) {
+                        console.log(`Note: Could not set skip-worktree for ${file}: ${updateErr.message}`);
+                    }
+                }
             }
         }
 
