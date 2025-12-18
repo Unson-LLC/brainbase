@@ -2742,6 +2742,12 @@ body {
     .console-area iframe {
         /* iOS Safariでキーボード表示時にスクロール可能にする */
         -webkit-overflow-scrolling: touch;
+        /* GPUアクセラレーションを有効化してスムーズなスクロールを実現 */
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        will-change: scroll-position;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
     }
 
     /* Modal adjustments for mobile */
