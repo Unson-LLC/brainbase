@@ -1426,7 +1426,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Terminal Copy Functionality ---
-    // Paste from clipboard to terminal
+    // Paste from clipboard to terminal (text and images)
     const pasteTerminalBtn = document.getElementById('paste-terminal-btn');
     if (pasteTerminalBtn) {
         pasteTerminalBtn.onclick = async () => {
@@ -1436,22 +1436,65 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // Read text from clipboard
-                const text = await navigator.clipboard.readText();
+                // Try to read clipboard items (supports both text and images)
+                const clipboardItems = await navigator.clipboard.read();
 
-                if (!text) {
-                    showInfo('クリップボードが空です');
-                    return;
+                for (const item of clipboardItems) {
+                    // Check for image
+                    const imageType = item.types.find(type => type.startsWith('image/'));
+                    if (imageType) {
+                        const blob = await item.getType(imageType);
+
+                        // Upload image to server
+                        const formData = new FormData();
+                        formData.append('file', blob, 'clipboard-image.' + imageType.split('/')[1]);
+
+                        const uploadRes = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!uploadRes.ok) {
+                            showError('画像のアップロードに失敗しました');
+                            return;
+                        }
+
+                        const { path: imagePath } = await uploadRes.json();
+
+                        // Send image path to terminal
+                        await fetch(`/api/sessions/${currentSessionId}/input`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ input: imagePath, type: 'text' })
+                        });
+
+                        showSuccess('画像をペーストしました');
+                        return;
+                    }
+
+                    // Check for text
+                    if (item.types.includes('text/plain')) {
+                        const textBlob = await item.getType('text/plain');
+                        const text = await textBlob.text();
+
+                        if (!text) {
+                            showInfo('クリップボードが空です');
+                            return;
+                        }
+
+                        // Send text to terminal via tmux
+                        await fetch(`/api/sessions/${currentSessionId}/input`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ input: text, type: 'text' })
+                        });
+
+                        showSuccess(`ペーストしました: ${text.length}文字`);
+                        return;
+                    }
                 }
 
-                // Send text to terminal via tmux (same method as /merge command)
-                await fetch(`/api/sessions/${currentSessionId}/input`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input: text, type: 'text' })
-                });
-
-                showSuccess(`ペーストしました: ${text.length}文字`);
+                showInfo('クリップボードが空です');
             } catch (error) {
                 console.error('Failed to paste:', error);
                 if (error.name === 'NotAllowedError') {
@@ -1901,8 +1944,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const touchY = e.touches[0].clientY;
             const deltaY = touchStartY - touchY;
 
-            // スクロール量を調整（2倍速で快適な操作感）
-            targetScrollTop += deltaY * 2;
+            // スクロール量を調整（1倍速で自然な操作感）
+            targetScrollTop += deltaY;
             touchStartY = touchY;
 
             // requestAnimationFrameで次のフレームで更新
