@@ -1841,8 +1841,94 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // カスタムタッチスクロール処理は削除し、ネイティブスクロールを使用
-    // GPUアクセラレーションがCSSで有効化されているため、スムーズにスクロールできる
+    // xterm-viewport（Claude Codeの出力領域）のスクロール処理
+    // パフォーマンス最適化版
+    (function initXtermScroll() {
+        const consoleArea = document.querySelector('.console-area');
+        if (!consoleArea) return;
+
+        let touchStartY = 0;
+        let isTouching = false;
+        let cachedViewport = null;
+        let rafId = null;
+        let targetScrollTop = 0;
+
+        // viewport要素をキャッシュして取得
+        function getViewport() {
+            if (cachedViewport) return cachedViewport;
+
+            const iframe = document.getElementById('terminal-frame');
+            if (!iframe) return null;
+
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (!iframeDoc) return null;
+
+                cachedViewport = iframeDoc.querySelector('.xterm-viewport');
+                return cachedViewport;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        // requestAnimationFrameでスムーズにスクロール
+        function updateScroll() {
+            const viewport = getViewport();
+            if (viewport) {
+                viewport.scrollTop = targetScrollTop;
+            }
+            rafId = null;
+        }
+
+        consoleArea.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isTouching = true;
+                touchStartY = e.touches[0].clientY;
+                cachedViewport = null; // リセットして再取得
+                const viewport = getViewport();
+                if (viewport) {
+                    targetScrollTop = viewport.scrollTop;
+                }
+            }
+        }, { passive: true });
+
+        consoleArea.addEventListener('touchmove', (e) => {
+            if (!isTouching || e.touches.length !== 1) return;
+
+            const viewport = getViewport();
+            if (!viewport) return;
+
+            const touchY = e.touches[0].clientY;
+            const deltaY = touchStartY - touchY;
+
+            // スクロール量を調整（1倍速で自然な動き）
+            targetScrollTop += deltaY;
+            touchStartY = touchY;
+
+            // requestAnimationFrameで次のフレームで更新
+            if (!rafId) {
+                rafId = requestAnimationFrame(updateScroll);
+            }
+        }, { passive: true });
+
+        consoleArea.addEventListener('touchend', () => {
+            isTouching = false;
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        }, { passive: true });
+
+        consoleArea.addEventListener('touchcancel', () => {
+            isTouching = false;
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+        }, { passive: true });
+
+        console.log('Optimized xterm scroll initialized');
+    })();
 
     // Load version on startup
     loadVersion();
