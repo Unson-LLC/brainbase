@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-18-MJB6VDDI
+channel: 0031-dialogai-dev
+sender: 小川未来
+timestamp: 1766047139.489539
+status: pending
+---
+
+### 17:39 | #0031-dialogai-dev | 小川未来
+
+<@U07LNUP582X> 
+状況
+
+[Slack](https://unson.slack.com/archives/C08A6ETSSR2/p1766047139489539)
+
+---
 id: INBOX-2025-12-17-MJA6DKW4
 channel: smart-front
 sender: 倉本裕太
