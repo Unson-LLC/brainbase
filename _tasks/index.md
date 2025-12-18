@@ -1,3 +1,29 @@
+# 日次ルーティン
+
+## 受託開発アクション（毎日1回）
+
+**目的**: 受託開発案件のパイプラインを継続的に構築する
+
+**トリガー**: 朝のSlack確認後（9:00目安）
+
+**選択肢（1つ以上実行）**:
+- [ ] 声かけ: 既存ネットワーク1人にDM/連絡（5分）
+- [ ] 紹介依頼: 過去クライアント/パートナーに「困ってる人いない？」（5分）
+- [ ] フォローアップ: 商談中の案件に進捗確認連絡（10分）
+- [ ] 提案作成: 見積もり/提案書を1件進める（30分）
+- [ ] SNS発信: X/LinkedInで実績・事例を1投稿（15分）
+- [ ] BAAO活用: 受講生/卒業生に案件ヒアリング（10分）
+- [ ] TK既存顧客: 過去取引先に追加ニーズ確認（10分）
+
+**記録**:
+| 日付 | アクション | 対象 | 結果 |
+|------|-----------|------|------|
+| 2025-12-19 | - | - | - |
+
+**週次KPI**: 5回/週 達成で継続、未達なら振り返りレポート
+
+---
+
 ---
 task_id: T-2512-026
 title: 佐藤のスケジュールをNコムに共有
@@ -89,7 +115,7 @@ task_id: T-2512-022
 source_id: SLACK-2025-12-16-MJ8JU357
 title: Next.jsの最新パッチ適用
 project_id: proj_dialogai
-status: todo
+status: done
 owner: k.​sato
 priority: medium
 due: null
@@ -106,6 +132,7 @@ requester: k.​sato
 - 2025-12-16 Slackから自動取り込み: k.​satoから依頼
 - 担当: k.​sato
 - 背景: Next.jsの最新セキュリティパッチを適用する
+- 2025-12-18 完了: パッチ適用完了（議事録より）
 - Slack: https://unson.slack.com/archives/C08A6ETSSR2/p1765887507889679?thread_ts=1765887000.649509&cid=C08A6ETSSR2
 
 ---
@@ -137,7 +164,7 @@ task_id: T-2512-020
 source_id: SLACK-2025-12-16-MJ8JU1L3
 title: 環境変数とシークレット情報のローテーション実施
 project_id: proj_dialogai
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: 2025-12-16
@@ -154,6 +181,7 @@ requester: k.​sato
 - 2025-12-16 Slackから自動取り込み: k.​satoから依頼
 - 担当: k.​sato
 - 背景: Anthropic APIキーを含む環境変数とシークレット情報のローテーションを最優先で実施する
+- 2025-12-18 完了: 短期対応として環境変数・シークレットのローテーション完了（議事録より）
 - Slack: https://unson.slack.com/archives/C08A6ETSSR2/p1765887507889679?thread_ts=1765887000.649509&cid=C08A6ETSSR2
 
 ---
