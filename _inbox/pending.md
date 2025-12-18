@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-18-MJBBJTT5
+channel: 役員
+sender: 倉本裕太
+timestamp: 1766054998.983949
+status: pending
+---
+
+### 19:50 | #役員 | 倉本裕太
+
+<@U07B19N048G>
+新年会も行きますか？
+
+[Slack](https://tech-knight.slack.com/archives/C08UXAH41U4/p1766054998983949)
+
+---
 id: INBOX-2025-12-18-MJB84GPD
 channel: 0031-dialogai-dev
 sender: 小川未来
