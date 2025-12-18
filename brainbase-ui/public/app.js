@@ -1425,6 +1425,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Image Compression Utility ---
+    async function compressImage(blob, maxWidth = 1920, maxHeight = 1080, quality = 0.8) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                // アスペクト比を維持しながらリサイズ
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width *= ratio;
+                    height *= ratio;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((compressedBlob) => {
+                    resolve(compressedBlob || blob);
+                }, 'image/jpeg', quality);
+            };
+
+            img.onerror = () => {
+                resolve(blob); // エラー時は元のBlobを返す
+            };
+
+            img.src = URL.createObjectURL(blob);
+        });
+    }
+
     // --- Terminal Copy Functionality ---
     // Paste from clipboard to terminal (text and images)
     const pasteTerminalBtn = document.getElementById('paste-terminal-btn');
@@ -1443,11 +1478,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Check for image
                     const imageType = item.types.find(type => type.startsWith('image/'));
                     if (imageType) {
+                        showInfo('画像を圧縮中...');
+
                         const blob = await item.getType(imageType);
 
-                        // Upload image to server
+                        // 圧縮前のサイズ
+                        const originalSize = (blob.size / 1024 / 1024).toFixed(2);
+
+                        // 画像を圧縮
+                        const compressedBlob = await compressImage(blob);
+
+                        // 圧縮後のサイズ
+                        const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+
+                        showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+
+                        // Upload compressed image to server
                         const formData = new FormData();
-                        formData.append('file', blob, 'clipboard-image.' + imageType.split('/')[1]);
+                        formData.append('file', compressedBlob, 'clipboard-image.jpg');
 
                         const uploadRes = await fetch('/api/upload', {
                             method: 'POST',
@@ -1468,7 +1516,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
                         });
 
-                        showSuccess('画像をペーストしました');
+                        showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
                         return;
                     }
 
