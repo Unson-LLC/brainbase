@@ -1718,6 +1718,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Send Escape key
+    const sendEscapeBtn = document.getElementById('send-escape-btn');
+    if (sendEscapeBtn) {
+        sendEscapeBtn.onclick = async () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'Escape', type: 'key' })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to send Escape key');
+                }
+
+                showSuccess('Escapeキーを送信しました');
+            } catch (error) {
+                console.error('Failed to send Escape:', error);
+                showError('Escapeキーの送信に失敗しました');
+            }
+        };
+    }
+
+    // Send Ctrl+L (Clear screen)
+    const sendClearBtn = document.getElementById('send-clear-btn');
+    if (sendClearBtn) {
+        sendClearBtn.onclick = async () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'C-l', type: 'key' })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to send Ctrl+L');
+                }
+
+                showSuccess('画面をクリアしました (Ctrl+L)');
+            } catch (error) {
+                console.error('Failed to send Ctrl+L:', error);
+                showError('画面クリアに失敗しました');
+            }
+        };
+    }
+
     // Close modal on Escape
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && copyTerminalModal?.classList.contains('active')) {

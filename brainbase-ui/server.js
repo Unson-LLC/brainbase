@@ -792,7 +792,7 @@ process.on('SIGINT', () => {
 });
 
 // Endpoint to send input to terminal (keys or text)
-const ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'Enter', 'Escape'];
+const ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'Enter', 'Escape'];
 app.post('/api/sessions/:id/input', async (req, res) => {
     const { id } = req.params;
     const { input, type } = req.body;
