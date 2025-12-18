@@ -1901,8 +1901,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const touchY = e.touches[0].clientY;
             const deltaY = touchStartY - touchY;
 
-            // スクロール量を調整（1倍速で自然な動き）
-            targetScrollTop += deltaY;
+            // スクロール量を調整（2倍速で快適な操作感）
+            targetScrollTop += deltaY * 2;
             touchStartY = touchY;
 
             // requestAnimationFrameで次のフレームで更新
