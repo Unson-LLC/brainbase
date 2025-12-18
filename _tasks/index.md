@@ -27,50 +27,6 @@
 # 🔥 最優先タスク（12/19-20対応）
 
 ---
-task_id: T-2512-038
-title: 【緊急】PostgreSQL 5432ポートの即座閉鎖とパスワード変更
-project_id: proj_dialogai
-status: todo
-owner: k.​sato
-priority: critical
-due: 2025-12-19
-tags: [security, critical, postgresql]
-links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md"]
-source: security-audit
-created_at: "2025-12-19T09:00:00.000Z"
-requester: k.​sato
----
-
-- 2025-12-19 セキュリティ調査で発見: PostgreSQLが0.0.0.0/0に公開されている
-- 対応内容:
-  1. セキュリティグループ sg-056a0eabbd5070ff6 から 5432 の 0.0.0.0/0 ルールを削除
-  2. pg_hba.conf を VPC内部のみに制限
-  3. PostgreSQLパスワードを強力なものに変更
-  4. DATABASE_URL を Parameter Store で更新
-- 関連レポート: `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
-
----
----
-task_id: T-2512-039
-title: 【緊急】SSH (22) ポートのアクセス制限
-project_id: proj_dialogai
-status: todo
-owner: k.​sato
-priority: critical
-due: 2025-12-19
-tags: [security, critical, ssh]
-links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md"]
-source: security-audit
-created_at: "2025-12-19T09:00:00.000Z"
-requester: k.​sato
----
-
-- 2025-12-19 セキュリティ調査で発見: SSHが0.0.0.0/0に公開されている
-- 対応内容: SSH (22) を特定IPに制限、またはSSM Session Manager経由のみに変更
-- 関連レポート: `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
-
----
----
 task_id: T-2512-040
 title: ステージング環境の全シークレット・環境変数のローテーション
 project_id: proj_dialogai
@@ -87,7 +43,7 @@ requester: k.​sato
 
 - 2025-12-19 セキュリティ調査で発見: 複数のシークレットがローテーション未実施
 - 対象:
-  - /dialogai-staging/staging/DATABASE_URL
+  - ✅ /dialogai-staging/staging/DATABASE_URL（2025-12-19完了）
   - /dialogai-staging/staging/NEXTAUTH_SECRET
   - /dialogai-staging/staging/COGNITO_WEBHOOK_SECRET
   - /dialogai-staging/staging/AWS_ACCESS_KEY_ID
@@ -98,6 +54,56 @@ requester: k.​sato
 
 # 📋 完了済みタスク
 
+---
+task_id: T-2512-038
+title: 【緊急】PostgreSQL 5432ポートの即座閉鎖とパスワード変更
+project_id: proj_dialogai
+status: done
+owner: k.​sato
+priority: critical
+due: 2025-12-19
+tags: [security, critical, postgresql]
+links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md", "/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md"]
+source: security-audit
+created_at: "2025-12-19T09:00:00.000Z"
+requester: k.​sato
+---
+
+- 2025-12-19 セキュリティ調査で発見: PostgreSQLが0.0.0.0/0に公開されている
+- 2025-12-19 完了: Phase 1緊急対応実施
+  1. ✅ セキュリティグループ sg-056a0eabbd5070ff6 から 5432 の 0.0.0.0/0 ルールを削除
+  2. ✅ pg_hba.conf を VPC内部（172.31.0.0/16）のみに制限
+  3. ✅ PostgreSQLパスワードを32文字ランダム文字列に変更
+  4. ✅ DATABASE_URL を Parameter Store で更新（Version 23）
+- 関連レポート:
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md`
+
+---
+---
+task_id: T-2512-039
+title: 【緊急】SSH (22) ポートのアクセス制限
+project_id: proj_dialogai
+status: done
+owner: k.​sato
+priority: critical
+due: 2025-12-19
+tags: [security, critical, ssh]
+links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md", "/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md"]
+source: security-audit
+created_at: "2025-12-19T09:00:00.000Z"
+requester: k.​sato
+---
+
+- 2025-12-19 セキュリティ調査で発見: SSHが0.0.0.0/0に公開されている
+- 2025-12-19 完了: Phase 1緊急対応実施
+  - ✅ セキュリティグループ sg-056a0eabbd5070ff6 から 22 の 0.0.0.0/0 ルールを削除
+  - ✅ SSM Session Manager経由のみでアクセス可能に変更
+- 関連レポート:
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md`
+
+---
 ---
 task_id: T-2512-021
 source_id: SLACK-2025-12-16-MJ8JU2HC
