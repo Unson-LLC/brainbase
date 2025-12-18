@@ -30,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const terminalFrame = document.getElementById('terminal-frame');
     const sessionList = document.getElementById('session-list');
-    const addSessionBtn = document.getElementById('add-session-btn');
 
     // New UI Elements
     const focusTaskEl = document.getElementById('focus-task');
@@ -1047,8 +1046,6 @@ document.addEventListener('DOMContentLoaded', () => {
             loadTasks();
         };
     }
-
-    addSessionBtn.addEventListener('click', () => createNewSession());
 
     // Focus footer button -> open engine selector for current focus task
     if (focusBtn) {
