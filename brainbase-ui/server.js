@@ -48,20 +48,26 @@ const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH);
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
-// HTMLファイルはキャッシュ無効化、その他の静的ファイルは通常通り
-app.use(express.static('public', {
-    setHeaders: (res, filePath) => {
-        // pathモジュールを使って正確に判定
-        const ext = path.extname(filePath);
-        if (ext === '.html') {
-            // HTMLはキャッシュしない（常に最新を取得）
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
-        }
-    }
-}));
 app.use(express.json());
+
+// ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
+app.get('/', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'index.html');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        res.status(500).send('Error loading page');
+    }
+});
+
+// 静的ファイル配信（その他のファイル）
+app.use(express.static('public', { index: false }));
 
 // State
 let activeSessions = new Map(); // sessionId -> { port, process }
