@@ -2721,8 +2721,8 @@ body {
     /* Console toolbar - more accessible on mobile */
     /* Phase 2.1: Improve toolbar visibility and usability on mobile */
     .console-toolbar {
-        top: auto;
-        bottom: 64px;
+        top: 12px; /* 右上に配置 */
+        bottom: auto;
         right: 12px;
         opacity: 1;
         background: rgba(15, 23, 42, 0.95);
@@ -2736,6 +2736,12 @@ body {
         width: 48px;
         height: 48px;
         padding: 12px;
+    }
+
+    /* ターミナル領域 - キーボード表示時も入力が見えるようにスクロール調整 */
+    .console-area iframe {
+        /* iOS Safariでキーボード表示時にスクロール可能にする */
+        -webkit-overflow-scrolling: touch;
     }
 
     /* Modal adjustments for mobile */

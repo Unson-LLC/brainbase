@@ -1803,6 +1803,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Mobile keyboard detection and auto-scroll for terminal
+    if ('visualViewport' in window) {
+        let lastHeight = window.visualViewport.height;
+
+        window.visualViewport.addEventListener('resize', () => {
+            const currentHeight = window.visualViewport.height;
+            const heightDiff = lastHeight - currentHeight;
+
+            // Keyboard is showing (viewport height decreased by more than 150px)
+            if (heightDiff > 150) {
+                // Scroll terminal to bottom to keep input visible
+                setTimeout(() => {
+                    const iframe = document.getElementById('terminal-frame');
+                    if (iframe && iframe.contentWindow) {
+                        try {
+                            // Try to scroll terminal content to bottom
+                            const terminalDoc = iframe.contentWindow.document;
+                            if (terminalDoc && terminalDoc.documentElement) {
+                                terminalDoc.documentElement.scrollTop = terminalDoc.documentElement.scrollHeight;
+                            }
+                        } catch (e) {
+                            // Cross-origin restrictions may prevent this
+                            console.log('Cannot scroll terminal iframe:', e.message);
+                        }
+                    }
+
+                    // Also ensure the console area is scrolled properly
+                    const consoleArea = document.getElementById('console-area');
+                    if (consoleArea) {
+                        consoleArea.scrollTop = consoleArea.scrollHeight;
+                    }
+                }, 100);
+            }
+
+            lastHeight = currentHeight;
+        });
+    }
+
     // Mobile touch scroll for terminal iframe
     (function initTerminalTouchScroll() {
         const consoleArea = document.querySelector('.console-area');
