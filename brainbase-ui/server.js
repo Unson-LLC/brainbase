@@ -67,6 +67,22 @@ app.get('/', async (req, res) => {
 });
 
 // 静的ファイル配信（その他のファイル）
+// app.jsにno-cacheヘッダーを設定
+app.get('/app.js', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'app.js');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'application/javascript; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        res.status(500).send('Error loading app.js');
+    }
+});
+
 app.use(express.static('public', { index: false }));
 
 // State
