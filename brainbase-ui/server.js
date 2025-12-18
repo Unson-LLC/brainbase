@@ -50,8 +50,10 @@ const inboxParser = new InboxParser(INBOX_FILE);
 // Middleware
 // HTMLファイルはキャッシュ無効化、その他の静的ファイルは通常通り
 app.use(express.static('public', {
-    setHeaders: (res, path) => {
-        if (path.endsWith('.html')) {
+    setHeaders: (res, filePath) => {
+        // pathモジュールを使って正確に判定
+        const ext = path.extname(filePath);
+        if (ext === '.html') {
             // HTMLはキャッシュしない（常に最新を取得）
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             res.setHeader('Pragma', 'no-cache');
