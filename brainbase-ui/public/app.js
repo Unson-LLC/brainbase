@@ -1356,10 +1356,8 @@ document.addEventListener('DOMContentLoaded', () => {
         choices.forEach((choice) => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
-            btn.innerHTML = `
-                <span class="choice-number">${escapeHtml(choice.number)}</span>
-                <span class="choice-text">${escapeHtml(choice.text)}</span>
-            `;
+            // Claude Codeの出力をそのまま表示
+            btn.textContent = choice.originalText || `${choice.number}) ${choice.text}`;
             btn.onclick = () => selectChoice(choice.number);
             container.appendChild(btn);
         });
@@ -1478,46 +1476,69 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Check for image
                     const imageType = item.types.find(type => type.startsWith('image/'));
                     if (imageType) {
-                        showInfo('画像を圧縮中...');
+                        try {
+                            showInfo('画像を読み込み中...');
 
-                        const blob = await item.getType(imageType);
+                            const blob = await item.getType(imageType);
+                            console.log('Image blob retrieved:', blob.type, blob.size, 'bytes');
 
-                        // 圧縮前のサイズ
-                        const originalSize = (blob.size / 1024 / 1024).toFixed(2);
+                            // 圧縮前のサイズ
+                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
+                            console.log('Original size:', originalSize, 'MB');
 
-                        // 画像を圧縮
-                        const compressedBlob = await compressImage(blob);
+                            showInfo('画像を圧縮中...');
 
-                        // 圧縮後のサイズ
-                        const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+                            // 画像を圧縮
+                            const compressedBlob = await compressImage(blob);
+                            console.log('Image compressed:', compressedBlob.size, 'bytes');
 
-                        showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+                            // 圧縮後のサイズ
+                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+                            console.log('Compressed size:', compressedSize, 'MB');
 
-                        // Upload compressed image to server
-                        const formData = new FormData();
-                        formData.append('file', compressedBlob, 'clipboard-image.jpg');
+                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
 
-                        const uploadRes = await fetch('/api/upload', {
-                            method: 'POST',
-                            body: formData
-                        });
+                            // Upload compressed image to server
+                            const formData = new FormData();
+                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
 
-                        if (!uploadRes.ok) {
-                            showError('画像のアップロードに失敗しました');
+                            const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!uploadRes.ok) {
+                                const errorText = await uploadRes.text();
+                                console.error('Upload failed:', uploadRes.status, errorText);
+                                showError(`画像のアップロードに失敗しました (${uploadRes.status})`);
+                                return;
+                            }
+
+                            const { path: imagePath } = await uploadRes.json();
+                            console.log('Image uploaded:', imagePath);
+
+                            // Send image path to terminal with Enter key
+                            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
+                            });
+
+                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
+                            return;
+                        } catch (imageError) {
+                            console.error('Image processing failed:', imageError);
+                            if (imageError.name === 'NotAllowedError') {
+                                showError('画像の読み込みが拒否されました。クリップボードの権限を確認してください。');
+                            } else if (imageError.name === 'NotSupportedError') {
+                                showError('このブラウザでは画像形式がサポートされていません。');
+                            } else if (imageError.message) {
+                                showError(`画像処理エラー: ${imageError.message}`);
+                            } else {
+                                showError(`画像処理に失敗しました: ${imageError.name || 'Unknown error'}`);
+                            }
                             return;
                         }
-
-                        const { path: imagePath } = await uploadRes.json();
-
-                        // Send image path to terminal with Enter key
-                        await fetch(`/api/sessions/${currentSessionId}/input`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
-                        });
-
-                        showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
-                        return;
                     }
 
                     // Check for text
@@ -1547,8 +1568,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Failed to paste:', error);
                 if (error.name === 'NotAllowedError') {
                     showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+                } else if (error.name === 'NotSupportedError') {
+                    showError('このブラウザでは画像のクリップボード貼り付けがサポートされていません。');
                 } else {
-                    showError('ペーストに失敗しました');
+                    showError(`ペーストに失敗しました: ${error.message || error.name}`);
                 }
             }
         };

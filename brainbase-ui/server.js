@@ -856,7 +856,9 @@ app.get('/api/sessions/:id/output', async (req, res) => {
     const { id } = req.params;
 
     try {
-        const { stdout } = await execPromise(`tmux capture-pane -t "${id}" -p -J`);
+        // -S -100: 最後100行の履歴を取得（選択肢がスクロールで上に行っても検出可能）
+        // -J: 行の継続を結合
+        const { stdout } = await execPromise(`tmux capture-pane -t "${id}" -p -J -S -100`);
         const choices = detectChoices(stdout);
 
         res.json({
@@ -875,19 +877,26 @@ app.get('/api/sessions/:id/output', async (req, res) => {
  * @returns {Array} Array of choice objects
  */
 function detectChoices(text) {
-    // Only check the last 15 lines of output to avoid false positives
+    // Check the last 30 lines of output to capture choices and prompt
     const lines = text.split('\n');
-    const lastLines = lines.slice(-15).join('\n');
+    const lastLines = lines.slice(-30).join('\n');
+
+    // Strict check: only detect choices if "Enter to select" prompt is present
+    if (!lastLines.includes('Enter to select')) {
+        return [];
+    }
 
     const choices = [];
 
     // Pattern 1: "1) Option" or "1. Option"
-    const pattern1 = /^\s*(\d+)[).]\s+(.+)$/gm;
+    // Also matches with selection marker: "❯ 1. Option" or "  1. Option"
+    const pattern1 = /^\s*[❯>]?\s*(\d+)[).]\s+(.+)$/gm;
     let match;
     while ((match = pattern1.exec(lastLines)) !== null) {
         choices.push({
             number: match[1],
             text: match[2].trim(),
+            originalText: match[0].trim(), // Claude Codeの出力をそのまま保持
             pattern: 'numbered'
         });
     }
