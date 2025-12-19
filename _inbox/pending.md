@@ -3,6 +3,37 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-19-MJCN4U5Q
+channel: cxo
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1766134920.787779
+status: pending
+---
+
+### 18:02 | #cxo | 堀 汐里 / Shiori Hori
+
+<@U08FB9S7HUL> <@U08FLSLMRAM> <@U08UZF58F0C>
+改めまして、2日間お疲れ様でした:woman-bowing::sparkles:
+
+結論、出展してとても良かったと思っています。
+
+ポイントはいくつかありますが、
+マーケット調査/優良リード獲得/定期接点を持ちたい方々とのリアル交流/展示会練習などなど、得られたメリットは多岐に渡ると思います。
+
+何より個人的には、CxO陣であれこれ事業のことをゆっくり会話したり、アイデアを共有し合ったり、雑談から生まれるチームワークみたいなものを感じることができ、本当に実りある2日間でした。
+3人に伝えたいのは、とにかくいつもありがとうということです！！！！！
+
+業務的な話になりますが、
+今回得られた優良リードを一元管理したく、名刺や連絡先を交換した人の中で今後営業先や協業先になり得る先を、来週火曜の会議までにこちらのSSに記載いただけますでしょうか:woman-bowing:
+<https://docs.google.com/spreadsheets/d/1shcxhDfBrZi68s9kxopvFeJNqaQ_nyT77CH8LPMGkas/edit?usp=sharing>
+
+加えて来週火曜に各々立て替えた領収書を持ってきていただけると嬉しいです:pray:！！
+
+宜しくお願いいたします！！！
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1766134920787779)
+
+---
 id: INBOX-2025-12-19-MJCEDG19
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
