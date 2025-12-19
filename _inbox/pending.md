@@ -3,6 +3,108 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-19-MJC6IA6T
+channel: eng
+sender: 渡邊博昭
+timestamp: 1766106995.629519
+status: pending
+---
+
+### 10:16 | #eng | 渡邊博昭
+
+<@U08FB9S7HUL>
+隠しフィールド形式で大丈夫です。
+
+**スレッドの文脈:**
+> **渡邊博昭** (13:15): <@U08FB9S7HUL>
+airtableのタスクにコメントが書き込まれたら通知することもできたりしますでしょうか？
+この部分にということになります。
+> **堀 汐里 / Shiori Hori** (13:57): <@U09GQSY3AUD> Cc <@U08FB9S7HUL>
+仰る通り、通知がなければどこにコメントが入れたのかが伝わらないのでありがたいです:woman-bowing::woman-bowing:
+
+> **佐藤圭吾** (13:57): <@U0A1T6NTSJW> 
+こういうことってできる？
+WEBで調べて
+> **mana** (13:57): はい、*Airtableのタスクにコメントが書き込まれたらSlackに通知する*ことは可能です！
+
+いくつかの方法がありますので、ご紹介しますね。
+
+---
+
+*方法1: Airtable Automations（推奨）*
+
+Airtableの標準機能「Automations」を使う方法です。
+
+• *トリガー*: 「When record is updated」（レコードが更新されたとき）
+• *条件*: コメントフィールドが変更されたとき
+• *アクション*: 「Slack: Send a message」でSlackチャンネルに通知
+
+*メリット*:
+• ノーコードで設定可能
+• Airtable内で完結
+• 無料プランでも月100回まで利用可能
+
+*設定手順*:
+- Airtableのベースで「Automations」を開く
+- トリガーに「When record is updated」を選択
+- 条件でコメントフィールドの変更を指定
+- アクションで「Slack: Send a message」を追加
+- Slackアカウントを連携して通知先チャンネルを指定
+
+---
+
+*方法2: Zapier連携*
+
+ZapierでAirtableとSlackを連携する方法です。
+
+• *トリガー*: 「New or Updated Record in View」
+• *アクション*: 「Send Channel Message in Slack」
+
+*メリット*:
+• より複雑な条件設定が可能
+• 他のツールとも連携しやすい
+
+*デメリット*:
+• 外部サービス（Zapier）の契約が必要
+
+---
+
+*方法3: Base Activity Notifications*
+
+Airtableの「Base Activity Notifications」機能を使う方法です。
+
+• ベース全体の変更をSlackチャンネルに通知
+• 設定は簡単だが、コメント以外の変更も通知される
+
+*設定手順*:
+- ベース名の横の「⌄」→「…」→「Slack notifications」を選択
+- 通知先のSlackチャンネルを指定
+
+*デメリット*:
+• コメントだけでなく、すべての変更が通知される
+• 通知が多くなりすぎる可能性がある
+
+---
+
+*おすすめ*
+
+*方法1のAirtable Automations*が最もおすすめです。コメント変更だけに絞って通知できますし、無料プランでも使えます。
+
+設定でお困りの点があれば、お気軽にお声がけください！
+> **佐藤圭吾** (14:00): いけそうですね
+設定しときます
+<@U0A1T6NTSJW> 
+<@U08FB9S7HUL> 
+> **mana** (14:00): :white_check_mark: 1件のタスクを登録しました
+> **佐藤圭吾** (10:13): <@U09GQSY3AUD>
+コメントの通知はできなかったです！
+メンションをつければメール通知はできるとのことです。
+テキストフィールドにコメントを書く方が良さそうですが、そちらでいいですかね
+
+
+[Slack](https://salestailor.slack.com/archives/C08SX913NER/p1766106995629519?thread_ts=1765599329.019109&cid=C08SX913NER)
+
+---
 id: INBOX-2025-12-18-MJBBJTT5
 channel: 役員
 sender: 倉本裕太
