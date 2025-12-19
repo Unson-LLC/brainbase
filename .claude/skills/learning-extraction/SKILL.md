@@ -5,6 +5,13 @@ tags: [brainbase, automation, learning]
 updated: 2025-12-11
 ---
 
+## Triggers
+
+以下の状況で使用：
+- 学習候補をレビュー・適用したいとき（/learn-skills）
+- extract-learnings.shを手動実行したいとき
+- 学習抽出が失敗している際のトラブルシューティング
+
 # 学習抽出システム
 
 セッション履歴から学習候補を自動抽出し、brainbaseに蓄積するシステム。

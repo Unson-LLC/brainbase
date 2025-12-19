@@ -5,6 +5,13 @@ location: managed
 type: project
 ---
 
+## Triggers
+
+以下の状況で使用：
+- Claude Code Hooksを設定するとき
+- Hooksが動作しない際のトラブルシューティング
+- Stopトリガーの発火タイミングを確認したいとき
+
 # Claude Code Hooks 運用ガイド - 重要な注意事項とGotcha
 
 Claude Code Hooksの設定・運用時に遭遇しやすい問題と解決策をまとめたガイド。

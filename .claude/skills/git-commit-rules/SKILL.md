@@ -3,6 +3,13 @@ name: git-commit-rules
 description: brainbaseにおけるGitコミットのルールとフォーマット。コミットメッセージの書き方、type一覧、自動提案タイミングを定義。コミット作成時に使用。
 ---
 
+## Triggers
+
+以下の状況で使用：
+- Gitコミットを作成するとき
+- コミットメッセージのフォーマットを確認したいとき
+- /commitコマンドを実行するとき
+
 # Git コミットルール
 
 brainbaseにおけるGitコミットの標準ルールです。

@@ -3,6 +3,13 @@ name: mana-slack-test
 description: mana（Slackボット）のE2Eテスト実行手順。ユーザーとしてメッセージを投稿し、manaの応答を確認する。manaの動作テスト時に使用。
 ---
 
+## Triggers
+
+以下の状況で使用：
+- manaの動作をテストしたいとき
+- デプロイ後の動作確認をしたいとき
+- manaが正しく応答しないときのデバッグ
+
 # mana Slack E2Eテスト
 
 mana（AIアシスタントSlackボット）の動作テストを実行する手順です。

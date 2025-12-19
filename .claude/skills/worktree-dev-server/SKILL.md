@@ -2,6 +2,14 @@
 name: worktree-dev-server
 description: worktreeで開発サーバーを起動する際のポート競合回避と手順まとめ。
 ---
+
+## Triggers
+
+以下の状況で使用：
+- worktreeから開発サーバーを起動したいとき
+- ポート競合を回避したいとき
+- 正本とは別のポートで起動する必要があるとき
+
 # worktree開発サーバー起動
 
 worktreeから開発サーバーを起動する際の手順。ポート競合を自動回避。

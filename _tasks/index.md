@@ -303,7 +303,7 @@ task_id: T-2512-017
 source_id: SLACK-2025-12-16-MJ7UJZWH
 title: 採用のメール返信
 project_id: general
-status: in-progress
+status: done
 owner: k.​sato
 priority: medium
 due: null
@@ -327,7 +327,7 @@ task_id: T-2512-017
 source_id: EMAIL-2025-12-06-KOBAYASHI
 title: エンジニア候補者（小林尚司氏）の評価・面接検討
 project_id: unson
-status: in-progress
+status: done
 owner: 佐藤圭吾
 priority: high
 due: 2025-12-17

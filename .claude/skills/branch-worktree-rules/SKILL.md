@@ -3,6 +3,13 @@ name: branch-worktree-rules
 description: brainbaseにおけるブランチ運用とworktree管理のルール。正本ディレクトリのシンボリックリンク方式、コミット先の分離を定義。worktreeで作業する際に使用。
 ---
 
+## Triggers
+
+以下の状況で使用：
+- worktreeで作業を開始するとき
+- コミット先を確認したいとき
+- セッションブランチを作成したいとき
+
 # ブランチ・Worktree運用ルール
 
 brainbase-uiのセッション管理とgit worktree運用の標準ルールです。

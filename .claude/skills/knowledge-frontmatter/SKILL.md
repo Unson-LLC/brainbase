@@ -3,6 +3,13 @@ name: knowledge-frontmatter
 description: Claude Skillsの登録フォーマットと作成手順。新規Skillを.claude/skills/に追加する際に使用。
 ---
 
+## Triggers
+
+以下の状況で使用：
+- 新規Skillを作成するとき
+- Skillのフォーマットを確認したいとき
+- ベストプラクティスを参照したいとき
+
 # Claude Skills 登録ガイド
 
 brainbaseにおけるClaude Skills（`.claude/skills/*/SKILL.md`）の作成手順と標準フォーマット。
@@ -88,11 +95,12 @@ README.md最下部の `Skills数: N` を更新。
 
 書籍名、URL、著者など。
 
-## Triggers（任意）
+## Triggers（必須）
 
 以下の状況で使用：
 - トリガー条件1
 - トリガー条件2
+- トリガー条件3
 
 ## 本文
 
@@ -131,6 +139,45 @@ README.md最下部の `Skills数: N` を更新。
 
 ---
 
+## ベストプラクティス（Anthropicガイドライン準拠）
+
+### 1. 簡潔性（Conciseness）
+- Claudeが既に知っている基本概念は説明不要
+- brainbase固有の情報や実践的な内容に集中
+- 冗長な説明を避け、実用性を重視
+
+**良い例:**
+```
+## KPI計算
+タスク一本化率 = (_tasks/index.md のタスク数) / (全タスク数) × 100%
+```
+
+**悪い例:**
+```
+KPIとは Key Performance Indicator の略で、組織の目標達成度を測定するための...（冗長）
+```
+
+### 2. 進歩的開示（Progressive Disclosure）
+- SKILL.mdはインデックス/概要として機能
+- 詳細な説明は別ファイルに分離可能
+- 長大なスキル（500行超）は分割を検討
+
+### 3. Triggersセクション（必須）
+- スキル発見のための重要な手がかり
+- 「以下の状況で使用：」形式で統一
+- 具体的な使用場面を3つ程度記載
+
+### 4. 命名規則
+- **推奨**: Gerund形（動名詞）
+  - 例: `managing-tasks`, `deploying-mana`, `creating-raci`
+- **許容**: 名詞形（既存スキルとの一貫性優先）
+  - 例: `task-format`, `raci-format`
+
+### 5. 三人称記述
+- 一人称（"I can help you"）を避ける
+- 三人称（"Provides X when Y"）で記述
+- 客観的・機能的な説明を心がける
+
 ## チェックリスト
 
 新規Skill作成時の確認事項：
@@ -138,9 +185,11 @@ README.md最下部の `Skills数: N` を更新。
 - [ ] ディレクトリ名がkebab-case
 - [ ] `name`と`description`がフロントマターにある
 - [ ] `description`にトリガー条件が含まれている
+- [ ] **Triggersセクションが必須項目として記載されている**
+- [ ] 簡潔性の原則に従い、冗長な説明を避けている
 - [ ] README.mdの該当カテゴリに追加
 - [ ] README.mdのSkills数を更新
 
 ---
 
-最終更新: 2025-12-09
+最終更新: 2025-12-19

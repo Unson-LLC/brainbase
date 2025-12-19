@@ -3,6 +3,13 @@ name: people-meta
 description: brainbaseにおける人物情報の登録・更新ルール。people.mdとpeople/*.mdの二層構造で管理。新規メンバー追加時に使用。
 ---
 
+## Triggers
+
+以下の状況で使用：
+- 新規メンバーを追加するとき
+- 人物情報を更新したいとき
+- people.mdとpeople/*.mdのフォーマットを確認したいとき
+
 # 人物情報（People）登録ルール
 
 brainbaseにおける人物情報の標準フォーマットと運用ルールです。

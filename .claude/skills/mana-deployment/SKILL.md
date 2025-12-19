@@ -5,6 +5,13 @@ tags: [mana, deployment, aws, lambda, slack]
 location: project
 ---
 
+## Triggers
+
+以下の状況で使用：
+- manaをデプロイしたいとき
+- manaのコード変更後にLambdaへ反映したいとき
+- デプロイ失敗時のトラブルシューティング
+
 # mana Deployment Guide
 
 ## 概要

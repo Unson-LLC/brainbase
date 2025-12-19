@@ -3,6 +3,13 @@ name: task-format
 description: brainbaseにおけるタスク管理ファイル（_tasks/index.md）の標準フォーマット。YAML front matter形式でタスクを記述し、RACI・期限・タグを含む。新規タスクを追加する際に使用。
 ---
 
+## Triggers
+
+以下の状況で使用：
+- 新規タスクを_tasks/index.mdに追加するとき
+- タスクのフォーマットを確認したいとき
+- タスク一本化率を向上させたいとき
+
 # _tasks/index.md フォーマット仕様
 
 brainbaseにおけるタスク管理ファイル（`_tasks/index.md`）の標準フォーマットです。

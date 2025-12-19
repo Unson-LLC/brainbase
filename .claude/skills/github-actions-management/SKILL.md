@@ -2,6 +2,14 @@
 name: github-actions-management
 description: GitHub Actionsワークフローの作成・変更時に守る管理ルールとドキュメント更新手順。
 ---
+
+## Triggers
+
+以下の状況で使用：
+- GitHub Actionsワークフローを作成・変更するとき
+- スケジュールジョブを追加したいとき
+- scheduled-jobs.mdを更新する必要があるとき
+
 # GitHub Actions管理ルール
 
 ## 概要

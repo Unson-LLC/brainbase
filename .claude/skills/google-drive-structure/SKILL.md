@@ -3,6 +3,13 @@ name: google-drive-structure
 description: Google Drive共有ドライブのフォルダ構成とシンボリックリンク運用のガイド。プロジェクトのdrive/フォルダ設定、フォルダ命名規則、同期対象の判断に使用。
 ---
 
+## Triggers
+
+以下の状況で使用：
+- 新規プロジェクトにGoogle Drive連携を追加するとき
+- シンボリックリンクを設定したいとき
+- ファイル配置先（_codex vs ドライブ）を判断したいとき
+
 # Google Drive構成ガイド
 
 Google Drive共有ドライブのフォルダ構成とシンボリックリンク運用のベストプラクティス。

@@ -10,17 +10,17 @@ description: Claude CodeをCI/CD・自動化環境で使うための認証設定
 - セルフホストランナーでClaude Codeを自動実行したいとき
 - Maxプランで従量課金なしにCI/CDを構築したいとき
 
-# Claude Code CI/CD認証ガイド
+# Claude Code CI/CD認証
 
-## 1. 認証方式の比較
+## 認証方式の比較
 
 | 方式 | 有効期限 | コスト | 用途 |
 |------|---------|--------|------|
-| `/login`（通常OAuth） | **約2-3時間** | Maxプラン内 | 対話的開発 |
-| `setup-token` | **1年** | Maxプラン内 | CI/CD・自動化 |
+| `/login`（通常OAuth） | 約2-3時間 | Maxプラン内 | 対話的開発 |
+| `setup-token` | 1年 | Maxプラン内 | CI/CD・自動化 |
 | `ANTHROPIC_API_KEY` | 無期限 | 従量課金 | 大量処理・チーム利用 |
 
-## 2. setup-token（推奨）
+## setup-token（推奨）
 
 ### 生成方法
 
@@ -46,7 +46,7 @@ Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>
 - **Maxプラン範囲内** - 追加の従量課金なし
 - **単一ユーザー向け** - 個人プロジェクト・少人数チーム向け
 
-## 3. GitHub Actionsでの設定
+## GitHub Actionsでの設定
 
 ### Step 1: Secretsに追加
 
@@ -91,7 +91,7 @@ jobs:
           cat /tmp/result.txt
 ```
 
-### 実際の稼働例
+### 稼働例
 
 以下のワークフローで実績あり：
 - `.github/workflows/task-triage.yml` - 週次タスク棚卸し
@@ -106,12 +106,7 @@ mkdir -p ~/.claude
 echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
 ```
 
-## 4. セルフホストランナーでの利用
-
-### 前提条件
-
-- Claude Codeがインストール済み（`npm install -g @anthropic-ai/claude-code`）
-- Maxプランでログイン済み
+## セルフホストランナーでの利用
 
 ### 環境変数設定
 
@@ -136,7 +131,7 @@ claude -p "コードレビューして" --allowedTools "Read,Glob,Grep" --print
 **重要**: シェル特殊文字（`$`, `\``, `"`, 改行等）を含むプロンプトは `claude -p "$PROMPT"` で失敗します。
 必ず **stdinパイプ** (`cat prompt.txt | claude --print`) を使用してください。
 
-## 5. トークン管理
+## トークン管理
 
 ### 有効期限の確認
 
@@ -166,7 +161,7 @@ claude setup-token
 # Settings → Secrets → CLAUDE_CODE_OAUTH_TOKEN を編集
 ```
 
-## 6. 注意事項
+## 注意事項
 
 ### 制限
 
@@ -188,7 +183,7 @@ claude setup-token
 | onboarding画面が出る | `~/.claude.json`がない | `hasCompletedOnboarding: true`を設定 |
 | `authentication_error` | トークン無効 | `setup-token`で再生成 |
 
-## 7. 実績
+## 実績
 
 - **検証日**: 2025-12-15
 - **Claude Code Version**: 2.0.65
@@ -200,3 +195,6 @@ claude setup-token
 - [Claude Code Headless Mode](https://code.claude.com/docs/en/headless)
 - [GitHub Issue #12447 - OAuth token expiration](https://github.com/anthropics/claude-code/issues/12447)
 - [GitHub Issue #1454 - M2M Authentication Request](https://github.com/anthropics/claude-code/issues/1454)
+
+---
+最終更新: 2025-12-19
