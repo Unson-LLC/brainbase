@@ -1,0 +1,35 @@
+name: Sync Members to S3
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '_codex/common/meta/slack/members.yml'
+  workflow_dispatch:
+
+jobs:
+  sync-members:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout brainbase
+        uses: actions/checkout@v4
+
+      - name: Checkout mana
+        uses: actions/checkout@v4
+        with:
+          repository: Unson-LLC/slack-classify-bot
+          path: mana
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install mana dependencies
+        working-directory: mana
+        run: npm install
+
+      - name: Sync members.yml to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: node mana/scripts/sync-members-to-s3.js
