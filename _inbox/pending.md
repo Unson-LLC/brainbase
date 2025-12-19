@@ -3,6 +3,23 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-19-MJC80SRJ
+channel: 0021-salestailor-dev
+sender: 渡邊博昭
+timestamp: 1766109537.748059
+status: pending
+---
+
+### 10:59 | #0021-salestailor-dev | 渡邊博昭
+
+<@U07LNUP582X>
+直接DMもしましたが、manaちゃんが悪さしているのか、vercel上に設定しているPreviewのDATABASE _URLが消されてしまい、アクセスできなくなる事象が発生しております。
+こちら優先的に確認してほしいです。
+本番の方には影響していないことは確認済みではあります。
+
+[Slack](https://unson.slack.com/archives/C086FJ10U59/p1766109537748059)
+
+---
 id: INBOX-2025-12-19-MJC6IA6T
 channel: eng
 sender: 渡邊博昭
