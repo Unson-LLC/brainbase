@@ -26,211 +26,103 @@
 
 # 🔥 最優先タスク（12/19-20対応）
 
----
-task_id: T-2512-027
-source_id: AIRTABLE-NCOM-recxQ2UEaxde20PCR
-title: RAゲートウェイ申請・導入
-project_id: ncom-catalyst
-status: in_progress
-owner: 今村
-priority: highest
-due: 2025-12-19
-tags: [airtable, security, ra-gateway]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 今村
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 今村
-- 背景: RAGWはログ取得のための踏み台サーバー（アクセス制御ではなくログ取得目的）。SSM接続と並列で使用。
-- タイムライン: 12/17払出し→12/18今村さん記入可能→12/19対応完了
-- Airtable: recxQ2UEaxde20PCR
+（現在なし - Phase 2完了）
 
 ---
-task_id: T-2512-028
-source_id: AIRTABLE-NCOM-recFTIEfsO42XoLc4
-title: RAGWセキュリティグループ設定
-project_id: ncom-catalyst
-status: todo
-owner: 金田光平
-priority: highest
-due: 2025-12-19
-tags: [airtable, security, ra-gateway]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 金田光平
----
 
-- 2025-12-19 Airtableから取り込み
-- 担当: 金田光平
-- 背景: DialogAI側でセキュリティグループを変更し、RAGWからのみ受け付けるように設定
-- 注意: 金田さん・星野さんにセキュアFATがない状態だとサーバがいじれなくなるため、払出後の設定が推奨
-- Airtable: recFTIEfsO42XoLc4
+# 📋 完了済みタスク
 
 ---
-task_id: T-2512-029
-source_id: AIRTABLE-NCOM-recCFqcRB09ne0Y5T
-title: セキュアFAT払出し待ち
-project_id: ncom-catalyst
-status: in_progress
-owner: 今村
-priority: highest
-due: 2025-12-17
-tags: [airtable, security, secure-fat]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 今村
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 今村
-- 背景: 金田さん・星野さん用のセキュアFAT払出し。RAGW経由でのアクセスに必要。
-- ステータス: 期限超過（12/17→遅延中）
-- Airtable: recCFqcRB09ne0Y5T
-
----
-task_id: T-2512-030
-source_id: AIRTABLE-NCOM-recsMwMpAM1723QC5
-title: 事務連020号回答提出
-project_id: ncom-catalyst
-status: in_progress
-owner: 小川未来
-priority: highest
-due: 2025-12-19
-tags: [airtable, security, audit]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 小川未来
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 小川未来
-- 背景: セキュリティ監査対応。依頼1-4（CDP/LLDP無効化、IPソースルーティング無効化、Smart Install無効化、OS改ざんチェック）への回答
-- Airtable: recsMwMpAM1723QC5
-
----
-task_id: T-2512-031
-source_id: AIRTABLE-NCOM-recvNbFEWjAWKBXNW
-title: 事務連018号回答提出
-project_id: ncom-catalyst
-status: in_progress
-owner: 小川未来
-priority: highest
-due: 2025-12-16
-tags: [airtable, security, data-retention]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 小川未来
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 小川未来
-- 背景: データ保持・削除ルールに関する回答。音声ファイル180日、会議データ30日、文字起こしデータ365日の削除ルールを記載
-- ステータス: 期限超過（12/16→遅延中）
-- Airtable: recvNbFEWjAWKBXNW
-
----
-task_id: T-2512-032
-source_id: AIRTABLE-NCOM-recjbemru91XnNHfr
-title: RAGWマニュアル確認・事前準備
-project_id: ncom-catalyst
-status: in_progress
-owner: 小川未来
-priority: highest
-due: 2025-12-17
-tags: [airtable, ra-gateway]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 小川未来
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 小川未来
-- 背景: 統合ログ基盤ウェブサイトのユーザマニュアルを確認し、必要なプロトコルに対してRAGW経由のアクセスとなるよう設定の事前情報収集
-- ステータス: 期限超過（12/17→遅延中）
-- Airtable: recjbemru91XnNHfr
-
----
-task_id: T-2512-033
-source_id: AIRTABLE-NCOM-recmwrPEXi0JKinjR
-title: 文字起こしデータ365日自動削除設定
-project_id: ncom-catalyst
-status: todo
-owner: 佐藤圭吾
+task_id: T-2512-040
+title: ステージング環境の全シークレット・環境変数のローテーション
+project_id: proj_dialogai
+status: done
+owner: k.​sato
 priority: high
+due: 2025-12-20
+tags: [security, secrets, rotation]
+links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md", "/Users/ksato/workspace/ncom-catalyst/security/meetingAI_phase2_completion_2025-12-19.md"]
+source: security-audit
+created_at: "2025-12-19T09:00:00.000Z"
+requester: k.​sato
+---
+
+- 2025-12-19 セキュリティ調査で発見: 複数のシークレットがローテーション未実施
+- 2025-12-19 完了: Phase 2としてすべてのシークレットをローテーション
+  - ✅ DATABASE_URL (Version 23, Phase 1で完了)
+  - ✅ NEXTAUTH_SECRET (Version 23, 64文字ランダム)
+  - ✅ COGNITO_WEBHOOK_SECRET (Version 2, 64文字HEX)
+  - ✅ AWS_ACCESS_KEY_ID (Version 23, 新キー作成)
+  - ✅ AWS_SECRET_ACCESS_KEY (Version 23, 新キー作成)
+- 追加対応:
+  - ✅ カスタムポート (13568, 13569) を0.0.0.0/0から削除
+  - ✅ 古いAWSアクセスキー (AKIAYUQGSPQISR5GFG7E) を無効化
+- 関連レポート:
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_phase2_completion_2025-12-19.md`
+
+---
+---
+task_id: T-2512-038
+title: 【緊急】PostgreSQL 5432ポートの即座閉鎖とパスワード変更
+project_id: proj_dialogai
+status: done
+owner: k.​sato
+priority: critical
 due: 2025-12-19
-tags: [airtable, s3, data-retention]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 佐藤圭吾
+tags: [security, critical, postgresql]
+links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md", "/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md"]
+source: security-audit
+created_at: "2025-12-19T09:00:00.000Z"
+requester: k.​sato
 ---
 
-- 2025-12-19 Airtableから取り込み
-- 担当: 佐藤圭吾
-- 背景: S3ライフサイクルポリシーで文字起こしデータの365日経過後自動削除を設定
-- Airtable: recmwrPEXi0JKinjR
+- 2025-12-19 セキュリティ調査で発見: PostgreSQLが0.0.0.0/0に公開されている
+- 2025-12-19 完了: Phase 1緊急対応実施
+  1. ✅ セキュリティグループ sg-056a0eabbd5070ff6 から 5432 の 0.0.0.0/0 ルールを削除
+  2. ✅ pg_hba.conf を VPC内部（172.31.0.0/16）のみに制限
+  3. ✅ PostgreSQLパスワードを32文字ランダム文字列に変更
+  4. ✅ DATABASE_URL を Parameter Store で更新（Version 23）
+- 関連レポート:
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md`
 
 ---
-task_id: T-2512-034
-source_id: AIRTABLE-NCOM-recqZJEndmkgpH47o
-title: システム構成図ワード化
-project_id: ncom-catalyst
-status: todo
-owner: 小川未来
-priority: high
+---
+task_id: T-2512-039
+title: 【緊急】SSH (22) ポートのアクセス制限
+project_id: proj_dialogai
+status: done
+owner: k.​sato
+priority: critical
 due: 2025-12-19
-tags: [airtable, documentation]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 小川未来
+tags: [security, critical, ssh]
+links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md", "/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md"]
+source: security-audit
+created_at: "2025-12-19T09:00:00.000Z"
+requester: k.​sato
 ---
 
-- 2025-12-19 Airtableから取り込み
-- 担当: 小川未来
-- 背景: PDF版からWord形式への変換。先方から「詳細化してほしい」との要望あり。詳細化箇所を確認中。
-- Airtable: recqZJEndmkgpH47o
+- 2025-12-19 セキュリティ調査で発見: SSHが0.0.0.0/0に公開されている
+- 2025-12-19 完了: Phase 1緊急対応実施
+  - ✅ セキュリティグループ sg-056a0eabbd5070ff6 から 22 の 0.0.0.0/0 ルールを削除
+  - ✅ SSM Session Manager経由のみでアクセス可能に変更
+- 関連レポート:
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_emergency_response_2025-12-19.md`
 
 ---
-task_id: T-2512-035
-source_id: AIRTABLE-NCOM-recfchduOWDxSISZ5
-title: 事務連021号対応
-project_id: ncom-catalyst
-status: todo
-owner: 小川未来
-priority: high
-due: 2025-12-19
-tags: [airtable, security]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 小川未来
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 小川未来
-- 背景: 追加のセキュリティ提出物対応
-- Airtable: recfchduOWDxSISZ5
-
 ---
 task_id: T-2512-021
 source_id: SLACK-2025-12-16-MJ8JU2HC
 title: ステージング環境のセキュリティ調査と環境変数ローテーション
 project_id: proj_dialogai
-status: todo
+status: done
 owner: k.​sato
 priority: highest
 due: 2025-12-19
 tags: [slack, auto-import, security]
-links: []
+links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md"]
 source: slack
 channel_id: C08A6ETSSR2
 thread_ts: "1765887507.889679"
@@ -243,102 +135,10 @@ requester: k.​sato
 - 担当: k.​sato
 - 背景: ステージング環境のセキュリティ調査を実施し、環境変数のローテーションを今週中に完了する
 - Slack: https://unson.slack.com/archives/C08A6ETSSR2/p1765887507889679?thread_ts=1765887000.649509&cid=C08A6ETSSR2
-
----
-task_id: T-2512-024
-source_id: SLACK-2025-12-16-MJ8JU4CJ
-title: WAFのブロックモードへの切り替え
-project_id: proj_dialogai
-status: todo
-owner: k.​sato
-priority: high
-due: 2025-12-25
-tags: [slack, auto-import, security]
-links: []
-source: slack
-channel_id: C08A6ETSSR2
-thread_ts: "1765887507.889679"
-created_at: "2025-12-16T12:18:41.923Z"
-owner_slack_id: U0971EHBDHB
-requester: k.​sato
----
-
-- 2025-12-16 Slackから自動取り込み: k.​satoから依頼
-- 担当: k.​sato
-- 背景: WAFの設定をブロックモードに切り替える
-- 議事録: 12/25までに完了予定
-- Slack: https://unson.slack.com/archives/C08A6ETSSR2/p1765887507889679?thread_ts=1765887000.649509&cid=C08A6ETSSR2
-
----
-task_id: T-2512-023
-source_id: SLACK-2025-12-16-MJ8JU3T3
-title: EC2インスタンス再構築実施
-project_id: proj_dialogai
-status: todo
-owner: k.​sato
-priority: high
-due: 2025-12-25
-tags: [slack, auto-import, security]
-links: []
-source: slack
-channel_id: C08A6ETSSR2
-thread_ts: "1765887507.889679"
-created_at: "2025-12-16T12:18:41.223Z"
-owner_slack_id: U0971EHBDHB
-requester: k.​sato
----
-
-- 2025-12-16 Slackから自動取り込み: k.​satoから依頼
-- 担当: k.​sato
-- 背景: EC2インスタンスの再構築を実施する（スレッド文脈ではOSのクリーンインストールと記載）
-- 議事録: VM完全再構築、最大5営業日、12/25までに完了予定
-- Slack: https://unson.slack.com/archives/C08A6ETSSR2/p1765887507889679?thread_ts=1765887000.649509&cid=C08A6ETSSR2
-
-# ⚠️ 今週中対応（12/20）
-
----
-task_id: T-2512-036
-source_id: AIRTABLE-NCOM-recBcvCQM59UgHWug
-title: 見積もり資料修正
-project_id: ncom-catalyst
-status: in_progress
-owner: 小川未来
-priority: high
-due: 2025-12-20
-tags: [airtable, proposal]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 小川未来
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 小川未来
-- 背景: 畑からのフィードバック対応。①保守契約と開発契約の分離説明、②aパターン・cパターンの補足スライド追加、③金額再計算
-- Airtable: recBcvCQM59UgHWug
-
----
-task_id: T-2512-037
-source_id: AIRTABLE-NCOM-recEPH4avq9zDgbKp
-title: 保守契約・開発契約分離の説明準備
-project_id: ncom-catalyst
-status: todo
-owner: 小川未来
-priority: high
-due: 2025-12-20
-tags: [airtable, contract]
-links: []
-source: airtable
-created_at: "2025-12-19T00:00:00.000Z"
-requester: 小川未来
----
-
-- 2025-12-19 Airtableから取り込み
-- 担当: 小川未来
-- 背景: 来年4月からの契約分離に関する質問への回答。契約期間の重複期間の作業内容を明確化。
-- Airtable: recEPH4avq9zDgbKp
-
-# 📋 その他のタスク
+- 2025-12-19 完了: セキュリティ調査完了、レポート作成済み
+  - 極めて深刻な脆弱性を複数発見（PostgreSQL 0.0.0.0/0 公開、SSH 0.0.0.0/0 公開等）
+  - 緊急対応タスク (T-2512-038, T-2512-039) と環境変数ローテーション (T-2512-040) を新規作成
+  - レポート: `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
 
 ---
 task_id: T-2512-026
