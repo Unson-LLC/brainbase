@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-19-MJCEDG19
+channel: 9960-back-office
+sender: 梅田 遼/Haruka Umeda
+timestamp: 1766120205.815009
+status: pending
+---
+
+### 13:56 | #9960-back-office | 梅田 遼/Haruka Umeda
+
+<@U07LNUP582X>
+お給料の振り込み申請してるので承認よろしくお願いいたします。
+
+[Slack](https://unson.slack.com/archives/C08Q5V2S2AW/p1766120205815009)
+
+---
 id: INBOX-2025-12-19-MJC80SRJ
 channel: 0021-salestailor-dev
 sender: 渡邊博昭
