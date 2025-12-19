@@ -26,34 +26,42 @@
 
 # 🔥 最優先タスク（12/19-20対応）
 
+（現在なし - Phase 2完了）
+
+---
+
+# 📋 完了済みタスク
+
 ---
 task_id: T-2512-040
 title: ステージング環境の全シークレット・環境変数のローテーション
 project_id: proj_dialogai
-status: todo
+status: done
 owner: k.​sato
 priority: high
 due: 2025-12-20
 tags: [security, secrets, rotation]
-links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md"]
+links: ["/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md", "/Users/ksato/workspace/ncom-catalyst/security/meetingAI_phase2_completion_2025-12-19.md"]
 source: security-audit
 created_at: "2025-12-19T09:00:00.000Z"
 requester: k.​sato
 ---
 
 - 2025-12-19 セキュリティ調査で発見: 複数のシークレットがローテーション未実施
-- 対象:
-  - ✅ /dialogai-staging/staging/DATABASE_URL（2025-12-19完了）
-  - /dialogai-staging/staging/NEXTAUTH_SECRET
-  - /dialogai-staging/staging/COGNITO_WEBHOOK_SECRET
-  - /dialogai-staging/staging/AWS_ACCESS_KEY_ID
-  - /dialogai-staging/staging/AWS_SECRET_ACCESS_KEY
-- 関連レポート: `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
+- 2025-12-19 完了: Phase 2としてすべてのシークレットをローテーション
+  - ✅ DATABASE_URL (Version 23, Phase 1で完了)
+  - ✅ NEXTAUTH_SECRET (Version 23, 64文字ランダム)
+  - ✅ COGNITO_WEBHOOK_SECRET (Version 2, 64文字HEX)
+  - ✅ AWS_ACCESS_KEY_ID (Version 23, 新キー作成)
+  - ✅ AWS_SECRET_ACCESS_KEY (Version 23, 新キー作成)
+- 追加対応:
+  - ✅ カスタムポート (13568, 13569) を0.0.0.0/0から削除
+  - ✅ 古いAWSアクセスキー (AKIAYUQGSPQISR5GFG7E) を無効化
+- 関連レポート:
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_security_audit_2025-12-19.md`
+  - `/Users/ksato/workspace/ncom-catalyst/security/meetingAI_phase2_completion_2025-12-19.md`
 
 ---
-
-# 📋 完了済みタスク
-
 ---
 task_id: T-2512-038
 title: 【緊急】PostgreSQL 5432ポートの即座閉鎖とパスワード変更
