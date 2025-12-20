@@ -3,7 +3,7 @@ name: brainbase Healthcheck
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0,30 0-14 * * *'  # JST 09:00-23:00
+    - cron: '0 0-14/2 * * *'  # JST 09:00, 11:00, 13:00, 15:00, 17:00, 19:00, 21:00, 23:00
 
 permissions:
   contents: read
@@ -15,7 +15,7 @@ jobs:
     env:
       REPOS: |
         sintariran/brainbase
-      MAX_AGE_HOURS: "24"
+      MAX_AGE_HOURS: "12"
     steps:
       - name: Check workflows and runners
         id: check
@@ -130,7 +130,7 @@ jobs:
           LAMBDA_ERRORS_TEXT: ${{ steps.lambda-check.outputs.lambda_errors }}
         run: |
           text="[brainbase Healthcheck]\n"
-          [ -n "$ISSUES_TEXT" ] && text+="❌ Failed workflows (24h):\n$ISSUES_TEXT\n"
+          [ -n "$ISSUES_TEXT" ] && text+="❌ Failed workflows (12h):\n$ISSUES_TEXT\n"
           [ -n "$RUNNER_TEXT" ] && text+="⚠️ Offline self-hosted runners:\n$RUNNER_TEXT\n"
           [ -n "$LAMBDA_ERRORS_TEXT" ] && text+="🔴 Lambda errors (30m):\n$LAMBDA_ERRORS_TEXT\n"
 
