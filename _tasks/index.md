@@ -1365,29 +1365,6 @@ requester: 佐藤圭吾
 - Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
 
 ---
-id: SLACK-2025-12-09-MIYQPEQ9
-title: 顧客KPI（お試しプラン含む）の正確な把握と定義
-project_id: salestailor
-status: todo
-owner: 佐藤圭吾
-priority: medium
-due: 2024-12-16
-tags: [slack, auto-import]
-links: []
-source: slack
-channel_id: C08U2EX2NEA
-thread_ts: "1765294371.536769"
-created_at: "2025-12-09T15:33:17.649Z"
-owner_slack_id: U08FB9S7HUL
-requester: 佐藤圭吾
----
-
-- 2025-12-09 Slackから自動取り込み: 佐藤圭吾から依頼
-- 担当: 佐藤圭吾
-- 背景: CS目標の具体化のため、現在動いている案件の顧客KPIを正確に把握する。お試しプランを含めるか、どの数値を目標とするか、初回商談化率1%以上などの定義を明確化。来週の会議で協議予定。
-- Slack: https://unson-inc.slack.com/archives/C08U2EX2NEA/p1765294371536769
-
----
 id: SLACK-2025-12-09-MIYQPEC6
 title: 標準フロー・異常フローの定義（たたき台作成）
 project_id: salestailor
@@ -2480,7 +2457,7 @@ requester: 佐藤圭吾
 task_id: T-2512-044
 title: 山根君に稼働状況確認連絡
 project_id: tech-knight
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: medium
 due: 2025-12-20
