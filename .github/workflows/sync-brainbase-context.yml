@@ -38,6 +38,6 @@ jobs:
 
       - name: Sync to S3
         run: |
-          aws s3 sync ./context-output s3://${{ env.S3_BUCKET }}/ --delete
+          aws s3 sync ./context-output s3://${{ env.S3_BUCKET }}/ --delete --exclude "members.json"
           echo "Synced to s3://${{ env.S3_BUCKET }}/"
           aws s3 ls s3://${{ env.S3_BUCKET }}/
