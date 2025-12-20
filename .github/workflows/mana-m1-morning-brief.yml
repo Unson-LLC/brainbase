@@ -34,4 +34,5 @@ jobs:
           AWS_REGION: us-east-1
           HOME: /Users/ksato
           NODE_PATH: ${{ github.workspace }}/mana/api/node_modules
+          TEST_MODE_USER: 佐藤  # テスト中は佐藤さんのみに送信
         run: node _codex/common/ops/scripts/mana-m1-morning-brief.js
