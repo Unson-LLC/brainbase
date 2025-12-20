@@ -3,6 +3,20 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-20-MJETSBIC
+channel: D093MBQFRAS
+sender: undefined
+timestamp: 1766267028.000100
+status: pending
+---
+
+### 06:43 | #D093MBQFRAS | undefined
+
+undefined
+
+[Slack](https://unson-inc.slack.com/archives/D093MBQFRAS/p1766267028000100)
+
+---
 id: INBOX-2025-12-19-MJCN4U5Q
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
