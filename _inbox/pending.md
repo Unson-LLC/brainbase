@@ -3,18 +3,18 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
-id: INBOX-2025-12-20-MJEVLIV9
-channel: D0A5FM8M4Q0
+id: INBOX-2025-12-20-MJEVLJBZ
+channel: D093MBQ1DC6
 sender: undefined
-timestamp: 1766270069.000100
+timestamp: 1766270070.000100
 status: pending
 ---
 
-### 07:34 | #D0A5FM8M4Q0 | undefined
+### 07:34 | #D093MBQ1DC6 | undefined
 
 undefined
 
-[Slack](https://unson-inc.slack.com/archives/D0A5FM8M4Q0/p1766270069000100)
+[Slack](https://unson-inc.slack.com/archives/D093MBQ1DC6/p1766270070000100)
 
 ---
 id: INBOX-2025-12-20-MJEVLI31
