@@ -474,27 +474,37 @@ async function createWorktree(sessionId, repoPath) {
         // Set skip-worktree flag BEFORE creating symlinks
         // This must be done while files still exist in the worktree
         const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        const allFilesToSkip = [];
+
+        // Collect all files first
         for (const p of excludePaths) {
             try {
-                // Get all files under the path and set skip-worktree flag
                 const { stdout } = await execPromise(
                     `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
                 );
                 if (stdout.trim()) {
-                    const files = stdout.trim().split('\n');
-                    for (const file of files) {
-                        if (file.trim()) {
-                            await execPromise(
-                                `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
-                            );
-                        }
-                    }
-                    console.log(`Set skip-worktree for ${files.length} files under: ${p}`);
+                    const files = stdout.trim().split('\n').filter(f => f.trim());
+                    allFilesToSkip.push(...files);
+                    console.log(`Found ${files.length} files under: ${p}`);
                 }
             } catch (skipErr) {
-                // Path doesn't exist or no files to skip - this is fine
                 console.log(`Note: No files to skip-worktree under ${p}`);
             }
+        }
+
+        // Set skip-worktree for all files in batches
+        if (allFilesToSkip.length > 0) {
+            console.log(`Setting skip-worktree for ${allFilesToSkip.length} files...`);
+            const batchSize = 100;
+            for (let i = 0; i < allFilesToSkip.length; i += batchSize) {
+                const batch = allFilesToSkip.slice(i, i + batchSize);
+                const filesArg = batch.map(f => `"${f}"`).join(' ');
+                await execPromise(
+                    `git -C "${worktreePath}" update-index --skip-worktree ${filesArg}`
+                );
+                console.log(`Set skip-worktree for batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allFilesToSkip.length/batchSize)} (${batch.length} files)`);
+            }
+            console.log(`Successfully set skip-worktree for ${allFilesToSkip.length} files`);
         }
 
         // Create symlinks for canonical directories (正本ディレクトリ)
