@@ -4,6 +4,7 @@
 SESSION_NAME=${1:-brainbase}
 INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
+MODE=${4:-new}       # new or restore
 
 # Apply tmux settings first (before session creation/attachment)
 # These settings help prevent character duplication when typing fast over WebSocket (ttyd)
@@ -31,14 +32,18 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         fi
     else
         # Launch Claude Code
-        if [ -n "$INITIAL_CMD" ]; then
-            # 新規セッション: 通常起動後にセッション名を設定
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude \"$INITIAL_CMD\"" C-m
-            sleep 1
-            tmux send-keys -t "$SESSION_NAME" "/rename $SESSION_NAME" C-m
-        else
+        if [ "$MODE" = "restore" ]; then
             # 復元時: セッション名で再開
             tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude --resume \"$SESSION_NAME\" --continue" C-m
+        else
+            # 新規セッション: 通常起動後にセッション名を設定
+            if [ -n "$INITIAL_CMD" ]; then
+                tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude \"$INITIAL_CMD\"" C-m
+            else
+                tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude" C-m
+            fi
+            sleep 2
+            tmux send-keys -t "$SESSION_NAME" "/rename $SESSION_NAME" C-m
         fi
     fi
 fi
