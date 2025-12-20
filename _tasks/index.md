@@ -233,7 +233,7 @@ requester: k.​sato
 task_id: T-2512-020
 title: DNS設定の教科書作成
 project_id: general
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: medium
 due: null
@@ -257,7 +257,7 @@ title: Instantlyのメール設定方法を確認
 project_id: general
 status: todo
 owner: 佐藤圭吾
-priority: medium
+priority: low
 due: null
 tags: [slack, auto-import]
 links: []
@@ -281,7 +281,7 @@ title: Instantlyのメール設定方法を確認
 project_id: general
 status: todo
 owner: 佐藤圭吾
-priority: medium
+priority: low
 due: null
 tags: [slack, auto-import]
 links: []
@@ -515,9 +515,9 @@ task_id: T-2512-018
 source_id: MILESTONE-M2-KR1
 title: 【M2】決済機能実装完了（Stripe決済フロー稼働）
 project_id: zeims
-status: in_progress
+status: todo
 owner: 川合秀明
-priority: high
+priority: low
 due: 2025-12-25
 tags: [milestone, m2, payment, critical]
 links: []
@@ -554,7 +554,7 @@ title: 【M2】ChatGPT-5.1切り替え実装
 project_id: zeims
 status: todo
 owner: 太田葉音
-priority: high
+priority: low
 due: 2025-12-27
 tags: [milestone, m2, llm, model-upgrade]
 links: []
@@ -587,7 +587,7 @@ task_id: T-2512-020
 source_id: MILESTONE-M2-KR3
 title: 【M2】LP正式公開（ロゴ掲載4件）
 project_id: zeims
-status: todo
+status: done
 owner: 川合秀明
 priority: high
 due: 2025-12-30
@@ -719,9 +719,9 @@ task_id: T-2512-009
 source_id: SLACK-2025-12-13-MJ3TUPSX
 title: Airtableコメント通知機能を設定
 project_id: general
-status: in-progress
+status: todo
 owner: 佐藤圭吾
-priority: medium
+priority: low
 due: null
 tags: [slack, auto-import]
 links: []
@@ -886,7 +886,7 @@ requester: k.​sato
 id: SLACK-2025-12-10-MJ0GZJAI
 title: 展示会用デモ動画を金曜日までに仕上げる
 project_id: mktg
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: null
@@ -909,7 +909,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-10-MJ0GZIYJ
 title: 展示会用デモ動画の構成を文章ベースでまとめる
 project_id: mktg
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: null
@@ -1184,7 +1184,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQQVZF
 title: 本番環境エラーについて渡辺氏に確認
 project_id: salestailor
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: medium
 due: null
@@ -1207,7 +1207,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQQVFF
 title: ステージング環境の複数バージョンについて渡辺氏に確認
 project_id: salestailor
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: medium
 due: null
@@ -1232,7 +1232,7 @@ title: 「要対応」「未入力」の定義を渡辺氏に確認
 project_id: salestailor
 status: todo
 owner: 佐藤圭吾
-priority: medium
+priority: low
 due: null
 tags: [slack, auto-import]
 links: []
@@ -1253,7 +1253,7 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQQUJ3
 title: ステージング環境のURL・ID・パスを藤井に共有
 project_id: salestailor
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: null
@@ -1278,7 +1278,7 @@ title: 中長期開発計画（4月以降）の策定
 project_id: salestailor
 status: todo
 owner: 佐藤圭吾
-priority: medium
+priority: low
 due: 2025-01-31
 tags: [slack, auto-import]
 links: []
@@ -1301,7 +1301,7 @@ title: 短期開発計画（1-3月）のマイルストーン再設定
 project_id: salestailor
 status: todo
 owner: 佐藤圭吾
-priority: medium
+priority: low
 due: 2025-01-15
 tags: [slack, auto-import]
 links: []
@@ -1324,7 +1324,7 @@ title: 返信追跡機能・方式1（OAuth連携）の実現可能性再検討
 project_id: salestailor
 status: todo
 owner: 佐藤圭吾
-priority: medium
+priority: low
 due: 2024-12-13
 tags: [slack, auto-import]
 links: []
@@ -1368,9 +1368,9 @@ requester: 佐藤圭吾
 id: SLACK-2025-12-09-MIYQPEQ9
 title: 顧客KPI（お試しプラン含む）の正確な把握と定義
 project_id: salestailor
-status: in-progress
+status: todo
 owner: 佐藤圭吾
-priority: high
+priority: medium
 due: 2024-12-16
 tags: [slack, auto-import]
 links: []
