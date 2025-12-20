@@ -3,6 +3,20 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-20-MJEVLI31
+channel: D0A2J617S7M
+sender: undefined
+timestamp: 1766270071.000100
+status: pending
+---
+
+### 07:34 | #D0A2J617S7M | undefined
+
+undefined
+
+[Slack](https://unson-inc.slack.com/archives/D0A2J617S7M/p1766270071000100)
+
+---
 id: INBOX-2025-12-20-MJEVLH57
 channel: D093MBQFRAS
 sender: undefined
