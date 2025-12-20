@@ -841,7 +841,6 @@ app.post('/api/sessions/start', async (req, res) => {
             args.push(''); // Empty initial command
         }
         args.push(engine); // Add engine as 3rd argument
-        args.push('new'); // Add mode as 4th argument (new session)
 
         // Options for spawn
         const spawnOptions = {
@@ -1080,7 +1079,6 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
             args.push(''); // Empty initial command
         }
         args.push(engine); // Add engine as 3rd argument
-        args.push('new'); // Add mode as 4th argument (new session with worktree)
 
         const ttyd = spawn('ttyd', args, { stdio: 'pipe', cwd: worktreePath });
 
@@ -1419,8 +1417,7 @@ app.post('/api/sessions/:id/restore', async (req, res) => {
             scriptPath,
             id,
             '', // Empty initial command (use claude --resume in login_script)
-            session.engine || engine,
-            'restore' // Add mode as 4th argument (restore session)
+            session.engine || engine
         ];
 
         const ttyd = spawn('ttyd', args, { stdio: 'pipe', cwd });
