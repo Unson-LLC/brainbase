@@ -32,11 +32,9 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     else
         # Launch Claude Code
         if [ -n "$INITIAL_CMD" ]; then
-            # 新規セッション: カスタムセッションIDで開始
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude --session-id \"$SESSION_NAME\" \"$INITIAL_CMD\"" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude \"$INITIAL_CMD\"" C-m
         else
-            # 復元時: セッション名で再開（--continueで最新セッションを継続）
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude --resume \"$SESSION_NAME\" --continue" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude" C-m
         fi
     fi
 fi
