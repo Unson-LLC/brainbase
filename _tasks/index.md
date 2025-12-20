@@ -2415,3 +2415,686 @@ links: [meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
 - 担当: 佐藤 圭吾
 - 背景: 12月11日の忘年会（ホテル内覧会）までにデモサイト完成
 - 分業: 佐藤がバックエンド構造整備 → 石田氏がUI実装（Bolt.new使用）
+
+---
+task_id: T-2512-041
+title: ナクサ案件に催促メール送付
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-20
+tags: [営業, 案件管理]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-16_tech-knight-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 Tech Knight定例会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 契約が先方で止まっており進展なし。他案件も出てきたためリソース配分を相談したい旨を伝えて催促をかける
+- 期限: 今週中（12/16-20）
+
+---
+task_id: T-2512-042
+title: 矢島案件のミーティング日程提案
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-20
+tags: [営業, 案件管理, ミーティング]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-16_tech-knight-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 Tech Knight定例会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 矢島案件は大規模案件の可能性。早期にミーティングを設定し年内にもう1ステップ進める
+- 期限: 今週中に日程提案
+
+---
+task_id: T-2512-043
+title: 中村さんへスマートフロント進捗報告
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: null
+tags: [営業, スマートフロント, 進捗報告]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-16_tech-knight-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 Tech Knight定例会議から抽出
+- 担当: 佐藤圭吾
+- 背景: スマートフロント音声応答機能のデモ完成後に中村さんに進捗報告
+- 期限: デモ完成次第
+
+---
+task_id: T-2512-044
+title: 山根君に稼働状況確認連絡
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-20
+tags: [人材管理, 確認]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-16_tech-knight-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 Tech Knight定例会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 最近連絡が取れていないため状況確認。就活も終わっている時期なので稼働可能性を確認
+- 期限: 今週中
+
+---
+task_id: T-2512-045
+title: 矢島案件の提案営業と契約締結
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: null
+tags: [営業, 契約, 案件管理]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-16_tech-knight-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-16 Tech Knight定例会議から抽出
+- 担当: 佐藤圭吾
+- 背景: YKが提案書作成後、佐藤が営業・契約を責任を持って進める
+- 期限: 提案書完成後速やかに
+
+---
+task_id: T-2512-046
+title: 宮島案件の新規引き合いへメール返信とアポ設定
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: highest
+due: 2025-12-21
+tags: [営業, 新規案件, アポイント]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-18_smart-front-voice-latency-improvement.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 スマートフロント会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 宮島氏（化学系大手企業）から突然電話連絡があり新規ミーティング打診。早急にメール返信しアポイント設定が必要
+- 期限: 至急
+
+---
+task_id: T-2512-047
+title: GuardDuty等の監視ツール設定調査・通知フロー整備
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-20
+tags: [security, monitoring, guardduty]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-13_security-incident-postmortem-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-13 セキュリティインシデント事後レビューから抽出
+- 担当: 佐藤圭吾
+- 背景: 今回のインシデントで自社監視システムが検知できなかった。既存監視ツールで検知可能な設定を調査し、通知フローを整備。隠しフォルダー監視の要否も含めて検討
+- 期限: 今週中
+
+---
+task_id: T-2512-048
+title: 他システム被害状況のレポート化
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-20
+tags: [security, report, vulnerability]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-13_security-incident-postmortem-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-13 セキュリティインシデント事後レビューから抽出
+- 担当: 佐藤圭吾
+- 背景: 他システムも同じ脆弱性でやられている情報を記事・レポートとしてまとめる。「自社だけが狙われたわけではない」という文脈を示す
+- 期限: 今週中
+
+---
+task_id: T-2512-049
+title: OSクリーンインストール計画策定
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-19
+tags: [security, infrastructure, planning]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-13_security-incident-postmortem-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-13 セキュリティインシデント事後レビューから抽出
+- 担当: 佐藤圭吾
+- 背景: OSクリーンインストール計画を策定。対象範囲（隠しフォルダー、アプリケーション内部）と所要時間を明確化し、定石と相談してスケジューリング
+- 期限: 16日・19日の報告前（期限切れの可能性）
+
+---
+task_id: T-2512-050
+title: VPCフローログ等ログ設定実施・チェックリスト作成
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-25
+tags: [security, logging, vpc]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-13_security-incident-postmortem-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-13 セキュリティインシデント事後レビューから抽出
+- 担当: 佐藤圭吾
+- 背景: VPCフローログ、WAFログ、RDSクエリログ等のベストプラクティスに基づくログ設定を実施。設定チェックリストを作成
+- 期限: OSクリーンインストール時まで
+
+---
+task_id: T-2512-051
+title: 松さんへの説明用ドキュメント作成・会議設定
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-23
+tags: [documentation, meeting, dialogai]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-13_security-incident-postmortem-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-13 セキュリティインシデント事後レビューから抽出
+- 担当: 佐藤圭吾
+- 背景: 松さんへの説明用ドキュメント作成とスケジュール調整。Dialog AI追加開発のタイミングについて作成会議を設定
+- 期限: 来週まで
+
+---
+task_id: T-2512-052
+title: EC2インスタンスのVM再構築作業
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: critical
+due: 2025-12-25
+tags: [security, infrastructure, ec2]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-recovery-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応・復旧計画会議から抽出
+- 担当: 佐藤圭吾
+- 背景: セキュリティインシデント対応として、EC2インスタンスのVM自体を完全に再構築する。作業期間は最大1週間
+- 期限: 12/25まで
+
+---
+task_id: T-2512-053
+title: 他保守担当者の情報提供（バイネーム・誓約書）
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-20
+tags: [security, personnel, contract]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-recovery-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応・復旧計画会議から抽出
+- 担当: 佐藤圭吾
+- 背景: セキュアファット払い出しのため、他保守担当者のバイネーム情報提供と誓約書取り交わしが必要
+- 期限: 今週中
+
+---
+task_id: T-2512-054
+title: トマスさん向けインシデント報告資料作成
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [security, documentation, reporting]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-recovery-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応・復旧計画会議から抽出
+- 担当: 佐藤圭吾
+- 背景: トマスさんへのインシデント報告資料を作成。図解を含む短時間で理解できる形式で準備
+- 期限: 来週中
+
+---
+task_id: T-2512-055
+title: 保守体制・フロー案を保守契約提案書に反映
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [contract, documentation, maintenance]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-recovery-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応・復旧計画会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 保守体制とフロー案の情報を次期保守契約提案書に反映
+- 期限: 来週中
+
+---
+task_id: T-2512-056
+title: 短期対応完了の安全宣言LINE報告（期限切れ）
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-17
+tags: [security, reporting, communication]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-17_quick-response-communication-issue.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-17 クイックレスポンス会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 短期対応が完了して安全宣言を出せる状態かどうかをLINEで大槻氏に報告
+- 期限: 12/17 18時半まで（期限切れ）
+- 注記: 期限切れの可能性あり。既に対応済みかステータス確認が必要
+
+---
+task_id: T-2512-057
+title: ダイアログ追加開発パワポ資料送付
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: highest
+due: 2025-12-21
+tags: [documentation, dialogai, communication]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-17_quick-response-communication-issue.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-17 クイックレスポンス会議から抽出
+- 担当: 佐藤圭吾
+- 背景: ダイアログ追加開発のパワポ資料（修正版）を大槻氏に送付
+- 期限: 至急（12/17時点）
+
+---
+task_id: T-2512-058
+title: 保守対応品質基準（SLA相当）作成
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-19
+tags: [contract, sla, documentation]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-17_quick-response-communication-issue.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-17 クイックレスポンス会議から抽出
+- 担当: 佐藤圭吾
+- 背景: クライアント側が求める保守対応の品質基準（SLA相当）を作成して提出
+- 期限: 明日か明後日（12/18-19）
+- 注記: 期限切れの可能性あり。ステータス確認が必要
+
+---
+task_id: T-2512-059
+title: RAゲートウェイの技術的制約（SSM利用）を八田氏へ説明
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-18
+tags: [security, infrastructure, ra-gateway, ssm]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-progress-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応進捗レビュー会議から抽出
+- 担当: 佐藤圭吾
+- 背景: RAゲートウェイの接続問題に関し、ネットワーク遮断下でのOSクリーンインストールにはSSM利用が必要という技術的制約を小川氏の報告に追記し、八田氏へ説明する
+- 期限: 今日中（12/18）
+- 注記: 期限切れの可能性あり。ステータス確認が必要
+
+---
+task_id: T-2512-060
+title: 畑氏への依頼事項回答を五月雨式で送付開始
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-22
+tags: [security, communication, reporting]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-progress-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応進捗レビュー会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 畑氏からの依頼事項に対して、回答可能な項目から五月雨式（一度にまとめてではなく順次）で回答を送付する。畑氏が一つずつ咀嚼する時間を確保するための配慮
+- 期限: 今日中から順次（12/18-22）
+- 注記: 開始期限は過ぎているが、順次対応のため継続確認が必要
+
+---
+task_id: T-2512-061
+title: 標準細則の遵守状況整理と説明ロジック作成・畑氏へ回答
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-18
+tags: [security, compliance, documentation]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-progress-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応進捗レビュー会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 契約書記載の標準細則に対する遵守状況を整理。特にログ保存期間（標準2年、現状30日）とRAゲートウェイ未導入について、技術アーキテクチャ改定の時系列を含む説明ロジックを作成し畑氏へ回答
+- 期限: 今日中（12/18）
+- 注記: 期限切れの可能性あり。ステータス確認が必要
+
+---
+task_id: T-2512-062
+title: 岡田氏からの脆弱性関連チャット確認・回答
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-18
+tags: [security, vulnerability, communication]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-progress-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応進捗レビュー会議から抽出
+- 担当: 佐藤圭吾
+- 背景: SS担当の岡田氏から脆弱性15件の未対応、EDR/ITU-T/ISMP連携状況、セキュリティアクセス接続問題に関するチャットを確認し回答。30日以内対応要請あり、回答を怠ると組織長レベルまでエスカレーションされるリスクあり
+- 期限: 今日中（12/18、優先度4番目）
+- 注記: 期限切れの可能性あり。ステータス確認が必要
+
+---
+task_id: T-2512-063
+title: 戸松報告資料たたき台作成（構成図・攻撃箇所一枚紙）
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-23
+tags: [security, documentation, reporting]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-progress-review.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+- 2025-12-18 インシデント対応進捗レビュー会議から抽出
+- 担当: 佐藤圭吾
+- 背景: 戸松氏への報告用に、システム構成図と攻撃箇所を示した一枚紙のたたき台を作成。小川氏と連携しながら進める
+- 期限: 12/23午後の打ち合わせまで
+- 注記: T-2512-054（トマスさん向けインシデント報告資料）と重複する可能性あり。同じ資料を指している可能性を確認推奨
+
+---
+task_id: T-2512-064
+title: 小松原案件の技術重複部分を整理し対応方針決定
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-31
+tags: [案件管理, IP権利問題, 技術調整]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-12_tech-ip-rights-discussion.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+小松原案件で指摘された技術的な重複部分（音声認識、GPT統合、カスタマイズ性）について整理し、Tech Knight側の対応方針を決定する。
+
+
+---
+task_id: T-2512-065
+title: 小松原氏への返信メール作成
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [案件管理, コミュニケーション]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-12_tech-ip-rights-discussion.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+小松原案件の技術重複問題について、整理した内容をもとに返信メールを作成し送付する。
+
+
+---
+task_id: T-2512-066
+title: 契約書フォーマット完成と確認
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2026-01-10
+tags: [契約, ドキュメント整備]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+契約書の雛形フォーマットを完成させ、関係者に確認をもらう。1月上旬までに完了させる。
+
+
+---
+task_id: T-2512-067
+title: ChatGPTプラグイン版チャットボット作成
+project_id: tech-knight
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-31
+tags: [開発, プロトタイプ, ChatGPT]
+links: [/Users/ksato/workspace/tech-knight/meetings/minutes/2025-12-09_unsonos-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+ChatGPTのプラグイン版を活用したチャットボットを作成する。12月中に完了させる。
+
+
+---
+task_id: T-2512-068
+title: Senriganインスタンスのログ設定確認と最大保持期間設定
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [インフラ, セキュリティ, ログ管理]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-10_kaneta-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+Senriganインスタンスのログ設定を確認し、最大保持期間（2年以上推奨）を設定する。今週中に完了。
+
+
+---
+task_id: T-2512-069
+title: Senriganドキュメント整備開始
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-31
+tags: [ドキュメント, 運用整備]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-10_kaneta-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+Senriganプロジェクト用のドキュメント整備を開始する。README、運用手順書などを含む。
+
+
+---
+task_id: T-2512-070
+title: Google Drive運用ルールに従ったフォルダ構成整理
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-27
+tags: [運用整備, Google Drive]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-10_kaneta-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+brainbase運用ルールに従って、SenriganプロジェクトのGoogle Driveフォルダ構成を整理する。今週中に完了。
+
+
+---
+task_id: T-2512-071
+title: GitHubリポジトリREADME整備とIssue/PR運用開始
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-31
+tags: [GitHub, 運用整備, ドキュメント]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-10_kaneta-regular-meeting.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+SenriganのGitHubリポジトリにREADMEを整備し、Issue/PRによる開発運用を開始する。継続的に実施。
+
+
+---
+task_id: T-2512-072
+title: 既存顧客リストと価値訴求ポイント洗い出し
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [営業戦略, 顧客管理]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-05_pricing-strategy-agency-revenue-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+既存顧客リストと利用状況を整理し、Senriganの価値訴求ポイント（既存サービスとの差別化要因）を洗い出す。今週中に完了。
+
+
+---
+task_id: T-2512-073
+title: 採算ライン価格表作成と代理店資料反映
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [価格戦略, 営業資料]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-05_pricing-strategy-agency-revenue-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+採算ラインを踏まえた価格表（小規模10万円/月、中規模30万円/月、大規模50万円/月）を作成し、代理店用資料に反映する。今週中に完了。
+
+
+---
+task_id: T-2512-074
+title: 代理店向けセールス資料整備と説明会アジェンダ策定
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2026-01-03
+tags: [営業戦略, 代理店管理, セールス資料]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-05_pricing-strategy-agency-revenue-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+代理店向けのセールス資料（価格表、機能一覧、サポート体制）を整備し、代理店説明会のアジェンダを策定する。来週まで。
+
+
+---
+task_id: T-2512-075
+title: 収益事業者プラン詳細設計とマネタイズフロー明確化
+project_id: senrigan
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [ビジネスモデル, マネタイズ戦略]
+links: [/Users/ksato/workspace/senrigan/meetings/minutes/2025-12-05_pricing-strategy-agency-revenue-plan.md]
+source: meeting
+created_at: "2025-12-20T00:00:00.000Z"
+requester: 佐藤圭吾
+---
+
+収益事業者プラン（レベニューシェア型・成功報酬連動型）の詳細設計を行い、マネタイズフローを明確化する。今週中に完了。
+
