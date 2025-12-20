@@ -3,6 +3,20 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-20-MJEU1CWL
+channel: D093MBQFRAS
+sender: undefined
+timestamp: 1766267448.000200
+status: pending
+---
+
+### 06:50 | #D093MBQFRAS | undefined
+
+undefined
+
+[Slack](https://unson-inc.slack.com/archives/D093MBQFRAS/p1766267448000200)
+
+---
 id: INBOX-2025-12-20-MJETSBIC
 channel: D093MBQFRAS
 sender: undefined
