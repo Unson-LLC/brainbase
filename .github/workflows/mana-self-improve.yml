@@ -232,13 +232,81 @@ jobs:
           Generated with [Claude Code](https://claude.com/claude-code)" \
             --base main
 
-      - name: Upload evaluation report
+      - name: Upload evaluation report to S3
+        if: steps.check.outputs.skip != 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          TARGET_DATE: ${{ steps.date.outputs.date }}
+        run: |
+          if [ -f "$WORK_DIR/judge/report.json" ]; then
+            # Upload to S3 for long-term storage and visualization
+            aws s3 cp "$WORK_DIR/judge/report.json" \
+              "s3://brainbase-context-593793022993/mana/quality-reports/${TARGET_DATE}.json" \
+              --content-type "application/json"
+            echo "✅ Report uploaded to S3"
+          else
+            echo "⚠️ No report.json found"
+          fi
+
+      - name: Upload evaluation report (artifact)
         if: steps.check.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: evaluation-report-${{ steps.date.outputs.date }}
           path: ${{ env.WORK_DIR }}/judge/report.json
           if-no-files-found: ignore
+
+      - name: Notify Slack with evaluation summary
+        if: steps.check.outputs.skip != 'true'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          TARGET_DATE: ${{ steps.date.outputs.date }}
+        run: |
+          if [ -f "$WORK_DIR/judge/report.json" ]; then
+            # Parse report for summary
+            SUMMARY=$(cat "$WORK_DIR/judge/report.json" | jq -r '
+              "📊 *mana品質評価レポート* (\(.date))\n\n" +
+              "評価済み会話数: \(.total_conversations)\n" +
+              "平均スコア:\n" +
+              "  • 有用性: \(.average_scores.usefulness // "N/A")/5.0\n" +
+              "  • 正確性: \(.average_scores.accuracy // "N/A")/5.0\n" +
+              "  • 簡潔性: \(.average_scores.conciseness // "N/A")/5.0\n" +
+              "  • トーン: \(.average_scores.tone // "N/A")/5.0\n\n" +
+              if (.changes_made | length) > 0 then
+                "🔧 改善実施: \(.changes_made | join(", "))"
+              else
+                "✅ 改善不要（全てスコア4以上）"
+              end
+            ' 2>/dev/null || echo "レポート解析失敗")
+
+            if [ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_CHANNEL_ID" ]; then
+              curl -sS -X POST https://slack.com/api/chat.postMessage \
+                -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+                -H 'Content-type: application/json; charset=utf-8' \
+                --data "$(jq -n --arg channel "$SLACK_CHANNEL_ID" --arg text "$SUMMARY" '{channel:$channel,text:$text}')"
+              echo "✅ Slack notification sent"
+            fi
+          fi
+
+      - name: Deploy dashboard to S3
+        if: steps.check.outputs.skip != 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        working-directory: ${{ env.MANA_PATH }}
+        run: |
+          if [ -f "dashboard/quality-dashboard.html" ]; then
+            aws s3 cp dashboard/quality-dashboard.html \
+              "s3://brainbase-context-593793022993/mana/dashboard/index.html" \
+              --content-type "text/html" \
+              --cache-control "no-cache"
+            echo "✅ Dashboard deployed to S3"
+            echo "📊 Dashboard URL: https://brainbase-context-593793022993.s3.us-east-1.amazonaws.com/mana/dashboard/index.html"
+          fi
 
       - name: Cleanup
         if: always()

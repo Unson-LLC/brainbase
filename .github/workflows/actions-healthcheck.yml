@@ -87,6 +87,7 @@ jobs:
           LAMBDA_FUNCTIONS="mana mana-salestailor mana-techknight"
           SINCE_MINUTES=30
           LAMBDA_ERRORS=""
+          TOOL_ERROR_SUMMARY=""
 
           for fn in $LAMBDA_FUNCTIONS; do
             echo "Checking $fn..."
@@ -96,6 +97,25 @@ jobs:
 
             # Check for error patterns
             ERROR_LINES=$(echo "$LOGS" | grep -iE "ERROR|Exception|SyntaxError|Runtime\..*Error" | head -5 || echo "")
+
+            # Count tool-specific errors
+            TOOL_ERRORS=$(echo "$LOGS" | grep -i "tool.*error\|failed to execute\|search.*error\|source-code.*error" || echo "")
+            TOOL_ERROR_COUNT=$(echo "$TOOL_ERRORS" | grep -v "^$" | wc -l | tr -d ' ')
+
+            # Count total tool invocations
+            TOOL_INVOCATIONS=$(echo "$LOGS" | grep -iE "\[.*tool\]|\[source-code\]|\[search\]" || echo "")
+            TOOL_INVOCATION_COUNT=$(echo "$TOOL_INVOCATIONS" | grep -v "^$" | wc -l | tr -d ' ')
+
+            # Calculate error rate
+            if [ "$TOOL_INVOCATION_COUNT" -gt 0 ]; then
+              ERROR_RATE=$(awk "BEGIN {printf \"%.1f\", ($TOOL_ERROR_COUNT / $TOOL_INVOCATION_COUNT) * 100}")
+              TOOL_ERROR_SUMMARY+="📊 $fn: ${TOOL_ERROR_COUNT}/${TOOL_INVOCATION_COUNT} errors (${ERROR_RATE}%)\n"
+
+              # Alert if error rate > 5%
+              if (( $(echo "$ERROR_RATE > 5.0" | bc -l) )); then
+                LAMBDA_ERRORS+="⚠️ $fn ツールエラー率: ${ERROR_RATE}% (目標: <5%)\n"
+              fi
+            fi
 
             if [ -n "$ERROR_LINES" ]; then
               LAMBDA_ERRORS+="🔴 Lambda $fn:\n"
@@ -119,6 +139,13 @@ jobs:
             echo "All Lambda functions healthy (last ${SINCE_MINUTES}m)"
           fi
 
+          # Output tool error summary
+          if [ -n "$TOOL_ERROR_SUMMARY" ]; then
+            echo "tool_error_summary<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$TOOL_ERROR_SUMMARY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
       - name: Notify Slack (issues or runners or Lambda errors)
         if: steps.check.outputs.has_issues == 'true' || steps.lambda-check.outputs.has_lambda_errors == 'true'
         env:
@@ -128,11 +155,13 @@ jobs:
           ISSUES_TEXT: ${{ steps.check.outputs.issues_text }}
           RUNNER_TEXT: ${{ steps.check.outputs.runner_text }}
           LAMBDA_ERRORS_TEXT: ${{ steps.lambda-check.outputs.lambda_errors }}
+          TOOL_ERROR_SUMMARY: ${{ steps.lambda-check.outputs.tool_error_summary }}
         run: |
           text="[brainbase Healthcheck]\n"
           [ -n "$ISSUES_TEXT" ] && text+="❌ Failed workflows (12h):\n$ISSUES_TEXT\n"
           [ -n "$RUNNER_TEXT" ] && text+="⚠️ Offline self-hosted runners:\n$RUNNER_TEXT\n"
           [ -n "$LAMBDA_ERRORS_TEXT" ] && text+="🔴 Lambda errors (30m):\n$LAMBDA_ERRORS_TEXT\n"
+          [ -n "$TOOL_ERROR_SUMMARY" ] && text+="📊 Tool Error Rates (30m):\n$TOOL_ERROR_SUMMARY\n"
 
           if [ -n "$SLACK_BOT_TOKEN" ] && [ -n "$SLACK_CHANNEL_ID" ]; then
             curl -sS -X POST https://slack.com/api/chat.postMessage \
