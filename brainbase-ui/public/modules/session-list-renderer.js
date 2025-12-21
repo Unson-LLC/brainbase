@@ -17,11 +17,11 @@ export function renderSessionRowHTML(session, options = {}) {
   const hasWorktree = !!session.worktree;
   const engine = session.engine || 'claude';
   const activeClass = isActive ? ' active' : '';
-  const archivedClass = session.archived ? ' archived' : '';
+  const archivedClass = session.intendedState === 'archived' ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
 
-  // ttydRunning: false かつ archived: false の場合は「停止中」状態
-  const needsRestart = !session.archived && session.ttydRunning === false;
+  // runtimeStatus.needsRestart を使って停止中状態を判定
+  const needsRestart = session.runtimeStatus?.needsRestart || false;
   const stoppedClass = needsRestart ? ' stopped' : '';
 
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
@@ -34,20 +34,25 @@ export function renderSessionRowHTML(session, options = {}) {
 
   // ステータスラベル
   let statusLabel = '';
-  if (session.archived) {
+  if (session.intendedState === 'archived') {
     statusLabel = '<span class="archived-label">(Archived)</span>';
   } else if (needsRestart) {
     statusLabel = '<span class="stopped-label">(Stopped)</span>';
   }
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
-  const mergeButton = hasWorktree && !session.archived
+  const mergeButton = hasWorktree && session.intendedState !== 'archived'
     ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>'
     : '';
 
   // 復元ボタン: ttyd停止中の場合に表示
   const restartButton = needsRestart
     ? '<button class="restart-session-btn" title="Restart terminal"><i data-lucide="play"></i></button>'
+    : '';
+
+  // 停止ボタン: アクティブでttyd起動中の場合に表示
+  const stopButton = session.intendedState === 'active' && session.runtimeStatus?.ttydRunning
+    ? '<button class="stop-session-btn" title="Stop terminal"><i data-lucide="square"></i></button>'
     : '';
 
   return `
@@ -62,11 +67,12 @@ export function renderSessionRowHTML(session, options = {}) {
       <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
       <div class="child-actions">
         ${restartButton}
+        ${stopButton}
         ${mergeButton}
         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
         <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
-        <button class="archive-session-btn" title="${session.archived ? 'Unarchive' : 'Archive'}">
-          <i data-lucide="${session.archived ? 'archive-restore' : 'archive'}"></i>
+        <button class="archive-session-btn" title="${session.intendedState === 'archived' ? 'Unarchive' : 'Archive'}">
+          <i data-lucide="${session.intendedState === 'archived' ? 'archive-restore' : 'archive'}"></i>
         </button>
       </div>
     </div>

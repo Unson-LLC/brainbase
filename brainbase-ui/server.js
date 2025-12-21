@@ -91,7 +91,19 @@ let sessionHookStatus = new Map(); // sessionId -> { status: 'working'|'done', t
 let nextPort = 3001;
 
 // Initialize State Store
-stateStore.init();
+(async () => {
+    await stateStore.init();
+
+    // Restore hookStatus from persisted state
+    const state = stateStore.get();
+    if (state.sessions) {
+        state.sessions.forEach(session => {
+            if (session.hookStatus) {
+                sessionHookStatus.set(session.id, session.hookStatus);
+            }
+        });
+    }
+})();
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
@@ -230,11 +242,22 @@ app.post('/api/restart', (req, res) => {
 app.get('/api/state', (req, res) => {
     const state = stateStore.get();
 
-    // Add ttyd running status to each session
-    const sessionsWithStatus = (state.sessions || []).map(session => ({
-        ...session,
-        ttydRunning: activeSessions.has(session.id)
-    }));
+    // Add runtime status to each session
+    const sessionsWithStatus = (state.sessions || []).map(session => {
+        const ttydRunning = activeSessions.has(session.id);
+        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+
+        return {
+            ...session,
+            // 後方互換性のためttydRunningも残す（将来削除予定）
+            ttydRunning,
+            // 新しいruntimeStatus
+            runtimeStatus: {
+                ttydRunning,
+                needsRestart
+            }
+        };
+    });
 
     res.json({
         ...state,
@@ -243,7 +266,17 @@ app.get('/api/state', (req, res) => {
 });
 
 app.post('/api/state', async (req, res) => {
-    const newState = await stateStore.update(req.body);
+    // Remove computed fields from sessions before persisting
+    const sanitizedState = {
+        ...req.body,
+        sessions: (req.body.sessions || []).map(session => {
+            // Remove runtime-only fields
+            const { ttydRunning, runtimeStatus, ...persistentFields } = session;
+            return persistentFields;
+        })
+    };
+
+    const newState = await stateStore.update(sanitizedState);
     res.json(newState);
 });
 
@@ -363,17 +396,26 @@ app.post('/api/open-file', async (req, res) => {
 });
 
 // Endpoint for hooks to report activity
-app.post('/api/sessions/report_activity', (req, res) => {
+app.post('/api/sessions/report_activity', async (req, res) => {
     const { sessionId, status } = req.body;
     if (!sessionId || !status) {
         return res.status(400).json({ error: 'Missing sessionId or status' });
     }
 
     console.log(`[Hook] Received status update from ${sessionId}: ${status}`);
-    sessionHookStatus.set(sessionId, {
+    const hookStatus = {
         status,
         timestamp: Date.now()
-    });
+    };
+
+    sessionHookStatus.set(sessionId, hookStatus);
+
+    // Persist to state.json
+    const currentState = stateStore.get();
+    const updatedSessions = currentState.sessions.map(session =>
+        session.id === sessionId ? { ...session, hookStatus } : session
+    );
+    await stateStore.update({ sessions: updatedSessions });
 
     res.json({ success: true });
 });
@@ -1123,7 +1165,8 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
                 repo: repoPath,
                 branch: branchName
             },
-            archived: false,
+            intendedState: 'active',
+            hookStatus: null,
             created: new Date().toISOString()
         };
 
@@ -1332,7 +1375,7 @@ app.post('/api/sessions/:id/archive', async (req, res) => {
     const updatedSessions = state.sessions.map(s =>
         s.id === id ? {
             ...s,
-            archived: true,
+            intendedState: 'archived',
             // Keep worktree.repo for restore, but mark as removed
             worktree: s.worktree ? { ...s.worktree, removed: true } : null
         } : s
@@ -1354,7 +1397,7 @@ app.post('/api/sessions/:id/restore', async (req, res) => {
         return res.status(404).json({ error: 'Session not found' });
     }
 
-    if (!session.archived) {
+    if (session.intendedState !== 'archived') {
         // Check if ttyd is already running
         if (activeSessions.has(id)) {
             return res.json({
@@ -1453,7 +1496,7 @@ app.post('/api/sessions/:id/restore', async (req, res) => {
 
         // Update session state
         const updatedSessions = state.sessions.map(s =>
-            s.id === id ? { ...s, archived: false } : s
+            s.id === id ? { ...s, intendedState: 'active' } : s
         );
         await stateStore.update({ sessions: updatedSessions });
 
@@ -1485,6 +1528,13 @@ app.post('/api/sessions/:id/stop', async (req, res) => {
     const stopped = await stopTtydProcess(id);
 
     if (stopped) {
+        // Update intendedState to 'stopped'
+        const currentState = stateStore.get();
+        const updatedSessions = currentState.sessions.map(session =>
+            session.id === id ? { ...session, intendedState: 'stopped' } : session
+        );
+        await stateStore.update({ sessions: updatedSessions });
+
         res.json({ success: true, message: `ttyd process for ${id} stopped` });
     } else {
         res.json({ success: false, message: `No active ttyd process found for ${id}` });

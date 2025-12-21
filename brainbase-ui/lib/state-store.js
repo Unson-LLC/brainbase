@@ -27,15 +27,36 @@ export class StateStore {
             const content = await fs.readFile(this.stateFilePath, 'utf-8');
             const loadedState = JSON.parse(content);
             this.state = { ...this.state, ...loadedState };
-            
+
             // Migration: Ensure default sessions have paths and new defaults are added
             if (this.state.sessions) {
-                // 1. Update existing sessions with paths
+                // 1. Migrate to new schema (intendedState, hookStatus)
                 this.state.sessions = this.state.sessions.map(session => {
+                    // Add intendedState if missing
+                    if (!session.intendedState) {
+                        if (session.archived) {
+                            session.intendedState = 'archived';
+                        } else {
+                            // Default to stopped for existing sessions
+                            session.intendedState = 'stopped';
+                        }
+                    }
+
+                    // Remove computed fields (should not be persisted)
+                    delete session.ttydRunning;
+                    delete session.runtimeStatus;
+
+                    // Add hookStatus if missing
+                    if (!session.hookStatus) {
+                        session.hookStatus = null;
+                    }
+
+                    // Update paths for default sessions
                     const defaultSession = this.defaultSessions.find(ds => ds.id === session.id);
                     if (defaultSession && !session.path) {
-                        return { ...session, path: defaultSession.path };
+                        session.path = defaultSession.path;
                     }
+
                     return session;
                 });
 
@@ -46,6 +67,9 @@ export class StateStore {
                         this.state.sessions.push(defaultSession);
                     }
                 });
+
+                // 3. Persist migrated state
+                await this.persist();
             } else {
                 this.state.sessions = this.defaultSessions;
             }

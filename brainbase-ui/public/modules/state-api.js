@@ -20,14 +20,30 @@ export async function fetchState() {
 }
 
 /**
+ * セッションからcomputed fieldsを除去
+ * @param {Object} session - セッション
+ * @returns {Object} - サニタイズされたセッション
+ */
+function sanitizeSession(session) {
+  const { ttydRunning, runtimeStatus, ...persistentFields } = session;
+  return persistentFields;
+}
+
+/**
  * 状態を保存
  * @param {Object} state - 保存する状態
  */
 export async function saveState(state) {
+  // Remove computed fields from sessions before saving
+  const sanitizedState = {
+    ...state,
+    sessions: (state.sessions || []).map(sanitizeSession)
+  };
+
   await fetch(STATE_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(state)
+    body: JSON.stringify(sanitizedState)
   });
 }
 

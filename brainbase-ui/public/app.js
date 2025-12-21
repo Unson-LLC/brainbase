@@ -671,11 +671,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                 }
 
+                // Stop Logic (ttyd起動中セッションの停止)
+                const stopBtn = childRow.querySelector('.stop-session-btn');
+                if (stopBtn) {
+                    stopBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        try {
+                            showInfo(`「${displayName}」のターミナルを停止中...`);
+                            const response = await fetch(`/api/sessions/${session.id}/stop`, {
+                                method: 'POST'
+                            });
+                            const result = await response.json();
+                            if (result.success) {
+                                showSuccess(`「${displayName}」のターミナルを停止しました`);
+                                await loadSessions();
+                            } else {
+                                showError(`停止失敗: ${result.message}`);
+                            }
+                        } catch (err) {
+                            console.error('Failed to stop session', err);
+                            showError('ターミナルの停止に失敗しました');
+                        }
+                    };
+                }
+
                 // Archive Logic (with worktree merge check)
                 const archiveBtn = childRow.querySelector('.archive-session-btn');
                 archiveBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    const newArchivedState = !session.archived;
+                    const newArchivedState = session.intendedState !== 'archived';
 
                     if (newArchivedState) {
                         // Archiving - use imported archiveSessionAPI and mergeSession
