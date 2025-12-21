@@ -2918,6 +2918,71 @@ body {
         max-width: none;
     }
 
+    /* Mobile Software Keyboard */
+    .mobile-keyboard {
+        display: none; /* Hidden by default */
+        position: fixed;
+        bottom: 60px; /* Above bottom nav */
+        left: 0;
+        right: 0;
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+        padding: 12px;
+        gap: 8px;
+        justify-content: center;
+        align-items: center;
+        z-index: 900;
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .mobile-keyboard.visible {
+        display: flex;
+    }
+
+    .keyboard-key {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        min-width: 60px;
+        height: 48px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .keyboard-key:active {
+        transform: scale(0.95);
+        background: var(--bg-tertiary);
+    }
+
+    .keyboard-key i {
+        width: 20px;
+        height: 20px;
+    }
+
+    .keyboard-key-primary {
+        background: var(--accent-color);
+        color: white;
+        flex-grow: 1;
+        max-width: 120px;
+    }
+
+    .keyboard-key-primary:active {
+        background: #2563eb;
+    }
+
+    .key-label {
+        font-size: 12px;
+        font-weight: 600;
+    }
+
     /* Tap targets - minimum 44px */
     .icon-btn,
     .session-child-row,

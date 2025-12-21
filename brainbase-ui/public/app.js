@@ -1865,6 +1865,79 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // --- Mobile Software Keyboard ---
+    const mobileKeyboard = document.getElementById('mobile-keyboard');
+
+    // Helper function to send key to terminal
+    async function sendKeyToTerminal(keyName) {
+        if (!currentSessionId) {
+            showInfo('セッションを選択してください');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: keyName, type: 'key' })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                showError(errorData.error || `キー送信に失敗しました (${res.status})`);
+            }
+        } catch (err) {
+            console.error(`Error sending ${keyName} key:`, err);
+            showError('キーの送信中にエラーが発生しました');
+        }
+    }
+
+    // Keyboard button: Up arrow
+    const keyUpBtn = document.getElementById('key-up');
+    if (keyUpBtn) {
+        keyUpBtn.onclick = () => sendKeyToTerminal('Up');
+    }
+
+    // Keyboard button: Down arrow
+    const keyDownBtn = document.getElementById('key-down');
+    if (keyDownBtn) {
+        keyDownBtn.onclick = () => sendKeyToTerminal('Down');
+    }
+
+    // Keyboard button: Tab
+    const keyTabBtn = document.getElementById('key-tab');
+    if (keyTabBtn) {
+        keyTabBtn.onclick = () => sendKeyToTerminal('Tab');
+    }
+
+    // Keyboard button: Enter
+    const keyEnterBtn = document.getElementById('key-enter');
+    if (keyEnterBtn) {
+        keyEnterBtn.onclick = () => sendKeyToTerminal('Enter');
+    }
+
+    // Show keyboard when choices are detected
+    // We'll detect choices by looking for specific patterns in terminal output
+    let lastTerminalContent = '';
+
+    function checkForChoices() {
+        const terminalContent = terminalOutput?.textContent || '';
+
+        // Detect if content contains choice prompts (like numbered options or arrows)
+        const hasChoices = /[>?]\s*\d+[).:]|^[\s]*[▸►>]\s/m.test(terminalContent);
+
+        if (hasChoices && !lastTerminalContent.includes(terminalContent)) {
+            mobileKeyboard?.classList.add('visible');
+        } else if (!hasChoices) {
+            mobileKeyboard?.classList.remove('visible');
+        }
+
+        lastTerminalContent = terminalContent;
+    }
+
+    // Check for choices periodically
+    setInterval(checkForChoices, 500);
+
     // Close modal on Escape
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && copyTerminalModal?.classList.contains('active')) {
