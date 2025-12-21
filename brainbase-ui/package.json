@@ -1,6 +1,6 @@
 {
   "name": "brainbase-ui",
-  "version": "0.1.58",
+  "version": "0.1.35",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,7 +24,6 @@
     "@playwright/test": "^1.57.0",
     "@vitest/coverage-v8": "^4.0.15",
     "jsdom": "^27.3.0",
-    "supertest": "^7.1.4",
-    "vitest": "^4.0.15"
+    "vitest": "^4.0.16"
   }
 }
