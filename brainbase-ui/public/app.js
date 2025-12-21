@@ -1800,12 +1800,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobileFab = document.getElementById('mobile-fab');
     const mobileFabOverlay = document.getElementById('mobile-fab-overlay');
 
+    console.log('Mobile FAB Speed Dial initialized:', { mobileFabContainer, mobileFab, mobileFabOverlay });
+
     // Toggle FAB menu
     if (mobileFab) {
         mobileFab.onclick = () => {
+            console.log('FAB clicked, toggling menu');
             mobileFabContainer?.classList.toggle('active');
             lucide.createIcons();
         };
+    } else {
+        console.error('mobileFab element not found!');
     }
 
     // Close FAB menu when clicking overlay

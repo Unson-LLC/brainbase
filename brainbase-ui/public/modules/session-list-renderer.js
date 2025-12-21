@@ -20,9 +20,13 @@ export function renderSessionRowHTML(session, options = {}) {
   const archivedClass = session.intendedState === 'archived' ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
 
-  // runtimeStatus.needsRestart を使って停止中状態を判定
+  // runtimeStatus.needsRestart を使って予期しない停止状態を判定
   const needsRestart = session.runtimeStatus?.needsRestart || false;
-  const stoppedClass = needsRestart ? ' stopped' : '';
+  const ttydRunning = session.runtimeStatus?.ttydRunning || false;
+
+  // 意図的な停止状態かどうか
+  const isStopped = session.intendedState === 'stopped' && !ttydRunning;
+  const stoppedClass = (needsRestart || isStopped) ? ' stopped' : '';
 
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
@@ -36,7 +40,7 @@ export function renderSessionRowHTML(session, options = {}) {
   let statusLabel = '';
   if (session.intendedState === 'archived') {
     statusLabel = '<span class="archived-label">(Archived)</span>';
-  } else if (needsRestart) {
+  } else if (isStopped) {
     statusLabel = '<span class="stopped-label">(Stopped)</span>';
   }
 
@@ -45,8 +49,8 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>'
     : '';
 
-  // 復元ボタン: ttyd停止中の場合に表示
-  const restartButton = needsRestart
+  // 再開ボタン: 停止中または予期しない停止の場合に表示
+  const restartButton = (isStopped || needsRestart)
     ? '<button class="restart-session-btn" title="Restart terminal"><i data-lucide="play"></i></button>'
     : '';
 

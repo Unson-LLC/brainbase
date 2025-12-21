@@ -2840,18 +2840,9 @@ body {
         white-space: nowrap;
     }
 
-    /* Console toolbar - more accessible on mobile */
-    /* Phase 2.1: Improve toolbar visibility and usability on mobile */
+    /* Console toolbar - hide on mobile (use Speed Dial FAB instead) */
     .console-toolbar {
-        top: 12px; /* 右上に配置 */
-        bottom: auto;
-        right: 12px;
-        opacity: 1;
-        background: rgba(15, 23, 42, 0.95);
-        backdrop-filter: blur(8px);
-        padding: 8px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        display: none !important;
     }
 
     .console-btn {
