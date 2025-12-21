@@ -1,0 +1,38 @@
+name: Test Slack Token
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - name: Test SLACK_BOT_TOKEN workspace
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        run: |
+          echo "=== Testing SLACK_BOT_TOKEN ==="
+
+          # Check which workspace this token belongs to
+          AUTH_RESULT=$(curl -sS "https://slack.com/api/auth.test" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN")
+
+          echo "Auth test result:"
+          echo "$AUTH_RESULT" | jq '{ok, team, team_id, user}'
+
+          echo ""
+          echo "=== Testing SLACK_CHANNEL_ID: $SLACK_CHANNEL_ID ==="
+
+          # Check if we can access this channel
+          CHANNEL_RESULT=$(curl -sS "https://slack.com/api/conversations.info?channel=$SLACK_CHANNEL_ID" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN")
+
+          echo "Channel info:"
+          echo "$CHANNEL_RESULT" | jq '{ok, error, channel: {id: .channel.id, name: .channel.name}}'
+
+          echo ""
+          echo "=== Channels bot is member of ==="
+          curl -sS "https://slack.com/api/users.conversations?types=public_channel,private_channel" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" | \
+            jq -r '.channels[]? | "\(.id) - \(.name)"'
