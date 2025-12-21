@@ -25,14 +25,14 @@ jobs:
           echo "$CURRENT_VARS" | jq -r '.SLACK_WORKSPACE_ID'
 
           # Update SLACK_BOT_TOKEN with the correct unson workspace token
-          UPDATED_VARS=$(echo "$CURRENT_VARS" | jq --arg token "$SLACK_BOT_TOKEN" '.SLACK_BOT_TOKEN = $token')
+          UPDATED_VARS=$(echo "$CURRENT_VARS" | jq -c --arg token "$SLACK_BOT_TOKEN" '.SLACK_BOT_TOKEN = $token')
 
           # Update Lambda function
           aws lambda update-function-configuration \
             --function-name mana \
             --region us-east-1 \
             --profile k.sato \
-            --environment "Variables=$UPDATED_VARS" \
+            --environment Variables="$UPDATED_VARS" \
             > /dev/null
 
           echo "✅ Updated mana Lambda SLACK_BOT_TOKEN"
