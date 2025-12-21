@@ -513,7 +513,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add new session to project
             headerEl.querySelector('.add-project-session-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
-                createNewSession(project);
+                const targetProject = e.currentTarget.dataset.project;
+                createNewSession(targetProject);
             });
 
             const childrenDiv = document.createElement('div');

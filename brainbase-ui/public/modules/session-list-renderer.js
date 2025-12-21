@@ -99,7 +99,7 @@ export function renderSessionGroupHeaderHTML(project, options = {}) {
     <div class="session-group-header">
       <span class="folder-icon"><i data-lucide="${folderIcon}"></i></span>
       <span class="group-title">${project}</span>
-      <button class="add-project-session-btn" title="New Session in ${project}"><i data-lucide="plus"></i></button>
+      <button class="add-project-session-btn" data-project="${project}" title="New Session in ${project}"><i data-lucide="plus"></i></button>
     </div>
   `;
 }

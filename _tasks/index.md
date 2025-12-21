@@ -24,9 +24,43 @@
 
 ---
 
-# 🔥 最優先タスク（12/19-20対応）
+# 🔥 最優先タスク
 
-（現在なし - Phase 2完了）
+---
+task_id: T-2512-AITLE-001
+title: 女性用風俗利用ユーザーのブログ・SNS調査（第二ターゲット検証）
+project_id: proj_aitle
+status: todo
+owner: k.sato
+priority: high
+due: 2025-12-27
+tags: [research, icp, target-validation, blog-analysis]
+links: ["/Users/ksato/workspace/_codex/projects/techknight/aitle/project.md"]
+source: icp-validation
+created_at: "2025-12-21T12:00:00.000Z"
+requester: k.sato
+---
+
+**目的**: Aitle第二ターゲット候補「女性用風俗利用ユーザー」の実態調査
+
+**調査内容**:
+1. 女性用風俗利用者のブログ・SNS記事を10-20件収集
+2. ラブホテル利用実態の把握（頻度、エリア、ペイン、言及数）
+3. SSW詳細化のための情報整理（誰・状況・ペイン・定量・ジョブ）
+4. 市場規模の推定（可能な範囲で）
+5. プライマリーターゲットとの優先度比較
+
+**成果物**:
+- `_codex/projects/techknight/aitle/research/secondary_target_validation_2025-12.md`
+  - ブログ調査結果まとめ（引用付き）
+  - SSW仮説の検証結果
+  - 市場規模推定
+  - 優先度判定（Phase 1で検証継続 or 保留）
+
+**判断基準**:
+- ✅ 「ラブホテル検索に困っている」言及が10件以上 → Phase 1で検証継続
+- ✅ 市場規模がプライマリーターゲットの30%以上 → 優先度を上げる
+- ❌ 上記を満たさない → 一旦保留
 
 ---
 
