@@ -1,0 +1,61 @@
+name: Update mana Lambda Token
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: self-hosted
+    steps:
+      - name: Update mana Lambda SLACK_BOT_TOKEN
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          echo "=== Updating mana Lambda environment variables ==="
+
+          # Get current environment variables
+          CURRENT_VARS=$(aws lambda get-function-configuration \
+            --function-name mana \
+            --region us-east-1 \
+            --profile k.sato \
+            --query 'Environment.Variables' \
+            --output json)
+
+          echo "Current SLACK_WORKSPACE_ID:"
+          echo "$CURRENT_VARS" | jq -r '.SLACK_WORKSPACE_ID'
+
+          # Update SLACK_BOT_TOKEN with the correct unson workspace token
+          UPDATED_VARS=$(echo "$CURRENT_VARS" | jq --arg token "$SLACK_BOT_TOKEN" '.SLACK_BOT_TOKEN = $token')
+
+          # Update Lambda function
+          aws lambda update-function-configuration \
+            --function-name mana \
+            --region us-east-1 \
+            --profile k.sato \
+            --environment "Variables=$UPDATED_VARS" \
+            > /dev/null
+
+          echo "✅ Updated mana Lambda SLACK_BOT_TOKEN"
+
+          # Verify the update
+          echo ""
+          echo "=== Verifying new token ==="
+          NEW_TOKEN=$(aws lambda get-function-configuration \
+            --function-name mana \
+            --region us-east-1 \
+            --profile k.sato \
+            --query 'Environment.Variables.SLACK_BOT_TOKEN' \
+            --output text)
+
+          AUTH_RESULT=$(curl -sS "https://slack.com/api/auth.test" \
+            -H "Authorization: Bearer $NEW_TOKEN")
+
+          echo "New token workspace:"
+          echo "$AUTH_RESULT" | jq '{ok, team, team_id, user}'
+
+          # Test access to ops channel
+          echo ""
+          echo "=== Testing access to C0A2Q3HKF2B (9991-unson-ops) ==="
+          curl -sS "https://slack.com/api/conversations.info?channel=C0A2Q3HKF2B" \
+            -H "Authorization: Bearer $NEW_TOKEN" | \
+            jq '{ok, error, channel: {id: .channel.id, name: .channel.name}}'
