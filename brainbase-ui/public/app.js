@@ -1718,12 +1718,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 2000);
             } catch (error) {
                 console.error('Failed to copy:', error);
-                // Fallback: select all text
-                const selection = window.getSelection();
-                const range = document.createRange();
-                range.selectNodeContents(terminalContentDisplay);
-                selection.removeAllRanges();
-                selection.addRange(range);
+                // Fallback: select all text and execute copy command
+                try {
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+                    range.selectNodeContents(terminalContentDisplay);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+
+                    // Execute copy command (works on mobile Safari)
+                    const successful = document.execCommand('copy');
+
+                    if (successful) {
+                        copyContentBtn.classList.add('copied');
+                        copyContentBtn.innerHTML = '<i data-lucide="check"></i> コピー完了';
+                        lucide.createIcons();
+
+                        setTimeout(() => {
+                            copyContentBtn.classList.remove('copied');
+                            copyContentBtn.innerHTML = '<i data-lucide="copy"></i> コピー';
+                            lucide.createIcons();
+                        }, 2000);
+                    } else {
+                        showError('コピーに失敗しました。テキストを選択してください。');
+                    }
+
+                    // Clear selection after a brief moment
+                    setTimeout(() => selection.removeAllRanges(), 100);
+                } catch (fallbackError) {
+                    console.error('Fallback copy failed:', fallbackError);
+                    showError('コピーに失敗しました。テキストを長押ししてコピーしてください。');
+                }
             }
         };
     }

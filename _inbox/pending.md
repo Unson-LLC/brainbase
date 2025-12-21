@@ -7,7 +7,7 @@ id: INBOX-2025-12-21-MJF99XCK
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1766293042.687549
-status: pending
+status: done
 ---
 
 ### 13:57 | #cxo | 堀 汐里 / Shiori Hori
@@ -28,7 +28,7 @@ id: INBOX-2025-12-20-MJEWH74U
 channel: D093MBQFRAS
 sender: undefined
 timestamp: 1766271547.000600
-status: pending
+status: done
 ---
 
 ### 07:59 | #D093MBQFRAS | undefined
@@ -42,7 +42,7 @@ id: INBOX-2025-12-20-MJEVLKHL
 channel: D0A5FM8M4Q0
 sender: undefined
 timestamp: 1766270071.000200
-status: pending
+status: done
 ---
 
 ### 07:34 | #D0A5FM8M4Q0 | undefined
@@ -56,7 +56,7 @@ id: INBOX-2025-12-20-MJEVLJBZ
 channel: D093MBQ1DC6
 sender: undefined
 timestamp: 1766270070.000100
-status: pending
+status: done
 ---
 
 ### 07:34 | #D093MBQ1DC6 | undefined
@@ -70,7 +70,7 @@ id: INBOX-2025-12-20-MJEVLI31
 channel: D0A2J617S7M
 sender: undefined
 timestamp: 1766270071.000100
-status: pending
+status: done
 ---
 
 ### 07:34 | #D0A2J617S7M | undefined
@@ -84,7 +84,7 @@ id: INBOX-2025-12-20-MJEVLH57
 channel: D093MBQFRAS
 sender: undefined
 timestamp: 1766270069.000400
-status: pending
+status: done
 ---
 
 ### 07:34 | #D093MBQFRAS | undefined
@@ -98,7 +98,7 @@ id: INBOX-2025-12-20-MJEVETRX
 channel: D093MBQFRAS
 sender: undefined
 timestamp: 1766269759.000300
-status: pending
+status: done
 ---
 
 ### 07:29 | #D093MBQFRAS | undefined
@@ -112,7 +112,7 @@ id: INBOX-2025-12-20-MJEU1CWL
 channel: D093MBQFRAS
 sender: undefined
 timestamp: 1766267448.000200
-status: pending
+status: done
 ---
 
 ### 06:50 | #D093MBQFRAS | undefined
@@ -126,7 +126,7 @@ id: INBOX-2025-12-20-MJETSBIC
 channel: D093MBQFRAS
 sender: undefined
 timestamp: 1766267028.000100
-status: pending
+status: done
 ---
 
 ### 06:43 | #D093MBQFRAS | undefined
@@ -140,7 +140,7 @@ id: INBOX-2025-12-19-MJCN4U5Q
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1766134920.787779
-status: pending
+status: done
 ---
 
 ### 18:02 | #cxo | 堀 汐里 / Shiori Hori
@@ -171,7 +171,7 @@ id: INBOX-2025-12-19-MJCEDG19
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1766120205.815009
-status: pending
+status: done
 ---
 
 ### 13:56 | #9960-back-office | 梅田 遼/Haruka Umeda
@@ -186,7 +186,7 @@ id: INBOX-2025-12-19-MJC80SRJ
 channel: 0021-salestailor-dev
 sender: 渡邊博昭
 timestamp: 1766109537.748059
-status: pending
+status: done
 ---
 
 ### 10:59 | #0021-salestailor-dev | 渡邊博昭
@@ -203,7 +203,7 @@ id: INBOX-2025-12-19-MJC6IA6T
 channel: eng
 sender: 渡邊博昭
 timestamp: 1766106995.629519
-status: pending
+status: done
 ---
 
 ### 10:16 | #eng | 渡邊博昭
@@ -305,7 +305,7 @@ id: INBOX-2025-12-18-MJBBJTT5
 channel: 役員
 sender: 倉本裕太
 timestamp: 1766054998.983949
-status: pending
+status: done
 ---
 
 ### 19:50 | #役員 | 倉本裕太
@@ -320,7 +320,7 @@ id: INBOX-2025-12-18-MJB84GPD
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1766049244.172229
-status: pending
+status: done
 ---
 
 ### 18:14 | #0031-dialogai-dev | 小川未来
@@ -366,7 +366,7 @@ id: INBOX-2025-12-18-MJB6VDDI
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1766047139.489539
-status: pending
+status: done
 ---
 
 ### 17:39 | #0031-dialogai-dev | 小川未来
@@ -381,7 +381,7 @@ id: INBOX-2025-12-17-MJA6DKW4
 channel: smart-front
 sender: 倉本裕太
 timestamp: 1765985843.353839
-status: pending
+status: done
 ---
 
 ### 00:37 | #smart-front | 倉本裕太
@@ -399,7 +399,7 @@ id: INBOX-2025-12-17-MJA16SFR
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765977127.718249
-status: pending
+status: done
 ---
 
 ### 22:12 | #0031-dialogai-dev | 星野 秀弥
@@ -414,7 +414,7 @@ id: INBOX-2025-12-17-MJ9Z4BS9
 channel: hp営業
 sender: 倉本裕太
 timestamp: 1765973656.236349
-status: pending
+status: done
 ---
 
 ### 21:14 | #hp営業 | 倉本裕太
@@ -429,7 +429,7 @@ id: INBOX-2025-12-17-MJ9Z2GN1
 channel: 株式会社techknight
 sender: 倉本裕太
 timestamp: 1765973566.150189
-status: pending
+status: done
 ---
 
 ### 21:12 | #株式会社techknight | 倉本裕太
@@ -444,7 +444,7 @@ id: INBOX-2025-12-17-MJ9WCAOM
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765968986.404979
-status: pending
+status: done
 ---
 
 ### 19:56 | #0031-dialogai-dev | 星野 秀弥
@@ -459,7 +459,7 @@ id: INBOX-2025-12-17-MJ9VNV4P
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1765967847.227389
-status: pending
+status: done
 ---
 
 ### 19:37 | #0031-dialogai-dev | 小川未来
@@ -479,7 +479,7 @@ id: INBOX-2025-12-17-MJ9V17YY
 channel: 0031-dialogai-dev
 sender: 小川未来
 timestamp: 1765966792.545479
-status: pending
+status: done
 ---
 
 ### 19:19 | #0031-dialogai-dev | 小川未来
@@ -577,7 +577,7 @@ id: INBOX-2025-12-17-MJ9SB90A
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765962222.307959
-status: pending
+status: done
 ---
 
 ### 18:03 | #0031-dialogai-dev | 星野 秀弥
@@ -667,7 +667,7 @@ id: INBOX-2025-12-17-MJ9RW3H4
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765961512.061119
-status: pending
+status: done
 ---
 
 ### 17:51 | #0031-dialogai-dev | 星野 秀弥
@@ -750,7 +750,7 @@ id: INBOX-2025-12-17-MJ9RNBR5
 channel: cxo
 sender: 山下大輝
 timestamp: 1765961106.864419
-status: pending
+status: done
 ---
 
 ### 17:45 | #cxo | 山下大輝
@@ -768,7 +768,7 @@ id: INBOX-2025-12-17-MJ9R1AHB
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
 timestamp: 1765960077.855079
-status: pending
+status: done
 ---
 
 ### 17:27 | #0031-dialogai-dev | 星野 秀弥
@@ -841,7 +841,7 @@ id: INBOX-2025-12-17-MJ9OA2CL
 channel: 0012-zeims-board
 sender: 川合秀明 / Hideaki Kawai
 timestamp: 1765955445.215439
-status: pending
+status: done
 ---
 
 ### 16:10 | #0012-zeims-board | 川合秀明 / Hideaki Kawai
@@ -882,7 +882,7 @@ id: INBOX-2025-12-17-MJ9GX6CV
 channel: cxo
 sender: 山下大輝
 timestamp: 1765943088.121159
-status: pending
+status: done
 ---
 
 ### 12:44 | #cxo | 山下大輝
@@ -896,7 +896,7 @@ id: INBOX-2025-12-17-MJ9GAZ4I
 channel: 0031-dialogai-dev
 sender: 金田光平 / Kohei Kaneta
 timestamp: 1765942050.032159
-status: pending
+status: done
 ---
 
 ### 12:27 | #0031-dialogai-dev | 金田光平 / Kohei Kaneta
@@ -920,7 +920,7 @@ id: INBOX-2025-12-17-MJ9D24TI
 channel: cxo
 sender: 谷口達彦 / Tatsuhiko Taniguchi
 timestamp: 1765936601.351419
-status: pending
+status: done
 ---
 
 ### 10:56 | #cxo | 谷口達彦 / Tatsuhiko Taniguchi
@@ -935,7 +935,7 @@ id: INBOX-2025-12-17-MJ9C1HNA
 channel: cxo
 sender: 谷口達彦 / Tatsuhiko Taniguchi
 timestamp: 1765934890.952449
-status: pending
+status: done
 ---
 
 ### 10:28 | #cxo | 谷口達彦 / Tatsuhiko Taniguchi
@@ -951,7 +951,7 @@ id: INBOX-2025-12-16-MJ97GBYM
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765927185.074239
-status: pending
+status: done
 ---
 
 ### 08:19 | #cxo | 堀 汐里 / Shiori Hori
@@ -1001,7 +1001,7 @@ id: INBOX-2025-12-16-MJ95SVHV
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765924411.301219
-status: pending
+status: done
 ---
 
 ### 07:33 | #cxo | 堀 汐里 / Shiori Hori
@@ -1048,7 +1048,7 @@ id: INBOX-2025-12-16-MJ938FCT
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765920100.270309
-status: pending
+status: done
 ---
 
 ### 06:21 | #cxo | 堀 汐里 / Shiori Hori
@@ -1082,7 +1082,7 @@ id: INBOX-2025-12-16-MJ92RWGX
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765919327.248099
-status: pending
+status: done
 ---
 
 ### 06:08 | #cxo | 堀 汐里 / Shiori Hori
@@ -1101,7 +1101,7 @@ id: INBOX-2025-12-16-MJ91YZ7X
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765917978.104229
-status: pending
+status: done
 ---
 
 ### 05:46 | #cxo | 堀 汐里 / Shiori Hori
@@ -1124,7 +1124,7 @@ id: INBOX-2025-12-16-MJ8O1ENM
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765894578.621869
-status: pending
+status: done
 ---
 
 ### 23:16 | #cxo | 堀 汐里 / Shiori Hori
@@ -1216,7 +1216,7 @@ id: INBOX-2025-12-16-MJ8NL08Z
 channel: eng
 sender: 渡邊博昭
 timestamp: 1765893812.645579
-status: pending
+status: done
 ---
 
 ### 23:03 | #eng | 渡邊博昭
@@ -1263,7 +1263,7 @@ id: INBOX-2025-12-16-MJ8MFQAT
 channel: eng
 sender: 渡邊博昭
 timestamp: 1765891884.354569
-status: pending
+status: done
 ---
 
 ### 22:31 | #eng | 渡邊博昭
@@ -1296,7 +1296,7 @@ id: INBOX-2025-12-16-MJ8E6Z6S
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765878040.572969
-status: pending
+status: done
 ---
 
 ### 18:40 | #cxo | 堀 汐里 / Shiori Hori
@@ -1327,7 +1327,7 @@ id: INBOX-2025-12-16-MJ8DYTHV
 channel: eng
 sender: 藤井志穂
 timestamp: 1765877659.387679
-status: pending
+status: done
 ---
 
 ### 18:34 | #eng | 藤井志穂
@@ -1352,7 +1352,7 @@ id: INBOX-2025-12-16-MJ8CUUXI
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765875797.209819
-status: pending
+status: done
 ---
 
 ### 18:03 | #0120-ncom | 小川未来
@@ -1391,7 +1391,7 @@ id: INBOX-2025-12-16-MJ89I7TB
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765870165.169039
-status: pending
+status: done
 ---
 
 ### 16:29 | #0120-ncom | 小川未来
@@ -1418,7 +1418,7 @@ id: INBOX-2025-12-16-MJ892EGG
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765869427.566079
-status: pending
+status: done
 ---
 
 ### 16:17 | #cxo | 堀 汐里 / Shiori Hori
@@ -1442,7 +1442,7 @@ id: INBOX-2025-12-16-MJ87AOP4
 channel: eng
 sender: 渡邊博昭
 timestamp: 1765866455.668099
-status: pending
+status: done
 ---
 
 ### 15:27 | #eng | 渡邊博昭
@@ -1472,7 +1472,7 @@ id: INBOX-2025-12-16-MJ85KCNX
 channel: 0011-zeims-dev
 sender: 太田葉音
 timestamp: 1765863548.841279
-status: pending
+status: done
 ---
 
 ### 14:39 | #0011-zeims-dev | 太田葉音
@@ -1517,7 +1517,7 @@ id: INBOX-2025-12-16-MJ85GZ86
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765863388.825429
-status: pending
+status: done
 ---
 
 ### 14:36 | #0120-ncom | 小川未来
@@ -1532,7 +1532,7 @@ id: INBOX-2025-12-16-MJ83ETCH
 channel: 0011-zeims-dev
 sender: 太田葉音
 timestamp: 1765859929.245069
-status: pending
+status: done
 ---
 
 ### 13:38 | #0011-zeims-dev | 太田葉音
@@ -2052,7 +2052,7 @@ id: INBOX-2025-12-16-MJ819LSL
 channel: eng
 sender: 渡邊博昭
 timestamp: 1765856326.142579
-status: pending
+status: done
 ---
 
 ### 12:38 | #eng | 渡邊博昭
@@ -2211,7 +2211,7 @@ id: INBOX-2025-12-16-MJ7YCT0U
 channel: cxo
 sender: 山下大輝
 timestamp: 1765851438.572169
-status: pending
+status: done
 ---
 
 ### 11:17 | #cxo | 山下大輝
@@ -2279,7 +2279,7 @@ id: INBOX-2025-12-16-MJ7X5N90
 channel: eng
 sender: 渡邊博昭
 timestamp: 1765849426.204809
-status: pending
+status: done
 ---
 
 ### 10:43 | #eng | 渡邊博昭
@@ -2345,7 +2345,7 @@ id: INBOX-2025-12-16-MJ7X266I
 channel: eng
 sender: 藤井志穂
 timestamp: 1765849264.622919
-status: pending
+status: done
 ---
 
 ### 10:41 | #eng | 藤井志穂
@@ -2365,7 +2365,7 @@ id: INBOX-2025-12-16-MJ7X1UN6
 channel: eng
 sender: 堀 汐里 / Shiori Hori
 timestamp: 1765849247.232309
-status: pending
+status: done
 ---
 
 ### 10:40 | #eng | 堀 汐里 / Shiori Hori
@@ -2382,7 +2382,7 @@ id: INBOX-2025-12-16-MJ7V1250
 channel: 0111-baao-ai-dojo
 sender: 卯田 剛史
 timestamp: 1765845850.686819
-status: pending
+status: done
 ---
 
 ### 09:44 | #0111-baao-ai-dojo | 卯田 剛史
@@ -2412,7 +2412,7 @@ id: INBOX-2025-12-15-MJ79TR4X
 channel: 0111-baao-ai-dojo
 sender: 山本力弥
 timestamp: 1765810239.682679
-status: pending
+status: done
 ---
 
 ### 23:50 | #0111-baao-ai-dojo | 山本力弥
@@ -2448,7 +2448,7 @@ id: INBOX-2025-12-15-MJ6Q0LTX
 channel: 0011-zeims-dev
 sender: 太田葉音
 timestamp: 1765776964.712479
-status: pending
+status: done
 ---
 
 ### 14:36 | #0011-zeims-dev | 太田葉音
@@ -2766,7 +2766,7 @@ id: INBOX-2025-12-15-MJ6OWBRL
 channel: 9960-back-office
 sender: 梅田 遼/Haruka Umeda
 timestamp: 1765775086.962499
-status: pending
+status: done
 ---
 
 ### 14:04 | #9960-back-office | 梅田 遼/Haruka Umeda
@@ -3034,7 +3034,7 @@ id: INBOX-2025-12-14-MJ5D838V
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765695015.066219
-status: pending
+status: done
 ---
 
 ### 15:50 | #0120-ncom | 小川未来
@@ -3117,7 +3117,7 @@ id: INBOX-2025-12-14-MJ5CNPPT
 channel: 0120-ncom
 sender: 小川未来
 timestamp: 1765694063.053519
-status: pending
+status: done
 ---
 
 ### 15:34 | #0120-ncom | 小川未来
@@ -3194,7 +3194,7 @@ id: INBOX-2025-12-14-MJ5AXGHY
 channel: 0011-zeims-dev
 sender: 太田葉音
 timestamp: 1765691159.782449
-status: pending
+status: done
 ---
 
 ### 14:46 | #0011-zeims-dev | 太田葉音
@@ -3240,7 +3240,7 @@ id: INBOX-2025-12-13-MJ3XTLDF
 channel: 0011-zeims-dev
 sender: 太田葉音
 timestamp: 1765608676.825499
-status: pending
+status: done
 ---
 
 ### 15:51 | #0011-zeims-dev | 太田葉音
@@ -3261,7 +3261,7 @@ id: INBOX-2025-12-13-MJ3RDYVP
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
 timestamp: 1765597868.821179
-status: pending
+status: done
 ---
 
 ### 12:51 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai

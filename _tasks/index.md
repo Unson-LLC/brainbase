@@ -2918,7 +2918,7 @@ requester: 佐藤圭吾
 task_id: T-2512-065
 title: 小松原氏への返信メール作成
 project_id: tech-knight
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: 2025-12-27
@@ -2972,7 +2972,7 @@ ChatGPTのプラグイン版を活用したチャットボットを作成する�
 task_id: T-2512-068
 title: Senriganインスタンスのログ設定確認と最大保持期間設定
 project_id: senrigan
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: 2025-12-27
