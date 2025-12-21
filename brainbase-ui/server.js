@@ -894,7 +894,7 @@ app.post('/api/sessions/start', async (req, res) => {
             '-t', 'fontFamily=monospace', // Use system default monospace (includes Japanese)
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
-            '-I', customIndexPath, // Use custom index
+            // '-I', customIndexPath, // Use custom index - DISABLED: custom index overrides font settings
             'bash',
             scriptPath,
             sessionId
@@ -1133,7 +1133,7 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
             '-t', 'fontFamily=monospace', // Use system default monospace (includes Japanese)
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
-            '-I', customIndexPath,
+            // '-I', customIndexPath, // Use custom index - DISABLED: custom index overrides font settings
             'bash',
             scriptPath,
             sessionId
@@ -1479,7 +1479,7 @@ app.post('/api/sessions/:id/restore', async (req, res) => {
             '-t', 'fontFamily=monospace', // Use system default monospace (includes Japanese)
             '-t', 'scrollback=5000',
             '-t', 'scrollSensitivity=3',
-            '-I', customIndexPath,
+            // '-I', customIndexPath, // Use custom index - DISABLED: custom index overrides font settings
             'bash',
             scriptPath,
             id,
