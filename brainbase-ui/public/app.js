@@ -738,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         // Unarchiving - use imported updateSession
                         try {
-                            await updateSession(session.id, { archived: false });
+                            await updateSession(session.id, { intendedState: 'stopped' });
                             loadSessions();
                         } catch (err) {
                             console.error('Failed to unarchive session', err);
@@ -1262,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const currentState = await fetchState();
             const restoredSession = currentState.sessions.find(s => s.id === sessionId);
-            await updateSession(sessionId, { archived: false });
+            await updateSession(sessionId, { intendedState: 'stopped' });
             await loadSessions();
             renderArchiveList();
 

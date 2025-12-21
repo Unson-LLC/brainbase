@@ -33,8 +33,8 @@ describe('session-manager', () => {
 
     it('should filter out archived sessions', () => {
       const sessions = [
-        { id: '1', path: '/Users/ksato/workspace/unson', archived: false },
-        { id: '2', path: '/Users/ksato/workspace/unson', archived: true }
+        { id: '1', path: '/Users/ksato/workspace/unson', intendedState: 'stopped' },
+        { id: '2', path: '/Users/ksato/workspace/unson', intendedState: 'archived' }
       ];
 
       const result = groupSessionsByProject(sessions, { excludeArchived: true });
@@ -81,7 +81,7 @@ describe('session-manager', () => {
       expect(result.id).toBe('test-session');
       expect(result.name).toBe('Test Session');
       expect(result.path).toBe('/some/path');
-      expect(result.archived).toBe(false);
+      expect(result.intendedState).toBe('stopped');
       expect(result.created).toBeDefined();
     });
 

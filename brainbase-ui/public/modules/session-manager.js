@@ -21,7 +21,7 @@ export function groupSessionsByProject(sessions, options = {}) {
   // Filter sessions
   let filteredSessions = sessions;
   if (excludeArchived) {
-    filteredSessions = sessions.filter(s => !s.archived);
+    filteredSessions = sessions.filter(s => s.intendedState !== 'archived');
   }
 
   // Group by project
@@ -68,7 +68,7 @@ export function buildSessionObject(params) {
     initialCommand = null,
     taskId = null,
     worktree = null,
-    archived = false,
+    intendedState = 'stopped',
     engine = 'claude'
   } = params;
 
@@ -79,7 +79,7 @@ export function buildSessionObject(params) {
     initialCommand,
     taskId,
     worktree,
-    archived,
+    intendedState,
     engine,
     created: new Date().toISOString()
   };

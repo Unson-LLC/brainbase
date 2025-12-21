@@ -12,7 +12,7 @@ import { getProjectFromPath } from './project-mapping.js';
  * @returns {Array}
  */
 export function filterArchivedSessions(sessions, searchTerm, projectFilter) {
-  let archived = sessions.filter(s => s.archived);
+  let archived = sessions.filter(s => s.intendedState === 'archived');
 
   // Search filter
   if (searchTerm) {
@@ -54,7 +54,7 @@ export function sortByCreatedDate(sessions) {
  * @returns {Array<string>}
  */
 export function getUniqueProjects(sessions) {
-  const archived = sessions.filter(s => s.archived);
+  const archived = sessions.filter(s => s.intendedState === 'archived');
   const projects = archived.map(s => getProjectFromPath(s.path) || 'General');
   return [...new Set(projects)].sort();
 }

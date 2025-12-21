@@ -42,6 +42,9 @@ export class StateStore {
                         }
                     }
 
+                    // Remove old archived field after migration
+                    delete session.archived;
+
                     // Remove computed fields (should not be persisted)
                     delete session.ttydRunning;
                     delete session.runtimeStatus;

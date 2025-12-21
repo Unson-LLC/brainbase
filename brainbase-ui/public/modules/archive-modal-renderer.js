@@ -31,7 +31,7 @@ export function renderArchivedSessionItemHTML(session) {
  * @returns {string} HTML文字列
  */
 export function renderArchiveListHTML(sessions) {
-  const archivedSessions = sessions.filter(s => s.archived);
+  const archivedSessions = sessions.filter(s => s.intendedState === 'archived');
 
   if (archivedSessions.length === 0) {
     return '<div class="archive-empty">アーカイブ済みセッションなし</div>';
