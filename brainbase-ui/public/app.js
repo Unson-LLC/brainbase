@@ -1795,6 +1795,71 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // --- Mobile FAB Speed Dial ---
+    const mobileFabContainer = document.getElementById('mobile-fab-container');
+    const mobileFab = document.getElementById('mobile-fab');
+    const mobileFabOverlay = document.getElementById('mobile-fab-overlay');
+
+    // Toggle FAB menu
+    if (mobileFab) {
+        mobileFab.onclick = () => {
+            mobileFabContainer?.classList.toggle('active');
+            lucide.createIcons();
+        };
+    }
+
+    // Close FAB menu when clicking overlay
+    if (mobileFabOverlay) {
+        mobileFabOverlay.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+        };
+    }
+
+    // Mobile FAB action: Paste
+    const mobilePasteBtn = document.getElementById('mobile-paste-btn');
+    if (mobilePasteBtn) {
+        mobilePasteBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            pasteTerminalBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Upload Image
+    const mobileUploadImageBtn = document.getElementById('mobile-upload-image-btn');
+    if (mobileUploadImageBtn) {
+        mobileUploadImageBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            uploadImageBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Send Escape
+    const mobileSendEscapeBtn = document.getElementById('mobile-send-escape-btn');
+    if (mobileSendEscapeBtn) {
+        mobileSendEscapeBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            sendEscapeBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Send Clear
+    const mobileSendClearBtn = document.getElementById('mobile-send-clear-btn');
+    if (mobileSendClearBtn) {
+        mobileSendClearBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            sendClearBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Copy Terminal
+    const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
+    if (mobileCopyTerminalBtn) {
+        mobileCopyTerminalBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            copyTerminalBtn?.click();
+        };
+    }
+
     // Close modal on Escape
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && copyTerminalModal?.classList.contains('active')) {
@@ -1815,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSessionsSheetBtn = document.getElementById('close-sessions-sheet');
     const closeTasksSheetBtn = document.getElementById('close-tasks-sheet');
     const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn');
-    const mobileFabBtn = document.getElementById('mobile-fab');
+    // mobileFabBtn is defined in Mobile FAB Speed Dial section above
     const mobileSessionList = document.getElementById('mobile-session-list');
     const mobileTasksContent = document.getElementById('mobile-tasks-content');
 
@@ -2030,7 +2095,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mobileTasksBtn?.addEventListener('click', openTasksSheet);
     mobileSettingsBtn?.addEventListener('click', openSettings);
     mobileAddSessionBtn?.addEventListener('click', () => createNewSession());
-    mobileFabBtn?.addEventListener('click', () => createNewSession());
+    // mobileFabBtn is now handled by Speed Dial (see Mobile FAB Speed Dial section above)
     closeSessionsSheetBtn?.addEventListener('click', closeSessionsSheet);
     closeTasksSheetBtn?.addEventListener('click', closeTasksSheet);
     sessionsSheetOverlay?.addEventListener('click', closeSessionsSheet);

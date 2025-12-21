@@ -1,0 +1,42 @@
+name: mana M9 - Weekly Milestone Check
+
+on:
+  schedule:
+    # 毎週金曜 18:00 JST = 09:00 UTC (金曜日は5)
+    - cron: '0 9 * * 5'
+  workflow_dispatch:
+    inputs:
+      test_mode_project:
+        description: 'Test mode: project name to send to (e.g., SalesTailor)'
+        required: false
+        default: ''
+
+jobs:
+  send-weekly-milestone-check:
+    runs-on: self-hosted
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mana dependencies
+        working-directory: ./mana/api
+        run: npm install
+
+      - name: Run M9 weekly milestone check
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          HOME: /Users/ksato
+          NODE_PATH: ${{ github.workspace }}/mana/api/node_modules
+          TEST_MODE_PROJECT: ${{ github.event.inputs.test_mode_project || '' }}
+        run: node _codex/common/ops/scripts/mana-m9-weekly-milestone.js
