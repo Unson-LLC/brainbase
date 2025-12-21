@@ -2699,7 +2699,7 @@ title: 短期対応完了の安全宣言LINE報告（期限切れ）
 project_id: ncom-catalyst
 status: todo
 owner: 佐藤圭吾
-priority: high
+priority: medium
 due: 2025-12-17
 tags: [security, reporting, communication]
 links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-17_quick-response-communication-issue.md]
@@ -2761,7 +2761,7 @@ title: RAゲートウェイの技術的制約（SSM利用）を八田氏へ説�
 project_id: ncom-catalyst
 status: todo
 owner: 佐藤圭吾
-priority: high
+priority: medium
 due: 2025-12-18
 tags: [security, infrastructure, ra-gateway, ssm]
 links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-progress-review.md]
@@ -2803,7 +2803,7 @@ title: 標準細則の遵守状況整理と説明ロジック作成・畑氏へ�
 project_id: ncom-catalyst
 status: todo
 owner: 佐藤圭吾
-priority: high
+priority: medium
 due: 2025-12-18
 tags: [security, compliance, documentation]
 links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-18_incident-response-progress-review.md]
