@@ -24,6 +24,6 @@
     "@playwright/test": "^1.57.0",
     "@vitest/coverage-v8": "^4.0.15",
     "jsdom": "^27.3.0",
-    "vitest": "^4.0.15"
+    "vitest": "^4.0.16"
   }
 }

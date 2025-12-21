@@ -3,10 +3,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['tests/unit/**/*.test.js'],
+    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js'],
     environmentMatchGlobs: [
       // フロントエンドのテストはjsdom環境
       ['tests/unit/!(config-parser)*.test.js', 'jsdom'],
+      ['tests/core/**/*.test.js', 'jsdom'],
       // config-parser等のサーバーサイドテストはnode環境
       ['tests/unit/config-parser.test.js', 'node'],
     ],
