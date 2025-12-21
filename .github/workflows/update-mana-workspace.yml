@@ -1,0 +1,170 @@
+name: Update mana Workspace Credentials
+
+on:
+  workflow_dispatch:
+    inputs:
+      lambda_function:
+        description: 'Lambda function to update'
+        required: true
+        type: choice
+        options:
+          - mana
+          - mana-salestailor
+          - mana-techknight
+      slack_bot_token:
+        description: 'SLACK_BOT_TOKEN (xoxb-...)'
+        required: true
+        type: string
+      slack_signing_secret:
+        description: 'SLACK_SIGNING_SECRET'
+        required: true
+        type: string
+
+jobs:
+  update:
+    runs-on: self-hosted
+    steps:
+      - name: Validate inputs
+        run: |
+          if [[ ! "${{ inputs.slack_bot_token }}" =~ ^xoxb- ]]; then
+            echo "❌ Error: SLACK_BOT_TOKEN must start with 'xoxb-'"
+            exit 1
+          fi
+
+          if [ ${#{{ inputs.slack_signing_secret }}} -ne 32 ]; then
+            echo "❌ Error: SLACK_SIGNING_SECRET must be 32 characters"
+            exit 1
+          fi
+
+          echo "✅ Input validation passed"
+
+      - name: Backup current configuration
+        run: |
+          aws lambda get-function-configuration \
+            --function-name ${{ inputs.lambda_function }} \
+            --region us-east-1 \
+            --profile k.sato \
+            --query 'Environment.Variables' \
+            --output json > /tmp/${{ inputs.lambda_function }}-backup-$(date +%Y%m%d-%H%M%S).json
+
+          echo "✅ Configuration backed up"
+
+      - name: Test new credentials
+        env:
+          SLACK_BOT_TOKEN: ${{ inputs.slack_bot_token }}
+        run: |
+          echo "=== Testing new SLACK_BOT_TOKEN ==="
+          AUTH_RESULT=$(curl -sS "https://slack.com/api/auth.test" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN")
+
+          if [ "$(echo "$AUTH_RESULT" | jq -r '.ok')" != "true" ]; then
+            echo "❌ Error: Invalid SLACK_BOT_TOKEN"
+            echo "$AUTH_RESULT" | jq '.'
+            exit 1
+          fi
+
+          echo "Workspace: $(echo "$AUTH_RESULT" | jq -r '.team') ($(echo "$AUTH_RESULT" | jq -r '.team_id'))"
+          echo "Bot User: $(echo "$AUTH_RESULT" | jq -r '.user')"
+
+          # Store for later comparison
+          echo "$AUTH_RESULT" | jq '{team, team_id, user, user_id}' > /tmp/auth-result.json
+          echo "✅ Credentials validated"
+
+      - name: Update Lambda environment variables
+        env:
+          SLACK_BOT_TOKEN: ${{ inputs.slack_bot_token }}
+          SLACK_SIGNING_SECRET: ${{ inputs.slack_signing_secret }}
+        run: |
+          # Get current environment variables
+          CURRENT_VARS=$(aws lambda get-function-configuration \
+            --function-name ${{ inputs.lambda_function }} \
+            --region us-east-1 \
+            --profile k.sato \
+            --query 'Environment.Variables' \
+            --output json)
+
+          # Update both SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET
+          echo "$CURRENT_VARS" | jq \
+            --arg bot_token "$SLACK_BOT_TOKEN" \
+            --arg signing_secret "$SLACK_SIGNING_SECRET" \
+            '{Variables: (. | .SLACK_BOT_TOKEN = $bot_token | .SLACK_SIGNING_SECRET = $signing_secret)}' \
+            > /tmp/updated-env.json
+
+          # Apply update
+          aws lambda update-function-configuration \
+            --function-name ${{ inputs.lambda_function }} \
+            --region us-east-1 \
+            --profile k.sato \
+            --environment file:///tmp/updated-env.json \
+            > /dev/null
+
+          rm -f /tmp/updated-env.json
+
+          echo "✅ Lambda environment variables updated"
+
+      - name: Verify update
+        run: |
+          echo "=== Waiting for Lambda update to complete ==="
+          sleep 5
+
+          # Get updated token
+          NEW_TOKEN=$(aws lambda get-function-configuration \
+            --function-name ${{ inputs.lambda_function }} \
+            --region us-east-1 \
+            --profile k.sato \
+            --query 'Environment.Variables.SLACK_BOT_TOKEN' \
+            --output text)
+
+          # Verify it matches
+          AUTH_RESULT=$(curl -sS "https://slack.com/api/auth.test" \
+            -H "Authorization: Bearer $NEW_TOKEN")
+
+          echo "Updated workspace: $(echo "$AUTH_RESULT" | jq -r '.team') ($(echo "$AUTH_RESULT" | jq -r '.team_id'))"
+
+          # Compare with expected
+          EXPECTED=$(cat /tmp/auth-result.json)
+          ACTUAL=$(echo "$AUTH_RESULT" | jq '{team, team_id, user, user_id}')
+
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "❌ Error: Verification failed"
+            echo "Expected: $EXPECTED"
+            echo "Actual: $ACTUAL"
+            exit 1
+          fi
+
+          echo "✅ Update verified successfully"
+
+      - name: Test Slack event handling
+        run: |
+          echo "=== Checking recent Lambda logs ==="
+          sleep 3
+
+          # Check for signature errors (should be none after update)
+          RECENT_ERRORS=$(aws logs tail /aws/lambda/${{ inputs.lambda_function }} \
+            --since 2m \
+            --format short \
+            --profile k.sato \
+            --region us-east-1 2>&1 | grep -i "Invalid request signature" | wc -l | tr -d ' ')
+
+          if [ "$RECENT_ERRORS" -gt 0 ]; then
+            echo "⚠️ Warning: Found $RECENT_ERRORS signature errors in recent logs"
+            echo "This is normal if the update just completed. Test with a Slack mention."
+          else
+            echo "✅ No signature errors detected"
+          fi
+
+      - name: Summary
+        run: |
+          echo ""
+          echo "=== Update Summary ==="
+          echo "Lambda: ${{ inputs.lambda_function }}"
+          echo "Workspace: $(cat /tmp/auth-result.json | jq -r '.team')"
+          echo "Team ID: $(cat /tmp/auth-result.json | jq -r '.team_id')"
+          echo "Bot User: $(cat /tmp/auth-result.json | jq -r '.user')"
+          echo ""
+          echo "✅ Credentials updated successfully"
+          echo ""
+          echo "Next steps:"
+          echo "1. Test with a Slack mention to ${{ inputs.lambda_function }}"
+          echo "2. Check CloudWatch logs for any errors"
+          echo "3. Backup file saved to: /tmp/${{ inputs.lambda_function }}-backup-*.json"
