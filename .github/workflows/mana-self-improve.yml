@@ -268,8 +268,9 @@ jobs:
           if [ -f "$WORK_DIR/judge/report.json" ]; then
             # Parse report for summary
             SUMMARY=$(cat "$WORK_DIR/judge/report.json" | jq -r '
-              "📊 *mana品質評価レポート* (\(.date))\n\n" +
-              "評価済み会話数: \(.total_conversations)\n" +
+              "📊 *mana品質評価レポート*\n\n" +
+              "対象期間: \(.date) 00:00-23:59 JST\n" +
+              "評価済み会話数: \(.total_conversations)\n\n" +
               "平均スコア:\n" +
               "  • 有用性: \(.average_scores.usefulness // "N/A")/5.0\n" +
               "  • 正確性: \(.average_scores.accuracy // "N/A")/5.0\n" +
