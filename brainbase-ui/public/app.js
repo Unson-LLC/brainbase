@@ -1824,45 +1824,205 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mobile FAB action: Paste
     const mobilePasteBtn = document.getElementById('mobile-paste-btn');
     if (mobilePasteBtn) {
-        mobilePasteBtn.onclick = () => {
+        mobilePasteBtn.onclick = async () => {
+            alert('ペーストボタンがクリックされました');
             mobileFabContainer?.classList.remove('active');
-            pasteTerminalBtn?.click();
+
+            if (!currentSessionId) {
+                alert('セッションが選択されていません: ' + currentSessionId);
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            alert('セッションID: ' + currentSessionId);
+
+            try {
+                // Try to read clipboard items (supports both text and images)
+                const clipboardItems = await navigator.clipboard.read();
+
+                for (const item of clipboardItems) {
+                    // Check for image
+                    const imageType = item.types.find(type => type.startsWith('image/'));
+                    if (imageType) {
+                        try {
+                            showInfo('画像を読み込み中...');
+                            const blob = await item.getType(imageType);
+
+                            // Compress image before uploading
+                            const compressedBlob = await compressImage(blob);
+
+                            const formData = new FormData();
+                            formData.append('image', compressedBlob, 'paste.jpg');
+
+                            const uploadRes = await fetch(`/api/sessions/${currentSessionId}/upload-image`, {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!uploadRes.ok) {
+                                const errorData = await uploadRes.json().catch(() => ({}));
+                                showError(errorData.error || `画像のアップロードに失敗しました (${uploadRes.status})`);
+                                continue;
+                            }
+
+                            showSuccess('画像を送信しました');
+                        } catch (imgErr) {
+                            console.error('Image paste error:', imgErr);
+                            showError('画像の送信中にエラーが発生しました');
+                        }
+                        continue;
+                    }
+
+                    // Check for text
+                    const textType = item.types.find(type => type === 'text/plain');
+                    if (textType) {
+                        const blob = await item.getType(textType);
+                        const text = await blob.text();
+
+                        if (text.trim()) {
+                            const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: text })
+                            });
+
+                            if (!res.ok) {
+                                const errorData = await res.json().catch(() => ({}));
+                                showError(errorData.error || `入力の送信に失敗しました (${res.status})`);
+                            } else {
+                                showSuccess('テキストを送信しました');
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Clipboard read error:', err);
+
+                // Fallback: try text-only paste
+                try {
+                    const text = await navigator.clipboard.readText();
+                    if (text.trim()) {
+                        const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ input: text })
+                        });
+
+                        if (!res.ok) {
+                            const errorData = await res.json().catch(() => ({}));
+                            showError(errorData.error || `入力の送信に失敗しました (${res.status})`);
+                        } else {
+                            showSuccess('テキストを送信しました');
+                        }
+                    }
+                } catch (fallbackErr) {
+                    console.error('Fallback paste error:', fallbackErr);
+                    showError('クリップボードへのアクセスが拒否されました');
+                }
+            }
         };
     }
 
     // Mobile FAB action: Upload Image
     const mobileUploadImageBtn = document.getElementById('mobile-upload-image-btn');
-    if (mobileUploadImageBtn) {
+    if (mobileUploadImageBtn && imageFileInput) {
         mobileUploadImageBtn.onclick = () => {
             mobileFabContainer?.classList.remove('active');
-            uploadImageBtn?.click();
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+            imageFileInput.click();
         };
     }
 
     // Mobile FAB action: Send Escape
     const mobileSendEscapeBtn = document.getElementById('mobile-send-escape-btn');
     if (mobileSendEscapeBtn) {
-        mobileSendEscapeBtn.onclick = () => {
+        mobileSendEscapeBtn.onclick = async () => {
             mobileFabContainer?.classList.remove('active');
-            sendEscapeBtn?.click();
+
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'Escape', type: 'key' })
+                });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
+                showSuccess('Escapeキーを送信しました');
+            } catch (error) {
+                console.error('Failed to send Escape:', error);
+                showError('Escapeキーの送信に失敗しました');
+            }
         };
     }
 
     // Mobile FAB action: Send Clear
     const mobileSendClearBtn = document.getElementById('mobile-send-clear-btn');
     if (mobileSendClearBtn) {
-        mobileSendClearBtn.onclick = () => {
+        mobileSendClearBtn.onclick = async () => {
             mobileFabContainer?.classList.remove('active');
-            sendClearBtn?.click();
+
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'C-l', type: 'key' })
+                });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
+                showSuccess('画面をクリアしました');
+            } catch (error) {
+                console.error('Failed to send clear:', error);
+                showError('クリアに失敗しました');
+            }
         };
     }
 
     // Mobile FAB action: Copy Terminal
     const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
     if (mobileCopyTerminalBtn) {
-        mobileCopyTerminalBtn.onclick = () => {
+        mobileCopyTerminalBtn.onclick = async () => {
             mobileFabContainer?.classList.remove('active');
-            copyTerminalBtn?.click();
+
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/content?lines=500`);
+                if (!res.ok) throw new Error('Failed to fetch content');
+
+                const { content } = await res.json();
+                terminalContentDisplay.textContent = content;
+                copyTerminalModal.classList.add('active');
+                lucide.createIcons();
+                // モーダル表示後にスクロールを最下段に設定
+                setTimeout(() => {
+                    terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
+                }, 50);
+            } catch (error) {
+                console.error('Failed to get terminal content:', error);
+                showError('ターミナル内容の取得に失敗しました');
+            }
         };
     }
 

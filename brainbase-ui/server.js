@@ -83,7 +83,17 @@ app.get('/app.js', async (req, res) => {
     }
 });
 
-app.use(express.static('public', { index: false }));
+app.use(express.static('public', {
+    index: false,
+    setHeaders: (res, path) => {
+        // Disable caching for JS and CSS files to prevent stale content
+        if (path.endsWith('.js') || path.endsWith('.css')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
 
 // State
 let activeSessions = new Map(); // sessionId -> { port, process }
@@ -881,6 +891,7 @@ app.post('/api/sessions/start', async (req, res) => {
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
+            '-t', 'fontFamily=monospace', // Use system default monospace (includes Japanese)
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             '-I', customIndexPath, // Use custom index
@@ -1119,6 +1130,7 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
             '-t', 'disableLeaveAlert=true',
             '-t', 'enableClipboard=true',
             '-t', 'fontSize=14',            // Readable font size for mobile
+            '-t', 'fontFamily=monospace', // Use system default monospace (includes Japanese)
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             '-I', customIndexPath,
@@ -1464,6 +1476,7 @@ app.post('/api/sessions/:id/restore', async (req, res) => {
             '-t', 'disableLeaveAlert=true',
             '-t', 'enableClipboard=true',
             '-t', 'fontSize=14',
+            '-t', 'fontFamily=monospace', // Use system default monospace (includes Japanese)
             '-t', 'scrollback=5000',
             '-t', 'scrollSensitivity=3',
             '-I', customIndexPath,

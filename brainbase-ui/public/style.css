@@ -18,7 +18,7 @@
 
     /* Typography */
     --font-sans: 'Inter', 'Noto Sans JP', sans-serif;
-    --font-mono: monospace;
+    --font-mono: 'Menlo', 'Monaco', 'Consolas', 'Courier New', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Droid Sans', sans-serif;
 }
 
 * {
@@ -1766,7 +1766,7 @@ body {
 }
 
 .terminal-content {
-    font-family: var(--font-mono);
+    font-family: var(--font-mono) !important;
     font-size: 0.85rem;
     line-height: 1.4;
     background: #000;
@@ -1775,6 +1775,7 @@ body {
     margin: 0;
     overflow: auto;
     max-height: 60vh;
+    unicode-bidi: normal;
     white-space: pre-wrap;
     word-break: break-all;
     user-select: text;
