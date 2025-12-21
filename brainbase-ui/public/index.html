@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>brainbase UI</title>
     <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="stylesheet" href="style.css?v=20251213d">
+    <link rel="stylesheet" href="style.css?v=20251221a">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,10 +21,7 @@
         <!-- Left Navigation (Session List) -->
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3>Sessions</h3>
-                <button id="add-session-btn" class="add-session-btn-icon" title="New Session">
-                    <i data-lucide="plus"></i>
-                </button>
+                <h3 id="app-version" class="app-version">v0.1.51</h3>
             </div>
             <div class="session-list" id="session-list">
                 <!-- Sessions will be loaded dynamically -->
@@ -72,6 +69,19 @@
         <main class="main-content">
             <div class="console-area" id="console-area">
                 <div class="console-toolbar">
+                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト">
+                        <i data-lucide="clipboard"></i>
+                    </button>
+                    <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード">
+                        <i data-lucide="image-plus"></i>
+                    </button>
+                    <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                    <button id="send-escape-btn" class="console-btn" title="Escapeキーを送信">
+                        <i data-lucide="x-octagon"></i>
+                    </button>
+                    <button id="send-clear-btn" class="console-btn" title="画面クリア (Ctrl+L)">
+                        <i data-lucide="eraser"></i>
+                    </button>
                     <button id="copy-terminal-btn" class="console-btn" title="ターミナル内容をコピー">
                         <i data-lucide="copy"></i>
                     </button>
@@ -330,7 +340,12 @@
         <div class="modal-content modal-fullscreen" id="settings-view">
             <div class="modal-header settings-header">
                 <h3><i data-lucide="settings"></i> Settings</h3>
-                <button class="close-modal-btn" id="close-settings-btn"><i data-lucide="x"></i></button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn" id="restart-server-btn" title="Restart Server">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <button class="close-modal-btn" id="close-settings-btn"><i data-lucide="x"></i></button>
+                </div>
             </div>
             <div class="modal-body settings-body">
                 <!-- Integrity Summary -->
@@ -459,6 +474,23 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
+    <!-- Mobile Software Keyboard (for choice navigation) -->
+    <div id="mobile-keyboard" class="mobile-keyboard">
+        <button class="keyboard-key" id="key-up" title="上矢印">
+            <i data-lucide="arrow-up"></i>
+        </button>
+        <button class="keyboard-key" id="key-down" title="下矢印">
+            <i data-lucide="arrow-down"></i>
+        </button>
+        <button class="keyboard-key" id="key-tab" title="Tab">
+            <span class="key-label">Tab</span>
+        </button>
+        <button class="keyboard-key keyboard-key-primary" id="key-enter" title="Enter">
+            <i data-lucide="corner-down-left"></i>
+            <span class="key-label">Enter</span>
+        </button>
+    </div>
+
     <!-- Mobile Bottom Navigation (hidden on desktop) -->
     <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
         <button id="mobile-sessions-btn">
@@ -469,6 +501,10 @@
             <i data-lucide="list-todo"></i>
             <span>Tasks</span>
         </button>
+        <button id="mobile-settings-btn">
+            <i data-lucide="settings"></i>
+            <span>Settings</span>
+        </button>
     </nav>
 
     <!-- Sessions Bottom Sheet -->
@@ -476,12 +512,18 @@
     <div id="sessions-bottom-sheet" class="bottom-sheet">
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-header">
-            <h3><i data-lucide="layers"></i> Sessions</h3>
+            <h3 id="mobile-app-version" class="mobile-version-display">v0.1.51</h3>
             <button class="add-session-btn-icon" id="mobile-add-session-btn" title="New Session">
                 <i data-lucide="plus"></i>
             </button>
             <button class="bottom-sheet-close" id="close-sessions-sheet">
                 <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="archive-toggle-container" style="padding: 0.5rem 1rem;">
+            <button id="mobile-toggle-archived-btn" class="archive-toggle-btn">
+                <i data-lucide="archive"></i>
+                <span>アーカイブを表示</span>
             </button>
         </div>
         <div class="bottom-sheet-content" id="mobile-session-list">
@@ -504,12 +546,48 @@
         </div>
     </div>
 
-    <!-- Mobile FAB (Floating Action Button) -->
-    <button id="mobile-fab" class="mobile-fab" title="New Session">
-        <i data-lucide="plus"></i>
-    </button>
+    <!-- Mobile FAB (Floating Action Button) with Speed Dial -->
+    <div id="mobile-fab-container" class="mobile-fab-container">
+        <!-- Overlay to close menu -->
+        <div id="mobile-fab-overlay" class="mobile-fab-overlay"></div>
 
-    <script type="module" src="app.js?v=20251216a"></script>
+        <!-- Speed Dial Actions (ordered bottom-to-top by usage frequency) -->
+        <div id="mobile-fab-actions" class="mobile-fab-actions">
+            <!-- Least frequent: Copy (top, farthest from FAB) -->
+            <button class="mobile-fab-action" id="mobile-copy-terminal-btn" title="ターミナル内容をコピー">
+                <i data-lucide="copy"></i>
+                <span class="fab-action-label">コピー</span>
+            </button>
+            <!-- Low frequency: Clear -->
+            <button class="mobile-fab-action" id="mobile-send-clear-btn" title="画面クリア (Ctrl+L)">
+                <i data-lucide="eraser"></i>
+                <span class="fab-action-label">クリア</span>
+            </button>
+            <!-- Medium frequency: Escape -->
+            <button class="mobile-fab-action" id="mobile-send-escape-btn" title="Escapeキーを送信">
+                <i data-lucide="x-octagon"></i>
+                <span class="fab-action-label">Escape</span>
+            </button>
+            <!-- High frequency: Image upload -->
+            <button class="mobile-fab-action" id="mobile-upload-image-btn" title="画像を選択してアップロード">
+                <i data-lucide="image-plus"></i>
+                <span class="fab-action-label">画像</span>
+            </button>
+            <!-- Most frequent: Paste (bottom, closest to FAB) -->
+            <button class="mobile-fab-action" id="mobile-paste-btn" title="クリップボードからペースト">
+                <i data-lucide="clipboard"></i>
+                <span class="fab-action-label">ペースト</span>
+            </button>
+        </div>
+
+        <!-- Main FAB Button -->
+        <button id="mobile-fab" class="mobile-fab" title="アクションメニュー">
+            <i data-lucide="wrench" class="fab-icon-default"></i>
+            <i data-lucide="x" class="fab-icon-close"></i>
+        </button>
+    </div>
+
+    <script type="module" src="app.js?v=20251221b"></script>
     <script>
         lucide.createIcons();
     </script>

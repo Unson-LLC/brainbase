@@ -7,6 +7,7 @@ import util from 'util';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { readFileSync } from 'fs';
 
 // Import our modules
 import { TaskParser } from './lib/task-parser.js';
@@ -18,6 +19,10 @@ import { InboxParser } from './lib/inbox-parser.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
+
+// Load version from package.json
+const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+const APP_VERSION = `v${packageJson.version}`;
 
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
@@ -43,8 +48,42 @@ const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH);
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
-app.use(express.static('public'));
 app.use(express.json());
+
+// ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
+app.get('/', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'index.html');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        res.status(500).send('Error loading page');
+    }
+});
+
+// 静的ファイル配信（その他のファイル）
+// app.jsにno-cacheヘッダーを設定
+app.get('/app.js', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'app.js');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'application/javascript; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        res.status(500).send('Error loading app.js');
+    }
+});
+
+app.use(express.static('public', { index: false }));
 
 // State
 let activeSessions = new Map(); // sessionId -> { port, process }
@@ -52,7 +91,19 @@ let sessionHookStatus = new Map(); // sessionId -> { status: 'working'|'done', t
 let nextPort = 3001;
 
 // Initialize State Store
-stateStore.init();
+(async () => {
+    await stateStore.init();
+
+    // Restore hookStatus from persisted state
+    const state = stateStore.get();
+    if (state.sessions) {
+        state.sessions.forEach(session => {
+            if (session.hookStatus) {
+                sessionHookStatus.set(session.id, session.hookStatus);
+            }
+        });
+    }
+})();
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
@@ -175,14 +226,39 @@ app.get('/api/schedule/today', async (req, res) => {
     res.json(schedule);
 });
 
+// Version endpoint
+app.get('/api/version', (req, res) => {
+    res.json({ version: APP_VERSION });
+});
+
+// Restart server endpoint
+app.post('/api/restart', (req, res) => {
+    res.json({ message: 'Server restarting...' });
+    setTimeout(() => {
+        process.exit(0); // Exit process, assuming it's managed by a process manager
+    }, 100);
+});
+
 app.get('/api/state', (req, res) => {
     const state = stateStore.get();
 
-    // Add ttyd running status to each session
-    const sessionsWithStatus = (state.sessions || []).map(session => ({
-        ...session,
-        ttydRunning: activeSessions.has(session.id)
-    }));
+    // Add runtime status to each session
+    const sessionsWithStatus = (state.sessions || []).map(session => {
+        const ttydRunning = activeSessions.has(session.id);
+        // 本来アクティブであるべきなのに停止している場合は再起動が必要
+        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+
+        return {
+            ...session,
+            // 後方互換性のためttydRunningも残す（将来削除予定）
+            ttydRunning,
+            // 新しいruntimeStatus
+            runtimeStatus: {
+                ttydRunning,
+                needsRestart
+            }
+        };
+    });
 
     res.json({
         ...state,
@@ -191,7 +267,17 @@ app.get('/api/state', (req, res) => {
 });
 
 app.post('/api/state', async (req, res) => {
-    const newState = await stateStore.update(req.body);
+    // Remove computed fields from sessions before persisting
+    const sanitizedState = {
+        ...req.body,
+        sessions: (req.body.sessions || []).map(session => {
+            // Remove runtime-only fields
+            const { ttydRunning, runtimeStatus, ...persistentFields } = session;
+            return persistentFields;
+        })
+    };
+
+    const newState = await stateStore.update(sanitizedState);
     res.json(newState);
 });
 
@@ -311,17 +397,26 @@ app.post('/api/open-file', async (req, res) => {
 });
 
 // Endpoint for hooks to report activity
-app.post('/api/sessions/report_activity', (req, res) => {
+app.post('/api/sessions/report_activity', async (req, res) => {
     const { sessionId, status } = req.body;
     if (!sessionId || !status) {
         return res.status(400).json({ error: 'Missing sessionId or status' });
     }
 
     console.log(`[Hook] Received status update from ${sessionId}: ${status}`);
-    sessionHookStatus.set(sessionId, {
+    const hookStatus = {
         status,
         timestamp: Date.now()
-    });
+    };
+
+    sessionHookStatus.set(sessionId, hookStatus);
+
+    // Persist to state.json
+    const currentState = stateStore.get();
+    const updatedSessions = currentState.sessions.map(session =>
+        session.id === sessionId ? { ...session, hookStatus } : session
+    );
+    await stateStore.update({ sessions: updatedSessions });
 
     res.json({ success: true });
 });
@@ -419,6 +514,42 @@ async function createWorktree(sessionId, repoPath) {
             }
         }
 
+        // Set skip-worktree flag BEFORE creating symlinks
+        // This must be done while files still exist in the worktree
+        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        const allFilesToSkip = [];
+
+        // Collect all files first
+        for (const p of excludePaths) {
+            try {
+                const { stdout } = await execPromise(
+                    `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
+                );
+                if (stdout.trim()) {
+                    const files = stdout.trim().split('\n').filter(f => f.trim());
+                    allFilesToSkip.push(...files);
+                    console.log(`Found ${files.length} files under: ${p}`);
+                }
+            } catch (skipErr) {
+                console.log(`Note: No files to skip-worktree under ${p}`);
+            }
+        }
+
+        // Set skip-worktree for all files in batches
+        if (allFilesToSkip.length > 0) {
+            console.log(`Setting skip-worktree for ${allFilesToSkip.length} files...`);
+            const batchSize = 100;
+            for (let i = 0; i < allFilesToSkip.length; i += batchSize) {
+                const batch = allFilesToSkip.slice(i, i + batchSize);
+                const filesArg = batch.map(f => `"${f}"`).join(' ');
+                await execPromise(
+                    `git -C "${worktreePath}" update-index --skip-worktree ${filesArg}`
+                );
+                console.log(`Set skip-worktree for batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allFilesToSkip.length/batchSize)} (${batch.length} files)`);
+            }
+            console.log(`Successfully set skip-worktree for ${allFilesToSkip.length} files`);
+        }
+
         // Create symlinks for canonical directories (正本ディレクトリ)
         // These directories are shared across all worktrees and committed directly to main
         // IMPORTANT: 正本は常に /Users/ksato/workspace にある（プロジェクトリポジトリではない）
@@ -458,10 +589,6 @@ async function createWorktree(sessionId, repoPath) {
             }
         }
 
-        // Note: 正本ディレクトリはシンボリックリンクとして維持
-        // gitのトラッキング状態は変わるが、実ファイルは正本を参照するため問題なし
-        // git statusで"deleted"と表示されるのは正常な動作
-
         console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
         return { worktreePath, branchName, repoPath };
     } catch (err) {
@@ -490,6 +617,74 @@ async function removeWorktree(sessionId, repoPath) {
     } catch (err) {
         console.error(`Failed to remove worktree for ${sessionId}:`, err.message);
         return false;
+    }
+}
+
+// Fix existing worktree by setting skip-worktree flags for symlinked paths
+async function fixWorktreeSymlinks(sessionId, repoPath) {
+    const repoName = path.basename(repoPath);
+    const worktreePath = path.join(WORKTREES_DIR, `${sessionId}-${repoName}`);
+
+    try {
+        // Check if worktree exists
+        await fs.access(worktreePath);
+
+        // Set skip-worktree flag for symlinked paths
+        // For existing worktrees, we need to reset the deletions first
+        const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
+        let totalFixed = 0;
+
+        // Get all deleted files that are in canonical paths
+        const { stdout } = await execPromise(
+            `git -C "${worktreePath}" diff main --name-status --diff-filter=D`
+        );
+
+        if (stdout.trim()) {
+            const filesToFix = [];
+            const lines = stdout.trim().split('\n');
+
+            for (const line of lines) {
+                // Format: "D\tpath/to/file"
+                const match = line.match(/^D\s+(.+)$/);
+                if (match) {
+                    const file = match[1];
+                    // Check if file is in one of the canonical paths
+                    const isCanonical = excludePaths.some(p =>
+                        file === p || file.startsWith(p + '/')
+                    );
+
+                    if (isCanonical) {
+                        filesToFix.push(file);
+                    }
+                }
+            }
+
+            if (filesToFix.length > 0) {
+                // Reset the deletions in index (restore files from main branch)
+                const filesArg = filesToFix.map(f => `"${f}"`).join(' ');
+                await execPromise(
+                    `git -C "${worktreePath}" restore --source=main --staged ${filesArg}`
+                );
+
+                // Now set skip-worktree for all files
+                for (const file of filesToFix) {
+                    try {
+                        await execPromise(
+                            `git -C "${worktreePath}" update-index --skip-worktree "${file}"`
+                        );
+                        totalFixed++;
+                    } catch (updateErr) {
+                        console.log(`Note: Could not set skip-worktree for ${file}: ${updateErr.message}`);
+                    }
+                }
+            }
+        }
+
+        console.log(`Fixed ${totalFixed} files in worktree ${sessionId}`);
+        return { success: true, filesFixed: totalFixed };
+    } catch (err) {
+        console.error(`Failed to fix worktree symlinks for ${sessionId}:`, err.message);
+        return { success: false, error: err.message };
     }
 }
 
@@ -756,7 +951,7 @@ process.on('SIGINT', () => {
 });
 
 // Endpoint to send input to terminal (keys or text)
-const ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'Enter', 'Escape'];
+const ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'Enter', 'Escape', 'Up', 'Down', 'Tab'];
 app.post('/api/sessions/:id/input', async (req, res) => {
     const { id } = req.params;
     const { input, type } = req.body;
@@ -820,7 +1015,9 @@ app.get('/api/sessions/:id/output', async (req, res) => {
     const { id } = req.params;
 
     try {
-        const { stdout } = await execPromise(`tmux capture-pane -t "${id}" -p -J`);
+        // -S -100: 最後100行の履歴を取得（選択肢がスクロールで上に行っても検出可能）
+        // -J: 行の継続を結合
+        const { stdout } = await execPromise(`tmux capture-pane -t "${id}" -p -J -S -100`);
         const choices = detectChoices(stdout);
 
         res.json({
@@ -839,19 +1036,26 @@ app.get('/api/sessions/:id/output', async (req, res) => {
  * @returns {Array} Array of choice objects
  */
 function detectChoices(text) {
-    // Only check the last 15 lines of output to avoid false positives
+    // Check the last 30 lines of output to capture choices and prompt
     const lines = text.split('\n');
-    const lastLines = lines.slice(-15).join('\n');
+    const lastLines = lines.slice(-30).join('\n');
+
+    // Strict check: only detect choices if "Enter to select" prompt is present
+    if (!lastLines.includes('Enter to select')) {
+        return [];
+    }
 
     const choices = [];
 
     // Pattern 1: "1) Option" or "1. Option"
-    const pattern1 = /^\s*(\d+)[).]\s+(.+)$/gm;
+    // Also matches with selection marker: "❯ 1. Option" or "  1. Option"
+    const pattern1 = /^\s*[❯>]?\s*(\d+)[).]\s+(.+)$/gm;
     let match;
     while ((match = pattern1.exec(lastLines)) !== null) {
         choices.push({
             number: match[1],
             text: match[2].trim(),
+            originalText: match[0].trim(), // Claude Codeの出力をそのまま保持
             pattern: 'numbered'
         });
     }
@@ -962,7 +1166,8 @@ app.post('/api/sessions/create-with-worktree', async (req, res) => {
                 repo: repoPath,
                 branch: branchName
             },
-            archived: false,
+            intendedState: 'active',
+            hookStatus: null,
             created: new Date().toISOString()
         };
 
@@ -1009,6 +1214,26 @@ app.get('/api/sessions/:id/worktree-status', async (req, res) => {
 
     const status = await getWorktreeStatus(id, session.worktree.repo);
     res.json({ hasWorktree: true, ...status });
+});
+
+// Fix worktree symlinks for a session (apply skip-worktree to existing worktrees)
+app.post('/api/sessions/:id/fix-symlinks', async (req, res) => {
+    const { id } = req.params;
+
+    // Get session from state
+    const state = stateStore.get();
+    const session = state.sessions?.find(s => s.id === id);
+
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (!session.worktree) {
+        return res.status(400).json({ error: 'Session does not have a worktree' });
+    }
+
+    const result = await fixWorktreeSymlinks(id, session.worktree.repo);
+    res.json(result);
 });
 
 // Merge worktree for a session
@@ -1151,7 +1376,7 @@ app.post('/api/sessions/:id/archive', async (req, res) => {
     const updatedSessions = state.sessions.map(s =>
         s.id === id ? {
             ...s,
-            archived: true,
+            intendedState: 'archived',
             // Keep worktree.repo for restore, but mark as removed
             worktree: s.worktree ? { ...s.worktree, removed: true } : null
         } : s
@@ -1173,7 +1398,7 @@ app.post('/api/sessions/:id/restore', async (req, res) => {
         return res.status(404).json({ error: 'Session not found' });
     }
 
-    if (!session.archived) {
+    if (session.intendedState !== 'archived') {
         // Check if ttyd is already running
         if (activeSessions.has(id)) {
             return res.json({
@@ -1272,7 +1497,7 @@ app.post('/api/sessions/:id/restore', async (req, res) => {
 
         // Update session state
         const updatedSessions = state.sessions.map(s =>
-            s.id === id ? { ...s, archived: false } : s
+            s.id === id ? { ...s, intendedState: 'active' } : s
         );
         await stateStore.update({ sessions: updatedSessions });
 
@@ -1304,6 +1529,13 @@ app.post('/api/sessions/:id/stop', async (req, res) => {
     const stopped = await stopTtydProcess(id);
 
     if (stopped) {
+        // Update intendedState to 'stopped'
+        const currentState = stateStore.get();
+        const updatedSessions = currentState.sessions.map(session =>
+            session.id === id ? { ...session, intendedState: 'stopped' } : session
+        );
+        await stateStore.update({ sessions: updatedSessions });
+
         res.json({ success: true, message: `ttyd process for ${id} stopped` });
     } else {
         res.json({ success: false, message: `No active ttyd process found for ${id}` });

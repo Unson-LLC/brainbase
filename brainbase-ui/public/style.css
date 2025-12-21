@@ -97,6 +97,16 @@ body {
     text-transform: uppercase;
 }
 
+.app-version {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--accent-color);
+    opacity: 1;
+    text-transform: uppercase;
+    margin: 0;
+}
+
 .session-list {
     flex: 1;
     overflow-y: auto;
@@ -319,6 +329,30 @@ body {
     margin-left: 4px;
 }
 .session-child-row:hover .child-actions { display: flex; }
+
+/* Session Menu Toggle (Mobile 3-dot menu) */
+.session-menu-toggle {
+    display: none; /* Hidden on desktop */
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.session-menu-toggle:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+.session-menu-toggle i {
+    width: 18px;
+    height: 18px;
+}
 
 /* Activity Indicator */
 .session-activity-indicator {
@@ -2425,7 +2459,7 @@ body {
     height: 56px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
-    z-index: 1000;
+    z-index: 1003; /* bottom-sheet (1002) より高く設定 */
     padding: 0 16px;
     align-items: center;
     justify-content: space-between;
@@ -2469,11 +2503,13 @@ body {
     z-index: 1001;
     opacity: 0;
     transition: opacity 0.3s ease;
+    pointer-events: none; /* 非アクティブ時はクリックを通過させる */
 }
 
 .bottom-sheet-overlay.active {
     display: block;
     opacity: 1;
+    pointer-events: auto; /* アクティブ時のみクリックを受け取る */
 }
 
 /* Bottom Sheet Container */
@@ -2491,11 +2527,13 @@ body {
     display: flex;
     flex-direction: column;
     visibility: hidden;
+    pointer-events: none; /* 非アクティブ時はクリックを通過させる */
 }
 
 .bottom-sheet.active {
     transform: translateY(0);
     visibility: visible;
+    pointer-events: auto; /* アクティブ時のみクリックを受け取る */
 }
 
 .bottom-sheet-handle {
@@ -2528,6 +2566,14 @@ body {
     width: 18px;
     height: 18px;
     color: var(--text-secondary);
+}
+
+.mobile-version-display {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent-color);
+    margin: 0;
+    letter-spacing: 0.05em;
 }
 
 .bottom-sheet-close {
@@ -2577,20 +2623,96 @@ body {
     padding: 12px;
 }
 
-/* Mobile FAB (Floating Action Button) */
-.mobile-fab {
+/* Mobile FAB (Floating Action Button) with Speed Dial */
+.mobile-fab-container {
     display: none;
 }
 
 @media (max-width: 768px) {
-    /* Mobile FAB */
+    .mobile-fab-container {
+        display: block;
+        position: fixed;
+        bottom: 72px;
+        right: 16px;
+        z-index: 999;
+    }
+
+    /* Overlay */
+    .mobile-fab-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+        z-index: 998;
+    }
+
+    .mobile-fab-container.active .mobile-fab-overlay {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Speed Dial Actions Container */
+    .mobile-fab-actions {
+        position: absolute;
+        bottom: 70px;
+        right: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(20px);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .mobile-fab-container.active .mobile-fab-actions {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+
+    /* Individual Action Buttons */
+    .mobile-fab-action {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 28px;
+        padding: 0 16px 0 12px;
+        height: 48px;
+        color: var(--text-primary);
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+
+    .mobile-fab-action:active {
+        transform: scale(0.95);
+    }
+
+    .mobile-fab-action i {
+        width: 20px;
+        height: 20px;
+    }
+
+    .fab-action-label {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    /* Main FAB Button */
     .mobile-fab {
         display: flex;
         align-items: center;
         justify-content: center;
-        position: fixed;
-        bottom: 72px;
-        right: 16px;
         width: 56px;
         height: 56px;
         border-radius: 50%;
@@ -2598,13 +2720,52 @@ body {
         color: white;
         border: none;
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-        z-index: 999;
         cursor: pointer;
         transition: all 0.3s ease;
+        position: relative;
     }
 
     .mobile-fab:active {
         transform: scale(0.95);
+    }
+
+    /* FAB Icon switching */
+    .mobile-fab .fab-icon-close {
+        display: none;
+        position: absolute;
+    }
+
+    .mobile-fab-container.active .mobile-fab {
+        transform: rotate(90deg);
+    }
+
+    .mobile-fab-container.active .mobile-fab .fab-icon-default {
+        display: none;
+    }
+
+    .mobile-fab-container.active .mobile-fab .fab-icon-close {
+        display: block;
+    }
+
+    /* Stagger animation for action buttons */
+    .mobile-fab-action:nth-child(1) {
+        transition-delay: 0.05s;
+    }
+
+    .mobile-fab-action:nth-child(2) {
+        transition-delay: 0.1s;
+    }
+
+    .mobile-fab-action:nth-child(3) {
+        transition-delay: 0.15s;
+    }
+
+    .mobile-fab-action:nth-child(4) {
+        transition-delay: 0.2s;
+    }
+
+    .mobile-fab-action:nth-child(5) {
+        transition-delay: 0.25s;
     }
 
     /* Show mobile bottom nav */
@@ -2640,9 +2801,15 @@ body {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        overflow: visible;
-        /* Allow touch events to pass through to iframe */
-        touch-action: manipulation;
+        overflow-y: scroll; /* スクロールを有効化 */
+        overflow-x: hidden;
+        /* GPUアクセラレーションでスムーズなスクロール */
+        -webkit-overflow-scrolling: touch;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        will-change: scroll-position;
+        /* 縦スクロールのみ許可 */
+        touch-action: pan-y;
     }
 
     /* Terminal iframe - full width, proper sizing for xterm fit */
@@ -2653,7 +2820,8 @@ body {
         border: none;
         /* Enable pointer events for touch scrolling inside iframe */
         pointer-events: auto;
-        touch-action: auto;
+        /* 縦スクロールのみ、親要素と同じ設定 */
+        touch-action: pan-y;
     }
 
     /* Ensure main content doesn't overflow */
@@ -2672,24 +2840,27 @@ body {
         white-space: nowrap;
     }
 
-    /* Console toolbar - more accessible on mobile */
-    /* Phase 2.1: Improve toolbar visibility and usability on mobile */
+    /* Console toolbar - hide on mobile (use Speed Dial FAB instead) */
     .console-toolbar {
-        top: auto;
-        bottom: 64px;
-        right: 12px;
-        opacity: 1;
-        background: rgba(15, 23, 42, 0.95);
-        backdrop-filter: blur(8px);
-        padding: 8px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        display: none !important;
     }
 
     .console-btn {
         width: 48px;
         height: 48px;
         padding: 12px;
+    }
+
+    /* ターミナル領域 - キーボード表示時も入力が見えるようにスクロール調整 */
+    .console-area iframe {
+        /* iOS Safariでキーボード表示時にスクロール可能にする */
+        -webkit-overflow-scrolling: touch;
+        /* GPUアクセラレーションを有効化してスムーズなスクロールを実現 */
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        will-change: scroll-position;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
     }
 
     /* Modal adjustments for mobile */
@@ -2708,6 +2879,34 @@ body {
         border-radius: 0;
     }
 
+    /* Settings modal - compact header and hide integrity summary on mobile */
+    .modal-header.settings-header {
+        padding: 12px 16px;
+        min-height: auto;
+    }
+
+    .integrity-summary {
+        display: none; /* Hide on mobile to save space */
+    }
+
+    .settings-tabs {
+        padding: 0 8px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .settings-tab {
+        flex-shrink: 0;
+        padding: 10px 12px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .settings-content {
+        padding: 12px;
+    }
+
     /* Toast notifications - above bottom nav */
     #toast-container {
         bottom: 72px;
@@ -2717,6 +2916,71 @@ body {
 
     .toast {
         max-width: none;
+    }
+
+    /* Mobile Software Keyboard */
+    .mobile-keyboard {
+        display: none; /* Hidden by default */
+        position: fixed;
+        bottom: 60px; /* Above bottom nav */
+        left: 0;
+        right: 0;
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+        padding: 12px;
+        gap: 8px;
+        justify-content: center;
+        align-items: center;
+        z-index: 900;
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .mobile-keyboard.visible {
+        display: flex;
+    }
+
+    .keyboard-key {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        min-width: 60px;
+        height: 48px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .keyboard-key:active {
+        transform: scale(0.95);
+        background: var(--bg-tertiary);
+    }
+
+    .keyboard-key i {
+        width: 20px;
+        height: 20px;
+    }
+
+    .keyboard-key-primary {
+        background: var(--accent-color);
+        color: white;
+        flex-grow: 1;
+        max-width: 120px;
+    }
+
+    .keyboard-key-primary:active {
+        background: #2563eb;
+    }
+
+    .key-label {
+        font-size: 12px;
+        font-weight: 600;
     }
 
     /* Tap targets - minimum 44px */
@@ -2771,6 +3035,41 @@ body {
     .session-child-row {
         padding: 14px 16px;
         min-height: 56px;
+    }
+
+    /* Show menu toggle on mobile */
+    .session-menu-toggle {
+        display: flex;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Show child actions when active */
+    .child-actions.active {
+        display: flex !important;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 100;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .child-actions.active button {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 12px 16px;
+        gap: 12px;
+    }
+
+    /* Make session-child-row relative for absolute positioning */
+    .session-child-row {
+        position: relative;
     }
 
     .session-group-header {

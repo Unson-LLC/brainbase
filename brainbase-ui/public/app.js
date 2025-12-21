@@ -1,7 +1,7 @@
 // ES Modules imports
 import { MAX_VISIBLE_TASKS } from './modules/state.js';
 import { formatDueDate } from './modules/ui-helpers.js';
-import { initSettings } from './modules/settings.js';
+import { initSettings, openSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
 // New refactored modules
@@ -30,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const terminalFrame = document.getElementById('terminal-frame');
     const sessionList = document.getElementById('session-list');
-    const addSessionBtn = document.getElementById('add-session-btn');
 
     // New UI Elements
     const focusTaskEl = document.getElementById('focus-task');
@@ -85,6 +84,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let draggedSessionProject = null;
 
     // --- Data Loading ---
+    async function loadVersion() {
+        try {
+            const response = await fetch('/api/version');
+            const data = await response.json();
+            const versionEl = document.getElementById('app-version');
+            const mobileVersionEl = document.getElementById('mobile-app-version');
+            if (versionEl) {
+                versionEl.textContent = data.version;
+            }
+            if (mobileVersionEl) {
+                mobileVersionEl.textContent = data.version;
+            }
+        } catch (err) {
+            console.error('Failed to load version', err);
+        }
+    }
+
     async function loadSessions() {
         try {
             const state = await fetchState();
@@ -518,6 +534,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
+                // Mobile Menu Toggle Logic
+                const menuToggle = childRow.querySelector('.session-menu-toggle');
+                const childActions = childRow.querySelector('.child-actions');
+                if (menuToggle && childActions) {
+                    menuToggle.onclick = (e) => {
+                        e.stopPropagation();
+                        // Close all other open menus
+                        document.querySelectorAll('.child-actions.active').forEach(actions => {
+                            if (actions !== childActions) {
+                                actions.classList.remove('active');
+                            }
+                        });
+                        // Toggle this menu
+                        childActions.classList.toggle('active');
+                    };
+                }
+
+                // Close menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (childActions && !childRow.contains(e.target)) {
+                        childActions.classList.remove('active');
+                    }
+                });
+
                 // Rename Logic
                 const renameBtn = childRow.querySelector('.rename-session-btn');
                 renameBtn.onclick = (e) => {
@@ -631,11 +671,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                 }
 
+                // Stop Logic (ttyd起動中セッションの停止)
+                const stopBtn = childRow.querySelector('.stop-session-btn');
+                if (stopBtn) {
+                    stopBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        try {
+                            showInfo(`「${displayName}」のターミナルを停止中...`);
+                            const response = await fetch(`/api/sessions/${session.id}/stop`, {
+                                method: 'POST'
+                            });
+                            const result = await response.json();
+                            if (result.success) {
+                                showSuccess(`「${displayName}」のターミナルを停止しました`);
+                                await loadSessions();
+                            } else {
+                                showError(`停止失敗: ${result.message}`);
+                            }
+                        } catch (err) {
+                            console.error('Failed to stop session', err);
+                            showError('ターミナルの停止に失敗しました');
+                        }
+                    };
+                }
+
                 // Archive Logic (with worktree merge check)
                 const archiveBtn = childRow.querySelector('.archive-session-btn');
                 archiveBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    const newArchivedState = !session.archived;
+                    const newArchivedState = session.intendedState !== 'archived';
 
                     if (newArchivedState) {
                         // Archiving - use imported archiveSessionAPI and mergeSession
@@ -674,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         // Unarchiving - use imported updateSession
                         try {
-                            await updateSession(session.id, { archived: false });
+                            await updateSession(session.id, { intendedState: 'stopped' });
                             loadSessions();
                         } catch (err) {
                             console.error('Failed to unarchive session', err);
@@ -1048,8 +1112,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    addSessionBtn.addEventListener('click', () => createNewSession());
-
     // Focus footer button -> open engine selector for current focus task
     if (focusBtn) {
         focusBtn.onclick = () => {
@@ -1096,6 +1158,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Archive Modal Handler
     if (toggleArchivedBtn) {
         toggleArchivedBtn.onclick = () => {
+            openArchiveModal();
+        };
+    }
+
+    // Mobile Archive Toggle Handler
+    const mobileToggleArchivedBtn = document.getElementById('mobile-toggle-archived-btn');
+    if (mobileToggleArchivedBtn) {
+        mobileToggleArchivedBtn.onclick = () => {
             openArchiveModal();
         };
     }
@@ -1192,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const currentState = await fetchState();
             const restoredSession = currentState.sessions.find(s => s.id === sessionId);
-            await updateSession(sessionId, { archived: false });
+            await updateSession(sessionId, { intendedState: 'stopped' });
             await loadSessions();
             renderArchiveList();
 
@@ -1307,10 +1377,8 @@ document.addEventListener('DOMContentLoaded', () => {
         choices.forEach((choice) => {
             const btn = document.createElement('button');
             btn.className = 'choice-btn';
-            btn.innerHTML = `
-                <span class="choice-number">${escapeHtml(choice.number)}</span>
-                <span class="choice-text">${escapeHtml(choice.text)}</span>
-            `;
+            // Claude Codeの出力をそのまま表示
+            btn.textContent = choice.originalText || `${choice.number}) ${choice.text}`;
             btn.onclick = () => selectChoice(choice.number);
             container.appendChild(btn);
         });
@@ -1376,7 +1444,238 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Image Compression Utility ---
+    async function compressImage(blob, maxWidth = 1920, maxHeight = 1080, quality = 0.8) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                // アスペクト比を維持しながらリサイズ
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width *= ratio;
+                    height *= ratio;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((compressedBlob) => {
+                    resolve(compressedBlob || blob);
+                }, 'image/jpeg', quality);
+            };
+
+            img.onerror = () => {
+                resolve(blob); // エラー時は元のBlobを返す
+            };
+
+            img.src = URL.createObjectURL(blob);
+        });
+    }
+
     // --- Terminal Copy Functionality ---
+    // Paste from clipboard to terminal (text and images)
+    const pasteTerminalBtn = document.getElementById('paste-terminal-btn');
+    if (pasteTerminalBtn) {
+        pasteTerminalBtn.onclick = async () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                // Try to read clipboard items (supports both text and images)
+                const clipboardItems = await navigator.clipboard.read();
+
+                for (const item of clipboardItems) {
+                    // Check for image
+                    const imageType = item.types.find(type => type.startsWith('image/'));
+                    if (imageType) {
+                        try {
+                            showInfo('画像を読み込み中...');
+
+                            const blob = await item.getType(imageType);
+                            console.log('Image blob retrieved:', blob.type, blob.size, 'bytes');
+
+                            // 圧縮前のサイズ
+                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
+                            console.log('Original size:', originalSize, 'MB');
+
+                            showInfo('画像を圧縮中...');
+
+                            // 画像を圧縮
+                            const compressedBlob = await compressImage(blob);
+                            console.log('Image compressed:', compressedBlob.size, 'bytes');
+
+                            // 圧縮後のサイズ
+                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+                            console.log('Compressed size:', compressedSize, 'MB');
+
+                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+
+                            // Upload compressed image to server
+                            const formData = new FormData();
+                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
+
+                            const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!uploadRes.ok) {
+                                const errorText = await uploadRes.text();
+                                console.error('Upload failed:', uploadRes.status, errorText);
+                                showError(`画像のアップロードに失敗しました (${uploadRes.status})`);
+                                return;
+                            }
+
+                            const { path: imagePath } = await uploadRes.json();
+                            console.log('Image uploaded:', imagePath);
+
+                            // Send image path to terminal with Enter key
+                            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
+                            });
+
+                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
+                            return;
+                        } catch (imageError) {
+                            console.error('Image processing failed:', imageError);
+                            if (imageError.name === 'NotAllowedError') {
+                                showError('画像の読み込みが拒否されました。クリップボードの権限を確認してください。');
+                            } else if (imageError.name === 'NotSupportedError') {
+                                showError('このブラウザでは画像形式がサポートされていません。');
+                            } else if (imageError.message) {
+                                showError(`画像処理エラー: ${imageError.message}`);
+                            } else {
+                                showError(`画像処理に失敗しました: ${imageError.name || 'Unknown error'}`);
+                            }
+                            return;
+                        }
+                    }
+
+                    // Check for text
+                    if (item.types.includes('text/plain')) {
+                        const textBlob = await item.getType('text/plain');
+                        const text = await textBlob.text();
+
+                        if (!text) {
+                            showInfo('クリップボードが空です');
+                            return;
+                        }
+
+                        // Send text to terminal via tmux
+                        await fetch(`/api/sessions/${currentSessionId}/input`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ input: text, type: 'text' })
+                        });
+
+                        showSuccess(`ペーストしました: ${text.length}文字`);
+                        return;
+                    }
+                }
+
+                showInfo('クリップボードが空です');
+            } catch (error) {
+                console.error('Failed to paste:', error);
+                if (error.name === 'NotAllowedError') {
+                    showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+                } else if (error.name === 'NotSupportedError') {
+                    showError('このブラウザでは画像のクリップボード貼り付けがサポートされていません。');
+                } else {
+                    showError(`ペーストに失敗しました: ${error.message || error.name}`);
+                }
+            }
+        };
+    }
+
+    // Upload image from file picker
+    const uploadImageBtn = document.getElementById('upload-image-btn');
+    const imageFileInput = document.getElementById('image-file-input');
+
+    if (uploadImageBtn && imageFileInput) {
+        uploadImageBtn.onclick = () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+            imageFileInput.click();
+        };
+
+        imageFileInput.onchange = async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showError('画像ファイルを選択してください');
+                return;
+            }
+
+            try {
+                showInfo('画像を圧縮中...');
+                console.log('Selected file:', file.type, file.size, 'bytes');
+
+                // 圧縮前のサイズ
+                const originalSize = (file.size / 1024 / 1024).toFixed(2);
+                console.log('Original size:', originalSize, 'MB');
+
+                // 画像を圧縮
+                const compressedBlob = await compressImage(file);
+                console.log('Image compressed:', compressedBlob.size, 'bytes');
+
+                // 圧縮後のサイズ
+                const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+                console.log('Compressed size:', compressedSize, 'MB');
+
+                showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+
+                // Upload compressed image to server
+                const formData = new FormData();
+                formData.append('file', compressedBlob, file.name.replace(/\.[^.]+$/, '.jpg'));
+
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadRes.ok) {
+                    const errorText = await uploadRes.text();
+                    console.error('Upload failed:', uploadRes.status, errorText);
+                    showError(`画像のアップロードに失敗しました (${uploadRes.status})`);
+                    return;
+                }
+
+                const { path: imagePath } = await uploadRes.json();
+                console.log('Image uploaded:', imagePath);
+
+                // Send image path to terminal with Enter key
+                await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
+                });
+
+                showSuccess(`画像をアップロードしました (圧縮率: ${((1 - compressedBlob.size / file.size) * 100).toFixed(0)}%)`);
+
+                // Reset file input
+                imageFileInput.value = '';
+            } catch (error) {
+                console.error('Image upload failed:', error);
+                showError(`画像のアップロードに失敗しました: ${error.message || error.name}`);
+                imageFileInput.value = '';
+            }
+        };
+    }
+
     if (copyTerminalBtn) {
         copyTerminalBtn.onclick = async () => {
             if (!currentSessionId) {
@@ -1440,6 +1739,205 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Send Escape key
+    const sendEscapeBtn = document.getElementById('send-escape-btn');
+    if (sendEscapeBtn) {
+        sendEscapeBtn.onclick = async () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'Escape', type: 'key' })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to send Escape key');
+                }
+
+                showSuccess('Escapeキーを送信しました');
+            } catch (error) {
+                console.error('Failed to send Escape:', error);
+                showError('Escapeキーの送信に失敗しました');
+            }
+        };
+    }
+
+    // Send Ctrl+L (Clear screen)
+    const sendClearBtn = document.getElementById('send-clear-btn');
+    if (sendClearBtn) {
+        sendClearBtn.onclick = async () => {
+            if (!currentSessionId) {
+                showInfo('セッションを選択してください');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'C-l', type: 'key' })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to send Ctrl+L');
+                }
+
+                showSuccess('画面をクリアしました (Ctrl+L)');
+            } catch (error) {
+                console.error('Failed to send Ctrl+L:', error);
+                showError('画面クリアに失敗しました');
+            }
+        };
+    }
+
+    // --- Mobile FAB Speed Dial ---
+    const mobileFabContainer = document.getElementById('mobile-fab-container');
+    const mobileFab = document.getElementById('mobile-fab');
+    const mobileFabOverlay = document.getElementById('mobile-fab-overlay');
+
+    console.log('Mobile FAB Speed Dial initialized:', { mobileFabContainer, mobileFab, mobileFabOverlay });
+
+    // Toggle FAB menu
+    if (mobileFab) {
+        mobileFab.onclick = () => {
+            console.log('FAB clicked, toggling menu');
+            mobileFabContainer?.classList.toggle('active');
+            lucide.createIcons();
+        };
+    } else {
+        console.error('mobileFab element not found!');
+    }
+
+    // Close FAB menu when clicking overlay
+    if (mobileFabOverlay) {
+        mobileFabOverlay.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+        };
+    }
+
+    // Mobile FAB action: Paste
+    const mobilePasteBtn = document.getElementById('mobile-paste-btn');
+    if (mobilePasteBtn) {
+        mobilePasteBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            pasteTerminalBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Upload Image
+    const mobileUploadImageBtn = document.getElementById('mobile-upload-image-btn');
+    if (mobileUploadImageBtn) {
+        mobileUploadImageBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            uploadImageBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Send Escape
+    const mobileSendEscapeBtn = document.getElementById('mobile-send-escape-btn');
+    if (mobileSendEscapeBtn) {
+        mobileSendEscapeBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            sendEscapeBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Send Clear
+    const mobileSendClearBtn = document.getElementById('mobile-send-clear-btn');
+    if (mobileSendClearBtn) {
+        mobileSendClearBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            sendClearBtn?.click();
+        };
+    }
+
+    // Mobile FAB action: Copy Terminal
+    const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
+    if (mobileCopyTerminalBtn) {
+        mobileCopyTerminalBtn.onclick = () => {
+            mobileFabContainer?.classList.remove('active');
+            copyTerminalBtn?.click();
+        };
+    }
+
+    // --- Mobile Software Keyboard ---
+    const mobileKeyboard = document.getElementById('mobile-keyboard');
+
+    // Helper function to send key to terminal
+    async function sendKeyToTerminal(keyName) {
+        if (!currentSessionId) {
+            showInfo('セッションを選択してください');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/sessions/${currentSessionId}/input`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: keyName, type: 'key' })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                showError(errorData.error || `キー送信に失敗しました (${res.status})`);
+            }
+        } catch (err) {
+            console.error(`Error sending ${keyName} key:`, err);
+            showError('キーの送信中にエラーが発生しました');
+        }
+    }
+
+    // Keyboard button: Up arrow
+    const keyUpBtn = document.getElementById('key-up');
+    if (keyUpBtn) {
+        keyUpBtn.onclick = () => sendKeyToTerminal('Up');
+    }
+
+    // Keyboard button: Down arrow
+    const keyDownBtn = document.getElementById('key-down');
+    if (keyDownBtn) {
+        keyDownBtn.onclick = () => sendKeyToTerminal('Down');
+    }
+
+    // Keyboard button: Tab
+    const keyTabBtn = document.getElementById('key-tab');
+    if (keyTabBtn) {
+        keyTabBtn.onclick = () => sendKeyToTerminal('Tab');
+    }
+
+    // Keyboard button: Enter
+    const keyEnterBtn = document.getElementById('key-enter');
+    if (keyEnterBtn) {
+        keyEnterBtn.onclick = () => sendKeyToTerminal('Enter');
+    }
+
+    // Show keyboard when choices are detected
+    // We'll detect choices by looking for specific patterns in terminal output
+    let lastTerminalContent = '';
+
+    function checkForChoices() {
+        const terminalContent = terminalOutput?.textContent || '';
+
+        // Detect if content contains choice prompts (like numbered options or arrows)
+        const hasChoices = /[>?]\s*\d+[).:]|^[\s]*[▸►>]\s/m.test(terminalContent);
+
+        if (hasChoices && !lastTerminalContent.includes(terminalContent)) {
+            mobileKeyboard?.classList.add('visible');
+        } else if (!hasChoices) {
+            mobileKeyboard?.classList.remove('visible');
+        }
+
+        lastTerminalContent = terminalContent;
+    }
+
+    // Check for choices periodically
+    setInterval(checkForChoices, 500);
+
     // Close modal on Escape
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && copyTerminalModal?.classList.contains('active')) {
@@ -1452,6 +1950,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Mobile Bottom Sheet Logic ---
     const mobileSessionsBtn = document.getElementById('mobile-sessions-btn');
     const mobileTasksBtn = document.getElementById('mobile-tasks-btn');
+    const mobileSettingsBtn = document.getElementById('mobile-settings-btn');
     const sessionsSheetOverlay = document.getElementById('sessions-sheet-overlay');
     const tasksSheetOverlay = document.getElementById('tasks-sheet-overlay');
     const sessionsBottomSheet = document.getElementById('sessions-bottom-sheet');
@@ -1459,7 +1958,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSessionsSheetBtn = document.getElementById('close-sessions-sheet');
     const closeTasksSheetBtn = document.getElementById('close-tasks-sheet');
     const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn');
-    const mobileFabBtn = document.getElementById('mobile-fab');
+    // mobileFabBtn is defined in Mobile FAB Speed Dial section above
     const mobileSessionList = document.getElementById('mobile-session-list');
     const mobileTasksContent = document.getElementById('mobile-tasks-content');
 
@@ -1504,10 +2003,135 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             });
+
+            // Re-attach click handlers for 3-dot menu toggles and action buttons
+            mobileSessionList.querySelectorAll('.session-child-row').forEach(row => {
+                const menuToggle = row.querySelector('.session-menu-toggle');
+                const childActions = row.querySelector('.child-actions');
+
+                // 3-dot menu toggle
+                if (menuToggle && childActions) {
+                    menuToggle.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        // Close all other menus
+                        mobileSessionList.querySelectorAll('.child-actions.active').forEach(actions => {
+                            if (actions !== childActions) {
+                                actions.classList.remove('active');
+                            }
+                        });
+                        // Toggle this menu
+                        childActions.classList.toggle('active');
+                    });
+                }
+
+                // Action buttons
+                const renameBtn = row.querySelector('.rename-session-btn');
+                const deleteBtn = row.querySelector('.delete-session-btn');
+                const archiveBtn = row.querySelector('.archive-session-btn');
+                const mergeBtn = row.querySelector('.merge-session-btn');
+                const restartBtn = row.querySelector('.restart-session-btn');
+
+                if (renameBtn) {
+                    renameBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const currentName = row.querySelector('.session-name')?.textContent || sessionId;
+                        const newName = prompt('新しいセッション名を入力してください:', currentName);
+                        if (newName && newName !== currentName) {
+                            try {
+                                await updateSession(sessionId, { name: newName });
+                                await loadSessions();
+                                openSessionsSheet(); // Refresh the mobile list
+                            } catch (err) {
+                                console.error('Failed to rename', err);
+                                showError('セッション名の変更に失敗しました');
+                            }
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const sessionName = row.querySelector('.session-name')?.textContent || sessionId;
+                        if (confirm(`セッション「${sessionName}」を削除しますか？`)) {
+                            try {
+                                await removeSession(sessionId);
+                                await loadSessions();
+                                openSessionsSheet(); // Refresh the mobile list
+                            } catch (err) {
+                                console.error('Failed to delete', err);
+                                showError('セッションの削除に失敗しました');
+                            }
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (archiveBtn) {
+                    archiveBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const isArchived = row.classList.contains('archived');
+                        try {
+                            if (isArchived) {
+                                await restoreSessionAPI(sessionId);
+                            } else {
+                                await archiveSessionAPI(sessionId);
+                            }
+                            await loadSessions();
+                            openSessionsSheet(); // Refresh the mobile list
+                        } catch (err) {
+                            console.error('Failed to archive/restore', err);
+                            showError('アーカイブ操作に失敗しました');
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (mergeBtn) {
+                    mergeBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        const sessionName = row.querySelector('.session-name')?.textContent || sessionId;
+                        if (confirm(`セッション「${sessionName}」をmainにマージしますか？`)) {
+                            try {
+                                await mergeSession(sessionId);
+                                await loadSessions();
+                                openSessionsSheet(); // Refresh the mobile list
+                            } catch (err) {
+                                console.error('Failed to merge', err);
+                                showError('マージに失敗しました');
+                            }
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+
+                if (restartBtn) {
+                    restartBtn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const sessionId = row.dataset.id;
+                        try {
+                            await fetch(`/api/sessions/${sessionId}/restart`, { method: 'POST' });
+                            await loadSessions();
+                            openSessionsSheet(); // Refresh the mobile list
+                        } catch (err) {
+                            console.error('Failed to restart', err);
+                            showError('セッションの再起動に失敗しました');
+                        }
+                        childActions?.classList.remove('active');
+                    });
+                }
+            });
         }
         sessionsSheetOverlay?.classList.add('active');
         sessionsBottomSheet?.classList.add('active');
         lucide.createIcons();
+        // Load version for mobile display
+        loadVersion();
     }
 
     function closeSessionsSheet() {
@@ -1547,8 +2171,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listeners for mobile navigation
     mobileSessionsBtn?.addEventListener('click', openSessionsSheet);
     mobileTasksBtn?.addEventListener('click', openTasksSheet);
+    mobileSettingsBtn?.addEventListener('click', openSettings);
     mobileAddSessionBtn?.addEventListener('click', () => createNewSession());
-    mobileFabBtn?.addEventListener('click', () => createNewSession());
+    // mobileFabBtn is now handled by Speed Dial (see Mobile FAB Speed Dial section above)
     closeSessionsSheetBtn?.addEventListener('click', closeSessionsSheet);
     closeTasksSheetBtn?.addEventListener('click', closeTasksSheet);
     sessionsSheetOverlay?.addEventListener('click', closeSessionsSheet);
@@ -1590,54 +2215,153 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Mobile touch scroll for terminal iframe
-    (function initTerminalTouchScroll() {
+    // Mobile keyboard detection and auto-scroll for terminal
+    if ('visualViewport' in window) {
+        let lastHeight = window.visualViewport.height;
+
+        window.visualViewport.addEventListener('resize', () => {
+            const currentHeight = window.visualViewport.height;
+            const heightDiff = lastHeight - currentHeight;
+
+            // Keyboard is showing (viewport height decreased by more than 150px)
+            if (heightDiff > 150) {
+                // Scroll terminal to bottom to keep input visible
+                setTimeout(() => {
+                    const iframe = document.getElementById('terminal-frame');
+                    if (iframe && iframe.contentWindow) {
+                        try {
+                            // Try to scroll terminal content to bottom
+                            const terminalDoc = iframe.contentWindow.document;
+                            if (terminalDoc && terminalDoc.documentElement) {
+                                terminalDoc.documentElement.scrollTop = terminalDoc.documentElement.scrollHeight;
+                            }
+                        } catch (e) {
+                            // Cross-origin restrictions may prevent this
+                            console.log('Cannot scroll terminal iframe:', e.message);
+                        }
+                    }
+
+                    // Also ensure the console area is scrolled properly
+                    const consoleArea = document.getElementById('console-area');
+                    if (consoleArea) {
+                        consoleArea.scrollTop = consoleArea.scrollHeight;
+                    }
+                }, 100);
+            }
+
+            lastHeight = currentHeight;
+        });
+    }
+
+    // xterm-viewport（Claude Codeの出力領域）のスクロール処理
+    // パフォーマンス最適化版
+    (function initXtermScroll() {
         const consoleArea = document.querySelector('.console-area');
         if (!consoleArea) return;
 
         let touchStartY = 0;
         let isTouching = false;
+        let cachedViewport = null;
+        let rafId = null;
+        let targetScrollTop = 0;
+
+        // viewport要素をキャッシュして取得
+        function getViewport() {
+            if (cachedViewport) return cachedViewport;
+
+            const iframe = document.getElementById('terminal-frame');
+            if (!iframe) return null;
+
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (!iframeDoc) return null;
+
+                cachedViewport = iframeDoc.querySelector('.xterm-viewport');
+                return cachedViewport;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        // requestAnimationFrameでスムーズにスクロール
+        function updateScroll() {
+            const viewport = getViewport();
+            if (viewport) {
+                viewport.scrollTop = targetScrollTop;
+            }
+            rafId = null;
+        }
 
         consoleArea.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
                 isTouching = true;
                 touchStartY = e.touches[0].clientY;
+                cachedViewport = null; // リセットして再取得
+                const viewport = getViewport();
+                if (viewport) {
+                    targetScrollTop = viewport.scrollTop;
+                }
             }
         }, { passive: true });
 
         consoleArea.addEventListener('touchmove', (e) => {
             if (!isTouching || e.touches.length !== 1) return;
 
-            const iframe = document.getElementById('terminal-frame');
-            if (!iframe) return;
+            const viewport = getViewport();
+            if (!viewport) return;
 
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                if (!iframeDoc) return;
+            const touchY = e.touches[0].clientY;
+            const deltaY = touchStartY - touchY;
 
-                const viewport = iframeDoc.querySelector('.xterm-viewport');
-                if (!viewport) return;
+            // スクロール量を調整（1倍速で自然な操作感）
+            targetScrollTop += deltaY;
+            touchStartY = touchY;
 
-                const touchY = e.touches[0].clientY;
-                const deltaY = touchStartY - touchY;
-
-                // Apply scroll to viewport
-                viewport.scrollTop += deltaY * 2; // Multiply for faster scroll
-                touchStartY = touchY; // Update for continuous scroll
-            } catch (err) {
-                // Cross-origin restriction - can't access iframe content
-                console.log('Cannot access iframe content for scroll');
+            // requestAnimationFrameで次のフレームで更新
+            if (!rafId) {
+                rafId = requestAnimationFrame(updateScroll);
             }
         }, { passive: true });
 
         consoleArea.addEventListener('touchend', () => {
             isTouching = false;
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
         }, { passive: true });
 
         consoleArea.addEventListener('touchcancel', () => {
             isTouching = false;
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
         }, { passive: true });
 
-        console.log('Terminal touch scroll initialized');
+        console.log('Optimized xterm scroll initialized');
     })();
+
+    // Load version on startup
+    loadVersion();
+
+    // Restart server button
+    const restartServerBtn = document.getElementById('restart-server-btn');
+    if (restartServerBtn) {
+        restartServerBtn.onclick = async () => {
+            if (!confirm('サーバーを再起動しますか？\n\n接続が一時的に切断されます。')) {
+                return;
+            }
+            try {
+                await fetch('/api/restart', { method: 'POST' });
+                showSuccess('サーバーを再起動しています...\n\n5秒後にページをリロードします。');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            } catch (err) {
+                console.error('Failed to restart server', err);
+                showError('サーバーの再起動に失敗しました');
+            }
+        };
+    }
 });
