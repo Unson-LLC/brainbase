@@ -40,7 +40,8 @@ export function renderSessionRowHTML(session, options = {}) {
   let statusLabel = '';
   if (session.intendedState === 'archived') {
     statusLabel = '<span class="archived-label">(Archived)</span>';
-  } else if (isStopped) {
+  } else if (needsRestart) {
+    // 本来アクティブであるべきなのに停止している場合のみラベル表示
     statusLabel = '<span class="stopped-label">(Stopped)</span>';
   }
 
