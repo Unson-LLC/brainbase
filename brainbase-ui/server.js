@@ -245,7 +245,8 @@ app.get('/api/state', (req, res) => {
     // Add runtime status to each session
     const sessionsWithStatus = (state.sessions || []).map(session => {
         const ttydRunning = activeSessions.has(session.id);
-        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        // アーカイブされていないセッションでttydが停止していれば再起動可能
+        const needsRestart = session.intendedState !== 'archived' && !ttydRunning;
 
         return {
             ...session,
