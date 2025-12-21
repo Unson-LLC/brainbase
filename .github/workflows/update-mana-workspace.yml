@@ -40,14 +40,18 @@ jobs:
 
       - name: Backup current configuration
         run: |
+          # タイムスタンプ付きバックアップファイル（aws-lambda-env-update.md 準拠）
+          BACKUP_FILE="/tmp/env_backup_$(date +%Y%m%d_%H%M%S).json"
+
           aws lambda get-function-configuration \
             --function-name ${{ inputs.lambda_function }} \
             --region us-east-1 \
             --profile k.sato \
-            --query 'Environment.Variables' \
-            --output json > /tmp/${{ inputs.lambda_function }}-backup-$(date +%Y%m%d-%H%M%S).json
+            --query 'Environment' \
+            --output json > "$BACKUP_FILE"
 
-          echo "✅ Configuration backed up"
+          echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
+          echo "✅ Configuration backed up to: $BACKUP_FILE"
 
       - name: Test new credentials
         env:
@@ -70,35 +74,42 @@ jobs:
           echo "$AUTH_RESULT" | jq '{team, team_id, user, user_id}' > /tmp/auth-result.json
           echo "✅ Credentials validated"
 
-      - name: Update Lambda environment variables
+      - name: Prepare updated configuration
         env:
           SLACK_BOT_TOKEN: ${{ inputs.slack_bot_token }}
           SLACK_SIGNING_SECRET: ${{ inputs.slack_signing_secret }}
         run: |
-          # Get current environment variables
-          CURRENT_VARS=$(aws lambda get-function-configuration \
-            --function-name ${{ inputs.lambda_function }} \
-            --region us-east-1 \
-            --profile k.sato \
-            --query 'Environment.Variables' \
-            --output json)
+          # ファイルベース更新（aws-lambda-env-update.md 準拠）
+          UPDATED_FILE="/tmp/env_updated.json"
 
-          # Update both SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET
-          echo "$CURRENT_VARS" | jq \
+          # バックアップから更新版を作成
+          jq \
             --arg bot_token "$SLACK_BOT_TOKEN" \
             --arg signing_secret "$SLACK_SIGNING_SECRET" \
-            '{Variables: (. | .SLACK_BOT_TOKEN = $bot_token | .SLACK_SIGNING_SECRET = $signing_secret)}' \
-            > /tmp/updated-env.json
+            '.Variables.SLACK_BOT_TOKEN = $bot_token | .Variables.SLACK_SIGNING_SECRET = $signing_secret' \
+            "$BACKUP_FILE" > "$UPDATED_FILE"
 
-          # Apply update
+          echo "UPDATED_FILE=$UPDATED_FILE" >> $GITHUB_ENV
+          echo "✅ Updated configuration prepared"
+
+      - name: Review changes (diff)
+        run: |
+          # 変更内容を確認（aws-lambda-env-update.md 必須ステップ）
+          echo "=== Reviewing changes ==="
+          diff <(jq -S . "$BACKUP_FILE") <(jq -S . "$UPDATED_FILE") || true
+
+          echo ""
+          echo "=== Keys in updated configuration ==="
+          jq '.Variables | keys' "$UPDATED_FILE"
+
+      - name: Apply update
+        run: |
+          # 更新適用（file:// プロトコル使用）
           aws lambda update-function-configuration \
             --function-name ${{ inputs.lambda_function }} \
             --region us-east-1 \
             --profile k.sato \
-            --environment file:///tmp/updated-env.json \
-            > /dev/null
-
-          rm -f /tmp/updated-env.json
+            --environment "file://$UPDATED_FILE"
 
           echo "✅ Lambda environment variables updated"
 
@@ -107,23 +118,42 @@ jobs:
           echo "=== Waiting for Lambda update to complete ==="
           sleep 5
 
-          # Get updated token
-          NEW_TOKEN=$(aws lambda get-function-configuration \
+          # 更新後のキー確認（aws-lambda-env-update.md 必須ステップ）
+          aws lambda get-function-configuration \
             --function-name ${{ inputs.lambda_function }} \
             --region us-east-1 \
             --profile k.sato \
-            --query 'Environment.Variables.SLACK_BOT_TOKEN' \
-            --output text)
+            --query 'Environment.Variables' \
+            --output json > /tmp/env_after_update.json
 
-          # Verify it matches
-          AUTH_RESULT=$(curl -sS "https://slack.com/api/auth.test" \
-            -H "Authorization: Bearer $NEW_TOKEN")
+          echo "=== Keys after update ==="
+          jq 'keys' /tmp/env_after_update.json
 
-          echo "Updated workspace: $(echo "$AUTH_RESULT" | jq -r '.team') ($(echo "$AUTH_RESULT" | jq -r '.team_id'))"
+          # 全ての元のキーが存在するか確認
+          BEFORE_KEYS=$(jq -r '.Variables | keys[]' "$BACKUP_FILE" | sort)
+          AFTER_KEYS=$(jq -r 'keys[]' /tmp/env_after_update.json | sort)
 
-          # Compare with expected
+          if [ "$BEFORE_KEYS" != "$AFTER_KEYS" ]; then
+            echo "❌ Error: Environment variable keys changed!"
+            echo "Before: $BEFORE_KEYS"
+            echo "After: $AFTER_KEYS"
+            exit 1
+          fi
+
+          # トークンを取得してワークスペース検証
+          jq -r '.SLACK_BOT_TOKEN' /tmp/env_after_update.json > /tmp/new_token.txt
+          NEW_TOKEN=$(cat /tmp/new_token.txt)
+
+          # API検証
+          curl -sS "https://slack.com/api/auth.test" \
+            -H "Authorization: Bearer $NEW_TOKEN" > /tmp/auth_after_update.json
+
+          echo ""
+          echo "Updated workspace: $(jq -r '.team' /tmp/auth_after_update.json) ($(jq -r '.team_id' /tmp/auth_after_update.json))"
+
+          # 期待値との比較
           EXPECTED=$(cat /tmp/auth-result.json)
-          ACTUAL=$(echo "$AUTH_RESULT" | jq '{team, team_id, user, user_id}')
+          ACTUAL=$(jq '{team, team_id, user, user_id}' /tmp/auth_after_update.json)
 
           if [ "$EXPECTED" != "$ACTUAL" ]; then
             echo "❌ Error: Verification failed"
@@ -139,15 +169,19 @@ jobs:
           echo "=== Checking recent Lambda logs ==="
           sleep 3
 
-          # Check for signature errors (should be none after update)
-          RECENT_ERRORS=$(aws logs tail /aws/lambda/${{ inputs.lambda_function }} \
+          # ログをファイルに保存してからチェック（コマンド置換回避）
+          aws logs tail /aws/lambda/${{ inputs.lambda_function }} \
             --since 2m \
             --format short \
             --profile k.sato \
-            --region us-east-1 2>&1 | grep -i "Invalid request signature" | wc -l | tr -d ' ')
+            --region us-east-1 2>&1 > /tmp/recent_logs.txt || true
 
-          if [ "$RECENT_ERRORS" -gt 0 ]; then
-            echo "⚠️ Warning: Found $RECENT_ERRORS signature errors in recent logs"
+          # 署名エラーをチェック
+          grep -i "Invalid request signature" /tmp/recent_logs.txt > /tmp/signature_errors.txt || true
+          ERROR_COUNT=$(wc -l < /tmp/signature_errors.txt | tr -d ' ')
+
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "⚠️ Warning: Found $ERROR_COUNT signature errors in recent logs"
             echo "This is normal if the update just completed. Test with a Slack mention."
           else
             echo "✅ No signature errors detected"
@@ -155,16 +189,25 @@ jobs:
 
       - name: Summary
         run: |
+          # ファイルから値を読み取り（コマンド置換回避）
+          jq -r '.team' /tmp/auth-result.json > /tmp/workspace_name.txt
+          jq -r '.team_id' /tmp/auth-result.json > /tmp/team_id.txt
+          jq -r '.user' /tmp/auth-result.json > /tmp/bot_user.txt
+
+          WORKSPACE_NAME=$(cat /tmp/workspace_name.txt)
+          TEAM_ID=$(cat /tmp/team_id.txt)
+          BOT_USER=$(cat /tmp/bot_user.txt)
+
           echo ""
           echo "=== Update Summary ==="
           echo "Lambda: ${{ inputs.lambda_function }}"
-          echo "Workspace: $(cat /tmp/auth-result.json | jq -r '.team')"
-          echo "Team ID: $(cat /tmp/auth-result.json | jq -r '.team_id')"
-          echo "Bot User: $(cat /tmp/auth-result.json | jq -r '.user')"
+          echo "Workspace: $WORKSPACE_NAME"
+          echo "Team ID: $TEAM_ID"
+          echo "Bot User: $BOT_USER"
           echo ""
           echo "✅ Credentials updated successfully"
           echo ""
           echo "Next steps:"
-          echo "1. Test with a Slack mention to ${{ inputs.lambda_function }}"
+          echo "1. Test with a Slack mention to @mana in the updated workspace"
           echo "2. Check CloudWatch logs for any errors"
-          echo "3. Backup file saved to: /tmp/${{ inputs.lambda_function }}-backup-*.json"
+          echo "3. Backup file: $BACKUP_FILE"
