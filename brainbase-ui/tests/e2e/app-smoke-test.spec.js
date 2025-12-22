@@ -170,4 +170,19 @@ test.describe('brainbase-ui smoke test', () => {
         const settingsTabs = await page.locator('.settings-tab');
         expect(await settingsTabs.count()).toBeGreaterThan(0);
     });
+
+    test('should display inbox button even with no notifications', async ({ page }) => {
+        await page.goto('http://localhost:3001');
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1000); // Wait for inbox to load
+
+        // 通知ボタンが表示される（通知が0件でも）
+        const inboxBtn = await page.locator('#inbox-trigger-btn');
+        await expect(inboxBtn).toBeVisible();
+
+        // バッジは非表示（通知が0件の場合）
+        const inboxBadge = await page.locator('#inbox-badge');
+        const badgeDisplay = await inboxBadge.evaluate(el => window.getComputedStyle(el).display);
+        expect(badgeDisplay).toBe('none');
+    });
 });

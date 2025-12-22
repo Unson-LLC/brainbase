@@ -83,23 +83,28 @@ export class InboxView {
      * Inboxをレンダリング
      */
     render() {
-        // Show/hide trigger based on items
+        // Always show inbox button (UX improvement)
+        if (this.inboxTriggerBtn) {
+            this.inboxTriggerBtn.style.display = 'flex';
+        }
+
+        // Update badge count
+        if (this.inboxBadge) {
+            this.inboxBadge.textContent = this.inboxItems.length;
+            // Hide badge if no items
+            this.inboxBadge.style.display = this.inboxItems.length > 0 ? 'inline-flex' : 'none';
+        }
+
+        // Show empty state if no items
         if (this.inboxItems.length === 0) {
-            if (this.inboxTriggerBtn) {
-                this.inboxTriggerBtn.style.display = 'none';
+            if (this.inboxListEl) {
+                this.inboxListEl.innerHTML = '<div class="inbox-empty">通知はありません</div>';
             }
             if (this.inboxDropdown) {
                 this.inboxDropdown.classList.remove('open');
             }
             this.inboxOpen = false;
             return;
-        }
-
-        if (this.inboxTriggerBtn) {
-            this.inboxTriggerBtn.style.display = 'flex';
-        }
-        if (this.inboxBadge) {
-            this.inboxBadge.textContent = this.inboxItems.length;
         }
 
         if (this.inboxListEl) {

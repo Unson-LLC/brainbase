@@ -810,6 +810,13 @@ body {
     padding: 8px;
 }
 
+.inbox-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
 /* Inbox Item */
 .inbox-item {
     background: var(--bg-primary);
