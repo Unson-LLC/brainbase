@@ -3,6 +3,32 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGRPQ8L
+channel: cxo
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1766384481.130939
+status: pending
+---
+
+### 15:21 | #cxo | 堀 汐里 / Shiori Hori
+
+<@U08FB9S7HUL> 
+共有ありがとうございます！
+
+パーソナライズによる多数のサンプルから要素別に分析したデータが得られるのはSalesTailorの強みですね！
+MAやAIエージェントよりもう一段深いデータというイメージです
+
+が、このデータが集められるのか（そもそもPMFできるのか）が判断できない今の段階だと別の技術的Moatが求められている、という感じですね、、！
+
+**スレッドの文脈:**
+> **佐藤圭吾** (15:12): <@U08EUJKRHN3>
+MOATの説明これでもっと伝わりやすくなりませんかね
+<https://x.com/saasmeshi/status/2002528675703787936?s=20>
+
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1766384481130939?thread_ts=1766383949.841789&cid=C08U2EX2NEA)
+
+---
 id: INBOX-2025-12-22-MJGR2YQL
 channel: 0031-dialogai-dev
 sender: 小川未来
