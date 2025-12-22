@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJH3QNIO
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1766404680.111689
+status: pending
+---
+
+### 20:58 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+佐藤さんすみません、明日佐藤さん朝9時からミーティング可能か今村さんに聞かれてました！
+
+[Slack](https://unson.slack.com/archives/C091KFKE3RS/p1766404680111689)
+
+---
 id: INBOX-2025-12-22-MJGWC1HQ
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
