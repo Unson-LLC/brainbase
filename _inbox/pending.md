@@ -3,6 +3,24 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGF8O1Z
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1766363529.122319
+status: pending
+---
+
+### 09:32 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+### 10.2 セキュリティ強化（12/10実施） | 対策 | 詳細 | | --- | --- | | EIP削除 | DialogAI・Sentry両方のEIPを解放 | | 未使用EIP削除 | 35.74.197.36、35.76.37.36を解放（コスト削減） | | セキュリティグループ強化 | Sentry SGから0.0.0.0/0ルールを全削除、VPC内部通信のみに制限 | | SSHポート閉鎖 | ポート22のルールを全削除 | | SSMアクセス確立 | SSM Session Manager経由でのみEC2にアクセス可能に | | RDS PostgreSQLログ有効化 | 接続/切断ログ、DDL文、1秒以上のクエリをCloudWatch Logsへ出力 | | WAFログ有効化 | CloudWatch Logs（aws-waf-logs-dialogai-prod）へ出力、保持30日 |
+
+ここのwafログ有効化って本当に終わってるんでしたっけ？WAFの設定はこれからだったきがして。
+※WAF Blockモード化の話ですよね
+
+[Slack](https://unson.slack.com/archives/C091KFKE3RS/p1766363529122319)
+
+---
 id: INBOX-2025-12-22-MJGEWMOT
 channel: 0120-ncom
 sender: 小川未来
