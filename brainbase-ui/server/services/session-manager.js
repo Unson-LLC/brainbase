@@ -185,6 +185,7 @@ export class SessionManager {
             '-p', port.toString(),
             '-W',
             '-b', basePath, // Set Base Path
+            '-I', customIndexPath, // Custom HTML with keyboard shortcuts
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
