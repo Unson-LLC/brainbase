@@ -3,6 +3,46 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGWC1HQ
+channel: cxo
+sender: 堀 汐里 / Shiori Hori
+timestamp: 1766392239.260989
+status: pending
+---
+
+### 17:30 | #cxo | 堀 汐里 / Shiori Hori
+
+<@U08FLSLMRAM> Cc <@U08FB9S7HUL> <@U08UZF58F0C>
+そして明日のmtgどこにスライドしましょう！！
+
+**スレッドの文脈:**
+> **谷口達彦 / Tatsuhiko Taniguchi** (08:24): 明日私が別件経営合宿のためミーティングに参加できません:sob:
+ブルプリさんの送信は今週中に完了予定です！
+> **堀 汐里 / Shiori Hori** (10:47): <@U08FLSLMRAM> 
+CxOKPIの記入とSUJリードの記入お願いします！
+<https://salestailor.slack.com/archives/C08U2EX2NEA/p1766134920787779|https://salestailor.slack.com/archives/C08U2EX2NEA/p1766134920787779>
+> **堀 汐里 / Shiori Hori** (11:31): <@U08FB9S7HUL> <@U08FLSLMRAM> <@U08UZF58F0C>
+CxO会議は全員で擦り合わせたり共有する週唯一のmtgなので、別件で参加が難しい場合は、参加できない人が週内の別日時への変更を主導するのはどうでしょうか！？
+
+これまでは不参加者がいたとしても実施していましたが、議事録のキャッチアップのみでは認識漏れ/ズレが発生する印象です:thinking_face:
+> **谷口達彦 / Tatsuhiko Taniguchi** (12:10): <@U08EUJKRHN3>
+かしこまりましたー！
+
+スケジュールに関してですが、
+毎月月初に向こう2ヶ月分の定例MTGのスケジュールをすり合わせるようにしたらいかがでしょう。
+2ヶ月分のため1ヶ月後に2ヶ月目のスケジュールもしっかりアップデートすることもできます。
+
+突発的なスケジュール変更に関しては、以下でOKかと思います。
+> CxO会議は全員で擦り合わせたり共有する週唯一のmtgなので、別件で参加が難しい場合は、参加できない人が週内の別日時への変更を主導するのはどうでしょうか
+
+> **堀 汐里 / Shiori Hori** (12:18): <@U08FLSLMRAM> Cc <@U08FB9S7HUL> <@U08UZF58F0C> 
+私はOKです:raised_hands::skin-tone-2:
+私個人は柔軟に合わせられるので、月初の日程調整主導お願いしても良いでしょうか！
+
+
+[Slack](https://salestailor.slack.com/archives/C08U2EX2NEA/p1766392239260989?thread_ts=1766359468.085659&cid=C08U2EX2NEA)
+
+---
 id: INBOX-2025-12-22-MJGTFR98
 channel: D093MBQFRAS
 sender: undefined
