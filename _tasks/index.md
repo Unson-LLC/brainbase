@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-028
+title: M8（GM向けダッシュボード）を実装
+project_id: proj_mana
+status: todo
+owner: 佐藤
+priority: medium
+due: 2025-12-31
+tags: [mana, m8, message-design]
+links: []
+source: manual
+created_at: "2025-12-22T05:15:00.000Z"
+---
+
+- 2025-12-22 作成
+- 担当: 佐藤
+- 背景: M1-M4, M7, M9の挙動確認後、GM向けプロジェクトダッシュボード（M8）を実装する
+- 詳細:
+  - 送信先: 各GM（堀・倉本・川合）に個別DM
+  - スケジュール: 毎日 06:30 JST
+  - 内容: プロジェクト状況、今日の判断事項、チーム状況、進捗サマリー
+- 前提条件: M1, M2, M3, M4の動作が安定していること
+- 参照: _codex/projects/mana/02_message_design_v2.md
+
+---
 task_id: T-2512-027
 source_id: SLACK-2025-12-22-MJGG34E7
 title: 業務委託契約書を作成してPlanna社に提出
