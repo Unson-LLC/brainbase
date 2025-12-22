@@ -1,6 +1,6 @@
 // ES Modules imports
 import { MAX_VISIBLE_TASKS } from './modules/state.js';
-import { formatDueDate, escapeHtml } from './modules/ui-helpers.js';
+import { formatDueDate } from './modules/ui-helpers.js';
 import { initSettings, openSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
@@ -220,6 +220,12 @@ document.addEventListener('DOMContentLoaded', () => {
             inboxDropdown.classList.remove('open');
         }
     });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
     async function markInboxItemDone(itemId) {
         try {
@@ -507,8 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add new session to project
             headerEl.querySelector('.add-project-session-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
-                const btn = e.currentTarget;
-                const targetProject = btn.dataset.project;
+                const targetProject = e.currentTarget.dataset.project;
                 createNewSession(targetProject);
             });
 
@@ -844,13 +849,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingSessionProject = 'general';
 
     function openCreateSessionModal(project = 'general') {
-        console.log('[DEBUG] openCreateSessionModal called, setting pendingSessionProject to:', project);
         pendingSessionProject = project;
         const isGitignored = GITIGNORED_PROJECTS.includes(project.toLowerCase());
 
         // Set defaults
         sessionNameInput.value = `New ${project} Session`;
-        console.log('[DEBUG] Set sessionNameInput.value to:', sessionNameInput.value);
         sessionCommandInput.value = '';
         useWorktreeCheckbox.checked = !isGitignored;
 
@@ -885,7 +888,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const engine = document.querySelector('input[name="session-engine"]:checked')?.value || 'claude';
-        console.log('[DEBUG] Create button clicked, pendingSessionProject:', pendingSessionProject, 'name:', name);
         closeCreateSessionModal();
         executeCreateSession(pendingSessionProject, name, sessionCommandInput.value, useWorktreeCheckbox.checked, engine);
     });
@@ -902,59 +904,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function getCurrentProject() {
-        // 現在アクティブなセッションのプロジェクトを取得
-        if (currentSessionId) {
-            const currentSession = sessions.find(s => s.id === currentSessionId);
-            if (currentSession) {
-                const project = getProjectFromPath(currentSession.path || currentSession.worktree?.path);
-                return project && project !== 'General' ? project.toLowerCase() : 'general';
-            }
-        }
-
-        // アクティブなセッションがない場合は、worktreeを持つ最初のセッションを優先
-        if (sessions.length > 0) {
-            // worktreeを持つセッションを探す（現在のworktreeセッションの可能性が高い）
-            const worktreeSession = sessions.find(s => s.worktree && s.worktree.path);
-            if (worktreeSession) {
-                const project = getProjectFromPath(worktreeSession.worktree.path);
-                return project && project !== 'General' ? project.toLowerCase() : 'general';
-            }
-
-            // worktreeセッションがない場合は、intendedStateがactiveまたはstoppedのセッションを探す
-            const activeSession = sessions.find(s => s.intendedState === 'active' || s.intendedState === 'stopped');
-            if (activeSession) {
-                const project = getProjectFromPath(activeSession.path || activeSession.worktree?.path);
-                return project && project !== 'General' ? project.toLowerCase() : 'general';
-            }
-
-            // 最後の手段として最初のセッション
-            const firstSession = sessions[0];
-            const project = getProjectFromPath(firstSession.path || firstSession.worktree?.path);
-            return project && project !== 'General' ? project.toLowerCase() : 'general';
-        }
-
-        return 'general';
-    }
-
-    function createNewSession(project) {
-        console.log('[DEBUG] createNewSession called with project:', project);
-
-        // projectが指定されていない場合は、現在アクティブなセッションのプロジェクトを使用
-        if (!project) {
-            const detectedProject = getCurrentProject();
-            console.log('[DEBUG] No project specified, detected from getCurrentProject():', detectedProject);
-            project = detectedProject;
-        }
-
-        console.log('[DEBUG] Opening modal with project:', project);
+    function createNewSession(project = 'general') {
         openCreateSessionModal(project);
     }
 
     async function executeCreateSession(project, name, initialCommand, useWorktree, engine = 'claude') {
-        console.log('[DEBUG] executeCreateSession called with project:', project, 'name:', name);
         const repoPath = getProjectPath(project);
-        console.log('[DEBUG] getProjectPath returned:', repoPath);
         const sessionId = createSessionId('session');
 
         try {
@@ -967,18 +922,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (res.ok) {
-                    const responseData = await res.json();
-                    console.log('[DEBUG] Worktree API response:', responseData);
-                    const { proxyPath, session } = responseData;
-                    if (!session) {
-                        console.error('[DEBUG] session is undefined in API response!');
-                        throw new Error('API response missing session object');
-                    }
+                    const { proxyPath, session } = await res.json();
                     await loadSessions();
                     switchSession(sessionId, session.path, initialCommand);
                 } else {
-                    const errorText = await res.text();
-                    console.error('[DEBUG] Worktree API failed:', res.status, errorText);
                     showError('Worktreeセッションの作成に失敗。通常セッションで作成します。');
                     await createRegularSession(sessionId, name, repoPath, initialCommand, engine);
                 }

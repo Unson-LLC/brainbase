@@ -1,9 +1,11 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { groupSessionsByProject } from '../../session-manager.js';
+import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 
 /**
  * セッション表示のUIコンポーネント
- * app.jsから抽出したセッション表示機能を集約
+ * 現行版と同じ構造でプロジェクトグループ表示
  */
 export class SessionView {
     constructor({ sessionService }) {
@@ -36,169 +38,160 @@ export class SessionView {
     }
 
     /**
-     * セッションリストをレンダリング
+     * セッションリストをレンダリング（現行版と同じ構造）
      */
     render() {
         if (!this.container) return;
 
-        const sessions = this.sessionService.getFilteredSessions();
-        const { currentSessionId, filters } = appStore.getState();
+        // Clear container
+        this.container.innerHTML = '';
 
-        if (sessions.length === 0) {
+        const { sessions, currentSessionId } = appStore.getState();
+
+        if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
             return;
         }
 
-        // プロジェクトごとにグループ化
-        const grouped = this._groupByProject(sessions);
+        // プロジェクトごとにグループ化（現行版と同じロジック）
+        const grouped = groupSessionsByProject(sessions, {
+            excludeArchived: true,
+            includeEmptyProjects: true
+        });
 
-        let html = '';
-
-        // プロジェクトグループ表示
+        // プロジェクトグループごとにレンダリング
         for (const [project, projectSessions] of Object.entries(grouped)) {
-            html += this._renderProjectGroup(project, projectSessions, currentSessionId);
-        }
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'session-group';
 
-        // フィルター入力欄
-        html += `
-            <div class="filter-section">
-                <input
-                    type="text"
-                    data-filter-input
-                    value="${filters.sessionFilter || ''}"
-                    placeholder="セッションをフィルター..."
-                />
-            </div>
-        `;
+            // ヘッダー作成
+            const header = document.createElement('div');
+            header.innerHTML = renderSessionGroupHeaderHTML(project, { isExpanded: true });
+            const headerEl = header.firstElementChild;
 
-        // セッション作成ボタン
-        html += `
-            <div class="actions-section">
-                <button class="create-btn" data-action="create">
-                    新規セッション作成
-                </button>
-            </div>
-        `;
-
-        this.container.innerHTML = html;
-        this._attachEventHandlers();
-    }
-
-    /**
-     * プロジェクトごとにグループ化
-     * @private
-     */
-    _groupByProject(sessions) {
-        const grouped = {};
-        sessions.forEach(session => {
-            const project = session.project || 'その他';
-            if (!grouped[project]) {
-                grouped[project] = [];
-            }
-            grouped[project].push(session);
-        });
-        return grouped;
-    }
-
-    /**
-     * プロジェクトグループのHTML生成
-     * @private
-     */
-    _renderProjectGroup(project, sessions, currentSessionId) {
-        return `
-            <div class="session-group" data-project="${project}">
-                <div class="session-group-header">
-                    <h3>${project}</h3>
-                    <span class="session-count">${sessions.length}</span>
-                </div>
-                <div class="session-group-children">
-                    ${sessions.map(s => this._renderSession(s, currentSessionId)).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * セッションのHTML生成
-     * @private
-     */
-    _renderSession(session, currentSessionId) {
-        const isActive = session.id === currentSessionId;
-        return `
-            <div class="session-item ${isActive ? 'active' : ''}" data-session-id="${session.id}">
-                <div class="session-content">
-                    <h4 class="session-name">${session.name || session.id}</h4>
-                    ${session.path ? `<p class="session-path">${session.path}</p>` : ''}
-                </div>
-                <div class="session-actions">
-                    <button
-                        class="delete-btn"
-                        data-action="delete"
-                        title="削除"
-                    >
-                        ×
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * DOMイベントハンドラーをアタッチ
-     * @private
-     */
-    _attachEventHandlers() {
-        // 削除ボタン
-        this.container.querySelectorAll('[data-action="delete"]').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const sessionItem = e.target.closest('[data-session-id]');
-                const sessionId = sessionItem?.dataset.sessionId;
-                if (sessionId && confirm('このセッションを削除しますか？')) {
-                    await this.sessionService.deleteSession(sessionId);
+            // ヘッダークリックで展開/折りたたみ
+            headerEl.addEventListener('click', (e) => {
+                if (!e.target.closest('.add-project-session-btn')) {
+                    const container = groupDiv.querySelector('.session-group-children');
+                    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+                    const icon = headerEl.querySelector('.folder-icon i');
+                    icon.setAttribute('data-lucide', container.style.display === 'none' ? 'folder' : 'folder-open');
+                    if (window.lucide) window.lucide.createIcons();
                 }
             });
-        });
 
-        // フィルター入力
-        const filterInput = this.container.querySelector('[data-filter-input]');
-        if (filterInput) {
-            filterInput.addEventListener('input', (e) => {
-                const { filters } = appStore.getState();
-                appStore.setState({
-                    filters: { ...filters, sessionFilter: e.target.value }
+            // 新規セッション追加ボタン
+            const addBtn = headerEl.querySelector('.add-project-session-btn');
+            if (addBtn) {
+                addBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const targetProject = addBtn.dataset.project;
+                    eventBus.emit(EVENTS.CREATE_SESSION, { project: targetProject });
                 });
-                this.render();
+            }
+
+            // セッション行のコンテナ
+            const childrenDiv = document.createElement('div');
+            childrenDiv.className = 'session-group-children';
+
+            // 各セッションをレンダリング
+            projectSessions.forEach(session => {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = renderSessionRowHTML(session, {
+                    isActive: currentSessionId === session.id,
+                    project
+                });
+                const childRow = wrapper.firstElementChild;
+
+                // セッションクリックで切り替え
+                childRow.addEventListener('click', (e) => {
+                    if (!e.target.closest('button')) {
+                        const sessionId = childRow.dataset.id;
+                        if (sessionId) {
+                            eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+                        } else {
+                            console.error('Session ID not found in row:', childRow);
+                        }
+                    }
+                });
+
+                // アクションボタンのイベントハンドラー
+                this._attachSessionActionHandlers(childRow, session);
+
+                childrenDiv.appendChild(childRow);
+            });
+
+            groupDiv.appendChild(headerEl);
+            groupDiv.appendChild(childrenDiv);
+            this.container.appendChild(groupDiv);
+        }
+
+        // Lucideアイコンを初期化
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    /**
+     * セッション行のアクションボタンにイベントハンドラーを設定
+     */
+    _attachSessionActionHandlers(row, session) {
+        // Rename button
+        const renameBtn = row.querySelector('.rename-session-btn');
+        if (renameBtn) {
+            renameBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                eventBus.emit(EVENTS.RENAME_SESSION, { session });
             });
         }
 
-        // セッション作成ボタン
-        const createButton = this.container.querySelector('[data-action="create"]');
-        if (createButton) {
-            createButton.addEventListener('click', async () => {
-                const name = prompt('新しいセッション名を入力してください:');
-                if (name) {
-                    await this.sessionService.createSession({
-                        name,
-                        project: 'default',
-                        path: '.'
-                    });
+        // Delete button
+        const deleteBtn = row.querySelector('.delete-session-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (confirm(`セッション "${session.name || session.id}" を削除しますか？`)) {
+                    await this.sessionService.deleteSession(session.id);
                 }
             });
         }
 
-        // セッションクリック（切り替え）
-        this.container.querySelectorAll('[data-session-id]').forEach(item => {
-            item.addEventListener('click', (e) => {
-                // 削除ボタンのクリックは除外
-                if (e.target.closest('[data-action="delete"]')) return;
-
-                const sessionId = item.dataset.sessionId;
-                appStore.setState({ currentSessionId: sessionId });
-                eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
-                this.render();
+        // Archive button
+        const archiveBtn = row.querySelector('.archive-session-btn');
+        if (archiveBtn) {
+            archiveBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const newState = session.intendedState === 'archived' ? 'active' : 'archived';
+                await this.sessionService.updateSession(session.id, { intendedState: newState });
             });
-        });
+        }
+
+        // Restart button
+        const restartBtn = row.querySelector('.restart-session-btn');
+        if (restartBtn) {
+            restartBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                eventBus.emit(EVENTS.RESTART_SESSION, { sessionId: session.id });
+            });
+        }
+
+        // Stop button
+        const stopBtn = row.querySelector('.stop-session-btn');
+        if (stopBtn) {
+            stopBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                eventBus.emit(EVENTS.STOP_SESSION, { sessionId: session.id });
+            });
+        }
+
+        // Merge button
+        const mergeBtn = row.querySelector('.merge-session-btn');
+        if (mergeBtn) {
+            mergeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
+            });
+        }
     }
 
     /**

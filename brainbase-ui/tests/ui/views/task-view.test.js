@@ -134,6 +134,75 @@ describe('TaskView', () => {
         });
     });
 
+    describe('focus task actions', () => {
+        beforeEach(() => {
+            const focusTask = {
+                id: 'focus-1',
+                title: 'Focus Task',
+                name: 'Focus Task',
+                status: 'todo',
+                priority: 'high',
+                project: 'test-project',
+                due: '2025-12-25'
+            };
+            mockTaskService.getFocusTask.mockReturnValue(focusTask);
+            mockTaskService.getFilteredTasks.mockReturnValue([focusTask]);
+            taskView.mount(container);
+        });
+
+        it('should render complete button in focus task', () => {
+            const completeBtn = container.querySelector('.focus-btn-complete');
+            expect(completeBtn).toBeTruthy();
+            expect(completeBtn.textContent).toContain('完了');
+        });
+
+        it('should render defer button in focus task', () => {
+            const deferBtn = container.querySelector('.focus-btn-defer');
+            expect(deferBtn).toBeTruthy();
+            expect(deferBtn.textContent).toContain('後で');
+        });
+
+        it('should render start button in focus task', () => {
+            const startBtn = container.querySelector('.focus-btn-start');
+            expect(startBtn).toBeTruthy();
+            expect(startBtn.textContent).toContain('開始');
+        });
+
+        it('should call deferTask on defer button click', async () => {
+            mockTaskService.deferTask = vi.fn().mockResolvedValue();
+
+            const deferBtn = container.querySelector('.focus-btn-defer');
+            deferBtn.click();
+
+            await vi.waitFor(() => {
+                expect(mockTaskService.deferTask).toHaveBeenCalledWith('focus-1');
+            });
+        });
+
+        it('should emit START_TASK event on start button click', async () => {
+            const emitSpy = vi.spyOn(eventBus, 'emit');
+
+            const startBtn = container.querySelector('.focus-btn-start');
+            startBtn.click();
+
+            expect(emitSpy).toHaveBeenCalledWith(
+                EVENTS.START_TASK,
+                expect.objectContaining({ task: expect.any(Object) })
+            );
+        });
+
+        it('should display due date when present', () => {
+            const focusCard = container.querySelector('.focus-card');
+            expect(focusCard.innerHTML).toContain('due-tag');
+        });
+
+        it('should display project tag', () => {
+            const projectTag = container.querySelector('.project-tag');
+            expect(projectTag).toBeTruthy();
+            expect(projectTag.textContent).toBe('test-project');
+        });
+    });
+
     describe('event subscriptions', () => {
         beforeEach(() => {
             taskView.mount(container);
