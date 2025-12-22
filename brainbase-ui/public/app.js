@@ -20,6 +20,11 @@ import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 
+// Modals
+import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
+import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
+import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
+
 /**
  * Application initialization
  */
@@ -27,6 +32,7 @@ class App {
     constructor() {
         this.container = new DIContainer();
         this.views = {};
+        this.modals = {};
         this.unsubscribers = [];
     }
 
@@ -79,6 +85,23 @@ class App {
     }
 
     /**
+     * Initialize modals
+     */
+    initModals() {
+        // Task edit modal
+        this.modals.taskEditModal = new TaskEditModal({ taskService: this.taskService });
+        this.modals.taskEditModal.mount();
+
+        // Archive modal
+        this.modals.archiveModal = new ArchiveModal({ sessionService: this.sessionService });
+        this.modals.archiveModal.mount();
+
+        // Focus engine modal
+        this.modals.focusEngineModal = new FocusEngineModal();
+        this.modals.focusEngineModal.mount();
+    }
+
+    /**
      * Setup global event listeners
      */
     setupEventListeners() {
@@ -89,8 +112,8 @@ class App {
         });
 
         // Start task: emit for terminal integration
-        const unsub2 = eventBus.on(EVENTS.START_TASK, ({ task, taskId }) => {
-            console.log('Start task requested:', task || taskId);
+        const unsub2 = eventBus.on(EVENTS.START_TASK, ({ task, taskId, engine }) => {
+            console.log('Start task requested:', task || taskId, 'engine:', engine);
             // TODO: Terminal integration
         });
 
@@ -160,10 +183,13 @@ class App {
         // 2. Initialize views
         this.initViews();
 
-        // 3. Setup event listeners
+        // 3. Initialize modals
+        this.initModals();
+
+        // 4. Setup event listeners
         this.setupEventListeners();
 
-        // 4. Load initial data
+        // 5. Load initial data
         await this.loadInitialData();
 
         console.log('brainbase-ui started successfully');
@@ -180,6 +206,11 @@ class App {
         // Unmount views
         Object.values(this.views).forEach(view => {
             if (view.unmount) view.unmount();
+        });
+
+        // Unmount modals
+        Object.values(this.modals).forEach(modal => {
+            if (modal.unmount) modal.unmount();
         });
 
         console.log('brainbase-ui destroyed');

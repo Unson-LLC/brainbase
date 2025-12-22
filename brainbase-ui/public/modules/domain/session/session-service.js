@@ -109,6 +109,58 @@ export class SessionService {
     }
 
     /**
+     * アーカイブされたセッション取得
+     * @param {string} searchTerm - 検索キーワード
+     * @param {string} projectFilter - プロジェクトフィルター
+     * @returns {Array} アーカイブされたセッション配列
+     */
+    getArchivedSessions(searchTerm = '', projectFilter = '') {
+        const { sessions } = this.store.getState();
+        let archived = (sessions || []).filter(s => s.archived);
+
+        // 検索フィルタ
+        if (searchTerm) {
+            archived = archived.filter(s =>
+                s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                s.project?.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        // プロジェクトフィルタ
+        if (projectFilter) {
+            archived = archived.filter(s => s.project === projectFilter);
+        }
+
+        // 作成日でソート（新しい順）
+        return archived.sort((a, b) => {
+            const dateA = new Date(a.createdDate || 0);
+            const dateB = new Date(b.createdDate || 0);
+            return dateB - dateA;
+        });
+    }
+
+    /**
+     * セッションをアンアーカイブ（復元）
+     * @param {string} sessionId - 復元するセッションのID
+     */
+    async unarchiveSession(sessionId) {
+        await this.updateSession(sessionId, { archived: false });
+    }
+
+    /**
+     * ユニークなプロジェクト一覧取得
+     * @returns {Array<string>} プロジェクト名配列
+     */
+    getUniqueProjects() {
+        const { sessions } = this.store.getState();
+        const projects = new Set();
+        (sessions || []).forEach(s => {
+            if (s.project) projects.add(s.project);
+        });
+        return Array.from(projects).sort();
+    }
+
+    /**
      * セッションID生成
      * @private
      * @returns {string} ユニークなセッションID
