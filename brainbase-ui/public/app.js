@@ -20,6 +20,7 @@ import { TaskView } from './modules/ui/views/task-view.js';
 import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
+import { InboxView } from './modules/ui/views/inbox-view.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -83,6 +84,10 @@ class App {
             this.views.sessionView = new SessionView({ sessionService: this.sessionService });
             this.views.sessionView.mount(sessionContainer);
         }
+
+        // Inbox (notifications)
+        this.views.inboxView = new InboxView();
+        this.views.inboxView.mount();
     }
 
     /**
