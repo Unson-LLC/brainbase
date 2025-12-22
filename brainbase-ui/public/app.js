@@ -513,7 +513,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add new session to project
             headerEl.querySelector('.add-project-session-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
-                const targetProject = e.currentTarget.dataset.project;
+                const btn = e.currentTarget;
+                const targetProject = btn.dataset.project;
+                console.log('[DEBUG] Project + button clicked, btn.dataset.project:', targetProject);
+                console.log('[DEBUG] Button element:', btn);
                 createNewSession(targetProject);
             });
 
@@ -940,10 +943,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createNewSession(project) {
+        console.log('[DEBUG] createNewSession called with project:', project);
+
         // projectが指定されていない場合は、現在アクティブなセッションのプロジェクトを使用
         if (!project) {
-            project = getCurrentProject();
+            const detectedProject = getCurrentProject();
+            console.log('[DEBUG] No project specified, detected from getCurrentProject():', detectedProject);
+            project = detectedProject;
         }
+
+        console.log('[DEBUG] Opening modal with project:', project);
         openCreateSessionModal(project);
     }
 
