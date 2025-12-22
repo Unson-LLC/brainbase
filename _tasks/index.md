@@ -2805,7 +2805,7 @@ requester: 佐藤圭吾
 task_id: T-2512-056
 title: 短期対応完了の安全宣言LINE報告（期限切れ）
 project_id: ncom-catalyst
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: medium
 due: 2025-12-17
@@ -2888,7 +2888,7 @@ requester: 佐藤圭吾
 task_id: T-2512-060
 title: 畑氏への依頼事項回答を五月雨式で送付開始
 project_id: ncom-catalyst
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: 2025-12-22
@@ -2909,7 +2909,7 @@ requester: 佐藤圭吾
 task_id: T-2512-061
 title: 標準細則の遵守状況整理と説明ロジック作成・畑氏へ回答
 project_id: ncom-catalyst
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: medium
 due: 2025-12-18
@@ -2951,7 +2951,7 @@ requester: 佐藤圭吾
 task_id: T-2512-063
 title: 戸松報告資料たたき台作成（構成図・攻撃箇所一枚紙）
 project_id: ncom-catalyst
-status: todo
+status: done
 owner: 佐藤圭吾
 priority: high
 due: 2025-12-23
@@ -3183,3 +3183,336 @@ requester: 佐藤圭吾
 
 収益事業者プラン（レベニューシェア型・成功報酬連動型）の詳細設計を行い、マネタイズフローを明確化する。今週中に完了。
 
+
+
+---
+task_id: T-2512-076
+title: IPアドレス制限実施時期の証跡調査
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-22
+tags: [DialogAI, セキュリティ, インシデント対応]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-22_incident-response-progress-review.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 今村
+---
+
+8月頃に実施したIPアドレス制限の具体的な日付をログから特定し、上席報告用の証跡として整理する。
+
+
+---
+task_id: T-2512-077
+title: 脆弱性リストの対応要否精査と実施計画立案
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-23
+tags: [DialogAI, セキュリティ, 脆弱性対応]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-22_security-incident-review-recovery-plan.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 今村
+---
+
+今村から共有される脆弱性リスト（レベルA、12/9まで着信分、約15件）について、①本当に使用しているか、②対応が必要か、③対象外（使用していない）か、を精査。必要な対策（パッチ適用・設定変更等）の実施計画を立案する。小川雄大と協力して実施。
+
+
+---
+task_id: T-2512-078
+title: 作業手順の明文化と管理フロー確立
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [DialogAI, 運用整備, セキュリティ]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-22_security-incident-review-recovery-plan.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 畑太郎
+---
+
+パッチ適用や設定変更作業の手順を明文化し、作業報告用チャンネルでの運用フローを確立する。作業実施前にチャンネルで報告し、RAゲートウェイで申請・承認を行い、作業後に結果を報告する流れを整備。
+
+
+---
+task_id: T-2512-079
+title: 技術アーキテクチャ精査の完了（残り15%）
+project_id: ncom-catalyst
+status: in_progress
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-23
+tags: [DialogAI, 技術アーキテクチャ, コンプライアンス]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-22_dialog-ai-standards-investigation-progress.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 畑太郎
+---
+
+全109項目の技術アーキテクチャ準拠状況確認を完了させる（現在8-9割完了）。残り15%の項目について、不要なのか準拠しているのかを確認し、判定と根拠を整理する。
+
+
+---
+task_id: T-2512-080
+title: 開発エントリー関連レビューとメンバーへの依頼
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-27
+tags: [DialogAI, 運用整備, レビュー]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-22_dialog-ai-standards-investigation-progress.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 今村
+---
+
+開発エントリーの運用面や細かい点のレビューをチームメンバーに依頼する。技術アーキテクチャの精査は佐藤のみが担当しているが、運用面などは他のメンバーにも依頼可能。
+
+
+---
+task_id: T-2512-081
+title: ISMSコンサルのパッチ適用チャット確認
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: low
+due: 2025-12-22
+tags: [DialogAI, セキュリティ, パッチ管理]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-22_tech-architecture-compliance-review.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 自分
+---
+
+ISMSコンサルからのパッチ適用方法に関するチャットを確認する。
+
+
+---
+task_id: T-2512-082
+title: 小松氏からの追加質問対応（今村不在期間）
+project_id: ncom-catalyst
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-26
+tags: [DialogAI, 上席報告, 質疑応答]
+links: [/Users/ksato/workspace/ncom-catalyst/meetings/minutes/2025-12-22_dialog-ai-standards-investigation-progress.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 今村
+---
+
+12/25-26に小松氏から追加質問があった場合、今村不在のため佐藤と小川で対応する。
+
+
+---
+task_id: T-2512-083
+title: アクセンチュアネットワークで案件募集の投稿
+project_id: unson-board
+status: todo
+owner: 山本力弥
+priority: high
+due: 2025-12-27
+tags: [営業活動, 案件募集, アクセンチュア]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 佐藤圭吾
+raci:
+  responsible: 山本力弥
+  accountable: 山本力弥
+  consulted: [佐藤圭吾]
+  informed: [UNSON全体]
+---
+
+21日イベントの実績を含めた文面を作成し、アクセンチュアネットワークで案件募集を投稿する。前回は人材募集だったが、今回は案件募集として投稿し直す。
+
+
+---
+task_id: T-2512-084
+title: ホームページ営業の資料を山本に共有
+project_id: unson-board
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-27
+tags: [Aitle, 営業資料, ホームページ]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: []
+  informed: [山本力弥]
+---
+
+Aitleのホームページ営業の資料（無料版とプレミアム版の提案資料）を山本に共有し、フィードバックをもらう。
+
+
+---
+task_id: T-2512-085
+title: 飛ばし1000番の契約書最終押印状況を確認
+project_id: unson-board
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2025-12-27
+tags: [契約管理, 飛ばし1000番]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: []
+  informed: [山本力弥]
+---
+
+飛ばし1000番の契約書の最終的な押印が完了しているか確認する。1億円あたりの金額ベースでの契約が締結されており、支払い条件も契約書に明記されているが、最終的な押印確認が佐藤側で未確認。
+
+
+---
+task_id: T-2512-086
+title: セールステイラーの堀との契約書面確認を完了
+project_id: salestailor
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [SalesTailor, 契約管理, 堀]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: [堀]
+  informed: [山本力弥]
+---
+
+堀との間で無償期間と有償期間の線引きについて、認識としては双方で合意しているが、契約書面での最終確認がまだ完了していない。この書面確認を進める。
+
+
+---
+task_id: T-2512-087
+title: PL・BSの半期実績を計算
+project_id: unson-board
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-24
+tags: [財務, 決算, 半期レビュー]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: [清水, 吉見]
+  informed: [山本力弥]
+---
+
+6月または11月のPL・BSの半期実績を計算する。12/24（火）10:00〜11:00のミーティングでこの数字を踏まえて今後の方向性を議論する。山本の手元計算ではマイナス300万円という数字が出ているが、計算が合っているか確認が必要。
+
+
+---
+task_id: T-2512-088
+title: 安達（足立）のバックグラウンドチェックを実施
+project_id: unson-board
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2026-01-03
+tags: [Aitle, リスク管理, 営業チャネル]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: []
+  informed: [山本力弥]
+---
+
+ラブホ業界で約50ホテルのホームページ制作を手掛けている安達（足立）という人物について、バックグラウンドチェックを実施する。山本から「全然人を騙すことに躊躇がないタイプ」の可能性を指摘されており、変なことに巻き込まれないよう注意が必要。
+
+
+---
+task_id: T-2512-089
+title: 小林の契約条件について募集要項の金額で交渉
+project_id: unson-board
+status: todo
+owner: 佐藤圭吾
+priority: medium
+due: 2026-01-03
+tags: [採用, 契約交渉, シニアPM]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: [山本力弥]
+  informed: [川原]
+---
+
+小林（シニアPM）の契約条件について、川原の会社経由で時給9000円で打診されているが、募集要項の金額で交渉する。山本からは「普通に交渉事だから、この金額でお願いしますと言って良い。関係性は気にしなくていい」とのアドバイスあり。
+
+
+---
+task_id: T-2512-090
+title: 場のイベント参加者へのフォローアップ
+project_id: unson-board
+status: todo
+owner: 佐藤圭吾
+priority: high
+due: 2025-12-27
+tags: [場, イベント, 営業活動]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: []
+  informed: [山本力弥]
+---
+
+21日の場のイベント参加者、特に温度が高い大手企業の管理職（「場のライブにも参加したい」と興味を示していた）へのフォローアップを実施する。温度が高いうちに獲得することが重要。
+
+
+---
+task_id: T-2512-091
+title: マイナンバーカードを取得してGビズID発行を進める
+project_id: unson-board
+status: todo
+owner: 佐藤圭吾
+priority: low
+due: 2026-01-31
+tags: [バックオフィス, GビズID, 行政手続き]
+links: [/Users/ksato/workspace/unson/meetings/unson-board/minutes/2025-12-22_security-incident-project-discussion.md]
+source: meeting
+created_at: "2025-12-22T00:00:00.000Z"
+requester: 山本力弥
+raci:
+  responsible: 佐藤圭吾
+  accountable: 佐藤圭吾
+  consulted: []
+  informed: [山本力弥]
+---
+
+佐藤がマイナンバーカードを持っていないため、GビズIDの発行に時間がかかっている。書面で申請しており非常に時間がかかっているため、マイナンバーカードを取得してGビズID発行を進める。
