@@ -913,6 +913,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return project && project !== 'General' ? project.toLowerCase() : 'general';
             }
         }
+
+        // アクティブなセッションがない場合は、最初のセッション（通常は現在のworktree）を使用
+        if (sessions.length > 0) {
+            const firstSession = sessions[0];
+            const project = getProjectFromPath(firstSession.path || firstSession.worktree?.path);
+            return project && project !== 'General' ? project.toLowerCase() : 'general';
+        }
+
         return 'general';
     }
 
