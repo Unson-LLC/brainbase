@@ -1,0 +1,38 @@
+name: mana M2ブロッカー早期発見
+
+on:
+  schedule:
+    # 14:00 JST = 05:00 UTC
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  blocker-detection:
+    runs-on: [self-hosted, local]
+
+    steps:
+      - name: Checkout brainbase
+        uses: actions/checkout@v4
+
+      - name: Checkout mana
+        uses: actions/checkout@v4
+        with:
+          repository: Unson-LLC/slack-classify-bot
+          path: mana
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install mana dependencies
+        working-directory: mana/api
+        run: npm install
+
+      - name: Run M2 blocker detection
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          HOME: /Users/ksato
+          NODE_PATH: ${{ github.workspace }}/mana/api/node_modules
+          TEST_MODE_USER: 佐藤  # テスト中は佐藤さんのみに送信
+        run: node _codex/common/ops/scripts/mana-m2-blocker-detection.js
