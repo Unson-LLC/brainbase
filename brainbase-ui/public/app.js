@@ -8,6 +8,7 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { initSettings, openSettings } from './modules/settings.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -127,6 +128,9 @@ class App {
      * Setup global UI button handlers
      */
     setupGlobalButtons() {
+        // Initialize settings module
+        initSettings();
+
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
         if (toggleArchivedBtn) {
@@ -135,13 +139,12 @@ class App {
             };
         }
 
-        // Settings button
+        // Settings button - openSettings is already set up by initSettings()
+        // But we can also add a direct handler here
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
-            settingsBtn.onclick = () => {
-                console.log('Settings button clicked');
-                // TODO: Implement settings modal
-                alert('設定機能は開発中です');
+            settingsBtn.onclick = async () => {
+                await openSettings();
             };
         }
     }

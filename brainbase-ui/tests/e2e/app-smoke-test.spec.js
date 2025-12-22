@@ -154,21 +154,20 @@ test.describe('brainbase-ui smoke test', () => {
         await expect(archiveModal).toHaveClass(/active/);
     });
 
-    test('should show alert when clicking settings button', async ({ page }) => {
+    test('should open settings modal when clicking settings button', async ({ page }) => {
         await page.goto('http://localhost:3001');
         await page.waitForLoadState('networkidle');
-
-        // アラートダイアログをキャプチャ
-        page.on('dialog', async dialog => {
-            expect(dialog.message()).toContain('設定機能は開発中です');
-            await dialog.accept();
-        });
 
         // 設定ボタンをクリック
         const settingsBtn = await page.locator('#settings-btn');
         await settingsBtn.click();
 
-        // ダイアログが表示される（上記のハンドラーで確認）
-        await page.waitForTimeout(500);
+        // 設定モーダルが開く
+        const settingsModal = await page.locator('#settings-modal');
+        await expect(settingsModal).toHaveClass(/active/);
+
+        // 設定内容が読み込まれる（タブが存在する）
+        const settingsTabs = await page.locator('.settings-tab');
+        expect(await settingsTabs.count()).toBeGreaterThan(0);
     });
 });
