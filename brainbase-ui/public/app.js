@@ -904,7 +904,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function createNewSession(project = 'general') {
+    function getCurrentProject() {
+        // 現在アクティブなセッションのプロジェクトを取得
+        if (currentSessionId) {
+            const currentSession = sessions.find(s => s.id === currentSessionId);
+            if (currentSession) {
+                const project = getProjectFromPath(currentSession.path || currentSession.worktree?.path);
+                return project && project !== 'General' ? project.toLowerCase() : 'general';
+            }
+        }
+        return 'general';
+    }
+
+    function createNewSession(project) {
+        // projectが指定されていない場合は、現在アクティブなセッションのプロジェクトを使用
+        if (!project) {
+            project = getCurrentProject();
+        }
         openCreateSessionModal(project);
     }
 
