@@ -3,6 +3,26 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGR2YQL
+channel: 0031-dialogai-dev
+sender: 小川未来
+timestamp: 1766383418.625879
+status: pending
+---
+
+### 15:03 | #0031-dialogai-dev | 小川未来
+
+<@U07LNUP582X> cc: <@U0971EHBDHB>
+環境変数・シークレットの漏洩の可能性ありと書いてありますが、AWSの認証情報も環境変数に含まれている場合、結構いろいろできるかなと思いました。
+そこはもう対処済みでしょうか？
+
+画像7.2.2に記載の「AWS認証情報」ですね。
+「環境変数とシークレットのローテーション」は完了とのことですが、APIキーとかのみの対応を現在行っているのかな？と思い、ご質問させていただきました！
+（スクショ見づらくてすみません）
+
+[Slack](https://unson.slack.com/archives/C08A6ETSSR2/p1766383418625879)
+
+---
 id: INBOX-2025-12-22-MJGQNMOY
 channel: 0120-ncom
 sender: 小川未来
