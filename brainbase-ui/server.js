@@ -16,12 +16,17 @@ import { StateStore } from './lib/state-store.js';
 import { ConfigParser } from './lib/config-parser.js';
 import { InboxParser } from './lib/inbox-parser.js';
 
+// Import services
+import { SessionManager } from './server/services/session-manager.js';
+import { WorktreeService } from './server/services/worktree-service.js';
+
 // Import routers
 import { createTaskRouter } from './server/routes/tasks.js';
 import { createStateRouter } from './server/routes/state.js';
 import { createConfigRouter } from './server/routes/config.js';
 import { createInboxRouter } from './server/routes/inbox.js';
 import { createMiscRouter } from './server/routes/misc.js';
+import { createSessionRouter } from './server/routes/sessions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,24 +107,24 @@ app.use(express.static('public', {
     }
 }));
 
-// State
-let activeSessions = new Map(); // sessionId -> { port, process }
-let sessionHookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp: number }
-let nextPort = 3001;
+// Initialize Services
+const sessionManager = new SessionManager({
+    serverDir: __dirname,
+    execPromise,
+    stateStore
+});
 
-// Initialize State Store
+const worktreeService = new WorktreeService(
+    WORKTREES_DIR,
+    path.dirname(__dirname), // Canonical root (parent of current directory)
+    execPromise
+);
+
+// Initialize State Store and restore session state
 (async () => {
     await stateStore.init();
-
-    // Restore hookStatus from persisted state
-    const state = stateStore.get();
-    if (state.sessions) {
-        state.sessions.forEach(session => {
-            if (session.hookStatus) {
-                sessionHookStatus.set(session.id, session.hookStatus);
-            }
-        });
-    }
+    await sessionManager.restoreHookStatus();
+    await sessionManager.cleanupOrphans();
 })();
 
 // Configure Multer for file uploads
@@ -152,6 +157,7 @@ const ttydProxy = createProxyMiddleware({
     router: function (req) {
         // Handle both full path (Upgrade) and stripped path (Express)
         const url = req.url;
+        const activeSessions = sessionManager.getActiveSessions();
 
         // 1. Try full path match: /console/SESSION_ID/...
         let match = url.match(/^\/console\/([^/]+)/);
@@ -176,6 +182,7 @@ const ttydProxy = createProxyMiddleware({
     onProxyReqWs: (proxyReq, req, socket, options, head) => {
         // Rewrite Origin to match the target (ttyd)
         const url = req.url;
+        const activeSessions = sessionManager.getActiveSessions();
         let match = url.match(/^\/console\/([^/]+)/);
         if (!match) match = url.match(/^\/?([^/]+)/); // Fallback
 
@@ -204,9 +211,10 @@ app.use('/console', ttydProxy);
 
 // Register routers with dependency injection
 app.use('/api/tasks', createTaskRouter(taskParser));
-app.use('/api/state', createStateRouter(stateStore, activeSessions));
+app.use('/api/state', createStateRouter(stateStore, sessionManager.getActiveSessions()));
 app.use('/api/config', createConfigRouter(configParser));
 app.use('/api/inbox', createInboxRouter(inboxParser));
+app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file')));
 
 // ========================================
@@ -297,6 +305,16 @@ app.post('/api/open-file', async (req, res) => {
     }
 });
 
+// ========================================
+// [LEGACY - Replaced by SessionRouter]
+// All Session-related endpoints and helper functions are now handled by:
+// - server/services/session-manager.js
+// - server/services/worktree-service.js
+// - server/services/terminal-output-parser.js
+// - server/controllers/session-controller.js
+// - server/routes/sessions.js
+// ========================================
+/*
 // Endpoint for hooks to report activity
 app.post('/api/sessions/report_activity', async (req, res) => {
     const { sessionId, status } = req.body;
@@ -885,9 +903,7 @@ app.post('/api/sessions/:id/input', async (req, res) => {
 
 // [LEGACY - Replaced by MiscRouter]
 // upload endpoint is now handled by server/routes/misc.js
-/*
-app.post('/api/upload', upload.single('file'), async (req, res) => { ... });
-*/
+// app.post('/api/upload', upload.single('file'), async (req, res) => { ... });
 
 // Endpoint to get terminal content (history)
 app.get('/api/sessions/:id/content', async (req, res) => {
@@ -928,11 +944,9 @@ app.get('/api/sessions/:id/output', async (req, res) => {
     }
 });
 
-/**
- * Detect numbered choices in terminal output (Phase 3.1)
- * @param {string} text - Terminal output text
- * @returns {Array} Array of choice objects
- */
+// Detect numbered choices in terminal output (Phase 3.1)
+// @param {string} text - Terminal output text
+// @returns {Array} Array of choice objects
 function detectChoices(text) {
     // Check the last 30 lines of output to capture choices and prompt
     const lines = text.split('\n');
@@ -1441,10 +1455,14 @@ app.post('/api/sessions/:id/stop', async (req, res) => {
         res.json({ success: false, message: `No active ttyd process found for ${id}` });
     }
 });
+*/
+// ========================================
+// End of Legacy Session Code
+// ========================================
 
 // Start server
 const server = app.listen(PORT, async () => {
-    await cleanupOrphans();
+    await sessionManager.cleanupOrphans();
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
     console.log(`Reading tasks from: ${TASKS_FILE}`);
