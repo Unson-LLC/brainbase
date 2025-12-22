@@ -58,6 +58,15 @@ jobs:
             --table ${{ env.PROJECTS_TABLE_NAME }} \
             --region ${{ env.AWS_REGION }}
 
+      - name: Sync channels to S3
+        working-directory: mana
+        env:
+          S3_BUCKET: brainbase-context-593793022993
+          AWS_REGION: ${{ env.AWS_REGION }}
+          CHANNELS_YML_PATH: ../_codex/common/meta/slack/channels.yml
+        run: |
+          node scripts/sync-channels-to-s3.js
+
       - name: Summary
         run: |
           echo "✅ Config synced to DynamoDB successfully!"
