@@ -2,14 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    environment: 'node',
-    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js'],
+    environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
+    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js'],
     environmentMatchGlobs: [
-      // フロントエンドのテストはjsdom環境
-      ['tests/unit/!(config-parser)*.test.js', 'jsdom'],
-      ['tests/core/**/*.test.js', 'jsdom'],
-      ['tests/domain/**/*.test.js', 'jsdom'],
-      // config-parser等のサーバーサイドテストはnode環境
+      // config-parser等のサーバーサイドテストのみnode環境
       ['tests/unit/config-parser.test.js', 'node'],
     ],
     coverage: {
