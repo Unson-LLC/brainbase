@@ -87,4 +87,38 @@ export class TaskService {
         const tasks = this.getFilteredTasks();
         return tasks.find(t => t.priority === 'high') || tasks[0];
     }
+
+    /**
+     * Next Tasks取得（フォーカスタスク以外のタスク）
+     * @returns {Array} Next Tasks配列
+     */
+    getNextTasks() {
+        const focusTask = this.getFocusTask();
+        const filtered = this.getFilteredTasks();
+
+        // フォーカスタスクを除外
+        let nextTasks = focusTask
+            ? filtered.filter(t => t.id !== focusTask.id)
+            : filtered;
+
+        // 優先度でソート（high > medium > low）
+        const priorityOrder = { high: 3, medium: 2, low: 1 };
+        nextTasks.sort((a, b) => {
+            const aPriority = priorityOrder[a.priority] || 0;
+            const bPriority = priorityOrder[b.priority] || 0;
+            return bPriority - aPriority;
+        });
+
+        return nextTasks;
+    }
+
+    /**
+     * タスク削除
+     * @param {string} taskId - 削除するタスクのID
+     */
+    async deleteTask(taskId) {
+        await this.httpClient.delete(`/tasks/${taskId}`);
+        await this.loadTasks(); // リロード
+        this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
+    }
 }

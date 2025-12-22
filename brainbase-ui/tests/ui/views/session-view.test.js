@@ -117,8 +117,59 @@ describe('SessionView', () => {
 
             sessionView.render();
 
-            const projectGroups = container.querySelectorAll('[data-project]');
+            const projectGroups = container.querySelectorAll('.session-group');
             expect(projectGroups.length).toBe(2);
+        });
+    });
+
+    describe('session group header', () => {
+        beforeEach(() => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a' },
+                { id: 'session-2', name: 'Session 2', project: 'project-a' }
+            ];
+            mockSessionService.getFilteredSessions.mockReturnValue(mockSessions);
+            sessionView.mount(container);
+        });
+
+        it('should render folder icon in group header', () => {
+            const folderIcon = container.querySelector('.folder-icon');
+            expect(folderIcon).toBeTruthy();
+        });
+
+        it('should render project title in group header', () => {
+            const groupTitle = container.querySelector('.group-title');
+            expect(groupTitle).toBeTruthy();
+            expect(groupTitle.textContent).toBe('project-a');
+        });
+
+        it('should render add session button in group header', () => {
+            const addBtn = container.querySelector('.add-project-session-btn');
+            expect(addBtn).toBeTruthy();
+            expect(addBtn.dataset.project).toBe('project-a');
+        });
+
+        it('should show folder-open icon when expanded', () => {
+            // Default state should be expanded
+            const groupHeader = container.querySelector('.session-group-header');
+            expect(groupHeader.innerHTML).toContain('folder-open');
+        });
+
+        it('should create new session when add button clicked', async () => {
+            mockSessionService.createSession.mockResolvedValue();
+            global.prompt = vi.fn(() => 'New Session');
+
+            const addBtn = container.querySelector('.add-project-session-btn');
+            addBtn.click();
+
+            await vi.waitFor(() => {
+                expect(mockSessionService.createSession).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        name: 'New Session',
+                        project: 'project-a'
+                    })
+                );
+            });
         });
     });
 

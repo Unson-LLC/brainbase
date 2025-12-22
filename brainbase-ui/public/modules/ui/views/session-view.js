@@ -107,13 +107,26 @@ export class SessionView {
     _renderProjectGroup(project, sessions, currentSessionId) {
         return `
             <div class="session-group" data-project="${project}">
-                <div class="session-group-header">
-                    <h3>${project}</h3>
-                    <span class="session-count">${sessions.length}</span>
-                </div>
+                ${this._renderGroupHeader(project)}
                 <div class="session-group-children">
                     ${sessions.map(s => this._renderSession(s, currentSessionId)).join('')}
                 </div>
+            </div>
+        `;
+    }
+
+    /**
+     * グループヘッダーのHTML生成
+     * @private
+     */
+    _renderGroupHeader(project) {
+        return `
+            <div class="session-group-header">
+                <span class="folder-icon"><i data-lucide="folder-open"></i></span>
+                <span class="group-title">${project}</span>
+                <button class="add-project-session-btn" data-project="${project}" title="New Session in ${project}">
+                    <i data-lucide="plus"></i>
+                </button>
             </div>
         `;
     }
@@ -186,6 +199,22 @@ export class SessionView {
                 }
             });
         }
+
+        // プロジェクトグループ内の新規セッション作成ボタン
+        this.container.querySelectorAll('.add-project-session-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const project = btn.dataset.project;
+                const name = prompt(`${project} に新しいセッションを作成:`);
+                if (name) {
+                    await this.sessionService.createSession({
+                        name,
+                        project,
+                        path: '.'
+                    });
+                }
+            });
+        });
 
         // セッションクリック（切り替え）
         this.container.querySelectorAll('[data-session-id]').forEach(item => {
