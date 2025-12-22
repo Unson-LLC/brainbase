@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGOPIR2
+channel: 0111-baao-ai-dojo
+sender: 卯田 剛史
+timestamp: 1766379429.513269
+status: pending
+---
+
+### 13:57 | #0111-baao-ai-dojo | 卯田 剛史
+
+<@U07LNUP582X> <@U08DFATUGCS> <@U08DE1DFN4W>
+`今週のライブ配信について`
+
+[Slack](https://unson.slack.com/archives/C09L3EKAUEA/p1766379429513269)
+
+---
 id: INBOX-2025-12-22-MJGL64C7
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
