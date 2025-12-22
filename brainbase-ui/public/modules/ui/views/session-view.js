@@ -54,11 +54,6 @@ export class SessionView {
 
         let html = '';
 
-        // プロジェクトグループ表示
-        for (const [project, projectSessions] of Object.entries(grouped)) {
-            html += this._renderProjectGroup(project, projectSessions, currentSessionId);
-        }
-
         // フィルター入力欄
         html += `
             <div class="filter-section">
@@ -79,6 +74,11 @@ export class SessionView {
                 </button>
             </div>
         `;
+
+        // プロジェクトグループ表示
+        for (const [project, projectSessions] of Object.entries(grouped)) {
+            html += this._renderProjectGroup(project, projectSessions, currentSessionId);
+        }
 
         this.container.innerHTML = html;
         this._attachEventHandlers();
@@ -138,20 +138,18 @@ export class SessionView {
     _renderSession(session, currentSessionId) {
         const isActive = session.id === currentSessionId;
         return `
-            <div class="session-item ${isActive ? 'active' : ''}" data-session-id="${session.id}">
-                <div class="session-content">
-                    <h4 class="session-name">${session.name || session.id}</h4>
-                    ${session.path ? `<p class="session-path">${session.path}</p>` : ''}
+            <div class="session-child-row ${isActive ? 'active' : ''}" data-session-id="${session.id}">
+                <div class="session-name-container">
+                    <span class="session-icon"><i data-lucide="file-text"></i></span>
+                    <span class="session-name">${session.name || session.id}</span>
                 </div>
-                <div class="session-actions">
-                    <button
-                        class="delete-btn"
-                        data-action="delete"
-                        title="削除"
-                    >
-                        ×
-                    </button>
-                </div>
+                <button
+                    class="delete-session-btn"
+                    data-action="delete"
+                    title="削除"
+                >
+                    <i data-lucide="trash-2"></i>
+                </button>
             </div>
         `;
     }

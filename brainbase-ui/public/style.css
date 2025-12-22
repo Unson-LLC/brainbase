@@ -113,6 +113,50 @@ body {
     padding: 0.5rem 0;
 }
 
+/* Filter Section */
+.filter-section {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.filter-section input {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+
+.filter-section input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+/* Actions Section */
+.actions-section {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.actions-section .create-btn {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.actions-section .create-btn:hover {
+    opacity: 0.9;
+}
+
 /* Session Groups */
 .session-group-header {
     display: flex;
