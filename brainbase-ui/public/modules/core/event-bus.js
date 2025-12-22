@@ -51,6 +51,7 @@ export const EVENTS = {
     SESSION_LOADED: 'session:loaded',
     SESSION_CHANGED: 'session:changed',
     SESSION_CREATED: 'session:created',
+    SESSION_UPDATED: 'session:updated',
     SESSION_ARCHIVED: 'session:archived',
     SESSION_DELETED: 'session:deleted',
 
