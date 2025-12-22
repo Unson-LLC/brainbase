@@ -84,12 +84,48 @@ export class TaskView {
      * フォーカスタスクのHTML生成
      */
     _renderFocusTask(task) {
+        const isUrgent = task.due && new Date(task.due) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const dueText = task.due ? this._formatDueDate(task.due) : '';
+
         return `
             <div class="focus-task" data-focus-task>
                 <h3>🎯 Focus Task</h3>
-                ${this._renderTask(task)}
+                <div class="focus-card" data-task-id="${task.id}">
+                    <div class="focus-card-title">${task.name || task.title}</div>
+                    <div class="focus-card-meta">
+                        <span class="project-tag">${task.project || 'general'}</span>
+                        ${dueText ? `<span class="due-tag ${isUrgent ? 'urgent' : ''}">${dueText}</span>` : ''}
+                    </div>
+                    <div class="focus-card-actions">
+                        <button class="focus-btn-start" data-id="${task.id}">開始</button>
+                        <button class="focus-btn-complete" data-id="${task.id}">完了</button>
+                        <button class="focus-btn-defer" data-id="${task.id}">後で</button>
+                    </div>
+                </div>
             </div>
         `;
+    }
+
+    /**
+     * Due date formatting
+     */
+    _formatDueDate(dueStr) {
+        const due = new Date(dueStr);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const dueDate = new Date(due);
+        dueDate.setHours(0, 0, 0, 0);
+
+        if (dueDate.getTime() === today.getTime()) return '今日';
+        if (dueDate.getTime() === tomorrow.getTime()) return '明日';
+
+        const month = due.getMonth() + 1;
+        const day = due.getDate();
+        return `${month}/${day}`;
     }
 
     /**
@@ -116,7 +152,44 @@ export class TaskView {
      * DOMイベントハンドラーをアタッチ
      */
     _attachEventHandlers() {
-        // 完了ボタン
+        // Focus Task - Complete button
+        const focusCompleteBtn = this.container.querySelector('.focus-btn-complete');
+        if (focusCompleteBtn) {
+            focusCompleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskId = focusCompleteBtn.dataset.id;
+                if (taskId) {
+                    await this.taskService.completeTask(taskId);
+                }
+            });
+        }
+
+        // Focus Task - Defer button
+        const focusDeferBtn = this.container.querySelector('.focus-btn-defer');
+        if (focusDeferBtn) {
+            focusDeferBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskId = focusDeferBtn.dataset.id;
+                if (taskId && this.taskService.deferTask) {
+                    await this.taskService.deferTask(taskId);
+                }
+            });
+        }
+
+        // Focus Task - Start button
+        const focusStartBtn = this.container.querySelector('.focus-btn-start');
+        if (focusStartBtn) {
+            focusStartBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const taskId = focusStartBtn.dataset.id;
+                const task = this.taskService.getFocusTask();
+                if (task && task.id === taskId) {
+                    eventBus.emit(EVENTS.START_TASK, { task });
+                }
+            });
+        }
+
+        // 完了ボタン（通常タスク）
         this.container.querySelectorAll('[data-action="complete"]').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const taskItem = e.target.closest('[data-task-id]');

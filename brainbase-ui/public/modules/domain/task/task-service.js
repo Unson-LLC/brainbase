@@ -35,6 +35,24 @@ export class TaskService {
     }
 
     /**
+     * タスク延期
+     * @param {string} taskId - 延期するタスクのID
+     */
+    async deferTask(taskId) {
+        const { tasks } = this.store.getState();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        // 優先度を下げる（high → medium → low → low）
+        const priorityMap = { high: 'medium', medium: 'low', low: 'low' };
+        const newPriority = priorityMap[task.priority] || 'low';
+
+        await this.httpClient.post(`/tasks/${taskId}/defer`, { priority: newPriority });
+        await this.loadTasks(); // リロード
+        this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
+    }
+
+    /**
      * フィルタリング済みタスク取得
      * @returns {Array} フィルタリング後のタスク配列
      */

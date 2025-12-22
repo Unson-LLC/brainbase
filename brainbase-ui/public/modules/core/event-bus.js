@@ -45,6 +45,8 @@ export const EVENTS = {
     TASK_COMPLETED: 'task:completed',
     TASK_UPDATED: 'task:updated',
     TASK_DELETED: 'task:deleted',
+    TASK_DEFERRED: 'task:deferred',
+    START_TASK: 'task:start',
     TASK_FILTER_CHANGED: 'task:filter-changed',
 
     // Session関連
