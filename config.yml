@@ -261,6 +261,10 @@ projects:
   - id: unson-board
     emoji: "📊"
     # UNSON取締役会
+    github:
+      owner: Unson-LLC
+      repo: Drive
+      branch: main
 
   - id: back-office
     emoji: "🗂️"
