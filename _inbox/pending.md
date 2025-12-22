@@ -3,6 +3,29 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGQNMOY
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1766382702.614909
+status: pending
+---
+
+### 14:51 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+環境変数・シークレットの漏洩の可能性ありと書いてありますが、AWSの認証情報も環境変数に含まれている場合、結構いろいろできるかなと思いました。
+そこはもう対処済みでしょうか？
+
+**スレッドの文脈:**
+> **小川未来** (14:48): <@U07LNUP582X>
+DBパスワード変更ってしましたか？
+> **k.​sato** (14:49): <@U08DE1DFN4W>
+してます
+
+
+[Slack](https://unson.slack.com/archives/C091KFKE3RS/p1766382702614909?thread_ts=1766382523.715029&cid=C091KFKE3RS)
+
+---
 id: INBOX-2025-12-22-MJGQJU3P
 channel: 0120-ncom
 sender: 小川未来
