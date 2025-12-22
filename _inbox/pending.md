@@ -3,6 +3,21 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGQJU3P
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1766382523.715029
+status: pending
+---
+
+### 14:48 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+DBパスワード変更ってしましたか？
+
+[Slack](https://unson.slack.com/archives/C091KFKE3RS/p1766382523715029)
+
+---
 id: INBOX-2025-12-22-MJGPGX0Z
 channel: 0120-ncom
 sender: 小川未来
