@@ -914,8 +914,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // アクティブなセッションがない場合は、最初のセッション（通常は現在のworktree）を使用
+        // アクティブなセッションがない場合は、worktreeを持つ最初のセッションを優先
         if (sessions.length > 0) {
+            // worktreeを持つセッションを探す（現在のworktreeセッションの可能性が高い）
+            const worktreeSession = sessions.find(s => s.worktree && s.worktree.path);
+            if (worktreeSession) {
+                const project = getProjectFromPath(worktreeSession.worktree.path);
+                return project && project !== 'General' ? project.toLowerCase() : 'general';
+            }
+
+            // worktreeセッションがない場合は、intendedStateがactiveまたはstoppedのセッションを探す
+            const activeSession = sessions.find(s => s.intendedState === 'active' || s.intendedState === 'stopped');
+            if (activeSession) {
+                const project = getProjectFromPath(activeSession.path || activeSession.worktree?.path);
+                return project && project !== 'General' ? project.toLowerCase() : 'general';
+            }
+
+            // 最後の手段として最初のセッション
             const firstSession = sessions[0];
             const project = getProjectFromPath(firstSession.path || firstSession.worktree?.path);
             return project && project !== 'General' ? project.toLowerCase() : 'general';
