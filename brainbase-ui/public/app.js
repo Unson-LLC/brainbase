@@ -142,8 +142,12 @@ class App {
      */
     async loadInitialData() {
         try {
-            // Load all sessions
-            await this.sessionService.loadSessions();
+            // Load all sessions (404エラーは許容)
+            try {
+                await this.sessionService.loadSessions();
+            } catch (error) {
+                console.warn('Sessions not available, using empty state:', error.message);
+            }
 
             // Get current session from store
             const { currentSessionId } = appStore.getState();
@@ -151,15 +155,25 @@ class App {
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
             } else {
-                // Load default data
-                await this.taskService.loadTasks();
-                await this.scheduleService.loadSchedule();
+                // Load default data (404エラーは許容)
+                try {
+                    await this.taskService.loadTasks();
+                } catch (error) {
+                    console.warn('Tasks not available, using empty state:', error.message);
+                }
+
+                try {
+                    await this.scheduleService.loadSchedule();
+                } catch (error) {
+                    console.warn('Schedule not available, using empty state:', error.message);
+                }
             }
 
             console.log('Initial data loaded successfully');
         } catch (error) {
             console.error('Failed to load initial data:', error);
-            this.showError('データの読み込みに失敗しました');
+            // エラーダイアログは表示しない（空の状態で表示）
+            console.warn('App started with empty data due to errors');
         }
     }
 
