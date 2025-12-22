@@ -28,7 +28,7 @@ jobs:
       - name: Checkout mana repo (for sync script)
         uses: actions/checkout@v4
         with:
-          repository: sintariran/mana
+          repository: Unson-LLC/slack-classify-bot
           path: mana
           token: ${{ secrets.GITHUB_TOKEN }}
 
