@@ -3,6 +3,79 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGPGX0Z
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1766380710.347449
+status: pending
+---
+
+### 14:18 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+<https://docs.google.com/presentation/d/1UP8ND2JjkveTV2P659vT_core7E8uA3x6WCuZ4PG2BU/edit?usp=sharing>
+目通していただくこと可能でしょうか？
+
+[Slack](https://unson.slack.com/archives/C091KFKE3RS/p1766380710347449)
+
+---
+id: INBOX-2025-12-22-MJGPBB3P
+channel: D093MBQFRAS
+sender: undefined
+timestamp: 1766380450.000300
+status: pending
+---
+
+### 14:14 | #D093MBQFRAS | undefined
+
+undefined
+
+[Slack](https://unson.slack.com/archives/D093MBQFRAS/p1766380450000300)
+
+---
+id: INBOX-2025-12-22-MJGPBAN4
+channel: D093MBQFRAS
+sender: undefined
+timestamp: 1766380449.000200
+status: pending
+---
+
+### 14:14 | #D093MBQFRAS | undefined
+
+undefined
+
+[Slack](https://unson.slack.com/archives/D093MBQFRAS/p1766380449000200)
+
+---
+id: INBOX-2025-12-22-MJGPAHQ6
+channel: D093MBQFRAS
+sender: undefined
+timestamp: 1766380409.000100
+status: pending
+---
+
+### 14:13 | #D093MBQFRAS | undefined
+
+undefined
+
+[Slack](https://unson.slack.com/archives/D093MBQFRAS/p1766380409000100)
+
+---
+id: INBOX-2025-12-22-MJGOPIR2
+channel: 0111-baao-ai-dojo
+sender: 卯田 剛史
+timestamp: 1766379429.513269
+status: pending
+---
+
+### 13:57 | #0111-baao-ai-dojo | 卯田 剛史
+
+<@U07LNUP582X> <@U08DFATUGCS> <@U08DE1DFN4W>
+`今週のライブ配信について`
+
+[Slack](https://unson.slack.com/archives/C09L3EKAUEA/p1766379429513269)
+
+---
 id: INBOX-2025-12-22-MJGL64C7
 channel: cxo
 sender: 堀 汐里 / Shiori Hori
