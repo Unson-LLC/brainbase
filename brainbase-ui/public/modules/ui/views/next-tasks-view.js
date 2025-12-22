@@ -9,6 +9,7 @@ export class NextTasksView {
         this.taskService = taskService;
         this.container = null;
         this._unsubscribers = [];
+        this.showAll = false;
     }
 
     /**
@@ -39,21 +40,53 @@ export class NextTasksView {
     render() {
         if (!this.container) return;
 
-        const tasks = this.taskService.getNextTasks();
+        const result = this.taskService.getNextTasks({ showAll: this.showAll });
+        const { tasks, remainingCount } = result;
 
         if (tasks.length === 0) {
             this.container.innerHTML = '<div class="timeline-empty">他のタスクなし</div>';
+            this._hideRemainingToggle();
             return;
         }
 
-        let html = '<div class="next-tasks-list">';
+        // 現行版と同じ構造: ラッパーなしで直接タスクアイテムを挿入
+        let html = '';
         tasks.forEach(task => {
             html += this._renderNextTaskItem(task);
         });
-        html += '</div>';
 
         this.container.innerHTML = html;
+
+        // Lucideアイコンを初期化
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+
+        this._updateRemainingToggle(remainingCount);
         this._attachEventHandlers();
+    }
+
+    /**
+     * 残タスク表示ボタンの更新
+     */
+    _updateRemainingToggle(remainingCount) {
+        const toggleEl = document.getElementById('remaining-tasks-toggle');
+        const countEl = document.getElementById('remaining-count');
+
+        if (remainingCount > 0 && !this.showAll) {
+            if (toggleEl) toggleEl.style.display = 'block';
+            if (countEl) countEl.textContent = remainingCount;
+        } else {
+            if (toggleEl) toggleEl.style.display = 'none';
+        }
+    }
+
+    /**
+     * 残タスク表示ボタンを非表示
+     */
+    _hideRemainingToggle() {
+        const toggleEl = document.getElementById('remaining-tasks-toggle');
+        if (toggleEl) toggleEl.style.display = 'none';
     }
 
     /**
@@ -118,14 +151,17 @@ export class NextTasksView {
             });
         });
 
-        // Edit button - Emit event (handled by parent app)
+        // Edit button - Emit EDIT_TASK event
         this.container.querySelectorAll('.edit-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const taskId = btn.dataset.id;
                 if (taskId) {
-                    // TODO: Open edit modal
-                    console.log('Edit task:', taskId);
+                    const { tasks } = appStore.getState();
+                    const task = tasks.find(t => t.id === taskId);
+                    if (task) {
+                        eventBus.emit(EVENTS.EDIT_TASK, { task });
+                    }
                 }
             });
         });
@@ -140,6 +176,15 @@ export class NextTasksView {
                 }
             });
         });
+
+        // Show more tasks button (別要素なのでdocument.querySelectorを使用)
+        const showMoreBtn = document.getElementById('show-more-tasks');
+        if (showMoreBtn) {
+            showMoreBtn.addEventListener('click', () => {
+                this.showAll = true;
+                this.render();
+            });
+        }
     }
 
     /**

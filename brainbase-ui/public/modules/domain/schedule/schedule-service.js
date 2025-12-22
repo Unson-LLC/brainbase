@@ -17,7 +17,7 @@ export class ScheduleService {
      * @returns {Promise<Object>} スケジュールデータ
      */
     async loadSchedule() {
-        const schedule = await this.httpClient.get('/schedule');
+        const schedule = await this.httpClient.get('/api/schedule/today');
         this.store.setState({ schedule });
         this.eventBus.emit(EVENTS.SCHEDULE_LOADED, schedule);
         return schedule;

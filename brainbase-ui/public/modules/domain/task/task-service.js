@@ -18,7 +18,7 @@ export class TaskService {
      * @returns {Promise<Array>} タスク配列
      */
     async loadTasks() {
-        const tasks = await this.httpClient.get('/tasks');
+        const tasks = await this.httpClient.get('/api/tasks');
         this.store.setState({ tasks });
         this.eventBus.emit(EVENTS.TASK_LOADED, { tasks });
         return tasks;
@@ -29,7 +29,7 @@ export class TaskService {
      * @param {string} taskId - 完了するタスクのID
      */
     async completeTask(taskId) {
-        await this.httpClient.post(`/tasks/${taskId}/complete`);
+        await this.httpClient.post(`/api/tasks/${taskId}/complete`);
         await this.loadTasks(); // リロード
         this.eventBus.emit(EVENTS.TASK_COMPLETED, { taskId });
     }
@@ -47,7 +47,7 @@ export class TaskService {
         const priorityMap = { high: 'medium', medium: 'low', low: 'low' };
         const newPriority = priorityMap[task.priority] || 'low';
 
-        await this.httpClient.post(`/tasks/${taskId}/defer`, { priority: newPriority });
+        await this.httpClient.post(`/api/tasks/${taskId}/defer`, { priority: newPriority });
         await this.loadTasks(); // リロード
         this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
     }
@@ -65,8 +65,8 @@ export class TaskService {
         // テキストフィルタ
         if (taskFilter) {
             filtered = filtered.filter(t =>
-                t.title?.includes(taskFilter) ||
-                t.content?.includes(taskFilter)
+                t.name?.includes(taskFilter) ||
+                t.description?.includes(taskFilter)
             );
         }
 
@@ -90,16 +90,24 @@ export class TaskService {
 
     /**
      * Next Tasks取得（フォーカスタスク以外のタスク）
+     * @param {Object} options - オプション
+     * @param {boolean} options.showAll - 全件表示するか（デフォルト: false、上限10件）
+     * @param {string} options.owner - オーナーフィルター（デフォルト: '佐藤圭吾'）
      * @returns {Array} Next Tasks配列
      */
-    getNextTasks() {
-        const focusTask = this.getFocusTask();
-        const filtered = this.getFilteredTasks();
+    getNextTasks(options = {}) {
+        const { showAll = false, owner = '佐藤圭吾' } = options;
+        const MAX_VISIBLE_TASKS = 10;
 
-        // フォーカスタスクを除外
-        let nextTasks = focusTask
-            ? filtered.filter(t => t.id !== focusTask.id)
-            : filtered;
+        const focusTask = this.getFocusTask();
+        const { tasks } = this.store.getState();
+
+        // オーナーフィルター + status !== 'done' + フォーカスタスク除外
+        let nextTasks = (tasks || []).filter(t =>
+            t.status !== 'done' &&
+            (!focusTask || t.id !== focusTask.id) &&
+            t.owner === owner
+        );
 
         // 優先度でソート（high > medium > low）
         const priorityOrder = { high: 3, medium: 2, low: 1 };
@@ -109,7 +117,25 @@ export class TaskService {
             return bPriority - aPriority;
         });
 
-        return nextTasks;
+        // 表示件数制限
+        const visibleTasks = showAll ? nextTasks : nextTasks.slice(0, MAX_VISIBLE_TASKS);
+
+        return {
+            tasks: visibleTasks,
+            totalCount: nextTasks.length,
+            remainingCount: Math.max(0, nextTasks.length - MAX_VISIBLE_TASKS)
+        };
+    }
+
+    /**
+     * タスク更新
+     * @param {string} taskId - 更新するタスクのID
+     * @param {Object} updates - 更新内容
+     */
+    async updateTask(taskId, updates) {
+        await this.httpClient.put(`/api/tasks/${taskId}`, updates);
+        await this.loadTasks(); // リロード
+        this.eventBus.emit(EVENTS.TASK_UPDATED, { taskId, updates });
     }
 
     /**
@@ -117,7 +143,7 @@ export class TaskService {
      * @param {string} taskId - 削除するタスクのID
      */
     async deleteTask(taskId) {
-        await this.httpClient.delete(`/tasks/${taskId}`);
+        await this.httpClient.delete(`/api/tasks/${taskId}`);
         await this.loadTasks(); // リロード
         this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
     }

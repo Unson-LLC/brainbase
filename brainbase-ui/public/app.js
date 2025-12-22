@@ -111,19 +111,36 @@ class App {
      * Setup global event listeners
      */
     setupEventListeners() {
-        // Session change: reload related data
-        const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, async ({ sessionId }) => {
+        // Session change: reload related data and switch terminal
+        const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, async (event) => {
+            const { sessionId } = event.detail;
             console.log('Session changed:', sessionId);
+
+            // Update currentSessionId in store
+            appStore.setState({ currentSessionId: sessionId });
+
+            // Switch terminal frame
+            await this.switchSession(sessionId);
+
+            // Load session-specific data
             await this.loadSessionData(sessionId);
         });
 
         // Start task: emit for terminal integration
-        const unsub2 = eventBus.on(EVENTS.START_TASK, ({ task, taskId, engine }) => {
+        const unsub2 = eventBus.on(EVENTS.START_TASK, (event) => {
+            const { task, taskId, engine } = event.detail;
             console.log('Start task requested:', task || taskId, 'engine:', engine);
             // TODO: Terminal integration
         });
 
-        this.unsubscribers.push(unsub1, unsub2);
+        // Create session: open modal
+        const unsub3 = eventBus.on(EVENTS.CREATE_SESSION, (event) => {
+            const { project } = event.detail;
+            console.log('Create session requested for project:', project);
+            this.openCreateSessionModal(project);
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3);
 
         // Setup global UI button handlers
         this.setupGlobalButtons();
@@ -151,6 +168,57 @@ class App {
             settingsBtn.onclick = async () => {
                 await openSettings();
             };
+        }
+    }
+
+    /**
+     * Switch to a session and update terminal frame
+     */
+    async switchSession(sessionId) {
+        const terminalFrame = document.getElementById('terminal-frame');
+        if (!terminalFrame) {
+            console.warn('Terminal frame not found');
+            return;
+        }
+
+        try {
+            // Get session info from store
+            const { sessions } = appStore.getState();
+            const session = sessions.find(s => s.id === sessionId);
+
+            if (!session) {
+                console.error('Session not found:', sessionId);
+                terminalFrame.src = 'about:blank';
+                return;
+            }
+
+            // Start session backend and get proxy path
+            const res = await httpClient.post('/api/sessions/start', {
+                sessionId: session.id,
+                initialCommand: session.initialCommand || '',
+                cwd: session.path,
+                engine: session.engine || 'claude'
+            });
+
+            if (res && res.proxyPath) {
+                terminalFrame.src = res.proxyPath;
+                console.log('Terminal switched to:', res.proxyPath);
+            } else {
+                console.error('No proxyPath in response:', res);
+                terminalFrame.src = 'about:blank';
+            }
+
+            // Update active state in UI
+            document.querySelectorAll('.session-child-row').forEach(row => {
+                row.classList.remove('active');
+                if (row.dataset.id === sessionId) {
+                    row.classList.add('active');
+                }
+            });
+
+        } catch (error) {
+            console.error('Failed to switch session:', error);
+            terminalFrame.src = 'about:blank';
         }
     }
 
@@ -241,6 +309,108 @@ class App {
         await this.loadInitialData();
 
         console.log('brainbase-ui started successfully');
+    }
+
+    /**
+     * Open create session modal
+     * @param {string} project - Project name
+     */
+    openCreateSessionModal(project = 'general') {
+        console.log('Opening create session modal for project:', project);
+
+        const modal = document.getElementById('create-session-modal');
+        const nameInput = document.getElementById('session-name-input');
+        const commandInput = document.getElementById('session-command-input');
+        const worktreeCheckbox = document.getElementById('use-worktree-checkbox');
+
+        if (!modal || !nameInput) {
+            console.error('Create session modal elements not found');
+            return;
+        }
+
+        // Set defaults
+        nameInput.value = `New ${project} Session`;
+        if (commandInput) commandInput.value = '';
+        if (worktreeCheckbox) worktreeCheckbox.checked = true;
+
+        // Show modal
+        modal.classList.add('active');
+        nameInput.focus();
+        nameInput.select();
+
+        // Setup one-time submit handler
+        const createBtn = document.getElementById('create-session-btn');
+        const handleCreate = async () => {
+            const name = nameInput.value.trim();
+            if (!name) {
+                nameInput.focus();
+                return;
+            }
+
+            const engine = document.querySelector('input[name="session-engine"]:checked')?.value || 'claude';
+            const initialCommand = commandInput?.value || '';
+            const useWorktree = worktreeCheckbox?.checked || false;
+
+            // Close modal
+            modal.classList.remove('active');
+
+            // Create session
+            await this.createSession(project, name, initialCommand, useWorktree, engine);
+
+            // Remove this event listener
+            createBtn?.removeEventListener('click', handleCreate);
+        };
+
+        createBtn?.addEventListener('click', handleCreate);
+
+        // Setup close handlers
+        const closeHandlers = () => {
+            modal.classList.remove('active');
+            createBtn?.removeEventListener('click', handleCreate);
+        };
+
+        modal.querySelectorAll('.close-modal-btn').forEach(btn => {
+            btn.addEventListener('click', closeHandlers, { once: true });
+        });
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeHandlers();
+        }, { once: true });
+    }
+
+    /**
+     * Create a new session
+     */
+    async createSession(project, name, initialCommand, useWorktree, engine) {
+        console.log('Creating session:', { project, name, useWorktree, engine });
+
+        try {
+            const result = await this.sessionService.createSession({
+                project,
+                name,
+                initialCommand,
+                useWorktree,
+                engine
+            });
+
+            console.log('Session created successfully:', result);
+
+            // Switch to the newly created session
+            if (result.sessionId) {
+                appStore.setState({ currentSessionId: result.sessionId });
+                eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: result.sessionId });
+            }
+
+            // If worktree session, handle proxy path for terminal
+            if (result.proxyPath) {
+                console.log('Worktree session created with proxy path:', result.proxyPath);
+                // TODO: Update terminal frame src if needed
+            }
+
+        } catch (error) {
+            console.error('Failed to create session:', error);
+            this.showError('セッションの作成に失敗しました');
+        }
     }
 
     /**

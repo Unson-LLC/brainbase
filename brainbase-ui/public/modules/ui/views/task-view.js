@@ -40,43 +40,26 @@ export class TaskView {
     render() {
         if (!this.container) return;
 
-        const tasks = this.taskService.getFilteredTasks();
         const focusTask = this.taskService.getFocusTask();
 
-        if (tasks.length === 0) {
-            this.container.innerHTML = '<div class="empty-state">タスクがありません</div>';
+        // 現行版と同じ構造: focus-cardのみを直接レンダリング
+        if (!focusTask) {
+            this.container.innerHTML = `
+                <div class="focus-empty">
+                    <i data-lucide="check-circle-2"></i>
+                    <div>タスクなし</div>
+                </div>
+            `;
             return;
         }
 
-        let html = '';
+        this.container.innerHTML = this._renderFocusTask(focusTask);
 
-        // フォーカスタスク表示
-        if (focusTask) {
-            html += this._renderFocusTask(focusTask);
+        // Lucideアイコンを初期化
+        if (window.lucide) {
+            window.lucide.createIcons();
         }
 
-        // タスクリスト表示
-        html += '<div class="task-list">';
-        tasks.forEach(task => {
-            if (focusTask && task.id === focusTask.id) return; // フォーカスタスクは別表示
-            html += this._renderTask(task);
-        });
-        html += '</div>';
-
-        // フィルター入力欄
-        const { taskFilter } = appStore.getState().filters;
-        html += `
-            <div class="filter-section">
-                <input
-                    type="text"
-                    data-filter-input
-                    value="${taskFilter || ''}"
-                    placeholder="タスクをフィルター..."
-                />
-            </div>
-        `;
-
-        this.container.innerHTML = html;
         this._attachEventHandlers();
     }
 
@@ -88,19 +71,22 @@ export class TaskView {
         const dueText = task.due ? this._formatDueDate(task.due) : '';
 
         return `
-            <div class="focus-task" data-focus-task>
-                <h3>🎯 Focus Task</h3>
-                <div class="focus-card" data-task-id="${task.id}">
-                    <div class="focus-card-title">${task.name || task.title}</div>
-                    <div class="focus-card-meta">
-                        <span class="project-tag">${task.project || 'general'}</span>
-                        ${dueText ? `<span class="due-tag ${isUrgent ? 'urgent' : ''}">${dueText}</span>` : ''}
-                    </div>
-                    <div class="focus-card-actions">
-                        <button class="focus-btn-start" data-id="${task.id}">開始</button>
-                        <button class="focus-btn-complete" data-id="${task.id}">完了</button>
-                        <button class="focus-btn-defer" data-id="${task.id}">後で</button>
-                    </div>
+            <div class="focus-card" data-task-id="${task.id}">
+                <div class="focus-card-title">${task.name || task.title}</div>
+                <div class="focus-card-meta">
+                    <span class="project-tag">${task.project || 'general'}</span>
+                    ${dueText ? `<span class="due-tag ${isUrgent ? 'urgent' : ''}"><i data-lucide="clock"></i>${dueText}</span>` : ''}
+                </div>
+                <div class="focus-card-actions">
+                    <button class="focus-btn-start" data-id="${task.id}">
+                        <i data-lucide="terminal-square"></i> 開始
+                    </button>
+                    <button class="focus-btn-complete" data-id="${task.id}">
+                        <i data-lucide="check"></i> 完了
+                    </button>
+                    <button class="focus-btn-defer" data-id="${task.id}">
+                        <i data-lucide="arrow-right"></i> 後で
+                    </button>
                 </div>
             </div>
         `;
@@ -135,8 +121,8 @@ export class TaskView {
         return `
             <div class="task-item" data-task-id="${task.id}">
                 <div class="task-content">
-                    <h4>${task.title}</h4>
-                    ${task.content ? `<p>${task.content}</p>` : ''}
+                    <h4>${task.name || task.title}</h4>
+                    ${task.description ? `<p>${task.description}</p>` : ''}
                 </div>
                 <button
                     class="complete-btn"
