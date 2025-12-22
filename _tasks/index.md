@@ -1,4 +1,28 @@
 ---
+task_id: T-2512-027
+source_id: SLACK-2025-12-22-MJGG34E7
+title: 業務委託契約書を作成してPlanna社に提出
+project_id: proj_unson-board
+status: todo
+owner: 佐藤
+priority: high
+due: 2025-12-26
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0971UHK4KA
+thread_ts: "1766364943.728369"
+created_at: "2025-12-22T00:55:52.831Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-22 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤
+- 背景: Planna株式会社の名義情報を河原氏から受領した上で、トライアル期間の条件（3週間チェックポイント、1ヶ月本契約移行）を反映した業務委託契約書を作成してPlanna社に提出する。配置先決定後速やかに対応。
+- Slack: https://unson.slack.com/archives/C0971UHK4KA/p1766364943728369?thread_ts=1766364876.131019&cid=C0971UHK4KA
+
+---
 task_id: T-2512-026
 source_id: SLACK-2025-12-22-MJGG33K8
 title: 小林氏の配置先プロジェクトを決定して連絡
