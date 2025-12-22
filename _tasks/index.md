@@ -1,3 +1,27 @@
+---
+task_id: T-2512-026
+source_id: SLACK-2025-12-22-MJGG33K8
+title: 小林氏の配置先プロジェクトを決定して連絡
+project_id: proj_unson-board
+status: todo
+owner: 佐藤
+priority: high
+due: 2025-12-26
+tags: [slack, auto-import]
+links: []
+source: slack
+channel_id: C0971UHK4KA
+thread_ts: "1766364943.728369"
+created_at: "2025-12-22T00:55:51.752Z"
+owner_slack_id: U07LNUP582X
+requester: k.​sato
+---
+
+- 2025-12-22 Slackから自動取り込み: k.​satoから依頼
+- 担当: 佐藤
+- 背景: テックナイトおよびセールステイラーの各代表と調整し、小林氏の配置先プロジェクトを決定して連絡する。小林氏は第一子誕生を控えており70%程度の稼働が見込まれるため、テックナイトが有力候補。今週金曜日までに連絡。
+- Slack: https://unson.slack.com/archives/C0971UHK4KA/p1766364943728369?thread_ts=1766364876.131019&cid=C0971UHK4KA
+
 # 日次ルーティン
 
 ## 受託開発アクション（毎日1回）
