@@ -1,0 +1,67 @@
+# GitHub Actions workflow to sync config.yml to DynamoDB for mana
+#
+# このワークフローはconfig.ymlの変更をDynamoDB（mana-projectsテーブル）に同期します
+# manaの議事録保存機能はDynamoDBからプロジェクト設定を読み込みます
+
+name: Sync Config to DynamoDB
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'config.yml'
+      - '_codex/common/meta/slack/channels.yml'
+  workflow_dispatch:  # 手動実行
+
+env:
+  AWS_REGION: us-east-1
+  PROJECTS_TABLE_NAME: mana-projects
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout brainbase repo
+        uses: actions/checkout@v4
+
+      - name: Checkout mana repo (for sync script)
+        uses: actions/checkout@v4
+        with:
+          repository: sintariran/mana
+          path: mana
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mana dependencies
+        working-directory: mana
+        run: |
+          npm ci --production=false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync config to DynamoDB
+        working-directory: mana
+        run: |
+          node scripts/sync-config-to-dynamodb.js \
+            --config ../config.yml \
+            --channels ../_codex/common/meta/slack/channels.yml \
+            --table ${{ env.PROJECTS_TABLE_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Summary
+        run: |
+          echo "✅ Config synced to DynamoDB successfully!"
+          echo "Table: ${{ env.PROJECTS_TABLE_NAME }}"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo ""
+          echo "議事録保存機能は次回のSlackファイルアップロード時に新しい設定を使用します。"
