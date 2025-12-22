@@ -17,16 +17,18 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout brainbase
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout mana
+        uses: actions/checkout@v4
         with:
-          node-version: '20'
+          repository: Unson-LLC/slack-classify-bot
+          path: mana
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install mana dependencies
-        working-directory: ./mana/api
+        working-directory: mana/api
         run: npm install
 
       - name: Run M9 weekly milestone check
