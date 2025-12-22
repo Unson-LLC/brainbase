@@ -265,6 +265,7 @@ projects:
       owner: Unson-LLC
       repo: Drive
       branch: main
+      path_prefix: meetings/unson-board/
 
   - id: back-office
     emoji: "🗂️"
