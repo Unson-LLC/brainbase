@@ -140,4 +140,35 @@ test.describe('brainbase-ui smoke test', () => {
         expect(appStructure.hasModals).toBe(true);
         expect(appStructure.hasServices).toBe(true);
     });
+
+    test('should open archive modal when clicking archive button', async ({ page }) => {
+        await page.goto('http://localhost:3001');
+        await page.waitForLoadState('networkidle');
+
+        // アーカイブボタンをクリック
+        const archiveBtn = await page.locator('#toggle-archived-btn');
+        await archiveBtn.click();
+
+        // アーカイブモーダルが開く
+        const archiveModal = await page.locator('#archive-modal');
+        await expect(archiveModal).toHaveClass(/active/);
+    });
+
+    test('should show alert when clicking settings button', async ({ page }) => {
+        await page.goto('http://localhost:3001');
+        await page.waitForLoadState('networkidle');
+
+        // アラートダイアログをキャプチャ
+        page.on('dialog', async dialog => {
+            expect(dialog.message()).toContain('設定機能は開発中です');
+            await dialog.accept();
+        });
+
+        // 設定ボタンをクリック
+        const settingsBtn = await page.locator('#settings-btn');
+        await settingsBtn.click();
+
+        // ダイアログが表示される（上記のハンドラーで確認）
+        await page.waitForTimeout(500);
+    });
 });

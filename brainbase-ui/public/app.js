@@ -118,6 +118,32 @@ class App {
         });
 
         this.unsubscribers.push(unsub1, unsub2);
+
+        // Setup global UI button handlers
+        this.setupGlobalButtons();
+    }
+
+    /**
+     * Setup global UI button handlers
+     */
+    setupGlobalButtons() {
+        // Archive toggle button
+        const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
+        if (toggleArchivedBtn) {
+            toggleArchivedBtn.onclick = () => {
+                this.modals.archiveModal.open();
+            };
+        }
+
+        // Settings button
+        const settingsBtn = document.getElementById('settings-btn');
+        if (settingsBtn) {
+            settingsBtn.onclick = () => {
+                console.log('Settings button clicked');
+                // TODO: Implement settings modal
+                alert('設定機能は開発中です');
+            };
+        }
     }
 
     /**
