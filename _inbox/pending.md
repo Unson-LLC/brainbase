@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-22-MJGPGX0Z
+channel: 0120-ncom
+sender: 小川未来
+timestamp: 1766380710.347449
+status: pending
+---
+
+### 14:18 | #0120-ncom | 小川未来
+
+<@U07LNUP582X>
+<https://docs.google.com/presentation/d/1UP8ND2JjkveTV2P659vT_core7E8uA3x6WCuZ4PG2BU/edit?usp=sharing>
+目通していただくこと可能でしょうか？
+
+[Slack](https://unson.slack.com/archives/C091KFKE3RS/p1766380710347449)
+
+---
 id: INBOX-2025-12-22-MJGPBB3P
 channel: D093MBQFRAS
 sender: undefined
