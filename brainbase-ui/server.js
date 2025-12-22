@@ -16,6 +16,18 @@ import { StateStore } from './lib/state-store.js';
 import { ConfigParser } from './lib/config-parser.js';
 import { InboxParser } from './lib/inbox-parser.js';
 
+// Import services
+import { SessionManager } from './server/services/session-manager.js';
+import { WorktreeService } from './server/services/worktree-service.js';
+
+// Import routers
+import { createTaskRouter } from './server/routes/tasks.js';
+import { createStateRouter } from './server/routes/state.js';
+import { createConfigRouter } from './server/routes/config.js';
+import { createInboxRouter } from './server/routes/inbox.js';
+import { createMiscRouter } from './server/routes/misc.js';
+import { createSessionRouter } from './server/routes/sessions.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
@@ -95,24 +107,24 @@ app.use(express.static('public', {
     }
 }));
 
-// State
-let activeSessions = new Map(); // sessionId -> { port, process }
-let sessionHookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp: number }
-let nextPort = 3001;
+// Initialize Services
+const sessionManager = new SessionManager({
+    serverDir: __dirname,
+    execPromise,
+    stateStore
+});
 
-// Initialize State Store
+const worktreeService = new WorktreeService(
+    WORKTREES_DIR,
+    path.dirname(__dirname), // Canonical root (parent of current directory)
+    execPromise
+);
+
+// Initialize State Store and restore session state
 (async () => {
     await stateStore.init();
-
-    // Restore hookStatus from persisted state
-    const state = stateStore.get();
-    if (state.sessions) {
-        state.sessions.forEach(session => {
-            if (session.hookStatus) {
-                sessionHookStatus.set(session.id, session.hookStatus);
-            }
-        });
-    }
+    await sessionManager.restoreHookStatus();
+    await sessionManager.cleanupOrphans();
 })();
 
 // Configure Multer for file uploads
@@ -145,6 +157,7 @@ const ttydProxy = createProxyMiddleware({
     router: function (req) {
         // Handle both full path (Upgrade) and stripped path (Express)
         const url = req.url;
+        const activeSessions = sessionManager.getActiveSessions();
 
         // 1. Try full path match: /console/SESSION_ID/...
         let match = url.match(/^\/console\/([^/]+)/);
@@ -169,6 +182,7 @@ const ttydProxy = createProxyMiddleware({
     onProxyReqWs: (proxyReq, req, socket, options, head) => {
         // Rewrite Origin to match the target (ttyd)
         const url = req.url;
+        const activeSessions = sessionManager.getActiveSessions();
         let match = url.match(/^\/console\/([^/]+)/);
         if (!match) match = url.match(/^\/?([^/]+)/); // Fallback
 
@@ -191,186 +205,71 @@ const ttydProxy = createProxyMiddleware({
 app.use('/console', ttydProxy);
 
 
-// API Routes
-app.get('/api/tasks', async (req, res) => {
-    const tasks = await taskParser.getAllTasks();
-    res.json(tasks);
-});
+// ========================================
+// MVC Router Registration (Phase 3)
+// ========================================
 
-app.post('/api/tasks/:id', async (req, res) => {
-    const { id } = req.params;
-    const updates = req.body;
-    const success = await taskParser.updateTask(id, updates);
-    if (success) {
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Task not found or update failed' });
-    }
-});
+// Register routers with dependency injection
+app.use('/api/tasks', createTaskRouter(taskParser));
+app.use('/api/state', createStateRouter(stateStore, sessionManager.getActiveSessions()));
+app.use('/api/config', createConfigRouter(configParser));
+app.use('/api/inbox', createInboxRouter(inboxParser));
+app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore));
+app.use('/api', createMiscRouter(APP_VERSION, upload.single('file')));
 
-// PUT endpoint for updating tasks (client uses PUT)
-app.put('/api/tasks/:id', async (req, res) => {
-    const { id } = req.params;
-    const updates = req.body;
-    const success = await taskParser.updateTask(id, updates);
-    if (success) {
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Task not found or update failed' });
-    }
-});
+// ========================================
+// Legacy API Routes (TO BE REMOVED)
+// ========================================
 
-// DELETE endpoint for removing tasks
-app.delete('/api/tasks/:id', async (req, res) => {
-    const { id } = req.params;
-    const success = await taskParser.deleteTask(id);
-    if (success) {
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Task not found or delete failed' });
-    }
-});
+// [LEGACY - Replaced by TaskRouter]
+// Tasks endpoints are now handled by server/routes/tasks.js
+/*
+app.get('/api/tasks', async (req, res) => { ... });
+app.post('/api/tasks/:id', async (req, res) => { ... });
+app.put('/api/tasks/:id', async (req, res) => { ... });
+app.delete('/api/tasks/:id', async (req, res) => { ... });
+*/
 
 app.get('/api/schedule/today', async (req, res) => {
     const schedule = await scheduleParser.getTodaySchedule();
     res.json(schedule);
 });
 
-// Version endpoint
-app.get('/api/version', (req, res) => {
-    res.json({ version: APP_VERSION });
-});
+// [LEGACY - Replaced by MiscRouter]
+// version, restart endpoints are now handled by server/routes/misc.js
+/*
+app.get('/api/version', (req, res) => { ... });
+app.post('/api/restart', (req, res) => { ... });
+*/
 
-// Restart server endpoint
-app.post('/api/restart', (req, res) => {
-    res.json({ message: 'Server restarting...' });
-    setTimeout(() => {
-        process.exit(0); // Exit process, assuming it's managed by a process manager
-    }, 100);
-});
+// [LEGACY - Replaced by StateRouter]
+// state endpoints are now handled by server/routes/state.js
+/*
+app.get('/api/state', (req, res) => { ... });
+app.post('/api/state', async (req, res) => { ... });
+*/
 
-app.get('/api/state', (req, res) => {
-    const state = stateStore.get();
+// [LEGACY - Replaced by ConfigRouter]
+// config endpoints are now handled by server/routes/config.js
+/*
+app.get('/api/config', async (req, res) => { ... });
+app.get('/api/config/slack/workspaces', async (req, res) => { ... });
+app.get('/api/config/slack/channels', async (req, res) => { ... });
+app.get('/api/config/slack/members', async (req, res) => { ... });
+app.get('/api/config/projects', async (req, res) => { ... });
+app.get('/api/config/github', async (req, res) => { ... });
+app.get('/api/config/integrity', async (req, res) => { ... });
+app.get('/api/config/unified', async (req, res) => { ... });
+*/
 
-    // Add runtime status to each session
-    const sessionsWithStatus = (state.sessions || []).map(session => {
-        const ttydRunning = activeSessions.has(session.id);
-        // 本来アクティブであるべきなのに停止している場合は再起動が必要
-        const needsRestart = session.intendedState === 'active' && !ttydRunning;
-
-        return {
-            ...session,
-            // 後方互換性のためttydRunningも残す（将来削除予定）
-            ttydRunning,
-            // 新しいruntimeStatus
-            runtimeStatus: {
-                ttydRunning,
-                needsRestart
-            }
-        };
-    });
-
-    res.json({
-        ...state,
-        sessions: sessionsWithStatus
-    });
-});
-
-app.post('/api/state', async (req, res) => {
-    // Remove computed fields from sessions before persisting
-    const sanitizedState = {
-        ...req.body,
-        sessions: (req.body.sessions || []).map(session => {
-            // Remove runtime-only fields
-            const { ttydRunning, runtimeStatus, ...persistentFields } = session;
-            return persistentFields;
-        })
-    };
-
-    const newState = await stateStore.update(sanitizedState);
-    res.json(newState);
-});
-
-// --- Config API ---
-
-// Get all config (Slack + Projects)
-app.get('/api/config', async (req, res) => {
-    const config = await configParser.getAll();
-    res.json(config);
-});
-
-// Get Slack workspaces
-app.get('/api/config/slack/workspaces', async (req, res) => {
-    const workspaces = await configParser.getWorkspaces();
-    res.json(workspaces);
-});
-
-// Get Slack channels
-app.get('/api/config/slack/channels', async (req, res) => {
-    const channels = await configParser.getChannels();
-    res.json(channels);
-});
-
-// Get Slack members
-app.get('/api/config/slack/members', async (req, res) => {
-    const members = await configParser.getMembers();
-    res.json(members);
-});
-
-// Get projects from config.yml
-app.get('/api/config/projects', async (req, res) => {
-    const projects = await configParser.getProjects();
-    res.json(projects);
-});
-
-// Get GitHub mappings from config.yml
-app.get('/api/config/github', async (req, res) => {
-    const github = await configParser.getGitHubMappings();
-    res.json(github);
-});
-
-// Check integrity
-app.get('/api/config/integrity', async (req, res) => {
-    const result = await configParser.checkIntegrity();
-    res.json(result);
-});
-
-// Get unified view (Workspace → Project → Slack/GitHub/Airtable)
-app.get('/api/config/unified', async (req, res) => {
-    const unified = await configParser.getUnifiedView();
-    res.json(unified);
-});
-
-// --- Inbox API ---
-
-// Get all pending inbox items
-app.get('/api/inbox/pending', async (req, res) => {
-    const items = await inboxParser.getPendingItems();
-    res.json(items);
-});
-
-// Get pending count
-app.get('/api/inbox/count', async (req, res) => {
-    const count = await inboxParser.getPendingCount();
-    res.json({ count });
-});
-
-// Mark single item as done
-app.post('/api/inbox/:id/done', async (req, res) => {
-    const { id } = req.params;
-    const success = await inboxParser.markAsDone(id);
-    if (success) {
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Item not found or already done' });
-    }
-});
-
-// Mark all items as done
-app.post('/api/inbox/mark-all-done', async (req, res) => {
-    const success = await inboxParser.markAllAsDone();
-    res.json({ success });
-});
+// [LEGACY - Replaced by InboxRouter]
+// inbox endpoints are now handled by server/routes/inbox.js
+/*
+app.get('/api/inbox/pending', async (req, res) => { ... });
+app.get('/api/inbox/count', async (req, res) => { ... });
+app.post('/api/inbox/:id/done', async (req, res) => { ... });
+app.post('/api/inbox/mark-all-done', async (req, res) => { ... });
+*/
 
 // Open file in editor (Cursor)
 app.post('/api/open-file', async (req, res) => {
@@ -406,6 +305,16 @@ app.post('/api/open-file', async (req, res) => {
     }
 });
 
+// ========================================
+// [LEGACY - Replaced by SessionRouter]
+// All Session-related endpoints and helper functions are now handled by:
+// - server/services/session-manager.js
+// - server/services/worktree-service.js
+// - server/services/terminal-output-parser.js
+// - server/controllers/session-controller.js
+// - server/routes/sessions.js
+// ========================================
+/*
 // Endpoint for hooks to report activity
 app.post('/api/sessions/report_activity', async (req, res) => {
     const { sessionId, status } = req.body;
@@ -992,15 +901,9 @@ app.post('/api/sessions/:id/input', async (req, res) => {
     }
 });
 
-// File Upload Endpoint
-app.post('/api/upload', upload.single('file'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const absolutePath = path.resolve(__dirname, 'uploads', req.file.filename);
-    res.json({ path: absolutePath, filename: req.file.filename });
-});
+// [LEGACY - Replaced by MiscRouter]
+// upload endpoint is now handled by server/routes/misc.js
+// app.post('/api/upload', upload.single('file'), async (req, res) => { ... });
 
 // Endpoint to get terminal content (history)
 app.get('/api/sessions/:id/content', async (req, res) => {
@@ -1041,11 +944,9 @@ app.get('/api/sessions/:id/output', async (req, res) => {
     }
 });
 
-/**
- * Detect numbered choices in terminal output (Phase 3.1)
- * @param {string} text - Terminal output text
- * @returns {Array} Array of choice objects
- */
+// Detect numbered choices in terminal output (Phase 3.1)
+// @param {string} text - Terminal output text
+// @returns {Array} Array of choice objects
 function detectChoices(text) {
     // Check the last 30 lines of output to capture choices and prompt
     const lines = text.split('\n');
@@ -1554,10 +1455,14 @@ app.post('/api/sessions/:id/stop', async (req, res) => {
         res.json({ success: false, message: `No active ttyd process found for ${id}` });
     }
 });
+*/
+// ========================================
+// End of Legacy Session Code
+// ========================================
 
 // Start server
 const server = app.listen(PORT, async () => {
-    await cleanupOrphans();
+    await sessionManager.cleanupOrphans();
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
     console.log(`Reading tasks from: ${TASKS_FILE}`);
