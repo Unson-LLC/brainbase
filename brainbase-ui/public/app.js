@@ -216,26 +216,6 @@ class App {
             });
         });
 
-        // Listen for terminal text selection from iframe (Copy-on-Select)
-        window.addEventListener('message', async (event) => {
-            // Security: In production, verify event.origin
-            if (event.data && event.data.type === 'terminal-selection') {
-                const text = event.data.text;
-                console.log('[App] Received terminal selection from iframe:', text.substring(0, 50) + '...');
-
-                try {
-                    await navigator.clipboard.writeText(text);
-                    console.log('[App] Copied to clipboard via postMessage');
-
-                    // Show toast notification
-                    showSuccess('✓ Copied to clipboard!');
-                } catch (error) {
-                    console.error('[App] Failed to copy from postMessage:', error);
-                    showError('Failed to copy');
-                }
-            }
-        });
-
         // Session change: reload related data and switch terminal
         const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
