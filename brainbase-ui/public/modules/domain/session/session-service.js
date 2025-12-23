@@ -110,28 +110,13 @@ export class SessionService {
             return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine);
         }
 
-        // If API response doesn't include session object, build it from response data
-        let session = res.session;
-        if (!session && res.worktreePath && res.branchName) {
-            console.log('Building session object from API response');
-            session = buildSessionObject({
-                id: sessionId,
-                name,
-                path: res.worktreePath,
-                initialCommand,
-                engine,
-                intendedState: 'stopped',
-                worktree: {
-                    repo: repoPath,
-                    branch: res.branchName
-                }
-            });
-
-            // Add to state since server may have done it already, but ensure client state is updated
-            await addSession(session);
-        }
-
+        // サーバーサイドで既にセッションを追加しているため、
+        // クライアントサイドでは loadSessions を呼び出して状態を更新するだけ
         await this.loadSessions();
+
+        // セッション情報を取得（サーバーから返されたものまたは状態から取得）
+        const sessions = this.store.getState().sessions;
+        const session = sessions.find(s => s.id === sessionId);
 
         this.eventBus.emit(EVENTS.SESSION_CREATED, { session });
 
