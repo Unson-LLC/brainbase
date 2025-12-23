@@ -9,6 +9,7 @@ import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { initSettings, openSettings } from './modules/settings.js';
+import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -36,6 +37,7 @@ class App {
         this.views = {};
         this.modals = {};
         this.unsubscribers = [];
+        this.pollingIntervalId = null;
     }
 
     /**
@@ -216,6 +218,10 @@ class App {
                 }
             });
 
+            // Clear done indicator and update session indicators
+            clearDone(sessionId);
+            updateSessionIndicators(appStore.getState().currentSessionId);
+
         } catch (error) {
             console.error('Failed to switch session:', error);
             terminalFrame.src = 'about:blank';
@@ -307,6 +313,9 @@ class App {
 
         // 5. Load initial data
         await this.loadInitialData();
+
+        // 6. Start session status polling (every 3 seconds)
+        this.pollingIntervalId = startPolling(() => appStore.getState().currentSessionId, 3000);
 
         console.log('brainbase-ui started successfully');
     }
@@ -417,6 +426,12 @@ class App {
      * Cleanup
      */
     destroy() {
+        // Stop polling
+        if (this.pollingIntervalId) {
+            clearInterval(this.pollingIntervalId);
+            this.pollingIntervalId = null;
+        }
+
         // Unsubscribe from events
         this.unsubscribers.forEach(unsub => unsub());
         this.unsubscribers = [];
