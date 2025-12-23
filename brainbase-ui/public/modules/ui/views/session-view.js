@@ -40,7 +40,7 @@ export class SessionView {
     }
 
     /**
-     * セッションリストをレンダリング（現行版と同じ構造）
+     * セッションリストをレンダリング（状態別セクション構造）
      */
     render() {
         if (!this.container) return;
@@ -55,83 +55,103 @@ export class SessionView {
             return;
         }
 
-        // プロジェクトごとにグループ化（現行版と同じロジック）
-        const grouped = groupSessionsByProject(sessions, {
-            excludeArchived: true,
-            includeEmptyProjects: true
-        });
+        // 状態別にセッションを分類（アーカイブを除く）
+        const activeSessions = sessions.filter(s =>
+            s.intendedState !== 'archived' &&
+            s.intendedState !== 'paused' &&
+            (!s.intendedState || s.intendedState === 'active')
+        );
+        const pausedSessions = sessions.filter(s => s.intendedState === 'paused');
 
-        // プロジェクトグループごとにレンダリング
-        for (const [project, projectSessions] of Object.entries(grouped)) {
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'session-group';
-
-            // ヘッダー作成
-            const header = document.createElement('div');
-            header.innerHTML = renderSessionGroupHeaderHTML(project, { isExpanded: true });
-            const headerEl = header.firstElementChild;
-
-            // ヘッダークリックで展開/折りたたみ
-            headerEl.addEventListener('click', (e) => {
-                if (!e.target.closest('.add-project-session-btn')) {
-                    const container = groupDiv.querySelector('.session-group-children');
-                    container.style.display = container.style.display === 'none' ? 'block' : 'none';
-                    const icon = headerEl.querySelector('.folder-icon i');
-                    icon.setAttribute('data-lucide', container.style.display === 'none' ? 'folder' : 'folder-open');
-                    if (window.lucide) window.lucide.createIcons();
-                }
-            });
-
-            // 新規セッション追加ボタン
-            const addBtn = headerEl.querySelector('.add-project-session-btn');
-            if (addBtn) {
-                addBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const targetProject = addBtn.dataset.project;
-                    eventBus.emit(EVENTS.CREATE_SESSION, { project: targetProject });
-                });
-            }
-
-            // セッション行のコンテナ
-            const childrenDiv = document.createElement('div');
-            childrenDiv.className = 'session-group-children';
-
-            // 各セッションをレンダリング
-            projectSessions.forEach(session => {
-                const wrapper = document.createElement('div');
-                wrapper.innerHTML = renderSessionRowHTML(session, {
-                    isActive: currentSessionId === session.id,
-                    project
-                });
-                const childRow = wrapper.firstElementChild;
-
-                // セッションクリックで切り替え（自動一時停止）
-                childRow.addEventListener('click', async (e) => {
-                    if (!e.target.closest('button')) {
-                        const sessionId = childRow.dataset.id;
-                        if (sessionId) {
-                            await this.sessionService.switchSession(sessionId);
-                        } else {
-                            console.error('Session ID not found in row:', childRow);
-                        }
-                    }
-                });
-
-                // アクションボタンのイベントハンドラー
-                this._attachSessionActionHandlers(childRow, session);
-
-                childrenDiv.appendChild(childRow);
-            });
-
-            groupDiv.appendChild(headerEl);
-            groupDiv.appendChild(childrenDiv);
-            this.container.appendChild(groupDiv);
+        // 作業中セクション
+        if (activeSessions.length > 0) {
+            const workingSection = this._renderSection('作業中', activeSessions, currentSessionId, true);
+            this.container.appendChild(workingSection);
         }
+
+        // 一時停止セクション
+        if (pausedSessions.length > 0) {
+            const pausedSection = this._renderSection('一時停止', pausedSessions, currentSessionId, false);
+            this.container.appendChild(pausedSection);
+        }
+
+        // アーカイブボタン
+        const archiveBtn = document.createElement('button');
+        archiveBtn.className = 'archive-view-btn';
+        archiveBtn.innerHTML = '<i data-lucide="archive"></i> アーカイブを見る';
+        archiveBtn.onclick = () => {
+            const archiveModal = document.getElementById('archive-modal');
+            if (archiveModal) archiveModal.classList.add('active');
+        };
+        this.container.appendChild(archiveBtn);
 
         // Lucideアイコンを初期化
         if (window.lucide) {
             window.lucide.createIcons();
         }
+    }
+
+    /**
+     * セクションをレンダリング
+     * @private
+     */
+    _renderSection(title, sessions, currentSessionId, isExpanded) {
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'session-section';
+
+        // セクションヘッダー
+        const header = document.createElement('div');
+        header.className = 'session-section-header';
+        header.innerHTML = `
+            <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}"></i>
+            <span>${title}</span>
+            <span class="session-count">${sessions.length}</span>
+        `;
+
+        // ヘッダークリックで展開/折りたたみ
+        header.addEventListener('click', () => {
+            const isCurrentlyExpanded = childrenDiv.style.display !== 'none';
+            childrenDiv.style.display = isCurrentlyExpanded ? 'none' : 'block';
+            const icon = header.querySelector('i');
+            icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'chevron-right' : 'chevron-down');
+            if (window.lucide) window.lucide.createIcons();
+        });
+
+        // セッションリスト
+        const childrenDiv = document.createElement('div');
+        childrenDiv.className = 'session-section-children';
+        childrenDiv.style.display = isExpanded ? 'block' : 'none';
+
+        // 各セッションをレンダリング
+        sessions.forEach(session => {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = renderSessionRowHTML(session, {
+                isActive: currentSessionId === session.id,
+                project: session.project || 'general'
+            });
+            const childRow = wrapper.firstElementChild;
+
+            // セッションクリックで切り替え
+            childRow.addEventListener('click', async (e) => {
+                if (!e.target.closest('button')) {
+                    const sessionId = childRow.dataset.id;
+                    if (sessionId) {
+                        await this.sessionService.switchSession(sessionId);
+                    } else {
+                        console.error('Session ID not found in row:', childRow);
+                    }
+                }
+            });
+
+            // アクションボタンのイベントハンドラー
+            this._attachSessionActionHandlers(childRow, session);
+
+            childrenDiv.appendChild(childRow);
+        });
+
+        sectionDiv.appendChild(header);
+        sectionDiv.appendChild(childrenDiv);
+        return sectionDiv;
     }
 
     /**
@@ -165,6 +185,15 @@ export class SessionView {
                 e.stopPropagation();
                 const newState = session.intendedState === 'archived' ? 'active' : 'archived';
                 await this.sessionService.updateSession(session.id, { intendedState: newState });
+            });
+        }
+
+        // Pause button (for active sessions)
+        const pauseBtn = row.querySelector('.pause-session-btn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.sessionService.pauseSession(session.id);
             });
         }
 

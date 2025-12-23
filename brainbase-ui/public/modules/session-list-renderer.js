@@ -44,13 +44,15 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>'
     : '';
 
-  // 再開ボタン: 一時停止中または予期しない停止の場合に表示
-  const resumeButton = (isPaused || needsRestart)
+  // 再開ボタン: 一時停止中の場合に表示
+  const resumeButton = isPaused
     ? '<button class="resume-session-btn" title="Resume session"><i data-lucide="play-circle"></i></button>'
     : '';
 
-  // 一時停止ボタンは不要（自動一時停止のため）
-  // activeセッションをクリックすると自動的にpausedになる
+  // 一時停止ボタン: 作業中（paused以外）の場合に表示
+  const pauseButton = !isPaused && session.intendedState !== 'archived'
+    ? '<button class="pause-session-btn" title="Pause session"><i data-lucide="pause-circle"></i></button>'
+    : '';
 
   return `
     <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
@@ -63,6 +65,7 @@ export function renderSessionRowHTML(session, options = {}) {
       <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
       <div class="child-actions">
         ${resumeButton}
+        ${pauseButton}
         ${mergeButton}
         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
         <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>

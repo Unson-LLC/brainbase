@@ -97,7 +97,7 @@ export class SessionService {
             path: repoPath,
             initialCommand,
             engine,
-            intendedState: 'paused'
+            intendedState: 'active'
         });
 
         await addSession(newSession);
@@ -258,8 +258,8 @@ export class SessionService {
     }
 
     /**
-     * セッション切り替え（自動一時停止）
-     * 現在のactiveセッションを自動的にpausedにし、新しいセッションをactiveにする
+     * セッション切り替え
+     * currentSessionIdを更新（intendedStateは変更しない）
      * @param {string} sessionId - 切り替え先のセッションID
      */
     async switchSession(sessionId) {
@@ -269,14 +269,6 @@ export class SessionService {
         if (currentSessionId === sessionId) {
             return;
         }
-
-        // 現在のactiveセッションをpausedにする
-        if (currentSessionId) {
-            await this.pauseSession(currentSessionId);
-        }
-
-        // 新しいセッションをactiveにする
-        await this.resumeSession(sessionId);
 
         // currentSessionIdを更新
         this.store.setState({ currentSessionId: sessionId });
