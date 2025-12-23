@@ -24,8 +24,8 @@ export function renderSessionRowHTML(session, options = {}) {
   const needsRestart = session.runtimeStatus?.needsRestart || false;
   const ttydRunning = session.runtimeStatus?.ttydRunning || false;
 
-  // 意図的な一時停止状態かどうか
-  const isPaused = session.intendedState === 'paused' && !ttydRunning;
+  // 意図的な一時停止状態かどうか（intendedStateで判定）
+  const isPaused = session.intendedState === 'paused';
   const pausedClass = (needsRestart || isPaused) ? ' paused' : '';
 
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
