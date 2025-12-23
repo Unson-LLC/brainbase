@@ -221,6 +221,10 @@ body {
     color: var(--text-secondary);
 }
 
+.session-child-row.archived .archived-label {
+    display: none; /* ラベル非表示でスッキリ */
+}
+
 /* Session Name & Icon Wrapper */
 .session-name-container {
     display: flex;
@@ -269,10 +273,23 @@ body {
     border: 1px solid rgba(16, 163, 127, 0.3);
 }
 
+/* Archived Label */
+.archived-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
 /* Paused Session (一時停止中) */
 .session-child-row.paused {
     opacity: 0.6;
     border-left: 2px solid var(--warning-color, #f59e0b);
+}
+
+.paused-label {
+    font-size: 0.7rem;
+    color: var(--warning-color, #f59e0b);
+    font-weight: 500;
 }
 
 .resume-session-btn {
@@ -285,53 +302,7 @@ body {
 }
 
 /* Session Status Dots (状態インジケーター) */
-.status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-    flex-shrink: 0;
-}
-
-/* Active: 緑色の脈動ドット */
-.status-dot.status-active {
-    background-color: #10b981;
-    box-shadow: 0 0 4px #10b981;
-    animation: pulse 2s ease-in-out infinite;
-}
-
-/* Paused: オレンジ色のドット */
-.status-dot.status-paused {
-    background-color: var(--warning-color, #f59e0b);
-}
-
-/* Archived: グレーのドット */
-.status-dot.status-archived {
-    background-color: #6b7280;
-    opacity: 0.6;
-}
-
-/* Stopped (予期しない停止): 赤色のドット */
-.status-dot.status-stopped {
-    background-color: #ef4444;
-}
-
-/* Inactive (非アクティブ): ライトグレーのドット */
-.status-dot.status-inactive {
-    background-color: #9ca3af;
-    opacity: 0.5;
-}
-
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.6;
-    }
-}
+/* 左側の状態ドット - 削除（エージェント活動インジケーターに統合） */
 
 /* Input for renaming */
 .rename-input {
@@ -431,20 +402,23 @@ body {
 }
 
 /* Activity Indicator */
+/* エージェント活動インジケーター（統合版） */
 .session-activity-indicator {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    margin-left: 6px;
+    margin-left: auto;
+    margin-right: 8px;
     flex-shrink: 0;
 }
 .session-activity-indicator.working {
     background-color: var(--warning-color);
-    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
     animation: pulse 2s infinite;
 }
 .session-activity-indicator.done {
     background-color: var(--success-color);
+    box-shadow: 0 0 4px var(--success-color);
 }
 @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
