@@ -10,6 +10,7 @@ import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { initSettings, openSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
+import { initFileUpload } from './modules/file-upload.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -314,7 +315,10 @@ class App {
         // 5. Load initial data
         await this.loadInitialData();
 
-        // 6. Start session status polling (every 3 seconds)
+        // 6. Initialize file upload (Drag & Drop, Clipboard)
+        initFileUpload(() => appStore.getState().currentSessionId);
+
+        // 7. Start session status polling (every 3 seconds)
         this.pollingIntervalId = startPolling(() => appStore.getState().currentSessionId, 3000);
 
         console.log('brainbase-ui started successfully');
