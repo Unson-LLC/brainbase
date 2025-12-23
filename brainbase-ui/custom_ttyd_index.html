@@ -292,5 +292,110 @@
     }
 })();
 </script>
+
+<script>
+// Copy-on-Select: Automatically copy selected text to clipboard
+(function() {
+    'use strict';
+
+    let lastSelection = '';
+
+    async function copyToClipboard(text) {
+        try {
+            // Try direct clipboard access first
+            await navigator.clipboard.writeText(text);
+            console.log('[CopyOnSelect] Copied directly:', text.substring(0, 50) + '...');
+            showCopyFeedback();
+            return true;
+        } catch (error) {
+            console.log('[CopyOnSelect] Direct clipboard failed, using postMessage:', error.message);
+            try {
+                // Fallback to postMessage to parent window
+                window.parent.postMessage({
+                    type: 'terminal-selection',
+                    text: text,
+                    timestamp: Date.now()
+                }, '*');
+                console.log('[CopyOnSelect] Sent to parent via postMessage');
+                return true;
+            } catch (postError) {
+                console.error('[CopyOnSelect] Both methods failed:', postError);
+                return false;
+            }
+        }
+    }
+
+    function showCopyFeedback() {
+        const notification = document.createElement('div');
+        notification.textContent = '✓ Copied!';
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 999999;
+            font-size: 14px;
+            font-family: sans-serif;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        `;
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            notification.style.transition = 'opacity 0.3s';
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 300);
+        }, 1500);
+    }
+
+    function checkAndSendSelection() {
+        try {
+            const selection = window.getSelection();
+            const selectedText = selection ? selection.toString().trim() : '';
+
+            if (selectedText && selectedText !== lastSelection && selectedText.length > 0) {
+                lastSelection = selectedText;
+                console.log('[CopyOnSelect] Selection changed:', selectedText.substring(0, 50) + '...');
+                copyToClipboard(selectedText);
+            } else if (!selectedText || selectedText.length === 0) {
+                if (lastSelection) {
+                    console.log('[CopyOnSelect] Selection cleared');
+                    lastSelection = '';
+                }
+            }
+        } catch (error) {
+            console.error('[CopyOnSelect] Error in checkAndSendSelection:', error);
+        }
+    }
+
+    function init() {
+        console.log('[CopyOnSelect] Initializing copy-on-select...');
+
+        // Poll selection state
+        setInterval(checkAndSendSelection, 300);
+
+        // Also listen to mouse and selection events
+        document.addEventListener('mouseup', function() {
+            setTimeout(checkAndSendSelection, 50);
+        });
+
+        document.addEventListener('selectionchange', function() {
+            setTimeout(checkAndSendSelection, 100);
+        });
+
+        console.log('[CopyOnSelect] Copy-on-select enabled');
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(init, 500);
+        });
+    } else {
+        setTimeout(init, 500);
+    }
+})();
+</script>
 </body>
 </html>
