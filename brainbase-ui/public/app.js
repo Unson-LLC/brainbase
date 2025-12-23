@@ -9,6 +9,9 @@ import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { initSettings, openSettings } from './modules/settings.js';
+import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
+import { initFileUpload } from './modules/file-upload.js';
+import { showSuccess, showError } from './modules/toast.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -27,9 +30,6 @@ import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 
-// Session Indicators (Agent activity status)
-import { startPolling, updateSessionIndicators } from './modules/session-indicators.js';
-
 /**
  * Application initialization
  */
@@ -39,6 +39,10 @@ class App {
         this.views = {};
         this.modals = {};
         this.unsubscribers = [];
+        this.pollingIntervalId = null;
+        this.refreshIntervalId = null;
+        this.choiceCheckInterval = null;
+        this.lastChoiceHash = null;
     }
 
     /**
@@ -114,6 +118,90 @@ class App {
      * Setup global event listeners
      */
     setupEventListeners() {
+        // Terminal copy modal
+        const copyTerminalBtn = document.getElementById('copy-terminal-btn');
+        const copyTerminalModal = document.getElementById('copy-terminal-modal');
+        const terminalContentDisplay = document.getElementById('terminal-content-display');
+        const copyContentBtn = document.getElementById('copy-content-btn');
+
+        if (copyTerminalBtn && copyTerminalModal && terminalContentDisplay) {
+            copyTerminalBtn.onclick = async () => {
+                const currentSessionId = appStore.getState().currentSessionId;
+                if (!currentSessionId) {
+                    alert('セッションを選択してください');
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`/api/sessions/${currentSessionId}/content?lines=500`);
+                    if (!res.ok) throw new Error('Failed to fetch content');
+
+                    const { content } = await res.json();
+                    terminalContentDisplay.textContent = content;
+                    copyTerminalModal.classList.add('active');
+
+                    // Scroll to bottom
+                    setTimeout(() => {
+                        terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
+                    }, 50);
+                } catch (error) {
+                    console.error('Failed to get terminal content:', error);
+                    alert('ターミナル内容の取得に失敗しました');
+                }
+            };
+        }
+
+        if (copyContentBtn && terminalContentDisplay) {
+            copyContentBtn.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(terminalContentDisplay.textContent);
+                    alert('コピーしました！');
+                } catch (error) {
+                    console.error('Failed to copy:', error);
+                    alert('コピーに失敗しました');
+                }
+            };
+        }
+
+        // Close modal buttons
+        const closeModalBtns = document.querySelectorAll('.close-modal-btn');
+        closeModalBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.modal.active').forEach(modal => {
+                    modal.classList.remove('active');
+                });
+            });
+        });
+
+        // Close modal on background click
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        });
+
+        // Listen for terminal text selection from iframe (Copy-on-Select)
+        window.addEventListener('message', async (event) => {
+            // Security: In production, verify event.origin
+            if (event.data && event.data.type === 'terminal-selection') {
+                const text = event.data.text;
+                console.log('[App] Received terminal selection from iframe:', text.substring(0, 50) + '...');
+
+                try {
+                    await navigator.clipboard.writeText(text);
+                    console.log('[App] Copied to clipboard via postMessage');
+
+                    // Show toast notification
+                    showSuccess('✓ Copied to clipboard!');
+                } catch (error) {
+                    console.error('[App] Failed to copy from postMessage:', error);
+                    showError('Failed to copy');
+                }
+            }
+        });
+
         // Session change: reload related data and switch terminal
         const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
@@ -127,9 +215,6 @@ class App {
 
             // Load session-specific data
             await this.loadSessionData(sessionId);
-
-            // Update session activity indicators
-            updateSessionIndicators(sessionId);
         });
 
         // Start task: emit for terminal integration
@@ -239,6 +324,10 @@ class App {
                 }
             });
 
+            // Clear done indicator and update session indicators
+            clearDone(sessionId);
+            updateSessionIndicators(appStore.getState().currentSessionId);
+
         } catch (error) {
             console.error('Failed to switch session:', error);
             terminalFrame.src = 'about:blank';
@@ -331,8 +420,17 @@ class App {
         // 5. Load initial data
         await this.loadInitialData();
 
-        // 6. Start session activity indicator polling
-        startPolling(() => appStore.getState().currentSessionId, 3000);
+        // 6. Initialize file upload (Drag & Drop, Clipboard)
+        initFileUpload(() => appStore.getState().currentSessionId);
+
+        // 7. Start session status polling (every 3 seconds)
+        this.pollingIntervalId = startPolling(() => appStore.getState().currentSessionId, 3000);
+
+        // 8. Start periodic refresh (every 5 minutes)
+        this.startPeriodicRefresh();
+
+        // 9. Setup choice detection (mobile only)
+        this.setupResponsiveChoiceDetection();
 
         console.log('brainbase-ui started successfully');
     }
@@ -440,9 +538,170 @@ class App {
     }
 
     /**
+     * Start periodic refresh (every 5 minutes)
+     */
+    startPeriodicRefresh() {
+        this.refreshIntervalId = setInterval(async () => {
+            try {
+                await this.scheduleService.loadSchedule();
+                await this.taskService.loadTasks();
+                if (this.views.inboxView && this.views.inboxView.loadInbox) {
+                    await this.views.inboxView.loadInbox();
+                }
+                console.log('Periodic refresh completed');
+            } catch (error) {
+                console.error('Periodic refresh failed:', error);
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+    }
+
+    /**
+     * Check if device is mobile
+     */
+    isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    /**
+     * Start choice detection (mobile only)
+     */
+    startChoiceDetection() {
+        this.stopChoiceDetection();
+
+        this.choiceCheckInterval = setInterval(async () => {
+            const currentSessionId = appStore.getState().currentSessionId;
+            if (!currentSessionId) return;
+
+            try {
+                const res = await httpClient.get(`/api/sessions/${currentSessionId}/output`);
+                const data = res;
+
+                if (data.hasChoices && data.choices.length > 0) {
+                    const choiceHash = JSON.stringify(data.choices);
+                    if (choiceHash !== this.lastChoiceHash) {
+                        this.lastChoiceHash = choiceHash;
+                        this.showChoiceOverlay(data.choices);
+                        this.stopChoiceDetection();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check for choices:', error);
+            }
+        }, 2000); // Check every 2 seconds
+    }
+
+    /**
+     * Stop choice detection
+     */
+    stopChoiceDetection() {
+        if (this.choiceCheckInterval) {
+            clearInterval(this.choiceCheckInterval);
+            this.choiceCheckInterval = null;
+        }
+    }
+
+    /**
+     * Show choice overlay
+     */
+    showChoiceOverlay(choices) {
+        const overlay = document.getElementById('choice-overlay');
+        const container = document.getElementById('choice-buttons');
+        const closeBtn = document.getElementById('close-choice-overlay');
+
+        if (!overlay || !container) return;
+
+        container.innerHTML = '';
+        choices.forEach((choice) => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = choice.originalText || `${choice.number}) ${choice.text}`;
+            btn.onclick = () => this.selectChoice(choice.number);
+            container.appendChild(btn);
+        });
+
+        overlay.classList.add('active');
+        lucide.createIcons();
+
+        closeBtn.onclick = () => this.closeChoiceOverlay();
+    }
+
+    /**
+     * Close choice overlay
+     */
+    closeChoiceOverlay() {
+        const overlay = document.getElementById('choice-overlay');
+        overlay?.classList.remove('active');
+        this.lastChoiceHash = null;
+        if (this.isMobile()) {
+            this.startChoiceDetection();
+        }
+    }
+
+    /**
+     * Send choice selection
+     */
+    async selectChoice(number) {
+        const currentSessionId = appStore.getState().currentSessionId;
+        if (!currentSessionId) return;
+
+        try {
+            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+                input: number,
+                type: 'text'
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+                input: 'Enter',
+                type: 'key'
+            });
+
+            this.closeChoiceOverlay();
+        } catch (error) {
+            console.error('Failed to send choice:', error);
+            this.showError('選択の送信に失敗しました');
+        }
+    }
+
+    /**
+     * Setup responsive choice detection
+     */
+    setupResponsiveChoiceDetection() {
+        // Start on mobile
+        if (this.isMobile()) {
+            this.startChoiceDetection();
+        }
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            if (this.isMobile() && !this.choiceCheckInterval) {
+                this.startChoiceDetection();
+            } else if (!this.isMobile() && this.choiceCheckInterval) {
+                this.stopChoiceDetection();
+                this.closeChoiceOverlay();
+            }
+        });
+    }
+
+    /**
      * Cleanup
      */
     destroy() {
+        // Stop polling
+        if (this.pollingIntervalId) {
+            clearInterval(this.pollingIntervalId);
+            this.pollingIntervalId = null;
+        }
+
+        // Stop refresh
+        if (this.refreshIntervalId) {
+            clearInterval(this.refreshIntervalId);
+            this.refreshIntervalId = null;
+        }
+
+        // Stop choice detection
+        this.stopChoiceDetection();
+
         // Unsubscribe from events
         this.unsubscribers.forEach(unsub => unsub());
         this.unsubscribers = [];
