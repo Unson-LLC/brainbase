@@ -39,6 +39,9 @@ class App {
         this.modals = {};
         this.unsubscribers = [];
         this.pollingIntervalId = null;
+        this.refreshIntervalId = null;
+        this.choiceCheckInterval = null;
+        this.lastChoiceHash = null;
     }
 
     /**
@@ -321,6 +324,12 @@ class App {
         // 7. Start session status polling (every 3 seconds)
         this.pollingIntervalId = startPolling(() => appStore.getState().currentSessionId, 3000);
 
+        // 8. Start periodic refresh (every 5 minutes)
+        this.startPeriodicRefresh();
+
+        // 9. Setup choice detection (mobile only)
+        this.setupResponsiveChoiceDetection();
+
         console.log('brainbase-ui started successfully');
     }
 
@@ -427,6 +436,152 @@ class App {
     }
 
     /**
+     * Start periodic refresh (every 5 minutes)
+     */
+    startPeriodicRefresh() {
+        this.refreshIntervalId = setInterval(async () => {
+            try {
+                await this.scheduleService.loadSchedule();
+                await this.taskService.loadTasks();
+                if (this.views.inboxView && this.views.inboxView.loadInbox) {
+                    await this.views.inboxView.loadInbox();
+                }
+                console.log('Periodic refresh completed');
+            } catch (error) {
+                console.error('Periodic refresh failed:', error);
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+    }
+
+    /**
+     * Check if device is mobile
+     */
+    isMobile() {
+        return window.innerWidth <= 768;
+    }
+
+    /**
+     * Start choice detection (mobile only)
+     */
+    startChoiceDetection() {
+        this.stopChoiceDetection();
+
+        this.choiceCheckInterval = setInterval(async () => {
+            const currentSessionId = appStore.getState().currentSessionId;
+            if (!currentSessionId) return;
+
+            try {
+                const res = await httpClient.get(`/api/sessions/${currentSessionId}/output`);
+                const data = res;
+
+                if (data.hasChoices && data.choices.length > 0) {
+                    const choiceHash = JSON.stringify(data.choices);
+                    if (choiceHash !== this.lastChoiceHash) {
+                        this.lastChoiceHash = choiceHash;
+                        this.showChoiceOverlay(data.choices);
+                        this.stopChoiceDetection();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check for choices:', error);
+            }
+        }, 2000); // Check every 2 seconds
+    }
+
+    /**
+     * Stop choice detection
+     */
+    stopChoiceDetection() {
+        if (this.choiceCheckInterval) {
+            clearInterval(this.choiceCheckInterval);
+            this.choiceCheckInterval = null;
+        }
+    }
+
+    /**
+     * Show choice overlay
+     */
+    showChoiceOverlay(choices) {
+        const overlay = document.getElementById('choice-overlay');
+        const container = document.getElementById('choice-buttons');
+        const closeBtn = document.getElementById('close-choice-overlay');
+
+        if (!overlay || !container) return;
+
+        container.innerHTML = '';
+        choices.forEach((choice) => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.textContent = choice.originalText || `${choice.number}) ${choice.text}`;
+            btn.onclick = () => this.selectChoice(choice.number);
+            container.appendChild(btn);
+        });
+
+        overlay.classList.add('active');
+        lucide.createIcons();
+
+        closeBtn.onclick = () => this.closeChoiceOverlay();
+    }
+
+    /**
+     * Close choice overlay
+     */
+    closeChoiceOverlay() {
+        const overlay = document.getElementById('choice-overlay');
+        overlay?.classList.remove('active');
+        this.lastChoiceHash = null;
+        if (this.isMobile()) {
+            this.startChoiceDetection();
+        }
+    }
+
+    /**
+     * Send choice selection
+     */
+    async selectChoice(number) {
+        const currentSessionId = appStore.getState().currentSessionId;
+        if (!currentSessionId) return;
+
+        try {
+            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+                input: number,
+                type: 'text'
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+                input: 'Enter',
+                type: 'key'
+            });
+
+            this.closeChoiceOverlay();
+        } catch (error) {
+            console.error('Failed to send choice:', error);
+            this.showError('選択の送信に失敗しました');
+        }
+    }
+
+    /**
+     * Setup responsive choice detection
+     */
+    setupResponsiveChoiceDetection() {
+        // Start on mobile
+        if (this.isMobile()) {
+            this.startChoiceDetection();
+        }
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            if (this.isMobile() && !this.choiceCheckInterval) {
+                this.startChoiceDetection();
+            } else if (!this.isMobile() && this.choiceCheckInterval) {
+                this.stopChoiceDetection();
+                this.closeChoiceOverlay();
+            }
+        });
+    }
+
+    /**
      * Cleanup
      */
     destroy() {
@@ -435,6 +590,15 @@ class App {
             clearInterval(this.pollingIntervalId);
             this.pollingIntervalId = null;
         }
+
+        // Stop refresh
+        if (this.refreshIntervalId) {
+            clearInterval(this.refreshIntervalId);
+            this.refreshIntervalId = null;
+        }
+
+        // Stop choice detection
+        this.stopChoiceDetection();
 
         // Unsubscribe from events
         this.unsubscribers.forEach(unsub => unsub());
