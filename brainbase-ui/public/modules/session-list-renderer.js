@@ -36,27 +36,8 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<span class="engine-badge engine-codex" title="OpenAI Codex">Codex</span>'
     : '';
 
-  // 状態インジケーター（色付きドット）とラベル
-  let statusIndicator = '';
-  let statusLabel = '';
-
-  if (session.intendedState === 'archived') {
-    statusIndicator = '<span class="status-dot status-archived" title="Archived"></span>';
-    statusLabel = '<span class="archived-label">(Archived)</span>';
-  } else if (session.intendedState === 'paused') {
-    statusIndicator = '<span class="status-dot status-paused" title="Paused"></span>';
-    statusLabel = '<span class="paused-label">(Paused)</span>';
-  } else if (needsRestart) {
-    // 本来アクティブであるべきなのに停止している場合のみラベル表示
-    statusIndicator = '<span class="status-dot status-stopped" title="Stopped"></span>';
-    statusLabel = '<span class="stopped-label">(Stopped)</span>';
-  } else if (isActive) {
-    // アクティブセッション
-    statusIndicator = '<span class="status-dot status-active" title="Active"></span>';
-  } else {
-    // その他（非アクティブだが動作中）
-    statusIndicator = '<span class="status-dot status-inactive" title="Inactive"></span>';
-  }
+  // エージェント活動インジケーター（session-indicators.js）のみ使用
+  // セッション状態は右側のインジケーターと背景色で表現
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
   const mergeButton = hasWorktree && session.intendedState !== 'archived'
@@ -75,11 +56,9 @@ export function renderSessionRowHTML(session, options = {}) {
     <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
-        ${statusIndicator}
         <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
         <span class="session-name">${displayName}</span>
         ${engineBadge}
-        ${statusLabel}
       </div>
       <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
       <div class="child-actions">
