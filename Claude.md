@@ -63,6 +63,7 @@ worktreeでは以下が正本へのシンボリックリンクになる。編集
 | Git操作・コミット | `skill: git-commit-rules` |
 | ブランチ・worktree | `skill: branch-worktree-rules` |
 | タスク管理 | `skill: task-format` |
+| 環境変数・トークン管理 | `skill: env-management`（.env正本: `/Users/ksato/workspace/.env`） |
 | 会議管理 | `_codex/common/templates/meeting_template.md` |
 | ディレクトリ構造 | `_codex/common/architecture_map.md` |
 | RACI定義 | `skill: raci-format` |
@@ -81,4 +82,4 @@ worktreeでは以下が正本へのシンボリックリンクになる。編集
 | `/ohayo`拡張予定 | Actionsヘルスチェックを追加予定（actions-healthcheck.yml連携） |
 
 ---
-最終更新: 2025-12-14
+最終更新: 2025-12-23
