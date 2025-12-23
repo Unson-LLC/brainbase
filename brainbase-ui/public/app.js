@@ -11,7 +11,6 @@ import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { initSettings, openSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
-import { showSuccess, showError } from './modules/toast.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -180,26 +179,6 @@ class App {
                     modal.classList.remove('active');
                 }
             });
-        });
-
-        // Listen for terminal text selection from iframe (Copy-on-Select)
-        window.addEventListener('message', async (event) => {
-            // Security: In production, verify event.origin
-            if (event.data && event.data.type === 'terminal-selection') {
-                const text = event.data.text;
-                console.log('[App] Received terminal selection from iframe:', text.substring(0, 50) + '...');
-
-                try {
-                    await navigator.clipboard.writeText(text);
-                    console.log('[App] Copied to clipboard via postMessage');
-
-                    // Show toast notification
-                    showSuccess('✓ Copied to clipboard!');
-                } catch (error) {
-                    console.error('[App] Failed to copy from postMessage:', error);
-                    showError('Failed to copy');
-                }
-            }
         });
 
         // Session change: reload related data and switch terminal
