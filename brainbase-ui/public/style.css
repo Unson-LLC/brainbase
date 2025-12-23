@@ -502,13 +502,14 @@ body {
     top: 100%;
     right: 0;
     margin-top: 4px;
-    background: var(--bg-secondary);
+    background: var(--bg-primary, #1e293b);
     border: 1px solid var(--border);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     min-width: 180px;
     z-index: 1000;
     padding: 4px 0;
+    opacity: 1;
 }
 
 .session-dropdown-menu.hidden {
@@ -521,7 +522,8 @@ body {
     justify-content: flex-start;
     gap: 10px;
     width: 100%;
-    padding: 8px 12px;
+    min-height: 36px;
+    padding: 10px 14px;
     background: transparent;
     border: none;
     color: var(--text-primary);
