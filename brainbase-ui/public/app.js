@@ -117,6 +117,70 @@ class App {
      * Setup global event listeners
      */
     setupEventListeners() {
+        // Terminal copy modal
+        const copyTerminalBtn = document.getElementById('copy-terminal-btn');
+        const copyTerminalModal = document.getElementById('copy-terminal-modal');
+        const terminalContentDisplay = document.getElementById('terminal-content-display');
+        const copyContentBtn = document.getElementById('copy-content-btn');
+
+        if (copyTerminalBtn && copyTerminalModal && terminalContentDisplay) {
+            copyTerminalBtn.onclick = async () => {
+                const currentSessionId = appStore.getState().currentSessionId;
+                if (!currentSessionId) {
+                    alert('セッションを選択してください');
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`/api/sessions/${currentSessionId}/content?lines=500`);
+                    if (!res.ok) throw new Error('Failed to fetch content');
+
+                    const { content } = await res.json();
+                    terminalContentDisplay.textContent = content;
+                    copyTerminalModal.classList.add('active');
+
+                    // Scroll to bottom
+                    setTimeout(() => {
+                        terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
+                    }, 50);
+                } catch (error) {
+                    console.error('Failed to get terminal content:', error);
+                    alert('ターミナル内容の取得に失敗しました');
+                }
+            };
+        }
+
+        if (copyContentBtn && terminalContentDisplay) {
+            copyContentBtn.onclick = async () => {
+                try {
+                    await navigator.clipboard.writeText(terminalContentDisplay.textContent);
+                    alert('コピーしました！');
+                } catch (error) {
+                    console.error('Failed to copy:', error);
+                    alert('コピーに失敗しました');
+                }
+            };
+        }
+
+        // Close modal buttons
+        const closeModalBtns = document.querySelectorAll('.close-modal-btn');
+        closeModalBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.modal.active').forEach(modal => {
+                    modal.classList.remove('active');
+                });
+            });
+        });
+
+        // Close modal on background click
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        });
+
         // Session change: reload related data and switch terminal
         const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
