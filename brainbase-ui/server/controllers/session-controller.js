@@ -288,6 +288,7 @@ export class SessionController {
             const newSession = {
                 id: sessionId,
                 name: name || sessionId,
+                path: worktreePath,  // 追加: プロジェクト判定に必要
                 worktree: {
                     repo: repoPath,
                     path: worktreePath,
