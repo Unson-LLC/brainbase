@@ -11,7 +11,7 @@ import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { initSettings, openSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
-import { showSuccess, showError } from './modules/toast.js';
+import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 
 // Services
@@ -160,6 +160,39 @@ class App {
                 } catch (error) {
                     console.error('Failed to copy:', error);
                     alert('コピーに失敗しました');
+                }
+            };
+        }
+
+        // Mobile copy terminal button
+        const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
+        if (mobileCopyTerminalBtn) {
+            mobileCopyTerminalBtn.onclick = async () => {
+                const mobileFabContainer = document.getElementById('mobile-fab-container');
+                mobileFabContainer?.classList.remove('active');
+
+                const currentSessionId = appStore.getState().currentSessionId;
+                if (!currentSessionId) {
+                    showInfo('セッションを選択してください');
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`/api/sessions/${currentSessionId}/content?lines=500`);
+                    if (!res.ok) throw new Error('Failed to fetch content');
+
+                    const { content } = await res.json();
+                    terminalContentDisplay.textContent = content;
+                    copyTerminalModal.classList.add('active');
+                    if (window.lucide) window.lucide.createIcons();
+
+                    // Scroll to bottom
+                    setTimeout(() => {
+                        terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
+                    }, 50);
+                } catch (error) {
+                    console.error('Failed to get terminal content:', error);
+                    showError('ターミナル内容の取得に失敗しました');
                 }
             };
         }
