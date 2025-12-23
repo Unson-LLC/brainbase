@@ -27,6 +27,9 @@ import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 
+// Session Indicators (Agent activity status)
+import { startPolling, updateSessionIndicators } from './modules/session-indicators.js';
+
 /**
  * Application initialization
  */
@@ -124,6 +127,9 @@ class App {
 
             // Load session-specific data
             await this.loadSessionData(sessionId);
+
+            // Update session activity indicators
+            updateSessionIndicators(sessionId);
         });
 
         // Start task: emit for terminal integration
@@ -324,6 +330,9 @@ class App {
 
         // 5. Load initial data
         await this.loadInitialData();
+
+        // 6. Start session activity indicator polling
+        startPolling(() => appStore.getState().currentSessionId, 3000);
 
         console.log('brainbase-ui started successfully');
     }
