@@ -56,6 +56,13 @@ export const EVENTS = {
     SESSION_UPDATED: 'session:updated',
     SESSION_ARCHIVED: 'session:archived',
     SESSION_DELETED: 'session:deleted',
+    SESSION_PAUSED: 'session:paused',
+    SESSION_RESUMED: 'session:resumed',
+    RESTART_SESSION: 'session:restart',
+    STOP_SESSION: 'session:stop',
+    MERGE_SESSION: 'session:merge',
+    RENAME_SESSION: 'session:rename',
+    CREATE_SESSION: 'session:create',
 
     // Schedule関連
     SCHEDULE_LOADED: 'schedule:loaded',

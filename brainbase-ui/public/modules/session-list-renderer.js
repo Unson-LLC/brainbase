@@ -24,9 +24,9 @@ export function renderSessionRowHTML(session, options = {}) {
   const needsRestart = session.runtimeStatus?.needsRestart || false;
   const ttydRunning = session.runtimeStatus?.ttydRunning || false;
 
-  // 意図的な停止状態かどうか
-  const isStopped = session.intendedState === 'stopped' && !ttydRunning;
-  const stoppedClass = (needsRestart || isStopped) ? ' stopped' : '';
+  // 意図的な一時停止状態かどうか
+  const isPaused = session.intendedState === 'paused' && !ttydRunning;
+  const pausedClass = (needsRestart || isPaused) ? ' paused' : '';
 
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
@@ -40,6 +40,8 @@ export function renderSessionRowHTML(session, options = {}) {
   let statusLabel = '';
   if (session.intendedState === 'archived') {
     statusLabel = '<span class="archived-label">(Archived)</span>';
+  } else if (session.intendedState === 'paused') {
+    statusLabel = '<span class="paused-label">(Paused)</span>';
   } else if (needsRestart) {
     // 本来アクティブであるべきなのに停止している場合のみラベル表示
     statusLabel = '<span class="stopped-label">(Stopped)</span>';
@@ -50,18 +52,22 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>'
     : '';
 
-  // 再開ボタン: 停止中または予期しない停止の場合に表示
-  const restartButton = (isStopped || needsRestart)
-    ? '<button class="restart-session-btn" title="Restart terminal"><i data-lucide="play"></i></button>'
+  // 再開ボタン: 一時停止中または予期しない停止の場合に表示
+  const resumeButton = (isPaused || needsRestart)
+    ? '<button class="resume-session-btn" title="Resume session"><i data-lucide="play-circle"></i></button>'
     : '';
 
-  // 停止ボタン: アクティブでttyd起動中の場合に表示
-  const stopButton = session.intendedState === 'active' && session.runtimeStatus?.ttydRunning
-    ? '<button class="stop-session-btn" title="Stop terminal"><i data-lucide="square"></i></button>'
+  // 一時停止ボタンは不要（自動一時停止のため）
+  // activeセッションをクリックすると自動的にpausedになる
+
+  // アクティブインジケーター（青色ドット）: activeセッションのみ表示
+  const activeIndicator = session.intendedState === 'active'
+    ? '<div class="session-status-indicator active" title="Active session"></div>'
     : '';
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${stoppedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
+      ${activeIndicator}
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
         <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
@@ -71,8 +77,7 @@ export function renderSessionRowHTML(session, options = {}) {
       </div>
       <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
       <div class="child-actions">
-        ${restartButton}
-        ${stopButton}
+        ${resumeButton}
         ${mergeButton}
         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
         <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>

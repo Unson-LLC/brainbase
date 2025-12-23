@@ -33,8 +33,10 @@ export class SessionView {
         const unsub2 = eventBus.on(EVENTS.SESSION_CREATED, () => this.render());
         const unsub3 = eventBus.on(EVENTS.SESSION_UPDATED, () => this.render());
         const unsub4 = eventBus.on(EVENTS.SESSION_DELETED, () => this.render());
+        const unsub5 = eventBus.on(EVENTS.SESSION_PAUSED, () => this.render());
+        const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this.render());
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
     }
 
     /**
@@ -103,12 +105,12 @@ export class SessionView {
                 });
                 const childRow = wrapper.firstElementChild;
 
-                // セッションクリックで切り替え
-                childRow.addEventListener('click', (e) => {
+                // セッションクリックで切り替え（自動一時停止）
+                childRow.addEventListener('click', async (e) => {
                     if (!e.target.closest('button')) {
                         const sessionId = childRow.dataset.id;
                         if (sessionId) {
-                            eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+                            await this.sessionService.switchSession(sessionId);
                         } else {
                             console.error('Session ID not found in row:', childRow);
                         }
@@ -166,21 +168,12 @@ export class SessionView {
             });
         }
 
-        // Restart button
-        const restartBtn = row.querySelector('.restart-session-btn');
-        if (restartBtn) {
-            restartBtn.addEventListener('click', (e) => {
+        // Resume button (for paused sessions)
+        const resumeBtn = row.querySelector('.resume-session-btn');
+        if (resumeBtn) {
+            resumeBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                eventBus.emit(EVENTS.RESTART_SESSION, { sessionId: session.id });
-            });
-        }
-
-        // Stop button
-        const stopBtn = row.querySelector('.stop-session-btn');
-        if (stopBtn) {
-            stopBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                eventBus.emit(EVENTS.STOP_SESSION, { sessionId: session.id });
+                await this.sessionService.resumeSession(session.id);
             });
         }
 
