@@ -76,16 +76,6 @@ export class SessionView {
             this.container.appendChild(pausedSection);
         }
 
-        // アーカイブボタン
-        const archiveBtn = document.createElement('button');
-        archiveBtn.className = 'archive-view-btn';
-        archiveBtn.innerHTML = '<i data-lucide="archive"></i> アーカイブを見る';
-        archiveBtn.onclick = () => {
-            const archiveModal = document.getElementById('archive-modal');
-            if (archiveModal) archiveModal.classList.add('active');
-        };
-        this.container.appendChild(archiveBtn);
-
         // Lucideアイコンを初期化
         if (window.lucide) {
             window.lucide.createIcons();

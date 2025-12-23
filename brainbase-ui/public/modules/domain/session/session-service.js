@@ -147,6 +147,12 @@ export class SessionService {
      */
     async updateSession(sessionId, updates) {
         const state = await this.httpClient.get('/api/state');
+
+        // アーカイブ時にarchivedAtを自動設定
+        if (updates.intendedState === 'archived' && !updates.archivedAt) {
+            updates.archivedAt = new Date().toISOString();
+        }
+
         const updatedSessions = state.sessions.map(s =>
             s.id === sessionId ? { ...s, ...updates } : s
         );
@@ -233,10 +239,10 @@ export class SessionService {
             console.log('[DEBUG] getArchivedSessions - After project filter:', archived.length);
         }
 
-        // 作成日でソート（新しい順）
+        // アーカイブ日時でソート（新しい順）
         const sorted = archived.sort((a, b) => {
-            const dateA = new Date(a.createdDate || 0);
-            const dateB = new Date(b.createdDate || 0);
+            const dateA = new Date(a.archivedAt || 0);
+            const dateB = new Date(b.archivedAt || 0);
             return dateB - dateA;
         });
 

@@ -1,4 +1,5 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { getProjectFromPath } from '../../project-mapping.js';
 
 /**
  * アーカイブセッション表示モーダル
@@ -118,7 +119,7 @@ export class ArchiveModal {
 
         archiveListEl.innerHTML = archivedSessions.map(session => {
             const name = session.name || session.id;
-            const project = session.project || 'General';
+            const project = getProjectFromPath(session.path);
             const date = session.createdDate
                 ? new Date(session.createdDate).toLocaleDateString('ja-JP')
                 : '';
