@@ -185,9 +185,79 @@ body {
 
 .group-title { flex: 1; }
 
-.session-group-children { 
+.session-group-children {
     /* Indent children implies block formatting */
-    display: block; 
+    display: block;
+}
+
+/* Session Sections (状態別セクション) */
+.session-section {
+    margin-bottom: 12px;
+}
+
+.session-section-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background-color 0.2s;
+    user-select: none;
+    gap: 6px;
+}
+
+.session-section-header:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.session-section-header i {
+    width: 14px;
+    height: 14px;
+}
+
+.session-count {
+    margin-left: auto;
+    font-size: 0.75rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.session-section-children {
+    display: block;
+}
+
+/* Archive View Button */
+.archive-view-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px;
+    margin-top: 8px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.archive-view-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.archive-view-btn i {
+    width: 14px;
+    height: 14px;
 }
 
 /* Session Items */
