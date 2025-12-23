@@ -198,23 +198,40 @@ class App {
                 return;
             }
 
-            // Start session backend and get proxy path
-            const res = await httpClient.post('/api/sessions/start', {
-                sessionId: session.id,
-                initialCommand: session.initialCommand || '',
-                cwd: session.path,
-                engine: session.engine || 'claude'
-            });
+            // Get session status to check if it's already running and get proxyPath
+            const status = await httpClient.get('/api/sessions/status');
+            const sessionStatus = status[sessionId];
 
-            if (res && res.proxyPath) {
-                terminalFrame.src = res.proxyPath;
-                console.log('Terminal switched to:', res.proxyPath);
+            let proxyPath = null;
+
+            if (sessionStatus && sessionStatus.running && sessionStatus.proxyPath) {
+                // Session is already running, use existing proxyPath
+                proxyPath = sessionStatus.proxyPath;
+                console.log('Session already running, using existing proxyPath:', proxyPath);
             } else {
-                console.error('No proxyPath in response:', res);
+                // Session not running, start it
+                const res = await httpClient.post('/api/sessions/start', {
+                    sessionId: session.id,
+                    initialCommand: session.initialCommand || '',
+                    cwd: session.path,
+                    engine: session.engine || 'claude'
+                });
+
+                if (res && res.proxyPath) {
+                    proxyPath = res.proxyPath;
+                    console.log('Started session, got proxyPath:', proxyPath);
+                }
+            }
+
+            if (proxyPath) {
+                terminalFrame.src = proxyPath;
+                console.log('Terminal switched to:', proxyPath);
+            } else {
+                console.error('No proxyPath available for session:', sessionId);
                 terminalFrame.src = 'about:blank';
             }
 
-            // Update active state in UI
+            // Update active state in UI (handled by SessionView re-render, but keep for now)
             document.querySelectorAll('.session-child-row').forEach(row => {
                 row.classList.remove('active');
                 if (row.dataset.id === sessionId) {

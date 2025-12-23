@@ -241,6 +241,85 @@ export class SessionService {
     }
 
     /**
+     * セッション切り替え（自動一時停止）
+     * 現在のactiveセッションを自動的にpausedにし、新しいセッションをactiveにする
+     * @param {string} sessionId - 切り替え先のセッションID
+     */
+    async switchSession(sessionId) {
+        const { currentSessionId } = this.store.getState();
+
+        // 同じセッションへの切り替えは何もしない
+        if (currentSessionId === sessionId) {
+            return;
+        }
+
+        // 現在のactiveセッションをpausedにする
+        if (currentSessionId) {
+            await this.pauseSession(currentSessionId);
+        }
+
+        // 新しいセッションをactiveにする
+        await this.resumeSession(sessionId);
+
+        // currentSessionIdを更新
+        this.store.setState({ currentSessionId: sessionId });
+
+        // SESSION_CHANGEDイベントを発火（app.jsでターミナルiframe切り替え用）
+        this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+    }
+
+    /**
+     * セッションを一時停止
+     * active → paused に変更し、TTYDプロセスを停止
+     * @param {string} sessionId - 一時停止するセッションID
+     */
+    async pauseSession(sessionId) {
+        // TTYDプロセスを停止
+        try {
+            await this.httpClient.post(`/api/sessions/${sessionId}/stop`);
+        } catch (error) {
+            console.error(`Failed to stop ttyd for session ${sessionId}:`, error);
+        }
+
+        // intendedState を paused に変更
+        await this.updateSession(sessionId, { intendedState: 'paused' });
+
+        this.eventBus.emit(EVENTS.SESSION_PAUSED, { sessionId });
+    }
+
+    /**
+     * セッションを再開
+     * paused → active に変更し、TTYDプロセスを起動
+     * @param {string} sessionId - 再開するセッションID
+     */
+    async resumeSession(sessionId) {
+        const { sessions } = this.store.getState();
+        const session = sessions.find(s => s.id === sessionId);
+
+        if (!session) {
+            console.error(`Session ${sessionId} not found`);
+            return;
+        }
+
+        // TTYDプロセスを起動
+        try {
+            await this.httpClient.post('/api/sessions/start', {
+                sessionId,
+                cwd: session.path,
+                initialCommand: session.initialCommand || '',
+                engine: session.engine || 'claude'
+            });
+        } catch (error) {
+            console.error(`Failed to start ttyd for session ${sessionId}:`, error);
+        }
+
+        // intendedState を active に変更
+        await this.updateSession(sessionId, { intendedState: 'active' });
+
+        this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
+    }
+
+    /**
      * セッションID生成
      * @private
      * @returns {string} ユニークなセッションID

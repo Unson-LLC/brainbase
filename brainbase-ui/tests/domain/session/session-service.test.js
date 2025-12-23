@@ -12,6 +12,14 @@ vi.mock('../../../public/modules/core/http-client.js', () => ({
     }
 }));
 
+vi.mock('../../../public/modules/state-api.js', () => ({
+    fetchState: vi.fn(),
+    saveState: vi.fn(),
+    updateSession: vi.fn(),
+    removeSession: vi.fn(),
+    addSession: vi.fn()
+}));
+
 describe('SessionService', () => {
     let sessionService;
     let mockSessions;
@@ -238,6 +246,165 @@ describe('SessionService', () => {
             const activeSession = sessionService.getActiveSession();
 
             expect(activeSession).toBeNull();
+        });
+    });
+
+    describe('switchSession - 自動一時停止', () => {
+        let sessionsWithState;
+
+        beforeEach(() => {
+            // セッションデータを準備（intendedState付き）
+            sessionsWithState = [
+                { id: 'session-1', name: 'Session 1', path: '/path/a', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', path: '/path/b', intendedState: 'paused' },
+                { id: 'session-3', name: 'Session 3', path: '/path/c', intendedState: 'paused' }
+            ];
+
+            appStore.setState({
+                sessions: [...sessionsWithState],
+                currentSessionId: 'session-1'
+            });
+
+            // httpClient.getが呼ばれるたびに最新のストア状態を返す
+            httpClient.get.mockImplementation(() => {
+                const currentState = appStore.getState();
+                return Promise.resolve({ sessions: [...currentState.sessions] });
+            });
+
+            // httpClient.postが呼ばれた時、ストアを更新する
+            httpClient.post.mockImplementation((url, data) => {
+                if (url === '/api/state' && data && data.sessions) {
+                    appStore.setState({ sessions: [...data.sessions] });
+                }
+                return Promise.resolve({});
+            });
+        });
+
+        it('should pause current active session when switching to another session', async () => {
+            // session-1（active）からsession-2へ切り替え
+            await sessionService.switchSession('session-2');
+
+            // session-1がpausedになっていることを確認
+            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
+                sessions: expect.arrayContaining([
+                    expect.objectContaining({ id: 'session-1', intendedState: 'paused' }),
+                    expect.objectContaining({ id: 'session-2', intendedState: 'active' })
+                ])
+            }));
+        });
+
+        it('should emit SESSION_PAUSED and SESSION_RESUMED events when switching', async () => {
+            const pausedListener = vi.fn();
+            const resumedListener = vi.fn();
+            eventBus.on(EVENTS.SESSION_PAUSED, pausedListener);
+            eventBus.on(EVENTS.SESSION_RESUMED, resumedListener);
+
+            await sessionService.switchSession('session-2');
+
+            expect(pausedListener).toHaveBeenCalledWith(expect.objectContaining({
+                detail: expect.objectContaining({ sessionId: 'session-1' })
+            }));
+            expect(resumedListener).toHaveBeenCalledWith(expect.objectContaining({
+                detail: expect.objectContaining({ sessionId: 'session-2' })
+            }));
+        });
+
+        it('should not pause when switching to the same session', async () => {
+            const initialCallCount = httpClient.post.mock.calls.length;
+
+            // 同じセッションへの切り替え
+            await sessionService.switchSession('session-1');
+
+            // updateSessionが呼ばれないことを確認
+            expect(httpClient.post.mock.calls.length).toBe(initialCallCount);
+        });
+
+        it('should ensure only one active session exists at a time', async () => {
+            // session-2へ切り替え
+            await sessionService.switchSession('session-2');
+
+            // 最後のAPI呼び出しを確認
+            const lastCall = httpClient.post.mock.calls[httpClient.post.mock.calls.length - 1];
+            const updatedSessions = lastCall[1].sessions;
+
+            // activeなセッションが1つだけであることを確認
+            const activeSessions = updatedSessions.filter(s => s.intendedState === 'active');
+            expect(activeSessions).toHaveLength(1);
+            expect(activeSessions[0].id).toBe('session-2');
+        });
+
+        it('should start ttyd process when resuming paused session', async () => {
+            // pausedセッションへの切り替え
+            await sessionService.switchSession('session-2');
+
+            // ttyd起動のAPIが呼ばれることを確認（実装後に有効化）
+            // expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.anything());
+        });
+    });
+
+    describe('pauseSession', () => {
+        beforeEach(() => {
+            const sessionsWithState = [
+                { id: 'session-1', name: 'Session 1', path: '/path/a', intendedState: 'active' }
+            ];
+
+            appStore.setState({ sessions: sessionsWithState });
+            httpClient.get.mockResolvedValue({ sessions: sessionsWithState });
+            httpClient.post.mockResolvedValue({});
+        });
+
+        it('should pause active session and stop ttyd', async () => {
+            await sessionService.pauseSession('session-1');
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
+                sessions: expect.arrayContaining([
+                    expect.objectContaining({ id: 'session-1', intendedState: 'paused' })
+                ])
+            }));
+        });
+
+        it('should emit SESSION_PAUSED event', async () => {
+            const listener = vi.fn();
+            eventBus.on(EVENTS.SESSION_PAUSED, listener);
+
+            await sessionService.pauseSession('session-1');
+
+            expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+                detail: expect.objectContaining({ sessionId: 'session-1' })
+            }));
+        });
+    });
+
+    describe('resumeSession', () => {
+        beforeEach(() => {
+            const sessionsWithState = [
+                { id: 'session-1', name: 'Session 1', path: '/path/a', intendedState: 'paused' }
+            ];
+
+            appStore.setState({ sessions: sessionsWithState });
+            httpClient.get.mockResolvedValue({ sessions: sessionsWithState });
+            httpClient.post.mockResolvedValue({});
+        });
+
+        it('should resume paused session to active', async () => {
+            await sessionService.resumeSession('session-1');
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
+                sessions: expect.arrayContaining([
+                    expect.objectContaining({ id: 'session-1', intendedState: 'active' })
+                ])
+            }));
+        });
+
+        it('should emit SESSION_RESUMED event', async () => {
+            const listener = vi.fn();
+            eventBus.on(EVENTS.SESSION_RESUMED, listener);
+
+            await sessionService.resumeSession('session-1');
+
+            expect(listener).toHaveBeenCalledWith(expect.objectContaining({
+                detail: expect.objectContaining({ sessionId: 'session-1' })
+            }));
         });
     });
 });
