@@ -92,7 +92,7 @@ export class SessionView {
     }
 
     /**
-     * セクションをレンダリング
+     * セクションをレンダリング（プロジェクトごとにグループ化）
      * @private
      */
     _renderSection(title, sessions, currentSessionId, isExpanded) {
@@ -108,6 +108,11 @@ export class SessionView {
             <span class="session-count">${sessions.length}</span>
         `;
 
+        // セクションコンテナ
+        const childrenDiv = document.createElement('div');
+        childrenDiv.className = 'session-section-children';
+        childrenDiv.style.display = isExpanded ? 'block' : 'none';
+
         // ヘッダークリックで展開/折りたたみ
         header.addEventListener('click', () => {
             const isCurrentlyExpanded = childrenDiv.style.display !== 'none';
@@ -117,17 +122,68 @@ export class SessionView {
             if (window.lucide) window.lucide.createIcons();
         });
 
-        // セッションリスト
-        const childrenDiv = document.createElement('div');
-        childrenDiv.className = 'session-section-children';
-        childrenDiv.style.display = isExpanded ? 'block' : 'none';
+        // プロジェクトごとにグループ化
+        const grouped = groupSessionsByProject(sessions, {
+            excludeArchived: false,
+            includeEmptyProjects: false
+        });
+
+        // プロジェクトグループごとにレンダリング
+        for (const [project, projectSessions] of Object.entries(grouped)) {
+            const projectGroup = this._renderProjectGroup(project, projectSessions, currentSessionId);
+            childrenDiv.appendChild(projectGroup);
+        }
+
+        sectionDiv.appendChild(header);
+        sectionDiv.appendChild(childrenDiv);
+        return sectionDiv;
+    }
+
+    /**
+     * プロジェクトグループをレンダリング
+     * @private
+     */
+    _renderProjectGroup(project, sessions, currentSessionId) {
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'session-project-group';
+
+        // プロジェクトヘッダー
+        const header = document.createElement('div');
+        header.innerHTML = renderSessionGroupHeaderHTML(project, { isExpanded: true });
+        const headerEl = header.firstElementChild;
+        headerEl.classList.add('session-project-header');
+
+        // プロジェクトセッションコンテナ
+        const projectSessionsDiv = document.createElement('div');
+        projectSessionsDiv.className = 'session-project-children';
+
+        // ヘッダークリックで展開/折りたたみ
+        headerEl.addEventListener('click', (e) => {
+            if (!e.target.closest('.add-project-session-btn')) {
+                const isCurrentlyExpanded = projectSessionsDiv.style.display !== 'none';
+                projectSessionsDiv.style.display = isCurrentlyExpanded ? 'none' : 'block';
+                const icon = headerEl.querySelector('.folder-icon i');
+                icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'folder' : 'folder-open');
+                if (window.lucide) window.lucide.createIcons();
+            }
+        });
+
+        // 新規セッション追加ボタン
+        const addBtn = headerEl.querySelector('.add-project-session-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const targetProject = addBtn.dataset.project;
+                eventBus.emit(EVENTS.CREATE_SESSION, { project: targetProject });
+            });
+        }
 
         // 各セッションをレンダリング
         sessions.forEach(session => {
             const wrapper = document.createElement('div');
             wrapper.innerHTML = renderSessionRowHTML(session, {
                 isActive: currentSessionId === session.id,
-                project: session.project || 'general'
+                project
             });
             const childRow = wrapper.firstElementChild;
 
@@ -146,12 +202,12 @@ export class SessionView {
             // アクションボタンのイベントハンドラー
             this._attachSessionActionHandlers(childRow, session);
 
-            childrenDiv.appendChild(childRow);
+            projectSessionsDiv.appendChild(childRow);
         });
 
-        sectionDiv.appendChild(header);
-        sectionDiv.appendChild(childrenDiv);
-        return sectionDiv;
+        groupDiv.appendChild(headerEl);
+        groupDiv.appendChild(projectSessionsDiv);
+        return groupDiv;
     }
 
     /**
