@@ -2,6 +2,7 @@ import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { groupSessionsByProject } from '../../session-manager.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
+import { updateSessionIndicators } from '../../session-indicators.js';
 
 /**
  * セッション表示のUIコンポーネント
@@ -130,6 +131,9 @@ export class SessionView {
         if (window.lucide) {
             window.lucide.createIcons();
         }
+
+        // セッションインジケーターを更新（緑・オレンジのステータス表示）
+        updateSessionIndicators(currentSessionId);
     }
 
     /**
