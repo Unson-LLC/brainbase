@@ -232,6 +232,24 @@ body {
     display: block;
 }
 
+/* Project Subgroups (プロジェクトサブグループ) */
+.session-project-group {
+    margin-top: 4px;
+}
+
+.session-project-header {
+    padding-left: 16px;
+    font-size: 0.85rem;
+}
+
+.session-project-children {
+    display: block;
+}
+
+.session-project-children .session-child-row {
+    padding-left: 24px;
+}
+
 /* Archive View Button */
 .archive-view-btn {
     width: 100%;
