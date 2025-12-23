@@ -218,11 +218,46 @@ export class SessionView {
      * セッション行のアクションボタンにイベントハンドラーを設定
      */
     _attachSessionActionHandlers(row, session) {
+        // Menu toggle button
+        const menuToggle = row.querySelector('.session-menu-toggle');
+        const dropdownMenu = row.querySelector('.session-dropdown-menu');
+
+        if (menuToggle && dropdownMenu) {
+            menuToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                // Close all other open menus
+                document.querySelectorAll('.session-dropdown-menu').forEach(menu => {
+                    if (menu !== dropdownMenu) {
+                        menu.classList.add('hidden');
+                    }
+                });
+
+                // Toggle this menu
+                dropdownMenu.classList.toggle('hidden');
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!row.contains(e.target)) {
+                    dropdownMenu.classList.add('hidden');
+                }
+            });
+        }
+
+        // Helper function to close dropdown menu
+        const closeDropdown = () => {
+            if (dropdownMenu) {
+                dropdownMenu.classList.add('hidden');
+            }
+        };
+
         // Rename button
         const renameBtn = row.querySelector('.rename-session-btn');
         if (renameBtn) {
             renameBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                closeDropdown();
                 eventBus.emit(EVENTS.RENAME_SESSION, { session });
             });
         }
@@ -232,6 +267,7 @@ export class SessionView {
         if (deleteBtn) {
             deleteBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                closeDropdown();
                 if (confirm(`セッション "${session.name || session.id}" を削除しますか？`)) {
                     await this.sessionService.deleteSession(session.id);
                 }
@@ -243,6 +279,7 @@ export class SessionView {
         if (archiveBtn) {
             archiveBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                closeDropdown();
                 const newState = session.intendedState === 'archived' ? 'active' : 'archived';
                 await this.sessionService.updateSession(session.id, { intendedState: newState });
             });
@@ -253,6 +290,7 @@ export class SessionView {
         if (pauseBtn) {
             pauseBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                closeDropdown();
                 await this.sessionService.pauseSession(session.id);
             });
         }
@@ -262,6 +300,7 @@ export class SessionView {
         if (resumeBtn) {
             resumeBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                closeDropdown();
                 await this.sessionService.resumeSession(session.id);
             });
         }
@@ -271,6 +310,7 @@ export class SessionView {
         if (mergeBtn) {
             mergeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                closeDropdown();
                 eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
             });
         }

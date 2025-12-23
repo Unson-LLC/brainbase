@@ -54,6 +54,20 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="pause-session-btn" title="Pause session"><i data-lucide="pause-circle"></i></button>'
     : '';
 
+  // ドロップダウンメニュー項目
+  const mergeMenuItem = hasWorktree && session.intendedState !== 'archived'
+    ? '<button class="dropdown-item merge-session-btn"><i data-lucide="git-merge"></i>Merge to main</button>'
+    : '';
+
+  const resumePauseMenuItem = isPaused
+    ? '<button class="dropdown-item resume-session-btn"><i data-lucide="play-circle"></i>Resume session</button>'
+    : (!isPaused && session.intendedState !== 'archived'
+        ? '<button class="dropdown-item pause-session-btn"><i data-lucide="pause-circle"></i>Pause session</button>'
+        : '');
+
+  const archiveLabel = session.intendedState === 'archived' ? 'Unarchive' : 'Archive';
+  const archiveIcon = session.intendedState === 'archived' ? 'archive-restore' : 'archive';
+
   return `
     <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
@@ -62,8 +76,18 @@ export function renderSessionRowHTML(session, options = {}) {
         <span class="session-name">${displayName}</span>
         ${engineBadge}
       </div>
-      <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
-      <div class="child-actions">
+      <div class="session-actions-container">
+        <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
+        <div class="session-dropdown-menu hidden">
+          <button class="dropdown-item rename-session-btn"><i data-lucide="edit-2"></i>Rename</button>
+          ${mergeMenuItem}
+          <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>
+          ${resumePauseMenuItem}
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item delete-session-btn danger"><i data-lucide="trash-2"></i>Delete</button>
+        </div>
+      </div>
+      <div class="child-actions" style="display: none;">
         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
         ${mergeButton}
         <button class="archive-session-btn" title="${session.intendedState === 'archived' ? 'Unarchive' : 'Archive'}">
