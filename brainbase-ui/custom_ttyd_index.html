@@ -406,5 +406,72 @@
     }
 })();
 </script>
+
+<script>
+// Context menu support for file paths in terminal
+(function() {
+    console.log('[ContextMenu] Initializing context menu support...');
+
+    function getTerminalSelection() {
+        try {
+            // xterm.js uses a global term object
+            if (window.term && typeof window.term.getSelection === 'function') {
+                return window.term.getSelection().trim();
+            }
+
+            // Fallback to standard DOM selection
+            const selection = window.getSelection();
+            return selection ? selection.toString().trim() : '';
+        } catch (error) {
+            console.error('[ContextMenu] Error getting selection:', error);
+            return '';
+        }
+    }
+
+    function handleContextMenu(event) {
+        const selectedText = getTerminalSelection();
+
+        if (selectedText && selectedText.length > 0) {
+            console.log('[ContextMenu] Right-click with selection:', selectedText.substring(0, 50) + '...');
+
+            // Send to parent window via postMessage
+            try {
+                window.parent.postMessage({
+                    type: 'terminal-contextmenu',
+                    selectedText: selectedText,
+                    x: event.clientX,
+                    y: event.clientY,
+                    pageX: event.pageX,
+                    pageY: event.pageY,
+                    timestamp: Date.now()
+                }, '*');
+
+                console.log('[ContextMenu] Sent contextmenu event to parent');
+
+                // Prevent default context menu only if we have a selection
+                event.preventDefault();
+            } catch (error) {
+                console.error('[ContextMenu] Error sending postMessage:', error);
+            }
+        }
+    }
+
+    function init() {
+        console.log('[ContextMenu] Adding contextmenu listener...');
+
+        document.addEventListener('contextmenu', handleContextMenu);
+
+        console.log('[ContextMenu] Context menu support enabled');
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(init, 500);
+        });
+    } else {
+        setTimeout(init, 500);
+    }
+})();
+</script>
 </body>
 </html>

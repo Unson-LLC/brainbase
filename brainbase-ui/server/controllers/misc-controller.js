@@ -4,6 +4,7 @@
  */
 import { exec } from 'child_process';
 import path from 'path';
+import os from 'os';
 
 export class MiscController {
     constructor(appVersion, uploadMiddleware, workspaceRoot) {
@@ -64,6 +65,8 @@ export class MiscController {
             const { filePath, path: pathParam, line, mode = 'cursor' } = req.body;
             const targetPath = pathParam || filePath;
 
+            console.log('[openFile] Request:', { targetPath, mode, line, isHomeDirPath: targetPath?.startsWith('~/') });
+
             if (!targetPath) {
                 return res.status(400).json({ error: 'filePath or path is required' });
             }
@@ -76,16 +79,24 @@ export class MiscController {
                 });
             }
 
+            // チルダ（~）で始まるパスはホームディレクトリ相対パスとして扱う
+            const isHomeDirPath = targetPath.startsWith('~/');
+            let expandedPath = targetPath;
+            if (isHomeDirPath) {
+                expandedPath = path.join(os.homedir(), targetPath.slice(2));
+            }
+
             // Resolve relative paths from workspace root
-            const absolutePath = path.isAbsolute(targetPath)
-                ? targetPath
-                : path.join(this.workspaceRoot, targetPath);
+            const absolutePath = path.isAbsolute(expandedPath)
+                ? expandedPath
+                : path.join(this.workspaceRoot, expandedPath);
 
             // パスを正規化
             const normalizedPath = path.resolve(absolutePath);
 
             // セキュリティチェック: ワークスペース内かどうか
-            if (mode !== 'cursor') {
+            // ただし、cursorモードまたはホームディレクトリ相対パスの場合はスキップ
+            if (mode !== 'cursor' && !isHomeDirPath) {
                 const relativePath = path.relative(this.workspaceRoot, normalizedPath);
                 const isInsideWorkspace = relativePath &&
                     !relativePath.startsWith('..') &&

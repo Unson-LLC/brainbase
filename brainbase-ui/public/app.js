@@ -13,6 +13,7 @@ import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } f
 import { initFileUpload } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
+import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -448,6 +449,9 @@ class App {
 
         // 10. Setup file opener shortcuts
         setupFileOpenerShortcuts();
+
+        // 11. Setup terminal contextmenu listener
+        setupTerminalContextMenuListener();
 
         console.log('brainbase-ui started successfully');
     }
