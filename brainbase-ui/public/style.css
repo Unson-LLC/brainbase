@@ -460,7 +460,7 @@ body {
 .child-actions {
     display: none; /* Hide actions by default */
     align-items: center;
-    gap: 2px;
+    gap: 8px;
     margin-left: 4px;
 }
 .session-child-row:hover .child-actions { display: flex; }

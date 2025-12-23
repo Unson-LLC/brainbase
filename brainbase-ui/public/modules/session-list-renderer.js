@@ -64,14 +64,14 @@ export function renderSessionRowHTML(session, options = {}) {
       </div>
       <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
       <div class="child-actions">
-        ${resumeButton}
-        ${pauseButton}
-        ${mergeButton}
         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
-        <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
+        ${mergeButton}
         <button class="archive-session-btn" title="${session.intendedState === 'archived' ? 'Unarchive' : 'Archive'}">
           <i data-lucide="${session.intendedState === 'archived' ? 'archive-restore' : 'archive'}"></i>
         </button>
+        ${resumeButton}
+        ${pauseButton}
+        <button class="delete-session-btn" title="Delete"><i data-lucide="trash-2"></i></button>
       </div>
     </div>
   `;
