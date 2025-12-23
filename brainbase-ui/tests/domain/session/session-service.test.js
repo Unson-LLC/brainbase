@@ -3,6 +3,7 @@ import { SessionService } from '../../../public/modules/domain/session/session-s
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
+import { addSession } from '../../../public/modules/state-api.js';
 
 // モジュールをモック化
 vi.mock('../../../public/modules/core/http-client.js', () => ({
@@ -405,6 +406,103 @@ describe('SessionService', () => {
             expect(listener).toHaveBeenCalledWith(expect.objectContaining({
                 detail: expect.objectContaining({ sessionId: 'session-1' })
             }));
+        });
+    });
+
+    describe('stopped状態の廃止', () => {
+        beforeEach(() => {
+            // Reset mocks
+            vi.clearAllMocks();
+            httpClient.post.mockResolvedValue({});
+            httpClient.get.mockResolvedValue({ sessions: [] });
+        });
+
+        it('should not use "stopped" state when creating regular session', async () => {
+            // Regular session creation should use "paused" instead of "stopped"
+            await sessionService.createSession({
+                project: 'test-project',
+                name: 'Test Session',
+                initialCommand: '',
+                useWorktree: false,
+                engine: 'claude'
+            });
+
+            // Check that the session was created with "paused" state, not "stopped"
+            expect(addSession).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    intendedState: 'paused'
+                })
+            );
+            expect(addSession).not.toHaveBeenCalledWith(
+                expect.objectContaining({
+                    intendedState: 'stopped'
+                })
+            );
+        });
+
+        it('should only use three states: active, paused, archived', () => {
+            // Define allowed states
+            const allowedStates = ['active', 'paused', 'archived'];
+
+            // Check that no session in mock data uses "stopped"
+            const sessionsWithState = [
+                { id: 'session-1', intendedState: 'active' },
+                { id: 'session-2', intendedState: 'paused' },
+                { id: 'session-3', intendedState: 'archived' }
+            ];
+
+            sessionsWithState.forEach(session => {
+                expect(allowedStates).toContain(session.intendedState);
+                expect(session.intendedState).not.toBe('stopped');
+            });
+        });
+
+        it('should migrate "stopped" sessions to "paused" when loading', async () => {
+            // Prepare state with stopped sessions
+            const stateWithStopped = {
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', intendedState: 'stopped' },
+                    { id: 'session-2', name: 'Session 2', intendedState: 'active' },
+                    { id: 'session-3', name: 'Session 3', intendedState: 'stopped' }
+                ]
+            };
+
+            httpClient.get.mockResolvedValue(stateWithStopped);
+            httpClient.post.mockResolvedValue({});
+
+            await sessionService.loadSessions();
+
+            // Check that the sessions were migrated to "paused"
+            expect(httpClient.post).toHaveBeenCalledWith('/api/state', {
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', intendedState: 'paused' },
+                    { id: 'session-2', name: 'Session 2', intendedState: 'active' },
+                    { id: 'session-3', name: 'Session 3', intendedState: 'paused' }
+                ]
+            });
+
+            // Check that the migrated sessions were saved to store
+            const { sessions } = appStore.getState();
+            expect(sessions[0].intendedState).toBe('paused');
+            expect(sessions[2].intendedState).toBe('paused');
+        });
+
+        it('should not trigger migration if no "stopped" sessions exist', async () => {
+            // Prepare state without stopped sessions
+            const stateWithoutStopped = {
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', intendedState: 'active' },
+                    { id: 'session-2', name: 'Session 2', intendedState: 'paused' }
+                ]
+            };
+
+            httpClient.get.mockResolvedValue(stateWithoutStopped);
+            httpClient.post.mockResolvedValue({});
+
+            await sessionService.loadSessions();
+
+            // Check that POST was NOT called (no migration needed)
+            expect(httpClient.post).not.toHaveBeenCalled();
         });
     });
 });

@@ -22,7 +22,24 @@ export class SessionService {
      */
     async loadSessions() {
         const state = await this.httpClient.get('/api/state');
-        const sessions = state.sessions || [];
+        let sessions = state.sessions || [];
+
+        // マイグレーション: stopped状態をpausedに変換
+        let migrationNeeded = false;
+        sessions = sessions.map(session => {
+            if (session.intendedState === 'stopped') {
+                migrationNeeded = true;
+                return { ...session, intendedState: 'paused' };
+            }
+            return session;
+        });
+
+        // 変換が発生した場合、state.jsonに保存
+        if (migrationNeeded) {
+            await this.httpClient.post('/api/state', { ...state, sessions });
+            console.log('[Migration] Converted "stopped" sessions to "paused"');
+        }
+
         this.store.setState({ sessions });
         this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions });
         return sessions;
@@ -80,7 +97,7 @@ export class SessionService {
             path: repoPath,
             initialCommand,
             engine,
-            intendedState: 'stopped'
+            intendedState: 'paused'
         });
 
         await addSession(newSession);
