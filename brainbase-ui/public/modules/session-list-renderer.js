@@ -36,15 +36,26 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<span class="engine-badge engine-codex" title="OpenAI Codex">Codex</span>'
     : '';
 
-  // ステータスラベル
+  // 状態インジケーター（色付きドット）とラベル
+  let statusIndicator = '';
   let statusLabel = '';
+
   if (session.intendedState === 'archived') {
+    statusIndicator = '<span class="status-dot status-archived" title="Archived"></span>';
     statusLabel = '<span class="archived-label">(Archived)</span>';
   } else if (session.intendedState === 'paused') {
+    statusIndicator = '<span class="status-dot status-paused" title="Paused"></span>';
     statusLabel = '<span class="paused-label">(Paused)</span>';
   } else if (needsRestart) {
     // 本来アクティブであるべきなのに停止している場合のみラベル表示
+    statusIndicator = '<span class="status-dot status-stopped" title="Stopped"></span>';
     statusLabel = '<span class="stopped-label">(Stopped)</span>';
+  } else if (isActive) {
+    // アクティブセッション
+    statusIndicator = '<span class="status-dot status-active" title="Active"></span>';
+  } else {
+    // その他（非アクティブだが動作中）
+    statusIndicator = '<span class="status-dot status-inactive" title="Inactive"></span>';
   }
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
@@ -60,16 +71,11 @@ export function renderSessionRowHTML(session, options = {}) {
   // 一時停止ボタンは不要（自動一時停止のため）
   // activeセッションをクリックすると自動的にpausedになる
 
-  // アクティブインジケーター（青色ドット）: activeセッションのみ表示
-  const activeIndicator = session.intendedState === 'active'
-    ? '<div class="session-status-indicator active" title="Active session"></div>'
-    : '';
-
   return `
     <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
-      ${activeIndicator}
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
+        ${statusIndicator}
         <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
         <span class="session-name">${displayName}</span>
         ${engineBadge}

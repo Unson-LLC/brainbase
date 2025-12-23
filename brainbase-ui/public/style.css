@@ -301,7 +301,46 @@ body {
     background: rgba(245, 158, 11, 0.2);
 }
 
-/* Active Session Indicator (青色ドット) */
+/* Session Status Dots (状態インジケーター) */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+/* Active: 緑色の脈動ドット */
+.status-dot.status-active {
+    background-color: #10b981;
+    box-shadow: 0 0 4px #10b981;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Paused: オレンジ色のドット */
+.status-dot.status-paused {
+    background-color: var(--warning-color, #f59e0b);
+}
+
+/* Archived: グレーのドット */
+.status-dot.status-archived {
+    background-color: #6b7280;
+    opacity: 0.6;
+}
+
+/* Stopped (予期しない停止): 赤色のドット */
+.status-dot.status-stopped {
+    background-color: #ef4444;
+}
+
+/* Inactive (非アクティブ): ライトグレーのドット */
+.status-dot.status-inactive {
+    background-color: #9ca3af;
+    opacity: 0.5;
+}
+
+/* 旧スタイル（互換性のため残す） */
 .session-status-indicator {
     width: 8px;
     height: 8px;
