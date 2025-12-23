@@ -352,8 +352,17 @@
 
     function checkAndSendSelection() {
         try {
-            const selection = window.getSelection();
-            const selectedText = selection ? selection.toString().trim() : '';
+            // xterm.js uses a global term object
+            let selectedText = '';
+
+            // Try to get selection from xterm.js terminal
+            if (window.term && typeof window.term.getSelection === 'function') {
+                selectedText = window.term.getSelection().trim();
+            } else {
+                // Fallback to standard DOM selection (might not work for canvas-based terminal)
+                const selection = window.getSelection();
+                selectedText = selection ? selection.toString().trim() : '';
+            }
 
             if (selectedText && selectedText !== lastSelection && selectedText.length > 0) {
                 lastSelection = selectedText;
