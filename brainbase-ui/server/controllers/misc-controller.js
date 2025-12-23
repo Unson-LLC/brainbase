@@ -1,11 +1,15 @@
 /**
  * MiscController
- * その他のHTTPリクエスト処理（version, restart, upload）
+ * その他のHTTPリクエスト処理（version, restart, upload, open-file）
  */
+import { exec } from 'child_process';
+import path from 'path';
+
 export class MiscController {
-    constructor(appVersion, uploadMiddleware) {
+    constructor(appVersion, uploadMiddleware, workspaceRoot) {
         this.appVersion = appVersion;
         this.uploadMiddleware = uploadMiddleware;
+        this.workspaceRoot = workspaceRoot;
     }
 
     /**
@@ -41,5 +45,41 @@ export class MiscController {
         const __dirname = path.dirname(new URL(import.meta.url).pathname);
         const absolutePath = path.resolve(__dirname, '../../uploads', req.file.filename);
         res.json({ path: absolutePath, filename: req.file.filename });
+    };
+
+    /**
+     * POST /api/open-file
+     * エディタ（Cursor）でファイルを開く
+     */
+    openFile = async (req, res) => {
+        try {
+            const { filePath, line } = req.body;
+
+            if (!filePath) {
+                return res.status(400).json({ error: 'filePath is required' });
+            }
+
+            // Resolve relative paths from workspace root
+            const absolutePath = path.isAbsolute(filePath)
+                ? filePath
+                : path.join(this.workspaceRoot, filePath);
+
+            // Build cursor command
+            const lineArg = line ? `:${line}` : '';
+            const command = `cursor "${absolutePath}${lineArg}"`;
+
+            console.log(`Opening file: ${command}`);
+
+            exec(command, (error) => {
+                if (error) {
+                    console.error('Error opening file:', error);
+                }
+            });
+
+            res.json({ success: true, path: absolutePath });
+        } catch (error) {
+            console.error('Error in /api/open-file:', error);
+            res.status(500).json({ error: error.message });
+        }
     };
 }
