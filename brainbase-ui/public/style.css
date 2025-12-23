@@ -221,10 +221,6 @@ body {
     color: var(--text-secondary);
 }
 
-.session-child-row.archived .archived-label {
-    display: none; /* ラベル非表示でスッキリ */
-}
-
 /* Session Name & Icon Wrapper */
 .session-name-container {
     display: flex;
@@ -273,23 +269,10 @@ body {
     border: 1px solid rgba(16, 163, 127, 0.3);
 }
 
-/* Archived Label */
-.archived-label {
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    opacity: 0.7;
-}
-
 /* Paused Session (一時停止中) */
 .session-child-row.paused {
     opacity: 0.6;
     border-left: 2px solid var(--warning-color, #f59e0b);
-}
-
-.paused-label {
-    font-size: 0.7rem;
-    color: var(--warning-color, #f59e0b);
-    font-weight: 500;
 }
 
 .resume-session-btn {
@@ -340,20 +323,6 @@ body {
     opacity: 0.5;
 }
 
-/* 旧スタイル（互換性のため残す） */
-.session-status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-    flex-shrink: 0;
-}
-
-.session-status-indicator.active {
-    background-color: var(--accent-color, #3b82f6);
-    box-shadow: 0 0 4px var(--accent-color, #3b82f6);
-    animation: pulse 2s ease-in-out infinite;
-}
 
 @keyframes pulse {
     0%, 100% {

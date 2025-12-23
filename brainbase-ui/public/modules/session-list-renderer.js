@@ -36,20 +36,16 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<span class="engine-badge engine-codex" title="OpenAI Codex">Codex</span>'
     : '';
 
-  // 状態インジケーター（色付きドット）とラベル
+  // 状態インジケーター（色付きドット）- ツールチップのみで状態を表示
   let statusIndicator = '';
-  let statusLabel = '';
 
   if (session.intendedState === 'archived') {
     statusIndicator = '<span class="status-dot status-archived" title="Archived"></span>';
-    statusLabel = '<span class="archived-label">(Archived)</span>';
   } else if (session.intendedState === 'paused') {
     statusIndicator = '<span class="status-dot status-paused" title="Paused"></span>';
-    statusLabel = '<span class="paused-label">(Paused)</span>';
   } else if (needsRestart) {
-    // 本来アクティブであるべきなのに停止している場合のみラベル表示
-    statusIndicator = '<span class="status-dot status-stopped" title="Stopped"></span>';
-    statusLabel = '<span class="stopped-label">(Stopped)</span>';
+    // 本来アクティブであるべきなのに停止している場合
+    statusIndicator = '<span class="status-dot status-stopped" title="Needs Restart"></span>';
   } else if (isActive) {
     // アクティブセッション
     statusIndicator = '<span class="status-dot status-active" title="Active"></span>';
@@ -79,7 +75,6 @@ export function renderSessionRowHTML(session, options = {}) {
         <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
         <span class="session-name">${displayName}</span>
         ${engineBadge}
-        ${statusLabel}
       </div>
       <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
       <div class="child-actions">
