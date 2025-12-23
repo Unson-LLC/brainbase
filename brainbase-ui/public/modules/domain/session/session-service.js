@@ -213,7 +213,10 @@ export class SessionService {
      */
     getArchivedSessions(searchTerm = '', projectFilter = '') {
         const { sessions } = this.store.getState();
+        console.log('[DEBUG] getArchivedSessions - Total sessions:', sessions?.length);
+
         let archived = (sessions || []).filter(s => s.intendedState === 'archived');
+        console.log('[DEBUG] getArchivedSessions - Archived sessions:', archived.length);
 
         // 検索フィルタ
         if (searchTerm) {
@@ -221,19 +224,24 @@ export class SessionService {
                 s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 s.project?.toLowerCase().includes(searchTerm.toLowerCase())
             );
+            console.log('[DEBUG] getArchivedSessions - After search filter:', archived.length);
         }
 
         // プロジェクトフィルタ
         if (projectFilter) {
             archived = archived.filter(s => s.project === projectFilter);
+            console.log('[DEBUG] getArchivedSessions - After project filter:', archived.length);
         }
 
         // 作成日でソート（新しい順）
-        return archived.sort((a, b) => {
+        const sorted = archived.sort((a, b) => {
             const dateA = new Date(a.createdDate || 0);
             const dateB = new Date(b.createdDate || 0);
             return dateB - dateA;
         });
+
+        console.log('[DEBUG] getArchivedSessions - Returning:', sorted.length, 'sessions');
+        return sorted;
     }
 
     /**

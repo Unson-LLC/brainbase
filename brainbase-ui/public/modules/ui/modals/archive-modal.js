@@ -87,15 +87,26 @@ export class ArchiveModal {
      * アーカイブリストをレンダリング
      */
     _renderList() {
+        console.log('[DEBUG] ArchiveModal._renderList called');
+        console.log('[DEBUG] searchTerm:', this.searchTerm, 'projectFilter:', this.projectFilter);
+
         const archivedSessions = this.sessionService.getArchivedSessions(
             this.searchTerm,
             this.projectFilter
         );
 
+        console.log('[DEBUG] ArchiveModal - Received sessions:', archivedSessions.length);
+
         const archiveListEl = document.getElementById('archive-list');
         const archiveEmptyEl = document.getElementById('archive-empty');
 
-        if (!archiveListEl || !archiveEmptyEl) return;
+        if (!archiveListEl || !archiveEmptyEl) {
+            console.error('[DEBUG] ArchiveModal - Elements not found!', {
+                archiveListEl: !!archiveListEl,
+                archiveEmptyEl: !!archiveEmptyEl
+            });
+            return;
+        }
 
         if (archivedSessions.length === 0) {
             archiveListEl.innerHTML = '';
