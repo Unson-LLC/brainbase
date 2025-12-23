@@ -49,34 +49,88 @@ export class MiscController {
 
     /**
      * POST /api/open-file
-     * エディタ（Cursor）でファイルを開く
+     * ファイルを開く/表示する
+     *
+     * パラメータ:
+     * - filePath or path: ファイルパス（相対パスまたは絶対パス）
+     * - line: 行番号（cursorモード時のみ）
+     * - mode: 開き方 ('cursor' | 'file' | 'reveal')
+     *   - 'cursor': Cursorエディタで開く（既存の動作、デフォルト）
+     *   - 'file': デフォルトアプリで開く
+     *   - 'reveal': Finderで表示
      */
     openFile = async (req, res) => {
         try {
-            const { filePath, line } = req.body;
+            const { filePath, path: pathParam, line, mode = 'cursor' } = req.body;
+            const targetPath = pathParam || filePath;
 
-            if (!filePath) {
-                return res.status(400).json({ error: 'filePath is required' });
+            if (!targetPath) {
+                return res.status(400).json({ error: 'filePath or path is required' });
+            }
+
+            // セキュリティチェック: ヌルバイト
+            if (targetPath.includes('\0')) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid path: contains null byte'
+                });
             }
 
             // Resolve relative paths from workspace root
-            const absolutePath = path.isAbsolute(filePath)
-                ? filePath
-                : path.join(this.workspaceRoot, filePath);
+            const absolutePath = path.isAbsolute(targetPath)
+                ? targetPath
+                : path.join(this.workspaceRoot, targetPath);
 
-            // Build cursor command
-            const lineArg = line ? `:${line}` : '';
-            const command = `cursor "${absolutePath}${lineArg}"`;
+            // パスを正規化
+            const normalizedPath = path.resolve(absolutePath);
+
+            // セキュリティチェック: ワークスペース内かどうか
+            if (mode !== 'cursor') {
+                const relativePath = path.relative(this.workspaceRoot, normalizedPath);
+                const isInsideWorkspace = relativePath &&
+                    !relativePath.startsWith('..') &&
+                    !path.isAbsolute(relativePath);
+
+                if (!isInsideWorkspace) {
+                    return res.status(403).json({
+                        success: false,
+                        error: 'Access denied: path is outside workspace'
+                    });
+                }
+            }
+
+            let command;
+
+            // modeに応じてコマンドを構築
+            switch (mode) {
+                case 'reveal':
+                    // Finderで表示
+                    command = `open -R "${normalizedPath}"`;
+                    break;
+                case 'file':
+                    // デフォルトアプリで開く
+                    command = `open "${normalizedPath}"`;
+                    break;
+                case 'cursor':
+                default:
+                    // Cursorエディタで開く（既存の動作）
+                    const lineArg = line ? `:${line}` : '';
+                    command = `cursor "${normalizedPath}${lineArg}"`;
+                    break;
+            }
 
             console.log(`Opening file: ${command}`);
 
             exec(command, (error) => {
                 if (error) {
                     console.error('Error opening file:', error);
+                    return res.status(500).json({
+                        success: false,
+                        error: error.message
+                    });
                 }
+                res.json({ success: true, path: normalizedPath });
             });
-
-            res.json({ success: true, path: absolutePath });
         } catch (error) {
             console.error('Error in /api/open-file:', error);
             res.status(500).json({ error: error.message });

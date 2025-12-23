@@ -12,6 +12,7 @@ import { initSettings, openSettings } from './modules/settings.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
 import { showSuccess, showError } from './modules/toast.js';
+import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -431,6 +432,9 @@ class App {
 
         // 9. Setup choice detection (mobile only)
         this.setupResponsiveChoiceDetection();
+
+        // 10. Setup file opener shortcuts
+        setupFileOpenerShortcuts();
 
         console.log('brainbase-ui started successfully');
     }
