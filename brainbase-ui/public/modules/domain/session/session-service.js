@@ -188,7 +188,7 @@ export class SessionService {
 
         // アーカイブフィルタ
         if (!showArchivedSessions) {
-            filtered = filtered.filter(s => !s.archived);
+            filtered = filtered.filter(s => s.intendedState !== 'archived');
         }
 
         return filtered;
@@ -213,7 +213,7 @@ export class SessionService {
      */
     getArchivedSessions(searchTerm = '', projectFilter = '') {
         const { sessions } = this.store.getState();
-        let archived = (sessions || []).filter(s => s.archived);
+        let archived = (sessions || []).filter(s => s.intendedState === 'archived');
 
         // 検索フィルタ
         if (searchTerm) {
@@ -241,7 +241,7 @@ export class SessionService {
      * @param {string} sessionId - 復元するセッションのID
      */
     async unarchiveSession(sessionId) {
-        await this.updateSession(sessionId, { archived: false });
+        await this.updateSession(sessionId, { intendedState: 'active' });
     }
 
     /**
