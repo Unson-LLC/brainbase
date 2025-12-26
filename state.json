@@ -1728,8 +1728,8 @@
       "engine": "claude",
       "created": "2025-12-22T13:19:21.652Z",
       "hookStatus": {
-        "status": "done",
-        "timestamp": 1766738678207
+        "status": "working",
+        "timestamp": 1766738742429
       }
     },
     {
