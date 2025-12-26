@@ -8,7 +8,7 @@
       "id": "brainbase",
       "name": "brainbase",
       "icon": "brain",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "worktree": null,
       "intendedState": "archived",
       "hookStatus": {
@@ -295,7 +295,7 @@
     {
       "id": "session-1765418423650",
       "name": "タスク",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -640,7 +640,7 @@
     {
       "id": "session-1765591920852",
       "name": "SNS",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "/sns",
       "taskId": null,
       "worktree": null,
@@ -1311,7 +1311,7 @@
     {
       "id": "session-1766134169934",
       "name": "Skills最適化",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1410,7 +1410,7 @@
     {
       "id": "session-1766236519633",
       "name": "ストーリーテリング",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1434,7 +1434,7 @@
     {
       "id": "session-1766239093047",
       "name": "KPI",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1494,7 +1494,7 @@
     {
       "id": "session-1766270949925",
       "name": "おはよう",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "/ohayo",
       "taskId": null,
       "worktree": null,
@@ -1506,7 +1506,7 @@
     {
       "id": "session-1766277080115",
       "name": "スマホUI",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1554,7 +1554,7 @@
     {
       "id": "session-1766305303975",
       "name": "Basebrain",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1616,7 +1616,7 @@
     {
       "id": "session-1766356897181",
       "name": "おはよう",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "/ohayo",
       "taskId": null,
       "worktree": null,
@@ -1631,7 +1631,7 @@
     {
       "id": "session-1766358396210",
       "name": "運用管理",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1646,7 +1646,7 @@
     {
       "id": "session-1766359853785",
       "name": "New brainbase Session",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1658,7 +1658,7 @@
     {
       "id": "session-1766365278724",
       "name": "新しい人整理",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1674,7 +1674,7 @@
     {
       "id": "session-1766366764015",
       "name": "Skills",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1689,7 +1689,7 @@
     {
       "id": "session-1766396125636",
       "name": "Tech Knight紐付け",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1727,10 +1727,7 @@
       "intendedState": "active",
       "engine": "claude",
       "created": "2025-12-22T13:19:21.652Z",
-      "hookStatus": {
-        "status": "working",
-        "timestamp": 1766738742429
-      }
+      "hookStatus": null
     },
     {
       "id": "session-1766411409972",
@@ -1905,22 +1902,19 @@
     {
       "id": "session-1766466868505",
       "name": "Brainbase共有・プロジェクト化準備",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
       "intendedState": "active",
       "engine": "claude",
       "created": "2025-12-23T05:14:29.020Z",
-      "hookStatus": {
-        "status": "working",
-        "timestamp": 1766738487128
-      }
+      "hookStatus": null
     },
     {
       "id": "session-1766472692928",
       "name": "Mana",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -1999,34 +1993,32 @@
     {
       "id": "session-1766503759942",
       "name": "Skills",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
       "intendedState": "active",
       "engine": "claude",
       "created": "2025-12-23T15:29:20.470Z",
-      "hookStatus": {
-        "status": "working",
-        "timestamp": 1766738434790
-      }
+      "hookStatus": null
     },
     {
       "id": "session-1766505962384",
       "name": "Brainbase UI",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
       "intendedState": "archived",
       "engine": "claude",
       "created": "2025-12-23T16:06:02.892Z",
-      "archivedAt": "2025-12-26T05:27:44.390Z"
+      "archivedAt": "2025-12-26T05:27:44.390Z",
+      "hookStatus": null
     },
     {
       "id": "session-1766532475602",
       "name": "スマホ",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -2065,18 +2057,19 @@
     {
       "id": "session-1766578961176",
       "name": "Brainbase運用",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
       "intendedState": "active",
       "engine": "claude",
-      "created": "2025-12-24T12:22:41.691Z"
+      "created": "2025-12-24T12:22:41.691Z",
+      "hookStatus": null
     },
     {
       "id": "session-1766580739135",
       "name": "Chrome in Claude Code",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -2104,7 +2097,7 @@
     {
       "id": "session-1766590450186",
       "name": "PDF読み込みスキル",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
@@ -2120,7 +2113,7 @@
     {
       "id": "session-1766624704069",
       "name": "おはよう",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "/ohayo",
       "taskId": null,
       "worktree": null,
@@ -2142,7 +2135,8 @@
       "worktree": null,
       "intendedState": "paused",
       "engine": "claude",
-      "created": "2025-12-25T05:57:57.740Z"
+      "created": "2025-12-25T05:57:57.740Z",
+      "hookStatus": null
     },
     {
       "id": "session-1766642319618",
@@ -2172,7 +2166,7 @@
     {
       "id": "session-1766707692378",
       "name": "おはよう",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "/ohayo",
       "taskId": null,
       "worktree": null,
@@ -2185,14 +2179,28 @@
     {
       "id": "session-1766729144563",
       "name": "Skills学習",
-      "path": "/Users/ksato/workspace/brainbase-ui",
+      "path": "/Users/ksato/brainbase",
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
       "intendedState": "archived",
       "engine": "claude",
       "created": "2025-12-26T06:05:45.096Z",
-      "archivedAt": "2025-12-26T08:04:27.269Z"
+      "archivedAt": "2025-12-26T08:04:27.269Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766742393541",
+      "name": "俺の遅さ",
+      "path": "/Users/ksato/brainbase",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-26T09:46:34.065Z",
+      "archivedAt": "2025-12-26T10:09:49.510Z",
+      "hookStatus": null
     }
   ]
 }

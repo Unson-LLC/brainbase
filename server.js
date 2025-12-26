@@ -45,13 +45,13 @@ const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
 
 // Configuration
-const TASKS_FILE = path.join(__dirname, '../_tasks/index.md');
-const SCHEDULES_DIR = path.join(__dirname, '../_schedules');
+const TASKS_FILE = path.join(__dirname, '_tasks/index.md');
+const SCHEDULES_DIR = path.join(__dirname, '_schedules');
 const STATE_FILE = path.join(__dirname, 'state.json');
-const WORKTREES_DIR = path.join(__dirname, '../.worktrees');
-const CODEX_PATH = path.join(__dirname, '../_codex');
-const CONFIG_PATH = path.join(__dirname, '../config.yml');
-const INBOX_FILE = path.join(__dirname, '../_inbox/pending.md');
+const WORKTREES_DIR = path.join(__dirname, '../workspace/.worktrees');
+const CODEX_PATH = path.join(__dirname, '_codex');
+const CONFIG_PATH = path.join(__dirname, 'config.yml');
+const INBOX_FILE = path.join(__dirname, '../workspace/_inbox/pending.md');
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
