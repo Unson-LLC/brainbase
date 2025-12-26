@@ -3,6 +3,94 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-26-MJNFSEJU
+channel: 開発
+sender: watanabe hiroaki
+timestamp: 1766787711.535049
+status: pending
+---
+
+### 07:21 | #開発 | watanabe hiroaki
+
+<@U07AF0YNSDA> <@U07ACF7TV7U> <@U07B19N048G>
+お疲れ様です。
+投票までできること、管理側もアクセスできることを確認したので百名店側に復旧の連絡いれます。
+
+投票からの判断しかできませんが、12/26の04:20時点の投票結果が最後でした。
+で、17時くらいに削除されてしまったという話なので約半日は巻き戻っていそうな印象です。
+
+**スレッドの文脈:**
+> **倉本裕太** (21:53): <!channel> 
+どうやらタイムトラベルクエリというものがあるらしいですね
+
+これは試しましたか？
+> **watanabe hiroaki** (22:20): <@U07ACF7TV7U>
+あとCockroach側へはサポートフォーラムから連絡のみでしょうか？
+自分の方は以前400ドル分の初回特典が消えてしまった件を問い合わせしたやつ、今だに返信返ってきていないので他の手段がないか確認してください。
+> **トシ** (22:25): <@U09CX8R0R1N>
+まじですか。。。。
+
+ここから問い合わせました
+> **倉本裕太** (22:27): 今回、スポンサーが絡んでいるので非常にまずいですね
+> **watanabe hiroaki** (22:29): slackコミュニティなんなり使える手段はフル活用して連絡つけないと厳しいかと
+> **倉本裕太** (22:34): 一応、100名店側には現在投票が使えなくなっているので原因を探っている最中だと伝えてます
+
+明日までには復旧できないと、もうごめんなさいするしかありません
+
+直接伺って謝罪するしかなくなります
+最悪の場合、損害賠償金ですね
+> **watanabe hiroaki** (22:37): <@U07ACF7TV7U>
+ここからは問い合わせてみましたか？
+営業の方がまだ繋がるのかなと・・・
+<https://www.cockroachlabs.com/contact/>
+> **トシ** (22:46): <@U07AF0YNSDA> <@U09CX8R0R1N> 迷惑かけてすみません。。。スラックでQA投げました。
+> **倉本裕太** (22:48): 問い合わせ文等はどのように送りましたか？
+> **トシ** (22:50): <@U09CX8R0R1N>
+ここは違うかも。営業っぽいので使用する前かも。
+
+<@U07AF0YNSDA>
+こんな感じです
+> **倉本裕太** (22:51): 会社のメールアドレスは書きましたか？
+> **watanabe hiroaki** (22:51): 問い合わせ文
+> **watanabe hiroaki** (23:35): <@U07AF0YNSDA> <@U07ACF7TV7U> <@U07B19N048G>
+DBがなくなることは想定していなかったため、あのシステムチックなエラーが出ていましたが、一旦DBが接続できなくなっても以下のエラーを表示するように取り急ぎ制御を変更いたしました。
+> **倉本裕太** (23:52): これLINEでも共有できますか？
+> **倉本裕太** (23:52): 開発担当ですと言って
+> **トシ** (23:54): 経緯
+①cockroachにevetopiのDBを移行するためにevetopiDBを作成
+②①で作成したevetopiDBのテーブル定義を間違えて登録してしまったため、evetopiDBを削除しようとして
+　以下の"Delete cluster"をしてしまい、Aitle、裏垢100名店を含む全DBを削除してしまった
+③削除してしまったcluster内の全DBデータの復旧は現在、cockroachサービスのサポートでした復旧できないため
+　問い合わせ中
+> **watanabe hiroaki** (00:26): <https://tech-knight.slack.com/archives/C08UNE2BVJ7/p1766760730282879?thread_ts=1766753584.639589&amp;channel=C08UNE2BVJ7&amp;message_ts=1766760730.282879|https://tech-knight.slack.com/archives/C08UNE2BVJ7/p1766760730282879?thread_ts=1766753584.639589&amp;channel=C08UNE2BVJ7&amp;message_ts=1766760730.282879>
+承知いたしました。
+共有しておきます
+> **トシ** (01:54): メールで反応はありましたが、２つリクエスト投げて１つにまとめますよ、とのお知らせっぽいです
+@ALL
+> **トシ** (04:57): <@U07B19N048G> <@U09CX8R0R1N>
+<@U09CX8R0R1N>
+DB復旧しました、お騒がせしました。
+申し訳ございませんでした。
+今後は英語は必ず翻訳し慎重に作業します。
+
+なお、Aitleは本番とステージング環境を復旧環境に向けて動作確認完了しています。
+
+<@U09CX8R0R1N>
+復旧DB環境変数が変更になっています
+100名店のDB環境変数を以下のように変更し再デプロイをお願いします
+17867　→　19817
+
+旧
+DATABASE_URL=<postgresql://techknight:REwRh1hvCi_5rYdbBoPZLw@hasty-muskox-17867.j77.aws-ap-southeast-1.cockroachlabs.cloud:26257/uraaka_award?sslmode=verify-full>
+
+新
+DATABASE_URL=<postgresql://techknight:REwRh1hvCi_5rYdbBoPZLw@hasty-muskox-19817.j77.aws-ap-southeast-1.cockroachlabs.cloud:26257/uraaka_award?sslmode=verify-full>
+> **watanabe hiroaki** (06:02): ありがとうございます。これから対応いたします
+
+
+[Slack](https://tech-knight.slack.com/archives/C08UNE2BVJ7/p1766787711535049?thread_ts=1766753584.639589&cid=C08UNE2BVJ7)
+
+---
 id: INBOX-2025-12-26-MJNAMB3E
 channel: 開発
 sender: トシ
