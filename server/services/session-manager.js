@@ -208,11 +208,11 @@ export class SessionManager {
             '-p', port.toString(),
             '-W',
             '-b', basePath, // Set Base Path
-            '-I', customIndexPath, // Custom HTML with keyboard shortcuts
+            // '-I', customIndexPath, // Custom HTML with keyboard shortcuts [DISABLED for Japanese debug]
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
-            '-t', 'fontFamily=monospace', // Use system default monospace (includes Japanese)
+            '-t', 'fontFamily=Menlo', // Use Menlo font (macOS default monospace with Japanese support)
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             'bash',
