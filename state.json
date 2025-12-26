@@ -1726,7 +1726,11 @@
       "worktree": null,
       "intendedState": "active",
       "engine": "claude",
-      "created": "2025-12-22T13:19:21.652Z"
+      "created": "2025-12-22T13:19:21.652Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766738678207
+      }
     },
     {
       "id": "session-1766411409972",
