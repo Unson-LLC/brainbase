@@ -1,0 +1,2194 @@
+{
+  "lastOpenTaskId": null,
+  "filters": {},
+  "readNotifications": [],
+  "focusSession": null,
+  "sessions": [
+    {
+      "id": "brainbase",
+      "name": "brainbase",
+      "icon": "brain",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "worktree": null,
+      "intendedState": "archived",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766372249143
+      }
+    },
+    {
+      "id": "unson",
+      "name": "unson",
+      "icon": "briefcase",
+      "path": "/Users/ksato/workspace/unson",
+      "worktree": null,
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "tech-knight",
+      "name": "tech-knight",
+      "icon": "shield",
+      "path": "/Users/ksato/workspace/tech-knight",
+      "intendedState": "archived",
+      "hookStatus": null,
+      "worktree": null
+    },
+    {
+      "id": "salestailor",
+      "name": "salestailor",
+      "icon": "shirt",
+      "path": "/Users/ksato/workspace/salestailor",
+      "worktree": null,
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "zeims",
+      "name": "zeims",
+      "icon": "zap",
+      "path": "/Users/ksato/workspace/zeims",
+      "worktree": null,
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "baao",
+      "name": "baao",
+      "icon": "users",
+      "path": "/Users/ksato/workspace/baao",
+      "worktree": null,
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "senrigan",
+      "name": "senrigan",
+      "icon": "eye",
+      "path": "/Users/ksato/workspace/senrigan",
+      "intendedState": "archived",
+      "hookStatus": null,
+      "archivedAt": "2025-12-25T13:48:10.568Z"
+    },
+    {
+      "id": "session-1765162333129",
+      "name": "覚書",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765162333129-salestailor",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/salestailor",
+        "branch": "session/session-1765162333129"
+      },
+      "created": "2025-12-08T02:52:13.129Z",
+      "intendedState": "paused",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765177993054",
+      "name": "tech-knight session",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765177993054-tech-knight",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-08T07:13:13.054Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765187606976",
+      "name": "マルウェア",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765187606976-ncom-catalyst",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/ncom-catalyst",
+        "branch": "session/session-1765187606976"
+      },
+      "created": "2025-12-08T09:53:26.976Z",
+      "intendedState": "archived",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766356854286
+      },
+      "archivedAt": "2025-12-24T07:40:39.493Z"
+    },
+    {
+      "id": "session-1765188074706",
+      "name": "LLM as a Judge",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765188074706-salestailor",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/salestailor",
+        "branch": "session/session-1765188074706",
+        "removed": true
+      },
+      "created": "2025-12-08T10:01:14.706Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765196292766",
+      "name": "baao session",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765196292766-baao",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-08T12:18:12.766Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765202492983",
+      "name": "tech-knight session",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765202492983-tech-knight",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-08T14:01:32.983Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765210991884",
+      "name": "salestailor session",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765210991884-salestailor",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-08T16:23:11.884Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765241369740",
+      "name": "資本政策",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765241369740-unson",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/unson",
+        "branch": "session/session-1765241369740",
+        "removed": true
+      },
+      "created": "2025-12-09T00:49:29.740Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765242457579",
+      "name": "salestailor session",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765242457579-salestailor",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-09T01:07:37.579Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765261083715",
+      "name": "tech-knight session",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765261083715-tech-knight",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-09T06:18:03.715Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765262326617",
+      "name": "議事録",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765262326617-ncom-catalyst",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/ncom-catalyst",
+        "branch": "session/session-1765262326617"
+      },
+      "created": "2025-12-09T06:38:46.617Z",
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766397146122
+      }
+    },
+    {
+      "id": "session-1765287947156",
+      "name": "salestailor session",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765287947156-salestailor",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-09T13:45:47.156Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765322279200",
+      "name": "mana",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765322279200-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-09T23:17:59.200Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "task-SLACK-2025-12-05-MIS872VL-1765180104611",
+      "name": "見積もり",
+      "path": "/Users/ksato/workspace/.worktrees/task-SLACK-2025-12-05-MIS872VL-1765180104611-ncom-catalyst",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/ncom-catalyst",
+        "branch": "session/task-SLACK-2025-12-05-MIS872VL-1765180104611"
+      },
+      "created": "2025-12-08T07:48:24.611Z",
+      "intendedState": "paused",
+      "hookStatus": null
+    },
+    {
+      "id": "task-TK-2025-12-08-TOMIOKA-1765165263595",
+      "name": "富岡開発",
+      "path": "/Users/ksato/workspace/.worktrees/task-TK-2025-12-08-TOMIOKA-1765165263595-tech-knight",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/tech-knight",
+        "branch": "session/task-TK-2025-12-08-TOMIOKA-1765165263595"
+      },
+      "created": "2025-12-08T03:41:03.595Z",
+      "intendedState": "paused",
+      "hookStatus": null
+    },
+    {
+      "id": "task-TK-2025-12-08-TOMIOKA-1765166992120",
+      "name": "task TK 2025 12 08 TOMIOKA",
+      "path": "/Users/ksato/workspace/.worktrees/task-TK-2025-12-08-TOMIOKA-1765166992120-tech-knight",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-08T04:09:52.120Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "task-TK-2025-12-08-TOMIOKA-1765177600672",
+      "name": "task TK 2025 12 08 TOMIOKA",
+      "path": "/Users/ksato/workspace/.worktrees/task-TK-2025-12-08-TOMIOKA-1765177600672-tech-knight",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-08T07:06:40.672Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765348324454",
+      "name": "金田",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T06:32:04.972Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765348349740",
+      "name": "金田くんと",
+      "path": "/Users/ksato/workspace/senrigan",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T06:32:30.251Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765418423650",
+      "name": "タスク",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-11T02:00:24.174Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765500769012",
+      "name": "codex開発",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765500769012-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T00:52:49.724Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765408165404",
+      "name": "プロジェクト準備",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765408165404-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-10T23:09:26.267Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765398626906",
+      "name": "mana",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765398626906-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-10T20:30:27.812Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765359270812",
+      "name": "SNS",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765359270812-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-10T09:34:31.905Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765368990818",
+      "name": "川合くん",
+      "path": "/Users/ksato/workspace/zeims",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T12:16:31.341Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765370722942",
+      "name": "portfolio",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765370722942-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-10T12:45:23.946Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765375489230",
+      "name": "New ncom Session",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T14:04:49.764Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765375806202",
+      "name": "DialogAI",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T14:10:06.726Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765393234423",
+      "name": "skills",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765393234423-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-10T19:00:35.281Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765394043936",
+      "name": "アクティブインジケータ",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765394043936-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-10T19:14:04.828Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765396829141",
+      "name": "Settings",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765396829141-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-10T20:00:31.344Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765398105257",
+      "name": "動画",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T20:21:45.781Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765398355720",
+      "name": "HP",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T20:25:56.235Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765402542433",
+      "name": "調査依頼",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-10T21:35:42.954Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765407612976",
+      "name": "Nex-N1",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765407612976-brainbase-ui",
+      "initialCommand": "Nex-N1について調べて",
+      "worktree": null,
+      "created": "2025-12-10T23:00:13.972Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765413019649",
+      "name": "AWS",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-11T00:30:20.159Z",
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766730285939
+      }
+    },
+    {
+      "id": "session-1765419007728",
+      "name": "HP作成",
+      "path": "/Users/ksato/workspace/tech-knight",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-11T02:10:08.255Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765424025424",
+      "name": "manaチェック",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-11T03:33:45.963Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765432789287",
+      "name": "mana",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765432789287-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-11T05:59:50.282Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765438190845",
+      "name": "CTO MTG",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-11T07:29:51.361Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765517249957",
+      "name": "BrainBase",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765517249957-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T05:27:30.663Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765517377538",
+      "name": "ジョブ監視",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765517377538-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T05:29:38.241Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765518497516",
+      "name": "Mana",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765518497516-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T05:48:18.203Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765518503198",
+      "name": "BrainBase",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765518503198-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T05:48:23.833Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765518593758",
+      "name": "MCP",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765518593758-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T05:49:54.439Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765520399126",
+      "name": "Approval",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765520399126-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T06:19:59.819Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765520664750",
+      "name": "画像",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765520664750-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T06:24:25.406Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765522233987",
+      "name": "New brainbase Session",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765522233987-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-12T06:50:34.709Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765590015672",
+      "name": "/ohayo",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765590015672-brainbase-ui",
+      "initialCommand": "/ohayo",
+      "worktree": null,
+      "created": "2025-12-13T01:40:16.436Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765591512293",
+      "name": "Mana PM",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765591512293-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T02:05:13.012Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765591603779",
+      "name": "SNS",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765591603779-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T02:06:44.494Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765591920852",
+      "name": "SNS",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "/sns",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-13T02:12:01.368Z",
+      "intendedState": "active",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765593251707",
+      "name": "復元",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765593251707-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T02:34:12.437Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765615552524",
+      "name": "Mana修正",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765615552524-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T08:45:53.225Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765615625020",
+      "name": "スマホアクセス",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765615625020-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T08:47:05.728Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "task-TK-2025-12-09-HAGIWARA-PROPOSAL-1765615755315",
+      "name": "Task: 萩原氏への株式処遇提案（A・B・C案）スライド作成",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/task-TK-2025-12-09-HAGIWARA-PROPOSAL-1765615755315-tech-knight",
+      "initialCommand": "/task TK-2025-12-09-HAGIWARA-PROPOSAL",
+      "worktree": null,
+      "created": "2025-12-13T08:49:15.649Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "task-SLACK-2025-12-09-MIYQPEC6-1765617189442",
+      "name": "Task: 標準フロー・異常フローの定義（たたき台作成）",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/task-SLACK-2025-12-09-MIYQPEC6-1765617189442-salestailor",
+      "initialCommand": "/task SLACK-2025-12-09-MIYQPEC6",
+      "worktree": null,
+      "created": "2025-12-13T09:13:09.762Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765618407458",
+      "name": "スマホUI",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765618407458-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T09:33:28.130Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765620631460",
+      "name": "Mana PM",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765620631460-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T10:10:32.149Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765628897677",
+      "name": "New brainbase Session",
+      "engine": "codex",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765628897677-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T12:28:18.429Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765640053389",
+      "name": "Mana PM",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765640053389-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T15:34:14.082Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765640863905",
+      "name": "立ち位置や",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765640863905-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T15:47:44.704Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765641389068",
+      "name": "Manaマイルストーン",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765641389068-brainbase-ui",
+      "initialCommand": "メンバーのカレンダー情報を取得して、それをコンテキストとして回答する必要があるときがあると思う。日程調整とか。その機能を入れたい",
+      "worktree": null,
+      "created": "2025-12-13T15:56:29.896Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765644264919",
+      "name": "Airtable整備",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-13T16:44:25.444Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765666064939",
+      "name": "パスワード変更できない",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-13T22:47:45.466Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765666313395",
+      "name": "BFD-104",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-13T22:51:53.908Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765668660914",
+      "name": "おはよう",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765668660914-brainbase-ui",
+      "initialCommand": "",
+      "worktree": null,
+      "created": "2025-12-13T23:31:01.836Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765805512410",
+      "name": "タスクを振る",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765805512410-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765805512410",
+        "removed": true
+      },
+      "created": "2025-12-15T13:31:53.309Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765805749520",
+      "name": "DB暗号化",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-15T13:35:50.043Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765807723983",
+      "name": "アーカイブセッション",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765807723983-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765807723983",
+        "removed": true
+      },
+      "created": "2025-12-15T14:08:44.710Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765809010333",
+      "name": "セッションエラー",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765809010333-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765809010333",
+        "removed": true
+      },
+      "created": "2025-12-15T14:30:11.094Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765811696847",
+      "name": "スマホ対応",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765811696847-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765811696847",
+        "removed": true
+      },
+      "created": "2025-12-15T15:14:57.694Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765812582590",
+      "name": "テンプレート管理",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-15T15:29:43.099Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765834451927",
+      "name": "Mana LLM as a Judge",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765834451927-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765834451927"
+      },
+      "created": "2025-12-15T21:34:12.711Z",
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "working",
+        "timestamp": 1766364215817
+      }
+    },
+    {
+      "id": "session-1765834527377",
+      "name": "おはよう",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765834527377-brainbase-ui",
+      "initialCommand": "/ohayo",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765834527377",
+        "removed": true
+      },
+      "created": "2025-12-15T21:35:28.162Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765834899244",
+      "name": "WEB INN",
+      "path": "/Users/ksato/workspace/tech-knight",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-15T21:41:39.758Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765836106300",
+      "name": "brainbase ui",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765836106300-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765836106300",
+        "removed": true
+      },
+      "created": "2025-12-15T22:01:47.086Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "task-T-2512-012-1765836721390",
+      "name": "Task: β版リリースに向けたタスクの整理",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/task-T-2512-012-1765836721390-zeims",
+      "initialCommand": "/task T-2512-012",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/zeims",
+        "branch": "session/task-T-2512-012-1765836721390",
+        "removed": true
+      },
+      "created": "2025-12-15T22:12:01.890Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765839378015",
+      "name": "brainbase",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765839378015-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765839378015",
+        "removed": true
+      },
+      "created": "2025-12-15T22:56:18.808Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765839492303",
+      "name": "Slack確認",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "直近のSlackでの会話されている内容を確認して。俺が対応しなければいけないものを確認して",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-15T22:58:12.814Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765840683055",
+      "name": "スマホ対応",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765840683055-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765840683055",
+        "removed": true
+      },
+      "created": "2025-12-15T23:18:03.825Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765841656628",
+      "name": "KPI",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-15T23:34:17.142Z",
+      "intendedState": "paused",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765845421019",
+      "name": "Manaメッセージ設計",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765845421019-workspace",
+      "initialCommand": "現在セルフホストランナーで動くものの監視してSlack通知するって処理は動いてるんだっけ？",
+      "worktree": {
+        "repo": "/Users/ksato/workspace",
+        "branch": "session/session-1765845421019",
+        "removed": true
+      },
+      "created": "2025-12-16T00:37:01.873Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765852405685",
+      "name": "manaタスク",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765852405685-brainbase-ui",
+      "initialCommand": "manaのタスク登録の際に、slackに投稿する内容に関してはgithubじゃなくてAirtableのURLを貼るようにしなかったっけ？",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765852405685",
+        "removed": true
+      },
+      "created": "2025-12-16T02:33:27.078Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765855559921",
+      "name": "セッション問題",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765855559921-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765855559921",
+        "removed": true
+      },
+      "created": "2025-12-16T03:26:00.770Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765858604742",
+      "name": "DNS",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-16T04:16:45.254Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765876261829",
+      "name": "Mana",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765876261829-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765876261829",
+        "removed": true
+      },
+      "created": "2025-12-16T09:11:03.576Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765887798764",
+      "name": "UNITED",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765887798764-tech-knight",
+      "initialCommand": "git pullして本日のUNITEDさんとの議事録を確認して",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/tech-knight",
+        "branch": "session/session-1765887798764"
+      },
+      "created": "2025-12-16T12:23:19.405Z",
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766475029776
+      }
+    },
+    {
+      "id": "session-1765896922141",
+      "name": "Mana",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765896922141-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1765896922141",
+        "removed": true
+      },
+      "created": "2025-12-16T14:55:23.539Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765916238833",
+      "name": "おはよう",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765916238833-workspace",
+      "initialCommand": "/ohayo",
+      "worktree": {
+        "repo": "/Users/ksato/workspace",
+        "branch": "session/session-1765916238833",
+        "removed": true
+      },
+      "created": "2025-12-16T20:17:19.754Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765916343845",
+      "name": "Brainbase",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765916343845-workspace",
+      "initialCommand": "今のbrainbase ui の左ナビで、プラジェクト単位のセッション作成のプラスボタンを押して作成しても、unson固定なのか、1番上のプロジェクトなつかられるのか、正しいプロジェクト上にセッションが紐づかない",
+      "worktree": {
+        "repo": "/Users/ksato/workspace",
+        "branch": "session/session-1765916343845",
+        "removed": true
+      },
+      "created": "2025-12-16T20:19:04.739Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765916810283",
+      "name": "Learn skills",
+      "path": "/Users/ksato/workspace",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-16T20:26:50.873Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765920027076",
+      "name": "Brainbase UI",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1765920027076-workspace",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace",
+        "branch": "session/session-1765920027076",
+        "removed": true
+      },
+      "created": "2025-12-16T21:20:28.251Z",
+      "intendedState": "archived",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766323194666
+      }
+    },
+    {
+      "id": "session-1765952041928",
+      "name": "Zeims戦略",
+      "path": "/Users/ksato/workspace",
+      "initialCommand": "SSWと、その人を見つけるための戦略の仮説を立てて実証するのが最初にやるべきことだと思っている。現在のZeimsのフェーズに対してこれが最もやるべきことだと思う？",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-17T06:14:02.514Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1765987722502",
+      "name": "運用確認",
+      "path": "/Users/ksato/workspace/unson",
+      "initialCommand": "現在_opsフォルダに入っている運用系のフローは全部ちゃんと動いてる？",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-17T16:08:43.010Z",
+      "intendedState": "archived",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766358510262
+      }
+    },
+    {
+      "id": "session-1766011657840",
+      "name": "Slack",
+      "path": "/Users/ksato/workspace/unson",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-17T22:47:38.379Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766012167784",
+      "name": "ohayo",
+      "path": "/Users/ksato/workspace/unson",
+      "initialCommand": "/ohayo",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-17T22:56:08.304Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766094869538",
+      "name": "タスク整理",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "直近の議事録やAirtableのタスクを確認して、改めてタスクを整理したい",
+      "taskId": null,
+      "worktree": null,
+      "created": "2025-12-18T21:54:30.050Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "task-T-2512-009-1766106145593",
+      "name": "Task: Airtableコメント通知機能を設定",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/task-T-2512-009-1766106145593-salestailor",
+      "initialCommand": "/task T-2512-009",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/salestailor",
+        "branch": "session/task-T-2512-009-1766106145593"
+      },
+      "created": "2025-12-19T01:02:25.934Z",
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766379790046
+      }
+    },
+    {
+      "id": "session-1766106186263",
+      "name": "Brainbase",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766106186263-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766106186263",
+        "removed": true
+      },
+      "created": "2025-12-19T01:03:07.023Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766110790317",
+      "name": "Vercel環境変数",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-19T02:19:50.861Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766123150982",
+      "name": "New ncom Session",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-19T05:45:51.517Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766129112797",
+      "name": "ncom稼働",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "12/1〜本日までの稼働と、本日から月までのNコムコンサルに対する稼働報告書を作成したい。",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-19T07:25:13.347Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766134169934",
+      "name": "Skills最適化",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-19T08:49:30.451Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "task-T-2512-017-1766135237044",
+      "name": "Task: 採用のメール返信",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/task-T-2512-017-1766135237044-workspace",
+      "initialCommand": "/task T-2512-017",
+      "worktree": {
+        "repo": "/Users/ksato/workspace",
+        "branch": "session/task-T-2512-017-1766135237044",
+        "removed": true
+      },
+      "created": "2025-12-19T09:07:17.911Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766139618521",
+      "name": "安達さんとMTG",
+      "path": "/Users/ksato/workspace/tech-knight",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-19T10:20:19.047Z",
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766580150003
+      }
+    },
+    {
+      "id": "session-1766220918642",
+      "name": "資料作成",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766220918642-baao",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/baao",
+        "branch": "session/session-1766220918642",
+        "removed": true
+      },
+      "created": "2025-12-20T08:55:19.611Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766220998176",
+      "name": "Claude Code Resume",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766220998176-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766220998176",
+        "removed": true
+      },
+      "created": "2025-12-20T08:57:06.486Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766224976096",
+      "name": "杉山先生戦略",
+      "path": "/Users/ksato/workspace/zeims",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-20T10:02:56.602Z",
+      "intendedState": "paused",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766236221285",
+      "name": "sato-portfolio",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766236221285-brainbase-ui",
+      "initialCommand": "sato-portfolioを探して俺のポートフォリオから自己紹介の内容を一つのマークダウンファイルとしてまとめて",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766236221285",
+        "removed": true
+      },
+      "created": "2025-12-20T13:10:49.383Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766236519633",
+      "name": "ストーリーテリング",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-20T13:15:20.148Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766236816426",
+      "name": "BAAOマネジメント",
+      "path": "/Users/ksato/workspace/baao",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-20T13:20:16.938Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766239093047",
+      "name": "KPI",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-20T13:58:13.564Z",
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766382311574
+      }
+    },
+    {
+      "id": "session-1766240158809",
+      "name": "議事録",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766240158809-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766240158809",
+        "removed": true
+      },
+      "created": "2025-12-20T14:16:31.614Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766267045599",
+      "name": "Nコムの活動",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-20T21:44:06.114Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766269670431",
+      "name": "BrainBase UI",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766269670431-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766269670431",
+        "removed": true
+      },
+      "created": "2025-12-20T22:28:22.480Z",
+      "intendedState": "archived",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766276868474
+      }
+    },
+    {
+      "id": "session-1766270949925",
+      "name": "おはよう",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "/ohayo",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-20T22:49:10.432Z",
+      "intendedState": "archived",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766277080115",
+      "name": "スマホUI",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "engine": "claude",
+      "created": "2025-12-21T00:31:20.629Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766357125453
+      },
+      "intendedState": "paused"
+    },
+    {
+      "id": "session-1766279324035",
+      "name": "エラー",
+      "path": "/Users/ksato/workspace",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-21T01:08:44.597Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766283205549
+      }
+    },
+    {
+      "id": "session-1766281497812",
+      "name": "Mana",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766281497812-workspace",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace",
+        "branch": "session/session-1766281497812",
+        "removed": true
+      },
+      "intendedState": "archived",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766285037685
+      },
+      "created": "2025-12-21T01:44:57.201Z"
+    },
+    {
+      "id": "session-1766305303975",
+      "name": "Basebrain",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-21T08:21:44.564Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766320305985",
+      "name": "Brainbase",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766320305985-brainbase-ui",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766320305985"
+      },
+      "created": "2025-12-21T12:31:46.599Z",
+      "intendedState": "archived",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766483900829
+      },
+      "archivedAt": "2025-12-22T04:40:13.865Z"
+    },
+    {
+      "id": "session-1766323679093",
+      "name": "SmartFront",
+      "engine": "claude",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766323679093-tech-knight",
+      "initialCommand": "",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/tech-knight",
+        "branch": "session/session-1766323679093"
+      },
+      "intendedState": "paused",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766329004212
+      },
+      "created": "2025-12-21T13:27:59.880Z"
+    },
+    {
+      "id": "session-1766326354731",
+      "name": "実践AI道場",
+      "path": "/Users/ksato/workspace/baao",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-21T14:12:35.253Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766710756480
+      }
+    },
+    {
+      "id": "session-1766356897181",
+      "name": "おはよう",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "/ohayo",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-21T22:41:37.697Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766358389286
+      }
+    },
+    {
+      "id": "session-1766358396210",
+      "name": "運用管理",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-21T23:06:36.716Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766460536320
+      }
+    },
+    {
+      "id": "session-1766359853785",
+      "name": "New brainbase Session",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-21T23:30:54.301Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766365278724",
+      "name": "新しい人整理",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-22T01:01:19.240Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766378799536
+      },
+      "archivedAt": "2025-12-22T04:55:43.537Z"
+    },
+    {
+      "id": "session-1766366764015",
+      "name": "Skills",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-22T01:26:04.536Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766367571532
+      }
+    },
+    {
+      "id": "session-1766396125636",
+      "name": "Tech Knight紐付け",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-22T09:35:26.156Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766396869218
+      },
+      "archivedAt": "2025-12-22T09:49:54.245Z"
+    },
+    {
+      "id": "session-1766399693570",
+      "name": "運用系",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-22T10:34:54.086Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766448035637
+      }
+    },
+    {
+      "id": "session-1766409561128",
+      "name": "ボード",
+      "path": "/Users/ksato/workspace/unson",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "active",
+      "engine": "claude",
+      "created": "2025-12-22T13:19:21.652Z"
+    },
+    {
+      "id": "session-1766411409972",
+      "name": "MANA",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766411409972-brainbase-ui",
+        "branch": "session/session-1766411409972"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "archived",
+      "createdAt": "2025-12-22T13:50:12.200Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766412391320
+      }
+    },
+    {
+      "id": "session-1766412846249",
+      "name": "SalesTailor進捗",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-22T14:14:06.759Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766444765647",
+      "name": "おはよう",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766444765647-brainbase-ui",
+        "branch": "session/session-1766444765647"
+      },
+      "initialCommand": "/ohayo",
+      "engine": "claude",
+      "intendedState": "archived",
+      "createdAt": "2025-12-22T23:06:07.776Z",
+      "hookStatus": {
+        "status": "working",
+        "timestamp": 1766444777387
+      }
+    },
+    {
+      "id": "session-1766444765647",
+      "name": "おはよう",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766444765647-brainbase-ui",
+      "initialCommand": "/ohayo",
+      "taskId": null,
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766444765647"
+      },
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-22T23:06:07.784Z",
+      "hookStatus": {
+        "status": "working",
+        "timestamp": 1766444777387
+      }
+    },
+    {
+      "id": "session-1766445872188",
+      "name": "アクティブインジケーター",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766445872188-brainbase-ui",
+        "branch": "session/session-1766445872188"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "archived",
+      "createdAt": "2025-12-22T23:24:34.260Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766453052703
+      }
+    },
+    {
+      "id": "session-1766445872188",
+      "name": "アクティブインジケーター",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766445872188-brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766445872188"
+      },
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-22T23:24:34.268Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766453052703
+      }
+    },
+    {
+      "id": "session-1766457209473",
+      "name": "Brainbase コピー",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766457209473-brainbase-ui",
+        "branch": "session/session-1766457209473"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "archived",
+      "createdAt": "2025-12-23T02:33:31.744Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766458682962
+      }
+    },
+    {
+      "id": "session-1766457209473",
+      "name": "Brainbase コピー",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766457209473-brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "branch": "session/session-1766457209473"
+      },
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-23T02:33:31.753Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766458682962
+      }
+    },
+    {
+      "id": "session-1766458964324",
+      "name": "コピー機能",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766458964324-brainbase-ui",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766458964324-brainbase-ui",
+        "branch": "session/session-1766458964324"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "archived",
+      "createdAt": "2025-12-23T03:02:46.318Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766481368228
+      }
+    },
+    {
+      "id": "session-1766461748129",
+      "name": "小林さん",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766461748129-unson",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/unson",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766461748129-unson",
+        "branch": "session/session-1766461748129"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "archived",
+      "createdAt": "2025-12-23T03:49:09.452Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766463427156
+      }
+    },
+    {
+      "id": "session-1766466868505",
+      "name": "Brainbase共有・プロジェクト化準備",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "active",
+      "engine": "claude",
+      "created": "2025-12-23T05:14:29.020Z",
+      "hookStatus": {
+        "status": "working",
+        "timestamp": 1766738487128
+      }
+    },
+    {
+      "id": "session-1766472692928",
+      "name": "Mana",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-23T06:51:33.436Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766473591842
+      }
+    },
+    {
+      "id": "session-1766479015057",
+      "name": "SalesTailorの分析プロンプト見直し",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-23T08:36:55.583Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766480987779",
+      "name": "テンプレート管理",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766480987779-salestailor",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/salestailor",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766480987779-salestailor",
+        "branch": "session/session-1766480987779"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "paused",
+      "createdAt": "2025-12-23T09:09:49.199Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766502109272
+      }
+    },
+    {
+      "id": "session-1766484122431",
+      "name": "Brainbase UI",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766484122431-brainbase-ui",
+      "worktree": {
+        "repo": "/Users/ksato/workspace/brainbase-ui",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766484122431-brainbase-ui",
+        "branch": "session/session-1766484122431"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "archived",
+      "createdAt": "2025-12-23T10:02:04.794Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766507968116
+      },
+      "archivedAt": "2025-12-23T16:43:17.830Z"
+    },
+    {
+      "id": "session-1766499565748",
+      "name": "脆弱性情報まとめ",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-23T14:19:26.281Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766576115384
+      }
+    },
+    {
+      "id": "session-1766503759942",
+      "name": "Skills",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "active",
+      "engine": "claude",
+      "created": "2025-12-23T15:29:20.470Z",
+      "hookStatus": {
+        "status": "working",
+        "timestamp": 1766738434790
+      }
+    },
+    {
+      "id": "session-1766505962384",
+      "name": "Brainbase UI",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-23T16:06:02.892Z",
+      "archivedAt": "2025-12-26T05:27:44.390Z"
+    },
+    {
+      "id": "session-1766532475602",
+      "name": "スマホ",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-23T23:27:56.122Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766578871764
+      }
+    },
+    {
+      "id": "session-1766539084951",
+      "name": "経営",
+      "path": "/Users/ksato/workspace/unson",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "active",
+      "engine": "claude",
+      "created": "2025-12-24T01:18:05.630Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766563582560",
+      "name": "Zeimsボード",
+      "path": "/Users/ksato/workspace/zeims",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "active",
+      "engine": "claude",
+      "created": "2025-12-24T08:06:23.077Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766578961176",
+      "name": "Brainbase運用",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "active",
+      "engine": "claude",
+      "created": "2025-12-24T12:22:41.691Z"
+    },
+    {
+      "id": "session-1766580739135",
+      "name": "Chrome in Claude Code",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-24T12:52:19.671Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766596808045
+      },
+      "archivedAt": "2025-12-25T00:49:56.377Z"
+    },
+    {
+      "id": "session-1766589798621",
+      "name": "提供エントリー",
+      "path": "/Users/ksato/workspace/ncom-catalyst",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-24T15:23:19.134Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766590450186",
+      "name": "PDF読み込みスキル",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-24T15:34:10.764Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766592495004
+      },
+      "archivedAt": "2025-12-24T16:10:29.747Z"
+    },
+    {
+      "id": "session-1766624704069",
+      "name": "おはよう",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "/ohayo",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-25T01:05:04.594Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766625290104
+      },
+      "archivedAt": "2025-12-25T13:20:22.927Z"
+    },
+    {
+      "id": "session-1766642277205",
+      "name": "Slack内容把握",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-25T05:57:57.740Z"
+    },
+    {
+      "id": "session-1766642319618",
+      "name": "SalesTailor Task",
+      "path": "/Users/ksato/workspace/salestailor",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-25T05:58:40.145Z",
+      "archivedAt": "2025-12-26T04:28:44.076Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766650617029",
+      "name": "案件について",
+      "path": "/Users/ksato/workspace/unson",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "paused",
+      "engine": "claude",
+      "created": "2025-12-25T08:16:57.559Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766707692378",
+      "name": "おはよう",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "/ohayo",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-26T00:08:12.986Z",
+      "archivedAt": "2025-12-26T01:43:23.315Z",
+      "hookStatus": null
+    },
+    {
+      "id": "session-1766729144563",
+      "name": "Skills学習",
+      "path": "/Users/ksato/workspace/brainbase-ui",
+      "initialCommand": "",
+      "taskId": null,
+      "worktree": null,
+      "intendedState": "archived",
+      "engine": "claude",
+      "created": "2025-12-26T06:05:45.096Z",
+      "archivedAt": "2025-12-26T08:04:27.269Z"
+    }
+  ]
+}

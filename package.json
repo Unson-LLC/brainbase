@@ -1,0 +1,29 @@
+{
+  "name": "brainbase-ui",
+  "version": "0.1.84",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "front-matter": "^4.0.2",
+    "http-proxy-middleware": "^3.0.5",
+    "js-yaml": "^4.1.1",
+    "marked": "^17.0.1",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@vitest/coverage-v8": "^4.0.15",
+    "jsdom": "^27.3.0",
+    "vitest": "^4.0.16"
+  }
+}
