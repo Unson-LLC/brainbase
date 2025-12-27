@@ -3044,13 +3044,7 @@ body {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        overflow-y: scroll; /* スクロールを有効化 */
-        overflow-x: hidden;
-        /* GPUアクセラレーションでスムーズなスクロール */
-        -webkit-overflow-scrolling: touch;
-        transform: translateZ(0);
-        -webkit-transform: translateZ(0);
-        will-change: scroll-position;
+        overflow: visible; /* iframe内部でスクロール */
         /* 縦スクロールのみ許可 */
         touch-action: pan-y;
     }
