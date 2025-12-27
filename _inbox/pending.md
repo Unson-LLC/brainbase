@@ -3,6 +3,23 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-27-MJNYYPI3
+channel: 9920-sales
+sender: 小松原 遼羽
+timestamp: 1766819917.446229
+status: pending
+---
+
+### 16:18 | #9920-sales | 小松原 遼羽
+
+<@U07LNUP582X>
+各プロダクトのCTAアクションは何にすればいいですか？
+"面談予約""デモ申込""資料請求"など、どれが効果的なのかわかりません。
+LPへのアクセスがいいかなと考えたのですがそれぞれのサービスのLPなどがどこにあるかわからないので教えて欲しいです。:bow:
+
+[Slack](https://unson.slack.com/archives/C0A52RRM6VB/p1766819917446229)
+
+---
 id: INBOX-2025-12-27-MJNV10QN
 channel: eng
 sender: 渡邊博昭
