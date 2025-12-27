@@ -229,7 +229,12 @@ export class SessionManager {
 
         // Options for spawn
         const spawnOptions = {
-            stdio: 'pipe'
+            stdio: 'pipe',
+            env: {
+                ...process.env,  // Inherit parent process environment
+                LANG: 'en_US.UTF-8',
+                LC_ALL: 'en_US.UTF-8'
+            }
         };
 
         // Set CWD if provided
