@@ -8,7 +8,7 @@ export const WORKSPACE_ROOT = '/Users/ksato/workspace';
 export const PROJECT_PATH_MAP = {
   'unson': `${WORKSPACE_ROOT}/unson`,
   'tech-knight': `${WORKSPACE_ROOT}/tech-knight`,
-  'brainbase': `${WORKSPACE_ROOT}/brainbase-ui`,
+  'brainbase': '/Users/ksato/brainbase',
   'salestailor': `${WORKSPACE_ROOT}/salestailor`,
   'zeims': `${WORKSPACE_ROOT}/zeims`,
   'baao': `${WORKSPACE_ROOT}/baao`,

@@ -645,8 +645,9 @@
       "taskId": null,
       "worktree": null,
       "created": "2025-12-13T02:12:01.368Z",
-      "intendedState": "active",
-      "hookStatus": null
+      "intendedState": "archived",
+      "hookStatus": null,
+      "archivedAt": "2025-12-27T09:45:25.893Z"
     },
     {
       "id": "session-1765593251707",
@@ -1512,10 +1513,6 @@
       "worktree": null,
       "engine": "claude",
       "created": "2025-12-21T00:31:20.629Z",
-      "hookStatus": {
-        "status": "done",
-        "timestamp": 1766357125453
-      },
       "intendedState": "paused"
     },
     {
@@ -1909,7 +1906,10 @@
       "intendedState": "active",
       "engine": "claude",
       "created": "2025-12-23T05:14:29.020Z",
-      "hookStatus": null
+      "hookStatus": {
+        "status": "working",
+        "timestamp": 1766832506107
+      }
     },
     {
       "id": "session-1766472692928",
@@ -2040,7 +2040,10 @@
       "intendedState": "active",
       "engine": "claude",
       "created": "2025-12-24T01:18:05.630Z",
-      "hookStatus": null
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766832481103
+      }
     },
     {
       "id": "session-1766563582560",
@@ -2089,10 +2092,9 @@
       "initialCommand": "",
       "taskId": null,
       "worktree": null,
-      "intendedState": "paused",
+      "intendedState": "active",
       "engine": "claude",
-      "created": "2025-12-24T15:23:19.134Z",
-      "hookStatus": null
+      "created": "2025-12-24T15:23:19.134Z"
     },
     {
       "id": "session-1766590450186",
@@ -2201,6 +2203,38 @@
       "created": "2025-12-26T09:46:34.065Z",
       "archivedAt": "2025-12-26T10:09:49.510Z",
       "hookStatus": null
+    },
+    {
+      "id": "session-1766828735411",
+      "name": "SNS",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766828735411-brainbase",
+      "worktree": {
+        "repo": "/Users/ksato/brainbase",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766828735411-brainbase",
+        "branch": "session/session-1766828735411"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "active",
+      "createdAt": "2025-12-27T09:45:36.994Z"
+    },
+    {
+      "id": "session-1766829951128",
+      "name": "メモリ完了",
+      "path": "/Users/ksato/workspace/.worktrees/session-1766829951128-brainbase",
+      "worktree": {
+        "repo": "/Users/ksato/brainbase",
+        "path": "/Users/ksato/workspace/.worktrees/session-1766829951128-brainbase",
+        "branch": "session/session-1766829951128"
+      },
+      "initialCommand": "",
+      "engine": "claude",
+      "intendedState": "active",
+      "createdAt": "2025-12-27T10:05:52.982Z",
+      "hookStatus": {
+        "status": "done",
+        "timestamp": 1766832559196
+      }
     }
   ]
 }
