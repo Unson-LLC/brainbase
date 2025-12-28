@@ -41,19 +41,21 @@ npm start
 
 ### サンプルデータで試す
 
-初回起動時は `_codex-sample/` のサンプルデータが使用されます。
+初回起動時は以下のサンプルデータが使用されます：
+
+- `_codex-sample/`: プロジェクト・組織・人物情報のサンプル
+- `_tasks-sample/`: タスク管理のサンプル
+- `_schedules-sample/`: スケジュールのサンプル
+- `_inbox-sample/`: 受信箱のサンプル
+
 実際のプロジェクトデータを使う場合は、以下のディレクトリを作成：
 
 ```bash
-mkdir -p _codex/projects
-mkdir -p _codex/orgs
-mkdir -p _codex/common/meta/{people,raci}
-mkdir -p _tasks
-mkdir -p _schedules
-mkdir -p _inbox
+mkdir -p _codex/projects _codex/orgs _codex/common/meta/{people,raci}
+mkdir -p _tasks _schedules _inbox
 ```
 
-詳細なデータ構造は `_codex-sample/` を参照してください。
+詳細なデータ構造は各サンプルディレクトリを参照してください。
 
 ## ディレクトリ構造
 
@@ -72,10 +74,16 @@ brainbase/
 │   ├── schedule-parser.js
 │   ├── config-parser.js
 │   └── inbox-parser.js
-├── _codex-sample/       # サンプルデータ（開発用）
+├── _codex-sample/       # プロジェクト・組織情報サンプル
 │   ├── projects/        # プロジェクト情報
 │   ├── orgs/            # 組織情報
 │   └── common/meta/     # 人物・RACI
+├── _tasks-sample/       # タスク管理サンプル
+│   └── index.md         # タスク一覧
+├── _schedules-sample/   # スケジュールサンプル
+│   └── 2025-01-15.md    # 日次スケジュール
+├── _inbox-sample/       # 受信箱サンプル
+│   └── pending.md       # 未処理アイテム
 ├── _codex/              # 実データ（.gitignore）
 ├── _tasks/              # タスク正本（.gitignore）
 ├── _schedules/          # スケジュール（.gitignore）
@@ -84,7 +92,7 @@ brainbase/
 └── package.json
 ```
 
-**重要:** `_codex/`, `_tasks/`, `_schedules/`, `_inbox/` は `.gitignore` で除外されており、個人データは含まれません。
+**重要:** `_codex/`, `_tasks/`, `_schedules/`, `_inbox/` は `.gitignore` で除外されており、個人データは含まれません。サンプルデータ（`*-sample/`）を開発・テスト用に使用してください。
 
 ## API概要
 
