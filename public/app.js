@@ -624,6 +624,8 @@ class App {
         const mobileSendEscapeBtn = document.getElementById('mobile-send-escape-btn');
         const mobileSendClearBtn = document.getElementById('mobile-send-clear-btn');
         const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
+        const mobileToggleKeyboardBtn = document.getElementById('mobile-toggle-keyboard-btn');
+        const mobileSendShiftTabBtn = document.getElementById('mobile-send-shift-tab-btn');
 
         // Toggle FAB menu
         mobileFab?.addEventListener('click', () => {
@@ -640,7 +642,6 @@ class App {
         if (mobilePasteBtn) {
             mobilePasteBtn.onclick = async () => {
                 console.log('[FAB] Paste button clicked');
-                mobileFabContainer?.classList.remove('active');
 
                 const currentSessionId = appStore.getState().currentSessionId;
                 if (!currentSessionId) {
@@ -669,7 +670,6 @@ class App {
         if (mobileUploadImageBtn) {
             mobileUploadImageBtn.onclick = () => {
                 console.log('[FAB] Upload button clicked');
-                mobileFabContainer?.classList.remove('active');
                 const imageFileInput = document.getElementById('image-file-input');
                 imageFileInput?.click();
             };
@@ -679,7 +679,6 @@ class App {
         if (mobileSendEscapeBtn) {
             mobileSendEscapeBtn.onclick = async () => {
                 console.log('[FAB] Escape button clicked');
-                mobileFabContainer?.classList.remove('active');
                 const currentSessionId = appStore.getState().currentSessionId;
                 if (!currentSessionId) {
                     showInfo('セッションを選択してください');
@@ -702,7 +701,6 @@ class App {
         if (mobileSendClearBtn) {
             mobileSendClearBtn.onclick = async () => {
                 console.log('[FAB] Clear button clicked');
-                mobileFabContainer?.classList.remove('active');
                 const currentSessionId = appStore.getState().currentSessionId;
                 if (!currentSessionId) {
                     showInfo('セッションを選択してください');
@@ -725,7 +723,6 @@ class App {
         if (mobileCopyTerminalBtn) {
             mobileCopyTerminalBtn.onclick = async () => {
                 console.log('[FAB] Copy button clicked');
-                mobileFabContainer?.classList.remove('active');
 
                 const currentSessionId = appStore.getState().currentSessionId;
                 if (!currentSessionId) {
@@ -755,6 +752,42 @@ class App {
                 } catch (error) {
                     console.error('Failed to get terminal content:', error);
                     showError('ターミナル内容の取得に失敗しました');
+                }
+            };
+        }
+
+        // Send Shift+Tab button (for plan mode)
+        if (mobileSendShiftTabBtn) {
+            mobileSendShiftTabBtn.onclick = async () => {
+                console.log('[FAB] Shift+Tab button clicked');
+                const currentSessionId = appStore.getState().currentSessionId;
+                if (!currentSessionId) {
+                    showInfo('セッションを選択してください');
+                    return;
+                }
+
+                try {
+                    // Try BTab format (tmux standard for Shift+Tab)
+                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+                        input: 'BTab',
+                        type: 'key'
+                    });
+                    showSuccess('Shift+Tabを送信しました');
+                } catch (error) {
+                    console.error('Failed to send Shift+Tab:', error);
+                    showError('Shift+Tabの送信に失敗しました');
+                }
+            };
+        }
+
+        // Toggle mobile keyboard button
+        if (mobileToggleKeyboardBtn) {
+            mobileToggleKeyboardBtn.onclick = () => {
+                console.log('[FAB] Toggle keyboard button clicked');
+                const mobileKeyboard = document.getElementById('mobile-keyboard');
+                if (mobileKeyboard) {
+                    mobileKeyboard.classList.toggle('visible');
+                    console.log('[FAB] Mobile keyboard visibility toggled');
                 }
             };
         }
