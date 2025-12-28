@@ -10,6 +10,7 @@ export class NextTasksView {
         this.container = null;
         this._unsubscribers = [];
         this.showAll = false;
+        this.isCollapsed = false;
     }
 
     /**
@@ -35,12 +36,36 @@ export class NextTasksView {
 
         // Toggle all tasks button (chevron) - mount時に一度だけ設定
         const toggleAllBtn = document.getElementById('toggle-all-tasks');
-        if (toggleAllBtn) {
+        const nextTasksSection = document.getElementById('next-tasks-section');
+
+        if (toggleAllBtn && nextTasksSection) {
             toggleAllBtn.addEventListener('click', () => {
-                this.showAll = !this.showAll;
-                toggleAllBtn.classList.toggle('expanded', this.showAll);
-                this.render();
+                this.isCollapsed = !this.isCollapsed;
+                toggleAllBtn.classList.toggle('expanded', !this.isCollapsed);
+
+                // セクション全体にcollapsedクラスを追加（CSSでorder変更）
+                nextTasksSection.classList.toggle('collapsed', this.isCollapsed);
+
+                // コンテナの表示/非表示を切り替え
+                if (this.container) {
+                    this.container.style.display = this.isCollapsed ? 'none' : 'block';
+                }
+
+                // 残タスク表示トグルも連動
+                const remainingToggle = document.getElementById('remaining-tasks-toggle');
+                if (remainingToggle) {
+                    remainingToggle.style.display = this.isCollapsed ? 'none' : '';
+                }
+
+                // フィルター入力も連動
+                const filterContainer = document.querySelector('.task-filter');
+                if (filterContainer) {
+                    filterContainer.style.display = this.isCollapsed ? 'none' : '';
+                }
             });
+
+            // 初期状態でexpandedクラスを設定
+            toggleAllBtn.classList.add('expanded');
         }
     }
 

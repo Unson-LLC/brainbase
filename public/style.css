@@ -897,12 +897,14 @@ body {
 }
 
 /* Chevron rotation for toggle buttons */
-.section-header .icon-btn i {
+.section-header .icon-btn i,
+.section-header .icon-btn svg {
     transition: transform 0.2s ease;
 }
 
-.section-header .icon-btn.expanded i {
-    transform: rotate(180deg);
+.section-header .icon-btn:not(.expanded) i,
+.section-header .icon-btn:not(.expanded) svg {
+    transform: rotate(-90deg);
 }
 
 /* === Inbox (Notification) - matches .settings-link style === */
@@ -1366,6 +1368,21 @@ body {
     flex-direction: column;
     overflow: hidden;
     min-height: 0;
+}
+
+/* 折りたたみ時: 下に移動してヘッダーのみ表示 */
+.next-tasks-section.collapsed {
+    flex: 0 0 auto;
+    order: 99;
+    border-top: 1px solid var(--border-color);
+    border-bottom: none;
+}
+
+/* 折りたたみ時: タイムラインを広げる */
+.context-sidebar:has(.next-tasks-section.collapsed) .timeline-section {
+    flex: 1;
+    max-height: none;
+    border-bottom: none;
 }
 
 .task-filter {
