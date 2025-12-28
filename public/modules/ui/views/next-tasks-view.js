@@ -32,6 +32,16 @@ export class NextTasksView {
         const unsub3 = eventBus.on(EVENTS.TASK_DELETED, () => this.render());
 
         this._unsubscribers.push(unsub1, unsub2, unsub3);
+
+        // Toggle all tasks button (chevron) - mount時に一度だけ設定
+        const toggleAllBtn = document.getElementById('toggle-all-tasks');
+        if (toggleAllBtn) {
+            toggleAllBtn.addEventListener('click', () => {
+                this.showAll = !this.showAll;
+                toggleAllBtn.classList.toggle('expanded', this.showAll);
+                this.render();
+            });
+        }
     }
 
     /**
@@ -182,16 +192,6 @@ export class NextTasksView {
         if (showMoreBtn) {
             showMoreBtn.addEventListener('click', () => {
                 this.showAll = true;
-                this.render();
-            });
-        }
-
-        // Toggle all tasks button (chevron) - ヘッダーにあるのでdocument.querySelectorを使用
-        const toggleAllBtn = document.getElementById('toggle-all-tasks');
-        if (toggleAllBtn) {
-            toggleAllBtn.addEventListener('click', () => {
-                this.showAll = !this.showAll;
-                toggleAllBtn.classList.toggle('expanded', this.showAll);
                 this.render();
             });
         }

@@ -133,9 +133,9 @@ export class SessionView {
 
         // セクションヘッダー
         const header = document.createElement('div');
-        header.className = 'session-section-header';
+        header.className = 'session-section-header' + (isExpanded ? ' expanded' : '');
         header.innerHTML = `
-            <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}"></i>
+            <i data-lucide="chevron-down"></i>
             <span>${title}</span>
             <span class="session-count">${sessions.length}</span>
         `;
@@ -149,11 +149,7 @@ export class SessionView {
         header.addEventListener('click', () => {
             const isCurrentlyExpanded = childrenDiv.style.display !== 'none';
             childrenDiv.style.display = isCurrentlyExpanded ? 'none' : 'block';
-            const icon = header.querySelector('i');
-            if (icon) {
-                icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'chevron-right' : 'chevron-down');
-                if (window.lucide) window.lucide.createIcons();
-            }
+            header.classList.toggle('expanded', !isCurrentlyExpanded);
         });
 
         // プロジェクトごとにグループ化
