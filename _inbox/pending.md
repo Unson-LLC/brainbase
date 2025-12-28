@@ -3,6 +3,34 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-28-MJPAXIJA
+channel: 0011-zeims-dev
+sender: 川合秀明 / Hideaki Kawai
+timestamp: 1766900485.281749
+status: pending
+---
+
+### 14:41 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
+
+<@U07LNUP582X> 
+お疲れ様です。
+mastraのskillsの実装参考にさせていただきたいので、manaのソースコード何らかの方法で見せていただきたいです:man-bowing:
+
+**スレッドの文脈:**
+> **太田葉音** (09:42): todo
+1. authをドメイン化
+2. ユーザーが生成停止ボタンをおした時にメッセージが保存されるように
+3. github actions 値段調査
+> **川合秀明 / Hideaki Kawai** (14:39): 年内にやってほしいことは全部終わったかな？笑
+お疲れ様でした:relaxed:
+一旦仕事納めでも良い(31のミーティングはお願いw)し、まだ働きたければmastraでskillsを使えるようになったみたいだから、skillsの概念の理解とanthoropicの組み込み？の調査をお願いします。
+skillsを使う目的としては、zeimsを完全に税理士の代替にするのが今後の目標なので、税理士業務をskillsに落とし込んでいく必要があるから
+mastra公式だとまだskillsについて書いてないけど、圭吾さん曰くmanaで使えてるらしいので、manaのソースコード共有してもらうか
+
+
+[Slack](https://unson.slack.com/archives/C07QX6DN9M0/p1766900485281749?thread_ts=1766450560.356809&cid=C07QX6DN9M0)
+
+---
 id: INBOX-2025-12-27-MJOVKOO2
 channel: D093MBQFRAS
 sender: undefined
