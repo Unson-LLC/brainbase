@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-28-MJPFDX1T
+channel: 9920-sales
+sender: 小松原 遼羽
+timestamp: 1766907969.862249
+status: pending
+---
+
+### 16:46 | #9920-sales | 小松原 遼羽
+
+<@U07LNUP582X>
+すでに送り始めています...
+チャットいただいてから一時停止しましたが残り135件でそれまでの1000件以上のメールは送信してしまってます
+
+[Slack](https://unson.slack.com/archives/C0A52RRM6VB/p1766907969862249)
+
+---
 id: INBOX-2025-12-28-MJPER814
 channel: 0031-dialogai-dev
 sender: 星野 秀弥
