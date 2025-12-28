@@ -37,6 +37,10 @@ const execPromise = util.promisify(exec);
 const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
 const APP_VERSION = `v${packageJson.version}`;
 
+// Environment variable for root directory (supports multi-machine setups)
+const BRAINBASE_ROOT = process.env.BRAINBASE_ROOT || '/Users/ksato/workspace';
+console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
+
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
 const DEFAULT_PORT = isWorktree ? 3001 : 3000;
@@ -48,16 +52,16 @@ const PORT = process.env.PORT || DEFAULT_PORT;
 const TASKS_FILE = path.join(__dirname, '_tasks/index.md');
 const SCHEDULES_DIR = path.join(__dirname, '_schedules');
 const STATE_FILE = path.join(__dirname, 'state.json');
-const WORKTREES_DIR = path.join(__dirname, '../workspace/.worktrees');
-const CODEX_PATH = path.join(__dirname, '_codex');
-const CONFIG_PATH = path.join(__dirname, 'config.yml');
-const INBOX_FILE = path.join(__dirname, '../workspace/_inbox/pending.md');
+const WORKTREES_DIR = path.join(BRAINBASE_ROOT, '.worktrees');
+const CODEX_PATH = path.join(BRAINBASE_ROOT, '_codex');
+const CONFIG_PATH = path.join(BRAINBASE_ROOT, 'config.yml');
+const INBOX_FILE = path.join(BRAINBASE_ROOT, '_inbox/pending.md');
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
-const stateStore = new StateStore(STATE_FILE);
-const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH);
+const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
+const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
@@ -117,7 +121,7 @@ const sessionManager = new SessionManager({
 
 const worktreeService = new WorktreeService(
     WORKTREES_DIR,
-    path.dirname(__dirname), // Canonical root (parent of current directory)
+    BRAINBASE_ROOT, // Canonical root (environment variable or default)
     execPromise
 );
 

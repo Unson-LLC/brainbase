@@ -8,7 +8,7 @@ import path from 'path';
 export class WorktreeService {
     /**
      * @param {string} worktreesDir - worktrees保存ディレクトリ
-     * @param {string} canonicalRoot - 正本ディレクトリルート（/Users/ksato/workspace）
+     * @param {string} canonicalRoot - 正本ディレクトリルート（環境変数BRAINBASE_ROOTまたはconfig.yml）
      * @param {Function} execPromise - util.promisify(exec)
      */
     constructor(worktreesDir, canonicalRoot, execPromise) {
@@ -100,7 +100,7 @@ export class WorktreeService {
 
             // Create symlinks for canonical directories (正本ディレクトリ)
             // These directories are shared across all worktrees and committed directly to main
-            // IMPORTANT: 正本は常に /Users/ksato/workspace にある（プロジェクトリポジトリではない）
+            // IMPORTANT: 正本は常に BRAINBASE_ROOT（環境変数または設定ファイル）にある
             const canonicalDirs = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude'];
             const canonicalFiles = ['config.yml'];
 
