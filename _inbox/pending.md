@@ -3,6 +3,31 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-28-MJPCPEGO
+channel: 0111-baao-ai-dojo
+sender: 山本力弥
+timestamp: 1766903467.671209
+status: pending
+---
+
+### 15:31 | #0111-baao-ai-dojo | 山本力弥
+
+<@U07LNUP582X> <@U09JZ1NBRDE> <@U08DE1DFN4W>
+ちょっと現実的なラインをベースラインとしつつ、ストレッチな目標計画を可視化した資料を作成してみました。こちらで一度議論できればと思っています。
+
+なお、来年からのBAAOの定例は卯田さんから案内いただきますため、
+いったん私からのインビテーションはキャンセル予定です。
+
+2025年は素敵な1年でした。イベントしたり、収益計画が整ったり、
+大手からも案件もらえたりとか。来年はイベントを１年で計画作って
+いろいろ推進していきたいと思っています。
+
+引き続きよろしくお願いします！
+よいお年を～
+
+[Slack](https://unson.slack.com/archives/C09L3EKAUEA/p1766903467671209)
+
+---
 id: INBOX-2025-12-28-MJPBON8F
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
