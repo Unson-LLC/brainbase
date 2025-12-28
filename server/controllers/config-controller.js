@@ -118,4 +118,18 @@ export class ConfigController {
             res.status(500).json({ error: 'Failed to get unified view' });
         }
     };
+
+    /**
+     * GET /api/config/root
+     * BRAINBASE_ROOT（ワークスペースルートディレクトリ）を取得
+     */
+    getRoot = async (req, res) => {
+        try {
+            const projectConfig = await this.configParser.getProjects();
+            res.json({ root: projectConfig.root });
+        } catch (error) {
+            console.error('Error fetching root:', error);
+            res.status(500).json({ error: 'Failed to fetch root directory' });
+        }
+    };
 }

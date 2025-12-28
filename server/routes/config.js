@@ -33,5 +33,8 @@ export function createConfigRouter(configParser) {
     // GET /api/config/unified - 統合ビューを取得
     router.get('/unified', controller.getUnified);
 
+    // GET /api/config/root - BRAINBASE_ROOTを取得
+    router.get('/root', controller.getRoot);
+
     return router;
 }
