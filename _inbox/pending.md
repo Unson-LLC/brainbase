@@ -3,6 +3,62 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-28-MJPBON8F
+channel: 0011-zeims-dev
+sender: 川合秀明 / Hideaki Kawai
+timestamp: 1766901749.271679
+status: pending
+---
+
+### 15:02 | #0011-zeims-dev | 川合秀明 / Hideaki Kawai
+
+<@U07LNUP582X> 
+GitHubのリポジトリへのアクセス権を僕と太田くん招待していただけますと非常に助かります:man-bowing::man-bowing:
+
+**スレッドの文脈:**
+> **太田葉音** (09:42): todo
+1. authをドメイン化
+2. ユーザーが生成停止ボタンをおした時にメッセージが保存されるように
+3. github actions 値段調査
+> **川合秀明 / Hideaki Kawai** (14:39): 年内にやってほしいことは全部終わったかな？笑
+お疲れ様でした:relaxed:
+一旦仕事納めでも良い(31のミーティングはお願いw)し、まだ働きたければmastraでskillsを使えるようになったみたいだから、skillsの概念の理解とanthoropicの組み込み？の調査をお願いします。
+skillsを使う目的としては、zeimsを完全に税理士の代替にするのが今後の目標なので、税理士業務をskillsに落とし込んでいく必要があるから
+mastra公式だとまだskillsについて書いてないけど、圭吾さん曰くmanaで使えてるらしいので、manaのソースコード共有してもらうか
+> **川合秀明 / Hideaki Kawai** (14:41): <@U07LNUP582X> 
+お疲れ様です。
+mastraのskillsの実装参考にさせていただきたいので、manaのソースコード何らかの方法で見せていただきたいです:man-bowing:
+> **太田葉音** (14:46): <@U07Q7CUC60J>
+&gt; まだ働きたければmastraでskillsを使えるようになったみたいだから、skillsの概念の理解とanthoropicの組み込み？の調査をお願いします。
+CI/CD待ちの時に調査していたのですが、mastraでskillsに関する記述が見当たらないんですよね...
+> **川合秀明 / Hideaki Kawai** (14:48): 俺も調べたんだけど、公式にもブログにもまだないのよ
+圭吾さんはすでにバイブコーディングで組み込めたらしいからmanaのコード参照させてもらえるとありがたいのよね
+> **川合秀明 / Hideaki Kawai** (15:01): <@U093QQ0NV5K> 
+manaのソースコード見せて(できるかな？)
+> **mana** (15:01): すみません、川合さん。現在私がアクセスできるのは *Zeimsプロジェクトのソースコード* で、*Manaプロジェクトのソースコード* は別のリポジトリにあるため直接参照できません。
+
+Manaのソースコードを確認するには、以下のいずれかの方法が必要です:
+
+*方法1: GitHubリポジトリへの直接アクセス*
+• Manaのリポジトリ(Unson-LLC/mana)へのアクセス権限を付与していただく
+• その後、私がGitHub APIを使ってソースコードを読み取ることができます
+
+*方法2: 佐藤さんに共有を依頼*
+• 佐藤さんに"ManaのMastra skills実装部分のコードを共有してほしい"と依頼
+• 特に以下のファイルが参考になると思います:
+  - `src/mastra/agents/` 配下のエージェント定義
+  - `src/mastra/skills/` 配下のskills実装(もしあれば)
+  - Mastraの設定ファイル
+
+*方法3: 特定ファイルの内容を直接共有*
+• 佐藤さんにSlackで"Mastraのskills実装部分のコードスニペット"を貼ってもらう
+
+川合さんの目的(税理士業務をskillsに落とし込む)を考えると、Manaでの実装例を見るのが一番早いと思います。佐藤さんに"Mastraのskills実装部分を見せてほしい"と依頼してみてはいかがでしょうか？
+
+
+[Slack](https://unson.slack.com/archives/C07QX6DN9M0/p1766901749271679?thread_ts=1766450560.356809&cid=C07QX6DN9M0)
+
+---
 id: INBOX-2025-12-28-MJPAXIJA
 channel: 0011-zeims-dev
 sender: 川合秀明 / Hideaki Kawai
