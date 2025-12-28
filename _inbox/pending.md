@@ -3,6 +3,81 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-28-MJPFVBKB
+channel: 9920-sales
+sender: 小松原 遼羽
+timestamp: 1766908779.971649
+status: pending
+---
+
+### 16:59 | #9920-sales | 小松原 遼羽
+
+<@U07LNUP582X>
+以下のようなアプリ使用フィードバック文を作成したのですが渡邊さんとかに通知すれば良さそうですか？
+
+&gt; 確認できたバグおよび改善要望を共有させていただきます。
+&gt; 大きく分けて、"データの表示不備""挙動の不具合""UI/UXの改善要望"の3点です。
+&gt; 
+&gt;  *1. 企業管理画面：DBとのデータ乖離*
+&gt; 
+&gt; DB上に存在するフィールドのうち、UIの編集画面に反映されていない項目があります。
+&gt; 
+&gt; コード検証で確認済みの欠落フィールド
+&gt; 
+&gt; | フィールド名 | DB定義 | UI表示 |
+&gt; |-------------|--------|--------|
+&gt; | businessDescription(事業内容) | `prisma/schema.prisma:143` | 未表示 |
+&gt; | representativeName(代表者名) | `prisma/schema.prisma:158` | 未表示 |
+&gt; | representativeNameKana(代表者名かな) | `prisma/schema.prisma:159` | 未表示 |
+&gt; | capital(資本金) | `prisma/schema.prisma:151` | 未表示 |
+&gt; | employees(従業員数・数値) | `prisma/schema.prisma:149` | 未表示 |
+&gt; | linkedinUrl | `prisma/schema.prisma:164` | 未表示 |
+&gt; | twitterUrl | `prisma/schema.prisma:165` | 未表示 |
+&gt; | facebookUrl | `prisma/schema.prisma:166` | 未表示 |
+&gt; | lastCrawledAt(最終クローリング日) | `prisma/schema.prisma:142` | 未表示 |
+&gt; 
+&gt; 該当ファイル: `src/components/companies/UserCompanyEditForm.tsx`
+&gt; 
+&gt; 補足: `employeeScale`(従業員規模・文字列)は編集画面に表示されています。
+&gt; 
+&gt; ---
+&gt; 
+&gt; *2. テンプレート管理の挙動不具合*
+&gt; 
+&gt; *2.1 データ残存(コード検証で確認済み)*
+&gt; 画面遷移せずに"新規作成"を押すと、前回入力した内容が残ったまま表示されてしまいます。
+&gt; 
+&gt; 原因: `UnifiedTemplateWizard.tsx`でモーダルを閉じても、フォームの状態(useState)がリセットされない実装になっています。
+&gt; 
+&gt; 該当ファイル: `src/components/templates/wizard/UnifiedTemplateWizard.tsx:255-267`
+&gt; 
+&gt; *2.2 テンプレートが表示されない*
+&gt; テンプレート作成後、作成したテンプレートがテンプレート管理の一覧に表示されません。リロードしても表示されない状態が発生しています。
+&gt; 
+&gt; ただし: プロジェクト作成画面では、作成したテンプレートが表示されており、選択可能です。
+&gt; 
+&gt; 補足: DBへの保存は成功しているが、テンプレート管理画面のデータ取得(フィルタリングやクエリ条件)に問題がある可能性があります。
+&gt; ---
+&gt; 
+&gt; *3. プロジェクト・運用フローの改善要望*
+&gt; 
+&gt; *3.1 UX向上(コード検証で未実装を確認)*
+&gt; プロジェクトの計画保存後、自動で次のタブへ遷移した方がUXがいいと感じました。
+&gt; 
+&gt; *3.2 送信グループ管理(コード検証で削除済みを確認)*
+&gt; 以前あった"送信グループ管理"がないため、CSVでの運用が不便になっています。
+&gt; →CSVで運用しない場合は問題ないと思います。
+&gt; 
+&gt; *3.3 AI提案機能*
+&gt; 送信戦略の"仮説に基づく送信パターンの提案"が、現状の精度/見せ方ではあまり意味をなしていない印象を受けました。
+&gt; 
+&gt; ---
+&gt; 
+&gt; ご確認いただけますと幸いです。よろしくお願いいたします。
+
+[Slack](https://unson.slack.com/archives/C0A52RRM6VB/p1766908779971649)
+
+---
 id: INBOX-2025-12-28-MJPFDX1T
 channel: 9920-sales
 sender: 小松原 遼羽
