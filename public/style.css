@@ -889,6 +889,15 @@ body {
     opacity: 0.7;
 }
 
+/* Chevron rotation for toggle buttons */
+.section-header .icon-btn i {
+    transition: transform 0.2s ease;
+}
+
+.section-header .icon-btn.expanded i {
+    transform: rotate(180deg);
+}
+
 /* === Inbox (Notification) - matches .settings-link style === */
 .inbox-trigger-container {
     position: relative;
@@ -1099,9 +1108,9 @@ body {
 
 .focus-card {
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
-    border: 2px solid var(--accent-color);
-    border-radius: 10px;
-    padding: 1rem;
+    border: 1px solid var(--accent-color);
+    border-radius: 8px;
+    padding: 0.75rem;
     position: relative;
     overflow: hidden;
 }
@@ -1127,10 +1136,10 @@ body {
 .focus-card-meta {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 0.75rem;
+    gap: 10px;
+    font-size: 0.7rem;
     color: var(--text-secondary);
-    margin-bottom: 1rem;
+    margin-bottom: 0.6rem;
 }
 
 .focus-card-meta .project-tag {
@@ -1159,15 +1168,15 @@ body {
 .focus-btn-complete,
 .focus-btn-defer {
     flex: 1;
-    padding: 10px 16px;
-    border-radius: 6px;
-    font-size: 0.85rem;
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
     transition: all 0.2s;
 }
 
@@ -1182,7 +1191,7 @@ body {
     transform: translateY(-1px);
 }
 
-.focus-btn-start i { width: 16px; height: 16px; }
+.focus-btn-start i { width: 14px; height: 14px; }
 
 .focus-btn-complete {
     background: var(--success-color);
@@ -1195,7 +1204,7 @@ body {
     transform: translateY(-1px);
 }
 
-.focus-btn-complete i { width: 16px; height: 16px; }
+.focus-btn-complete i { width: 14px; height: 14px; }
 
 .focus-btn-defer {
     background: transparent;
@@ -1208,7 +1217,7 @@ body {
     color: var(--text-primary);
 }
 
-.focus-btn-defer i { width: 16px; height: 16px; }
+.focus-btn-defer i { width: 14px; height: 14px; }
 
 .focus-empty {
     text-align: center;

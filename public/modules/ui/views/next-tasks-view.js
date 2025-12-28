@@ -185,6 +185,16 @@ export class NextTasksView {
                 this.render();
             });
         }
+
+        // Toggle all tasks button (chevron) - ヘッダーにあるのでdocument.querySelectorを使用
+        const toggleAllBtn = document.getElementById('toggle-all-tasks');
+        if (toggleAllBtn) {
+            toggleAllBtn.addEventListener('click', () => {
+                this.showAll = !this.showAll;
+                toggleAllBtn.classList.toggle('expanded', this.showAll);
+                this.render();
+            });
+        }
     }
 
     /**
