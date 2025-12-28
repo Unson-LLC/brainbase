@@ -3,6 +3,22 @@
 <!-- AI PMが自動更新。Claude Code起動時に確認・対応を提案 -->
 
 ---
+id: INBOX-2025-12-28-MJPGXWJG
+channel: 9920-sales
+sender: 小松原 遼羽
+timestamp: 1766910580.187309
+status: pending
+---
+
+### 17:29 | #9920-sales | 小松原 遼羽
+
+<@U07LNUP582X>
+salestailorのairtableに編集権限がありませんでした。
+お手隙の間に権限の付与をお願いします:pray:
+
+[Slack](https://unson.slack.com/archives/C0A52RRM6VB/p1766910580187309)
+
+---
 id: INBOX-2025-12-28-MJPFVBKB
 channel: 9920-sales
 sender: 小松原 遼羽
