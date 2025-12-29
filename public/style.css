@@ -1404,7 +1404,7 @@ body {
 
 /* Hover State */
 .task-filter select:hover {
-    background: var(--hover-bg);
+    border-color: var(--text-secondary);
     cursor: pointer;
 }
 
