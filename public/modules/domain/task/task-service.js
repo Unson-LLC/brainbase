@@ -91,7 +91,7 @@ export class TaskService {
      */
     getFocusTask() {
         const tasks = this.getFilteredTasks();
-        return tasks.find(t => t.priority === 'HIGH') || tasks[0];
+        return tasks.find(t => t.priority === 'high' || t.priority === 'highest' || t.priority === 'critical') || tasks[0];
     }
 
     /**
@@ -123,8 +123,8 @@ export class TaskService {
             nextTasks = filterByPriority(nextTasks, priorityFilter);
         }
 
-        // 優先度でソート（HIGH > MEDIUM > LOW）
-        const priorityOrder = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+        // 優先度でソート（critical/highest > high > medium > normal/low）
+        const priorityOrder = { critical: 5, highest: 5, high: 4, medium: 3, normal: 2, low: 1 };
         nextTasks.sort((a, b) => {
             const aPriority = priorityOrder[a.priority] || 0;
             const bPriority = priorityOrder[b.priority] || 0;
