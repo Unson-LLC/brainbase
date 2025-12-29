@@ -1352,27 +1352,79 @@ body {
     min-height: 0;
 }
 
+/* Task Filter Container */
 .task-filter {
     padding: 0 1rem 0.5rem;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap; /* Mobile対応 */
 }
 
-.task-filter input {
+.filter-group {
+    flex: 1;
+    min-width: 120px; /* 最小幅確保 */
+    position: relative;
+}
+
+/* Screen Reader Only Labels */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Input & Select共通スタイル */
+.task-filter input,
+.task-filter select {
     width: 100%;
-    padding: 6px 10px;
+    padding: 8px 12px;
+    min-height: 44px; /* タップターゲット確保（Fitz's Law） */
     border: 1px solid var(--border-color);
     border-radius: 4px;
     background: var(--bg-secondary);
     color: var(--text-primary);
     font-size: 0.85rem;
+    font-family: var(--font-sans);
+    transition: all 0.2s ease;
 }
 
-.task-filter input:focus {
+/* Focus State */
+.task-filter input:focus,
+.task-filter select:focus {
     outline: none;
     border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); /* Focus ring */
 }
 
+/* Hover State */
+.task-filter select:hover {
+    background: var(--hover-bg);
+    cursor: pointer;
+}
+
+/* Placeholder */
 .task-filter input::placeholder {
     color: var(--text-secondary);
+}
+
+/* Select Custom Arrow */
+.task-filter select {
+    appearance: none; /* ブラウザデフォルトの矢印を削除 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px; /* アイコンスペース確保 */
+}
+
+/* Select Focus時のアイコン色変更 */
+.task-filter select:focus {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%233b82f6' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
 }
 
 #next-tasks-list {
@@ -2865,6 +2917,19 @@ body {
 /* Mobile FAB (Floating Action Button) with Speed Dial */
 .mobile-fab-container {
     display: none;
+}
+
+/* Mobile: 900px以下で縦積み */
+@media (max-width: 900px) {
+    .task-filter {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .filter-group {
+        width: 100%;
+        min-width: 100%;
+    }
 }
 
 @media (max-width: 768px) {
