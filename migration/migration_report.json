@@ -1,0 +1,36 @@
+{
+  "projects": [
+    {
+      "project_id": "baao",
+      "base_id": "appCysQGZowfOd58i",
+      "base_name": "BAAO",
+      "tables": [
+        {
+          "table_name": "マイルストーン",
+          "record_count": 3,
+          "manual_fields": [],
+          "errors": []
+        },
+        {
+          "table_name": "スプリント",
+          "record_count": 4,
+          "manual_fields": [],
+          "errors": []
+        },
+        {
+          "table_name": "タスク",
+          "record_count": 26,
+          "manual_fields": [],
+          "errors": []
+        }
+      ],
+      "total_records": 33,
+      "manual_fields": [],
+      "errors": []
+    }
+  ],
+  "total_tables": 3,
+  "total_records": 33,
+  "manual_migration_fields": [],
+  "errors": []
+}

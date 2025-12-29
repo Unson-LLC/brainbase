@@ -1,0 +1,24 @@
+# このファイルを terraform.tfvars にコピーして使用してください
+# cp terraform.tfvars.example terraform.tfvars
+
+# AWS設定
+aws_region = "ap-northeast-1" # 東京リージョン
+
+# Lightsailインスタンス設定
+instance_name = "brainbase-nocodb"
+bundle_id     = "medium_3_0" # 2GB RAM, 2 vCPU, 60GB SSD, $12/月
+environment   = "production"
+
+# セキュリティ設定
+# 本番運用時は特定IPに制限することを推奨
+allowed_ssh_cidrs     = ["0.0.0.0/0"]
+allowed_nocodb_cidrs  = ["0.0.0.0/0"]
+
+# NocoDB設定
+nocodb_admin_email    = "your-email@example.com"
+nocodb_admin_password = "change-this-to-secure-password"
+postgres_password     = "change-this-to-secure-password"
+
+# バックアップ設定
+backup_s3_bucket      = "brainbase-backups"
+backup_retention_days = 30
