@@ -811,7 +811,7 @@ import追加 → 「正しい順序か?」
 
 ### 6.1 標準開発フロー
 
-**Explore → Plan → Edit → Test → Commit**
+**Explore → Plan → Branch → Edit → Test → Commit → Merge**
 
 **Phase 1: Explore** (調査)
 - 既存コードの理解
@@ -825,11 +825,17 @@ import追加 → 「正しい順序か?」
 - トレードオフの検討
 - **装備Skills**: architecture-patterns, test-strategy, refactoring-workflow
 
+**Phase 2.5: Branch** (ブランチ作成)
+- session/* branchの作成
+- session/YYYY-MM-DD-<type>-<name> 命名規則
+- `/commit`コマンドとの整合性確保
+- **装備Skills**: git-workflow
+
 **Phase 3: Edit** (実装)
-- コード修正
+- TDD実装 (Red-Green-Refactor)
 - Skills準拠の確認
 - リファクタリング
-- **装備Skills**: architecture-patterns, code-style, security-patterns
+- **装備Skills**: tdd-workflow, architecture-patterns, code-style, security-patterns
 
 **Phase 4: Test** (検証)
 - ユニットテスト追加
@@ -838,10 +844,18 @@ import追加 → 「正しい順序か?」
 - **装備Skills**: test-strategy
 
 **Phase 5: Commit** (コミット)
-- コミットメッセージ作成
-- PR作成
-- CI通過確認
-- **Skill**: `/commit` (Claude Code標準Skill)
+- Decision-making capture (悩み→判断→結果)
+- Conventional Commits形式
+- Branch safety check
+- **Custom Command**: `/commit`
+- **装備Skills**: git-workflow
+
+**Phase 6: Merge** (マージ)
+- --no-ff merge commit
+- Feature branch cleanup
+- Mode selection (Safe/Fast)
+- **Custom Command**: `/merge`
+- **装備Skills**: git-workflow
 
 **使用例**:
 ```bash
@@ -853,15 +867,25 @@ Claude Code: [Explore Agent起動] → event-bus.js, project-service.js等を調
 User: "プロジェクト削除機能を追加したい"
 Claude Code: [Plan Mode起動] → Plan file作成
 
-# 3. Edit: コード修正
-Claude Code: [architecture-patterns, security-patterns装備] → コード実装
+# 2.5. Branch: ブランチ作成
+Claude Code: [git-workflow装備] → session/2025-12-29-feature-project-delete作成
+
+# 3. Edit: TDD実装
+Claude Code: [tdd-workflow, architecture-patterns, security-patterns装備]
+→ Red: 失敗するテストを書く
+→ Green: 仮実装 → 三角測量 → 明白な実装
+→ Refactor: 重複除去
 
 # 4. Test: テスト追加・実行
-Claude Code: [test-strategy装備] → テスト追加 → vitest実行
+Claude Code: [test-strategy装備] → テスト追加 → vitest実行 → カバレッジ80%以上
 
-# 5. Commit: コミット・PR作成
+# 5. Commit: Decision capture
 User: "/commit"
-Claude Code: [Commit Skill実行] → git commit → PR作成
+Claude Code: [/commit実行] → 悩み→判断→結果を記録 → Conventional Commits
+
+# 6. Merge: mainへ統合
+User: "/merge"
+Claude Code: [/merge実行] → --no-ff merge → branch cleanup
 ```
 
 ---
