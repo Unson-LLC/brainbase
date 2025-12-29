@@ -36,3 +36,11 @@ _ops/
 *.tmp
 *.swp
 *~
+
+# Worktree symlinks (pointing to main workspace)
+.claude
+_inbox
+_ops
+_schedules
+_tasks
+config.yml

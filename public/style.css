@@ -214,9 +214,16 @@ body {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
-.session-section-header i {
+.session-section-header i,
+.session-section-header svg {
     width: 14px;
     height: 14px;
+    transition: transform 0.2s ease;
+}
+
+.session-section-header:not(.expanded) i,
+.session-section-header:not(.expanded) svg {
+    transform: rotate(-90deg);
 }
 
 .session-count {
@@ -889,6 +896,17 @@ body {
     opacity: 0.7;
 }
 
+/* Chevron rotation for toggle buttons */
+.section-header .icon-btn i,
+.section-header .icon-btn svg {
+    transition: transform 0.2s ease;
+}
+
+.section-header .icon-btn:not(.expanded) i,
+.section-header .icon-btn:not(.expanded) svg {
+    transform: rotate(-90deg);
+}
+
 /* === Inbox (Notification) - matches .settings-link style === */
 .inbox-trigger-container {
     position: relative;
@@ -1099,9 +1117,9 @@ body {
 
 .focus-card {
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
-    border: 2px solid var(--accent-color);
-    border-radius: 10px;
-    padding: 1rem;
+    border: 1px solid var(--accent-color);
+    border-radius: 8px;
+    padding: 0.75rem;
     position: relative;
     overflow: hidden;
 }
@@ -1127,10 +1145,10 @@ body {
 .focus-card-meta {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 0.75rem;
+    gap: 10px;
+    font-size: 0.7rem;
     color: var(--text-secondary);
-    margin-bottom: 1rem;
+    margin-bottom: 0.6rem;
 }
 
 .focus-card-meta .project-tag {
@@ -1159,15 +1177,15 @@ body {
 .focus-btn-complete,
 .focus-btn-defer {
     flex: 1;
-    padding: 10px 16px;
-    border-radius: 6px;
-    font-size: 0.85rem;
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
     transition: all 0.2s;
 }
 
@@ -1182,7 +1200,7 @@ body {
     transform: translateY(-1px);
 }
 
-.focus-btn-start i { width: 16px; height: 16px; }
+.focus-btn-start i { width: 14px; height: 14px; }
 
 .focus-btn-complete {
     background: var(--success-color);
@@ -1195,7 +1213,7 @@ body {
     transform: translateY(-1px);
 }
 
-.focus-btn-complete i { width: 16px; height: 16px; }
+.focus-btn-complete i { width: 14px; height: 14px; }
 
 .focus-btn-defer {
     background: transparent;
@@ -1208,7 +1226,7 @@ body {
     color: var(--text-primary);
 }
 
-.focus-btn-defer i { width: 16px; height: 16px; }
+.focus-btn-defer i { width: 14px; height: 14px; }
 
 .focus-empty {
     text-align: center;
@@ -1350,6 +1368,21 @@ body {
     flex-direction: column;
     overflow: hidden;
     min-height: 0;
+}
+
+/* 折りたたみ時: 下に移動してヘッダーのみ表示 */
+.next-tasks-section.collapsed {
+    flex: 0 0 auto;
+    order: 99;
+    border-top: 1px solid var(--border-color);
+    border-bottom: none;
+}
+
+/* 折りたたみ時: タイムラインを広げる */
+.context-sidebar:has(.next-tasks-section.collapsed) .timeline-section {
+    flex: 1;
+    max-height: none;
+    border-bottom: none;
 }
 
 /* Task Filter Container */
