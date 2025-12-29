@@ -54,6 +54,15 @@ class NocoDBClient {
         createdTime: record.CreatedAt || record.created_at || new Date().toISOString()
       }));
     } catch (error) {
+      // 404エラーの場合、より詳細なエラーメッセージを提供
+      if (error.response && error.response.status === 404) {
+        const projectId = await this.resolveProjectId(baseId);
+        const nocodbTableName = this.resolveTableName(baseId, tableName);
+        throw new Error(
+          `NocoDB table not found: ${nocodbTableName} (project: ${projectId}, base: ${baseId}, table: ${tableName}). ` +
+          `Please verify the table exists in NocoDB.`
+        );
+      }
       throw new Error(`NocoDB list error: ${error.message}`);
     }
   }
@@ -81,6 +90,15 @@ class NocoDBClient {
         createdTime: response.data.CreatedAt || new Date().toISOString()
       };
     } catch (error) {
+      // 404エラーの場合、より詳細なエラーメッセージを提供
+      if (error.response && error.response.status === 404) {
+        const projectId = await this.resolveProjectId(baseId);
+        const nocodbTableName = this.resolveTableName(baseId, tableName);
+        throw new Error(
+          `NocoDB table not found: ${nocodbTableName} (project: ${projectId}, base: ${baseId}, table: ${tableName}). ` +
+          `Please verify the table exists in NocoDB.`
+        );
+      }
       throw new Error(`NocoDB create error: ${error.message}`);
     }
   }
@@ -109,6 +127,15 @@ class NocoDBClient {
         createdTime: response.data.CreatedAt || new Date().toISOString()
       };
     } catch (error) {
+      // 404エラーの場合、より詳細なエラーメッセージを提供
+      if (error.response && error.response.status === 404) {
+        const projectId = await this.resolveProjectId(baseId);
+        const nocodbTableName = this.resolveTableName(baseId, tableName);
+        throw new Error(
+          `NocoDB table or record not found: ${nocodbTableName}/${recordId} (project: ${projectId}, base: ${baseId}, table: ${tableName}). ` +
+          `Please verify the table and record exist in NocoDB.`
+        );
+      }
       throw new Error(`NocoDB update error: ${error.message}`);
     }
   }
@@ -129,6 +156,15 @@ class NocoDBClient {
         `/api/v1/db/data/noco/${projectId}/${nocodbTableName}/${recordId}`
       );
     } catch (error) {
+      // 404エラーの場合、より詳細なエラーメッセージを提供
+      if (error.response && error.response.status === 404) {
+        const projectId = await this.resolveProjectId(baseId);
+        const nocodbTableName = this.resolveTableName(baseId, tableName);
+        throw new Error(
+          `NocoDB table or record not found: ${nocodbTableName}/${recordId} (project: ${projectId}, base: ${baseId}, table: ${tableName}). ` +
+          `Please verify the table and record exist in NocoDB.`
+        );
+      }
       throw new Error(`NocoDB delete error: ${error.message}`);
     }
   }
@@ -216,10 +252,16 @@ class NocoDBClient {
 
       if (fs.existsSync(mappingPath)) {
         const mapping = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'));
-        return mapping[baseId];
+        const baseName = mapping[baseId];
+
+        if (!baseName) {
+          throw new Error(`Base name not found in mapping for base_id: ${baseId}`);
+        }
+
+        return baseName;
       }
 
-      throw new Error(`NocoDB basename mapping not found for base_id: ${baseId}`);
+      throw new Error(`NocoDB basename mapping file not found: ${mappingPath}`);
     } catch (error) {
       throw new Error(`Failed to resolve base name: ${error.message}`);
     }
@@ -228,12 +270,27 @@ class NocoDBClient {
   /**
    * NocoDBテーブル名を構築（{BaseName}_{TableName}形式）
    * @param {string} baseId - Airtable base ID
-   * @param {string} tableName - 元のテーブル名
+   * @param {string} tableName - 元のテーブル名（日本語対応）
    * @returns {string} - NocoDBテーブル名
    */
   resolveTableName(baseId, tableName) {
     const baseName = this.resolveBaseName(baseId);
-    return `${baseName}_${tableName}`;
+
+    // 日本語テーブル名の正規化（UTF-8エンコーディング確認）
+    // NocoDBでは日本語テーブル名がそのまま使用されるため、追加の変換は不要
+    const normalizedTableName = tableName.trim();
+
+    // テーブル名が空でないことを確認
+    if (!normalizedTableName) {
+      throw new Error(`Table name cannot be empty for base_id: ${baseId}`);
+    }
+
+    const fullTableName = `${baseName}_${normalizedTableName}`;
+
+    // デバッグログ（UTF-8エンコーディング確認用）
+    console.log(`[NocoDBClient] Resolved table name: ${fullTableName} (base: ${baseName}, table: ${normalizedTableName})`);
+
+    return fullTableName;
   }
 }
 
