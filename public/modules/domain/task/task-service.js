@@ -91,7 +91,7 @@ export class TaskService {
      */
     getFocusTask() {
         const tasks = this.getFilteredTasks();
-        return tasks.find(t => t.priority === 'high') || tasks[0];
+        return tasks.find(t => t.priority === 'HIGH') || tasks[0];
     }
 
     /**
@@ -105,11 +105,13 @@ export class TaskService {
         const { showAll = false, owner = '佐藤圭吾' } = options;
         const MAX_VISIBLE_TASKS = 10;
 
-        const focusTask = this.getFocusTask();
         const { tasks, filters } = this.store.getState();
         const { priorityFilter } = filters || {};
 
-        // オーナーフィルター + status !== 'done' + フォーカスタスク除外
+        // 優先度フィルターが設定されている場合はfocusTaskを除外しない
+        const focusTask = priorityFilter ? null : this.getFocusTask();
+
+        // オーナーフィルター + status !== 'done' + フォーカスタスク除外（priorityFilterがない場合のみ）
         let nextTasks = (tasks || []).filter(t =>
             t.status !== 'done' &&
             (!focusTask || t.id !== focusTask.id) &&
