@@ -435,11 +435,15 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 **目的**: Feature branchをmainにマージし、ブランチをクリーンアップする
 
-**使用Skill**: git-workflow（戦略）、`/merge`（実装）
+**使用Skill**: git-workflow（戦略）、`/pr`、`/merge`（実装）
 
-**カスタムコマンド**: `/merge`
+**カスタムコマンド**: `/pr` または `/merge`
 
 **タイミング**: Feature完成、すべてのテスト完了後
+
+**コマンド選択**:
+- `/pr`: PRを作成してレビュー依頼（マージはGitHub UIで実施）
+- `/merge`: PRモードでマージまで実施、または直接マージ（Safe/Fast Mode）
 
 **実行内容**:
 1. **Mode selection**: Safe Mode (worktree isolation) or Fast Mode

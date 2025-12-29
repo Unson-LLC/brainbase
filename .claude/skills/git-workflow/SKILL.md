@@ -42,11 +42,17 @@ This skill provides a comprehensive git branch strategy for brainbase developmen
 ┌──────────────────────────────────────────────┐
 │ Custom Commands (Implementation)             │
 │ - /commit: Branch safety, decision capture   │
-│ - /merge: Two-mode merging                   │
+│ - /pr: PR creation (no merge)                │
+│ - /merge: Three-mode merging (PR/Safe/Fast)  │
 └──────────────────────────────────────────────┘
 ```
 
-**Important**: This Skill defines **strategy and process**. The `/commit` and `/merge` commands handle **implementation**. Do NOT duplicate command logic here.
+**Command Responsibilities**:
+- `/commit`: Commit changes with decision records
+- `/pr`: Create PR only, open in browser
+- `/merge`: Create PR + merge (PR mode), or direct merge (Safe/Fast mode)
+
+**Important**: This Skill defines **strategy and process**. The `/commit`, `/pr`, and `/merge` commands handle **implementation**. Do NOT duplicate command logic here.
 
 ---
 
@@ -415,17 +421,63 @@ For `/commit` implementation details:
 
 ---
 
-## 6. /merge Integration
+## 6. /pr and /merge Integration
 
-### 6.1 /merge Command Role
+### 6.1 /pr Command Role
+
+The `/pr` custom command handles:
+1. **PR Creation Only**: Creates GitHub Pull Request without merging
+2. **Auto-push**: Pushes branch to remote (`git push -u origin`)
+3. **Title/Body Generation**: Generates from commit messages
+4. **Browser Opening**: Opens PR in browser for review/editing (`--web`)
+
+**Use Cases**:
+- Team development (review required)
+- CI/CD checks needed
+- Manual merge approval workflow
+
+### 6.2 /merge Command Role
 
 The `/merge` custom command handles:
-1. **Mode Selection**: Safe Mode (worktree isolation) or Fast Mode
-2. **Conflict Resolution**: Interactive conflict handling
-3. **--no-ff Merge Commits**: Explicit merge commits preserving feature branch history
-4. **Symlink Safety**: Safe Mode uses worktree to protect symlinks
+1. **Mode Selection**: PR Mode (GitHub merge) / Safe Mode (worktree) / Fast Mode (direct)
+2. **PR Mode**: Creates PR + merges via GitHub (`gh pr merge --merge`)
+3. **Safe/Fast Mode**: Direct local merge with symlink protection
+4. **Conflict Resolution**: Interactive conflict handling
+5. **--no-ff Merge Commits**: Explicit merge commits preserving feature branch history
 
-### 6.2 Integration with git-workflow
+### 6.3 Mode Selection Guide
+
+**PR Mode (推奨・チーム開発)**:
+- ✅ Team collaboration (review required)
+- ✅ CI/CD pipeline active
+- ✅ GitHub Issues/Project integration
+- ✅ Change history visibility
+
+**Safe/Fast Mode (個人開発)**:
+- ✅ Individual development (no review)
+- ✅ CI/CD not configured
+- ✅ Fast merge priority
+- ✅ Offline work
+
+**Workflow Comparison**:
+```
+/pr Only:
+  session/* → gh pr create --web → [GitHub UI merge]
+
+/merge PR Mode:
+  session/* → gh pr create → gh pr merge --merge → main
+
+/merge Safe/Fast Mode:
+  session/* → git merge --no-ff → main (local)
+```
+
+### 6.4 Integration with git-workflow
+
+**When `/pr` is triggered**:
+1. Branch pushed to remote (`git push -u origin`)
+2. PR created with auto-generated title/body
+3. Browser opens for review/editing
+4. User merges via GitHub UI or `/merge` PR mode later
 
 **When `/merge` is triggered** (development-workflow Phase 6):
 1. Feature complete, all tests passing
