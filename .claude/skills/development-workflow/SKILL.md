@@ -93,6 +93,15 @@ Claude Code:
 
 **使用Mode**: Plan Mode (`EnterPlanMode`)
 
+**AIの責任**: 以下の条件に該当する場合、**必ず**`EnterPlanMode`ツールを使ってユーザーにPlan Modeへの移行を提案する:
+1. 新機能実装（重要な機能追加）
+2. 複数の実装アプローチが存在する場合
+3. コード修正（既存の振る舞いや構造に影響）
+4. アーキテクチャ上の意思決定が必要
+5. 複数ファイル（3ファイル以上）への変更
+6. 要件が不明確で調査が必要
+7. 複雑なバグ修正（2回以上失敗した場合は必須）
+
 **装備Skills**:
 - architecture-patterns
 - test-strategy
@@ -602,31 +611,36 @@ Claude Code:
 
 **原因**:
 - 設計を固めずに実装開始
+- AIが`EnterPlanMode`ツールを使ってユーザーに提案しなかった
 - Plan Modeの使い方がわからない
 
 **対処**:
 ```
-// ❌ Bad: 設計なしで実装
+// ❌ Bad: AIが提案せず、設計なしで実装
 User: "新機能追加したい"
 Claude Code:
   1. Explore Agent
-  2. 実装開始 ❌ (設計なし)
+  2. 実装開始 ❌ (AIがEnterPlanModeツールを使わなかった)
   3. 実装途中で設計変更 ❌
   4. 手戻り発生 ❌
 
-// ✅ Good: Plan Modeで設計固定
+// ✅ Good: AIがPlan Mode提案、設計固定
 User: "新機能追加したい"
 Claude Code:
   1. Explore Agent
-  2. Plan Mode起動 → 設計書作成
-  3. User承認
-  4. 実装開始
+  2. EnterPlanModeツール使用 → ユーザーにPlan Modeを提案
+  3. Plan Mode起動 → 設計書作成
+  4. User承認
+  5. 実装開始
 ```
 
 **Plan Modeのメリット**:
 - 設計の可視化（Userとの合意形成）
 - 手戻りの削減
 - Skills準拠の事前確認
+
+**AIの責任**:
+- Phase 2の条件（新機能実装、複数アプローチ、複雑なバグ修正等）に該当する場合、**必ず**`EnterPlanMode`ツールを使ってユーザーに提案する
 
 ---
 
