@@ -1,6 +1,7 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { filterByPriority } from '../../utils/task-filters.js';
 
 /**
  * タスクのビジネスロジック
@@ -58,7 +59,7 @@ export class TaskService {
      */
     getFilteredTasks() {
         const { tasks, filters } = this.store.getState();
-        const { taskFilter, showAllTasks } = filters;
+        const { taskFilter, showAllTasks, priorityFilter } = filters;
 
         let filtered = tasks || [];
 
@@ -73,6 +74,11 @@ export class TaskService {
         // 完了タスクフィルタ
         if (!showAllTasks) {
             filtered = filtered.filter(t => t.status !== 'done');
+        }
+
+        // 優先度フィルタ
+        if (priorityFilter) {
+            filtered = filterByPriority(filtered, priorityFilter);
         }
 
         return filtered;
@@ -100,7 +106,8 @@ export class TaskService {
         const MAX_VISIBLE_TASKS = 10;
 
         const focusTask = this.getFocusTask();
-        const { tasks } = this.store.getState();
+        const { tasks, filters } = this.store.getState();
+        const { priorityFilter } = filters || {};
 
         // オーナーフィルター + status !== 'done' + フォーカスタスク除外
         let nextTasks = (tasks || []).filter(t =>
@@ -109,8 +116,13 @@ export class TaskService {
             t.owner === owner
         );
 
-        // 優先度でソート（high > medium > low）
-        const priorityOrder = { high: 3, medium: 2, low: 1 };
+        // 優先度フィルター適用
+        if (priorityFilter) {
+            nextTasks = filterByPriority(nextTasks, priorityFilter);
+        }
+
+        // 優先度でソート（HIGH > MEDIUM > LOW）
+        const priorityOrder = { HIGH: 3, MEDIUM: 2, LOW: 1 };
         nextTasks.sort((a, b) => {
             const aPriority = priorityOrder[a.priority] || 0;
             const bPriority = priorityOrder[b.priority] || 0;
