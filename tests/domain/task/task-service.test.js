@@ -114,6 +114,38 @@ describe('TaskService', () => {
             expect(filtered).toHaveLength(2);
             expect(filtered.every(t => t.status !== 'done')).toBe(true);
         });
+
+        it('should filter tasks by priority when priorityFilter is set', () => {
+            appStore.setState({
+                tasks: [
+                    { id: '1', title: 'Task 1', priority: 'high', status: 'todo' },
+                    { id: '2', title: 'Task 2', priority: 'medium', status: 'todo' },
+                    { id: '3', title: 'Task 3', priority: 'high', status: 'todo' }
+                ],
+                filters: { taskFilter: '', showAllTasks: true, priorityFilter: 'high' }
+            });
+
+            const filtered = taskService.getFilteredTasks();
+
+            expect(filtered).toHaveLength(2);
+            expect(filtered.every(t => t.priority === 'high')).toBe(true);
+        });
+
+        it('should combine priority filter with other filters', () => {
+            appStore.setState({
+                tasks: [
+                    { id: '1', title: 'Task 1', priority: 'high', status: 'todo' },
+                    { id: '2', title: 'Task 2', priority: 'high', status: 'done' },
+                    { id: '3', title: 'Task 3', priority: 'medium', status: 'todo' }
+                ],
+                filters: { taskFilter: '', showAllTasks: false, priorityFilter: 'high' }
+            });
+
+            const filtered = taskService.getFilteredTasks();
+
+            expect(filtered).toHaveLength(1);
+            expect(filtered[0].id).toBe('1');
+        });
     });
 
     describe('getFocusTask', () => {
@@ -141,6 +173,80 @@ describe('TaskService', () => {
             const focusTask = taskService.getFocusTask();
 
             expect(focusTask.id).toBe('2');
+        });
+    });
+
+    describe('getNextTasks', () => {
+        beforeEach(() => {
+            appStore.setState({
+                tasks: [
+                    { id: '1', name: 'Task 1', priority: 'HIGH', status: 'todo', owner: null },
+                    { id: '2', name: 'Task 2', priority: 'MEDIUM', status: 'todo', owner: null },
+                    { id: '3', name: 'Task 3', priority: 'MEDIUM', status: 'todo', owner: null },
+                    { id: '4', name: 'Task 4', priority: 'LOW', status: 'todo', owner: null },
+                    { id: '5', name: 'Task 5', priority: 'HIGH', status: 'done', owner: null }
+                ],
+                filters: { taskFilter: '', showAllTasks: false, priorityFilter: null }
+            });
+        });
+
+        it('should return all non-done tasks when no priority filter', () => {
+            const result = taskService.getNextTasks();
+
+            // focusTask（HIGH優先度のid:'1'）が除外されるので3つ
+            expect(result.tasks).toHaveLength(3);
+            expect(result.tasks.every(t => t.id !== '1')).toBe(true); // focusTask除外確認
+        });
+
+        it('should filter by HIGH priority', () => {
+            appStore.setState({
+                tasks: appStore.getState().tasks,
+                filters: { priorityFilter: 'HIGH' }
+            });
+
+            const result = taskService.getNextTasks();
+
+            expect(result.tasks).toHaveLength(1);
+            expect(result.tasks[0].priority).toBe('HIGH');
+        });
+
+        it('should filter by MEDIUM priority', () => {
+            appStore.setState({
+                tasks: appStore.getState().tasks,
+                filters: { priorityFilter: 'MEDIUM' }
+            });
+
+            const result = taskService.getNextTasks();
+
+            expect(result.tasks).toHaveLength(2);
+            expect(result.tasks.every(t => t.priority === 'MEDIUM')).toBe(true);
+        });
+
+        it('should filter by LOW priority', () => {
+            appStore.setState({
+                tasks: appStore.getState().tasks,
+                filters: { priorityFilter: 'LOW' }
+            });
+
+            const result = taskService.getNextTasks();
+
+            expect(result.tasks).toHaveLength(1);
+            expect(result.tasks[0].priority).toBe('LOW');
+        });
+
+        it('should not exclude focusTask when priority filter is set', () => {
+            // HIGH優先度のタスクが1つだけの場合
+            appStore.setState({
+                tasks: [
+                    { id: '1', name: 'Task 1', priority: 'HIGH', status: 'todo', owner: null }
+                ],
+                filters: { priorityFilter: 'HIGH' }
+            });
+
+            const result = taskService.getNextTasks();
+
+            // priorityFilter設定時はfocusTaskを除外しないので、1つ表示される
+            expect(result.tasks).toHaveLength(1);
         });
     });
 });
