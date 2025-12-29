@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:latest
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - nginx-certs:/etc/nginx/certs
+      - nginx-vhost:/etc/nginx/vhost.d
+      - nginx-html:/usr/share/nginx/html
+    restart: unless-stopped
+    networks:
+      - nocodb-network
+
+  # Let's Encrypt SSL Companion
+  letsencrypt:
+    image: nginxproxy/acme-companion:latest
+    container_name: letsencrypt
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - nginx-certs:/etc/nginx/certs
+      - nginx-vhost:/etc/nginx/vhost.d
+      - nginx-html:/usr/share/nginx/html
+      - letsencrypt-acme:/etc/acme.sh
+    environment:
+      - DEFAULT_EMAIL=k.sato@unson.jp
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    restart: unless-stopped
+    networks:
+      - nocodb-network
+    depends_on:
+      - nginx-proxy
+
+  # NocoDB
+  nocodb:
+    image: nocodb/nocodb:latest
+    container_name: nocodb
+    environment:
+      NC_DB: "pg://postgres:5432?u=nocodb&p=${POSTGRES_PASSWORD}&d=nocodb"
+      NC_PUBLIC_URL: "https://noco.unson.jp"
+      NC_ADMIN_EMAIL: "info@unson.jp"
+      NC_ADMIN_PASSWORD: "${NC_ADMIN_PASSWORD}"
+      VIRTUAL_HOST: noco.unson.jp
+      VIRTUAL_PORT: 8080
+      LETSENCRYPT_HOST: noco.unson.jp
+      LETSENCRYPT_EMAIL: info@unson.jp
+    volumes:
+      - nocodb-data:/usr/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 1GB
+          cpus: '1.0'
+    restart: unless-stopped
+    networks:
+      - nocodb-network
+    depends_on:
+      - postgres
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: nocodb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: nocodb
+    deploy:
+      resources:
+        limits:
+          memory: 768MB
+          cpus: '1.0'
+    restart: unless-stopped
+    networks:
+      - nocodb-network
+
+volumes:
+  nocodb-data:
+  postgres-data:
+  nginx-certs:
+  nginx-vhost:
+  nginx-html:
+  letsencrypt-acme:
+
+networks:
+  nocodb-network:
+    driver: bridge

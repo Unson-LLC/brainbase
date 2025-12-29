@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 15 データベース
+  postgres:
+    image: postgres:15-alpine
+    container_name: nocodb-postgres
+    restart: unless-stopped
+    volumes:
+      - nocodb_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: nocodb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: nocodb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nocodb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+    networks:
+      - nocodb_network
+    # PostgreSQL最適化設定（2GB RAM環境向け）
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=512MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=2621kB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+
+  # NocoDB アプリケーション
+  nocodb:
+    image: nocodb/nocodb:latest
+    container_name: nocodb-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      NC_DB: ${NC_DB}
+      NC_PUBLIC_URL: ${NOCODB_PUBLIC_URL:-http://localhost:8080}
+      NC_ADMIN_EMAIL: ${NOCODB_ADMIN_EMAIL}
+      NC_ADMIN_PASSWORD: ${NOCODB_ADMIN_PASSWORD}
+      NC_DISABLE_TELE: "true" # テレメトリ無効化
+      NC_INVITE_ONLY_SIGNUP: "true" # 招待制のみサインアップ許可
+    volumes:
+      - nocodb_files:/usr/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+    networks:
+      - nocodb_network
+
+volumes:
+  nocodb_data:
+    driver: local
+  nocodb_files:
+    driver: local
+
+networks:
+  nocodb_network:
+    driver: bridge

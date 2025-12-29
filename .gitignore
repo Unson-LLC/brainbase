@@ -1,38 +1,23 @@
-# Dependencies
-node_modules/
-npm-debug.log*
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
 
 # Environment variables
 .env
-.env.local
-.env.*.local
 
-# Editor directories
+# IDE
 .vscode/
 .idea/
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# Build outputs
-dist/
-build/
-
-# Private codex (symlink to佐藤さんの正本)
-# 小松原さんや他の開発者はこのディレクトリを持たない
-# 代わりに_codex-sample/を使う
-_codex/
-_codex
-
-# brainbaseの他の正本ディレクトリ（シンボリックリンク）
-_tasks/
-_inbox/
-_schedules/
-_ops/
-
-# Temporary files
-*.log
-*.tmp
-*.swp
-*~
+# NocoDB
+nocodb_data/

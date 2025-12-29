@@ -1,0 +1,150 @@
+{
+  "fieldTypeMapping": {
+    "singleLineText": {
+      "nocodb": "SingleLineText",
+      "autoMigrate": true,
+      "notes": "100%互換"
+    },
+    "multilineText": {
+      "nocodb": "LongText",
+      "autoMigrate": true,
+      "notes": "リッチテキストのHTML書式は失われる"
+    },
+    "number": {
+      "nocodb": "Number",
+      "autoMigrate": true,
+      "notes": "100%互換、小数点設定も移行可能"
+    },
+    "percent": {
+      "nocodb": "Percent",
+      "autoMigrate": true,
+      "notes": "100%互換"
+    },
+    "currency": {
+      "nocodb": "Currency",
+      "autoMigrate": true,
+      "notes": "100%互換、通貨記号設定も移行可能"
+    },
+    "singleSelect": {
+      "nocodb": "SingleSelect",
+      "autoMigrate": true,
+      "notes": "選択肢も自動移行"
+    },
+    "multipleSelects": {
+      "nocodb": "MultiSelect",
+      "autoMigrate": true,
+      "notes": "選択肢も自動移行"
+    },
+    "date": {
+      "nocodb": "Date",
+      "autoMigrate": true,
+      "notes": "フォーマット設定維持"
+    },
+    "dateTime": {
+      "nocodb": "DateTime",
+      "autoMigrate": true,
+      "notes": "タイムゾーン設定維持"
+    },
+    "checkbox": {
+      "nocodb": "Checkbox",
+      "autoMigrate": true,
+      "notes": "100%互換"
+    },
+    "rating": {
+      "nocodb": "Rating",
+      "autoMigrate": true,
+      "notes": "最大値設定も移行可能"
+    },
+    "duration": {
+      "nocodb": "Duration",
+      "autoMigrate": true,
+      "notes": "秒数で保存"
+    },
+    "email": {
+      "nocodb": "Email",
+      "autoMigrate": true,
+      "notes": "バリデーション維持"
+    },
+    "url": {
+      "nocodb": "URL",
+      "autoMigrate": true,
+      "notes": "バリデーション維持"
+    },
+    "phoneNumber": {
+      "nocodb": "PhoneNumber",
+      "autoMigrate": true,
+      "notes": "フォーマット維持"
+    },
+    "attachment": {
+      "nocodb": "Attachment",
+      "autoMigrate": true,
+      "notes": "ファイルURLのみ移行（再アップロード不要）"
+    },
+    "multipleRecordLinks": {
+      "nocodb": "LinkToAnotherRecord",
+      "autoMigrate": true,
+      "notes": "One-to-Many → Many-to-Manyに変換"
+    },
+    "lookup": {
+      "nocodb": "Lookup",
+      "autoMigrate": true,
+      "notes": "参照先フィールド指定必要"
+    },
+    "rollup": {
+      "nocodb": "Rollup",
+      "autoMigrate": true,
+      "notes": "集計関数設定（SUM, AVG, COUNT等）"
+    },
+    "count": {
+      "nocodb": "Count",
+      "autoMigrate": true,
+      "notes": "自動カウント"
+    },
+    "formula": {
+      "nocodb": "Formula",
+      "autoMigrate": false,
+      "notes": "手動再作成必須：Airtable Formula構文とNocoDB Formula構文に差異あり"
+    },
+    "barcode": {
+      "nocodb": "SingleLineText",
+      "autoMigrate": true,
+      "notes": "バーコード表示機能は失われる、文字列として保存"
+    },
+    "button": {
+      "nocodb": null,
+      "autoMigrate": false,
+      "notes": "NocoDBは未対応、移行不可"
+    }
+  },
+  "relationshipMapping": {
+    "airtable": {
+      "linkType": "multipleRecordLinks",
+      "constraints": ["one-to-many", "many-to-one"]
+    },
+    "nocodb": {
+      "linkType": "LinkToAnotherRecord",
+      "constraints": ["many-to-many"],
+      "notes": "Airtableの一対多は多対多として移行"
+    }
+  },
+  "knownIssues": [
+    {
+      "issue": "Formula fields cannot be auto-migrated",
+      "impact": "26 formula fields across 12 bases require manual recreation",
+      "workaround": "Export formula definitions before migration, recreate in NocoDB manually",
+      "estimatedTime": "4 hours (10 minutes per formula field)"
+    },
+    {
+      "issue": "Rich text formatting loss",
+      "impact": "LongText fields with HTML formatting will become plain text",
+      "workaround": "Accept limitation or manually re-format after migration",
+      "estimatedTime": "N/A"
+    },
+    {
+      "issue": "Button fields unsupported",
+      "impact": "Any Button fields in Airtable cannot be migrated",
+      "workaround": "Remove button fields or implement alternative in NocoDB webhooks",
+      "estimatedTime": "Variable"
+    }
+  ]
+}
