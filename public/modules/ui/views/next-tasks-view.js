@@ -30,8 +30,9 @@ export class NextTasksView {
         const unsub1 = eventBus.on(EVENTS.TASK_LOADED, () => this.render());
         const unsub2 = eventBus.on(EVENTS.TASK_COMPLETED, () => this.render());
         const unsub3 = eventBus.on(EVENTS.TASK_DELETED, () => this.render());
+        const unsub4 = eventBus.on(EVENTS.TASK_FILTER_CHANGED, () => this.render());
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
     }
 
     /**
