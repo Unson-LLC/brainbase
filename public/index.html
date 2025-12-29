@@ -145,7 +145,29 @@
                     <button id="toggle-all-tasks" class="icon-btn" title="全て表示"><i data-lucide="chevron-down"></i></button>
                 </div>
                 <div class="task-filter">
-                    <input type="text" id="task-filter-input" placeholder="フィルター..." />
+                    <div class="filter-group">
+                        <label for="task-filter-input" class="sr-only">タスクフィルター</label>
+                        <input
+                            type="text"
+                            id="task-filter-input"
+                            placeholder="タスクを検索..."
+                            aria-label="タスク名または説明で検索"
+                        />
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="priority-filter" class="sr-only">優先度フィルター</label>
+                        <select
+                            id="priority-filter"
+                            class="priority-filter"
+                            aria-label="優先度でフィルタ"
+                        >
+                            <option value="">すべて</option>
+                            <option value="high">🔴 高</option>
+                            <option value="medium">🟡 中</option>
+                            <option value="low">🔵 低</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="next-tasks-list">
                     <div class="loading">読み込み中...</div>
