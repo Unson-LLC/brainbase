@@ -108,6 +108,11 @@ export class TaskService {
         const { tasks, filters } = this.store.getState();
         const { priorityFilter } = filters || {};
 
+        console.log('[DEBUG] getNextTasks called');
+        console.log('[DEBUG] Total tasks:', tasks?.length);
+        console.log('[DEBUG] priorityFilter:', priorityFilter);
+        console.log('[DEBUG] Sample task priorities:', tasks?.slice(0, 3).map(t => ({ id: t.id, priority: t.priority, owner: t.owner })));
+
         // 優先度フィルターが設定されている場合はfocusTaskを除外しない
         const focusTask = priorityFilter ? null : this.getFocusTask();
 
@@ -118,9 +123,12 @@ export class TaskService {
             (!owner || t.owner === owner)
         );
 
+        console.log('[DEBUG] After basic filter:', nextTasks.length);
+
         // 優先度フィルター適用
         if (priorityFilter) {
             nextTasks = filterByPriority(nextTasks, priorityFilter);
+            console.log('[DEBUG] After priority filter:', nextTasks.length);
         }
 
         // 優先度でソート（HIGH > MEDIUM > LOW）
