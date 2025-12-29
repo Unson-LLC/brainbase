@@ -1,6 +1,6 @@
 ---
 name: development-workflow
-description: brainbaseの標準開発フロー（Explore → Plan → Edit → Test → Commit）を強制する思考フレームワーク
+description: brainbaseの標準開発フロー（Explore → Plan → Branch → Edit → Test → Commit → Merge）を強制する思考フレームワーク。7フェーズでTDD、git-workflow、architecture-patternsを統合
 setting_sources: ["user", "project"]
 ---
 
@@ -18,14 +18,14 @@ Subagentを活用した標準開発フローを定義し、開発効率と品質
 
 ## Thinking Framework
 
-### 1. Standard Flow: Explore → Plan → Edit → Test → Commit
+### 1. Standard Flow: Explore → Plan → Branch → Edit → Test → Commit → Merge
 
-brainbaseの開発は5つのPhaseで構成される:
+brainbaseの開発は7つのPhaseで構成される:
 
 ```
-Explore → Plan → Edit → Test → Commit
-   ↓       ↓      ↓       ↓        ↓
-  調査    設計   実装    検証    コミット
+Explore → Plan → Branch → Edit → Test → Commit → Merge
+   ↓       ↓       ↓        ↓      ↓        ↓        ↓
+  調査    設計  ブランチ  実装   検証   コミット  マージ
 ```
 
 **思考パターン**:
@@ -156,6 +156,51 @@ User: "プロジェクト削除機能を追加したい"
 Claude Code:
   1. コード追加 ❌ (設計なし)
 ```
+
+---
+
+### 3.5. Phase 2.5: Branch（ブランチ作成）
+
+**目的**: session-based branchを作成し、安全な開発環境を準備する
+
+**使用Skill**: git-workflow
+
+**タイミング**: Plan完了後、Edit開始前
+
+**実行内容**:
+1. `git status`で現在のブランチ確認
+2. mainにいる場合: `git checkout -b session/YYYY-MM-DD-<type>-<name>`
+3. 既にsession/*にいる場合: そのまま継続
+
+**ブランチ命名規則**:
+- `session/YYYY-MM-DD-feature-<name>` (新機能)
+- `session/YYYY-MM-DD-fix-<name>` (バグ修正)
+- `session/YYYY-MM-DD-refactor-<name>` (リファクタリング)
+- `session/YYYY-MM-DD-hotfix-<name>` (緊急修正)
+
+**Why session-based?**:
+- `/commit`コマンドがsession/* branchを強制
+- Git Flow慣習（feature/fix/refactor）との整合性
+- 日付による開発セッション追跡
+
+**実行例**:
+```bash
+User: "優先度フィルタを追加して"
+
+Claude Code:
+  1. Phase 1: Explore → 既存フィルタ機能調査
+  2. Phase 2: Plan Mode → 設計完了
+  3. Phase 2.5: Branch作成
+     $ git status
+     On branch main
+
+     $ git checkout -b session/2025-12-29-feature-priority-filter
+     Switched to a new branch 'session/2025-12-29-feature-priority-filter'
+
+  4. Phase 3: Edit (TDD workflow開始)
+```
+
+**詳細**: git-workflow Skillを参照
 
 ---
 
@@ -325,55 +370,113 @@ npm run test
 
 ### 6. Phase 5: Commit（コミット）
 
-**目的**: コミット・PR作成・CI通過を確認する
+**目的**: 実装をコミットし、decision-makingを記録する
 
-**使用Skill**: `/commit` (Claude Code標準Skill)
+**使用Skill**: git-workflow（戦略）、`/commit`（実装）
 
-**装備Skills**: なし（gitコマンド実行のみ）
+**カスタムコマンド**: `/commit`
+
+**実行内容**:
+1. **Branch safety check**: session/*以外は警告
+2. **Decision-making capture**: 悩み→判断→結果のプロンプト
+3. **Conventional Commits**: feat/fix/refactor等の形式
+4. **Co-Authored-By**: Claude Sonnet 4.5
 
 **実行時のチェック項目**:
-1. **コミットメッセージ**: 変更内容を簡潔に記述
-2. **PR作成**: タイトル・概要・Test planを記載
-3. **CI通過**: すべてのGitHub Actions Workflowsが成功
+1. **Test-First完了**: すべてのテストがパス
+2. **TDD cycle完了**: Red-Green-Refactorサイクル完了
+3. **Decision record**: 意思決定プロセスを明確に記録
 
 **実行例**:
 ```bash
 User: "/commit"
 
-Claude Code:
-  1. git status 確認
-  2. git diff 確認
-  3. コミットメッセージ作成
-  4. git add → git commit
-  5. git push
-  6. gh pr create
+Claude Code: `/commit`コマンド実行
 
-成果物: PR作成、CI実行
+Branch check:
+  - Current: session/2025-12-29-feature-priority-filter ✅
+
+Decision-making prompt:
+  - 悩み: 優先度フィルタの実装方法（FilterService vs TaskService統合）
+  - 判断: TaskService.getFilteredTasks()に統合（既存パターン踏襲）
+  - 結果: filterByPriority()ユーティリティ関数作成、100% coverage達成
+
+Commit message generated:
+feat: TaskServiceに優先度フィルタ統合
+
+filterByPriority()ユーティリティを作成し、TaskService.getFilteredTasks()に統合。
+UIドロップダウン追加、イベントハンドリング実装。
+
+悩み: 優先度フィルタの実装方法（FilterService vs TaskService統合）
+判断: TaskService.getFilteredTasks()に統合（既存パターン踏襲）
+結果: filterByPriority()ユーティリティ関数作成、100% coverage達成
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+
+成果物: Commit with decision record
 ```
 
-**PRテンプレート確認**:
-```markdown
-## Summary
-- プロジェクト削除機能を追加
+**詳細**: git-workflow Skill、`/commit`コマンド実装を参照
 
-## Skills準拠確認
-- [x] architecture-patterns: Event-Driven Architecture準拠
-- [x] test-strategy: Unit Test追加（カバレッジ82%）
-- [x] security-patterns: CSRF Token付与
-- [x] code-style: 命名規則準拠
+---
 
-## Test plan
-- [x] Unit Test: ProjectService.deleteProject()
-- [x] 既存テスト: すべてパス
-- [x] カバレッジ: 82% (80%以上)
+### 7. Phase 6: Merge（マージ）
 
-## CI Status
-- [x] architecture-check
-- [x] test-coverage-check
-- [x] security-check
-- [x] naming-convention-check
-- [x] import-order-check
+**目的**: Feature branchをmainにマージし、ブランチをクリーンアップする
+
+**使用Skill**: git-workflow（戦略）、`/merge`（実装）
+
+**カスタムコマンド**: `/merge`
+
+**タイミング**: Feature完成、すべてのテスト完了後
+
+**実行内容**:
+1. **Mode selection**: Safe Mode (worktree isolation) or Fast Mode
+2. **Conflict resolution**: Interactive conflict handling
+3. **--no-ff merge commit**: 明示的なmerge commit作成
+4. **Branch cleanup**: マージ後のブランチ削除
+
+**Why --no-ff (No Fast-Forward)?**:
+- ✅ Feature branch履歴を保持
+- ✅ git logでfeature境界が明確
+- ✅ Feature全体のrevertが容易
+
+**実行例**:
+```bash
+User: "Feature完成したので main にマージして"
+
+Claude Code: `/merge`コマンド実行
+
+Mode selection:
+  - Safe Mode: worktree isolation (推奨)
+  - Fast Mode: Direct merge (高速、symlink注意)
+
+Merge execution:
+  $ git checkout main
+  $ git merge --no-ff session/2025-12-29-feature-priority-filter
+
+Merge commit created:
+Merge branch 'session/2025-12-29-feature-priority-filter'
+
+- filterByPriority() ユーティリティ実装
+- TaskService統合、テストカバレッジ100%
+- UI ドロップダウン追加
+
+Cleanup:
+  Delete branch session/2025-12-29-feature-priority-filter? [y]
+  Deleted branch session/2025-12-29-feature-priority-filter (was a1b2c3d).
+
+成果物: --no-ff merge commit, feature branch deleted
 ```
+
+**Best Practices**:
+- ✅ Merge前にすべてのテストがパス
+- ✅ 複数のcommitに分かれていてOK（TDD サイクルごと）
+- ✅ Merge後は即座にブランチ削除（stale branch防止）
+
+**詳細**: git-workflow Skill、`/merge`コマンド実装を参照
 
 ---
 
@@ -381,9 +484,9 @@ Claude Code:
 
 このSkillは以下のタイミングで使用される:
 
-1. **新機能追加時**: Explore → Plan → Edit → Test → Commit
-2. **バグ修正時**: Explore → Edit → Test → Commit（Planは省略可）
-3. **リファクタリング時**: Explore → Plan → Edit → Test → Commit（refactoring-workflow併用）
+1. **新機能追加時**: Explore → Plan → Branch → Edit → Test → Commit → Merge
+2. **バグ修正時**: Explore → Branch → Edit → Test → Commit → Merge（Plan省略可）
+3. **リファクタリング時**: Explore → Plan → Branch → Edit → Test → Commit → Merge（refactoring-workflow併用）
 4. **調査・分析時**: Exploreのみ
 
 **使用例**:
@@ -396,26 +499,31 @@ Claude Code: [development-workflow Skillを装備]
 思考プロセス:
 1. Phase 1: Explore Agent起動 → 既存コード理解
 2. Phase 2: Plan Mode起動 → 設計書作成 → User承認
-3. Phase 3: 実装 → architecture-patterns, code-style, security-patterns準拠
-4. Phase 4: Test追加 → test-strategy準拠、カバレッジ80%以上
-5. Phase 5: /commit → PR作成、CI通過確認
+3. Phase 2.5: Branch作成 → session/2025-12-29-feature-project-delete
+4. Phase 3: 実装 (TDD) → architecture-patterns, code-style, security-patterns準拠
+5. Phase 4: Test追加 → test-strategy準拠、カバレッジ80%以上
+6. Phase 5: /commit → Decision capture
+7. Phase 6: /merge → --no-ff merge, branch cleanup
 
 成果物:
 - public/modules/domain/project/project-service.js (実装)
 - tests/unit/project-service.test.js (テスト)
-- PR (GitHub)
+- Merge commit on main (feature完成)
 ```
 
 ---
 
 ## Success Criteria
 
-- [ ] すべての開発が Explore → Plan → Edit → Test → Commit フローで実施されている
+- [ ] すべての開発が Explore → Plan → Branch → Edit → Test → Commit → Merge フローで実施されている
 - [ ] Exploreフェーズで既存コードを理解してから実装している
 - [ ] Planフェーズで設計を固めてから実装している
-- [ ] Editフェーズですべての Skills（architecture-patterns, code-style, security-patterns）に準拠している
+- [ ] Branchフェーズでsession/*ブランチを作成している
+- [ ] Editフェーズですべての Skills（tdd-workflow, architecture-patterns, code-style, security-patterns）に準拠している
 - [ ] Testフェーズでカバレッジ80%以上を達成している
-- [ ] Commitフェーズですべての CI が通過している
+- [ ] Commitフェーズで/commitによるdecision captureが記録されている
+- [ ] Mergeフェーズで/mergeによる--no-ff mergeが実行されている
+- [ ] Merge後のブランチクリーンアップが実施されている
 - [ ] 属人化が0件（誰でも同じフローで開発できる）
 
 ---
