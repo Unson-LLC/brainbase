@@ -102,7 +102,7 @@ export class TaskService {
      * @returns {Array} Next Tasks配列
      */
     getNextTasks(options = {}) {
-        const { showAll = false, owner = '佐藤圭吾' } = options;
+        const { showAll = false, owner = null } = options;
         const MAX_VISIBLE_TASKS = 10;
 
         const { tasks, filters } = this.store.getState();
@@ -115,7 +115,7 @@ export class TaskService {
         let nextTasks = (tasks || []).filter(t =>
             t.status !== 'done' &&
             (!focusTask || t.id !== focusTask.id) &&
-            t.owner === owner
+            (!owner || t.owner === owner)
         );
 
         // 優先度フィルター適用
