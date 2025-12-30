@@ -1,0 +1,158 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - navigation [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Sessions" [level=3] [ref=e5]
+      - button "New Session" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10] [cursor=pointer]:
+          - img [ref=e12]
+          - generic [ref=e14]: brainbase
+        - generic [ref=e15]:
+          - generic [ref=e17] [cursor=pointer]:
+            - img [ref=e19]
+            - generic [ref=e22]: brainbase
+          - generic [ref=e24] [cursor=pointer]:
+            - img [ref=e26]
+            - generic [ref=e29]: スケジュール
+          - generic [ref=e31] [cursor=pointer]:
+            - img [ref=e33]
+            - generic [ref=e36]: SNS
+          - generic [ref=e38] [cursor=pointer]:
+            - img [ref=e40]
+            - generic [ref=e43]: マイルストーン開発開発
+          - generic [ref=e45] [cursor=pointer]:
+            - img [ref=e47]
+            - generic [ref=e50]: 体制について
+          - generic [ref=e52] [cursor=pointer]:
+            - img [ref=e54]
+            - generic [ref=e57]: ohayo
+      - generic [ref=e59]:
+        - generic [ref=e60] [cursor=pointer]:
+          - img [ref=e62]
+          - generic [ref=e64]: unson
+        - generic [ref=e67] [cursor=pointer]:
+          - img [ref=e69]
+          - generic [ref=e72]: unson
+      - generic [ref=e73]:
+        - generic [ref=e74] [cursor=pointer]:
+          - img [ref=e76]
+          - generic [ref=e78]: tech-knight
+        - generic [ref=e81] [cursor=pointer]:
+          - img [ref=e83]
+          - generic [ref=e86]: tech-knight
+      - generic [ref=e87]:
+        - generic [ref=e88] [cursor=pointer]:
+          - img [ref=e90]
+          - generic [ref=e92]: salestailor
+        - generic [ref=e93]:
+          - generic [ref=e95] [cursor=pointer]:
+            - img [ref=e97]
+            - generic [ref=e100]: salestailor
+          - generic [ref=e102] [cursor=pointer]:
+            - img [ref=e104]
+            - generic [ref=e107]: SalesTailorについて教えて
+          - generic [ref=e109] [cursor=pointer]:
+            - img [ref=e111]
+            - generic [ref=e114]: トンマナについて
+      - generic [ref=e115]:
+        - generic [ref=e116] [cursor=pointer]:
+          - img [ref=e118]
+          - generic [ref=e120]: zeims
+        - generic [ref=e123] [cursor=pointer]:
+          - img [ref=e125]
+          - generic [ref=e128]: zeims
+      - generic [ref=e129]:
+        - generic [ref=e130] [cursor=pointer]:
+          - img [ref=e132]
+          - generic [ref=e134]: baao
+        - generic [ref=e137] [cursor=pointer]:
+          - img [ref=e139]
+          - generic [ref=e142]: baao
+      - generic [ref=e143]:
+        - generic [ref=e144] [cursor=pointer]:
+          - img [ref=e146]
+          - generic [ref=e148]: senrigan
+        - generic [ref=e151] [cursor=pointer]:
+          - img [ref=e153]
+          - generic [ref=e156]: senrigan
+      - generic [ref=e157]:
+        - generic [ref=e158] [cursor=pointer]:
+          - img [ref=e160]
+          - generic [ref=e162]: ncom
+        - generic [ref=e165] [cursor=pointer]:
+          - img [ref=e167]
+          - generic [ref=e170]: "Task: セキュリティ通知対応フロー整備"
+      - generic [ref=e171]:
+        - generic [ref=e172] [cursor=pointer]:
+          - img [ref=e174]
+          - generic [ref=e176]: General
+        - generic [ref=e177]:
+          - generic [ref=e179] [cursor=pointer]:
+            - img [ref=e181]
+            - generic [ref=e184]: Test Session 1765066572346
+          - generic [ref=e186] [cursor=pointer]:
+            - img [ref=e188]
+            - generic [ref=e191]: Test Session 1765066722492
+          - generic [ref=e193] [cursor=pointer]:
+            - img [ref=e195]
+            - generic [ref=e198]: Test Session 1765066770317
+          - generic [ref=e200] [cursor=pointer]:
+            - img [ref=e202]
+            - generic [ref=e205]: Other Session 1765066770317
+          - generic [ref=e207] [cursor=pointer]:
+            - img [ref=e209]
+            - generic [ref=e212]: Test Session 1765067181173
+          - generic [ref=e214] [cursor=pointer]:
+            - img [ref=e216]
+            - generic [ref=e219]: Test Session 1765067281132
+          - generic [ref=e221] [cursor=pointer]:
+            - img [ref=e223]
+            - generic [ref=e226]: Other Session 1765067281132
+          - generic [ref=e227] [cursor=pointer]:
+            - generic [ref=e228]:
+              - img [ref=e230]
+              - generic [ref=e233]: CopyTest 1765074250647
+            - generic [ref=e234]:
+              - button "Rename" [ref=e235]:
+                - img [ref=e236]
+              - button "Delete" [ref=e238]:
+                - img [ref=e239]
+              - button "Archive" [ref=e242]:
+                - img [ref=e243]
+  - main [ref=e247]:
+    - generic [ref=e248]:
+      - button "ターミナル内容をコピー" [ref=e250] [cursor=pointer]:
+        - img [ref=e251]
+      - iframe [active] [ref=e254]:
+        - textbox "Terminal input" [active] [ref=f1e6]
+  - complementary [ref=e255]:
+    - generic [ref=e256]:
+      - heading "今日のフォーカス" [level=3] [ref=e258]:
+        - img [ref=e259]
+        - text: 今日のフォーカス
+      - generic [ref=e264]:
+        - img [ref=e265]
+        - generic [ref=e268]: タスクなし
+    - generic [ref=e269]:
+      - heading "タイムライン" [level=3] [ref=e271]:
+        - img [ref=e272]
+        - text: タイムライン
+      - generic [ref=e275]:
+        - generic [ref=e277]: 現在 11:24
+        - generic [ref=e278]:
+          - generic [ref=e280]: 19:00-22:00
+          - generic [ref=e281]: 歌舞伎町
+    - generic [ref=e282]:
+      - generic [ref=e283]:
+        - heading "次にやること" [level=3] [ref=e284]:
+          - img [ref=e285]
+          - text: 次にやること
+        - button "全て表示" [ref=e288] [cursor=pointer]:
+          - img [ref=e289]
+      - generic [ref=e292]: 他のタスクなし
+```

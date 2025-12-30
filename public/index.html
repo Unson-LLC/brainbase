@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>brainbase UI</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="style.css?v=20251224h">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Left Navigation (Session List) -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3 id="app-version" class="app-version">v0.1.85</h3>
+            </div>
+            <div class="session-list" id="session-list">
+                <!-- Sessions will be loaded dynamically -->
+            </div>
+
+            <!-- Archive Toggle -->
+            <div class="archive-toggle-container">
+                <button id="toggle-archived-btn" class="archive-toggle-btn">
+                    <i data-lucide="archive"></i>
+                    <span>アーカイブを表示</span>
+                </button>
+            </div>
+
+            <!-- Settings Link -->
+            <div class="sidebar-footer">
+                <div class="sidebar-divider"></div>
+                <!-- Inbox Notification -->
+                <div class="inbox-trigger-container">
+                    <button id="inbox-trigger-btn" class="inbox-trigger" style="display: none;">
+                        <i data-lucide="bell"></i>
+                        <span>通知</span>
+                        <span class="inbox-badge" id="inbox-badge">0</span>
+                    </button>
+                    <!-- Inbox Dropdown -->
+                    <div id="inbox-dropdown" class="inbox-dropdown">
+                        <div class="inbox-dropdown-header">
+                            <span>未対応メンション</span>
+                            <button id="mark-all-done-btn" class="inbox-mark-all" title="すべて確認済み">
+                                <i data-lucide="check-check"></i>
+                            </button>
+                        </div>
+                        <div id="inbox-list" class="inbox-dropdown-list">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
+                <button id="settings-btn" class="settings-link">
+                    <i data-lucide="settings"></i>
+                    <span>Settings</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content (Console) -->
+        <main class="main-content">
+            <div class="console-area" id="console-area">
+                <div class="console-toolbar">
+                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト">
+                        <i data-lucide="clipboard"></i>
+                    </button>
+                    <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード">
+                        <i data-lucide="image-plus"></i>
+                    </button>
+                    <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                    <button id="send-escape-btn" class="console-btn" title="Escapeキーを送信">
+                        <i data-lucide="x-octagon"></i>
+                    </button>
+                    <button id="send-clear-btn" class="console-btn" title="画面クリア (Ctrl+L)">
+                        <i data-lucide="eraser"></i>
+                    </button>
+                    <button id="copy-terminal-btn" class="console-btn" title="ターミナル内容をコピー">
+                        <i data-lucide="copy"></i>
+                    </button>
+                </div>
+                <iframe id="terminal-frame" src="about:blank" style="width: 100%; height: 100%; border: none;"></iframe>
+                <div id="menu-overlay" class="menu-overlay hidden"></div>
+                <div id="drop-overlay" class="drop-overlay">
+                    <div class="drop-overlay-content">
+                        <i data-lucide="upload"></i>
+                        <span>ファイルをドロップしてアップロード</span>
+                    </div>
+                </div>
+
+                <!-- Phase 3.2: Choice Overlay for tapping terminal choices -->
+                <div id="choice-overlay" class="choice-overlay">
+                    <div class="choice-overlay-content">
+                        <div class="choice-header">
+                            <h3>選択してください</h3>
+                            <button class="choice-close-btn" id="close-choice-overlay">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                        <div id="choice-buttons" class="choice-buttons">
+                            <!-- Choices will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Right Sidebar (Context: Today's Page) -->
+        <aside class="context-sidebar" id="context-sidebar">
+
+            <!-- Focus Section: 最重要タスク1つ -->
+            <div class="focus-section" id="focus-section">
+                <div class="section-header">
+                    <h3><i data-lucide="target"></i> 今日のフォーカス</h3>
+                </div>
+                <div id="focus-task">
+                    <div class="loading">読み込み中...</div>
+                </div>
+            </div>
+
+            <!-- Timeline Section: 予定+タスク統合 -->
+            <div class="timeline-section" id="timeline-section">
+                <div class="section-header">
+                    <h3><i data-lucide="calendar"></i> タイムライン</h3>
+                </div>
+                <div id="timeline-list">
+                    <div class="loading">読み込み中...</div>
+                </div>
+            </div>
+
+            <!-- Next Tasks Section: 残りのタスク -->
+            <div class="next-tasks-section" id="next-tasks-section">
+                <div class="section-header">
+                    <h3><i data-lucide="list-todo"></i> 次にやること</h3>
+                    <button id="toggle-all-tasks" class="icon-btn" title="全て表示"><i data-lucide="chevron-down"></i></button>
+                </div>
+                <div class="task-filter">
+                    <div class="filter-group">
+                        <label for="task-filter-input" class="sr-only">タスクフィルター</label>
+                        <input
+                            type="text"
+                            id="task-filter-input"
+                            placeholder="タスクを検索..."
+                            aria-label="タスク名または説明で検索"
+                        />
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="priority-filter" class="sr-only">優先度フィルター</label>
+                        <select
+                            id="priority-filter"
+                            class="priority-filter"
+                            aria-label="優先度でフィルタ"
+                        >
+                            <option value="">すべて</option>
+                            <option value="high">🔴 高</option>
+                            <option value="medium">🟡 中</option>
+                            <option value="low">🔵 低</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="next-tasks-list">
+                    <div class="loading">読み込み中...</div>
+                </div>
+                <div id="remaining-tasks-toggle" class="remaining-toggle" style="display: none;">
+                    <button id="show-more-tasks">他 <span id="remaining-count">0</span> 件を表示</button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <footer class="app-footer">
+        <div class="footer-controls">
+            <button id="focus-btn" class="btn-primary"><i data-lucide="play"></i> フォーカス開始</button>
+            <button id="pomodoro-btn" class="btn-secondary"><i data-lucide="timer"></i> ポモドーロ</button>
+        </div>
+        <div class="footer-actions">
+            <button onclick="location.reload()" class="icon-btn"><i data-lucide="refresh-cw"></i></button>
+            <button class="icon-btn"><i data-lucide="settings"></i></button>
+        </div>
+    </footer>
+
+    <!-- Terminal Copy Modal -->
+    <div id="copy-terminal-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>ターミナル出力</h3>
+                <div class="modal-header-actions">
+                    <button id="copy-content-btn" class="btn-primary btn-sm"><i data-lucide="copy"></i> コピー</button>
+                    <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <pre id="terminal-content-display" class="terminal-content"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paste Confirm Modal (Phase 2.2) -->
+    <div id="paste-confirm-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>テキストをターミナルに貼り付け</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">以下のテキストをターミナルに貼り付けますか？</p>
+                <pre id="paste-preview-text" class="paste-preview"></pre>
+            </div>
+            <div class="modal-footer">
+                <button id="paste-cancel-btn" class="btn-secondary">キャンセル</button>
+                <button id="paste-confirm-btn" class="btn-primary">貼り付け</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Task Modal -->
+    <div id="edit-task-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Task</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-task-id">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="edit-task-title" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Project</label>
+                    <select id="edit-task-project" class="form-input">
+                        <option value="brainbase">brainbase</option>
+                        <option value="unson">unson</option>
+                        <option value="tech-knight">tech-knight</option>
+                        <option value="salestailor">salestailor</option>
+                        <option value="zeims">zeims</option>
+                        <option value="baao">baao</option>
+                        <option value="ncom">ncom</option>
+                        <option value="general">general</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="edit-task-priority" class="form-input">
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" id="edit-task-due" class="form-input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn">Cancel</button>
+                <button id="save-task-btn" class="btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Session Modal -->
+    <div id="create-session-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="plus-circle"></i> 新規セッション</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="session-name-input">セッション名</label>
+                    <input type="text" id="session-name-input" class="form-input" placeholder="セッション名を入力">
+                </div>
+                <div class="form-group">
+                    <label for="session-command-input">初期コマンド（省略可）</label>
+                    <input type="text" id="session-command-input" class="form-input" placeholder="例: /task 123">
+                </div>
+                <div class="form-group">
+                    <label>AI Engine</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="session-engine" value="claude" checked>
+                            <span>Claude Code</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="session-engine" value="codex">
+                            <span>OpenAI Codex</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group" id="worktree-option-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="use-worktree-checkbox">
+                        <span>Git worktreeを使用</span>
+                    </label>
+                    <p class="form-hint" id="worktree-hint">ブランチを分離して安全に作業できます</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn">キャンセル</button>
+                <button class="btn-primary" id="create-session-btn">作成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Focus Engine Modal -->
+    <div id="focus-engine-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="split"></i> フォーカスの起動先</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>今日のフォーカスをどのエンジンで立ち上げますか？</p>
+                <div class="engine-select-grid">
+                    <button class="engine-select-btn btn-primary" data-engine="claude">
+                        <i data-lucide="sparkles"></i> Claude Code
+                    </button>
+                    <button class="engine-select-btn btn-secondary" data-engine="codex">
+                        <i data-lucide="boxes"></i> OpenAI Codex
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Archive Sessions Modal -->
+    <div id="archive-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3><i data-lucide="archive"></i> 過去のセッション</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="archive-filters">
+                    <input type="text" id="archive-search" class="form-input" placeholder="セッション名で検索...">
+                    <select id="archive-project-filter" class="form-input">
+                        <option value="">すべてのプロジェクト</option>
+                    </select>
+                </div>
+                <div id="archive-list" class="archive-list">
+                    <!-- Archived sessions will be loaded here -->
+                </div>
+                <div id="archive-empty" class="archive-empty" style="display: none;">
+                    <i data-lucide="inbox"></i>
+                    <p>アーカイブされたセッションはありません</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content modal-fullscreen" id="settings-view">
+            <div class="modal-header settings-header">
+                <h3><i data-lucide="settings"></i> Settings</h3>
+                <div style="display: flex; gap: 8px;">
+                    <button class="icon-btn" id="restart-server-btn" title="Restart Server">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <button class="close-modal-btn" id="close-settings-btn"><i data-lucide="x"></i></button>
+                </div>
+            </div>
+            <div class="modal-body settings-body">
+                <!-- Integrity Summary -->
+                <div class="integrity-summary" id="integrity-summary">
+                    <div class="loading">Loading...</div>
+                </div>
+
+                <!-- Settings Tabs -->
+                <div class="settings-tabs">
+                    <button class="settings-tab active" data-tab="unified">
+                        <i data-lucide="layout-grid"></i> Overview
+                    </button>
+                    <button class="settings-tab" data-tab="slack">
+                        <i data-lucide="hash"></i> Slack
+                    </button>
+                    <button class="settings-tab" data-tab="projects">
+                        <i data-lucide="folder-git-2"></i> Projects
+                    </button>
+                    <button class="settings-tab" data-tab="github">
+                        <i data-lucide="github"></i> GitHub
+                    </button>
+                    <button class="settings-tab" data-tab="airtable">
+                        <i data-lucide="table-2"></i> Airtable
+                    </button>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="settings-content">
+                    <!-- Unified Overview Tab -->
+                    <div class="settings-panel active" id="unified-panel">
+                        <div class="settings-section">
+                            <h3>Unified Configuration Overview</h3>
+                            <p class="settings-section-desc">Workspace → Project → Slack/GitHub/Airtable の統合マッピング</p>
+                            <div id="unified-view" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slack Tab -->
+                    <div class="settings-panel" id="slack-panel">
+                        <div class="settings-section">
+                            <h3>Workspaces</h3>
+                            <div id="workspaces-list" class="config-list">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>Channel Mappings</h3>
+                            <div class="filter-bar">
+                                <input type="text" id="channel-filter" placeholder="Search channels..." class="form-input">
+                                <select id="workspace-filter" class="form-input">
+                                    <option value="">All Workspaces</option>
+                                </select>
+                            </div>
+                            <div id="channels-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h3>Member Mappings</h3>
+                            <div class="filter-bar">
+                                <input type="text" id="member-filter" placeholder="Search members..." class="form-input">
+                            </div>
+                            <div id="members-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Projects Tab -->
+                    <div class="settings-panel" id="projects-panel">
+                        <div class="settings-section">
+                            <h3>Project Mappings</h3>
+                            <div id="projects-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GitHub Tab -->
+                    <div class="settings-panel" id="github-panel">
+                        <div class="settings-section">
+                            <h3>GitHub Repository Mappings</h3>
+                            <p class="settings-section-desc">プロジェクトとGitHubリポジトリの対応関係（正本: config.yml）</p>
+                            <div id="github-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Airtable Tab -->
+                    <div class="settings-panel" id="airtable-panel">
+                        <div class="settings-section">
+                            <h3>Airtable Base Mappings</h3>
+                            <p class="settings-section-desc">プロジェクトとAirtableベースの対応関係（正本: config.yml）</p>
+                            <div id="airtable-list" class="config-table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3 id="confirm-modal-title"><i data-lucide="alert-circle"></i> 確認</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-modal-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="confirm-cancel-btn">キャンセル</button>
+                <button class="btn-danger" id="confirm-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Mobile Software Keyboard (for choice navigation) -->
+    <div id="mobile-keyboard" class="mobile-keyboard">
+        <button class="keyboard-key" id="key-up" title="上矢印">
+            <i data-lucide="arrow-up"></i>
+        </button>
+        <button class="keyboard-key" id="key-down" title="下矢印">
+            <i data-lucide="arrow-down"></i>
+        </button>
+        <button class="keyboard-key" id="key-tab" title="Tab">
+            <span class="key-label">Tab</span>
+        </button>
+        <button class="keyboard-key keyboard-key-primary" id="key-enter" title="Enter">
+            <i data-lucide="corner-down-left"></i>
+            <span class="key-label">Enter</span>
+        </button>
+    </div>
+
+    <!-- Mobile Bottom Navigation (hidden on desktop) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+        <button id="mobile-sessions-btn">
+            <i data-lucide="layers"></i>
+            <span>Sessions</span>
+        </button>
+        <button id="mobile-tasks-btn">
+            <i data-lucide="list-todo"></i>
+            <span>Tasks</span>
+        </button>
+        <button id="mobile-settings-btn">
+            <i data-lucide="settings"></i>
+            <span>Settings</span>
+        </button>
+    </nav>
+
+    <!-- Sessions Bottom Sheet -->
+    <div id="sessions-sheet-overlay" class="bottom-sheet-overlay"></div>
+    <div id="sessions-bottom-sheet" class="bottom-sheet">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-header">
+            <h3 id="mobile-app-version" class="mobile-version-display">v0.1.85</h3>
+            <button class="add-session-btn-icon" id="mobile-add-session-btn" title="New Session">
+                <i data-lucide="plus"></i>
+            </button>
+            <button class="bottom-sheet-close" id="close-sessions-sheet">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="archive-toggle-container" style="padding: 0.5rem 1rem;">
+            <button id="mobile-toggle-archived-btn" class="archive-toggle-btn">
+                <i data-lucide="archive"></i>
+                <span>アーカイブを表示</span>
+            </button>
+        </div>
+        <div class="bottom-sheet-content" id="mobile-session-list">
+            <!-- Sessions will be cloned here -->
+        </div>
+    </div>
+
+    <!-- Tasks Bottom Sheet -->
+    <div id="tasks-sheet-overlay" class="bottom-sheet-overlay"></div>
+    <div id="tasks-bottom-sheet" class="bottom-sheet">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-header">
+            <h3><i data-lucide="list-todo"></i> Tasks</h3>
+            <button class="bottom-sheet-close" id="close-tasks-sheet">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="bottom-sheet-content" id="mobile-tasks-content">
+            <!-- Tasks will be cloned here -->
+        </div>
+    </div>
+
+    <!-- Mobile FAB (Floating Action Button) with Speed Dial -->
+    <div id="mobile-fab-container" class="mobile-fab-container">
+        <!-- Overlay to close menu -->
+        <div id="mobile-fab-overlay" class="mobile-fab-overlay"></div>
+
+        <!-- Speed Dial Actions (ordered bottom-to-top by usage frequency) -->
+        <div id="mobile-fab-actions" class="mobile-fab-actions">
+            <!-- Least frequent: Copy (top, farthest from FAB) -->
+            <button class="mobile-fab-action" id="mobile-copy-terminal-btn" title="ターミナル内容をコピー">
+                <i data-lucide="copy"></i>
+                <span class="fab-action-label">コピー</span>
+            </button>
+            <!-- Low frequency: Clear -->
+            <button class="mobile-fab-action" id="mobile-send-clear-btn" title="画面クリア (Ctrl+L)">
+                <i data-lucide="eraser"></i>
+                <span class="fab-action-label">クリア</span>
+            </button>
+            <!-- Medium frequency: Escape -->
+            <button class="mobile-fab-action" id="mobile-send-escape-btn" title="Escapeキーを送信">
+                <i data-lucide="x-octagon"></i>
+                <span class="fab-action-label">Escape</span>
+            </button>
+            <!-- Mode toggle: Shift+Tab for plan mode -->
+            <button class="mobile-fab-action" id="mobile-send-shift-tab-btn" title="Shift+Tabを送信（プランモード切り替え）">
+                <i data-lucide="panel-left"></i>
+                <span class="fab-action-label">プラン</span>
+            </button>
+            <!-- Mode toggle: Virtual keyboard visibility -->
+            <button class="mobile-fab-action" id="mobile-toggle-keyboard-btn" title="仮想キーボード表示/非表示">
+                <i data-lucide="keyboard"></i>
+                <span class="fab-action-label">キーボード</span>
+            </button>
+            <!-- High frequency: Image upload -->
+            <button class="mobile-fab-action" id="mobile-upload-image-btn" title="画像を選択してアップロード">
+                <i data-lucide="image-plus"></i>
+                <span class="fab-action-label">画像</span>
+            </button>
+            <!-- Most frequent: Paste (bottom, closest to FAB) -->
+            <button class="mobile-fab-action" id="mobile-paste-btn" title="クリップボードからペースト">
+                <i data-lucide="clipboard"></i>
+                <span class="fab-action-label">ペースト</span>
+            </button>
+        </div>
+
+        <!-- Main FAB Button -->
+        <button id="mobile-fab" class="mobile-fab" title="アクションメニュー">
+            <i data-lucide="wrench" class="fab-icon-default"></i>
+            <i data-lucide="x" class="fab-icon-close"></i>
+        </button>
+    </div>
+
+    <script type="module" src="app.js?v=1766798000"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>

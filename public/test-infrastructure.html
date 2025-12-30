@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Infrastructure Test</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        h1 { color: #333; }
+        #output { margin-top: 2rem; }
+        p { margin: 0.5rem 0; padding: 0.5rem; background: #f0f0f0; border-left: 3px solid #4CAF50; }
+    </style>
+</head>
+<body>
+    <h1>Phase 1 Infrastructure Test</h1>
+    <p>このページは全インフラストラクチャコンポーネントが正しく動作することを確認するテストページです。</p>
+    <div id="output"></div>
+
+    <script type="module">
+        import { eventBus, EVENTS } from './modules/core/event-bus.js';
+        import { appStore } from './modules/core/store.js';
+        import { DIContainer } from './modules/core/di-container.js';
+        import { HttpClient } from './modules/core/http-client.js';
+
+        const output = document.getElementById('output');
+
+        // Event Bus Test
+        eventBus.on(EVENTS.TASK_COMPLETED, ({ detail }) => {
+            output.innerHTML += `<p>✅ Event Bus: Task ${detail.taskId} completed</p>`;
+        });
+
+        // Store Test
+        appStore.subscribe(({ key, value }) => {
+            output.innerHTML += `<p>✅ Store: ${key} changed to ${JSON.stringify(value)}</p>`;
+        });
+
+        // DI Container Test
+        const container = new DIContainer();
+        container.register('logger', () => ({
+            log: (msg) => output.innerHTML += `<p>✅ DI Container: ${msg}</p>`
+        }));
+
+        // HTTP Client Test (モック)
+        const httpClient = new HttpClient({ baseURL: 'https://jsonplaceholder.typicode.com' });
+        
+        // Tests
+        setTimeout(async () => {
+            // 1. Event Bus
+            eventBus.emit(EVENTS.TASK_COMPLETED, { taskId: 'task-123' });
+            
+            // 2. Store
+            appStore.setState({ currentSessionId: 'session-456' });
+            
+            // 3. DI Container
+            container.get('logger').log('DI Container works!');
+            
+            // 4. HTTP Client (実際のAPI呼び出し)
+            try {
+                const data = await httpClient.get('/users/1');
+                output.innerHTML += `<p>✅ HTTP Client: Fetched user "${data.name}"</p>`;
+            } catch (error) {
+                output.innerHTML += `<p>❌ HTTP Client: ${error.message}</p>`;
+            }
+        }, 100);
+    </script>
+</body>
+</html>
