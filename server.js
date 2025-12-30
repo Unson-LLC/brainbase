@@ -49,8 +49,8 @@ const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
 
 // Configuration
-const TASKS_FILE = path.join(__dirname, '_tasks/index.md');
-const SCHEDULES_DIR = path.join(__dirname, '_schedules');
+const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
+const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
 const STATE_FILE = path.join(__dirname, 'state.json');
 const WORKTREES_DIR = path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = path.join(BRAINBASE_ROOT, '_codex');
@@ -121,7 +121,7 @@ const sessionManager = new SessionManager({
 
 const worktreeService = new WorktreeService(
     WORKTREES_DIR,
-    BRAINBASE_ROOT, // Canonical root (environment variable or default)
+    path.dirname(__dirname), // Canonical root (parent of current directory)
     execPromise
 );
 
@@ -247,3 +247,27 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', ttydProxy.upgrade);
+
+// Graceful shutdown
+async function gracefulShutdown(signal) {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+
+    // 1. Stop accepting new connections
+    server.close(() => {
+        console.log('✅ HTTP server closed');
+    });
+
+    // 2. Cleanup StateStore lock
+    await stateStore.cleanup();
+
+    // 3. Cleanup SessionManager (if cleanup method exists)
+    if (sessionManager.cleanup) {
+        await sessionManager.cleanup();
+    }
+
+    console.log('✅ Graceful shutdown complete');
+    process.exit(0);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
