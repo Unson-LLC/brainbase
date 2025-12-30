@@ -1127,7 +1127,7 @@ class App {
             } catch (error) {
                 console.error('Failed to check for choices:', error);
             }
-        }, 2000); // Check every 2 seconds
+        }, 10000); // Check every 10 seconds
     }
 
     /**
