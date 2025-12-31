@@ -1082,6 +1082,7 @@ class App {
         const nameInput = document.getElementById('session-name-input');
         const commandInput = document.getElementById('session-command-input');
         const worktreeCheckbox = document.getElementById('use-worktree-checkbox');
+        const projectSelect = document.getElementById('session-project-select');
 
         if (!modal || !nameInput) {
             console.error('Create session modal elements not found');
