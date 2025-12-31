@@ -41,11 +41,13 @@ const execPromise = util.promisify(exec);
 const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
 const APP_VERSION = `v${packageJson.version}`;
 
-// Environment variable for root directory (supports multi-machine setups)
-// For development: set BRAINBASE_ROOT to your workspace root
-// For OSS users: defaults to current directory (uses _codex-sample, _inbox-sample, etc.)
+// Environment variables for directory structure
+// BRAINBASE_ROOT: Personal data location (_codex, _tasks, _schedules, config.yml)
+// PROJECTS_ROOT: Project code location (where projects are stored)
 const BRAINBASE_ROOT = process.env.BRAINBASE_ROOT || __dirname;
+const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(BRAINBASE_ROOT, 'projects');
 console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
+console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
@@ -67,7 +69,7 @@ const INBOX_FILE = path.join(BRAINBASE_ROOT, '_inbox/pending.md');
 const taskParser = new TaskParser(TASKS_FILE);
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
-const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT);
+const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware

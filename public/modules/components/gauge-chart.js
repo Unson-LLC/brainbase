@@ -2,7 +2,7 @@ export class GaugeChart {
     constructor(container, options = {}) {
         this.container = container;
         this.value = options.value || 0;
-        this.label = options.label || '';
+        this.subtitle = options.subtitle || '';
         this.color = this.getColor(this.value);
         this.render();
     }
@@ -16,7 +16,7 @@ export class GaugeChart {
     render() {
         // Clear container
         this.container.innerHTML = '';
-        
+
         // Canvas API で半円ゲージを描画
         const canvas = document.createElement('canvas');
         // Set display size (css pixels)
@@ -24,7 +24,7 @@ export class GaugeChart {
         const height = 120;
         canvas.style.width = width + "px";
         canvas.style.height = height + "px";
-        
+
         // Set actual size in memory (scaled to account for extra pixel density)
         const scale = window.devicePixelRatio; // Change to 1 on retina screens to see blurry canvas
         canvas.width = Math.floor(width * scale);
@@ -66,11 +66,18 @@ export class GaugeChart {
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 32px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(this.value, centerX, centerY - 10);
+        ctx.fillText(this.value, centerX, centerY - 15);
 
-        // ラベル
-        ctx.fillStyle = '#6f87a0';
-        ctx.font = '14px Inter, sans-serif';
+        // サブタイトル（スコア説明）
+        if (this.subtitle) {
+            ctx.fillStyle = '#6f87a0';
+            ctx.font = '10px Inter, sans-serif';
+            ctx.fillText(this.subtitle, centerX, centerY + 5);
+        }
+
+        // ラベル（プロジェクト名など）
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '13px Inter, sans-serif';
         ctx.fillText(this.label, centerX, centerY + 30);
     }
 }
