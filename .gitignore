@@ -18,6 +18,7 @@ Thumbs.db
 # Build outputs
 dist/
 build/
+coverage/
 
 # Private codex (symlinked from local workspace)
 # Other developers don't have this directory
@@ -57,6 +58,10 @@ public/modules/domain/mana/
 public/modules/domain/brainbase/
 public/modules/main-panels.js
 public/modules/ui/modals/mana-dashboard-modal.js
+
+# Mana拡張（Settings Plugin Architecture Phase 3）
+# OSS版には含めない
+public/extensions/mana-integration/
 
 # ========================================
 # ローカル専用設定
