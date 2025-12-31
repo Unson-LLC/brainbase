@@ -20,7 +20,7 @@ describe('session-manager', () => {
       expect(result['tech-knight']).toHaveLength(1);
     });
 
-    it('should put sessions without path in General', () => {
+    it('should put sessions without path in general', () => {
       const sessions = [
         { id: '1', path: null },
         { id: '2' } // no path
@@ -28,7 +28,7 @@ describe('session-manager', () => {
 
       const result = groupSessionsByProject(sessions);
 
-      expect(result['General']).toHaveLength(2);
+      expect(result['general']).toHaveLength(2);
     });
 
     it('should filter out archived sessions', () => {
@@ -81,7 +81,7 @@ describe('session-manager', () => {
       expect(result.id).toBe('test-session');
       expect(result.name).toBe('Test Session');
       expect(result.path).toBe('/some/path');
-      expect(result.intendedState).toBe('stopped');
+      expect(result.intendedState).toBe('paused');
       expect(result.created).toBeDefined();
     });
 
