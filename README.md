@@ -225,9 +225,7 @@ Brainbaseは以下のアーキテクチャパターンを採用:
 
 - [開発者向けガイド](./CLAUDE.md) - 開発標準・アーキテクチャ原則
 - [設計ドキュメント](./DESIGN.md) - UI/UX設計・データフロー
-- [引き継ぎガイド](./HANDOFF.md) - セットアップ・環境変数・デプロイ
 - [リファクタリング計画](./docs/REFACTORING_PLAN.md) - 3-Phase移行戦略
-- [ユーザーガイド](./docs/USER_GUIDE.md) - 使い方・設定方法
 - [git worktree ガイド](./docs/git-worktree-guide.md) - worktree詳細説明
 
 ---
