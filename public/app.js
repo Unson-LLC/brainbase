@@ -28,6 +28,7 @@ import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
+import { DashboardController } from './modules/dashboard-controller.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -99,6 +100,51 @@ class App {
         // Inbox (notifications)
         this.views.inboxView = new InboxView();
         this.views.inboxView.mount();
+
+        // Dashboard
+        this.dashboardController = new DashboardController();
+        this.dashboardController.init();
+
+        // Setup View Navigation (Console <-> Dashboard)
+        this.setupViewNavigation();
+    }
+
+    /**
+     * Setup main view navigation logic
+     */
+    setupViewNavigation() {
+        const consoleBtn = document.getElementById('nav-console-btn');
+        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+        const consoleArea = document.getElementById('console-area');
+        const dashboardPanel = document.getElementById('dashboard-panel');
+
+        if (consoleBtn && dashboardBtn && consoleArea && dashboardPanel) {
+            consoleBtn.addEventListener('click', () => {
+                consoleBtn.classList.add('active');
+                dashboardBtn.classList.remove('active');
+                consoleArea.style.display = 'flex';
+                dashboardPanel.style.display = 'none';
+
+                // Refresh terminal frame if needed
+                const frame = document.getElementById('terminal-frame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.focus();
+                }
+            });
+
+            dashboardBtn.addEventListener('click', () => {
+                dashboardBtn.classList.add('active');
+                consoleBtn.classList.remove('active');
+                consoleArea.style.display = 'none';
+                dashboardPanel.style.display = 'block';
+
+                // Re-render dashboard data when switching to it
+                this.dashboardController.init();
+
+                // Also trigger chart window resize event to ensure responsive charts render correctly
+                window.dispatchEvent(new Event('resize'));
+            });
+        }
     }
 
     /**

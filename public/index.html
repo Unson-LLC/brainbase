@@ -72,7 +72,8 @@
                     <div id="inbox-dropdown" class="inbox-dropdown">
                         <div class="inbox-dropdown-header">
                             <span>未対応メンション</span>
-                            <button id="mark-all-done-btn" class="inbox-mark-all" title="すべて確認済み">
+                            <button id="mark-all-done-btn" class="inbox-mark-all" title="すべて確認済み"
+                                aria-label="すべての通知を確認済みにする">
                                 <i data-lucide="check-check"></i>
                             </button>
                         </div>
@@ -92,10 +93,11 @@
         <main class="main-content">
             <div class="console-area" id="console-area">
                 <div class="console-toolbar">
-                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト">
+                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
+                        aria-label="クリップボードからペースト">
                         <i data-lucide="clipboard"></i>
                     </button>
-                    <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード">
+                    <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード" aria-label="画像をアップロード">
                         <i data-lucide="image-plus"></i>
                     </button>
                     <input type="file" id="image-file-input" accept="image/*" style="display: none;">
@@ -187,6 +189,35 @@
                             <!-- System gauges injected via JS -->
                         </div>
                     </section>
+
+                    <!-- Section 6: Trend Graphs (Phase 3) -->
+                    <section class="trend-graphs-section" style="margin-top: 32px; margin-bottom: 40px;">
+                        <div class="section-header" style="margin-bottom: 16px;">
+                            <h3
+                                style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Overall Trends</h3>
+                        </div>
+                        <div class="trend-grid">
+                            <div class="trend-wrapper">
+                                <h4
+                                    style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
+                                    Overall Completion</h4>
+                                <div class="trend-card" id="trend-completion"></div>
+                            </div>
+                            <div class="trend-wrapper">
+                                <h4
+                                    style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
+                                    Overdue Tasks</h4>
+                                <div class="trend-card" id="trend-overdue"></div>
+                            </div>
+                            <div class="trend-wrapper">
+                                <h4
+                                    style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
+                                    Mana Success Rate</h4>
+                                <div class="trend-card" id="trend-mana"></div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
 
@@ -219,8 +250,9 @@
             <div class="next-tasks-section" id="next-tasks-section">
                 <div class="section-header">
                     <h3><i data-lucide="list-todo"></i> 次にやること</h3>
-                    <button id="toggle-all-tasks" class="icon-btn" title="全て表示"><i
-                            data-lucide="chevron-down"></i></button>
+                    <button id="toggle-all-tasks" class="icon-btn" title="全て表示" aria-label="全てのタスクを表示">
+                        <i data-lucide="chevron-down"></i>
+                    </button>
                 </div>
                 <div class="task-filter">
                     <div class="filter-group">

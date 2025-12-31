@@ -45,6 +45,31 @@ body {
     overflow: hidden;
     font-size: 0.9rem;
     /* Standard text size */
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -10%;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+body::after {
+    content: '';
+    position: absolute;
+    bottom: -20%;
+    left: -10%;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: -1;
 }
 
 /* =========================================
@@ -4065,4 +4090,27 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Trend Graphs Section */
+.trend-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.trend-wrapper h4 {
+    margin-top: 0;
+}
+
+@media (max-width: 1024px) {
+    .trend-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .trend-grid {
+        grid-template-columns: 1fr;
+    }
 }
