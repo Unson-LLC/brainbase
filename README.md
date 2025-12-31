@@ -119,14 +119,40 @@ npm install -g @anthropic-ai/claude-code
    ```
 
 5. **アクセス**
-   - **デスクトップ**: http://localhost:3000
-   - **モバイル**: http://<your-local-ip>:3000
 
-   ローカルIPアドレスの確認方法:
+   **デスクトップ**: http://localhost:3000
+
+   **モバイル**（3つの方法から選択）:
+
+   ### 方法1: ローカルネットワーク経由（最も簡単）
+   同じWi-Fi内からのみアクセス可能
    ```bash
-   # macOS/Linux
-   ifconfig | grep "inet "
+   # ローカルIPアドレスを確認
+   ifconfig | grep "inet "  # macOS/Linux
+
+   # スマホのブラウザでアクセス
+   # 例: http://192.168.1.10:3000
    ```
+
+   ### 方法2: Quick Tunnels（一時的なテスト用）
+   インターネット経由でアクセス可能。URLを知っていれば誰でもアクセス可能なので注意。
+   ```bash
+   # cloudflaredインストール（初回のみ）
+   brew install cloudflared
+
+   # Quick Tunnel起動
+   cloudflared tunnel --url http://localhost:3000
+   # → 表示されたURLにスマホからアクセス
+   ```
+
+   ### 方法3: Cloudflare Tunnel + Zero Trust（本番推奨）
+   **前提条件**:
+   - ✅ 独自ドメイン（Cloudflareで管理）
+   - ✅ Cloudflareアカウント（無料）
+
+   安全・継続的に外部からアクセス可能。WARPアプリで認証必須。
+
+   📖 **詳細な手順**: [Cloudflare Tunnel設定ガイド](docs/cloudflare-tunnel-setup.md)
 
 ✅ **これで完了！** 3分でローカル環境が整います。
 
