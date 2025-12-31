@@ -18,8 +18,8 @@ describe('project-mapping', () => {
 
   describe('getProjectPath', () => {
     it('should return mapped path for known project', () => {
-      expect(getProjectPath('unson')).toBe('/Users/ksato/workspace/unson');
-      expect(getProjectPath('tech-knight')).toBe('/Users/ksato/workspace/tech-knight');
+      expect(getProjectPath('unson')).toBe('/path/to/workspace/unson');
+      expect(getProjectPath('tech-knight')).toBe('/path/to/workspace/tech-knight');
     });
 
     it('should return workspace root for General project', () => {
@@ -28,7 +28,7 @@ describe('project-mapping', () => {
     });
 
     it('should return constructed path for unknown project', () => {
-      expect(getProjectPath('new-project')).toBe('/Users/ksato/workspace/new-project');
+      expect(getProjectPath('new-project')).toBe('/path/to/workspace/new-project');
     });
 
     it('should return workspace root for null/undefined', () => {
@@ -39,13 +39,13 @@ describe('project-mapping', () => {
 
   describe('getProjectFromPath', () => {
     it('should extract project name from path', () => {
-      expect(getProjectFromPath('/Users/ksato/workspace/unson')).toBe('unson');
-      expect(getProjectFromPath('/Users/ksato/workspace/tech-knight/src')).toBe('tech-knight');
+      expect(getProjectFromPath('/path/to/workspace/unson')).toBe('unson');
+      expect(getProjectFromPath('/path/to/workspace/tech-knight/src')).toBe('tech-knight');
     });
 
     it('should return General for workspace root', () => {
-      expect(getProjectFromPath('/Users/ksato/workspace')).toBe('General');
-      expect(getProjectFromPath('/Users/ksato/workspace/')).toBe('General');
+      expect(getProjectFromPath('/path/to/workspace')).toBe('General');
+      expect(getProjectFromPath('/path/to/workspace/')).toBe('General');
     });
 
     it('should return General for null/undefined path', () => {
@@ -54,7 +54,7 @@ describe('project-mapping', () => {
     });
 
     it('should handle worktree paths', () => {
-      expect(getProjectFromPath('/Users/ksato/workspace/.worktrees/session-123-brainbase-ui')).toBe('brainbase');
+      expect(getProjectFromPath('/path/to/workspace/.worktrees/session-123-brainbase-ui')).toBe('brainbase');
     });
   });
 });

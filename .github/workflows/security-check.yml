@@ -1,0 +1,48 @@
+name: OSS Security Check
+
+on:
+  push:
+    branches:
+      - main
+      - 'session/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Make check script executable
+        run: chmod +x scripts/check-secrets.sh
+
+      - name: Run security check
+        run: |
+          echo "🔍 Running OSS security checks..."
+          bash scripts/check-secrets.sh
+
+      - name: Upload check results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-check-results
+          path: |
+            /tmp/check_output.txt
+            /tmp/full_check.txt
+          retention-days: 7
+
+      - name: Comment on PR (if failed)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **OSS Security Check Failed**\n\nSensitive information was detected in this PR. Please review the workflow logs and fix the issues before merging.\n\nRun `bash scripts/check-secrets.sh` locally to see details.'
+            })

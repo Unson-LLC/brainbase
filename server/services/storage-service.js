@@ -9,7 +9,7 @@ const execPromise = util.promisify(exec);
  * ディスク使用量、大きなファイル検出、クリーンアップ候補の特定
  */
 export class StorageService {
-    constructor(workspaceDir = '/Users/ksato/workspace') {
+    constructor(workspaceDir = process.env.WORKSPACE_ROOT || '/path/to/workspace') {
         this.workspaceDir = workspaceDir;
         this.worktreesDir = path.join(workspaceDir, '.worktrees');
     }

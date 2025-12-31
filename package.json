@@ -9,10 +9,7 @@
     "url": "https://github.com/Unson-LLC/brainbase.git"
   },
   "license": "MIT",
-  "author": {
-    "name": "Keigo Sato",
-    "email": "keigo@unson.co.jp"
-  },
+  "author": "Unson LLC",
   "keywords": [
     "project-management",
     "ai-pm",
