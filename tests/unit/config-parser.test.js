@@ -206,7 +206,7 @@ projects:
     it('config.ymlのnocodb設定_正しく変換されたマッピングが返される', async () => {
       // Arrange: config.yml with nocodb settings
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 
 projects:
   - id: brainbase
@@ -253,7 +253,7 @@ projects:
 
     it('nocodb設定が存在しない_空配列が返される', async () => {
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 projects:
   - id: brainbase
     local:
@@ -280,7 +280,7 @@ projects:
     it('should include nocodb in the response', async () => {
       // Mock all file reads
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 projects:
   - id: brainbase
     nocodb:
@@ -311,7 +311,7 @@ projects:
   describe('checkIntegrity - nocodb validation', () => {
     it('should report projects with local path but no nocodb mapping as info', async () => {
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 projects:
   - id: brainbase
     local:
@@ -348,7 +348,7 @@ projects:
 
     it('should include nocodb count in stats', async () => {
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 projects:
   - id: brainbase
     nocodb:
