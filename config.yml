@@ -1,4 +1,4 @@
-root: /Users/ksato/workspace
+root: /path/to/workspace
 
 projects:
   - id: brainbase
