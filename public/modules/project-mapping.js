@@ -22,15 +22,18 @@ let WORKSPACE_ROOT = '/Users/ksato/workspace'; // デフォルト値
 
 // PROJECT_PATH_MAPを動的に生成
 function getProjectPathMap() {
+    // 全プロジェクトは /Users/ksato/workspace/projects/ 配下
+    const PROJECTS_ROOT = '/Users/ksato/workspace/projects';
+
     return {
-        'unson': `${WORKSPACE_ROOT}/unson`,
-        'tech-knight': `${WORKSPACE_ROOT}/tech-knight`,
-        'brainbase': '/Users/ksato/brainbase',
-        'salestailor': `${WORKSPACE_ROOT}/salestailor`,
-        'zeims': `${WORKSPACE_ROOT}/zeims`,
-        'baao': `${WORKSPACE_ROOT}/baao`,
-        'ncom': `${WORKSPACE_ROOT}/ncom-catalyst`,
-        'senrigan': `${WORKSPACE_ROOT}/senrigan`,
+        'unson': `${PROJECTS_ROOT}/unson`,
+        'tech-knight': `${PROJECTS_ROOT}/tech-knight`,
+        'brainbase': `${PROJECTS_ROOT}/brainbase`,
+        'salestailor': `${PROJECTS_ROOT}/salestailor`,
+        'zeims': `${PROJECTS_ROOT}/zeims`,
+        'baao': `${PROJECTS_ROOT}/baao`,
+        'ncom': `${PROJECTS_ROOT}/ncom-catalyst`,
+        'senrigan': `${PROJECTS_ROOT}/senrigan`,
     };
 }
 
@@ -90,6 +93,14 @@ export function getProjectFromPath(path) {
   for (const proj of coreProjects) {
     const projectPath = pathMap[proj];
     if (projectPath && (path === projectPath || path.startsWith(projectPath + '/'))) {
+      return proj;
+    }
+  }
+
+  // Fallback: プロジェクト名でのパターンマッチング
+  // (state.jsonのパスが古い場合に対応)
+  for (const proj of coreProjects) {
+    if (path.endsWith(`/${proj}`) || path.includes(`/${proj}/`)) {
       return proj;
     }
   }

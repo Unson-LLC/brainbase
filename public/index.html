@@ -25,6 +25,27 @@
             <div class="sidebar-header">
                 <h3 id="app-version" class="app-version">v0.1.85</h3>
             </div>
+
+            <!-- Main Navigation -->
+            <div class="sidebar-nav">
+                <button class="nav-item active" id="nav-console-btn" title="コンソール">
+                    <i data-lucide="terminal-square"></i>
+                    <span>Console</span>
+                </button>
+                <button class="nav-item" id="nav-dashboard-btn" title="ダッシュボード">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </button>
+            </div>
+
+            <!-- New Session Button (Desktop) -->
+            <div class="add-session-container">
+                <button class="add-session-btn" id="add-session-btn" title="新規セッション">
+                    <i data-lucide="plus"></i>
+                    <span>New Session</span>
+                </button>
+            </div>
+
             <div class="session-list" id="session-list">
                 <!-- Sessions will be loaded dynamically -->
             </div>
@@ -113,6 +134,62 @@
                 </div>
             </div>
 
+            <!-- Dashboard Panel (Phase 1) -->
+            <div class="main-panel" id="dashboard-panel" style="display: none;">
+                <div class="dashboard-container">
+                    <!-- Section 1: 健全性ゲージ（4つ） -->
+                    <section class="health-gauges">
+                        <div id="gauge-1" class="gauge-chart"></div>
+                        <div id="gauge-2" class="gauge-chart"></div>
+                        <div id="gauge-3" class="gauge-chart"></div>
+                        <div id="gauge-4" class="gauge-chart"></div>
+                    </section>
+
+                    <!-- Section 2: サマリーダッシュボード -->
+                    <section class="summary-dashboard">
+                        <div class="metrics-left">
+                            <!-- 主要メトリクス4つ will be injected via JS -->
+                        </div>
+                        <div class="donut-center">
+                            <!-- 全体健全性ドーナツ will be injected via JS -->
+                        </div>
+                        <div class="donuts-right">
+                            <!-- 問題プロジェクト2つ will be injected via JS -->
+                        </div>
+                    </section>
+
+                    <!-- Section 3: プロジェクトカードグリッド -->
+                    <section class="project-cards-grid">
+                        <!-- 12プロジェクトカード will be injected via JS -->
+                    </section>
+
+                    <!-- Section 4: 健全性ヒートマップ (Phase 2) -->
+                    <section class="health-heatmap-section" style="margin-top: 32px;">
+                        <div class="section-header" style="margin-bottom: 16px;">
+                            <h3
+                                style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                Projects Health Trend (Last 4 Weeks)</h3>
+                        </div>
+                        <div class="health-heatmap-container"
+                            style="background: rgba(255, 255, 255, 0.02); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <!-- Heatmap rows injected via JS -->
+                        </div>
+                    </section>
+
+                    <!-- Section 5: システムリソース (Phase 2) -->
+                    <section class="system-resources-section" style="margin-top: 32px; margin-bottom: 40px;">
+                        <div class="section-header" style="margin-bottom: 16px;">
+                            <h3
+                                style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                System Resources</h3>
+                        </div>
+                        <div class="system-grid">
+                            <!-- System gauges injected via JS -->
+                        </div>
+                    </section>
+                </div>
+            </div>
+
         </main>
 
         <!-- Right Sidebar (Context: Today's Page) -->
@@ -142,26 +219,18 @@
             <div class="next-tasks-section" id="next-tasks-section">
                 <div class="section-header">
                     <h3><i data-lucide="list-todo"></i> 次にやること</h3>
-                    <button id="toggle-all-tasks" class="icon-btn" title="全て表示"><i data-lucide="chevron-down"></i></button>
+                    <button id="toggle-all-tasks" class="icon-btn" title="全て表示"><i
+                            data-lucide="chevron-down"></i></button>
                 </div>
                 <div class="task-filter">
                     <div class="filter-group">
                         <label for="task-filter-input" class="sr-only">タスクフィルター</label>
-                        <input
-                            type="text"
-                            id="task-filter-input"
-                            placeholder="タスクを検索..."
-                            aria-label="タスク名または説明で検索"
-                        />
+                        <input type="text" id="task-filter-input" placeholder="タスクを検索..." aria-label="タスク名または説明で検索" />
                     </div>
 
                     <div class="filter-group">
                         <label for="priority-filter" class="sr-only">優先度フィルター</label>
-                        <select
-                            id="priority-filter"
-                            class="priority-filter"
-                            aria-label="優先度でフィルタ"
-                        >
+                        <select id="priority-filter" class="priority-filter" aria-label="優先度でフィルタ">
                             <option value="">すべて</option>
                             <option value="high">🔴 高</option>
                             <option value="medium">🟡 中</option>
@@ -281,6 +350,12 @@
                 <div class="form-group">
                     <label for="session-name-input">セッション名</label>
                     <input type="text" id="session-name-input" class="form-input" placeholder="セッション名を入力">
+                </div>
+                <div class="form-group">
+                    <label for="session-project-select">プロジェクト</label>
+                    <select id="session-project-select" class="form-input">
+                        <option value="general">general</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="session-command-input">初期コマンド（省略可）</label>
@@ -422,7 +497,8 @@
                         <div class="settings-section">
                             <h3>Channel Mappings</h3>
                             <div class="filter-bar">
-                                <input type="text" id="channel-filter" placeholder="Search channels..." class="form-input">
+                                <input type="text" id="channel-filter" placeholder="Search channels..."
+                                    class="form-input">
                                 <select id="workspace-filter" class="form-input">
                                     <option value="">All Workspaces</option>
                                 </select>
@@ -435,7 +511,8 @@
                         <div class="settings-section">
                             <h3>Member Mappings</h3>
                             <div class="filter-bar">
-                                <input type="text" id="member-filter" placeholder="Search members..." class="form-input">
+                                <input type="text" id="member-filter" placeholder="Search members..."
+                                    class="form-input">
                             </div>
                             <div id="members-list" class="config-table-container">
                                 <div class="loading">Loading...</div>
