@@ -73,11 +73,17 @@ echo "=========================================="
 echo ""
 
 # 1. 個人名チェック（日本語）
-check_pattern "佐藤|さとう|サトウ" "Personal names (Japanese)" "error"
+check_pattern "佐藤|さとう|サトウ" "Personal names (Japanese - Sato)" "error"
+check_pattern "川合|かわい|カワイ" "Personal names (Japanese - Kawai)" "error"
+check_pattern "渡邉|渡辺|わたなべ|ワタナベ" "Personal names (Japanese - Watanabe)" "error"
+check_pattern "星野|ほしの|ホシノ" "Personal names (Japanese - Hoshino)" "error"
 
 # 2. 個人名チェック（英語）
 check_pattern "Keigo|keigo|KEIGO" "Personal names (English - Keigo)" "error"
 check_pattern "Sato|sato(?!r)" "Personal names (English - Sato)" "error"
+check_pattern "Kawai|kawai|KAWAI" "Personal names (English - Kawai)" "error"
+check_pattern "Watanabe|watanabe|WATANABE" "Personal names (English - Watanabe)" "error"
+check_pattern "Hoshino|hoshino|HOSHINO" "Personal names (English - Hoshino)" "error"
 
 # 3. 個人メールアドレス
 check_pattern "[a-zA-Z0-9._%+-]+@(unson\.co\.jp|gmail\.com|yahoo\.co\.jp)" "Personal email addresses" "error"
