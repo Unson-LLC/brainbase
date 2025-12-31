@@ -2,7 +2,7 @@
 
 **Version**: 1.1.0
 **Last Updated**: 2025-12-31
-**Maintainer**: 佐藤圭吾
+**Maintainer**: Unson LLC
 
 ---
 
@@ -1361,5 +1361,5 @@ npm run lint:imports
 ---
 
 **最終更新**: 2025-12-31
-**作成者**: 佐藤圭吾
+**作成者**: Unson LLC
 **ステータス**: Active
