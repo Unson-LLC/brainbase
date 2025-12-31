@@ -59,8 +59,8 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-keigo@unson.co.jp.
+reported to the community leaders responsible for enforcement by creating an
+issue at https://github.com/Unson-LLC/brainbase/issues.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

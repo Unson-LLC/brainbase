@@ -71,10 +71,10 @@ export class SystemService {
 
     /**
      * ディスク使用率取得
-     * @param {string} path - チェックするパス（デフォルト: /Users/ksato/workspace）
+     * @param {string} path - チェックするパス（デフォルト: process.env.WORKSPACE_ROOT）
      * @returns {Promise<Object>} ディスク使用率情報
      */
-    async getDiskUsage(path = '/Users/ksato/workspace') {
+    async getDiskUsage(path = process.env.WORKSPACE_ROOT || process.cwd()) {
         try {
             const { stdout } = await execPromise(`df -h "${path}"`);
 

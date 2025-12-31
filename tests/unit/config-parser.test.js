@@ -25,7 +25,7 @@ describe('ConfigParser', () => {
     it('should return airtable mappings from config.yml', async () => {
       // Arrange: config.yml with airtable settings
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 
 projects:
   - id: zeims
@@ -77,7 +77,7 @@ projects:
 
     it('should return empty array when no airtable mappings exist', async () => {
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 
 projects:
   - id: tech-knight
@@ -107,7 +107,7 @@ projects:
     it('should include airtable in the response', async () => {
       // Mock all file reads
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 projects:
   - id: zeims
     airtable:
@@ -137,7 +137,7 @@ projects:
   describe('checkIntegrity - airtable validation', () => {
     it('should report projects with local path but no airtable mapping as info', async () => {
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 projects:
   - id: zeims
     local:
@@ -173,7 +173,7 @@ projects:
 
     it('should include airtable count in stats', async () => {
       const mockConfig = `
-root: /Users/ksato/workspace
+root: /path/to/workspace
 projects:
   - id: zeims
     airtable:

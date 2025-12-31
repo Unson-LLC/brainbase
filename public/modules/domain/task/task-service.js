@@ -98,7 +98,7 @@ export class TaskService {
      * Next Tasks取得（フォーカスタスク以外のタスク）
      * @param {Object} options - オプション
      * @param {boolean} options.showAll - 全件表示するか（デフォルト: false、上限10件）
-     * @param {string} options.owner - オーナーフィルター（デフォルト: '佐藤圭吾'）
+     * @param {string} options.owner - オーナーフィルター（任意）
      * @returns {Array} Next Tasks配列
      */
     getNextTasks(options = {}) {
