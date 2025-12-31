@@ -130,6 +130,42 @@ class App {
     }
 
     /**
+     * Initialize project select dropdown
+     */
+    initProjectSelect() {
+        const projectSelect = document.getElementById('session-project-select');
+        if (!projectSelect) {
+            console.warn('[App] session-project-select not found');
+            return;
+        }
+
+        // Wait for project-mapping.js to initialize
+        setTimeout(() => {
+            import('./modules/project-mapping.js').then(({ getCORE_PROJECTS }) => {
+                const projects = getCORE_PROJECTS();
+                console.log('[App] Initializing project select with projects:', projects);
+
+                // Clear existing options
+                projectSelect.innerHTML = '';
+
+                // Add general option
+                const generalOption = document.createElement('option');
+                generalOption.value = 'general';
+                generalOption.textContent = 'general';
+                projectSelect.appendChild(generalOption);
+
+                // Add all projects
+                projects.forEach(proj => {
+                    const option = document.createElement('option');
+                    option.value = proj;
+                    option.textContent = proj;
+                    projectSelect.appendChild(option);
+                });
+            });
+        }, 500); // Wait 500ms for API call to complete
+    }
+
+    /**
      * Setup global event listeners
      */
     setupEventListeners() {
@@ -1017,6 +1053,9 @@ class App {
         // 3. Initialize modals
         this.initModals();
 
+        // 3.5. Initialize project select dropdown
+        this.initProjectSelect();
+
         // 4. Setup event listeners
         this.setupEventListeners();
 
@@ -1097,6 +1136,11 @@ class App {
         nameInput.value = `New ${project} Session`;
         if (commandInput) commandInput.value = '';
         if (worktreeCheckbox) worktreeCheckbox.checked = true;
+
+        // Set default project selection
+        if (projectSelect) {
+            projectSelect.value = project;
+        }
 
         // Show modal
         modal.classList.add('active');
