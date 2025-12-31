@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+import 'dotenv/config';
+
 import express from 'express';
 import { spawn, exec } from 'child_process';
 import path from 'path';
