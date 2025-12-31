@@ -37,6 +37,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@octokit/rest": "^22.0.1",
     "chokidar": "^5.0.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",

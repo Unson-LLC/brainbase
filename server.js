@@ -28,6 +28,7 @@ import { createInboxRouter } from './server/routes/inbox.js';
 import { createScheduleRouter } from './server/routes/schedule.js';
 import { createMiscRouter } from './server/routes/misc.js';
 import { createSessionRouter } from './server/routes/sessions.js';
+import { createBrainbaseRouter } from './server/routes/brainbase.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,7 +39,9 @@ const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json')
 const APP_VERSION = `v${packageJson.version}`;
 
 // Environment variable for root directory (supports multi-machine setups)
-const BRAINBASE_ROOT = process.env.BRAINBASE_ROOT || '/Users/ksato/workspace/shared';
+// For development: set BRAINBASE_ROOT to your workspace root
+// For OSS users: defaults to current directory (uses _codex-sample, _inbox-sample, etc.)
+const BRAINBASE_ROOT = process.env.BRAINBASE_ROOT || __dirname;
 console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
 
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
@@ -223,6 +226,7 @@ app.use('/api/config', createConfigRouter(configParser));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore));
+app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot));
 
 // ========================================

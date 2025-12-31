@@ -23,11 +23,60 @@ cd brainbase
 # 2. Install dependencies
 npm install
 
-# 3. Start the server
+# 3. Initial setup (first-time users)
+./setup.sh
+
+# 4. Start the server
 npm start
 ```
 
 Open http://localhost:3000 in your browser.
+
+### What setup.sh does
+
+- Creates `state.json` from sample (session data)
+- Creates `_tasks/` with sample tasks
+- Creates `_schedules/` with sample schedule
+- Creates `_inbox/` with sample inbox items
+
+**Note**: If you skip `./setup.sh`, you'll need to manually:
+```bash
+cp state.sample.json state.json
+cp -r _tasks-sample _tasks
+cp -r _schedules-sample _schedules
+cp -r _inbox-sample _inbox
+```
+
+## ⚙️ Configuration (Optional)
+
+### Environment Variables
+
+Brainbase supports customization via environment variables:
+
+```bash
+# Custom workspace root (default: current directory)
+export BRAINBASE_ROOT=/path/to/your/workspace
+
+# Custom port (default: 3000, or 3001 in worktree)
+export PORT=4000
+
+# Start server with custom config
+npm start
+```
+
+### Advanced Setup
+
+For multi-project workspaces (like the maintainer's setup):
+
+```bash
+# Use a shared workspace
+export BRAINBASE_ROOT=/path/to/workspace
+# This directory should contain:
+# - _tasks/index.md
+# - _schedules/
+# - _inbox/pending.md
+# - _codex/
+```
 
 ## ✨ Key Features
 

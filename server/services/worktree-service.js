@@ -409,4 +409,46 @@ export class WorktreeService {
             return { success: false, error: err.message };
         }
     }
+
+    /**
+     * 全てのworktreeをリストアップ
+     * @returns {Promise<Array<{path: string, branch: string, isMain: boolean}>>}
+     */
+    async listWorktrees() {
+        try {
+            const { stdout } = await this.execPromise(
+                `git -C "${this.canonicalRoot}" worktree list --porcelain`
+            );
+
+            const worktrees = [];
+            const lines = stdout.trim().split('\n');
+            let currentWorktree = {};
+
+            for (const line of lines) {
+                if (line.startsWith('worktree ')) {
+                    if (currentWorktree.path) {
+                        worktrees.push(currentWorktree);
+                    }
+                    currentWorktree = { path: line.substring(9) };
+                } else if (line.startsWith('branch ')) {
+                    const branchRef = line.substring(7);
+                    currentWorktree.branch = branchRef.replace('refs/heads/', '');
+                    currentWorktree.isMain = !currentWorktree.branch.startsWith('session/');
+                } else if (line.startsWith('bare') || line.startsWith('detached') || line === '') {
+                    // Skip bare, detached, and empty lines
+                    continue;
+                }
+            }
+
+            // Add last worktree
+            if (currentWorktree.path) {
+                worktrees.push(currentWorktree);
+            }
+
+            return worktrees;
+        } catch (err) {
+            console.error('Failed to list worktrees:', err.message);
+            return [];
+        }
+    }
 }
