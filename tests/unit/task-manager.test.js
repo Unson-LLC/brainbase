@@ -10,9 +10,9 @@ describe('task-manager', () => {
   describe('getFocusTask', () => {
     it('should return in-progress task first', () => {
       const tasks = [
-        { id: '1', status: 'todo', priority: 'high' },
-        { id: '2', status: 'in-progress', priority: 'low' },
-        { id: '3', status: 'todo', priority: 'high' }
+        { id: '1', status: 'todo', priority: 'high', owner: '佐藤圭吾' },
+        { id: '2', status: 'in-progress', priority: 'low', owner: '佐藤圭吾' },
+        { id: '3', status: 'todo', priority: 'high', owner: '佐藤圭吾' }
       ];
 
       const result = getFocusTask(tasks);
@@ -21,9 +21,9 @@ describe('task-manager', () => {
 
     it('should return high priority with due date second', () => {
       const tasks = [
-        { id: '1', status: 'todo', priority: 'high', due: '2025-12-15' },
-        { id: '2', status: 'todo', priority: 'high', due: '2025-12-10' },
-        { id: '3', status: 'todo', priority: 'medium' }
+        { id: '1', status: 'todo', priority: 'high', due: '2025-12-15', owner: '佐藤圭吾' },
+        { id: '2', status: 'todo', priority: 'high', due: '2025-12-10', owner: '佐藤圭吾' },
+        { id: '3', status: 'todo', priority: 'medium', owner: '佐藤圭吾' }
       ];
 
       const result = getFocusTask(tasks);
@@ -32,9 +32,9 @@ describe('task-manager', () => {
 
     it('should return any high priority if no due dates', () => {
       const tasks = [
-        { id: '1', status: 'todo', priority: 'medium' },
-        { id: '2', status: 'todo', priority: 'high' },
-        { id: '3', status: 'todo', priority: 'low' }
+        { id: '1', status: 'todo', priority: 'medium', owner: '佐藤圭吾' },
+        { id: '2', status: 'todo', priority: 'high', owner: '佐藤圭吾' },
+        { id: '3', status: 'todo', priority: 'low', owner: '佐藤圭吾' }
       ];
 
       const result = getFocusTask(tasks);
@@ -43,9 +43,9 @@ describe('task-manager', () => {
 
     it('should return first non-low priority if no high priority', () => {
       const tasks = [
-        { id: '1', status: 'todo', priority: 'low' },
-        { id: '2', status: 'todo', priority: 'medium' },
-        { id: '3', status: 'todo', priority: 'low' }
+        { id: '1', status: 'todo', priority: 'low', owner: '佐藤圭吾' },
+        { id: '2', status: 'todo', priority: 'medium', owner: '佐藤圭吾' },
+        { id: '3', status: 'todo', priority: 'low', owner: '佐藤圭吾' }
       ];
 
       const result = getFocusTask(tasks);
@@ -54,7 +54,7 @@ describe('task-manager', () => {
 
     it('should return null if no active tasks', () => {
       const tasks = [
-        { id: '1', status: 'done', priority: 'high' }
+        { id: '1', status: 'done', priority: 'high', owner: '佐藤圭吾' }
       ];
 
       const result = getFocusTask(tasks);
@@ -63,8 +63,8 @@ describe('task-manager', () => {
 
     it('should exclude done tasks', () => {
       const tasks = [
-        { id: '1', status: 'done', priority: 'high' },
-        { id: '2', status: 'todo', priority: 'low' }
+        { id: '1', status: 'done', priority: 'high', owner: '佐藤圭吾' },
+        { id: '2', status: 'todo', priority: 'low', owner: '佐藤圭吾' }
       ];
 
       const result = getFocusTask(tasks);

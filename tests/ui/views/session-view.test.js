@@ -74,19 +74,19 @@ describe('SessionView', () => {
 
         it('should render session list', () => {
             const mockSessions = [
-                { id: 'session-1', name: 'Session 1', project: 'project-a' },
-                { id: 'session-2', name: 'Session 2', project: 'project-b' }
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', project: 'project-b', intendedState: 'active' }
             ];
-            mockSessionService.getFilteredSessions.mockReturnValue(mockSessions);
+            appStore.setState({ sessions: mockSessions });
 
             sessionView.render();
 
-            const sessionElements = container.querySelectorAll('[data-session-id]');
+            const sessionElements = container.querySelectorAll('[data-id]');
             expect(sessionElements.length).toBe(2);
         });
 
         it('should display empty state when no sessions', () => {
-            mockSessionService.getFilteredSessions.mockReturnValue([]);
+            appStore.setState({ sessions: [] });
 
             sessionView.render();
 
@@ -95,29 +95,28 @@ describe('SessionView', () => {
 
         it('should highlight active session', () => {
             const mockSessions = [
-                { id: 'session-1', name: 'Session 1', project: 'test' },
-                { id: 'session-2', name: 'Session 2', project: 'test' }
+                { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', project: 'test', intendedState: 'active' }
             ];
-            mockSessionService.getFilteredSessions.mockReturnValue(mockSessions);
-            appStore.setState({ currentSessionId: 'session-1' });
+            appStore.setState({ sessions: mockSessions, currentSessionId: 'session-1' });
 
             sessionView.render();
 
-            const activeElement = container.querySelector('[data-session-id="session-1"]');
+            const activeElement = container.querySelector('[data-id="session-1"]');
             expect(activeElement.classList.contains('active')).toBe(true);
         });
 
         it('should group sessions by project', () => {
             const mockSessions = [
-                { id: 'session-1', name: 'Session 1', project: 'project-a' },
-                { id: 'session-2', name: 'Session 2', project: 'project-a' },
-                { id: 'session-3', name: 'Session 3', project: 'project-b' }
+                { id: 'session-1', name: 'Session 1', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-1-brainbase' },
+                { id: 'session-2', name: 'Session 2', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-2-brainbase' },
+                { id: 'session-3', name: 'Session 3', project: 'unson', intendedState: 'active', path: '.worktrees/session-3-unson' }
             ];
-            mockSessionService.getFilteredSessions.mockReturnValue(mockSessions);
+            appStore.setState({ sessions: mockSessions });
 
             sessionView.render();
 
-            const projectGroups = container.querySelectorAll('.session-group');
+            const projectGroups = container.querySelectorAll('.session-project-group');
             expect(projectGroups.length).toBe(2);
         });
     });
@@ -125,10 +124,10 @@ describe('SessionView', () => {
     describe('session group header', () => {
         beforeEach(() => {
             const mockSessions = [
-                { id: 'session-1', name: 'Session 1', project: 'project-a' },
-                { id: 'session-2', name: 'Session 2', project: 'project-a' }
+                { id: 'session-1', name: 'Session 1', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-1-brainbase' },
+                { id: 'session-2', name: 'Session 2', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-2-brainbase' }
             ];
-            mockSessionService.getFilteredSessions.mockReturnValue(mockSessions);
+            appStore.setState({ sessions: mockSessions });
             sessionView.mount(container);
         });
 
@@ -140,13 +139,13 @@ describe('SessionView', () => {
         it('should render project title in group header', () => {
             const groupTitle = container.querySelector('.group-title');
             expect(groupTitle).toBeTruthy();
-            expect(groupTitle.textContent).toBe('project-a');
+            expect(groupTitle.textContent).toBe('brainbase');
         });
 
         it('should render add session button in group header', () => {
             const addBtn = container.querySelector('.add-project-session-btn');
             expect(addBtn).toBeTruthy();
-            expect(addBtn.dataset.project).toBe('project-a');
+            expect(addBtn.dataset.project).toBe('brainbase');
         });
 
         it('should show folder-open icon when expanded', () => {
@@ -156,36 +155,33 @@ describe('SessionView', () => {
         });
 
         it('should create new session when add button clicked', async () => {
-            mockSessionService.createSession.mockResolvedValue();
-            global.prompt = vi.fn(() => 'New Session');
+            const emitSpy = vi.spyOn(eventBus, 'emit');
 
             const addBtn = container.querySelector('.add-project-session-btn');
             addBtn.click();
 
-            await vi.waitFor(() => {
-                expect(mockSessionService.createSession).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        name: 'New Session',
-                        project: 'project-a'
-                    })
-                );
-            });
+            expect(emitSpy).toHaveBeenCalledWith(
+                EVENTS.CREATE_SESSION,
+                expect.objectContaining({
+                    project: 'brainbase'
+                })
+            );
         });
     });
 
     describe('event handling', () => {
         beforeEach(() => {
             const mockSessions = [
-                { id: 'session-1', name: 'Session 1', project: 'test' }
+                { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' }
             ];
-            mockSessionService.getFilteredSessions.mockReturnValue(mockSessions);
+            appStore.setState({ sessions: mockSessions });
             sessionView.mount(container);
         });
 
         it('should delete session on delete button click', async () => {
             mockSessionService.deleteSession.mockResolvedValue();
 
-            const deleteButton = container.querySelector('[data-action="delete"]');
+            const deleteButton = container.querySelector('.delete-session-btn');
             deleteButton.click();
 
             await vi.waitFor(() => {

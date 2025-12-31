@@ -8,7 +8,8 @@ import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 vi.mock('../../../public/modules/core/http-client.js', () => ({
     httpClient: {
         get: vi.fn(),
-        post: vi.fn()
+        post: vi.fn(),
+        put: vi.fn()
     }
 }));
 
@@ -19,9 +20,9 @@ describe('TaskService', () => {
     beforeEach(() => {
         // テストデータ準備
         mockTasks = [
-            { id: '1', title: 'Task 1', status: 'todo', priority: 'high' },
-            { id: '2', title: 'Task 2', status: 'done', priority: 'normal' },
-            { id: '3', title: 'Task 3', status: 'todo', priority: 'normal' }
+            { id: '1', name: 'Task 1', status: 'todo', priority: 'high' },
+            { id: '2', name: 'Task 2', status: 'done', priority: 'normal' },
+            { id: '3', name: 'Task 3', status: 'todo', priority: 'normal' }
         ];
 
         // ストア初期化
@@ -43,7 +44,7 @@ describe('TaskService', () => {
 
             const result = await taskService.loadTasks();
 
-            expect(httpClient.get).toHaveBeenCalledWith('/tasks');
+            expect(httpClient.get).toHaveBeenCalledWith('/api/tasks');
             expect(appStore.getState().tasks).toEqual(mockTasks);
             expect(result).toEqual(mockTasks);
         });
@@ -62,17 +63,17 @@ describe('TaskService', () => {
 
     describe('completeTask', () => {
         it('should complete task via API and reload tasks', async () => {
-            httpClient.post.mockResolvedValue({});
+            httpClient.put.mockResolvedValue({});
             httpClient.get.mockResolvedValue(mockTasks);
 
             await taskService.completeTask('task-123');
 
-            expect(httpClient.post).toHaveBeenCalledWith('/tasks/task-123/complete');
-            expect(httpClient.get).toHaveBeenCalledWith('/tasks');
+            expect(httpClient.put).toHaveBeenCalledWith('/api/tasks/task-123', { status: 'done' });
+            expect(httpClient.get).toHaveBeenCalledWith('/api/tasks');
         });
 
         it('should emit TASK_COMPLETED event', async () => {
-            httpClient.post.mockResolvedValue({});
+            httpClient.put.mockResolvedValue({});
             httpClient.get.mockResolvedValue(mockTasks);
             const listener = vi.fn();
             eventBus.on(EVENTS.TASK_COMPLETED, listener);
@@ -103,7 +104,7 @@ describe('TaskService', () => {
             const filtered = taskService.getFilteredTasks();
 
             expect(filtered).toHaveLength(1);
-            expect(filtered[0].title).toBe('Task 1');
+            expect(filtered[0].name).toBe('Task 1');
         });
 
         it('should filter out done tasks when showAllTasks is false', () => {

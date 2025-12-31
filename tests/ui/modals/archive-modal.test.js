@@ -87,8 +87,8 @@ describe('ArchiveModal', () => {
 
         it('should populate project filter options from archived sessions', () => {
             const archivedSessions = [
-                { id: 'session-1', name: 'Archived 1', project: 'project-a', archived: true },
-                { id: 'session-2', name: 'Archived 2', project: 'project-b', archived: true }
+                { id: 'session-1', name: 'Archived 1', project: 'brainbase', archived: true, path: '.worktrees/session-1-brainbase' },
+                { id: 'session-2', name: 'Archived 2', project: 'unson', archived: true, path: '.worktrees/session-2-unson' }
             ];
             mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
 
@@ -97,8 +97,8 @@ describe('ArchiveModal', () => {
             const projectFilter = document.getElementById('archive-project-filter');
             const options = Array.from(projectFilter.options).map(opt => opt.value);
 
-            expect(options).toContain('project-a');
-            expect(options).toContain('project-b');
+            expect(options).toContain('brainbase');
+            expect(options).toContain('unson');
         });
 
         it('should render archived sessions', () => {
@@ -170,9 +170,9 @@ describe('ArchiveModal', () => {
     describe('search and filter', () => {
         beforeEach(() => {
             const allSessions = [
-                { id: 'session-1', name: 'Test Session', project: 'project-a', archived: true },
-                { id: 'session-2', name: 'Another Session', project: 'project-b', archived: true },
-                { id: 'session-3', name: 'Test Task', project: 'project-a', archived: true }
+                { id: 'session-1', name: 'Test Session', project: 'brainbase', archived: true, path: '.worktrees/session-1-brainbase' },
+                { id: 'session-2', name: 'Another Session', project: 'unson', archived: true, path: '.worktrees/session-2-unson' },
+                { id: 'session-3', name: 'Test Task', project: 'brainbase', archived: true, path: '.worktrees/session-3-brainbase' }
             ];
 
             // ストアにセッションを設定
@@ -197,7 +197,7 @@ describe('ArchiveModal', () => {
             });
 
             // getUniqueProjectsのモック
-            mockSessionService.getUniqueProjects.mockReturnValue(['project-a', 'project-b']);
+            mockSessionService.getUniqueProjects.mockReturnValue(['brainbase', 'unson']);
 
             modal.mount();
             modal.open();
@@ -216,7 +216,7 @@ describe('ArchiveModal', () => {
 
         it('should filter by project', () => {
             const projectFilter = document.getElementById('archive-project-filter');
-            projectFilter.value = 'project-a';
+            projectFilter.value = 'brainbase';
             projectFilter.dispatchEvent(new Event('change'));
 
             const archiveList = document.getElementById('archive-list');
@@ -230,7 +230,7 @@ describe('ArchiveModal', () => {
             const projectFilter = document.getElementById('archive-project-filter');
 
             searchInput.value = 'Test';
-            projectFilter.value = 'project-a';
+            projectFilter.value = 'brainbase';
             searchInput.dispatchEvent(new Event('input'));
 
             const archiveList = document.getElementById('archive-list');

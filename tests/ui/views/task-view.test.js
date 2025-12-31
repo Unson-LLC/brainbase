@@ -65,57 +65,56 @@ describe('TaskView', () => {
             taskView.mount(container);
         });
 
-        it('should render task list', () => {
-            const mockTasks = [
-                { id: '1', title: 'Task 1', status: 'todo' },
-                { id: '2', title: 'Task 2', status: 'todo' }
-            ];
-            mockTaskService.getFilteredTasks.mockReturnValue(mockTasks);
+        it('should render focus task', () => {
+            const focusTask = { id: 'focus-1', name: 'Focus Task', status: 'todo', priority: 'high' };
+            mockTaskService.getFocusTask.mockReturnValue(focusTask);
 
             taskView.render();
 
-            const taskElements = container.querySelectorAll('[data-task-id]');
-            expect(taskElements.length).toBe(2);
+            const focusCard = container.querySelector('.focus-card');
+            expect(focusCard).toBeTruthy();
+            expect(focusCard.textContent).toContain('Focus Task');
         });
 
         it('should display empty state when no tasks', () => {
-            mockTaskService.getFilteredTasks.mockReturnValue([]);
+            mockTaskService.getFocusTask.mockReturnValue(null);
 
             taskView.render();
 
-            expect(container.innerHTML).toContain('タスクがありません');
+            expect(container.innerHTML).toContain('タスクなし');
         });
 
-        it('should render focus task separately', () => {
-            const focusTask = { id: 'focus-1', title: 'Focus Task', status: 'todo', priority: 'high' };
-            const otherTasks = [
-                { id: '2', title: 'Task 2', status: 'todo' }
-            ];
+        it('should render focus task with correct data', () => {
+            const focusTask = {
+                id: 'focus-1',
+                name: 'Focus Task',
+                status: 'todo',
+                priority: 'high',
+                project: 'test-project'
+            };
 
             mockTaskService.getFocusTask.mockReturnValue(focusTask);
-            mockTaskService.getFilteredTasks.mockReturnValue([focusTask, ...otherTasks]);
 
             taskView.render();
 
-            const focusElement = container.querySelector('[data-focus-task]');
-            expect(focusElement).toBeTruthy();
-            expect(focusElement.textContent).toContain('Focus Task');
+            const focusCard = container.querySelector('.focus-card');
+            expect(focusCard).toBeTruthy();
+            expect(focusCard.getAttribute('data-task-id')).toBe('focus-1');
+            expect(focusCard.textContent).toContain('Focus Task');
         });
     });
 
     describe('event handling', () => {
         beforeEach(() => {
-            const mockTasks = [
-                { id: 'task-1', title: 'Task 1', status: 'todo' }
-            ];
-            mockTaskService.getFilteredTasks.mockReturnValue(mockTasks);
+            const focusTask = { id: 'task-1', name: 'Task 1', status: 'todo', priority: 'high' };
+            mockTaskService.getFocusTask.mockReturnValue(focusTask);
             taskView.mount(container);
         });
 
-        it('should complete task on button click', async () => {
+        it('should complete task on focus button click', async () => {
             mockTaskService.completeTask.mockResolvedValue();
 
-            const completeButton = container.querySelector('[data-action="complete"]');
+            const completeButton = container.querySelector('.focus-btn-complete');
             completeButton.click();
 
             await vi.waitFor(() => {

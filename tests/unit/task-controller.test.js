@@ -70,7 +70,7 @@ describe('task-controller', () => {
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priority: 'medium' })
+        body: JSON.stringify({ priority: 'medium', status: 'todo' })
       });
     });
 
@@ -85,7 +85,7 @@ describe('task-controller', () => {
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priority: 'low' })
+        body: JSON.stringify({ priority: 'low', status: 'todo' })
       });
     });
 
@@ -100,7 +100,7 @@ describe('task-controller', () => {
       expect(fetch).toHaveBeenCalledWith('/api/tasks/task-123', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priority: 'low' })
+        body: JSON.stringify({ priority: 'low', status: 'todo' })
       });
     });
   });

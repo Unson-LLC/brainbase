@@ -37,8 +37,8 @@ describe('session-list-renderer', () => {
 
       const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
-      expect(html).toContain('worktree-badge');
-      expect(html).toContain('git-branch');
+      expect(html).toContain('has-worktree');
+      expect(html).toContain('git-merge');
     });
 
     it('should not show worktree badge when no worktree', () => {
