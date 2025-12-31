@@ -4,7 +4,7 @@
  */
 
 // WORKSPACE_ROOTを動的に取得（API経由）
-let WORKSPACE_ROOT = '/Users/ksato/workspace'; // デフォルト値
+export let WORKSPACE_ROOT = '/Users/ksato/workspace'; // デフォルト値
 
 // 初期化処理（モジュールロード時に実行）
 (async function initWorkspaceRoot() {

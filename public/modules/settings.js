@@ -38,7 +38,7 @@ async function loadConfigData() {
         renderMembers();
         renderProjects();
         renderGitHub();
-        renderAirtable();
+        renderNocoDB();
 
     } catch (err) {
         console.error('Failed to load config:', err);
@@ -480,6 +480,41 @@ function renderAirtable() {
                         <td>${a.base_name}</td>
                         <td class="mono">${a.base_id}</td>
                         <td><a href="${a.url}" target="_blank" class="config-link">${a.url}</a></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+
+    container.innerHTML = html;
+}
+
+function renderNocoDB() {
+    const container = document.getElementById('nocodb-list');
+    const nocodb = configData?.nocodb || [];
+
+    if (nocodb.length === 0) {
+        container.innerHTML = '<div class="config-empty">No NocoDB mappings found</div>';
+        return;
+    }
+
+    const html = `
+        <table class="config-table">
+            <thead>
+                <tr>
+                    <th>Project ID</th>
+                    <th>Base Name</th>
+                    <th>Base ID</th>
+                    <th>URL</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${nocodb.map(n => `
+                    <tr>
+                        <td><span class="badge badge-project">${n.project_id}</span></td>
+                        <td>${n.base_name}</td>
+                        <td class="mono">${n.base_id}</td>
+                        <td><a href="${n.url}" target="_blank" class="config-link">${n.url}</a></td>
                     </tr>
                 `).join('')}
             </tbody>

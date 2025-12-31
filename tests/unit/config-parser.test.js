@@ -201,4 +201,181 @@ projects:
       expect(result.stats.airtable).toBe(2);
     });
   });
+
+  describe('getNocoDBMappings', () => {
+    it('config.ymlのnocodb設定_正しく変換されたマッピングが返される', async () => {
+      // Arrange: config.yml with nocodb settings
+      const mockConfig = `
+root: /Users/ksato/workspace
+
+projects:
+  - id: brainbase
+    local:
+      path: brainbase
+    nocodb:
+      base_id: p1234567890
+      base_name: brainbase-prod
+      url: https://nocodb.example.com/dashboard/#/nc/p1234567890
+
+  - id: another-project
+    local:
+      path: another-project
+    nocodb:
+      base_id: p9876543210
+      base_name: another-prod
+      url: https://nocodb.example.com/dashboard/#/nc/p9876543210
+
+  - id: no-nocodb-project
+    local:
+      path: no-nocodb-project
+`;
+
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      // Act
+      const result = await parser.getNocoDBMappings();
+
+      // Assert
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        project_id: 'brainbase',
+        base_id: 'p1234567890',
+        base_name: 'brainbase-prod',
+        url: 'https://nocodb.example.com/dashboard/#/nc/p1234567890'
+      });
+      expect(result[1]).toEqual({
+        project_id: 'another-project',
+        base_id: 'p9876543210',
+        base_name: 'another-prod',
+        url: 'https://nocodb.example.com/dashboard/#/nc/p9876543210'
+      });
+    });
+
+    it('nocodb設定が存在しない_空配列が返される', async () => {
+      const mockConfig = `
+root: /Users/ksato/workspace
+projects:
+  - id: brainbase
+    local:
+      path: brainbase
+`;
+
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getNocoDBMappings();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should handle file read errors gracefully', async () => {
+      fs.readFile.mockRejectedValue(new Error('File not found'));
+
+      const result = await parser.getNocoDBMappings();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getAll - includes nocodb', () => {
+    it('should include nocodb in the response', async () => {
+      // Mock all file reads
+      const mockConfig = `
+root: /Users/ksato/workspace
+projects:
+  - id: brainbase
+    nocodb:
+      base_id: p1234567890
+      base_name: brainbase-prod
+      url: https://nocodb.example.com/dashboard/#/nc/p1234567890
+`;
+      const mockWorkspaces = 'workspaces: {}';
+      const mockChannels = 'channels: []';
+      const mockMembers = 'members: []';
+
+      fs.readFile.mockImplementation((filepath) => {
+        if (filepath.includes('config.yml')) return Promise.resolve(mockConfig);
+        if (filepath.includes('workspaces.yml')) return Promise.resolve(mockWorkspaces);
+        if (filepath.includes('channels.yml')) return Promise.resolve(mockChannels);
+        if (filepath.includes('members.yml')) return Promise.resolve(mockMembers);
+        return Promise.reject(new Error('Unknown file'));
+      });
+
+      const result = await parser.getAll();
+
+      expect(result).toHaveProperty('nocodb');
+      expect(result.nocodb).toHaveLength(1);
+      expect(result.nocodb[0].project_id).toBe('brainbase');
+    });
+  });
+
+  describe('checkIntegrity - nocodb validation', () => {
+    it('should report projects with local path but no nocodb mapping as info', async () => {
+      const mockConfig = `
+root: /Users/ksato/workspace
+projects:
+  - id: brainbase
+    local:
+      path: brainbase
+    nocodb:
+      base_id: p1234567890
+      base_name: brainbase-prod
+      url: https://nocodb.example.com/dashboard/#/nc/p1234567890
+  - id: no-nocodb-project
+    local:
+      path: no-nocodb-project
+`;
+      const mockWorkspaces = 'workspaces: {}';
+      const mockChannels = 'channels: []';
+      const mockMembers = 'members: []';
+
+      fs.readFile.mockImplementation((filepath) => {
+        if (filepath.includes('config.yml')) return Promise.resolve(mockConfig);
+        if (filepath.includes('workspaces.yml')) return Promise.resolve(mockWorkspaces);
+        if (filepath.includes('channels.yml')) return Promise.resolve(mockChannels);
+        if (filepath.includes('members.yml')) return Promise.resolve(mockMembers);
+        return Promise.reject(new Error('Unknown file'));
+      });
+
+      const result = await parser.checkIntegrity();
+
+      // Should have info about missing nocodb for no-nocodb-project
+      const nocodbIssue = result.issues.find(
+        i => i.type === 'missing_nocodb' && i.message.includes('no-nocodb-project')
+      );
+      expect(nocodbIssue).toBeDefined();
+      expect(nocodbIssue.severity).toBe('info');
+    });
+
+    it('should include nocodb count in stats', async () => {
+      const mockConfig = `
+root: /Users/ksato/workspace
+projects:
+  - id: brainbase
+    nocodb:
+      base_id: p1234567890
+      base_name: brainbase-prod
+      url: https://nocodb.example.com/dashboard/#/nc/p1234567890
+  - id: another-project
+    nocodb:
+      base_id: p9876543210
+      base_name: another-prod
+      url: https://nocodb.example.com/dashboard/#/nc/p9876543210
+`;
+      const mockWorkspaces = 'workspaces: {}';
+      const mockChannels = 'channels: []';
+      const mockMembers = 'members: []';
+
+      fs.readFile.mockImplementation((filepath) => {
+        if (filepath.includes('config.yml')) return Promise.resolve(mockConfig);
+        if (filepath.includes('workspaces.yml')) return Promise.resolve(mockWorkspaces);
+        if (filepath.includes('channels.yml')) return Promise.resolve(mockChannels);
+        if (filepath.includes('members.yml')) return Promise.resolve(mockMembers);
+        return Promise.reject(new Error('Unknown file'));
+      });
+
+      const result = await parser.checkIntegrity();
+
+      expect(result.stats.nocodb).toBe(2);
+    });
+  });
 });
