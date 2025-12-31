@@ -4,7 +4,7 @@
  */
 
 // WORKSPACE_ROOTを動的に取得（API経由）
-let WORKSPACE_ROOT = '/path/to/workspace'; // デフォルト値（API経由で上書きされる）
+export let WORKSPACE_ROOT = '/path/to/workspace'; // デフォルト値（API経由で上書きされる）
 
 // 初期化処理（モジュールロード時に実行）
 (async function initWorkspaceRoot() {
