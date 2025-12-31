@@ -7,6 +7,14 @@ import {
 } from '../../public/modules/project-mapping.js';
 
 describe('project-mapping', () => {
+  describe('WORKSPACE_ROOT', () => {
+    it('should be exported and accessible', () => {
+      expect(WORKSPACE_ROOT).toBeDefined();
+      expect(typeof WORKSPACE_ROOT).toBe('string');
+      expect(WORKSPACE_ROOT).toBe('/path/to/workspace');
+    });
+  });
+
   describe('PROJECT_PATH_MAP', () => {
     it('should have mappings for core projects', () => {
       expect(PROJECT_PATH_MAP).toHaveProperty('unson');
