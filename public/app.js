@@ -28,15 +28,11 @@ import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
-import { DashboardController } from './modules/dashboard-controller.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
-
-// Utilities
-import { getProjectFromPath } from './modules/project-mapping.js';
 
 /**
  * Application initialization
@@ -51,8 +47,6 @@ class App {
         this.refreshIntervalId = null;
         this.choiceCheckInterval = null;
         this.lastChoiceHash = null;
-        // Dashboard Controller
-        this.dashboardController = null;
     }
 
     /**
@@ -105,12 +99,7 @@ class App {
         // Inbox (notifications)
         this.views.inboxView = new InboxView();
         this.views.inboxView.mount();
-
-        // Dashboard (Phase 1)
-        this.dashboardController = new DashboardController();
-        this.dashboardController.init();
     }
-
 
     /**
      * Initialize modals
@@ -214,11 +203,63 @@ class App {
             await this.loadSessionData(sessionId);
         });
 
-        // Start task: emit for terminal integration
-        const unsub2 = eventBus.on(EVENTS.START_TASK, (event) => {
-            const { task, taskId, engine } = event.detail;
-            console.log('Start task requested:', task || taskId, 'engine:', engine);
-            // TODO: Terminal integration
+        // Start task: create session and switch to it
+        const unsub2 = eventBus.on(EVENTS.START_TASK, async (event) => {
+            const { task: taskObj, taskId, engine = 'claude' } = event.detail;
+
+            try {
+                // Step 1: Task objectを取得
+                let task = taskObj;
+                if (!task && taskId) {
+                    // taskIdのみの場合はTaskServiceから取得
+                    const tasks = this.taskService.getFilteredTasks();
+                    task = tasks.find(t => t.id === taskId);
+
+                    if (!task) {
+                        console.error('Task not found:', taskId);
+                        showError('Task not found');
+                        return;
+                    }
+                }
+
+                if (!task) {
+                    console.error('No task provided to START_TASK event');
+                    showError('No task provided');
+                    return;
+                }
+
+                // Step 2: セッション名を生成
+                const sessionName = task.title || task.name || `Task: ${task.id}`;
+
+                // Step 3: プロジェクト名を取得
+                const project = task.project;
+                if (!project) {
+                    console.error('Task has no project:', task);
+                    showError('Task has no project');
+                    return;
+                }
+
+                // Step 4: セッション作成
+                console.log('Creating session for task:', task.id, 'project:', project);
+                const newSession = await this.sessionService.createSession({
+                    project: project,
+                    name: sessionName,
+                    engine: engine,
+                    useWorktree: true  // デフォルトでworktree使用
+                });
+
+                console.log('Session created for task:', task.id, '→', newSession.id);
+                showSuccess(`Session "${sessionName}" created`);
+
+                // Step 5: セッション切り替え
+                eventBus.emit(EVENTS.SESSION_CHANGED, {
+                    sessionId: newSession.id
+                });
+
+            } catch (error) {
+                console.error('Failed to start task:', error);
+                showError(`Failed to start task: ${error.message}`);
+            }
         });
 
         // Edit task: open task edit modal
@@ -242,62 +283,6 @@ class App {
 
         // Setup terminal toolbar buttons
         this.setupTerminalToolbar();
-
-        // Setup Navigation handlers
-        this.setupNavigation();
-
-        // Default to Dashboard for verification
-        this.switchView('dashboard');
-    }
-
-    /**
-     * Setup navigation handlers
-     */
-    setupNavigation() {
-        const consoleBtn = document.getElementById('nav-console-btn');
-        const dashboardBtn = document.getElementById('nav-dashboard-btn');
-
-        if (consoleBtn) {
-            consoleBtn.onclick = () => this.switchView('console');
-        }
-        if (dashboardBtn) {
-            dashboardBtn.onclick = () => this.switchView('dashboard');
-        }
-    }
-
-    /**
-     * Switch main view
-     * @param {string} viewName - 'console' or 'dashboard'
-     */
-    switchView(viewName) {
-        const consoleArea = document.getElementById('console-area');
-        const dashboardPanel = document.getElementById('dashboard-panel');
-        const consoleBtn = document.getElementById('nav-console-btn');
-        const dashboardBtn = document.getElementById('nav-dashboard-btn');
-        const contextSidebar = document.getElementById('context-sidebar');
-
-        if (viewName === 'dashboard') {
-            consoleArea.style.display = 'none';
-            dashboardPanel.style.display = 'block';
-            consoleBtn?.classList.remove('active');
-            dashboardBtn?.classList.add('active');
-
-            // Hide right context sidebar for dashboard (full width)
-            if (contextSidebar) contextSidebar.style.display = 'none';
-
-            // Re-render dashboard if needed (or just ensure it's up to date)
-            if (this.dashboardController) {
-                this.dashboardController.render();
-            }
-        } else {
-            consoleArea.style.display = 'block';
-            dashboardPanel.style.display = 'none';
-            consoleBtn?.classList.add('active');
-            dashboardBtn?.classList.remove('active');
-
-            // Show right context sidebar for console
-            if (contextSidebar) contextSidebar.style.display = 'flex';
-        }
     }
 
     /**
@@ -1058,39 +1043,10 @@ class App {
         const nameInput = document.getElementById('session-name-input');
         const commandInput = document.getElementById('session-command-input');
         const worktreeCheckbox = document.getElementById('use-worktree-checkbox');
-        const projectSelect = document.getElementById('session-project-select');
 
         if (!modal || !nameInput) {
             console.error('Create session modal elements not found');
             return;
-        }
-
-        // Populate project dropdown with all projects from sessions
-        if (projectSelect) {
-            const { sessions } = appStore.getState();
-            const projects = new Set();
-
-            // Extract projects from all sessions (active + archived)
-            (sessions || []).forEach(s => {
-                const proj = getProjectFromPath(s.path);
-                if (proj) projects.add(proj);
-            });
-
-            // Sort projects
-            const sortedProjects = Array.from(projects).sort();
-
-            // Add 'general' if not in list
-            if (!sortedProjects.includes('general')) {
-                sortedProjects.unshift('general');
-            }
-
-            // Populate dropdown
-            projectSelect.innerHTML = sortedProjects.map(proj =>
-                `<option value="${proj}">${proj}</option>`
-            ).join('');
-
-            // Set selected project
-            projectSelect.value = project;
         }
 
         // Set defaults
@@ -1115,13 +1071,12 @@ class App {
             const engine = document.querySelector('input[name="session-engine"]:checked')?.value || 'claude';
             const initialCommand = commandInput?.value || '';
             const useWorktree = worktreeCheckbox?.checked || false;
-            const selectedProject = projectSelect?.value || project;
 
             // Close modal
             modal.classList.remove('active');
 
             // Create session
-            await this.createSession(selectedProject, name, initialCommand, useWorktree, engine);
+            await this.createSession(project, name, initialCommand, useWorktree, engine);
 
             // Remove this event listener
             createBtn?.removeEventListener('click', handleCreate);
