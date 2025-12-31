@@ -1,16 +1,16 @@
 /**
- * Settings Module Tests - Airtableタブ機能のTDD
+ * Settings Module Tests - NocoDBタブ機能のTDD
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 
-describe('Settings Module - Airtable Tab', () => {
+describe('Settings Module - NocoDB Tab', () => {
   let dom;
   let document;
   let window;
 
   beforeEach(() => {
-    // Create DOM with settings structure including new Airtable tab
+    // Create DOM with settings structure including new NocoDB tab
     dom = new JSDOM(`
       <!DOCTYPE html>
       <html>
@@ -27,16 +27,16 @@ describe('Settings Module - Airtable Tab', () => {
                   <button class="settings-tab active" data-tab="slack">Slack</button>
                   <button class="settings-tab" data-tab="projects">Projects</button>
                   <button class="settings-tab" data-tab="github">GitHub</button>
-                  <button class="settings-tab" data-tab="airtable">Airtable</button>
+                  <button class="settings-tab" data-tab="nocodb">NocoDB</button>
                 </div>
                 <div class="settings-content">
                   <div class="settings-panel active" id="slack-panel"></div>
                   <div class="settings-panel" id="projects-panel"></div>
                   <div class="settings-panel" id="github-panel"></div>
-                  <div class="settings-panel" id="airtable-panel">
+                  <div class="settings-panel" id="nocodb-panel">
                     <div class="settings-section">
-                      <h3>Airtable Base Mappings</h3>
-                      <div id="airtable-list" class="config-table-container">
+                      <h3>NocoDB Base Mappings</h3>
+                      <div id="nocodb-list" class="config-table-container">
                         <div class="loading">Loading...</div>
                       </div>
                     </div>
@@ -61,45 +61,45 @@ describe('Settings Module - Airtable Tab', () => {
     delete global.window;
   });
 
-  describe('Airtable Tab Structure', () => {
-    it('should have Airtable tab button', () => {
-      const airtableTab = document.querySelector('[data-tab="airtable"]');
-      expect(airtableTab).not.toBeNull();
-      expect(airtableTab.textContent).toContain('Airtable');
+  describe('NocoDB Tab Structure', () => {
+    it('should have NocoDB tab button', () => {
+      const nocodbTab = document.querySelector('[data-tab="nocodb"]');
+      expect(nocodbTab).not.toBeNull();
+      expect(nocodbTab.textContent).toContain('NocoDB');
     });
 
-    it('should have Airtable panel', () => {
-      const airtablePanel = document.getElementById('airtable-panel');
-      expect(airtablePanel).not.toBeNull();
+    it('should have NocoDB panel', () => {
+      const nocodbPanel = document.getElementById('nocodb-panel');
+      expect(nocodbPanel).not.toBeNull();
     });
 
-    it('should have airtable-list container', () => {
-      const airtableList = document.getElementById('airtable-list');
-      expect(airtableList).not.toBeNull();
+    it('should have nocodb-list container', () => {
+      const nocodbList = document.getElementById('nocodb-list');
+      expect(nocodbList).not.toBeNull();
     });
   });
 
-  describe('renderAirtable function', () => {
+  describe('renderNocoDB function', () => {
     // Import the function we'll implement
     // This will fail until we implement it
-    it('should render airtable mappings table', async () => {
-      const mockAirtableData = [
+    it('should render nocodb mappings table', async () => {
+      const mockNocoDBData = [
         {
-          project_id: 'zeims',
-          base_id: 'appg1DeWomuFuYnri',
-          base_name: 'Zeims',
-          url: 'https://airtable.com/appg1DeWomuFuYnri'
+          project_id: 'brainbase',
+          base_id: 'p1234567890',
+          base_name: 'brainbase-prod',
+          url: 'https://nocodb.example.com/dashboard/#/nc/p1234567890'
         },
         {
-          project_id: 'salestailor',
-          base_id: 'app8uhkD8PcnxPvVx',
-          base_name: 'SalesTailor',
-          url: 'https://airtable.com/app8uhkD8PcnxPvVx'
+          project_id: 'another-project',
+          base_id: 'p9876543210',
+          base_name: 'another-prod',
+          url: 'https://nocodb.example.com/dashboard/#/nc/p9876543210'
         }
       ];
 
-      // Simulate renderAirtable function behavior
-      const container = document.getElementById('airtable-list');
+      // Simulate renderNocoDB function behavior
+      const container = document.getElementById('nocodb-list');
 
       // Expected output structure
       const expectedHtml = `
@@ -114,16 +114,16 @@ describe('Settings Module - Airtable Tab', () => {
           </thead>
           <tbody>
             <tr>
-              <td><span class="badge badge-project">zeims</span></td>
-              <td>Zeims</td>
-              <td class="mono">appg1DeWomuFuYnri</td>
-              <td><a href="https://airtable.com/appg1DeWomuFuYnri" target="_blank" class="config-link">https://airtable.com/appg1DeWomuFuYnri</a></td>
+              <td><span class="badge badge-project">brainbase</span></td>
+              <td>brainbase-prod</td>
+              <td class="mono">p1234567890</td>
+              <td><a href="https://nocodb.example.com/dashboard/#/nc/p1234567890" target="_blank" class="config-link">https://nocodb.example.com/dashboard/#/nc/p1234567890</a></td>
             </tr>
             <tr>
-              <td><span class="badge badge-project">salestailor</span></td>
-              <td>SalesTailor</td>
-              <td class="mono">app8uhkD8PcnxPvVx</td>
-              <td><a href="https://airtable.com/app8uhkD8PcnxPvVx" target="_blank" class="config-link">https://airtable.com/app8uhkD8PcnxPvVx</a></td>
+              <td><span class="badge badge-project">another-project</span></td>
+              <td>another-prod</td>
+              <td class="mono">p9876543210</td>
+              <td><a href="https://nocodb.example.com/dashboard/#/nc/p9876543210" target="_blank" class="config-link">https://nocodb.example.com/dashboard/#/nc/p9876543210</a></td>
             </tr>
           </tbody>
         </table>
@@ -141,30 +141,30 @@ describe('Settings Module - Airtable Tab', () => {
 
       // Verify first row content
       const firstRow = rows[0];
-      expect(firstRow.querySelector('.badge-project').textContent).toBe('zeims');
-      expect(firstRow.querySelectorAll('td')[1].textContent).toBe('Zeims');
+      expect(firstRow.querySelector('.badge-project').textContent).toBe('brainbase');
+      expect(firstRow.querySelectorAll('td')[1].textContent).toBe('brainbase-prod');
     });
 
-    it('should show empty message when no airtable mappings', () => {
-      const container = document.getElementById('airtable-list');
-      const emptyHtml = '<div class="config-empty">No Airtable mappings found</div>';
+    it('should show empty message when no nocodb mappings', () => {
+      const container = document.getElementById('nocodb-list');
+      const emptyHtml = '<div class="config-empty">No NocoDB mappings found</div>';
       container.innerHTML = emptyHtml;
 
       const emptyDiv = container.querySelector('.config-empty');
       expect(emptyDiv).not.toBeNull();
-      expect(emptyDiv.textContent).toBe('No Airtable mappings found');
+      expect(emptyDiv.textContent).toBe('No NocoDB mappings found');
     });
   });
 
   describe('Integrity Summary', () => {
-    it('should include Airtable count in stats', () => {
+    it('should include NocoDB count in stats', () => {
       const mockStats = {
         workspaces: 2,
         channels: 50,
         members: 10,
         projects: 12,
         github: 8,
-        airtable: 5
+        nocodb: 5
       };
 
       const container = document.getElementById('integrity-summary');
@@ -177,14 +177,14 @@ describe('Settings Module - Airtable Tab', () => {
             <span class="count">${mockStats.workspaces}</span>
           </div>
           <div class="stat-item success">
-            <span class="label">Airtable</span>
-            <span class="count">${mockStats.airtable}</span>
+            <span class="label">NocoDB</span>
+            <span class="count">${mockStats.nocodb}</span>
           </div>
         </div>
       `;
 
-      const airtableStat = container.querySelector('.stat-item:last-child .count');
-      expect(airtableStat.textContent).toBe('5');
+      const nocodbStat = container.querySelector('.stat-item:last-child .count');
+      expect(nocodbStat.textContent).toBe('5');
     });
   });
 });

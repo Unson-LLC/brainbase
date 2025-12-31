@@ -13,7 +13,7 @@ describe('session-list-renderer', () => {
         path: '/some/path'
       };
 
-      const html = renderSessionRowHTML(session, { isActive: false, project: 'General' });
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
       expect(html).toContain('session-child-row');
       expect(html).toContain('Test Session');
@@ -23,7 +23,7 @@ describe('session-list-renderer', () => {
     it('should add active class when isActive is true', () => {
       const session = { id: 's1', name: 'Active' };
 
-      const html = renderSessionRowHTML(session, { isActive: true, project: 'General' });
+      const html = renderSessionRowHTML(session, { isActive: true, project: 'general' });
 
       expect(html).toContain('active');
     });
@@ -35,16 +35,16 @@ describe('session-list-renderer', () => {
         worktree: { path: '/worktree/path' }
       };
 
-      const html = renderSessionRowHTML(session, { isActive: false, project: 'General' });
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
-      expect(html).toContain('worktree-badge');
-      expect(html).toContain('git-branch');
+      expect(html).toContain('has-worktree');
+      expect(html).toContain('git-merge');
     });
 
     it('should not show worktree badge when no worktree', () => {
       const session = { id: 's1', name: 'No Worktree' };
 
-      const html = renderSessionRowHTML(session, { isActive: false, project: 'General' });
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
       expect(html).not.toContain('worktree-badge');
     });
@@ -52,7 +52,7 @@ describe('session-list-renderer', () => {
     it('should use session.id as name fallback', () => {
       const session = { id: 'fallback-id' };
 
-      const html = renderSessionRowHTML(session, { isActive: false, project: 'General' });
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
       expect(html).toContain('fallback-id');
     });

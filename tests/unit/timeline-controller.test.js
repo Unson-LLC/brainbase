@@ -86,7 +86,7 @@ describe('timeline-controller', () => {
 
     it('should show all-day events as 終日', () => {
       const events = [
-        { title: 'All Day Event', allDay: true }
+        { title: 'All Day Event', allDay: true, start: '00:00' }
       ];
 
       const html = formatTimelineHTML(events, '10:00');

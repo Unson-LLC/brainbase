@@ -39,9 +39,9 @@ describe('archive-modal-renderer', () => {
   describe('renderArchiveListHTML', () => {
     it('should render list of archived sessions', () => {
       const sessions = [
-        { id: 's1', name: 'Session 1', archived: true },
-        { id: 's2', name: 'Session 2', archived: true },
-        { id: 's3', name: 'Active', archived: false }
+        { id: 's1', name: 'Session 1', intendedState: 'archived' },
+        { id: 's2', name: 'Session 2', intendedState: 'archived' },
+        { id: 's3', name: 'Active', intendedState: 'paused' }
       ];
 
       const html = renderArchiveListHTML(sessions);
@@ -53,7 +53,7 @@ describe('archive-modal-renderer', () => {
 
     it('should render empty message when no archived sessions', () => {
       const sessions = [
-        { id: 's1', name: 'Active', archived: false }
+        { id: 's1', name: 'Active', intendedState: 'paused' }
       ];
 
       const html = renderArchiveListHTML(sessions);

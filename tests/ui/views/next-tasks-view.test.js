@@ -12,7 +12,7 @@ vi.mock('../../../public/modules/domain/task/task-service.js', () => {
                 this.loadTasks = vi.fn();
                 this.completeTask = vi.fn();
                 this.deleteTask = vi.fn();
-                this.getNextTasks = vi.fn(() => []);
+                this.getNextTasks = vi.fn(() => ({ tasks: [], totalCount: 0, remainingCount: 0 }));
                 this.getFocusTask = vi.fn(() => null);
             }
         }
@@ -53,7 +53,7 @@ describe('NextTasksView', () => {
             const mockTasks = [
                 { id: 'task-1', name: 'Task 1', project: 'proj-a', priority: 'medium' }
             ];
-            mockTaskService.getNextTasks.mockReturnValue(mockTasks);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: 1, remainingCount: 0 });
 
             nextTasksView.mount(container);
 
@@ -67,7 +67,7 @@ describe('NextTasksView', () => {
         });
 
         it('should display empty state when no tasks', () => {
-            mockTaskService.getNextTasks.mockReturnValue([]);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: [], totalCount: 0, remainingCount: 0 });
 
             nextTasksView.render();
 
@@ -79,7 +79,7 @@ describe('NextTasksView', () => {
                 { id: 'task-1', name: 'Task 1', project: 'proj-a', priority: 'medium' },
                 { id: 'task-2', name: 'Task 2', project: 'proj-b', priority: 'low' }
             ];
-            mockTaskService.getNextTasks.mockReturnValue(mockTasks);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: mockTasks.length, remainingCount: 0 });
 
             nextTasksView.render();
 
@@ -91,7 +91,7 @@ describe('NextTasksView', () => {
             const mockTasks = [
                 { id: 'task-1', name: 'High Priority Task', project: 'proj-a', priority: 'high' }
             ];
-            mockTaskService.getNextTasks.mockReturnValue(mockTasks);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: mockTasks.length, remainingCount: 0 });
 
             nextTasksView.render();
 
@@ -104,7 +104,7 @@ describe('NextTasksView', () => {
             const mockTasks = [
                 { id: 'task-1', name: 'Task 1', project: 'my-project', priority: 'medium' }
             ];
-            mockTaskService.getNextTasks.mockReturnValue(mockTasks);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: mockTasks.length, remainingCount: 0 });
 
             nextTasksView.render();
 
@@ -115,7 +115,7 @@ describe('NextTasksView', () => {
             const mockTasks = [
                 { id: 'task-1', name: 'Task 1', project: 'proj-a', priority: 'medium' }
             ];
-            mockTaskService.getNextTasks.mockReturnValue(mockTasks);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: mockTasks.length, remainingCount: 0 });
 
             nextTasksView.render();
 
@@ -132,7 +132,7 @@ describe('NextTasksView', () => {
             const mockTasks = [
                 { id: 'task-1', name: 'Task 1', project: 'proj-a', priority: 'medium' }
             ];
-            mockTaskService.getNextTasks.mockReturnValue(mockTasks);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: mockTasks.length, remainingCount: 0 });
 
             nextTasksView.render();
 
@@ -146,7 +146,7 @@ describe('NextTasksView', () => {
             const mockTasks = [
                 { id: 'task-1', name: 'Task 1', project: 'proj-a', priority: 'medium' }
             ];
-            mockTaskService.getNextTasks.mockReturnValue(mockTasks);
+            mockTaskService.getNextTasks.mockReturnValue({ tasks: mockTasks, totalCount: mockTasks.length, remainingCount: 0 });
             nextTasksView.mount(container);
         });
 

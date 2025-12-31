@@ -112,7 +112,7 @@ describe('archive-modal-controller', () => {
       expect(projects).not.toContain('tech-knight');
     });
 
-    it('should return General for sessions without path', () => {
+    it('should return general for sessions without path', () => {
       const sessions = [
         { intendedState: 'archived' },
         { path: '/brainbase/a', intendedState: 'archived' }
@@ -120,7 +120,7 @@ describe('archive-modal-controller', () => {
 
       const projects = getUniqueProjects(sessions);
 
-      expect(projects).toContain('General');
+      expect(projects).toContain('general');
       expect(projects).toContain('brainbase');
     });
 

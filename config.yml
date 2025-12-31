@@ -1,0 +1,18 @@
+root: /path/to/workspace
+
+projects:
+  - id: brainbase
+    local:
+      path: projects/brainbase
+    nocodb:
+      base_id: p1234567890
+      base_name: brainbase-prod
+      url: https://nocodb.example.com/dashboard/#/nc/p1234567890
+
+  - id: test-project
+    local:
+      path: projects/test-project
+    nocodb:
+      base_id: p9876543210
+      base_name: test-project-dev
+      url: https://nocodb.example.com/dashboard/#/nc/p9876543210
