@@ -9,9 +9,9 @@ describe('session-manager', () => {
   describe('groupSessionsByProject', () => {
     it('should group sessions by project path', () => {
       const sessions = [
-        { id: '1', path: '/Users/ksato/workspace/unson/src' },
-        { id: '2', path: '/Users/ksato/workspace/tech-knight' },
-        { id: '3', path: '/Users/ksato/workspace/unson' }
+        { id: '1', path: '/path/to/workspace/unson/src' },
+        { id: '2', path: '/path/to/workspace/tech-knight' },
+        { id: '3', path: '/path/to/workspace/unson' }
       ];
 
       const result = groupSessionsByProject(sessions);
@@ -33,8 +33,8 @@ describe('session-manager', () => {
 
     it('should filter out archived sessions', () => {
       const sessions = [
-        { id: '1', path: '/Users/ksato/workspace/unson', intendedState: 'stopped' },
-        { id: '2', path: '/Users/ksato/workspace/unson', intendedState: 'archived' }
+        { id: '1', path: '/path/to/workspace/unson', intendedState: 'stopped' },
+        { id: '2', path: '/path/to/workspace/unson', intendedState: 'archived' }
       ];
 
       const result = groupSessionsByProject(sessions, { excludeArchived: true });

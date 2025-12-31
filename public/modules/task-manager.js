@@ -13,10 +13,10 @@ const PRIORITY_LIST = ['high', 'medium', 'low'];
  * @returns {Object|null} フォーカスタスクまたはnull
  */
 export function getFocusTask(tasks) {
-  // Filter by owner: show only tasks assigned to 佐藤圭吾
+  // Filter active tasks (non-done status)
+  // Note: You can add owner filtering here if needed (e.g., t.owner === currentUser)
   const activeTasks = tasks.filter(t =>
-    t.status !== 'done' &&
-    t.owner === '佐藤圭吾'
+    t.status !== 'done'
   );
 
   if (activeTasks.length === 0) return null;

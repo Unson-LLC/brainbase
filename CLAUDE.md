@@ -1,8 +1,8 @@
 # brainbase Development Standards
 
-**Version**: 1.0.0
-**Last Updated**: 2025-12-29
-**Maintainer**: 佐藤圭吾
+**Version**: 1.1.0
+**Last Updated**: 2025-12-31
+**Maintainer**: Unson LLC
 
 ---
 
@@ -980,6 +980,6 @@ npm run lint:imports
 
 ---
 
-**最終更新**: 2025-12-29
-**作成者**: 佐藤圭吾
+**最終更新**: 2025-12-31
+**作成者**: Unson LLC
 **ステータス**: Active

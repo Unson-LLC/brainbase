@@ -4,7 +4,7 @@
  */
 
 // WORKSPACE_ROOTを動的に取得（API経由）
-export let WORKSPACE_ROOT = '/Users/ksato/workspace'; // デフォルト値
+let WORKSPACE_ROOT = '/path/to/workspace'; // デフォルト値（API経由で上書きされる）
 
 // 初期化処理（モジュールロード時に実行）
 (async function initWorkspaceRoot() {
@@ -22,8 +22,8 @@ export let WORKSPACE_ROOT = '/Users/ksato/workspace'; // デフォルト値
 
 // PROJECT_PATH_MAPを動的に生成
 function getProjectPathMap() {
-    // 全プロジェクトは /Users/ksato/workspace/projects/ 配下
-    const PROJECTS_ROOT = '/Users/ksato/workspace/projects';
+    // 全プロジェクトは workspace/projects/ 配下
+    const PROJECTS_ROOT = `${WORKSPACE_ROOT}/projects`;
 
     return {
         'unson': `${PROJECTS_ROOT}/unson`,

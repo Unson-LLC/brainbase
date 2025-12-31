@@ -73,7 +73,7 @@ brainbase-uiやmanaを開発する際、このサンプルデータを使って�
 
 ```bash
 # 環境変数でサンプルcodexを指定
-export CODEX_PATH=/Users/ksato/workspace/brainbase-ui/_codex-sample
+export CODEX_PATH=/path/to/workspace/brainbase-ui/_codex-sample
 
 # brainbase-ui起動
 npm run dev
@@ -81,11 +81,11 @@ npm run dev
 
 ### 2. 本番環境への移行
 
-本番環境では、佐藤さんのプライベート `_codex/` を使用:
+本番環境では、プライベート `_codex/` を使用:
 
 ```bash
-# シンボリックリンク作成（佐藤さんの環境のみ）
-cd /Users/ksato/workspace/brainbase-ui
+# シンボリックリンク作成（ローカル環境のみ）
+cd /path/to/workspace/brainbase-ui
 ln -s ../_codex _codex
 
 # .gitignoreで除外されているため、誤ってコミットされることはありません
@@ -111,9 +111,9 @@ cp _codex-sample/projects/example-project/project.md _codex/projects/your-projec
 
 ## 📚 参照
 
-- **brainbase運用ガイド**: `/Users/ksato/workspace/CLAUDE.md`
+- **brainbase運用ガイド**: `CLAUDE.md`（リポジトリルート）
 - **Skills vs Codex**: `_codex/projects/brainbase/skills_concept.md`（本番環境のみ）
-- **manaセットアップ**: `/Users/ksato/workspace/mana/docs/SETUP.md`
+- **manaセットアップ**: 別プロジェクト（非公開）
 
 ## 🤝 コントリビューション
 
