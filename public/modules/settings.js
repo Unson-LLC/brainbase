@@ -78,8 +78,8 @@ function renderIntegritySummary() {
                 <span class="count">${stats.github || 0}</span>
             </div>
             <div class="stat-item success">
-                <span class="label">Airtable</span>
-                <span class="count">${stats.airtable || 0}</span>
+                <span class="label">NocoDB</span>
+                <span class="count">${stats.nocodb || 0}</span>
             </div>
             ${summary.errors > 0 ? `
                 <div class="stat-item error">
@@ -151,7 +151,7 @@ function renderUnifiedView() {
                             <th>Project</th>
                             <th>Slack Channels</th>
                             <th>GitHub</th>
-                            <th>Airtable</th>
+                            <th>NocoDB</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -159,8 +159,8 @@ function renderUnifiedView() {
 
             for (const proj of activeProjects) {
                 const hasGithub = !!proj.github;
-                const hasAirtable = !!proj.airtable;
-                const warningClass = (!hasGithub || !hasAirtable) ? 'warning-row' : '';
+                const hasNocodb = !!proj.nocodb;
+                const warningClass = (!hasGithub || !hasNocodb) ? 'warning-row' : '';
 
                 html += `
                     <tr data-project="${proj.id}" class="${warningClass}">
@@ -184,9 +184,9 @@ function renderUnifiedView() {
                                 : '<span class="status-missing">❌ 未設定</span>'
                             }
                         </td>
-                        <td class="${!hasAirtable ? 'missing' : ''}">
-                            ${hasAirtable
-                                ? `<a href="${proj.airtable.url}" target="_blank" class="config-link">${proj.airtable.base_name}</a>`
+                        <td class="${!hasNocodb ? 'missing' : ''}">
+                            ${hasNocodb
+                                ? `<a href="${proj.nocodb.url}" target="_blank" class="config-link">${proj.nocodb.base_name}</a>`
                                 : '<span class="status-missing">❌ 未設定</span>'
                             }
                         </td>
@@ -213,7 +213,7 @@ function renderUnifiedView() {
                     <h4>Unassigned Projects</h4>
                     <ul>
                         ${orphanedProjects.map(p =>
-                            `<li><span class="badge badge-project">${p.id}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, Airtable: ${p.hasAirtable ? '✅' : '❌'}, Channels: ${p.channelCount})</li>`
+                            `<li><span class="badge badge-project">${p.id}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, NocoDB: ${p.hasNocodb ? '✅' : '❌'}, Channels: ${p.channelCount})</li>`
                         ).join('')}
                     </ul>
                 </div>
