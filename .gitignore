@@ -31,16 +31,49 @@ _inbox/
 _schedules/
 _ops/
 
+# Symlinks (local development only)
+.claude
+shared
+
 # Temporary files
 *.log
 *.tmp
 *.swp
 *~
 
-# Personal state & inbox (for OSS)
+# ========================================
+# ローカル専用データ（個人のセッション情報）
+# ========================================
 state.json
+state.json.backup.*
+state.json.lock/
 _inbox/pending.md
 uploads/
+
+# ========================================
+# ローカル専用機能（mana統合、brainbase拡張など）
+# ========================================
+public/modules/domain/mana/
+public/modules/domain/brainbase/
+public/modules/main-panels.js
+public/modules/ui/modals/mana-dashboard-modal.js
+public/modules/ui/modals/rename-modal.js
+
+# ========================================
+# ローカル専用設定
+# ========================================
+config.local.yml
+
+# ========================================
+# ローカル専用ディレクトリ
+# ========================================
+_local/
+_private/
+
+# ========================================
+# サンプルデータの個人プロジェクト
+# ========================================
+_codex-sample/projects/
 
 # Shared resources (symlinked from workspace/shared/)
 shared/
