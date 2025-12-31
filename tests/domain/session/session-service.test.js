@@ -33,7 +33,8 @@ describe('SessionService', () => {
                 name: 'Session 1',
                 project: 'project-a',
                 path: '/path/a',
-                createdDate: '2024-01-01T00:00:00Z'
+                createdDate: '2024-01-01T00:00:00Z',
+                intendedState: 'paused'
             },
             {
                 id: 'session-2',
@@ -41,14 +42,15 @@ describe('SessionService', () => {
                 project: 'project-b',
                 path: '/path/b',
                 createdDate: '2024-01-02T00:00:00Z',
-                archived: true
+                intendedState: 'archived'
             },
             {
                 id: 'session-3',
                 name: 'Session 3',
                 project: 'project-a',
                 path: '/path/c',
-                createdDate: '2024-01-03T00:00:00Z'
+                createdDate: '2024-01-03T00:00:00Z',
+                intendedState: 'paused'
             }
         ];
 
@@ -98,12 +100,16 @@ describe('SessionService', () => {
             };
             httpClient.get.mockResolvedValue({ sessions: [...mockSessions, newSession] });
             httpClient.post.mockResolvedValue({});
+            addSession.mockResolvedValue();
 
             await sessionService.createSession(newSession);
 
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: expect.arrayContaining([expect.objectContaining(newSession)])
+            expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+                sessionId: expect.any(String),
+                cwd: expect.stringContaining('project-a'),
+                engine: 'claude'
             }));
+            expect(addSession).toHaveBeenCalled();
             expect(httpClient.get).toHaveBeenCalledWith('/api/state');
         });
 
@@ -211,7 +217,7 @@ describe('SessionService', () => {
             const filtered = sessionService.getFilteredSessions();
 
             expect(filtered).toHaveLength(2);
-            expect(filtered.every(s => !s.archived)).toBe(true);
+            expect(filtered.every(s => s.intendedState !== 'archived')).toBe(true);
         });
 
         it('should filter by project', () => {
@@ -281,31 +287,22 @@ describe('SessionService', () => {
             });
         });
 
-        it('should pause current active session when switching to another session', async () => {
+        it('should update currentSessionId when switching to another session', async () => {
             // session-1（active）からsession-2へ切り替え
             await sessionService.switchSession('session-2');
 
-            // session-1がpausedになっていることを確認
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: expect.arrayContaining([
-                    expect.objectContaining({ id: 'session-1', intendedState: 'paused' }),
-                    expect.objectContaining({ id: 'session-2', intendedState: 'active' })
-                ])
-            }));
+            // currentSessionIdが更新されていることを確認
+            const state = appStore.getState();
+            expect(state.currentSessionId).toBe('session-2');
         });
 
-        it('should emit SESSION_PAUSED and SESSION_RESUMED events when switching', async () => {
-            const pausedListener = vi.fn();
-            const resumedListener = vi.fn();
-            eventBus.on(EVENTS.SESSION_PAUSED, pausedListener);
-            eventBus.on(EVENTS.SESSION_RESUMED, resumedListener);
+        it('should emit SESSION_CHANGED event when switching', async () => {
+            const changedListener = vi.fn();
+            eventBus.on(EVENTS.SESSION_CHANGED, changedListener);
 
             await sessionService.switchSession('session-2');
 
-            expect(pausedListener).toHaveBeenCalledWith(expect.objectContaining({
-                detail: expect.objectContaining({ sessionId: 'session-1' })
-            }));
-            expect(resumedListener).toHaveBeenCalledWith(expect.objectContaining({
+            expect(changedListener).toHaveBeenCalledWith(expect.objectContaining({
                 detail: expect.objectContaining({ sessionId: 'session-2' })
             }));
         });
@@ -320,18 +317,14 @@ describe('SessionService', () => {
             expect(httpClient.post.mock.calls.length).toBe(initialCallCount);
         });
 
-        it('should ensure only one active session exists at a time', async () => {
+        it('should not change session state when switching', async () => {
             // session-2へ切り替え
             await sessionService.switchSession('session-2');
 
-            // 最後のAPI呼び出しを確認
-            const lastCall = httpClient.post.mock.calls[httpClient.post.mock.calls.length - 1];
-            const updatedSessions = lastCall[1].sessions;
-
-            // activeなセッションが1つだけであることを確認
-            const activeSessions = updatedSessions.filter(s => s.intendedState === 'active');
-            expect(activeSessions).toHaveLength(1);
-            expect(activeSessions[0].id).toBe('session-2');
+            // セッションの状態は変更されないことを確認
+            const state = appStore.getState();
+            expect(state.sessions.find(s => s.id === 'session-1').intendedState).toBe('active');
+            expect(state.sessions.find(s => s.id === 'session-2').intendedState).toBe('paused');
         });
 
         it('should start ttyd process when resuming paused session', async () => {
@@ -418,7 +411,7 @@ describe('SessionService', () => {
         });
 
         it('should not use "stopped" state when creating regular session', async () => {
-            // Regular session creation should use "paused" instead of "stopped"
+            // Regular session creation should use "active" instead of "stopped"
             await sessionService.createSession({
                 project: 'test-project',
                 name: 'Test Session',
@@ -427,10 +420,10 @@ describe('SessionService', () => {
                 engine: 'claude'
             });
 
-            // Check that the session was created with "paused" state, not "stopped"
+            // Check that the session was created with "active" state, not "stopped"
             expect(addSession).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    intendedState: 'paused'
+                    intendedState: 'active'
                 })
             );
             expect(addSession).not.toHaveBeenCalledWith(

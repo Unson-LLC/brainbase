@@ -81,7 +81,7 @@ describe('session-manager', () => {
       expect(result.id).toBe('test-session');
       expect(result.name).toBe('Test Session');
       expect(result.path).toBe('/some/path');
-      expect(result.intendedState).toBe('stopped');
+      expect(result.intendedState).toBe('paused');
       expect(result.created).toBeDefined();
     });
 
