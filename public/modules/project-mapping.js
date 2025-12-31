@@ -64,7 +64,7 @@ export function getProjectPath(project) {
  * @returns {string} プロジェクト名
  */
 export function getProjectFromPath(path) {
-  if (!path) return 'General';
+  if (!path) return 'general';
 
   const pathMap = getProjectPathMap();
   const coreProjects = Object.keys(pathMap);
@@ -73,8 +73,8 @@ export function getProjectFromPath(path) {
   const worktreeMatch = path.match(/\.worktrees\/session-\d+-(.+?)(?:\/|$)/);
   if (worktreeMatch) {
     const projectHint = worktreeMatch[1];
-    // workspace -> General
-    if (projectHint === 'workspace') return 'General';
+    // workspace -> general
+    if (projectHint === 'workspace') return 'general';
 
     // 完全一致を優先
     for (const proj of coreProjects) {
@@ -107,8 +107,8 @@ export function getProjectFromPath(path) {
 
   // workspace rootの場合
   if (path === WORKSPACE_ROOT || path === `${WORKSPACE_ROOT}/`) {
-    return 'General';
+    return 'general';
   }
 
-  return 'General';
+  return 'general';
 }
