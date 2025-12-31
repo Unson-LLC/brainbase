@@ -41,3 +41,6 @@ _ops/
 state.json
 _inbox/pending.md
 uploads/
+
+# Shared resources (symlinked from workspace/shared/)
+shared/

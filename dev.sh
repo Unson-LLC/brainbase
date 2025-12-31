@@ -66,4 +66,7 @@ echo -e "URL: ${GREEN}http://localhost:3000${NC}"
 echo -e "終了: Ctrl+C"
 echo ""
 
+# BRAINBASE_ROOT環境変数を設定
+export BRAINBASE_ROOT=/Users/ksato/workspace/shared
+
 npm run dev

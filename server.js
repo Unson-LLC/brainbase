@@ -38,7 +38,7 @@ const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json')
 const APP_VERSION = `v${packageJson.version}`;
 
 // Environment variable for root directory (supports multi-machine setups)
-const BRAINBASE_ROOT = process.env.BRAINBASE_ROOT || '/Users/ksato/workspace';
+const BRAINBASE_ROOT = process.env.BRAINBASE_ROOT || '/Users/ksato/workspace/shared';
 console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
 
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
@@ -257,8 +257,10 @@ async function gracefulShutdown(signal) {
         console.log('✅ HTTP server closed');
     });
 
-    // 2. Cleanup StateStore lock
-    await stateStore.cleanup();
+    // 2. Cleanup StateStore lock (if cleanup method exists)
+    if (stateStore.cleanup) {
+        await stateStore.cleanup();
+    }
 
     // 3. Cleanup SessionManager (if cleanup method exists)
     if (sessionManager.cleanup) {
