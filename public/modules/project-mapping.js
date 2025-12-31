@@ -5,26 +5,54 @@
 
 // WORKSPACE_ROOTを動的に取得（API経由）
 export let WORKSPACE_ROOT = '/path/to/workspace'; // デフォルト値（API経由で上書きされる）
+let PROJECT_PATH_MAP_CACHE = null;
+let CORE_PROJECTS_CACHE = null;
 
 // 初期化処理（モジュールロード時に実行）
 (async function initWorkspaceRoot() {
     try {
-        const response = await fetch('/api/config/root');
+        const response = await fetch('/api/config');
         if (response.ok) {
             const data = await response.json();
-            WORKSPACE_ROOT = data.root;
-            console.log('[ProjectMapping] WORKSPACE_ROOT initialized:', WORKSPACE_ROOT);
+            if (data.projects && data.projects.root) {
+                WORKSPACE_ROOT = data.projects.root;
+                console.log('[ProjectMapping] WORKSPACE_ROOT initialized:', WORKSPACE_ROOT);
+
+                // プロジェクトマップをキャッシュ
+                if (data.projects.projects && Array.isArray(data.projects.projects)) {
+                    PROJECT_PATH_MAP_CACHE = {};
+                    data.projects.projects.forEach(proj => {
+                        let path;
+                        if (proj.local && proj.local.path) {
+                            // 絶対パスの場合はそのまま使用、相対パスの場合はWORKSPACE_ROOTと結合
+                            path = proj.local.path.startsWith('/')
+                                ? proj.local.path
+                                : `${WORKSPACE_ROOT}/${proj.local.path}`;
+                        } else {
+                            // フォールバック: デフォルトパス
+                            path = `${WORKSPACE_ROOT}/projects/${proj.id}`;
+                        }
+                        PROJECT_PATH_MAP_CACHE[proj.id] = path;
+                    });
+                    CORE_PROJECTS_CACHE = Object.keys(PROJECT_PATH_MAP_CACHE);
+                    console.log('[ProjectMapping] Loaded projects:', CORE_PROJECTS_CACHE);
+                }
+            }
         }
     } catch (err) {
-        console.warn('[ProjectMapping] Failed to fetch root, using default:', err);
+        console.warn('[ProjectMapping] Failed to fetch config, using defaults:', err);
     }
 })();
 
 // PROJECT_PATH_MAPを動的に生成
 function getProjectPathMap() {
-    // 全プロジェクトは workspace/projects/ 配下
-    const PROJECTS_ROOT = `${WORKSPACE_ROOT}/projects`;
+    // キャッシュがあればそれを返す
+    if (PROJECT_PATH_MAP_CACHE) {
+        return PROJECT_PATH_MAP_CACHE;
+    }
 
+    // フォールバック: デフォルトプロジェクト
+    const PROJECTS_ROOT = `${WORKSPACE_ROOT}/projects`;
     return {
         'unson': `${PROJECTS_ROOT}/unson`,
         'tech-knight': `${PROJECTS_ROOT}/tech-knight`,
@@ -34,14 +62,47 @@ function getProjectPathMap() {
         'baao': `${PROJECTS_ROOT}/baao`,
         'ncom': `${PROJECTS_ROOT}/ncom-catalyst`,
         'senrigan': `${PROJECTS_ROOT}/senrigan`,
+        'aitle': `${PROJECTS_ROOT}/Aitle`,
+        'mana': `${PROJECTS_ROOT}/mana`,
     };
 }
 
-// PROJECT_PATH_MAPのエクスポート（後方互換性のため）
-export const PROJECT_PATH_MAP = getProjectPathMap();
+// PROJECT_PATH_MAPのエクスポート（関数として動的に取得）
+export function getPROJECT_PATH_MAP() {
+    return PROJECT_PATH_MAP_CACHE || getProjectPathMap();
+}
 
-// CORE_PROJECTSも統合（state.jsから移動予定）
-export const CORE_PROJECTS = Object.keys(getProjectPathMap());
+// 後方互換性のため
+export const PROJECT_PATH_MAP = new Proxy({}, {
+    get(target, prop) {
+        return getPROJECT_PATH_MAP()[prop];
+    },
+    ownKeys() {
+        return Object.keys(getPROJECT_PATH_MAP());
+    },
+    getOwnPropertyDescriptor(target, prop) {
+        return {
+            enumerable: true,
+            configurable: true,
+            value: getPROJECT_PATH_MAP()[prop]
+        };
+    }
+});
+
+// CORE_PROJECTSも統合（動的に取得）
+export function getCORE_PROJECTS() {
+    return CORE_PROJECTS_CACHE || Object.keys(getProjectPathMap());
+}
+
+// 後方互換性のため
+export const CORE_PROJECTS = new Proxy([], {
+    get(target, prop) {
+        const projects = getCORE_PROJECTS();
+        if (prop === 'length') return projects.length;
+        if (prop === Symbol.iterator) return projects[Symbol.iterator].bind(projects);
+        return projects[prop];
+    }
+});
 
 /**
  * プロジェクト名からパスを取得
