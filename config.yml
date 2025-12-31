@@ -1,18 +1,42 @@
-root: /path/to/workspace
+root: ${BRAINBASE_ROOT:-/path/to/workspace}
 
 projects:
+  - id: unson
+    local:
+      path: projects/unson
+
+  - id: techknight
+    local:
+      path: projects/tech-knight
+
   - id: brainbase
     local:
       path: projects/brainbase
-    nocodb:
-      base_id: p1234567890
-      base_name: brainbase-prod
-      url: https://nocodb.example.com/dashboard/#/nc/p1234567890
 
-  - id: test-project
+  - id: salestailor
     local:
-      path: projects/test-project
-    nocodb:
-      base_id: p9876543210
-      base_name: test-project-dev
-      url: https://nocodb.example.com/dashboard/#/nc/p9876543210
+      path: projects/salestailor
+
+  - id: zeims
+    local:
+      path: projects/zeims
+
+  - id: baao
+    local:
+      path: projects/baao
+
+  - id: ncom
+    local:
+      path: projects/ncom-catalyst
+
+  - id: senrigan
+    local:
+      path: projects/senrigan
+
+  - id: aitle
+    local:
+      path: projects/Aitle
+
+  - id: mana
+    local:
+      path: projects/mana
