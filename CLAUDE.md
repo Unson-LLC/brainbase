@@ -1,7 +1,7 @@
 # brainbase Development Standards
 
-**Version**: 1.0.0
-**Last Updated**: 2025-12-29
+**Version**: 1.1.0
+**Last Updated**: 2025-12-31
 **Maintainer**: 佐藤圭吾
 
 ---
@@ -475,6 +475,386 @@ PR作成時 → 「カバレッジ80%以上か?」
 **Enforcement**:
 - Skill: test-strategy
 - CI Check: test-coverage-check.yml
+
+---
+
+### 2.4 E2E Test Best Practices (AI活用時)
+
+**原則**: AIを使ってE2Eテストを作成する際、堅牢性・保守性・デバッグ容易性を確保する
+
+**Why**:
+- UIの変更でテストが壊れるのを防ぐ
+- 外部依存によるテスト失敗を防ぐ
+- 失敗時の原因特定を容易にする
+- テストの並列実行を安全に行う
+
+---
+
+#### 2.4.1 data-testid属性の利用
+
+**原則**: DOM要素取得時は必ず`data-testid`属性を使用する
+
+**Why**:
+- UIの文言変更でテストが壊れない
+- レイアウト変更でセレクタが無効化されない
+- テストの意図が明確になる
+
+**How**:
+```javascript
+// Good: data-testid使用
+<button data-testid="submit-task-btn">送信</button>
+
+// Playwrightテスト
+await page.getByTestId('submit-task-btn').click();
+
+// Bad: テキストやCSSセレクタ使用
+await page.getByText('送信').click(); // ❌ 文言変更で壊れる
+await page.locator('.btn-primary').click(); // ❌ CSSクラス変更で壊れる
+```
+
+**思考パターン**:
+```
+要素取得が必要 → 「data-testidを使用しているか?」
+AIにテスト作成依頼 → 「data-testid指定を指示したか?」
+```
+
+---
+
+#### 2.4.2 test-idの一意性確保
+
+**原則**: 共通コンポーネントではPropsで`data-testid`を動的に渡し、一意性を保つ
+
+**Why**:
+- test-id重複によるテスト失敗を防ぐ
+- 複数インスタンスでも正しく要素を特定できる
+
+**How**:
+```javascript
+// Good: Propsで動的にtest-id設定
+export function TaskCard({ task, testId }) {
+  return (
+    <div data-testid={testId || `task-card-${task.id}`}>
+      <button data-testid={`${testId}-complete-btn`}>完了</button>
+    </div>
+  );
+}
+
+// 使用側
+<TaskCard task={task} testId="task-123" />
+
+// Bad: 固定のtest-id
+export function TaskCard({ task }) {
+  return (
+    <div data-testid="task-card"> {/* ❌ 重複する */}
+      <button data-testid="complete-btn">完了</button>
+    </div>
+  );
+}
+```
+
+**思考パターン**:
+```
+共通コンポーネント作成 → 「test-idが重複しないか?」
+複数インスタンスを表示 → 「各インスタンスのtest-idが一意か?」
+```
+
+---
+
+#### 2.4.3 外部サービスのモック化
+
+**原則**: 認証サービス・外部API等は積極的にモック化する
+
+**Why**:
+- レート制限によるテスト失敗を防ぐ
+- 外部サービスのダウンタイム影響を受けない
+- テスト実行速度の向上
+
+**How**:
+```javascript
+// Good: Auth0等の認証をモック
+import { test, expect } from '@playwright/test';
+
+test.beforeEach(async ({ page, context }) => {
+  // 認証APIのモック
+  await page.route('**/oauth/token', async (route) => {
+    await route.fulfill({
+      status: 200,
+      body: JSON.stringify({
+        access_token: 'mock-token-123',
+        expires_in: 3600
+      })
+    });
+  });
+
+  // セッションCookieを直接設定
+  await context.addCookies([{
+    name: 'session',
+    value: 'mock-session-id',
+    domain: 'localhost',
+    path: '/'
+  }]);
+});
+
+// Bad: 実際の認証サービスを使用
+// ❌ レート制限でテストが失敗する
+```
+
+**AIへの指示例**:
+```
+「Auth0との接続部分をモックして、テストではモックトークンを使用してください」
+「外部APIは page.route() でモック化してください」
+```
+
+**思考パターン**:
+```
+外部サービス接続 → 「モック化すべきか?」
+テストが外部依存で失敗 → 「モックを追加できないか?」
+```
+
+---
+
+#### 2.4.4 並列実行時のユーザー分離
+
+**原則**: テストケースごとに異なるユーザーを使用し、データ競合を防ぐ
+
+**Why**:
+- テストAの実行中にテストBがデータをクリア → 失敗を防ぐ
+- テストの独立性を保つ
+- 並列実行でのフレーキネスを防ぐ
+
+**How**:
+```javascript
+// Good: テストごとにユーザー分離
+import { test } from '@playwright/test';
+
+test.describe('タスク管理', () => {
+  test('ユーザーAがタスクを作成', async ({ page }) => {
+    // ユーザーAとしてログイン
+    await loginAs(page, 'user-a@example.com');
+    await page.getByTestId('create-task-btn').click();
+    // ...
+  });
+
+  test('ユーザーBがタスクを削除', async ({ page }) => {
+    // ユーザーBとしてログイン
+    await loginAs(page, 'user-b@example.com');
+    await page.getByTestId('delete-task-btn').click();
+    // ...
+  });
+});
+
+// Bad: 全テストで同じユーザー使用
+// ❌ テスト間でデータが競合する
+```
+
+**playwright.config.ts設定**:
+```typescript
+export default defineConfig({
+  workers: 4, // 並列実行数
+  fullyParallel: true, // 完全並列実行
+});
+```
+
+**思考パターン**:
+```
+並列テスト実行 → 「ユーザーが分離されているか?」
+テストが不安定 → 「データ競合が原因ではないか?」
+```
+
+---
+
+#### 2.4.5 共通処理の関数化
+
+**原則**: 認証セッション取得・ページ遷移等の共通処理はヘルパー関数化する
+
+**Why**:
+- 変更漏れを防ぐ
+- テストコードの重複を削減
+- 保守性向上
+
+**How**:
+```javascript
+// tests/helpers/auth.js
+export async function loginAs(page, email) {
+  await page.goto('/login');
+  await page.getByTestId('email-input').fill(email);
+  await page.getByTestId('password-input').fill('password123');
+  await page.getByTestId('login-btn').click();
+  await page.waitForURL('/dashboard');
+}
+
+export async function logout(page) {
+  await page.getByTestId('user-menu').click();
+  await page.getByTestId('logout-btn').click();
+  await page.waitForURL('/login');
+}
+
+// テストファイル
+import { loginAs, logout } from './helpers/auth.js';
+
+test('タスク作成フロー', async ({ page }) => {
+  await loginAs(page, 'user@example.com');
+  // テストロジック
+  await logout(page);
+});
+```
+
+**ディレクトリ構造**:
+```
+tests/
+├── e2e/
+│   ├── task.spec.js
+│   └── session.spec.js
+├── helpers/
+│   ├── auth.js       # 認証関連
+│   ├── setup.js      # セットアップ関連
+│   └── assertions.js # カスタムアサーション
+└── fixtures/
+    └── test-data.js  # テストデータ
+```
+
+**思考パターン**:
+```
+同じ処理を発見 → 「共通化できないか?」
+認証処理を追加 → 「ヘルパー関数に集約されているか?」
+```
+
+---
+
+#### 2.4.6 失敗時の動画記録
+
+**原則**: テスト失敗時は動画を記録し、原因を可視化する
+
+**Why**:
+- 失敗原因が一目瞭然になる
+- デバッグ効率が劇的に向上
+- CIでの失敗も原因特定が容易
+
+**How**:
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  use: {
+    // 失敗時のみ動画を保存
+    video: 'retain-on-failure',
+
+    // スクリーンショットも保存
+    screenshot: 'only-on-failure',
+
+    // トレースも記録
+    trace: 'retain-on-failure',
+  },
+});
+```
+
+**GitHub Actionsでの動画アップロード**:
+```yaml
+# .github/workflows/e2e-test.yml
+- name: Upload test results
+  if: failure()
+  uses: actions/upload-artifact@v3
+  with:
+    name: playwright-results
+    path: |
+      test-results/
+      playwright-report/
+    retention-days: 7
+```
+
+**AIへの指示例**:
+```
+「テスト失敗時の動画を確認したいので、playwright.config.tsでvideo設定を追加してください」
+「このテストが失敗した原因を動画から分析して修正してください」
+```
+
+**思考パターン**:
+```
+テスト失敗 → 「動画で原因を確認できるか?」
+デバッグに時間がかかる → 「動画・スクリーンショット・トレースを確認したか?」
+```
+
+---
+
+#### 2.4.7 エラーログの出力
+
+**原則**: 重要な処理では意図的にログを仕込み、失敗時の原因特定を容易にする
+
+**Why**:
+- E2Eテストは失敗原因が見えにくい（特に認証周り）
+- CI環境とローカル環境の差分が明確になる
+- デバッグ時間の短縮
+
+**How**:
+```javascript
+// Good: ログを仕込む
+test('タスク作成フロー', async ({ page }) => {
+  // ページのコンソールログをキャプチャ
+  page.on('console', (msg) => {
+    console.log(`[Browser Console] ${msg.type()}: ${msg.text()}`);
+  });
+
+  console.log('[Test] ログイン開始');
+  await loginAs(page, 'user@example.com');
+
+  console.log('[Test] タスク作成ボタンをクリック');
+  await page.getByTestId('create-task-btn').click();
+
+  console.log('[Test] タスク名を入力');
+  await page.getByTestId('task-name-input').fill('新しいタスク');
+
+  console.log('[Test] 保存ボタンをクリック');
+  await page.getByTestId('save-btn').click();
+
+  console.log('[Test] タスク一覧に遷移を待機');
+  await page.waitForURL('/tasks');
+
+  console.log('[Test] タスクが作成されたことを確認');
+  await expect(page.getByTestId('task-123')).toBeVisible();
+});
+```
+
+**ネットワークログのキャプチャ**:
+```javascript
+page.on('request', (request) => {
+  console.log(`[Request] ${request.method()} ${request.url()}`);
+});
+
+page.on('response', (response) => {
+  console.log(`[Response] ${response.status()} ${response.url()}`);
+});
+```
+
+**AIへの指示例**:
+```
+「このテストにエラーログを仕込んで、失敗時の原因を特定しやすくしてください」
+「ネットワークログもキャプチャして、API呼び出しの状況を確認できるようにしてください」
+```
+
+**思考パターン**:
+```
+デバッグが困難 → 「ログを追加すべきか?」
+CI環境で失敗 → 「ローカルとの差分がログから見えるか?」
+認証周りで失敗 → 「認証フローの各ステップでログを出力しているか?」
+```
+
+---
+
+**AIへの統合指示例**:
+```
+「E2Eテストを作成する際は、以下のベストプラクティスを守ってください:
+1. 要素取得は必ずdata-testidを使用
+2. 共通コンポーネントはPropsでtest-idを動的に渡す
+3. 外部サービス（Auth0等）はモック化
+4. 並列実行時はユーザーを分離
+5. 共通処理（認証等）はヘルパー関数化
+6. playwright.config.tsでvideo: 'retain-on-failure'を設定
+7. 重要な処理にはログを仕込む」
+```
+
+**Enforcement**:
+- Skill: e2e-test-strategy
+- CI Check: e2e-test-check.yml
+- 参照: `.claude/skills/e2e-test-strategy/SKILL.md`
 
 ---
 
@@ -980,6 +1360,6 @@ npm run lint:imports
 
 ---
 
-**最終更新**: 2025-12-29
+**最終更新**: 2025-12-31
 **作成者**: 佐藤圭吾
 **ステータス**: Active
