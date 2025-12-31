@@ -57,7 +57,6 @@ public/modules/domain/mana/
 public/modules/domain/brainbase/
 public/modules/main-panels.js
 public/modules/ui/modals/mana-dashboard-modal.js
-public/modules/ui/modals/rename-modal.js
 
 # ========================================
 # ローカル専用設定
