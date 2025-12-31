@@ -1,18 +1,47 @@
-root: /path/to/workspace
+root: ${BRAINBASE_ROOT:-/path/to/workspace}
+
+# Note: Projects root is separate from BRAINBASE_ROOT
+# BRAINBASE_ROOT points to workspace data directory (_tasks, _schedules, _codex)
+# PROJECTS_ROOT points to git repositories directory
+projects_root: ${PROJECTS_ROOT:-/path/to/projects}
 
 projects:
+  - id: unson
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/unson
+
+  - id: techknight
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/tech-knight
+
   - id: brainbase
     local:
-      path: projects/brainbase
-    nocodb:
-      base_id: p1234567890
-      base_name: brainbase-prod
-      url: https://nocodb.example.com/dashboard/#/nc/p1234567890
+      path: ${PROJECTS_ROOT:-/path/to/projects}/brainbase
 
-  - id: test-project
+  - id: salestailor
     local:
-      path: projects/test-project
-    nocodb:
-      base_id: p9876543210
-      base_name: test-project-dev
-      url: https://nocodb.example.com/dashboard/#/nc/p9876543210
+      path: ${PROJECTS_ROOT:-/path/to/projects}/salestailor
+
+  - id: zeims
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/zeims
+
+  - id: baao
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/baao
+
+  - id: ncom
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/ncom-catalyst
+
+  - id: senrigan
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/senrigan
+
+  - id: aitle
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/Aitle
+
+  - id: mana
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/mana
