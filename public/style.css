@@ -2251,6 +2251,8 @@ body {
     padding: 1rem 1.5rem;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
+    max-height: 250px;
+    overflow-y: auto;
 }
 
 .integrity-stats {
