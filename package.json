@@ -27,17 +27,21 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "prestart": "bash scripts/check-worktree.sh",
+    "predev": "bash scripts/check-worktree.sh",
     "dev": "node --watch-path=server --watch-path=lib --watch-path=public --watch-path=server.js --watch-path=package.json --watch-preserve-output server.js",
     "start": "node server.js",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:mobile": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js",
+    "test:mobile:iphone": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='iPhone 13 Pro - Emulated'",
+    "test:mobile:android": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='Pixel 7 - Emulated'"
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",
     "chokidar": "^5.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "front-matter": "^4.0.2",
     "http-proxy-middleware": "^3.0.5",
@@ -46,8 +50,9 @@
     "multer": "^2.0.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
+    "@playwright/test": "^1.48.0",
     "@vitest/coverage-v8": "^4.0.16",
+    "dotenv": "^17.2.3",
     "jsdom": "^27.3.0",
     "supertest": "^7.1.4",
     "vitest": "^4.0.16"
