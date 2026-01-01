@@ -1162,12 +1162,13 @@ class App {
             const engine = document.querySelector('input[name="session-engine"]:checked')?.value || 'claude';
             const initialCommand = commandInput?.value || '';
             const useWorktree = worktreeCheckbox?.checked || false;
+            const selectedProject = projectSelect?.value || project;
 
             // Close modal
             modal.classList.remove('active');
 
             // Create session
-            await this.createSession(project, name, initialCommand, useWorktree, engine);
+            await this.createSession(selectedProject, name, initialCommand, useWorktree, engine);
 
             // Remove this event listener
             createBtn?.removeEventListener('click', handleCreate);
