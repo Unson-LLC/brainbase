@@ -2339,7 +2339,7 @@ body::after {
 
 /* Settings Modal Body */
 .settings-body {
-    overflow-y: auto;
+    /* .modal-fullscreen .modal-body で既に flexbox 設定済み */
 }
 
 .modal-header-actions {
@@ -2523,74 +2523,7 @@ body::after {
 }
 
 /* Integrity Summary */
-.integrity-summary {
-    padding: 1rem 1.5rem;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-    max-height: 250px;
-    min-height: 0;
-    overflow-y: auto;
-    flex-shrink: 0;
-}
-
-.integrity-stats {
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: var(--bg-primary);
-    border-radius: 6px;
-    font-size: 0.85rem;
-}
-
-.stat-item .count {
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-
-.stat-item.error .count {
-    color: var(--danger-color);
-}
-
-.stat-item.warning .count {
-    color: var(--warning-color);
-}
-
-.stat-item.success .count {
-    color: var(--success-color);
-}
-
-.integrity-issues {
-    margin-top: 1rem;
-    max-height: 150px;
-    overflow-y: auto;
-}
-
-.issue-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    font-size: 0.8rem;
-    border-radius: 4px;
-    margin-bottom: 0.25rem;
-}
-
-.issue-item.error {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger-color);
-}
-
-.issue-item.warning {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--warning-color);
-}
+/* integrity-summary removed - OSS版では不要 */
 
 .issue-item.info {
     background: rgba(59, 130, 246, 0.1);
@@ -2638,8 +2571,9 @@ body::after {
 /* Settings Content */
 .settings-content {
     flex: 1;
-    overflow-y: auto;
-    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .settings-panel {
@@ -2647,7 +2581,11 @@ body::after {
 }
 
 .settings-panel.active {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    padding: 1.5rem;
 }
 
 .settings-section {
@@ -2723,7 +2661,9 @@ body::after {
 
 /* Config Table */
 .config-table-container {
+    flex: 1;
     overflow-x: auto;
+    overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: 8px;
 }
@@ -2750,6 +2690,7 @@ body::after {
     letter-spacing: 0.05em;
     position: sticky;
     top: 0;
+    z-index: 10;
 }
 
 .config-table tr:hover {
@@ -2796,11 +2737,7 @@ body::after {
     color: var(--text-secondary);
 }
 
-/* Scrollable table container */
-.config-table-container {
-    max-height: 400px;
-    overflow-y: auto;
-}
+/* config-table-container の重複定義削除 - 親の高さに依存させる */
 
 /* Config link (for GitHub URLs) */
 .config-link {

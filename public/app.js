@@ -8,7 +8,9 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
-import { initSettings, openSettings } from './modules/settings.js';
+import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
+import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
+import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
@@ -28,7 +30,6 @@ import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
-import { DashboardController } from './modules/dashboard-controller.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -48,6 +49,7 @@ class App {
         this.refreshIntervalId = null;
         this.choiceCheckInterval = null;
         this.lastChoiceHash = null;
+        this.settingsCore = null; // Settings Plugin Architecture
     }
 
     /**
@@ -101,12 +103,27 @@ class App {
         this.views.inboxView = new InboxView();
         this.views.inboxView.mount();
 
-        // Dashboard
-        this.dashboardController = new DashboardController();
-        this.dashboardController.init();
+        // Dashboard (Mana専用機能 - OSS版では無効)
+        this.initDashboardController();
 
         // Setup View Navigation (Console <-> Dashboard)
         this.setupViewNavigation();
+    }
+
+    /**
+     * Initialize Dashboard Controller (Mana extension)
+     * OSS版では利用不可
+     */
+    async initDashboardController() {
+        try {
+            const { DashboardController } = await import('./modules/dashboard-controller.js');
+            this.dashboardController = new DashboardController();
+            await this.dashboardController.init();
+            console.log('Dashboard Controller loaded (Mana extension)');
+        } catch (error) {
+            console.log('Dashboard Controller not available (OSS mode)');
+            this.dashboardController = null;
+        }
     }
 
     /**
@@ -203,7 +220,7 @@ class App {
     /**
      * Setup global event listeners
      */
-    setupEventListeners() {
+    async setupEventListeners() {
         // Terminal copy modal
         const copyTerminalBtn = document.getElementById('copy-terminal-btn');
         const copyTerminalModal = document.getElementById('copy-terminal-modal');
@@ -361,7 +378,7 @@ class App {
         this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
 
         // Setup global UI button handlers
-        this.setupGlobalButtons();
+        await this.setupGlobalButtons();
 
         // Setup terminal toolbar buttons
         this.setupTerminalToolbar();
@@ -370,9 +387,9 @@ class App {
     /**
      * Setup global UI button handlers
      */
-    setupGlobalButtons() {
-        // Initialize settings module
-        initSettings();
+    async setupGlobalButtons() {
+        // Initialize settings module with conditional extension loading
+        await this.initSettingsWithExtensions();
 
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
@@ -382,12 +399,13 @@ class App {
             };
         }
 
-        // Settings button - openSettings is already set up by initSettings()
-        // But we can also add a direct handler here
+        // Settings button
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
             settingsBtn.onclick = async () => {
-                await openSettings();
+                if (this.settingsCore && this.settingsCore.ui) {
+                    await this.settingsCore.ui.openModal();
+                }
             };
         }
 
@@ -407,6 +425,35 @@ class App {
 
         // Mobile bottom navigation
         this.setupMobileNavigation();
+    }
+
+    /**
+     * Initialize Settings with conditional Mana extension loading
+     * Phase 3: Plugin Architecture - Dynamic extension loading
+     */
+    async initSettingsWithExtensions() {
+        // 1. Core Settings初期化（OSS版）
+        const registry = new SettingsPluginRegistry({ eventBus, store: appStore });
+        const ui = new SettingsUI();
+        const apiClient = new CoreApiClient();
+
+        this.settingsCore = new SettingsCore({ pluginRegistry: registry, ui, apiClient });
+        await this.settingsCore.init();
+
+        // 2. Mana拡張の条件付きロード（OSS版では拡張なし）
+        try {
+            const { ManaSettingsPlugin } = await import('/extensions/mana-integration/index.js');
+            const manaPlugin = new ManaSettingsPlugin({
+                pluginRegistry: registry,
+                store: appStore,
+                eventBus
+            });
+            manaPlugin.register();
+            console.log('Mana Settings Extension loaded');
+        } catch (error) {
+            console.log('Mana Settings Extension not available (OSS mode)');
+            // エラーは握りつぶす（OSS版では正常動作）
+        }
     }
 
     /**
@@ -1088,7 +1135,7 @@ class App {
         this.initProjectSelect();
 
         // 4. Setup event listeners
-        this.setupEventListeners();
+        await this.setupEventListeners();
 
         // 5. Load initial data
         await this.loadInitialData();
