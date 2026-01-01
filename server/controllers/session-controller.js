@@ -1,3 +1,6 @@
+import { promisify } from 'util';
+import { exec } from 'child_process';
+
 /**
  * SessionController
  * セッション関連のHTTPリクエスト処理
@@ -7,6 +10,7 @@ export class SessionController {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
+        this.execPromise = promisify(exec);
     }
 
     // ========================================
@@ -124,6 +128,14 @@ export class SessionController {
 
         // Stop ttyd process first (release port)
         await this.sessionManager.stopTtyd(id);
+
+        // Delete TMUX session for archived session
+        try {
+            await this.execPromise(`tmux kill-session -t "${id}"`);
+            console.log(`Deleted TMUX session for archived session: ${id}`);
+        } catch (err) {
+            console.warn(`Failed to delete TMUX session ${id}:`, err.message);
+        }
 
         // Archive: Update intendedState to archived
         const updatedSessions = state.sessions.map(s =>

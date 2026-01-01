@@ -387,8 +387,15 @@ async archiveTask(taskId) {
 
 **E2E Test** (5%):
 - 対象: Critical User Flows
-- ツール: Playwright
+- ツール: Playwright（推奨）, Chrome DevTools MCP（軽量・デバッグ用）
 - 実行頻度: CI (PRマージ前)
+
+**使い分け**:
+- **Playwright**: 複雑なシナリオ、クロスブラウザテスト、並列実行
+- **Chrome DevTools MCP**:
+  - 開発中のクイック検証（スクリーンショット、コンソール確認）
+  - CI/CDでの軽量E2Eチェック
+  - デバッグ・トラブルシューティング
 
 **思考パターン**:
 ```
