@@ -1,5 +1,5 @@
 #!/bin/bash
-# Worktreeでのサーバー起動を防止するチェックスクリプト
+# Worktreeでのサーバー起動時の警告スクリプト
 
 set -e
 
@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # 色定義
-RED='\033[0;31m'
+GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
@@ -15,23 +15,23 @@ NC='\033[0m' # No Color
 if [ -f "$PROJECT_ROOT/.git" ]; then
     # .gitがファイル = worktree
     echo ""
-    echo -e "${RED}❌ エラー: worktreeではbrainbaseサーバーを起動できません${NC}"
+    echo -e "${YELLOW}⚠️  Worktree環境でのサーバー起動を検出${NC}"
     echo ""
-    echo -e "${YELLOW}理由:${NC}"
-    echo "  - 正本とworktreeが同じstate.json、セッションを管理しようとして競合します"
-    echo "  - 複数のサーバーが同じttydプロセスを操作し、Claudeセッションがクラッシュします"
+    echo -e "${YELLOW}注意事項:${NC}"
+    echo "  - 正本とworktreeが同じstate.jsonを共有しています"
+    echo "  - セッション管理機能を使用すると競合が発生します"
     echo ""
-    echo -e "${YELLOW}対処方法:${NC}"
-    BRAINBASE_ROOT="${WORKSPACE_ROOT:-/path/to/workspace}/projects/brainbase"
-    echo "  1. 正本でサーバーを起動してください:"
-    echo "     cd $BRAINBASE_ROOT"
-    echo "     npm start"
+    echo -e "${GREEN}推奨: テストモードで起動${NC}"
+    echo "  テストモードではセッション管理が無効化され、UI検証・E2Eテストが安全に実行できます"
     echo ""
-    echo "  2. worktreeではコード変更のみ行ってください"
-    echo "  3. 変更後は正本でコミット・テストを実施してください"
+    echo "  起動コマンド:"
+    echo -e "    ${GREEN}BRAINBASE_TEST_MODE=true npm start${NC}"
     echo ""
-    exit 1
+    echo "  または、package.jsonに追加されたスクリプトを使用:"
+    echo -e "    ${GREEN}npm run test:server${NC}"
+    echo ""
+    # exit 1を削除 → 起動は許可、ただし警告を表示
 fi
 
-# 正本の場合は何もせず終了
+# 正本・worktree両方で正常終了
 exit 0
