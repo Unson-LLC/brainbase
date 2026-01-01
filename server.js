@@ -139,7 +139,10 @@ const sessionManager = new SessionManager({
 (async () => {
     await stateStore.init();
     await sessionManager.restoreHookStatus();
-    await sessionManager.cleanupOrphans();
+    // DISABLED: cleanupOrphans() kills active sessions on startup
+    // Root cause: activeSessions Map is empty at startup time
+    // TODO: Restore active sessions from state.json before calling cleanup
+    // await sessionManager.cleanupOrphans();
 })();
 
 // Configure Multer for file uploads
@@ -251,7 +254,10 @@ app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRo
 
 // Start server
 const server = app.listen(PORT, async () => {
-    await sessionManager.cleanupOrphans();
+    // DISABLED: cleanupOrphans() kills active sessions on startup
+    // Root cause: activeSessions Map is empty at startup time
+    // TODO: Restore active sessions from state.json before calling cleanup
+    // await sessionManager.cleanupOrphans();
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
     console.log(`Reading tasks from: ${TASKS_FILE}`);
