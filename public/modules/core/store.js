@@ -76,6 +76,7 @@ export const appStore = new Store({
     tasks: [],
     schedule: null,
     inbox: [],
+    testMode: false, // テストモード（読み取り専用）
     filters: {
         taskFilter: '',
         showAllTasks: false
