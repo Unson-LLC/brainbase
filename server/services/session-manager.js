@@ -49,13 +49,53 @@ export class SessionManager {
 
     /**
      * 孤立したttydプロセスをクリーンアップ
+     *
+     * BUG FIX: 以前は`pkill ttyd`で全プロセスを殺していたが、
+     * これはactiveセッションのttydも殺してしまう。
+     *
+     * 修正後: activeSessionsに登録されていないttydプロセスのみ殺す
      */
     async cleanupOrphans() {
         try {
-            console.log('Cleaning up orphaned ttyd processes...');
-            await this.execPromise('pkill ttyd').catch(() => { }); // Ignore error if no processes found
+            console.log('[cleanupOrphans] Checking for orphaned ttyd processes...');
+
+            // 1. 全てのttydプロセスを取得
+            const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
+            if (!stdout.trim()) {
+                console.log('[cleanupOrphans] No ttyd processes found');
+                return;
+            }
+
+            const lines = stdout.trim().split('\n');
+            console.log(`[cleanupOrphans] Found ${lines.length} ttyd process(es)`);
+
+            // 2. activeSessionsのPIDを取得
+            const activePids = new Set();
+            for (const [sessionId, sessionData] of this.activeSessions) {
+                if (sessionData.process && sessionData.process.pid) {
+                    activePids.add(sessionData.process.pid);
+                    console.log(`[cleanupOrphans] Active session ${sessionId}: PID ${sessionData.process.pid}`);
+                }
+            }
+
+            // 3. 孤立したttydプロセスのみ殺す
+            let orphansKilled = 0;
+            for (const line of lines) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parseInt(parts[1], 10);
+
+                if (!activePids.has(pid)) {
+                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid}`);
+                    await this.execPromise(`kill ${pid}`).catch(() => {});
+                    orphansKilled++;
+                } else {
+                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid}`);
+                }
+            }
+
+            console.log(`[cleanupOrphans] Cleaned up ${orphansKilled} orphaned ttyd process(es)`);
         } catch (err) {
-            console.error('Error cleaning up orphans:', err);
+            console.error('[cleanupOrphans] Error:', err);
         }
     }
 
