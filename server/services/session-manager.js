@@ -48,6 +48,77 @@ export class SessionManager {
     }
 
     /**
+     * Phase 3: activeセッションを復元
+     * サーバー起動時にstate.jsonからintendedState === 'running'のセッションを復元し、
+     * 既存のttydプロセスと紐付ける
+     */
+    async restoreActiveSessions() {
+        try {
+            console.log('[restoreActiveSessions] Restoring active sessions from state.json...');
+
+            const state = this.stateStore.get();
+            if (!state.sessions) {
+                console.log('[restoreActiveSessions] No sessions in state.json');
+                return;
+            }
+
+            // intendedState === 'running' のセッションを抽出
+            const runningSessions = state.sessions.filter(s => s.intendedState === 'running');
+            console.log(`[restoreActiveSessions] Found ${runningSessions.length} running session(s) in state.json`);
+
+            if (runningSessions.length === 0) {
+                return;
+            }
+
+            // 全ttydプロセスを取得
+            const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
+            if (!stdout.trim()) {
+                console.log('[restoreActiveSessions] No ttyd processes found');
+                return;
+            }
+
+            const lines = stdout.trim().split('\n');
+            console.log(`[restoreActiveSessions] Found ${lines.length} ttyd process(es)`);
+
+            // 各ttydプロセスから sessionId と port を抽出
+            for (const line of lines) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parseInt(parts[1], 10);
+
+                // コマンドライン全体を取得
+                const cmdLine = parts.slice(10).join(' ');
+
+                // -p PORT を抽出
+                const portMatch = cmdLine.match(/-p\s+(\d+)/);
+                const port = portMatch ? parseInt(portMatch[1], 10) : null;
+
+                // -b /console/SESSION_ID を抽出
+                const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
+                const sessionId = sessionMatch ? sessionMatch[1] : null;
+
+                if (!sessionId || !port) {
+                    console.log(`[restoreActiveSessions] Skipping process PID ${pid}: sessionId or port not found`);
+                    continue;
+                }
+
+                // state.jsonのrunningセッションに一致するか確認
+                const matchingSession = runningSessions.find(s => s.id === sessionId);
+                if (matchingSession) {
+                    this.activeSessions.set(sessionId, {
+                        port,
+                        process: { pid }
+                    });
+                    console.log(`[restoreActiveSessions] Restored session ${sessionId}: PID ${pid}, Port ${port}`);
+                }
+            }
+
+            console.log(`[restoreActiveSessions] Total restored: ${this.activeSessions.size} session(s)`);
+        } catch (err) {
+            console.error('[restoreActiveSessions] Error:', err);
+        }
+    }
+
+    /**
      * 孤立したttydプロセスをクリーンアップ
      *
      * BUG FIX: 以前は`pkill ttyd`で全プロセスを殺していたが、
