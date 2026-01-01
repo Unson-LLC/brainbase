@@ -121,17 +121,19 @@ app.use(express.static('public', {
 }));
 
 // Initialize Services
-const sessionManager = new SessionManager({
-    serverDir: __dirname,
-    execPromise,
-    stateStore
-});
-
+// Phase 2: WorktreeServiceを先に初期化（SessionManagerで使用するため）
 const worktreeService = new WorktreeService(
     WORKTREES_DIR,
     path.dirname(__dirname), // Canonical root (parent of current directory)
     execPromise
 );
+
+const sessionManager = new SessionManager({
+    serverDir: __dirname,
+    execPromise,
+    stateStore,
+    worktreeService  // Phase 2: Archived session cleanup用
+});
 
 // Initialize State Store and restore session state
 (async () => {

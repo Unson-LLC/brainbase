@@ -13,11 +13,13 @@ export class SessionManager {
      * @param {string} options.serverDir - server.jsのディレクトリ（__dirname）
      * @param {Function} options.execPromise - util.promisify(exec)
      * @param {Object} options.stateStore - StateStoreインスタンス
+     * @param {Object} options.worktreeService - WorktreeServiceインスタンス（Phase 2）
      */
-    constructor({ serverDir, execPromise, stateStore }) {
+    constructor({ serverDir, execPromise, stateStore, worktreeService }) {
         this.serverDir = serverDir;
         this.execPromise = execPromise;
         this.stateStore = stateStore;
+        this.worktreeService = worktreeService;  // Phase 2: Worktree削除用
 
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
@@ -345,6 +347,76 @@ export class SessionManager {
             }
         } catch (err) {
             // エラーは無視（TMUXセッションが既に削除されている可能性がある）
+        }
+    }
+
+    /**
+     * Phase 2: Paused状態のセッションの24時間TTLクリーンアップ
+     * 24時間以上経過したPausedセッションのTMUXを削除
+     */
+    async cleanupStalePausedSessions() {
+        const state = this.stateStore.get();
+        const now = Date.now();
+        const PAUSED_TTL = 24 * 60 * 60 * 1000; // 24時間
+
+        for (const session of state.sessions) {
+            if (session.intendedState === 'paused' && session.pausedAt) {
+                const pausedTime = new Date(session.pausedAt).getTime();
+
+                if (now - pausedTime > PAUSED_TTL && !session.tmuxCleanedAt) {
+                    // TMUX削除
+                    try {
+                        await this.execPromise(`tmux kill-session -t "${session.id}" 2>/dev/null`);
+                        console.log(`[Cleanup] Deleted TMUX for paused session ${session.id} (24h TTL)`);
+                    } catch (err) {
+                        // エラーは無視（TMUXが既に削除されている可能性がある）
+                    }
+
+                    // state.json更新
+                    const updatedSessions = state.sessions.map(s =>
+                        s.id === session.id
+                            ? { ...s, tmuxCleanedAt: new Date().toISOString() }
+                            : s
+                    );
+
+                    await this.stateStore.update({ ...state, sessions: updatedSessions });
+                    console.log(`[Cleanup] Marked TMUX cleaned for paused session ${session.id}`);
+                }
+            }
+        }
+    }
+
+    /**
+     * Phase 2: Archived状態のセッションの30日TTL自動削除
+     * 30日以上経過したArchivedセッションを完全削除
+     */
+    async cleanupArchivedSessions() {
+        const state = this.stateStore.get();
+        const now = Date.now();
+        const ARCHIVED_TTL = 30 * 24 * 60 * 60 * 1000; // 30日
+
+        const sessionsToKeep = state.sessions.filter(session => {
+            if (session.intendedState === 'archived' && session.archivedAt) {
+                const archivedTime = new Date(session.archivedAt).getTime();
+
+                if (now - archivedTime > ARCHIVED_TTL) {
+                    console.log(`[Cleanup] Deleting archived session ${session.id} (30d TTL)`);
+
+                    // Worktreeがあれば削除（非同期、エラー無視）
+                    if (session.worktree && this.worktreeService) {
+                        this.worktreeService.remove(session.id, session.worktree.repo).catch(() => {});
+                    }
+
+                    return false; // 削除対象
+                }
+            }
+            return true; // 保持
+        });
+
+        if (sessionsToKeep.length < state.sessions.length) {
+            await this.stateStore.update({ ...state, sessions: sessionsToKeep });
+            const deletedCount = state.sessions.length - sessionsToKeep.length;
+            console.log(`[Cleanup] Removed ${deletedCount} archived session(s) (30d TTL)`);
         }
     }
 
