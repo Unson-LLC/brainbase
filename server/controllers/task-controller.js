@@ -59,4 +59,24 @@ export class TaskController {
             res.status(500).json({ error: 'Failed to delete task' });
         }
     };
+
+    /**
+     * POST /api/tasks/:id/defer
+     * タスクを延期（優先度を下げる）
+     */
+    defer = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { priority = 'low' } = req.body;
+            const success = await this.taskParser.updateTask(id, { priority });
+            if (success) {
+                res.json({ success: true });
+            } else {
+                res.status(404).json({ error: 'Task not found or defer failed' });
+            }
+        } catch (error) {
+            console.error('Failed to defer task:', error);
+            res.status(500).json({ error: 'Failed to defer task' });
+        }
+    };
 }
