@@ -30,7 +30,6 @@ import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
-import { DashboardController } from './modules/dashboard-controller.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -104,12 +103,27 @@ class App {
         this.views.inboxView = new InboxView();
         this.views.inboxView.mount();
 
-        // Dashboard
-        this.dashboardController = new DashboardController();
-        this.dashboardController.init();
+        // Dashboard (Mana専用機能 - OSS版では無効)
+        this.initDashboardController();
 
         // Setup View Navigation (Console <-> Dashboard)
         this.setupViewNavigation();
+    }
+
+    /**
+     * Initialize Dashboard Controller (Mana extension)
+     * OSS版では利用不可
+     */
+    async initDashboardController() {
+        try {
+            const { DashboardController } = await import('./modules/dashboard-controller.js');
+            this.dashboardController = new DashboardController();
+            await this.dashboardController.init();
+            console.log('Dashboard Controller loaded (Mana extension)');
+        } catch (error) {
+            console.log('Dashboard Controller not available (OSS mode)');
+            this.dashboardController = null;
+        }
     }
 
     /**

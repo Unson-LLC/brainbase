@@ -102,6 +102,33 @@ export class SettingsCore {
   _renderTabs() {
     const tabs = this.pluginRegistry.generateTabNavigation();
     this.ui.renderTabs(tabs, this.currentTab);
+
+    // パネルコンテナを動的に生成
+    this._renderPanelContainers(tabs);
+  }
+
+  /**
+   * パネルコンテナを動的に生成
+   * @private
+   * @param {Array} tabs - タブ一覧
+   */
+  _renderPanelContainers(tabs) {
+    const panelsContainer = document.querySelector('.settings-content');
+    if (!panelsContainer) return;
+
+    // 既存のパネルをクリア
+    panelsContainer.innerHTML = '';
+
+    // 各タブに対応するパネルコンテナを生成
+    tabs.forEach(tab => {
+      const panel = document.createElement('div');
+      panel.id = `${tab.id}-panel`;
+      panel.className = 'settings-panel';
+      if (tab.id === this.currentTab) {
+        panel.classList.add('active');
+      }
+      panelsContainer.appendChild(panel);
+    });
   }
 
   /**
@@ -220,24 +247,26 @@ export class SettingsCore {
     }
 
     return `
-      <table class="config-table">
-        <thead>
-          <tr>
-            <th>Project ID</th>
-            <th>Local Path</th>
-            <th>Included Globs</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${projects.map(p => `
+      <div class="config-table-container">
+        <table class="config-table">
+          <thead>
             <tr>
-              <td><span class="badge badge-project">${p.emoji ? p.emoji + ' ' : ''}${p.id}</span></td>
-              <td class="mono">${p.local?.path || '-'}</td>
-              <td class="mono">${(p.local?.glob_include || []).slice(0, 3).join(', ')}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
+              <th>Project ID</th>
+              <th>Local Path</th>
+              <th>Included Globs</th>
             </tr>
-          `).join('')}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            ${projects.map(p => `
+              <tr>
+                <td><span class="badge badge-project">${p.emoji ? p.emoji + ' ' : ''}${p.id}</span></td>
+                <td class="mono">${p.local?.path || '-'}</td>
+                <td class="mono">${(p.local?.glob_include || []).slice(0, 3).join(', ')}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     `;
   }
 }
