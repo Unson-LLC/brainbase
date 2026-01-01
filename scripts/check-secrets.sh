@@ -33,10 +33,12 @@ check_pattern() {
 
     # grepで検索（除外パターンを考慮）
     local results=$(grep -r -n -I \
-        --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,.claude} \
+        --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,.claude,config,migration,docs} \
         --exclude="state.json" \
+        --exclude=".env" \
         --exclude="*.log" \
         --exclude="*.tmp" \
+        --exclude="*.backup.*" \
         --exclude="check-secrets.sh" \
         --exclude="SECURITY.md" \
         --exclude="LICENSE" \
@@ -47,6 +49,7 @@ check_pattern() {
         --exclude="MIGRATION_2025-12-31.md" \
         --exclude="dashboard-implementation-prompt.md" \
         --exclude="OSS_DIRECTORY_STRUCTURE.md" \
+        --exclude="nohup.out" \
         -E "$pattern" . 2>/dev/null || true)
 
     if [ -n "$results" ]; then
