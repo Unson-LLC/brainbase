@@ -256,8 +256,12 @@ export class SessionManager {
             console.error(`Failed to start ttyd for ${sessionId}:`, err);
         });
 
-        ttyd.on('exit', (code) => {
+        ttyd.on('exit', async (code) => {
             console.log(`ttyd for ${sessionId} exited with code ${code}`);
+
+            // クリーンアップ: TMUXセッションとMCPプロセスを削除
+            await this.cleanupSessionResources(sessionId);
+
             this.activeSessions.delete(sessionId);
         });
 
@@ -306,6 +310,42 @@ export class SessionManager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * セッションのリソースをクリーンアップ（TMUX + MCPプロセス）
+     * @param {string} sessionId - セッションID
+     */
+    async cleanupSessionResources(sessionId) {
+        console.log(`Cleaning up resources for session ${sessionId}...`);
+
+        // 1. TMUXセッション削除
+        try {
+            await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
+            console.log(`Deleted TMUX session: ${sessionId}`);
+        } catch (err) {
+            // エラーは無視（既に削除されている可能性がある）
+        }
+
+        // 2. TMUXペインのプロセスID取得 → 子プロセス（MCP含む）を強制終了
+        try {
+            const { stdout } = await this.execPromise(
+                `tmux list-panes -s -t "${sessionId}" -F "#{pane_pid}" 2>/dev/null || echo ""`
+            );
+
+            if (stdout.trim()) {
+                const panePids = stdout.trim().split('\n');
+                for (const pid of panePids) {
+                    // 子プロセス（MCP等）を終了
+                    await this.execPromise(`pkill -TERM -P ${pid} 2>/dev/null`).catch(() => {});
+                    // 親プロセスを終了
+                    await this.execPromise(`kill -TERM ${pid} 2>/dev/null`).catch(() => {});
+                }
+                console.log(`Cleaned up ${panePids.length} pane processes for session ${sessionId}`);
+            }
+        } catch (err) {
+            // エラーは無視（TMUXセッションが既に削除されている可能性がある）
+        }
     }
 
     /**
