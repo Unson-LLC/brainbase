@@ -1,10 +1,14 @@
-import { httpClient } from '../../core/http-client.js';
+import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { appStore } from '../../core/store.js';
 
 /**
  * Inbox（通知）表示のUIコンポーネント
  */
 export class InboxView {
-    constructor() {
+    constructor({ inboxService }) {
+        this.inboxService = inboxService;
+        this.eventBus = eventBus;
+        this.store = appStore;
         this.inboxTriggerBtn = null;
         this.inboxDropdown = null;
         this.inboxListEl = null;
@@ -25,7 +29,8 @@ export class InboxView {
         this.markAllDoneBtn = document.getElementById('mark-all-done-btn');
 
         this._setupEventListeners();
-        this.loadInbox();
+        this._setupStoreSubscription();
+        this.inboxService.loadInbox();
     }
 
     /**
@@ -54,35 +59,34 @@ export class InboxView {
         // Mark all done button
         if (this.markAllDoneBtn) {
             this.markAllDoneBtn.onclick = async () => {
-                await this.markAllInboxDone();
+                await this.inboxService.markAllAsDone();
             };
         }
+
+        // EventBusリスナー
+        this.eventBus.on(EVENTS.INBOX_LOADED, () => this.render());
     }
 
     /**
-     * Inboxデータを読み込み
+     * Store変更の購読設定
      */
-    async loadInbox() {
-        try {
-            const res = await fetch(`/api/inbox/pending?t=${Date.now()}`);
-            if (res.ok) {
-                this.inboxItems = await res.json();
+    _setupStoreSubscription() {
+        this.store.subscribe((change) => {
+            if (change.key === 'inbox') {
                 this.render();
-            } else {
-                console.error("Failed to fetch inbox:", res.status);
             }
-        } catch (error) {
-            console.error('Failed to load inbox:', error);
-            if (this.inboxListEl) {
-                this.inboxListEl.innerHTML = '<div class="error">Failed to load inbox</div>';
-            }
-        }
+        });
     }
+
 
     /**
      * Inboxをレンダリング
      */
     render() {
+        // Storeからinboxデータを取得
+        const { inbox } = this.store.getState();
+        this.inboxItems = inbox || [];
+
         // Always show inbox button (UX improvement)
         if (this.inboxTriggerBtn) {
             this.inboxTriggerBtn.style.display = 'flex';
@@ -132,7 +136,7 @@ export class InboxView {
             this.inboxListEl.querySelectorAll('.inbox-done-btn').forEach(btn => {
                 btn.onclick = async (e) => {
                     e.stopPropagation();
-                    await this.markInboxItemDone(btn.dataset.id);
+                    await this.inboxService.markAsDone(btn.dataset.id);
                 };
             });
 
@@ -143,51 +147,6 @@ export class InboxView {
         }
     }
 
-    /**
-     * 個別アイテムを確認済みにする
-     */
-    async markInboxItemDone(itemId) {
-        try {
-            const res = await fetch(`/api/inbox/${encodeURIComponent(itemId)}/done`, {
-                method: 'POST'
-            });
-            if (res.ok) {
-                // Animate removal
-                const itemEl = this.inboxListEl.querySelector(`[data-id="${itemId}"]`);
-                if (itemEl) {
-                    itemEl.classList.add('fade-out');
-                    setTimeout(() => {
-                        this.loadInbox();
-                    }, 300);
-                } else {
-                    this.loadInbox();
-                }
-            } else {
-                console.error('Failed to mark inbox item done');
-            }
-        } catch (error) {
-            console.error('Failed to mark inbox item done:', error);
-        }
-    }
-
-    /**
-     * すべてのアイテムを確認済みにする
-     */
-    async markAllInboxDone() {
-        try {
-            const res = await fetch('/api/inbox/mark-all-done', {
-                method: 'POST'
-            });
-            if (res.ok) {
-                console.log('All inbox items marked as done');
-                this.loadInbox();
-            } else {
-                console.error('Failed to mark all inbox done');
-            }
-        } catch (error) {
-            console.error('Failed to mark all inbox done:', error);
-        }
-    }
 
     /**
      * HTMLエスケープ

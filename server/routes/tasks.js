@@ -21,5 +21,8 @@ export function createTaskRouter(taskParser) {
     // DELETE /api/tasks/:id - タスクを削除
     router.delete('/:id', controller.delete);
 
+    // POST /api/tasks/:id/defer - タスクを延期（優先度を下げる）
+    router.post('/:id/defer', controller.defer);
+
     return router;
 }
