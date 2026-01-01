@@ -37,12 +37,22 @@ export class HttpClient {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+                // Try to parse error message from response body
+                let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch (parseError) {
+                    // If JSON parsing fails, use status text
+                }
+                throw new Error(errorMessage);
             }
 
             return response.json();
         } catch (error) {
-            if (error.message.startsWith('HTTP Error:')) {
+            if (error.message.startsWith('HTTP Error:') || error.message.includes('Failed to')) {
                 throw error;
             }
             throw new Error(`Network Error: ${error.message}`);
