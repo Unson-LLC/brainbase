@@ -223,7 +223,9 @@ app.use('/console', ttydProxy);
 // ========================================
 
 // Register routers with dependency injection
-const workspaceRoot = path.join(__dirname, '..');
+// workspaceRoot should point to the current workspace directory (__dirname)
+// not its parent, to correctly resolve file paths for open-file API
+const workspaceRoot = __dirname;
 
 app.use('/api/tasks', createTaskRouter(taskParser));
 app.use('/api/state', createStateRouter(stateStore, sessionManager.getActiveSessions()));
