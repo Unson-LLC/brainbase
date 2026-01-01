@@ -23,6 +23,7 @@ import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { TaskService } from './modules/domain/task/task-service.js';
 import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
+import { InboxService } from './modules/domain/inbox/inbox-service.js';
 
 // Views
 import { TaskView } from './modules/ui/views/task-view.js';
@@ -60,11 +61,13 @@ class App {
         this.container.register('taskService', () => new TaskService());
         this.container.register('sessionService', () => new SessionService());
         this.container.register('scheduleService', () => new ScheduleService());
+        this.container.register('inboxService', () => new InboxService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
         this.sessionService = this.container.get('sessionService');
         this.scheduleService = this.container.get('scheduleService');
+        this.inboxService = this.container.get('inboxService');
     }
 
     /**
@@ -100,7 +103,7 @@ class App {
         }
 
         // Inbox (notifications)
-        this.views.inboxView = new InboxView();
+        this.views.inboxView = new InboxView({ inboxService: this.inboxService });
         this.views.inboxView.mount();
 
         // Dashboard (Mana専用機能 - OSS版では無効)
