@@ -30,11 +30,32 @@ export class SettingsUI {
     this.modalContent = document.getElementById('settings-view');
     this.settingsBtn = document.getElementById('settings-btn');
     this.closeBtn = document.getElementById('close-settings-btn');
+
+    // Settings Modal の構造を初期化（Plugin Architecture対応）
+    this._initModalStructure();
+
     this.tabsContainer = document.querySelector('.settings-tabs');
     this.panelsContainer = document.querySelector('.settings-content');
 
     // イベントリスナー設定
     this._setupEventListeners();
+  }
+
+  /**
+   * Settings Modal の構造を初期化
+   * Plugin Architecture に対応した空の構造を生成
+   * @private
+   */
+  _initModalStructure() {
+    const modalBody = this.modalContent?.querySelector('.modal-body');
+    if (!modalBody) return;
+
+    // modal-body の内容を完全にクリアして、Plugin Architecture用の構造を作成
+    // 古い integrity-summary、ハードコードされたタブ、パネルをすべて削除
+    modalBody.innerHTML = `
+      <div class="settings-tabs"></div>
+      <div class="settings-content"></div>
+    `;
   }
 
   /**
