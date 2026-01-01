@@ -323,8 +323,11 @@ export class SessionService {
             console.error(`Failed to stop ttyd for session ${sessionId}:`, error);
         }
 
-        // intendedState を paused に変更
-        await this.updateSession(sessionId, { intendedState: 'paused' });
+        // Phase 2: intendedState を paused に変更 + pausedAt タイムスタンプ設定
+        await this.updateSession(sessionId, {
+            intendedState: 'paused',
+            pausedAt: new Date().toISOString()
+        });
 
         this.eventBus.emit(EVENTS.SESSION_PAUSED, { sessionId });
     }
