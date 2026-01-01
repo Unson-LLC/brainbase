@@ -53,6 +53,14 @@ console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 const isWorktree = __dirname.includes('.worktrees');
 const DEFAULT_PORT = isWorktree ? 3001 : 3000;
 
+// Test Mode: セッション管理を無効化し、読み取り専用モードで起動
+// worktreeでのE2Eテスト・UI検証時に使用
+const TEST_MODE = process.env.BRAINBASE_TEST_MODE === 'true';
+if (TEST_MODE) {
+    console.log('[BRAINBASE] 🧪 TEST MODE ENABLED - Session management is disabled');
+    console.log('[BRAINBASE] This server is read-only and will not modify state.json');
+}
+
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
 
@@ -121,22 +129,27 @@ app.use(express.static('public', {
 }));
 
 // Initialize Services
-const sessionManager = new SessionManager({
-    serverDir: __dirname,
-    execPromise,
-    stateStore
-});
-
+// Phase 2: WorktreeServiceを先に初期化（SessionManagerで使用するため）
 const worktreeService = new WorktreeService(
     WORKTREES_DIR,
     path.dirname(__dirname), // Canonical root (parent of current directory)
     execPromise
 );
 
+const sessionManager = new SessionManager({
+    serverDir: __dirname,
+    execPromise,
+    stateStore,
+    worktreeService  // Phase 2: Archived session cleanup用
+});
+
 // Initialize State Store and restore session state
 (async () => {
     await stateStore.init();
     await sessionManager.restoreHookStatus();
+
+    // Phase 3: activeセッションを復元してからcleanupを実行
+    await sessionManager.restoreActiveSessions();
     await sessionManager.cleanupOrphans();
 })();
 
@@ -228,11 +241,11 @@ app.use('/console', ttydProxy);
 const workspaceRoot = __dirname;
 
 app.use('/api/tasks', createTaskRouter(taskParser));
-app.use('/api/state', createStateRouter(stateStore, sessionManager.getActiveSessions()));
+app.use('/api/state', createStateRouter(stateStore, sessionManager.getActiveSessions(), TEST_MODE));
 app.use('/api/config', createConfigRouter(configParser));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
-app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore));
+app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot));
 
@@ -249,7 +262,6 @@ app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRo
 
 // Start server
 const server = app.listen(PORT, async () => {
-    await sessionManager.cleanupOrphans();
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
     console.log(`Reading tasks from: ${TASKS_FILE}`);

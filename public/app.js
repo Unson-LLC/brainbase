@@ -382,6 +382,67 @@ class App {
 
         // Setup terminal toolbar buttons
         this.setupTerminalToolbar();
+
+        // Setup test mode banner
+        this.setupTestModeBanner();
+    }
+
+    /**
+     * Setup test mode banner display
+     */
+    setupTestModeBanner() {
+        // Subscribe to store changes
+        const unsub = appStore.subscribe((change) => {
+            if (change.key === 'testMode') {
+                this.updateTestModeBanner(change.value);
+            }
+        });
+        this.unsubscribers.push(unsub);
+
+        // Check initial state
+        const { testMode } = appStore.getState();
+        if (testMode) {
+            this.updateTestModeBanner(true);
+        }
+    }
+
+    /**
+     * Update test mode banner visibility
+     * @param {boolean} testMode - Whether test mode is enabled
+     */
+    updateTestModeBanner(testMode) {
+        let banner = document.getElementById('test-mode-banner');
+
+        if (testMode) {
+            // Create banner if it doesn't exist
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'test-mode-banner';
+                banner.className = 'test-mode-banner';
+                banner.innerHTML = `
+                    <div class="test-mode-banner-content">
+                        <i data-lucide="flask-conical"></i>
+                        <span><strong>テストモード:</strong> このサーバーは読み取り専用です。セッション管理は無効化されています。</span>
+                    </div>
+                `;
+
+                // Insert at the top of app-container
+                const appContainer = document.querySelector('.app-container');
+                if (appContainer) {
+                    appContainer.insertBefore(banner, appContainer.firstChild);
+
+                    // Re-render lucide icons
+                    if (window.lucide && window.lucide.createIcons) {
+                        window.lucide.createIcons();
+                    }
+                }
+            }
+        } else {
+            // Remove banner if it exists
+            if (banner) {
+                banner.remove();
+            }
+        }
     }
 
     /**
