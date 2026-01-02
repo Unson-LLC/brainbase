@@ -160,11 +160,26 @@ const sessionManager = new SessionManager({
     await stateStore.init();
     await sessionManager.restoreHookStatus();
 
-    // Phase 3: activeセッションを復元してからcleanupを実行
-    // Phase 4: TEST_MODEでは実行しない（読み取り専用）
+    // Phase 3: activeセッションを復元（TEST_MODEでは読み取り専用のためスキップ）
     if (!TEST_MODE) {
         await sessionManager.restoreActiveSessions();
-        await sessionManager.cleanupOrphans();
+    }
+
+    // 孤児ttydプロセスのクリーンアップ（TEST_MODEでも実行）
+    // BUG FIX: worktree環境でも孤児プロセスをクリーンアップする必要がある
+    await sessionManager.cleanupOrphans();
+
+    if (!TEST_MODE) {
+        // Phase 2: TTL-based lifecycle management
+        try {
+            console.log('[Cleanup] Running Phase 2 TTL-based cleanup...');
+            await sessionManager.cleanupStalePausedSessions();
+            console.log('[Cleanup] cleanupStalePausedSessions completed');
+            await sessionManager.cleanupArchivedSessions();
+            console.log('[Cleanup] cleanupArchivedSessions completed');
+        } catch (err) {
+            console.error('[Cleanup] Phase 2 cleanup error:', err);
+        }
     } else {
         console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
     }
@@ -287,6 +302,23 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', ttydProxy.upgrade);
+
+// Phase 2: Periodic TTL cleanup (every 1 hour)
+// Only run if not in TEST_MODE
+if (!TEST_MODE) {
+    const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+    setInterval(async () => {
+        console.log('[Cleanup] Running periodic TTL cleanup...');
+        try {
+            await sessionManager.cleanupStalePausedSessions();
+            await sessionManager.cleanupArchivedSessions();
+            console.log('[Cleanup] Periodic TTL cleanup completed');
+        } catch (err) {
+            console.error('[Cleanup] Error during periodic cleanup:', err);
+        }
+    }, CLEANUP_INTERVAL);
+    console.log('[Cleanup] Periodic TTL cleanup scheduled (every 1 hour)');
+}
 
 // Graceful shutdown
 async function gracefulShutdown(signal) {
