@@ -55,9 +55,12 @@ const DEFAULT_PORT = isWorktree ? 3001 : 3000;
 
 // Test Mode: セッション管理を無効化し、読み取り専用モードで起動
 // worktreeでのE2Eテスト・UI検証時に使用
-const TEST_MODE = process.env.BRAINBASE_TEST_MODE === 'true';
+// Phase 4: worktreeで起動された場合は自動的にTEST_MODEを有効化
+const TEST_MODE = process.env.BRAINBASE_TEST_MODE === 'true' || isWorktree;
 if (TEST_MODE) {
-    console.log('[BRAINBASE] 🧪 TEST MODE ENABLED - Session management is disabled');
+    const reason = isWorktree ? 'Auto-enabled (worktree detected)' : 'Manually enabled';
+    console.log(`[BRAINBASE] 🧪 TEST MODE ENABLED - ${reason}`);
+    console.log('[BRAINBASE] Session management is disabled');
     console.log('[BRAINBASE] This server is read-only and will not modify state.json');
 }
 
@@ -149,8 +152,13 @@ const sessionManager = new SessionManager({
     await sessionManager.restoreHookStatus();
 
     // Phase 3: activeセッションを復元してからcleanupを実行
-    await sessionManager.restoreActiveSessions();
-    await sessionManager.cleanupOrphans();
+    // Phase 4: TEST_MODEでは実行しない（読み取り専用）
+    if (!TEST_MODE) {
+        await sessionManager.restoreActiveSessions();
+        await sessionManager.cleanupOrphans();
+    } else {
+        console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
+    }
 })();
 
 // Configure Multer for file uploads
