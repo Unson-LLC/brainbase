@@ -8,7 +8,9 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
-import { initSettings, openSettings } from './modules/settings.js';
+import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
+import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
+import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
@@ -21,6 +23,7 @@ import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { TaskService } from './modules/domain/task/task-service.js';
 import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
+import { InboxService } from './modules/domain/inbox/inbox-service.js';
 
 // Views
 import { TaskView } from './modules/ui/views/task-view.js';
@@ -47,6 +50,7 @@ class App {
         this.refreshIntervalId = null;
         this.choiceCheckInterval = null;
         this.lastChoiceHash = null;
+        this.settingsCore = null; // Settings Plugin Architecture
     }
 
     /**
@@ -57,11 +61,13 @@ class App {
         this.container.register('taskService', () => new TaskService());
         this.container.register('sessionService', () => new SessionService());
         this.container.register('scheduleService', () => new ScheduleService());
+        this.container.register('inboxService', () => new InboxService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
         this.sessionService = this.container.get('sessionService');
         this.scheduleService = this.container.get('scheduleService');
+        this.inboxService = this.container.get('inboxService');
     }
 
     /**
@@ -97,8 +103,68 @@ class App {
         }
 
         // Inbox (notifications)
-        this.views.inboxView = new InboxView();
+        this.views.inboxView = new InboxView({ inboxService: this.inboxService });
         this.views.inboxView.mount();
+
+        // Dashboard (Mana専用機能 - OSS版では無効)
+        this.initDashboardController();
+
+        // Setup View Navigation (Console <-> Dashboard)
+        this.setupViewNavigation();
+    }
+
+    /**
+     * Initialize Dashboard Controller (Mana extension)
+     * OSS版では利用不可
+     */
+    async initDashboardController() {
+        try {
+            const { DashboardController } = await import('./modules/dashboard-controller.js');
+            this.dashboardController = new DashboardController();
+            await this.dashboardController.init();
+            console.log('Dashboard Controller loaded (Mana extension)');
+        } catch (error) {
+            console.log('Dashboard Controller not available (OSS mode)');
+            this.dashboardController = null;
+        }
+    }
+
+    /**
+     * Setup main view navigation logic
+     */
+    setupViewNavigation() {
+        const consoleBtn = document.getElementById('nav-console-btn');
+        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+        const consoleArea = document.getElementById('console-area');
+        const dashboardPanel = document.getElementById('dashboard-panel');
+
+        if (consoleBtn && dashboardBtn && consoleArea && dashboardPanel) {
+            consoleBtn.addEventListener('click', () => {
+                consoleBtn.classList.add('active');
+                dashboardBtn.classList.remove('active');
+                consoleArea.style.display = 'flex';
+                dashboardPanel.style.display = 'none';
+
+                // Refresh terminal frame if needed
+                const frame = document.getElementById('terminal-frame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.focus();
+                }
+            });
+
+            dashboardBtn.addEventListener('click', () => {
+                dashboardBtn.classList.add('active');
+                consoleBtn.classList.remove('active');
+                consoleArea.style.display = 'none';
+                dashboardPanel.style.display = 'block';
+
+                // Re-render dashboard data when switching to it
+                this.dashboardController.init();
+
+                // Also trigger chart window resize event to ensure responsive charts render correctly
+                window.dispatchEvent(new Event('resize'));
+            });
+        }
     }
 
     /**
@@ -157,7 +223,7 @@ class App {
     /**
      * Setup global event listeners
      */
-    setupEventListeners() {
+    async setupEventListeners() {
         // Terminal copy modal
         const copyTerminalBtn = document.getElementById('copy-terminal-btn');
         const copyTerminalModal = document.getElementById('copy-terminal-modal');
@@ -315,18 +381,79 @@ class App {
         this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
 
         // Setup global UI button handlers
-        this.setupGlobalButtons();
+        await this.setupGlobalButtons();
 
         // Setup terminal toolbar buttons
         this.setupTerminalToolbar();
+
+        // Setup test mode banner
+        this.setupTestModeBanner();
+    }
+
+    /**
+     * Setup test mode banner display
+     */
+    setupTestModeBanner() {
+        // Subscribe to store changes
+        const unsub = appStore.subscribe((change) => {
+            if (change.key === 'testMode') {
+                this.updateTestModeBanner(change.value);
+            }
+        });
+        this.unsubscribers.push(unsub);
+
+        // Check initial state
+        const { testMode } = appStore.getState();
+        if (testMode) {
+            this.updateTestModeBanner(true);
+        }
+    }
+
+    /**
+     * Update test mode banner visibility
+     * @param {boolean} testMode - Whether test mode is enabled
+     */
+    updateTestModeBanner(testMode) {
+        let banner = document.getElementById('test-mode-banner');
+
+        if (testMode) {
+            // Create banner if it doesn't exist
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'test-mode-banner';
+                banner.className = 'test-mode-banner';
+                banner.innerHTML = `
+                    <div class="test-mode-banner-content">
+                        <i data-lucide="flask-conical"></i>
+                        <span><strong>テストモード:</strong> このサーバーは読み取り専用です。セッション管理は無効化されています。</span>
+                    </div>
+                `;
+
+                // Insert at the top of app-container
+                const appContainer = document.querySelector('.app-container');
+                if (appContainer) {
+                    appContainer.insertBefore(banner, appContainer.firstChild);
+
+                    // Re-render lucide icons
+                    if (window.lucide && window.lucide.createIcons) {
+                        window.lucide.createIcons();
+                    }
+                }
+            }
+        } else {
+            // Remove banner if it exists
+            if (banner) {
+                banner.remove();
+            }
+        }
     }
 
     /**
      * Setup global UI button handlers
      */
-    setupGlobalButtons() {
-        // Initialize settings module
-        initSettings();
+    async setupGlobalButtons() {
+        // Initialize settings module with conditional extension loading
+        await this.initSettingsWithExtensions();
 
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
@@ -336,12 +463,13 @@ class App {
             };
         }
 
-        // Settings button - openSettings is already set up by initSettings()
-        // But we can also add a direct handler here
+        // Settings button
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
             settingsBtn.onclick = async () => {
-                await openSettings();
+                if (this.settingsCore && this.settingsCore.ui) {
+                    await this.settingsCore.ui.openModal();
+                }
             };
         }
 
@@ -361,6 +489,35 @@ class App {
 
         // Mobile bottom navigation
         this.setupMobileNavigation();
+    }
+
+    /**
+     * Initialize Settings with conditional Mana extension loading
+     * Phase 3: Plugin Architecture - Dynamic extension loading
+     */
+    async initSettingsWithExtensions() {
+        // 1. Core Settings初期化（OSS版）
+        const registry = new SettingsPluginRegistry({ eventBus, store: appStore });
+        const ui = new SettingsUI();
+        const apiClient = new CoreApiClient();
+
+        this.settingsCore = new SettingsCore({ pluginRegistry: registry, ui, apiClient });
+        await this.settingsCore.init();
+
+        // 2. Mana拡張の条件付きロード（OSS版では拡張なし）
+        try {
+            const { ManaSettingsPlugin } = await import('/extensions/mana-integration/index.js');
+            const manaPlugin = new ManaSettingsPlugin({
+                pluginRegistry: registry,
+                store: appStore,
+                eventBus
+            });
+            manaPlugin.register();
+            console.log('Mana Settings Extension loaded');
+        } catch (error) {
+            console.log('Mana Settings Extension not available (OSS mode)');
+            // エラーは握りつぶす（OSS版では正常動作）
+        }
     }
 
     /**
@@ -1042,7 +1199,7 @@ class App {
         this.initProjectSelect();
 
         // 4. Setup event listeners
-        this.setupEventListeners();
+        await this.setupEventListeners();
 
         // 5. Load initial data
         await this.loadInitialData();
@@ -1116,12 +1273,13 @@ class App {
             const engine = document.querySelector('input[name="session-engine"]:checked')?.value || 'claude';
             const initialCommand = commandInput?.value || '';
             const useWorktree = worktreeCheckbox?.checked || false;
+            const selectedProject = projectSelect?.value || project;
 
             // Close modal
             modal.classList.remove('active');
 
             // Create session
-            await this.createSession(project, name, initialCommand, useWorktree, engine);
+            await this.createSession(selectedProject, name, initialCommand, useWorktree, engine);
 
             // Remove this event listener
             createBtn?.removeEventListener('click', handleCreate);

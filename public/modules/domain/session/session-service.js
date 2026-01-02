@@ -23,6 +23,7 @@ export class SessionService {
     async loadSessions() {
         const state = await this.httpClient.get('/api/state');
         let sessions = state.sessions || [];
+        const testMode = state.testMode || false;
 
         // マイグレーション: stopped状態をpausedに変換
         let migrationNeeded = false;
@@ -40,8 +41,8 @@ export class SessionService {
             console.log('[Migration] Converted "stopped" sessions to "paused"');
         }
 
-        this.store.setState({ sessions });
-        this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions });
+        this.store.setState({ sessions, testMode });
+        this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         return sessions;
     }
 
@@ -323,8 +324,11 @@ export class SessionService {
             console.error(`Failed to stop ttyd for session ${sessionId}:`, error);
         }
 
-        // intendedState を paused に変更
-        await this.updateSession(sessionId, { intendedState: 'paused' });
+        // Phase 2: intendedState を paused に変更 + pausedAt タイムスタンプ設定
+        await this.updateSession(sessionId, {
+            intendedState: 'paused',
+            pausedAt: new Date().toISOString()
+        });
 
         this.eventBus.emit(EVENTS.SESSION_PAUSED, { sessionId });
     }

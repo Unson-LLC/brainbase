@@ -3,6 +3,7 @@ import { GaugeChart } from './components/gauge-chart.js';
 import { DonutChart } from './components/donut-chart.js';
 import { ProjectCard } from './components/project-card.js';
 import { HeatmapRow } from './components/heatmap-row.js';
+import { LineChart } from './components/line-chart.js';
 
 export class DashboardController {
     constructor() {
@@ -32,30 +33,50 @@ export class DashboardController {
 
     calculateProjectHealth() {
         // 12 projects health score calculation
-        // Note: Project data is currently dummy based on API data or fallback
         const projectNames = [
             'brainbase', 'TechKnight', 'DialogAI', 'ZEIMS',
             'BAAO', 'UNSON', 'SalesTailor', 'AI-Wolf',
             'Mana', 'Portfolio', 'Catalyst', 'NCom'
         ];
 
-        return projectNames.map(name => ({
-            name,
-            healthScore: this.calculateScore(name),
-            overdue: Math.floor(Math.random() * 10), // Dummy data for now
-            blocked: Math.floor(Math.random() * 5),
-            completionRate: Math.floor(Math.random() * 40) + 60
-        })).sort((a, b) => b.healthScore - a.healthScore);
+        return projectNames.map(name => {
+            // 1. Generate Raw Metrics (Mocking closer to reality)
+            const completionRate = Math.floor(Math.random() * 30) + 70; // 70-100%
+            const overdue = Math.random() > 0.7 ? Math.floor(Math.random() * 5) : 0; // Most have 0, some have 1-4
+            const blocked = Math.random() > 0.8 ? Math.floor(Math.random() * 3) : 0; // Most have 0
+            const manaScore = Math.floor(Math.random() * 15) + 85; // 85-100%
+
+            // 2. Calculate Component Scores (0-100 normalization)
+            // Overdue: -10 points per overdue item
+            const overdueScore = Math.max(0, 100 - (overdue * 10));
+
+            // Blocked: -20 points per blocked item
+            const blockedScore = Math.max(0, 100 - (blocked * 20));
+
+            // Completion: Use rate directly
+            const completionScore = completionRate;
+
+            // 3. Weighted Formula
+            // Structure matched to wireframe: (Overdue*0.3 + Blocked*0.3 + Completion*0.3 + Mana*0.1)
+            const healthScore = Math.round(
+                (overdueScore * 0.3) +
+                (blockedScore * 0.3) +
+                (completionScore * 0.3) +
+                (manaScore * 0.1)
+            );
+
+            return {
+                name,
+                healthScore,
+                overdue,
+                blocked,
+                completionRate,
+                manaScore
+            };
+        }).sort((a, b) => b.healthScore - a.healthScore);
     }
 
-    calculateScore(projectName) {
-        // Dummy logic (calculate from API data in future)
-        if (projectName === 'DialogAI') return 45;
-        if (projectName === 'SalesTailor') return 62;
-        if (projectName === 'brainbase') return 85;
-        if (projectName === 'ZEIMS') return 90;
-        return Math.floor(Math.random() * 30) + 70;
-    }
+    // calculateScore method removed as it's integrated above
 
     render() {
         this.renderSection1();
@@ -63,6 +84,7 @@ export class DashboardController {
         this.renderSection3();
         this.renderSection4();
         this.renderSection5();
+        this.renderSection6();
     }
 
     renderSection1() {
@@ -75,7 +97,8 @@ export class DashboardController {
                 container.innerHTML = '';
                 new GaugeChart(container, {
                     value: project.healthScore,
-                    label: project.name
+                    label: project.name,
+                    subtitle: 'Health Score'
                 });
             }
         });
@@ -257,5 +280,50 @@ export class DashboardController {
                 color: metric.color
             });
         });
+    }
+
+    renderSection6() {
+        // Trend Graphs (3 metrics)
+        // Mock Data for Phase 3
+        const weeks = ['4w ago', '3w ago', '2w ago', '1w ago'];
+
+        // 1. Overall Completion Rate
+        const completionContainer = document.getElementById('trend-completion');
+        if (completionContainer) {
+            new LineChart(completionContainer, {
+                label: '全体完了率',
+                labels: weeks,
+                data: [65, 72, 68, 85],
+                color: '#35a670', // Green
+                yAxisMax: 100,
+                height: 250
+            });
+        }
+
+        // 2. Overdue Trend
+        const overdueContainer = document.getElementById('trend-overdue');
+        if (overdueContainer) {
+            new LineChart(overdueContainer, {
+                label: '期限超過数',
+                labels: weeks,
+                data: [12, 15, 8, 5],
+                color: '#ee4f27', // Red
+                yAxisMax: 20,
+                height: 250
+            });
+        }
+
+        // 3. Mana Success Rate
+        const manaContainer = document.getElementById('trend-mana');
+        if (manaContainer) {
+            new LineChart(manaContainer, {
+                label: 'Mana応答成功率',
+                labels: weeks,
+                data: [88, 92, 95, 98],
+                color: '#6b21ef', // Purple
+                yAxisMax: 100,
+                height: 250
+            });
+        }
     }
 }

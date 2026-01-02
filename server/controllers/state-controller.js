@@ -3,9 +3,10 @@
  * 状態管理のHTTPリクエスト処理
  */
 export class StateController {
-    constructor(stateStore, activeSessions) {
+    constructor(stateStore, activeSessions, testMode = false) {
         this.stateStore = stateStore;
         this.activeSessions = activeSessions;
+        this.testMode = testMode;
     }
 
     /**
@@ -36,7 +37,9 @@ export class StateController {
 
             res.json({
                 ...state,
-                sessions: sessionsWithStatus
+                sessions: sessionsWithStatus,
+                // テストモードフラグを追加
+                testMode: this.testMode
             });
         } catch (error) {
             console.error('Failed to get state:', error);

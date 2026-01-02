@@ -58,7 +58,7 @@ INBOX_LOADED, INBOX_ITEM_COMPLETED
 
 **Enforcement**:
 - ファイル: `public/modules/core/event-bus.js`
-- Skill: architecture-patterns
+- Skill: architecture-patterns ✅
 - CI Check: architecture-check.yml
 
 ---
@@ -118,7 +118,7 @@ DOM直接操作を見つけた → 「Store経由に変更できないか?」
 
 **Enforcement**:
 - ファイル: `public/modules/core/store.js`
-- Skill: architecture-patterns
+- Skill: architecture-patterns ✅
 - CI Check: architecture-check.yml
 
 ---
@@ -185,7 +185,7 @@ function registerServices() {
 
 **Enforcement**:
 - ファイル: `public/modules/core/di-container.js`
-- Skill: architecture-patterns
+- Skill: architecture-patterns ✅
 - CI Check: architecture-check.yml
 
 ---
@@ -263,7 +263,7 @@ public/modules/domain/
 ```
 
 **Enforcement**:
-- Skill: architecture-patterns
+- Skill: architecture-patterns ✅
 - CI Check: service-layer-check.yml
 
 ---
@@ -356,7 +356,7 @@ async archiveTask(taskId) {
 4. **TODO駆動**: TODOリスト作成 → 1つずつ実装 → 完了チェック
 
 **Enforcement**:
-- Skill: tdd-workflow
+- Skill: tdd-workflow ✅
 - CI Check: tdd-check.yml
 - 参照: `.claude/skills/tdd-workflow/SKILL.md`
 
@@ -387,8 +387,15 @@ async archiveTask(taskId) {
 
 **E2E Test** (5%):
 - 対象: Critical User Flows
-- ツール: Playwright
+- ツール: Playwright（推奨）, Chrome DevTools MCP（軽量・デバッグ用）
 - 実行頻度: CI (PRマージ前)
+
+**使い分け**:
+- **Playwright**: 複雑なシナリオ、クロスブラウザテスト、並列実行
+- **Chrome DevTools MCP**:
+  - 開発中のクイック検証（スクリーンショット、コンソール確認）
+  - CI/CDでの軽量E2Eチェック
+  - デバッグ・トラブルシューティング
 
 **思考パターン**:
 ```
@@ -398,7 +405,7 @@ E2Eテストが増加 → 「Unit/APIテストで代替できないか?」
 ```
 
 **Enforcement**:
-- Skill: test-strategy
+- Skill: test-strategy ✅
 - CI Check: test-coverage-check.yml (80%以上)
 
 ---
@@ -441,7 +448,7 @@ describe('TaskService', () => {
 ```
 
 **Enforcement**:
-- Skill: test-strategy
+- Skill: test-strategy ✅
 - CI Check: test-naming-check.yml
 
 ---
@@ -473,7 +480,7 @@ PR作成時 → 「カバレッジ80%以上か?」
 ```
 
 **Enforcement**:
-- Skill: test-strategy
+- Skill: test-strategy ✅
 - CI Check: test-coverage-check.yml
 
 ---
@@ -544,7 +551,7 @@ Phase完了判定 → 「Success Criteriaを満たしているか?」
 ```
 
 **Enforcement**:
-- Skill: refactoring-workflow
+- Skill: refactoring-workflow ✅
 - CI Check: backward-compatibility-check.yml
 
 ---
@@ -582,7 +589,7 @@ export function createProject(options) {
 ```
 
 **Enforcement**:
-- Skill: refactoring-workflow
+- Skill: refactoring-workflow ✅
 - CI Check: backward-compatibility-check.yml
 
 ---
@@ -624,7 +631,7 @@ innerHTML使用 → 「本当に必要か? textContentで代替できないか?�
 ```
 
 **Enforcement**:
-- Skill: security-patterns
+- Skill: security-patterns ✅
 - CI Check: xss-check.yml
 
 ---
@@ -674,7 +681,7 @@ APIエンドポイント追加 → 「CSRF対策が必要か?」
 ```
 
 **Enforcement**:
-- Skill: security-patterns
+- Skill: security-patterns ✅
 - CI Check: csrf-check.yml
 
 ---
@@ -730,7 +737,7 @@ export const validators = {
 ```
 
 **Enforcement**:
-- Skill: security-patterns
+- Skill: security-patterns ✅
 - CI Check: input-validation-check.yml
 
 ---
@@ -764,7 +771,7 @@ export class TaskService {  // PascalCase
 ```
 
 **Enforcement**:
-- Skill: code-style
+- Skill: code-style（Linterで実現: naming-convention、import-orderは機械的チェック）
 - CI Check: naming-convention-check.yml
 
 ---
@@ -802,7 +809,7 @@ import追加 → 「正しい順序か?」
 ```
 
 **Enforcement**:
-- Skill: code-style
+- Skill: code-style（Linterで実現: naming-convention、import-orderは機械的チェック）
 - CI Check: import-order-check.yml
 
 ---

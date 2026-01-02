@@ -3,18 +3,28 @@
    ========================================= */
 :root {
     /* Colors */
-    --bg-primary: #0f172a;      /* Main background (Slate 900) */
-    --bg-secondary: #1e293b;    /* Sidebar/Card background (Slate 800) */
-    --text-primary: #f8fafc;    /* Main text (Slate 50) */
-    --text-secondary: #94a3b8;  /* Muted text (Slate 400) */
-    
-    --border-color: #334155;    /* Borders (Slate 700) */
-    --hover-bg: #334155;        /* Hover state */
-    
-    --accent-color: #3b82f6;    /* Primary Action (Blue 500) */
-    --success-color: #10b981;   /* Success (Emerald 500) */
-    --warning-color: #f59e0b;   /* Warning (Amber 500) */
-    --danger-color: #ef4444;    /* Danger (Red 500) */
+    --bg-primary: #0f172a;
+    /* Main background (Slate 900) */
+    --bg-secondary: #1e293b;
+    /* Sidebar/Card background (Slate 800) */
+    --text-primary: #f8fafc;
+    /* Main text (Slate 50) */
+    --text-secondary: #94a3b8;
+    /* Muted text (Slate 400) */
+
+    --border-color: #334155;
+    /* Borders (Slate 700) */
+    --hover-bg: #334155;
+    /* Hover state */
+
+    --accent-color: #3b82f6;
+    /* Primary Action (Blue 500) */
+    --success-color: #10b981;
+    /* Success (Emerald 500) */
+    --warning-color: #f59e0b;
+    /* Warning (Amber 500) */
+    --danger-color: #ef4444;
+    /* Danger (Red 500) */
 
     /* Typography */
     --font-sans: 'Inter', 'Noto Sans JP', sans-serif;
@@ -33,7 +43,33 @@ body {
     color: var(--text-primary);
     height: 100vh;
     overflow: hidden;
-    font-size: 0.9rem; /* Standard text size */
+    font-size: 0.9rem;
+    /* Standard text size */
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -10%;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+body::after {
+    content: '';
+    position: absolute;
+    bottom: -20%;
+    left: -10%;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: -1;
 }
 
 /* =========================================
@@ -53,18 +89,22 @@ body {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0;
+    /* Prevent shrinking */
 }
 
 /* Pane 2: Main Content (Console) */
 .main-content {
-    flex: 1; /* Take remaining space */
+    flex: 1;
+    /* Take remaining space */
     display: flex;
     flex-direction: column;
     overflow: hidden;
     position: relative;
-    background-color: #000; /* Distinct terminal bg */
-    min-width: 0; /* Critical for flex child truncation */
+    background-color: #000;
+    /* Distinct terminal bg */
+    min-width: 0;
+    /* Critical for flex child truncation */
 }
 
 /* Pane 3: Right Context (Schedule & Tasks) */
@@ -74,7 +114,8 @@ body {
     border-left: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0;
+    /* Prevent shrinking */
 }
 
 /* =========================================
@@ -144,6 +185,8 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 0.5rem 0;
+    touch-action: manipulation;
+    /* Disable pinch-zoom in scrollable area */
 }
 
 /* Filter Section */
@@ -214,9 +257,15 @@ body {
     width: 16px;
     height: 16px;
 }
-.folder-icon i { width: 100%; height: 100%; }
 
-.group-title { flex: 1; }
+.folder-icon i {
+    width: 100%;
+    height: 100%;
+}
+
+.group-title {
+    flex: 1;
+}
 
 .session-group-children {
     /* Indent children implies block formatting */
@@ -315,11 +364,13 @@ body {
 .session-child-row {
     display: flex;
     align-items: center;
-    padding: 6px 10px 6px 10px; /* Indent for child items */
+    padding: 6px 10px 6px 10px;
+    /* Indent for child items */
     cursor: pointer;
     border-left: 2px solid transparent;
     transition: background-color 0.15s;
-    height: 32px; /* Fixed height for consistency */
+    height: 32px;
+    /* Fixed height for consistency */
 }
 
 .session-child-row:hover {
@@ -327,7 +378,8 @@ body {
 }
 
 .session-child-row.active {
-    background-color: rgba(59, 130, 246, 0.1); /* Blue tint */
+    background-color: rgba(59, 130, 246, 0.1);
+    /* Blue tint */
     border-left-color: var(--accent-color);
     color: var(--text-primary);
 }
@@ -343,15 +395,18 @@ body {
 }
 
 .session-child-row.archived .archived-label {
-    display: none; /* ラベル非表示でスッキリ */
+    display: none;
+    /* ラベル非表示でスッキリ */
 }
 
 /* Session Name & Icon Wrapper */
 .session-name-container {
     display: flex;
     align-items: center;
-    flex: 1; /* Grow to fill space */
-    min-width: 0; /* Allow truncation */
+    flex: 1;
+    /* Grow to fill space */
+    min-width: 0;
+    /* Allow truncation */
     gap: 8px;
 }
 
@@ -361,11 +416,26 @@ body {
     color: var(--text-secondary);
     opacity: 0.7;
 }
-.session-icon i { width: 14px; height: 14px; }
-.session-child-row.active .session-icon { opacity: 1; color: var(--accent-color); }
+
+.session-icon i {
+    width: 14px;
+    height: 14px;
+}
+
+.session-child-row.active .session-icon {
+    opacity: 1;
+    color: var(--accent-color);
+}
+
 /* Worktreeセッションはオレンジ色のgit-mergeアイコン */
-.session-child-row.has-worktree .session-icon { color: var(--warning-color); opacity: 1; }
-.session-child-row.has-worktree.active .session-icon { color: var(--warning-color); }
+.session-child-row.has-worktree .session-icon {
+    color: var(--warning-color);
+    opacity: 1;
+}
+
+.session-child-row.has-worktree.active .session-icon {
+    color: var(--warning-color);
+}
 
 .session-name {
     white-space: nowrap;
@@ -388,6 +458,7 @@ body {
     letter-spacing: 0.3px;
     flex-shrink: 0;
 }
+
 .engine-badge.engine-codex {
     background-color: rgba(16, 163, 127, 0.2);
     color: #10a37f;
@@ -456,7 +527,8 @@ body {
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
-    display: flex; /* Centering icons */
+    display: flex;
+    /* Centering icons */
     align-items: center;
     justify-content: center;
     transition: color 0.2s, background-color 0.2s;
@@ -478,29 +550,47 @@ body {
 .merge-session-btn {
     color: var(--success-color);
 }
+
 .merge-session-btn:hover {
     color: var(--text-primary);
     background-color: var(--success-color);
 }
 
-.icon-btn i, .add-session-btn-icon i { width: 16px; height: 16px; }
+.icon-btn i,
+.add-session-btn-icon i {
+    width: 16px;
+    height: 16px;
+}
+
 .add-project-session-btn i,
 .merge-session-btn i,
 .rename-session-btn i,
 .delete-session-btn i,
-.archive-session-btn i { width: 13px; height: 13px; }
+.archive-session-btn i {
+    width: 13px;
+    height: 13px;
+}
 
 /* Contextual Visibility for Buttons */
-.add-project-session-btn { display: none; }
-.session-group-header:hover .add-project-session-btn { display: flex; }
+.add-project-session-btn {
+    display: none;
+}
+
+.session-group-header:hover .add-project-session-btn {
+    display: flex;
+}
 
 .child-actions {
-    display: none; /* Hide actions by default */
+    display: none;
+    /* Hide actions by default */
     align-items: center;
     gap: 8px;
     margin-left: 4px;
 }
-.session-child-row:hover .child-actions { display: flex; }
+
+.session-child-row:hover .child-actions {
+    display: flex;
+}
 
 /* Session Actions Container and Menu Toggle */
 .session-actions-container {
@@ -512,7 +602,8 @@ body {
 }
 
 .session-menu-toggle {
-    display: flex; /* Always visible on desktop and mobile */
+    display: flex;
+    /* Always visible on desktop and mobile */
     align-items: center;
     justify-content: center;
     width: 32px;
@@ -524,10 +615,12 @@ body {
     border-radius: 4px;
     flex-shrink: 0;
 }
+
 .session-menu-toggle:hover {
     background: var(--hover-bg);
     color: var(--text-primary);
 }
+
 .session-menu-toggle i {
     width: 18px;
     height: 18px;
@@ -606,19 +699,30 @@ body {
     margin-right: 8px;
     flex-shrink: 0;
 }
+
 .session-activity-indicator.working {
     background-color: var(--warning-color);
     box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
     animation: pulse 2s infinite;
 }
+
 .session-activity-indicator.done {
     background-color: var(--success-color);
     box-shadow: 0 0 4px var(--success-color);
 }
+
 @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-    70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
 }
 
 /* Session Drag & Drop */
@@ -678,7 +782,8 @@ body {
     width: 100%;
     height: 100%;
     padding-left: 12px;
-    background: #000000; /* Match terminal background */
+    background: #000000;
+    /* Match terminal background */
 }
 
 .console-area iframe {
@@ -1025,6 +1130,8 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 8px;
+    touch-action: manipulation;
+    /* Disable pinch-zoom in scrollable area */
 }
 
 .inbox-empty {
@@ -1167,7 +1274,7 @@ body {
 }
 
 .focus-card-meta .project-tag {
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     padding: 2px 8px;
     border-radius: 4px;
     font-family: var(--font-mono);
@@ -1215,7 +1322,10 @@ body {
     transform: translateY(-1px);
 }
 
-.focus-btn-start i { width: 16px; height: 16px; }
+.focus-btn-start i {
+    width: 16px;
+    height: 16px;
+}
 
 .focus-btn-complete {
     background: var(--success-color);
@@ -1228,7 +1338,10 @@ body {
     transform: translateY(-1px);
 }
 
-.focus-btn-complete i { width: 16px; height: 16px; }
+.focus-btn-complete i {
+    width: 16px;
+    height: 16px;
+}
 
 .focus-btn-defer {
     background: transparent;
@@ -1241,7 +1354,10 @@ body {
     color: var(--text-primary);
 }
 
-.focus-btn-defer i { width: 16px; height: 16px; }
+.focus-btn-defer i {
+    width: 16px;
+    height: 16px;
+}
 
 .focus-empty {
     text-align: center;
@@ -1390,12 +1506,14 @@ body {
     padding: 0 1rem 0.5rem;
     display: flex;
     gap: 8px;
-    flex-wrap: wrap; /* Mobile対応 */
+    flex-wrap: wrap;
+    /* Mobile対応 */
 }
 
 .filter-group {
     flex: 1;
-    min-width: 120px; /* 最小幅確保 */
+    min-width: 120px;
+    /* 最小幅確保 */
     position: relative;
 }
 
@@ -1417,7 +1535,8 @@ body {
 .task-filter select {
     width: 100%;
     padding: 8px 12px;
-    min-height: 44px; /* タップターゲット確保（Fitz's Law） */
+    min-height: 44px;
+    /* タップターゲット確保（Fitz's Law） */
     border: 1px solid var(--border-color);
     border-radius: 4px;
     background: var(--bg-secondary);
@@ -1432,7 +1551,8 @@ body {
 .task-filter select:focus {
     outline: none;
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); /* Focus ring */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    /* Focus ring */
 }
 
 /* Hover State */
@@ -1448,11 +1568,13 @@ body {
 
 /* Select Custom Arrow */
 .task-filter select {
-    appearance: none; /* ブラウザデフォルトの矢印を削除 */
+    appearance: none;
+    /* ブラウザデフォルトの矢印を削除 */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 12px center;
-    padding-right: 36px; /* アイコンスペース確保 */
+    padding-right: 36px;
+    /* アイコンスペース確保 */
 }
 
 /* Select Focus時のアイコン色変更 */
@@ -1464,6 +1586,8 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 0 1rem;
+    touch-action: manipulation;
+    /* Disable pinch-zoom in scrollable area */
 }
 
 .next-task-item {
@@ -1478,7 +1602,7 @@ body {
 }
 
 .next-task-item:hover {
-    background: rgba(255,255,255,0.03);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .next-task-checkbox {
@@ -1543,7 +1667,7 @@ body {
 }
 
 .next-task-project {
-    background: rgba(255,255,255,0.05);
+    background: rgba(255, 255, 255, 0.05);
     padding: 1px 6px;
     border-radius: 3px;
     font-family: var(--font-mono);
@@ -1574,7 +1698,7 @@ body {
 }
 
 .next-task-action:hover {
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
 }
 
@@ -1596,9 +1720,17 @@ body {
     text-transform: uppercase;
 }
 
-.next-task-priority.high { color: var(--danger-color); }
-.next-task-priority.medium { color: var(--warning-color); }
-.next-task-priority.low { color: var(--success-color); }
+.next-task-priority.high {
+    color: var(--danger-color);
+}
+
+.next-task-priority.medium {
+    color: var(--warning-color);
+}
+
+.next-task-priority.low {
+    color: var(--success-color);
+}
 
 /* Remaining toggle */
 .remaining-toggle {
@@ -1625,9 +1757,18 @@ body {
 
 /* Complete animation */
 @keyframes taskComplete {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); opacity: 0; }
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0;
+    }
 }
 
 .next-task-item.completing {
@@ -1654,14 +1795,25 @@ body {
     padding: 10px;
     margin-bottom: 8px;
     transition: transform 0.1s, border-color 0.1s;
+    will-change: transform;
 }
+
 .task-card:hover {
     border-color: var(--accent-color);
     transform: translateY(-1px);
 }
-.task-card.high { border-left: 3px solid var(--danger-color); }
-.task-card.medium { border-left: 3px solid var(--warning-color); }
-.task-card.low { border-left: 3px solid var(--success-color); }
+
+.task-card.high {
+    border-left: 3px solid var(--danger-color);
+}
+
+.task-card.medium {
+    border-left: 3px solid var(--warning-color);
+}
+
+.task-card.low {
+    border-left: 3px solid var(--success-color);
+}
 
 .task-header {
     display: flex;
@@ -1684,13 +1836,21 @@ body {
     color: transparent;
     flex-shrink: 0;
 }
-.task-checkbox:hover { border-color: var(--accent-color); }
+
+.task-checkbox:hover {
+    border-color: var(--accent-color);
+}
+
 .task-checkbox.checked {
     background-color: var(--success-color);
     border-color: var(--success-color);
     color: white;
 }
-.task-checkbox i { width: 12px; height: 12px; }
+
+.task-checkbox i {
+    width: 12px;
+    height: 12px;
+}
 
 .task-title {
     flex: 1;
@@ -1707,7 +1867,10 @@ body {
     opacity: 0;
     transition: opacity 0.2s;
 }
-.task-card:hover .task-actions { opacity: 1; }
+
+.task-card:hover .task-actions {
+    opacity: 1;
+}
 
 .task-action-btn {
     background: none;
@@ -1718,8 +1881,16 @@ body {
     cursor: pointer;
     display: flex;
 }
-.task-action-btn:hover { color: var(--text-primary); background-color: var(--hover-bg); }
-.task-action-btn i { width: 14px; height: 14px; }
+
+.task-action-btn:hover {
+    color: var(--text-primary);
+    background-color: var(--hover-bg);
+}
+
+.task-action-btn i {
+    width: 14px;
+    height: 14px;
+}
 
 /* Task Meta */
 .task-meta {
@@ -1729,6 +1900,7 @@ body {
     color: var(--text-secondary);
     margin-bottom: 8px;
 }
+
 .task-project {
     background-color: rgba(255, 255, 255, 0.05);
     padding: 2px 6px;
@@ -1736,20 +1908,33 @@ body {
     font-family: var(--font-mono);
     margin-right: auto;
 }
-.task-priority { 
-    font-weight: 600; 
-    text-transform: uppercase; 
+
+.task-priority {
+    font-weight: 600;
+    text-transform: uppercase;
     font-size: 0.7rem;
     margin-left: 8px;
 }
-.task-priority.high { color: var(--danger-color); }
-.task-priority.medium { color: var(--warning-color); }
-.task-priority.low { color: var(--success-color); }
 
-.task-due { margin-left: 8px; font-family: var(--font-mono); }
+.task-priority.high {
+    color: var(--danger-color);
+}
+
+.task-priority.medium {
+    color: var(--warning-color);
+}
+
+.task-priority.low {
+    color: var(--success-color);
+}
+
+.task-due {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+}
 
 /* Start/Complete Buttons */
-.start-task-btn, 
+.start-task-btn,
 .complete-task-btn {
     width: 100%;
     padding: 6px;
@@ -1766,20 +1951,28 @@ body {
     background: var(--bg-primary);
     color: var(--text-secondary);
 }
+
 .start-task-btn:hover {
     background: var(--hover-bg);
     color: var(--text-primary);
     border-color: var(--text-secondary);
 }
+
 .complete-task-btn {
     color: var(--success-color);
     border-color: rgba(16, 185, 129, 0.3);
     background: rgba(16, 185, 129, 0.05);
 }
+
 .complete-task-btn:hover {
     background: rgba(16, 185, 129, 0.15);
 }
-.start-task-btn i, .complete-task-btn i { width: 14px; height: 14px; }
+
+.start-task-btn i,
+.complete-task-btn i {
+    width: 14px;
+    height: 14px;
+}
 
 
 /* =========================================
@@ -1787,18 +1980,22 @@ body {
    ========================================= */
 .app-footer {
     position: fixed;
-    bottom: 0; left: 0; right: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
     height: 48px;
     background-color: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
-    display: flex; /* Hidden by z-index mostly if using App layout? Or overlay? */
+    display: flex;
+    /* Hidden by z-index mostly if using App layout? Or overlay? */
     /* Wait, the 3-pane layout usually implies footer is separate or inside. 
        In the provided index.html, footer is sibling to .app-container. 
        .app-container height=100vh. Footer is fixed bottom. 
        We should ensure .app-container padding-bottom or similar if footer is visible. 
        Given "terminal full height" request, maybe footer sits on top? 
        Let's stick to simple fixed styling for now. */
-    display: none; /* HIDING based on layout preference for clean console */
+    display: none;
+    /* HIDING based on layout preference for clean console */
 }
 
 /* =========================================
@@ -1813,7 +2010,10 @@ body {
     align-items: center;
     justify-content: center;
 }
-.modal.active { display: flex; }
+
+.modal.active {
+    display: flex;
+}
 
 .modal-content {
     background-color: var(--bg-secondary);
@@ -1831,7 +2031,12 @@ body {
     justify-content: space-between;
     align-items: center;
 }
-.modal-header h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
 
 .close-modal-btn {
     background: none;
@@ -1839,17 +2044,26 @@ body {
     color: var(--text-secondary);
     cursor: pointer;
 }
-.close-modal-btn:hover { color: var(--text-primary); }
 
-.modal-body { padding: 1rem; }
+.close-modal-btn:hover {
+    color: var(--text-primary);
+}
 
-.form-group { margin-bottom: 1rem; }
+.modal-body {
+    padding: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
 .form-group label {
     display: block;
     margin-bottom: 6px;
     font-size: 0.8rem;
     color: var(--text-secondary);
 }
+
 .form-input {
     width: 100%;
     padding: 8px;
@@ -1859,7 +2073,11 @@ body {
     color: var(--text-primary);
     font-size: 0.9rem;
 }
-.form-input:focus { outline: none; border-color: var(--accent-color); }
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
 
 .modal-footer {
     padding: 1rem;
@@ -1890,7 +2108,8 @@ body {
     height: 18px;
 }
 
-.btn-primary, .btn-secondary {
+.btn-primary,
+.btn-secondary {
     padding: 6px 16px;
     border-radius: 4px;
     font-size: 0.9rem;
@@ -1898,18 +2117,25 @@ body {
     border: none;
     font-weight: 500;
 }
+
 .btn-primary {
     background-color: var(--accent-color);
     color: white;
 }
-.btn-primary:hover { opacity: 0.9; }
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
 
 .btn-secondary {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-primary);
 }
-.btn-secondary:hover { background-color: var(--hover-bg); }
+
+.btn-secondary:hover {
+    background-color: var(--hover-bg);
+}
 
 /* Checkbox Label */
 .checkbox-label {
@@ -1920,6 +2146,7 @@ body {
     font-size: 0.9rem;
     color: var(--text-primary);
 }
+
 .checkbox-label input[type="checkbox"] {
     width: 18px;
     height: 18px;
@@ -1932,6 +2159,7 @@ body {
     display: flex;
     gap: 16px;
 }
+
 .radio-label {
     display: flex;
     align-items: center;
@@ -1944,13 +2172,16 @@ body {
     border: 1px solid var(--border-color);
     transition: all 0.2s ease;
 }
+
 .radio-label:hover {
     background-color: var(--hover-bg);
 }
+
 .radio-label:has(input:checked) {
     border-color: var(--accent-color);
     background-color: rgba(59, 130, 246, 0.1);
 }
+
 .radio-label input[type="radio"] {
     width: 16px;
     height: 16px;
@@ -1968,6 +2199,7 @@ body {
 .modal-small {
     max-width: 400px;
 }
+
 .modal-small .modal-body p {
     margin: 0;
     line-height: 1.5;
@@ -1985,7 +2217,10 @@ body {
     background-color: #dc3545;
     color: white;
 }
-.btn-danger:hover { background-color: #c82333; }
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
 
 /* Toast Notifications */
 #toast-container {
@@ -1997,6 +2232,7 @@ body {
     flex-direction: column;
     gap: 8px;
 }
+
 .toast {
     padding: 12px 16px;
     border-radius: 6px;
@@ -2004,28 +2240,74 @@ body {
     border: 1px solid var(--border-color);
     color: var(--text-primary);
     font-size: 0.9rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
     gap: 8px;
     animation: toast-in 0.3s ease;
     max-width: 350px;
 }
-.toast.toast-success { border-left: 3px solid var(--success-color); }
-.toast.toast-error { border-left: 3px solid #dc3545; }
-.toast.toast-info { border-left: 3px solid var(--accent-color); }
-.toast i, .toast svg { width: 16px; height: 16px; flex-shrink: 0; }
-.toast.toast-success i, .toast.toast-success svg { color: var(--success-color); }
-.toast.toast-error i, .toast.toast-error svg { color: #dc3545; }
-.toast.toast-info i, .toast.toast-info svg { color: var(--accent-color); }
-.toast.toast-out { animation: toast-out 0.3s ease forwards; }
-@keyframes toast-in {
-    from { opacity: 0; transform: translateX(100%); }
-    to { opacity: 1; transform: translateX(0); }
+
+.toast.toast-success {
+    border-left: 3px solid var(--success-color);
 }
+
+.toast.toast-error {
+    border-left: 3px solid #dc3545;
+}
+
+.toast.toast-info {
+    border-left: 3px solid var(--accent-color);
+}
+
+.toast i,
+.toast svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.toast.toast-success i,
+.toast.toast-success svg {
+    color: var(--success-color);
+}
+
+.toast.toast-error i,
+.toast.toast-error svg {
+    color: #dc3545;
+}
+
+.toast.toast-info i,
+.toast.toast-info svg {
+    color: var(--accent-color);
+}
+
+.toast.toast-out {
+    animation: toast-out 0.3s ease forwards;
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 @keyframes toast-out {
-    from { opacity: 1; transform: translateX(0); }
-    to { opacity: 0; transform: translateX(100%); }
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
 }
 
 /* Terminal Copy Modal */
@@ -2063,7 +2345,7 @@ body {
 
 /* Settings Modal Body */
 .settings-body {
-    overflow-y: auto;
+    /* .modal-fullscreen .modal-body で既に flexbox 設定済み */
 }
 
 .modal-header-actions {
@@ -2247,58 +2529,12 @@ body {
 }
 
 /* Integrity Summary */
-.integrity-summary {
-    padding: 1rem 1.5rem;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-    max-height: 250px;
-    overflow-y: auto;
+/* integrity-summary removed - OSS版では不要 */
+
+.issue-item.info {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent-color);
 }
-
-.integrity-stats {
-    display: flex;
-    gap: 1.5rem;
-    flex-wrap: wrap;
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: var(--bg-primary);
-    border-radius: 6px;
-    font-size: 0.85rem;
-}
-
-.stat-item .count {
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-
-.stat-item.error .count { color: var(--danger-color); }
-.stat-item.warning .count { color: var(--warning-color); }
-.stat-item.success .count { color: var(--success-color); }
-
-.integrity-issues {
-    margin-top: 1rem;
-    max-height: 150px;
-    overflow-y: auto;
-}
-
-.issue-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    font-size: 0.8rem;
-    border-radius: 4px;
-    margin-bottom: 0.25rem;
-}
-
-.issue-item.error { background: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
-.issue-item.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
-.issue-item.info { background: rgba(59, 130, 246, 0.1); color: var(--accent-color); }
 
 /* Settings Tabs */
 .settings-tabs {
@@ -2341,8 +2577,9 @@ body {
 /* Settings Content */
 .settings-content {
     flex: 1;
-    overflow-y: auto;
-    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .settings-panel {
@@ -2350,7 +2587,11 @@ body {
 }
 
 .settings-panel.active {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    padding: 1.5rem;
 }
 
 .settings-section {
@@ -2426,9 +2667,13 @@ body {
 
 /* Config Table */
 .config-table-container {
+    flex: 1;
     overflow-x: auto;
+    overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: 8px;
+    touch-action: manipulation;
+    /* Disable pinch-zoom in scrollable area */
 }
 
 .config-table {
@@ -2453,6 +2698,7 @@ body {
     letter-spacing: 0.05em;
     position: sticky;
     top: 0;
+    z-index: 10;
 }
 
 .config-table tr:hover {
@@ -2499,11 +2745,7 @@ body {
     color: var(--text-secondary);
 }
 
-/* Scrollable table container */
-.config-table-container {
-    max-height: 400px;
-    overflow-y: auto;
-}
+/* config-table-container の重複定義削除 - 親の高さに依存させる */
 
 /* Config link (for GitHub URLs) */
 .config-link {
@@ -2664,6 +2906,8 @@ body {
 .archive-list {
     max-height: 60vh;
     overflow-y: auto;
+    touch-action: manipulation;
+    /* Disable pinch-zoom in scrollable area */
 }
 
 .archive-item {
@@ -2783,7 +3027,8 @@ body {
     height: 56px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
-    z-index: 1003; /* bottom-sheet (1002) より高く設定 */
+    z-index: 1003;
+    /* bottom-sheet (1002) より高く設定 */
     padding: 0 16px;
     align-items: center;
     justify-content: space-between;
@@ -2827,13 +3072,15 @@ body {
     z-index: 1001;
     opacity: 0;
     transition: opacity 0.3s ease;
-    pointer-events: none; /* 非アクティブ時はクリックを通過させる */
+    pointer-events: none;
+    /* 非アクティブ時はクリックを通過させる */
 }
 
 .bottom-sheet-overlay.active {
     display: block;
     opacity: 1;
-    pointer-events: auto; /* アクティブ時のみクリックを受け取る */
+    pointer-events: auto;
+    /* アクティブ時のみクリックを受け取る */
 }
 
 /* Bottom Sheet Container */
@@ -2851,13 +3098,15 @@ body {
     display: flex;
     flex-direction: column;
     visibility: hidden;
-    pointer-events: none; /* 非アクティブ時はクリックを通過させる */
+    pointer-events: none;
+    /* 非アクティブ時はクリックを通過させる */
 }
 
 .bottom-sheet.active {
     transform: translateY(0);
     visibility: visible;
-    pointer-events: auto; /* アクティブ時のみクリックを受け取る */
+    pointer-events: auto;
+    /* アクティブ時のみクリックを受け取る */
 }
 
 .bottom-sheet-handle {
@@ -2926,16 +3175,22 @@ body {
 .bottom-sheet-content {
     flex: 1;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
-    overscroll-behavior: contain; /* Prevent scroll chaining */
+    -webkit-overflow-scrolling: touch;
+    /* iOS smooth scrolling */
+    overscroll-behavior: contain;
+    /* Prevent scroll chaining */
+    touch-action: manipulation;
+    /* Disable pinch-zoom in scrollable area */
     padding: 16px;
-    padding-bottom: 80px; /* 十分なスクロール余白を確保 */
+    padding-bottom: 80px;
+    /* 十分なスクロール余白を確保 */
 }
 
 /* Sessions Bottom Sheet specific */
 #sessions-bottom-sheet .bottom-sheet-content {
     padding: 8px;
-    padding-bottom: 80px; /* 十分なスクロール余白を確保 */
+    padding-bottom: 80px;
+    /* 十分なスクロール余白を確保 */
 }
 
 #sessions-bottom-sheet .session-group-header,
@@ -2988,13 +3243,15 @@ body {
         visibility: hidden;
         transition: opacity 0.3s ease, visibility 0.3s ease;
         z-index: 998;
-        pointer-events: none; /* クリックを通過させる */
+        pointer-events: none;
+        /* クリックを通過させる */
     }
 
     .mobile-fab-container.active .mobile-fab-overlay {
         opacity: 1;
         visibility: visible;
-        pointer-events: auto; /* アクティブ時のみクリックを受け取る */
+        pointer-events: auto;
+        /* アクティブ時のみクリックを受け取る */
     }
 
     /* Speed Dial Actions Container */
@@ -3009,8 +3266,10 @@ body {
         visibility: hidden;
         transform: translateY(20px);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        z-index: 1000; /* オーバーレイより前面に配置 */
-        pointer-events: auto; /* ボタンが常にクリック可能 */
+        z-index: 1000;
+        /* オーバーレイより前面に配置 */
+        pointer-events: auto;
+        /* ボタンが常にクリック可能 */
     }
 
     .mobile-fab-container.active .mobile-fab-actions {
@@ -3136,7 +3395,8 @@ body {
 
     .main-content {
         flex: 1;
-        padding-bottom: 56px; /* Space for bottom nav */
+        padding-bottom: 56px;
+        /* Space for bottom nav */
     }
 
     /* Console area adjustments */
@@ -3144,7 +3404,8 @@ body {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        overflow: visible; /* iframe内部でスクロール */
+        overflow: visible;
+        /* iframe内部でスクロール */
         /* 縦スクロールのみ許可 */
         touch-action: pan-y;
     }
@@ -3153,7 +3414,8 @@ body {
     .console-area iframe {
         width: 100vw;
         max-width: 100%;
-        height: calc(100vh - 56px); /* Full height minus bottom nav */
+        height: calc(100vh - 56px);
+        /* Full height minus bottom nav */
         border: none;
         /* Enable pointer events for touch scrolling inside iframe */
         pointer-events: auto;
@@ -3223,7 +3485,8 @@ body {
     }
 
     .integrity-summary {
-        display: none; /* Hide on mobile to save space */
+        display: none;
+        /* Hide on mobile to save space */
     }
 
     .settings-tabs {
@@ -3257,9 +3520,11 @@ body {
 
     /* Mobile Software Keyboard */
     .mobile-keyboard {
-        display: none; /* Hidden by default */
+        display: none;
+        /* Hidden by default */
         position: fixed;
-        bottom: 60px; /* Above bottom nav */
+        bottom: 60px;
+        /* Above bottom nav */
         left: 0;
         right: 0;
         background: var(--bg-secondary);
@@ -3428,10 +3693,13 @@ body {
 /* Color System */
 :root {
     /* 健全性スコア */
-    --health-excellent: #35a670;  /* 緑（70-100点） */
-    --health-warning: #ff9b26;    /* 黄（50-69点） */
-    --health-danger: #ee4f27;     /* 赤（0-49点） */
-  
+    --health-excellent: #35a670;
+    /* 緑（70-100点） */
+    --health-warning: #ff9b26;
+    /* 黄（50-69点） */
+    --health-danger: #ee4f27;
+    /* 赤（0-49点） */
+
     /* 背景（ダークテーマ） already defined in root but ensuring consistency */
     --bg-card: #1b1728;
     --bg-overlay: rgba(255, 255, 255, 0.05);
@@ -3531,7 +3799,7 @@ body {
     gap: 16px;
 }
 
-.donuts-right > div {
+.donuts-right>div {
     display: flex;
     align-items: center;
     justify-content: flex-start;
@@ -3586,62 +3854,66 @@ body {
 
 /* Responsive Design */
 @media (max-width: 1200px) {
+
     /* Tablet */
     .health-gauges {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .summary-dashboard {
         grid-template-columns: 1fr;
         gap: 32px;
     }
-    
+
     .metrics-left {
         grid-template-columns: repeat(4, 1fr);
     }
-    
+
     .project-cards-grid {
         grid-template-columns: repeat(3, 1fr);
     }
 }
 
 @media (max-width: 810px) {
+
     /* Small Tablet */
     .metrics-left {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .project-cards-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (max-width: 640px) {
+
     /* Mobile */
     .health-gauges {
         grid-template-columns: 1fr;
     }
-    
+
     .summary-dashboard {
         display: flex;
         flex-direction: column;
     }
-    
+
     .donuts-right {
         align-items: center;
     }
 
     .project-cards-grid {
-        grid-template-columns: repeat(2, 1fr); /* 2 column on mobile for cards is usually better than 1 if cards are small, but let's stick to simple vertical stack if cards are wide */
+        grid-template-columns: repeat(2, 1fr);
+        /* 2 column on mobile for cards is usually better than 1 if cards are small, but let's stick to simple vertical stack if cards are wide */
     }
-    
+
     /* Adjust grid for very small screens if needed */
     @media (max-width: 480px) {
         .project-cards-grid {
             grid-template-columns: 1fr;
         }
     }
-    
+
     #dashboard-panel {
         padding: 16px;
     }
@@ -3696,6 +3968,7 @@ body {
     padding: 8px;
     border-radius: 6px;
 }
+
 .heatmap-row:hover {
     background-color: rgba(255, 255, 255, 0.03);
 }
@@ -3766,4 +4039,78 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Trend Graphs Section */
+.trend-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+}
+
+.trend-wrapper h4 {
+    margin-top: 0;
+}
+
+@media (max-width: 1024px) {
+    .trend-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .trend-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================
+   Test Mode Banner
+   ========================================= */
+.test-mode-banner {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #1e293b;
+    padding: 12px 20px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    position: relative;
+    border-bottom: 2px solid #b45309;
+}
+
+.test-mode-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.test-mode-banner-content i {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.test-mode-banner-content strong {
+    font-weight: 600;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+    .test-mode-banner {
+        padding: 10px 15px;
+        font-size: 0.85rem;
+    }
+
+    .test-mode-banner-content {
+        gap: 8px;
+    }
+
+    .test-mode-banner-content i {
+        width: 18px;
+        height: 18px;
+    }
 }

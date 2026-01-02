@@ -12,6 +12,7 @@ let tasks = [];
 let schedule = null;
 let showAllTasks = false;
 let showArchived = false;
+let testMode = false; // テストモード（読み取り専用）
 
 // Drag & Drop State
 let draggedSessionId = null;
@@ -55,6 +56,10 @@ export function getDraggedSessionProject() {
     return draggedSessionProject;
 }
 
+export function getTestMode() {
+    return testMode;
+}
+
 // --- Setters ---
 export function setSessions(newSessions) {
     sessions = newSessions;
@@ -86,6 +91,10 @@ export function setDraggedSessionId(id) {
 
 export function setDraggedSessionProject(project) {
     draggedSessionProject = project;
+}
+
+export function setTestMode(value) {
+    testMode = value;
 }
 
 // --- Utility Functions ---
