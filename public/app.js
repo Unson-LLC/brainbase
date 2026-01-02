@@ -23,6 +23,7 @@ import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { TaskService } from './modules/domain/task/task-service.js';
 import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
+import { InboxService } from './modules/domain/inbox/inbox-service.js';
 
 // Views
 import { TaskView } from './modules/ui/views/task-view.js';
@@ -60,11 +61,13 @@ class App {
         this.container.register('taskService', () => new TaskService());
         this.container.register('sessionService', () => new SessionService());
         this.container.register('scheduleService', () => new ScheduleService());
+        this.container.register('inboxService', () => new InboxService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
         this.sessionService = this.container.get('sessionService');
         this.scheduleService = this.container.get('scheduleService');
+        this.inboxService = this.container.get('inboxService');
     }
 
     /**
@@ -100,7 +103,7 @@ class App {
         }
 
         // Inbox (notifications)
-        this.views.inboxView = new InboxView();
+        this.views.inboxView = new InboxView({ inboxService: this.inboxService });
         this.views.inboxView.mount();
 
         // Dashboard (Mana専用機能 - OSS版では無効)
@@ -382,6 +385,67 @@ class App {
 
         // Setup terminal toolbar buttons
         this.setupTerminalToolbar();
+
+        // Setup test mode banner
+        this.setupTestModeBanner();
+    }
+
+    /**
+     * Setup test mode banner display
+     */
+    setupTestModeBanner() {
+        // Subscribe to store changes
+        const unsub = appStore.subscribe((change) => {
+            if (change.key === 'testMode') {
+                this.updateTestModeBanner(change.value);
+            }
+        });
+        this.unsubscribers.push(unsub);
+
+        // Check initial state
+        const { testMode } = appStore.getState();
+        if (testMode) {
+            this.updateTestModeBanner(true);
+        }
+    }
+
+    /**
+     * Update test mode banner visibility
+     * @param {boolean} testMode - Whether test mode is enabled
+     */
+    updateTestModeBanner(testMode) {
+        let banner = document.getElementById('test-mode-banner');
+
+        if (testMode) {
+            // Create banner if it doesn't exist
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'test-mode-banner';
+                banner.className = 'test-mode-banner';
+                banner.innerHTML = `
+                    <div class="test-mode-banner-content">
+                        <i data-lucide="flask-conical"></i>
+                        <span><strong>テストモード:</strong> このサーバーは読み取り専用です。セッション管理は無効化されています。</span>
+                    </div>
+                `;
+
+                // Insert at the top of app-container
+                const appContainer = document.querySelector('.app-container');
+                if (appContainer) {
+                    appContainer.insertBefore(banner, appContainer.firstChild);
+
+                    // Re-render lucide icons
+                    if (window.lucide && window.lucide.createIcons) {
+                        window.lucide.createIcons();
+                    }
+                }
+            }
+        } else {
+            // Remove banner if it exists
+            if (banner) {
+                banner.remove();
+            }
+        }
     }
 
     /**

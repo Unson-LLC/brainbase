@@ -23,6 +23,7 @@ export class SessionService {
     async loadSessions() {
         const state = await this.httpClient.get('/api/state');
         let sessions = state.sessions || [];
+        const testMode = state.testMode || false;
 
         // マイグレーション: stopped状態をpausedに変換
         let migrationNeeded = false;
@@ -40,8 +41,8 @@ export class SessionService {
             console.log('[Migration] Converted "stopped" sessions to "paused"');
         }
 
-        this.store.setState({ sessions });
-        this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions });
+        this.store.setState({ sessions, testMode });
+        this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         return sessions;
     }
 

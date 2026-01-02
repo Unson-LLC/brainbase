@@ -48,14 +48,156 @@ export class SessionManager {
     }
 
     /**
+     * Phase 3: activeセッションを復元
+     * サーバー起動時にstate.jsonからintendedState === 'active'のセッションを復元し、
+     * 既存のttydプロセスと紐付ける。
+     * ttydプロセスが見つからない場合は新規起動する。
+     */
+    async restoreActiveSessions() {
+        try {
+            console.log('[restoreActiveSessions] Restoring active sessions from state.json...');
+
+            const state = this.stateStore.get();
+            if (!state.sessions) {
+                console.log('[restoreActiveSessions] No sessions in state.json');
+                return;
+            }
+
+            // intendedState === 'active' のセッションを抽出
+            const activeSessions = state.sessions.filter(s => s.intendedState === 'active');
+            console.log(`[restoreActiveSessions] Found ${activeSessions.length} active session(s) in state.json`);
+
+            if (activeSessions.length === 0) {
+                return;
+            }
+
+            // 全ttydプロセスを取得
+            const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
+
+            const restoredSessionIds = new Set();
+
+            if (stdout.trim()) {
+                const lines = stdout.trim().split('\n');
+                console.log(`[restoreActiveSessions] Found ${lines.length} ttyd process(es)`);
+
+                // 各ttydプロセスから sessionId と port を抽出
+                for (const line of lines) {
+                    const parts = line.trim().split(/\s+/);
+                    const pid = parseInt(parts[1], 10);
+
+                    // コマンドライン全体を取得
+                    const cmdLine = parts.slice(10).join(' ');
+
+                    // -p PORT を抽出
+                    const portMatch = cmdLine.match(/-p\s+(\d+)/);
+                    const port = portMatch ? parseInt(portMatch[1], 10) : null;
+
+                    // -b /console/SESSION_ID を抽出
+                    const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
+                    const sessionId = sessionMatch ? sessionMatch[1] : null;
+
+                    if (!sessionId || !port) {
+                        console.log(`[restoreActiveSessions] Skipping process PID ${pid}: sessionId or port not found`);
+                        continue;
+                    }
+
+                    // state.jsonのactiveセッションに一致するか確認
+                    const matchingSession = activeSessions.find(s => s.id === sessionId);
+                    if (matchingSession) {
+                        this.activeSessions.set(sessionId, {
+                            port,
+                            process: { pid }
+                        });
+                        restoredSessionIds.add(sessionId);
+                        console.log(`[restoreActiveSessions] Restored session ${sessionId}: PID ${pid}, Port ${port}`);
+                    }
+                }
+            } else {
+                console.log('[restoreActiveSessions] No ttyd processes found');
+            }
+
+            // ttydプロセスが見つからなかったactiveセッションに対してttydを起動
+            const missingSessions = activeSessions.filter(s => !restoredSessionIds.has(s.id));
+            if (missingSessions.length > 0) {
+                console.log(`[restoreActiveSessions] Starting ttyd for ${missingSessions.length} session(s) without running process...`);
+
+                for (const session of missingSessions) {
+                    try {
+                        const cwd = session.path || (session.worktree && session.worktree.path);
+                        const engine = session.engine || 'claude';
+                        const initialCommand = session.initialCommand || '';
+
+                        console.log(`[restoreActiveSessions] Starting ttyd for ${session.id} (cwd: ${cwd}, engine: ${engine})`);
+
+                        await this.startTtyd({
+                            sessionId: session.id,
+                            cwd,
+                            initialCommand,
+                            engine
+                        });
+
+                        console.log(`[restoreActiveSessions] Successfully started ttyd for ${session.id}`);
+                    } catch (err) {
+                        console.error(`[restoreActiveSessions] Failed to start ttyd for ${session.id}:`, err);
+                    }
+                }
+            }
+
+            console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
+        } catch (err) {
+            console.error('[restoreActiveSessions] Error:', err);
+        }
+    }
+
+    /**
      * 孤立したttydプロセスをクリーンアップ
+     *
+     * BUG FIX: 以前は`pkill ttyd`で全プロセスを殺していたが、
+     * これはactiveセッションのttydも殺してしまう。
+     *
+     * 修正後: activeSessionsに登録されていないttydプロセスのみ殺す
      */
     async cleanupOrphans() {
         try {
-            console.log('Cleaning up orphaned ttyd processes...');
-            await this.execPromise('pkill ttyd').catch(() => { }); // Ignore error if no processes found
+            console.log('[cleanupOrphans] Checking for orphaned ttyd processes...');
+
+            // 1. 全てのttydプロセスを取得
+            const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
+            if (!stdout.trim()) {
+                console.log('[cleanupOrphans] No ttyd processes found');
+                return;
+            }
+
+            const lines = stdout.trim().split('\n');
+            console.log(`[cleanupOrphans] Found ${lines.length} ttyd process(es)`);
+
+            // 2. activeSessionsのPIDを取得
+            const activePids = new Set();
+            for (const [sessionId, sessionData] of this.activeSessions) {
+                if (sessionData.process && sessionData.process.pid) {
+                    activePids.add(sessionData.process.pid);
+                    console.log(`[cleanupOrphans] Active session ${sessionId}: PID ${sessionData.process.pid}`);
+                }
+            }
+
+            // 3. 孤立したttydプロセスのみ殺す
+            let orphansKilled = 0;
+            for (const line of lines) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parseInt(parts[1], 10);
+
+                if (!activePids.has(pid)) {
+                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid}`);
+                    await this.execPromise(`kill ${pid}`).catch(() => {});
+                    orphansKilled++;
+                } else {
+                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid}`);
+                }
+            }
+
+            console.log(`[cleanupOrphans] Cleaned up ${orphansKilled} orphaned ttyd process(es)`);
         } catch (err) {
-            console.error('Error cleaning up orphans:', err);
+            console.error('[cleanupOrphans] Error:', err);
         }
     }
 
