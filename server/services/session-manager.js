@@ -448,6 +448,9 @@ export class SessionManager {
                 console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
             }
 
+            // Cleanup TMUX session and MCP processes
+            await this.cleanupSessionResources(sessionId);
+
             this.activeSessions.delete(sessionId);
             // hookStatusは保持（'done'ステータスを保持するため）
             // this.hookStatus.delete(sessionId);
@@ -461,14 +464,24 @@ export class SessionManager {
      * @param {string} sessionId - セッションID
      */
     async cleanupSessionResources(sessionId) {
-        console.log(`Cleaning up resources for session ${sessionId}...`);
+        // Input validation
+        if (!sessionId || typeof sessionId !== 'string') {
+            console.error('[Cleanup] Invalid sessionId:', sessionId);
+            return;
+        }
+
+        console.log(`[Cleanup] Starting cleanup for session ${sessionId}...`);
+
+        let tmuxDeleted = false;
+        let processesKilled = 0;
 
         // 1. TMUXセッション削除
         try {
             await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
-            console.log(`Deleted TMUX session: ${sessionId}`);
+            tmuxDeleted = true;
+            console.log(`[Cleanup] ✅ TMUX session deleted: ${sessionId}`);
         } catch (err) {
-            // エラーは無視（既に削除されている可能性がある）
+            console.log(`[Cleanup] ⚠️ TMUX session ${sessionId} already deleted or not found`);
         }
 
         // 2. TMUXペインのプロセスID取得 → 子プロセス（MCP含む）を強制終了
@@ -479,17 +492,24 @@ export class SessionManager {
 
             if (stdout.trim()) {
                 const panePids = stdout.trim().split('\n');
+                console.log(`[Cleanup] Found ${panePids.length} pane process(es) for ${sessionId}`);
+
                 for (const pid of panePids) {
                     // 子プロセス（MCP等）を終了
                     await this.execPromise(`pkill -TERM -P ${pid} 2>/dev/null`).catch(() => {});
                     // 親プロセスを終了
                     await this.execPromise(`kill -TERM ${pid} 2>/dev/null`).catch(() => {});
+                    processesKilled++;
                 }
-                console.log(`Cleaned up ${panePids.length} pane processes for session ${sessionId}`);
+                console.log(`[Cleanup] ✅ Killed ${processesKilled} pane processes for ${sessionId}`);
+            } else {
+                console.log(`[Cleanup] ⚠️ No pane processes found for ${sessionId}`);
             }
         } catch (err) {
-            // エラーは無視（TMUXセッションが既に削除されている可能性がある）
+            console.log(`[Cleanup] ⚠️ Error cleaning up pane processes for ${sessionId}:`, err.message);
         }
+
+        console.log(`[Cleanup] Completed for ${sessionId} (TMUX: ${tmuxDeleted ? '✅' : '⚠️'}, Processes: ${processesKilled})`);
     }
 
     /**
