@@ -36,6 +36,7 @@ import { InboxView } from './modules/ui/views/inbox-view.js';
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
+import { RenameModal } from './modules/ui/modals/rename-modal.js';
 
 /**
  * Application initialization
@@ -182,6 +183,10 @@ class App {
         // Focus engine modal
         this.modals.focusEngineModal = new FocusEngineModal();
         this.modals.focusEngineModal.mount();
+
+        // Rename modal
+        this.modals.renameModal = new RenameModal({ sessionService: this.sessionService });
+        this.modals.renameModal.mount();
     }
 
     /**
@@ -378,7 +383,14 @@ class App {
             this.openCreateSessionModal(project);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
+        // Rename session: open rename modal
+        const unsub5 = eventBus.on(EVENTS.RENAME_SESSION, (event) => {
+            const { session } = event.detail;
+            console.log('Rename session requested:', session);
+            this.modals.renameModal.open(session);
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
