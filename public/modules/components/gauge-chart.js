@@ -2,6 +2,7 @@ export class GaugeChart {
     constructor(container, options = {}) {
         this.container = container;
         this.value = options.value || 0;
+        this.label = options.label || '';
         this.subtitle = options.subtitle || '';
         this.color = this.getColor(this.value);
         this.render();
