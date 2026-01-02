@@ -27,9 +27,31 @@ export function initMobileKeyboard() {
 
     const viewport = window.visualViewport;
     let activeElement = null;
+    let previousHeight = viewport.height;
 
     // ビューポートのリサイズを監視
     function handleResize() {
+        const currentHeight = viewport.height;
+        const heightDiff = previousHeight - currentHeight;
+
+        // キーボードが表示された（高さが300px以上減少）
+        const keyboardShown = heightDiff > 300;
+
+        // iframe内ターミナルへのスクロール指示
+        if (keyboardShown) {
+            const terminalFrame = document.getElementById('terminal-frame');
+            if (terminalFrame && terminalFrame.contentWindow) {
+                terminalFrame.contentWindow.postMessage({
+                    type: 'scroll-to-bottom',
+                    source: 'brainbase-mobile-keyboard'
+                }, '*');
+                console.log('[MobileKeyboard] Sent scroll-to-bottom message to iframe');
+            }
+        }
+
+        previousHeight = currentHeight;
+
+        // 既存の処理: activeElementのスクロール
         if (!activeElement) return;
 
         // キーボードが表示されている間、フォーカスされた要素を画面内に保つ
