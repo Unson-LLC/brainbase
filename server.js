@@ -56,12 +56,18 @@ const DEFAULT_PORT = isWorktree ? 3001 : 3000;
 // Test Mode: セッション管理を無効化し、読み取り専用モードで起動
 // worktreeでのE2Eテスト・UI検証時に使用
 // Phase 4: worktreeで起動された場合は自動的にTEST_MODEを有効化
-const TEST_MODE = process.env.BRAINBASE_TEST_MODE === 'true' || isWorktree;
+// ただし、BRAINBASE_TEST_MODE=falseが明示的に指定された場合は無効化（E2Eテスト用）
+const TEST_MODE = process.env.BRAINBASE_TEST_MODE === 'false'
+    ? false
+    : (process.env.BRAINBASE_TEST_MODE === 'true' || isWorktree);
 if (TEST_MODE) {
     const reason = isWorktree ? 'Auto-enabled (worktree detected)' : 'Manually enabled';
     console.log(`[BRAINBASE] 🧪 TEST MODE ENABLED - ${reason}`);
     console.log('[BRAINBASE] Session management is disabled');
     console.log('[BRAINBASE] This server is read-only and will not modify state.json');
+} else if (isWorktree && process.env.BRAINBASE_TEST_MODE === 'false') {
+    console.log('[BRAINBASE] ⚠️  TEST MODE DISABLED - Explicitly disabled for E2E testing');
+    console.log('[BRAINBASE] Session management is ENABLED in worktree environment');
 }
 
 const app = express();
@@ -70,7 +76,10 @@ const PORT = process.env.PORT || DEFAULT_PORT;
 // Configuration
 const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
 const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
-const STATE_FILE = path.join(__dirname, 'state.json');
+// Phase 4: worktree環境では正本のstate.jsonを参照（E2Eテスト用）
+const STATE_FILE = isWorktree
+    ? path.join(PROJECTS_ROOT, 'brainbase', 'state.json')
+    : path.join(__dirname, 'state.json');
 const WORKTREES_DIR = path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = path.join(BRAINBASE_ROOT, '_codex');
 const CONFIG_PATH = path.join(BRAINBASE_ROOT, 'config.yml');
