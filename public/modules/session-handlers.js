@@ -4,6 +4,7 @@
  */
 
 import { eventBus, EVENTS } from './core/event-bus.js';
+import { archiveSessionAPI } from './session-controller.js';
 
 /**
  * セクションヘッダー（「作業中」「一時停止」）の展開/折りたたみハンドラーを設定
@@ -203,8 +204,56 @@ export function attachSessionActionHandlers(container, sessionService, appStore)
             archiveBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                const newState = session.intendedState === 'archived' ? 'active' : 'archived';
-                await sessionService.updateSession(session.id, { intendedState: newState });
+
+                try {
+                    // アクション判定（アーカイブ or 復元）
+                    const isArchiving = session.intendedState !== 'archived';
+                    const action = isArchiving ? 'アーカイブ' : '復元';
+
+                    // 復元の場合は単純な確認ダイアログのみ
+                    if (!isArchiving) {
+                        if (confirm(`セッション "${session.name || session.id}" を${action}しますか？`)) {
+                            await sessionService.updateSession(session.id, { intendedState: 'active' });
+                        }
+                        return;
+                    }
+
+                    // アーカイブ処理（worktree状態チェック付き）
+                    let result = await archiveSessionAPI(session.id);
+
+                    // 未マージ検出時の警告
+                    if (result.needsConfirmation) {
+                        const { status } = result;
+                        const warnings = [];
+
+                        if (status.commitsAhead > 0) {
+                            warnings.push(`未マージのコミット: ${status.commitsAhead}件`);
+                        }
+                        if (status.hasUncommittedChanges) {
+                            warnings.push('未コミットの変更あり');
+                        }
+
+                        const message =
+                            `セッション "${session.name || session.id}" に以下の未保存の作業があります:\n\n` +
+                            warnings.join('\n') + '\n\n' +
+                            'このままアーカイブすると作業が失われる可能性があります。\n' +
+                            '本当にアーカイブしますか？';
+
+                        if (!confirm(message)) {
+                            return; // キャンセル
+                        }
+
+                        // 強制アーカイブ
+                        result = await archiveSessionAPI(session.id, { skipMergeCheck: true });
+                    }
+
+                    // セッション一覧を再読み込み
+                    await sessionService.loadSessions();
+
+                } catch (error) {
+                    console.error('Failed to archive session:', error);
+                    alert(`セッションのアーカイブに失敗しました: ${error.message}`);
+                }
             });
         }
 
