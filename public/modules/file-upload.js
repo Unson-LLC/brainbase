@@ -13,6 +13,48 @@ let dragCounter = 0;
 // --- Core Functions ---
 
 /**
+ * Compress image using Canvas API
+ * @param {Blob} blob - Image blob to compress
+ * @param {number} maxWidth - Maximum width (default: 1920)
+ * @param {number} maxHeight - Maximum height (default: 1080)
+ * @param {number} quality - JPEG quality 0-1 (default: 0.8)
+ * @returns {Promise<Blob>} Compressed image blob
+ */
+export async function compressImage(blob, maxWidth = 1920, maxHeight = 1080, quality = 0.8) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+
+            // アスペクト比を維持しながらリサイズ
+            if (width > maxWidth || height > maxHeight) {
+                const ratio = Math.min(maxWidth / width, maxHeight / height);
+                width *= ratio;
+                height *= ratio;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((compressedBlob) => {
+                resolve(compressedBlob || blob);
+            }, 'image/jpeg', quality);
+        };
+
+        img.onerror = () => {
+            resolve(blob); // エラー時は元のBlobを返す
+        };
+
+        img.src = URL.createObjectURL(blob);
+    });
+}
+
+/**
  * Upload file and paste path to terminal
  * @param {FileList|File[]} files - Files to upload
  */
@@ -21,10 +63,31 @@ async function handleFiles(files) {
     const currentSessionId = getSessionId?.();
     if (!currentSessionId) return;
 
+    let fileToUpload = file;
+    const originalSize = file.size;
+
+    // Compress image if it's an image file
+    if (file.type.startsWith('image/')) {
+        console.log('圧縮中...', file.name);
+        try {
+            const compressedBlob = await compressImage(file);
+            const compressedSize = compressedBlob.size;
+            const compressionRatio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+
+            console.log(`圧縮完了: ${(originalSize / 1024).toFixed(1)}KB → ${(compressedSize / 1024).toFixed(1)}KB (圧縮率: ${compressionRatio}%)`);
+
+            // Create a new File object with the original name
+            fileToUpload = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+        } catch (error) {
+            console.error('Image compression failed, uploading original:', error);
+        }
+    }
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', fileToUpload);
 
     try {
+        console.log('アップロード中...');
         // 1. Upload File
         const uploadRes = await fetch('/api/upload', {
             method: 'POST',
@@ -34,6 +97,7 @@ async function handleFiles(files) {
         if (!uploadRes.ok) throw new Error('Upload failed');
 
         const { path } = await uploadRes.json();
+        console.log('アップロード完了:', path);
 
         // 2. Paste path into terminal
         await fetch(`/api/sessions/${currentSessionId}/input`, {
