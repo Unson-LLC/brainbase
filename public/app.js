@@ -12,7 +12,7 @@ import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
-import { initFileUpload } from './modules/file-upload.js';
+import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
@@ -535,58 +535,119 @@ class App {
                 }
 
                 try {
-                    // Read clipboard
-                    const text = await navigator.clipboard.readText();
-                    if (!text) {
-                        showInfo('クリップボードが空です');
-                        return;
+                    // Try to read clipboard items (supports both text and images)
+                    const clipboardItems = await navigator.clipboard.read();
+
+                    for (const item of clipboardItems) {
+                        // Check for image
+                        const imageType = item.types.find(type => type.startsWith('image/'));
+                        if (imageType) {
+                            showInfo('画像を圧縮中...');
+
+                            const blob = await item.getType(imageType);
+
+                            // 圧縮前のサイズ
+                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
+
+                            // 画像を圧縮
+                            const compressedBlob = await compressImage(blob);
+
+                            // 圧縮後のサイズ
+                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+
+                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+
+                            // Upload compressed image to server
+                            const formData = new FormData();
+                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
+
+                            const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!uploadRes.ok) {
+                                showError('画像のアップロードに失敗しました');
+                                return;
+                            }
+
+                            const { path: imagePath } = await uploadRes.json();
+
+                            // Send image path to terminal with Enter key
+                            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
+                            });
+
+                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
+                            return;
+                        }
+
+                        // Check for text
+                        if (item.types.includes('text/plain')) {
+                            const textBlob = await item.getType('text/plain');
+                            const text = await textBlob.text();
+
+                            if (!text) {
+                                showInfo('クリップボードが空です');
+                                return;
+                            }
+
+                            // Show paste confirm modal for text
+                            const modal = document.getElementById('paste-confirm-modal');
+                            const preview = document.getElementById('paste-preview-text');
+                            const confirmBtn = document.getElementById('paste-confirm-btn');
+                            const cancelBtn = document.getElementById('paste-cancel-btn');
+
+                            if (!modal || !preview || !confirmBtn || !cancelBtn) {
+                                // Fallback: paste directly without modal
+                                await this.pasteTextToTerminal(currentSessionId, text);
+                                return;
+                            }
+
+                            // Show preview
+                            const displayText = text.length > 500 ? text.substring(0, 500) + '\n...(省略)...' : text;
+                            preview.textContent = displayText;
+                            modal.classList.add('active');
+
+                            // Wait for user action
+                            const confirmed = await new Promise((resolve) => {
+                                const confirm = () => {
+                                    cleanup();
+                                    resolve(true);
+                                };
+                                const cancel = () => {
+                                    cleanup();
+                                    resolve(false);
+                                };
+                                const cleanup = () => {
+                                    confirmBtn.removeEventListener('click', confirm);
+                                    cancelBtn.removeEventListener('click', cancel);
+                                };
+
+                                confirmBtn.addEventListener('click', confirm);
+                                cancelBtn.addEventListener('click', cancel);
+                            });
+
+                            modal.classList.remove('active');
+
+                            // Paste if confirmed
+                            if (confirmed) {
+                                await this.pasteTextToTerminal(currentSessionId, text);
+                            }
+                            return;
+                        }
                     }
 
-                    // Show paste confirm modal
-                    const modal = document.getElementById('paste-confirm-modal');
-                    const preview = document.getElementById('paste-preview-text');
-                    const confirmBtn = document.getElementById('paste-confirm-btn');
-                    const cancelBtn = document.getElementById('paste-cancel-btn');
-
-                    if (!modal || !preview || !confirmBtn || !cancelBtn) {
-                        // Fallback: paste directly without modal
-                        await this.pasteTextToTerminal(currentSessionId, text);
-                        return;
-                    }
-
-                    // Show preview
-                    const displayText = text.length > 500 ? text.substring(0, 500) + '\n...(省略)...' : text;
-                    preview.textContent = displayText;
-                    modal.classList.add('active');
-
-                    // Wait for user action
-                    const confirmed = await new Promise((resolve) => {
-                        const confirm = () => {
-                            cleanup();
-                            resolve(true);
-                        };
-                        const cancel = () => {
-                            cleanup();
-                            resolve(false);
-                        };
-                        const cleanup = () => {
-                            confirmBtn.removeEventListener('click', confirm);
-                            cancelBtn.removeEventListener('click', cancel);
-                        };
-
-                        confirmBtn.addEventListener('click', confirm);
-                        cancelBtn.addEventListener('click', cancel);
-                    });
-
-                    modal.classList.remove('active');
-
-                    // Paste if confirmed
-                    if (confirmed) {
-                        await this.pasteTextToTerminal(currentSessionId, text);
-                    }
+                    showInfo('クリップボードが空です');
                 } catch (error) {
-                    console.error('Failed to read clipboard:', error);
-                    showError('クリップボードの読み取りに失敗しました');
+                    console.error('Failed to paste:', error);
+                    if (error.name === 'NotAllowedError') {
+                        showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+                    } else {
+                        showError('ペーストに失敗しました');
+                    }
                 }
             };
         }
