@@ -3407,6 +3407,7 @@ body::after {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
+        height: 100%; /* Fill parent (.main-content) completely */
         overflow: visible;
         /* iframe内部でスクロール */
         /* 縦スクロールのみ許可 */
@@ -3417,9 +3418,8 @@ body::after {
     .console-area iframe {
         width: 100vw;
         max-width: 100%;
-        height: calc(100vh - 56px); /* fallback */
-        height: calc(100dvh - 56px);
-        /* Full height minus bottom nav */
+        height: 100%; /* Fill parent (.console-area) completely */
+        /* .main-content (flex: 1) handles the height calculation */
         border: none;
         /* Enable pointer events for touch scrolling inside iframe */
         pointer-events: auto;
