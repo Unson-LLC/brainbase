@@ -5,6 +5,26 @@ import {
   buildSessionObject
 } from '../../public/modules/session-manager.js';
 
+// Mock project-mapping to provide CORE_PROJECTS
+vi.mock('../../public/modules/project-mapping.js', () => ({
+  CORE_PROJECTS: ['unson', 'tech-knight', 'baao'],
+  getProjectFromPath: (path) => {
+    if (!path) return 'general';
+    // Extract project name from path like /path/to/workspace/PROJECT_NAME/...
+    const parts = path.split('/').filter(Boolean);
+    if (parts.length === 0) return 'general';
+
+    // Find 'workspace' in path and return the next segment
+    const workspaceIndex = parts.findIndex(p => p === 'workspace');
+    if (workspaceIndex !== -1 && workspaceIndex < parts.length - 1) {
+      return parts[workspaceIndex + 1];
+    }
+
+    // Fallback: return the last non-empty segment
+    return parts[parts.length - 1] || 'general';
+  }
+}));
+
 describe('session-manager', () => {
   describe('groupSessionsByProject', () => {
     it('should group sessions by project path', () => {
@@ -56,7 +76,7 @@ describe('session-manager', () => {
   describe('createSessionId', () => {
     it('should create unique session id with prefix', async () => {
       const id1 = createSessionId('session');
-      await new Promise(r => setTimeout(r, 1)); // 1ms delay
+      await new Promise(r => setTimeout(r, 10)); // 10ms delay to ensure different timestamp
       const id2 = createSessionId('session');
 
       expect(id1).toMatch(/^session-\d+$/);
