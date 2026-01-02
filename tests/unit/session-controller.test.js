@@ -46,7 +46,8 @@ describe('session-controller', () => {
 
       expect(fetch).toHaveBeenCalledWith('/api/sessions/session-123/archive', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skipMergeCheck: false })
       });
       expect(result.success).toBe(true);
     });
