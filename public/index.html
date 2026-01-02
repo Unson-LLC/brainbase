@@ -188,6 +188,12 @@
                         <div class="system-grid">
                             <!-- System gauges injected via JS -->
                         </div>
+
+                        <!-- System Health Status -->
+                        <div class="system-health-section" style="margin-top: 20px;">
+                            <h4 style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; font-weight: 600;">System Health</h4>
+                            <div id="system-health-status"></div>
+                        </div>
                     </section>
 
                     <!-- Section 6: Trend Graphs (Phase 3) -->
@@ -729,6 +735,14 @@
             <i data-lucide="wrench" class="fab-icon-default"></i>
             <i data-lucide="x" class="fab-icon-close"></i>
         </button>
+    </div>
+
+    <!-- Health Detail Modal -->
+    <div id="health-detail-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="window.dashboardController.closeHealthModal()">&times;</span>
+            <div id="health-modal-content"></div>
+        </div>
     </div>
 
     <script type="module" src="app.js?v=1766798000"></script>

@@ -124,7 +124,7 @@ class App {
             await this.dashboardController.init();
             console.log('Dashboard Controller loaded (Mana extension)');
         } catch (error) {
-            console.log('Dashboard Controller not available (OSS mode)');
+            console.error('Dashboard Controller error:', error);
             this.dashboardController = null;
         }
     }

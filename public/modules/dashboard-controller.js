@@ -10,6 +10,8 @@ export class DashboardController {
         this.brainbaseService = new BrainbaseService();
         this.data = null;
         this.projects = [];
+        this.systemHealth = null;
+        this.healthRefreshInterval = null;
     }
 
     async init() {
@@ -18,6 +20,19 @@ export class DashboardController {
 
         await this.loadData();
         this.render();
+
+        // Load system health status
+        await this.loadSystemHealth();
+
+        // Auto-refresh system health every 5 minutes
+        if (!this.healthRefreshInterval) {
+            this.healthRefreshInterval = setInterval(() => {
+                this.loadSystemHealth();
+            }, 5 * 60 * 1000);
+        }
+
+        // Make dashboardController globally accessible for modal callbacks
+        window.dashboardController = this;
     }
 
     async loadData() {
@@ -325,5 +340,184 @@ export class DashboardController {
                 height: 250
             });
         }
+    }
+
+    async loadSystemHealth() {
+        try {
+            const response = await fetch('/api/brainbase/system-health');
+            const result = await response.json();
+
+            if (result.success) {
+                this.systemHealth = result.data;
+                this.renderSystemHealth();
+            }
+        } catch (error) {
+            console.error('Failed to load system health:', error);
+        }
+    }
+
+    renderSystemHealth() {
+        const container = document.getElementById('system-health-status');
+        if (!container || !this.systemHealth) return;
+
+        const { mana, runners } = this.systemHealth;
+
+        // 個別ステータスアイコン
+        const getIcon = (status) => {
+            if (status === 'healthy') return '✅';
+            if (status === 'error') return '❌';
+            if (status === 'warning') return '⚠️';
+            return '❓'; // unknown
+        };
+
+        const manaIcon = getIcon(mana?.status);
+        const runnersIcon = getIcon(runners?.status);
+
+        container.innerHTML = `
+            <div class="health-status-grid">
+                <div class="health-item" onclick="window.dashboardController.openHealthModal('mana')">
+                    <span class="health-icon">${manaIcon}</span>
+                    <span class="health-label">mana (Slack Bot)</span>
+                </div>
+                <div class="health-item" onclick="window.dashboardController.openHealthModal('runners')">
+                    <span class="health-icon">${runnersIcon}</span>
+                    <span class="health-label">Self-hosted Runners</span>
+                </div>
+            </div>
+        `;
+    }
+
+    openHealthModal(type) {
+        const modal = document.getElementById('health-detail-modal');
+        const content = document.getElementById('health-modal-content');
+
+        if (type === 'mana') {
+            content.innerHTML = this._renderManaHealthDetails();
+        } else if (type === 'runners') {
+            content.innerHTML = this._renderRunnersHealthDetails();
+        }
+
+        modal.classList.add('active');
+    }
+
+    closeHealthModal() {
+        const modal = document.getElementById('health-detail-modal');
+        modal.classList.remove('active');
+    }
+
+    _renderManaHealthDetails() {
+        if (!this.systemHealth) return '<p>Loading...</p>';
+
+        const { mana, lastRun } = this.systemHealth;
+
+        const statusBadge = mana.status === 'healthy' ? 'healthy' : mana.status === 'error' ? 'error' : 'warning';
+        const statusText = mana.status === 'healthy' ? '正常' : mana.status === 'error' ? 'エラー' : '警告';
+
+        let html = `
+            <div class="health-modal-header">
+                <h3>mana (Slack Bot) ヘルスチェック</h3>
+                <div class="health-status-badge ${statusBadge}">
+                    ${mana.status === 'healthy' ? '✅' : mana.status === 'error' ? '❌' : '⚠️'} ${statusText}
+                </div>
+            </div>
+        `;
+
+        if (lastRun) {
+            html += `
+                <div class="health-details-section">
+                    <h4>最終実行情報</h4>
+                    <div class="health-detail-item">
+                        <strong>実行日時:</strong>
+                        <p>${new Date(lastRun.updated_at).toLocaleString('ja-JP')}</p>
+                    </div>
+                    <div class="health-detail-item">
+                        <strong>チェック対象:</strong>
+                        <p>Lambda関数 (mana) のエラー状況</p>
+                    </div>
+                    <div class="health-detail-item">
+                        <strong>ステップ結果:</strong>
+                        <p>${mana.step?.conclusion || 'unknown'}</p>
+                    </div>
+                    <div class="health-detail-item">
+                        <strong>詳細を見る:</strong>
+                        <p><a href="${lastRun.html_url}" target="_blank">GitHub Actions</a></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (mana.status === 'error' && mana.step) {
+            html += `
+                <div class="health-details-section">
+                    <h4>エラー詳細</h4>
+                    <div class="error-step">
+                        <strong>${mana.step.stepName}</strong>
+                        <p>Status: ${mana.step.conclusion}</p>
+                    </div>
+                </div>
+            `;
+        } else if (mana.status === 'healthy') {
+            html += `<div class="no-errors-message">✅ Lambda関数のエラーチェックは正常です</div>`;
+        }
+
+        return html;
+    }
+
+    _renderRunnersHealthDetails() {
+        if (!this.systemHealth) return '<p>Loading...</p>';
+
+        const { runners, lastRun } = this.systemHealth;
+
+        const statusBadge = runners.status === 'healthy' ? 'healthy' : runners.status === 'error' ? 'error' : 'warning';
+        const statusText = runners.status === 'healthy' ? '正常' : runners.status === 'error' ? 'エラー' : '警告';
+
+        let html = `
+            <div class="health-modal-header">
+                <h3>Self-hosted Runners ヘルスチェック</h3>
+                <div class="health-status-badge ${statusBadge}">
+                    ${runners.status === 'healthy' ? '✅' : runners.status === 'error' ? '❌' : '⚠️'} ${statusText}
+                </div>
+            </div>
+        `;
+
+        if (lastRun) {
+            html += `
+                <div class="health-details-section">
+                    <h4>最終実行情報</h4>
+                    <div class="health-detail-item">
+                        <strong>実行日時:</strong>
+                        <p>${new Date(lastRun.updated_at).toLocaleString('ja-JP')}</p>
+                    </div>
+                    <div class="health-detail-item">
+                        <strong>チェック対象:</strong>
+                        <p>GitHub Actions self-hosted runnersの稼働状況</p>
+                    </div>
+                    <div class="health-detail-item">
+                        <strong>ステップ結果:</strong>
+                        <p>${runners.step?.conclusion || 'unknown'}</p>
+                    </div>
+                    <div class="health-detail-item">
+                        <strong>詳細を見る:</strong>
+                        <p><a href="${lastRun.html_url}" target="_blank">GitHub Actions</a></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (runners.status === 'error' && runners.step) {
+            html += `
+                <div class="health-details-section">
+                    <h4>エラー詳細</h4>
+                    <div class="error-step">
+                        <strong>${runners.step.stepName}</strong>
+                        <p>Status: ${runners.step.conclusion}</p>
+                    </div>
+                </div>
+            `;
+        } else if (runners.status === 'healthy') {
+            html += `<div class="no-errors-message">✅ すべてのランナーが正常に稼働しています</div>`;
+        }
+
+        return html;
     }
 }
