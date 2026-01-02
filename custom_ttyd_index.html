@@ -472,6 +472,55 @@
         setTimeout(init, 500);
     }
 })();
+
+// Auto-scroll on mobile keyboard show
+(function() {
+    console.log('[Terminal] Initializing auto-scroll listener');
+
+    window.addEventListener('message', function(event) {
+        // Security: Accept messages from same origin or trusted sources
+        const isTrustedOrigin =
+            event.origin === window.location.origin ||
+            event.origin.includes('brain-base.work') ||
+            event.origin.includes('localhost') ||
+            event.data?.source === 'brainbase-mobile-keyboard';
+
+        if (!isTrustedOrigin) {
+            console.warn('[Terminal] Rejected message from untrusted origin:', event.origin);
+            return;
+        }
+
+        if (event.data && event.data.type === 'scroll-to-bottom') {
+            console.log('[Terminal] Received scroll-to-bottom command');
+
+            // Try multiple selectors to find the scroll container
+            const xtermViewport = document.querySelector('.xterm-viewport');
+            if (xtermViewport) {
+                xtermViewport.scrollTop = xtermViewport.scrollHeight;
+                console.log('[Terminal] Scrolled .xterm-viewport to bottom');
+                return;
+            }
+
+            const terminalContainer = document.getElementById('terminal-container');
+            if (terminalContainer) {
+                terminalContainer.scrollTop = terminalContainer.scrollHeight;
+                console.log('[Terminal] Scrolled #terminal-container to bottom');
+                return;
+            }
+
+            const terminal = document.getElementById('terminal');
+            if (terminal) {
+                terminal.scrollTop = terminal.scrollHeight;
+                console.log('[Terminal] Scrolled #terminal to bottom');
+                return;
+            }
+
+            console.warn('[Terminal] No scrollable element found');
+        }
+    });
+
+    console.log('[Terminal] Auto-scroll listener initialized');
+})();
 </script>
 </body>
 </html>
