@@ -76,7 +76,7 @@ describe('session-manager', () => {
   describe('createSessionId', () => {
     it('should create unique session id with prefix', async () => {
       const id1 = createSessionId('session');
-      await new Promise(r => setTimeout(r, 1)); // 1ms delay
+      await new Promise(r => setTimeout(r, 10)); // 10ms delay to ensure different timestamp
       const id2 = createSessionId('session');
 
       expect(id1).toMatch(/^session-\d+$/);
