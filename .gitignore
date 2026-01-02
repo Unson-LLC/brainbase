@@ -93,3 +93,4 @@ docs/dashboard-implementation-prompt.md
 docs/OSS_DIRECTORY_STRUCTURE.md
 nohup.out
 nohup.out
+state.json.backup-*
