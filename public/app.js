@@ -291,7 +291,7 @@ class App {
         });
 
         // Session change: reload related data and switch terminal
-        const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, async (event) => {
+        const unsub1 = eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
             console.log('Session changed:', sessionId);
 
@@ -306,7 +306,7 @@ class App {
         });
 
         // Start task: create session and switch to it
-        const unsub2 = eventBus.on(EVENTS.START_TASK, async (event) => {
+        const unsub2 = eventBus.onAsync(EVENTS.START_TASK, async (event) => {
             const { task: taskObj, taskId, engine = 'claude' } = event.detail;
 
             try {
