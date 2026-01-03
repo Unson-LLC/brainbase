@@ -21,6 +21,17 @@ vi.mock('../../../public/modules/state-api.js', () => ({
     addSession: vi.fn()
 }));
 
+vi.mock('../../../public/modules/project-mapping.js', () => ({
+    getProjectPath: vi.fn((project) => `/path/to/${project || 'general'}`),
+    getProjectFromPath: vi.fn((path) => {
+        if (!path) return 'general';
+        // パスからプロジェクト名を抽出
+        const match = path.match(/\/path\/to\/([^/]+)/);
+        return match ? match[1] : 'general';
+    }),
+    CORE_PROJECTS: ['unson', 'tech-knight', 'baao']
+}));
+
 describe('SessionService', () => {
     let sessionService;
     let mockSessions;
@@ -496,6 +507,202 @@ describe('SessionService', () => {
 
             // Check that POST was NOT called (no migration needed)
             expect(httpClient.post).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('getArchivedSessions', () => {
+        let archivedSessions;
+
+        beforeEach(() => {
+            archivedSessions = [
+                {
+                    id: 'session-1',
+                    name: 'Session 1',
+                    path: '/path/to/project-a',
+                    intendedState: 'archived',
+                    archivedAt: '2024-01-03T00:00:00Z'
+                },
+                {
+                    id: 'session-2',
+                    name: 'Session 2',
+                    path: '/path/to/project-b',
+                    intendedState: 'archived',
+                    archivedAt: '2024-01-02T00:00:00Z'
+                },
+                {
+                    id: 'session-3',
+                    name: 'Active Session',
+                    path: '/path/to/project-a',
+                    intendedState: 'active'
+                },
+                {
+                    id: 'session-4',
+                    name: 'Session 4',
+                    path: '/path/to/project-a',
+                    intendedState: 'archived',
+                    archivedAt: '2024-01-01T00:00:00Z'
+                }
+            ];
+            appStore.setState({ sessions: archivedSessions });
+        });
+
+        it('getArchivedSessions呼び出し時_アーカイブ済みセッションのみ返却される', () => {
+            const result = sessionService.getArchivedSessions();
+
+            expect(result).toHaveLength(3);
+            expect(result.every(s => s.intendedState === 'archived')).toBe(true);
+        });
+
+        it('getArchivedSessions呼び出し時_検索キーワードでフィルタリングされる', () => {
+            const result = sessionService.getArchivedSessions('Session 1');
+
+            expect(result).toHaveLength(1);
+            expect(result[0].name).toBe('Session 1');
+        });
+
+        it('getArchivedSessions呼び出し時_プロジェクトフィルタでフィルタリングされる', () => {
+            const result = sessionService.getArchivedSessions('', 'project-a');
+
+            expect(result).toHaveLength(2);
+        });
+
+        it('getArchivedSessions呼び出し時_検索とプロジェクト両方でフィルタリングされる', () => {
+            const result = sessionService.getArchivedSessions('Session 4', 'project-a');
+
+            expect(result).toHaveLength(1);
+            expect(result[0].name).toBe('Session 4');
+        });
+
+        it('getArchivedSessions呼び出し時_archivedAtでソートされる（新しい順）', () => {
+            const result = sessionService.getArchivedSessions();
+
+            // 新しい順にソート: 2024-01-03 > 2024-01-02 > 2024-01-01
+            expect(result[0].archivedAt).toBe('2024-01-03T00:00:00Z');
+            expect(result[1].archivedAt).toBe('2024-01-02T00:00:00Z');
+            expect(result[2].archivedAt).toBe('2024-01-01T00:00:00Z');
+        });
+
+        it('getArchivedSessions呼び出し時_archivedAtなし_セッションIDからタイムスタンプ抽出', () => {
+            const sessionsWithoutArchivedAt = [
+                { id: 'session-1767000000000', name: 'Session A', intendedState: 'archived' },
+                { id: 'session-1768000000000', name: 'Session B', intendedState: 'archived' }
+            ];
+            appStore.setState({ sessions: sessionsWithoutArchivedAt });
+
+            const result = sessionService.getArchivedSessions();
+
+            expect(result).toHaveLength(2);
+            // 新しいタイムスタンプが先に来る
+            expect(result[0].id).toBe('session-1768000000000');
+            expect(result[1].id).toBe('session-1767000000000');
+        });
+    });
+
+    describe('unarchiveSession', () => {
+        beforeEach(() => {
+            const archivedSession = [
+                { id: 'session-1', name: 'Archived Session', intendedState: 'archived' }
+            ];
+            appStore.setState({ sessions: archivedSession });
+            httpClient.get.mockResolvedValue({ sessions: archivedSession });
+            httpClient.post.mockResolvedValue({});
+        });
+
+        it('unarchiveSession呼び出し時_intendedStateがactiveに変更される', async () => {
+            await sessionService.unarchiveSession('session-1');
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
+                sessions: expect.arrayContaining([
+                    expect.objectContaining({ id: 'session-1', intendedState: 'active' })
+                ])
+            }));
+        });
+
+        it('unarchiveSession呼び出し時_SESSION_UPDATEDイベントが発火される', async () => {
+            const listener = vi.fn();
+            eventBus.on(EVENTS.SESSION_UPDATED, listener);
+
+            await sessionService.unarchiveSession('session-1');
+
+            expect(listener).toHaveBeenCalled();
+            expect(listener.mock.calls[0][0].detail.sessionId).toBe('session-1');
+        });
+    });
+
+    describe('getUniqueProjects', () => {
+        it('getUniqueProjects呼び出し時_ユニークなプロジェクト一覧が返却される', () => {
+            const sessionsWithProjects = [
+                { id: '1', project: 'project-a' },
+                { id: '2', project: 'project-b' },
+                { id: '3', project: 'project-a' }, // 重複
+                { id: '4', project: 'project-c' }
+            ];
+            appStore.setState({ sessions: sessionsWithProjects });
+
+            const result = sessionService.getUniqueProjects();
+
+            expect(result).toHaveLength(3);
+            expect(result).toContain('project-a');
+            expect(result).toContain('project-b');
+            expect(result).toContain('project-c');
+        });
+
+        it('getUniqueProjects呼び出し時_projectがnullのセッションは除外される', () => {
+            const sessionsWithNull = [
+                { id: '1', project: 'project-a' },
+                { id: '2', project: null },
+                { id: '3', project: undefined }
+            ];
+            appStore.setState({ sessions: sessionsWithNull });
+
+            const result = sessionService.getUniqueProjects();
+
+            expect(result).toHaveLength(1);
+            expect(result).toContain('project-a');
+        });
+
+        it('getUniqueProjects呼び出し時_セッションなし_空配列が返却される', () => {
+            appStore.setState({ sessions: [] });
+
+            const result = sessionService.getUniqueProjects();
+
+            expect(result).toEqual([]);
+        });
+    });
+
+    describe('saveSessionOrder', () => {
+        it('saveSessionOrder呼び出し時_APIにPOSTリクエストが送信される', async () => {
+            const reorderedSessions = [
+                { id: 'session-2', name: 'Session 2' },
+                { id: 'session-1', name: 'Session 1' }
+            ];
+            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            httpClient.post.mockResolvedValue({});
+
+            await sessionService.saveSessionOrder(reorderedSessions);
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
+                sessions: reorderedSessions
+            }));
+        });
+
+        it('saveSessionOrder呼び出し時_APIエラー発生_例外がスローされる', async () => {
+            const error = new Error('Network error');
+            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            httpClient.post.mockRejectedValue(error);
+
+            await expect(sessionService.saveSessionOrder([])).rejects.toThrow('Network error');
+        });
+
+        it('saveSessionOrder呼び出し時_空配列でも正常に保存される', async () => {
+            httpClient.get.mockResolvedValue({ sessions: [] });
+            httpClient.post.mockResolvedValue({});
+
+            await sessionService.saveSessionOrder([]);
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
+                sessions: []
+            }));
         });
     });
 });
