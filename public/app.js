@@ -907,32 +907,27 @@ class App {
             }
         });
 
-        // Swipe down to close bottom sheets (only on handle area)
+        // Swipe down to close bottom sheets (only when at top of scroll)
+        let sheetTouchStartY = 0;
         [sessionsBottomSheet, tasksBottomSheet].forEach(sheet => {
-            const handle = sheet?.querySelector('.bottom-sheet-handle');
-            const header = sheet?.querySelector('.bottom-sheet-header');
+            sheet?.addEventListener('touchstart', (e) => {
+                sheetTouchStartY = e.touches[0].clientY;
+            }, { passive: true });
 
-            if (!handle || !header) return;
+            sheet?.addEventListener('touchmove', (e) => {
+                const touchY = e.touches[0].clientY;
+                const diff = touchY - sheetTouchStartY;
 
-            let touchStartY = 0;
+                // スクロール可能な要素を取得（モバイルボトムシート用の正しいセレクタ）
+                const scrollableContent = sheet.querySelector('.bottom-sheet-content');
+                const isAtTop = !scrollableContent || scrollableContent.scrollTop === 0;
 
-            // Handle and header area only - swipe to close
-            [handle, header].forEach(area => {
-                area.addEventListener('touchstart', (e) => {
-                    touchStartY = e.touches[0].clientY;
-                }, { passive: true });
-
-                area.addEventListener('touchmove', (e) => {
-                    const touchY = e.touches[0].clientY;
-                    const diff = touchY - touchStartY;
-
-                    // Close sheet if swiping down with sufficient distance
-                    if (diff > 100) {
-                        if (sheet === sessionsBottomSheet) closeSessionsSheet();
-                        if (sheet === tasksBottomSheet) closeTasksSheet();
-                    }
-                }, { passive: true });
-            });
+                // スクロール位置が一番上 かつ 下方向に100px以上スワイプした場合のみ閉じる
+                if (isAtTop && diff > 100) {
+                    if (sheet === sessionsBottomSheet) closeSessionsSheet();
+                    if (sheet === tasksBottomSheet) closeTasksSheet();
+                }
+            }, { passive: true });
         });
 
         // Mobile FAB (Speed Dial) functionality
