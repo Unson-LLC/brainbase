@@ -20,6 +20,16 @@ dist/
 build/
 coverage/
 
+# Test outputs
+test-results/
+playwright-report/
+playwright-report-lambdatest/
+
+# LambdaTest
+LT/
+*.zip
+playwright-lambdatest*.config.js
+
 # Private codex (symlinked from local workspace)
 # Other developers don't have this directory
 # Use _codex-sample/ instead
