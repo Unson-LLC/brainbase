@@ -93,7 +93,8 @@ const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, P
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
-app.use(express.json());
+// Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
+app.use(express.json({ limit: '1mb' }));
 
 // ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
 app.get('/', async (req, res) => {
