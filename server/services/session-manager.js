@@ -180,18 +180,37 @@ export class SessionManager {
                 }
             }
 
-            // 3. 孤立したttydプロセスのみ殺す
+            // 3. state.json の intendedState === 'active' のセッションIDを取得
+            // BUG FIX: TEST_MODEでrestoreActiveSessions()がスキップされた場合、
+            // activeSessions Mapが空になるため、state.jsonも確認してアクティブセッションを保護する
+            const state = this.stateStore.get();
+            const activeSessionIds = new Set(
+                state.sessions
+                    .filter(s => s.intendedState === 'active')
+                    .map(s => s.id)
+            );
+            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active session(s) in state.json`);
+
+            // 4. 孤立したttydプロセスのみ殺す
             let orphansKilled = 0;
             for (const line of lines) {
                 const parts = line.trim().split(/\s+/);
                 const pid = parseInt(parts[1], 10);
 
-                if (!activePids.has(pid)) {
-                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid}`);
+                // コマンドラインからセッションIDを抽出
+                const cmdLine = parts.slice(10).join(' ');
+                const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
+                const sessionId = sessionMatch ? sessionMatch[1] : null;
+
+                // activePids にあるか、または activeSessionIds にあれば保護
+                const isActive = activePids.has(pid) || (sessionId && activeSessionIds.has(sessionId));
+
+                if (!isActive) {
+                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
                     await this.execPromise(`kill ${pid}`).catch(() => {});
                     orphansKilled++;
                 } else {
-                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid}`);
+                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
                 }
             }
 
