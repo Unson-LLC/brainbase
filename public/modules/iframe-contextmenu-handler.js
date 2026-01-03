@@ -48,7 +48,12 @@ function createContextMenu() {
             color: #333;
             font-size: 14px;
         `;
-        menuItem.innerHTML = `<span>${item.icon}</span><span>${item.label}</span>`;
+        const iconSpan = document.createElement('span');
+        iconSpan.textContent = item.icon;
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = item.label;
+        menuItem.appendChild(iconSpan);
+        menuItem.appendChild(labelSpan);
 
         menuItem.addEventListener('mouseenter', () => {
             menuItem.style.background = '#f0f0f0';

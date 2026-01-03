@@ -1,5 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getProjectFromPath } from '../../project-mapping.js';
+import { escapeHtml } from '../../ui-helpers.js';
 
 /**
  * アーカイブセッション表示モーダル
@@ -144,20 +145,24 @@ export class ArchiveModal {
                 : '-';
             const dateIcon = session.archivedAt ? '📦' : '📅';
 
+            const escapedId = escapeHtml(session.id);
+            const escapedName = escapeHtml(name);
+            const escapedProject = escapeHtml(project);
+            const escapedDate = escapeHtml(date);
             return `
-                <div class="archive-item" data-id="${session.id}">
+                <div class="archive-item" data-id="${escapedId}">
                     <div class="archive-item-info">
-                        <div class="archive-item-name">${name}</div>
+                        <div class="archive-item-name">${escapedName}</div>
                         <div class="archive-item-meta">
-                            <span class="archive-item-project">${project}</span>
-                            <span class="archive-item-date">${dateIcon} ${date}</span>
+                            <span class="archive-item-project">${escapedProject}</span>
+                            <span class="archive-item-date">${dateIcon} ${escapedDate}</span>
                         </div>
                     </div>
                     <div class="archive-item-actions">
-                        <button class="btn-secondary" data-action="unarchive" data-id="${session.id}" title="復元">
+                        <button class="btn-secondary" data-action="unarchive" data-id="${escapedId}" title="復元">
                             <i data-lucide="archive-restore"></i>
                         </button>
-                        <button class="btn-danger" data-action="delete" data-id="${session.id}" title="削除">
+                        <button class="btn-danger" data-action="delete" data-id="${escapedId}" title="削除">
                             <i data-lucide="trash-2"></i>
                         </button>
                     </div>

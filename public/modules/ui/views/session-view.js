@@ -3,6 +3,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { groupSessionsByProject } from '../../session-manager.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { updateSessionIndicators } from '../../session-indicators.js';
+import { escapeHtml } from '../../ui-helpers.js';
 
 /**
  * セッション表示のUIコンポーネント
@@ -136,7 +137,7 @@ export class SessionView {
         header.className = 'session-section-header';
         header.innerHTML = `
             <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}"></i>
-            <span>${title}</span>
+            <span>${escapeHtml(title)}</span>
             <span class="session-count">${sessions.length}</span>
         `;
 

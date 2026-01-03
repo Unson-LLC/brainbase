@@ -33,6 +33,9 @@ import { createMiscRouter } from './server/routes/misc.js';
 import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
 
+// Import middleware
+import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
@@ -95,6 +98,34 @@ const inboxParser = new InboxParser(INBOX_FILE);
 // Middleware
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
 app.use(express.json({ limit: '1mb' }));
+
+// Security Headers Middleware
+app.use((req, res, next) => {
+    // Content Security Policy
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",  // unsafe-inline needed for Lucide icons
+        "style-src 'self' 'unsafe-inline'",   // unsafe-inline needed for dynamic styles
+        "img-src 'self' data:",
+        "connect-src 'self' ws: wss:",
+        "frame-ancestors 'self'"
+    ].join('; '));
+    // Prevent MIME type sniffing
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Clickjacking protection
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    // XSS filter (legacy browsers)
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    // Referrer policy
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+});
+
+// CSRF Protection Middleware
+app.use(csrfMiddleware());
+
+// CSRF Token Endpoint
+app.get('/api/csrf-token', csrfTokenHandler);
 
 // ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
 app.get('/', async (req, res) => {
