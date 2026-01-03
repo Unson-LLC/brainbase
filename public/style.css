@@ -3431,16 +3431,18 @@ body::after {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        height: 100dvh;
+        /* BUG-002: height: 100dvhを削除し、flexで親を埋める */
+        flex: 1;
         overflow: visible;
         touch-action: manipulation;
     }
 
-    /* Terminal iframe - full width, fill to bottom */
+    /* Terminal iframe - full width, fill parent */
     .console-area iframe {
         width: 100vw;
         max-width: 100%;
-        height: 100dvh;
+        /* BUG-002: height: 100dvhを削除し、親の高さに従う */
+        height: 100%;
         border: none;
         pointer-events: auto;
         touch-action: auto;
