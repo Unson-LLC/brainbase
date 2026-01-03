@@ -25,82 +25,51 @@ export function initMobileKeyboard() {
         return;
     }
 
+    // ターミナルスライド機能を初期化
+    setupTerminalSlide();
+}
+
+/**
+ * ターミナルスライド機能をセットアップ
+ * キーボード表示時にターミナルを上にスライドさせる
+ */
+function setupTerminalSlide() {
     const viewport = window.visualViewport;
-    let activeElement = null;
-    let previousHeight = viewport.height;
+    // 初期のビューポート高さを記録（キーボードなし時の基準）
+    const initialHeight = viewport.height;
 
-    // ビューポートのリサイズを監視
-    function handleResize() {
+    console.log('[TerminalSlide] Initialized with viewport height:', initialHeight);
+
+    function handleViewportChange() {
         const currentHeight = viewport.height;
-        const heightDiff = previousHeight - currentHeight;
+        // キーボードの高さ = 初期高さ - 現在の高さ
+        const keyboardHeight = initialHeight - currentHeight;
 
-        // キーボードが表示された（高さが300px以上減少）
-        const keyboardShown = heightDiff > 300;
-
-        // iframe内ターミナルへのスクロール指示
-        if (keyboardShown) {
-            const terminalFrame = document.getElementById('terminal-frame');
-            if (terminalFrame && terminalFrame.contentWindow) {
-                terminalFrame.contentWindow.postMessage({
-                    type: 'scroll-to-bottom',
-                    source: 'brainbase-mobile-keyboard'
-                }, '*');
-                console.log('[MobileKeyboard] Sent scroll-to-bottom message to iframe');
-            }
+        // .console-area を取得
+        const consoleArea = document.querySelector('.console-area');
+        if (!consoleArea) {
+            return;
         }
 
-        previousHeight = currentHeight;
-
-        // 既存の処理: activeElementのスクロール
-        if (!activeElement) return;
-
-        // キーボードが表示されている間、フォーカスされた要素を画面内に保つ
-        requestAnimationFrame(() => {
-            const rect = activeElement.getBoundingClientRect();
-            const viewportBottom = viewport.height;
-
-            // 要素が画面外にある場合
-            if (rect.bottom > viewportBottom) {
-                // 要素が見えるようにスクロール
-                const scrollAmount = rect.bottom - viewportBottom + 20; // 20pxのマージン
-                window.scrollBy({
-                    top: scrollAmount,
-                    behavior: 'smooth'
-                });
-            }
-        });
+        // キーボードが表示されている（100px以上の差がある）
+        if (keyboardHeight > 100) {
+            // ターミナルを上にスライド
+            consoleArea.style.transition = 'transform 0.2s ease-out';
+            consoleArea.style.transform = `translateY(-${keyboardHeight}px)`;
+            console.log('[TerminalSlide] Sliding up by:', keyboardHeight, 'px');
+        } else {
+            // キーボードが非表示、元の位置に戻す
+            consoleArea.style.transition = 'transform 0.2s ease-out';
+            consoleArea.style.transform = 'translateY(0)';
+            console.log('[TerminalSlide] Reset to original position');
+        }
     }
 
     // ビューポート変更イベント
-    viewport.addEventListener('resize', handleResize);
-    viewport.addEventListener('scroll', handleResize);
+    viewport.addEventListener('resize', handleViewportChange);
+    viewport.addEventListener('scroll', handleViewportChange);
 
-    // 入力フォーカス時の処理
-    document.addEventListener('focusin', (e) => {
-        const target = e.target;
-
-        // input, textarea, contenteditable要素の場合
-        if (target.matches('input, textarea, [contenteditable="true"]')) {
-            activeElement = target;
-
-            // 少し待ってからスクロール（キーボードアニメーション後）
-            setTimeout(() => {
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center',
-                    inline: 'nearest'
-                });
-
-                // 追加でリサイズハンドラを呼び出す
-                handleResize();
-            }, 300);
-        }
-    });
-
-    // フォーカス解除時
-    document.addEventListener('focusout', () => {
-        activeElement = null;
-    });
+    console.log('[TerminalSlide] Terminal slide handlers setup complete');
 }
 
 /**
