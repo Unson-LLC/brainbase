@@ -3229,6 +3229,12 @@ body::after {
 }
 
 @media (max-width: 768px) {
+    /* BUG-002: iOS Safe Area Inset領域でbody背景が露出する問題を解消 */
+    /* 紺色(#0f172a)からターミナルと同じ黒に変更し、隙間を視覚的に消す */
+    body {
+        background-color: #000000;
+    }
+
     .mobile-fab-container {
         display: block;
         position: fixed;
