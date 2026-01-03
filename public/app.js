@@ -351,6 +351,7 @@ class App {
                 const newSession = await this.sessionService.createSession({
                     project: project,
                     name: sessionName,
+                    initialCommand: `/task ${task.id}`,  // タスクコンテキストを自動読み込み
                     engine: engine,
                     useWorktree: true  // デフォルトでworktree使用
                 });
