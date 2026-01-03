@@ -3033,8 +3033,6 @@ body::after {
     z-index: 1003;
     /* bottom-sheet (1002) より高く設定 */
     padding: 0 16px;
-    /* Safe Area Inset 対応 */
-    padding-bottom: env(safe-area-inset-bottom, 0px);
     align-items: center;
     justify-content: space-between;
     gap: 8px;
@@ -3238,8 +3236,7 @@ body::after {
     .mobile-fab-container {
         display: block;
         position: fixed;
-        /* bottom navの直上、ターミナルコンテンツに重ねて表示 */
-        bottom: calc(56px + 16px + env(safe-area-inset-bottom, 0px));
+        bottom: 72px;
         right: 16px;
         z-index: 999;
     }
