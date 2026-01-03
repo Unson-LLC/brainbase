@@ -3,17 +3,57 @@
  * Native EventTargetを活用したシンプルな実装
  */
 export class EventBus extends EventTarget {
-    /**
-     * イベント発火
-     * @param {string} eventName - イベント名（例: 'task:completed'）
-     * @param {any} detail - イベントデータ
-     */
-    emit(eventName, detail) {
-        this.dispatchEvent(new CustomEvent(eventName, { detail }));
+    constructor() {
+        super();
+        // 非同期ハンドラー管理用Map: eventName -> Set<Function>
+        this._asyncHandlers = new Map();
     }
 
     /**
-     * イベント購読
+     * イベント発火（同期リスナー + 非同期リスナー対応）
+     * @param {string} eventName - イベント名（例: 'task:completed'）
+     * @param {any} detail - イベントデータ
+     * @returns {Promise<{success: number, errors: Error[]}>} - 非同期ハンドラーの実行結果
+     */
+    async emit(eventName, detail) {
+        // 1. 同期リスナー発火（Native EventTarget）
+        this.dispatchEvent(new CustomEvent(eventName, { detail }));
+
+        // 2. 非同期リスナー実行
+        const handlers = this._asyncHandlers.get(eventName);
+        if (!handlers || handlers.size === 0) {
+            return { success: 0, errors: [] };
+        }
+
+        const event = { detail };
+        const results = await Promise.allSettled(
+            Array.from(handlers).map(handler => handler(event))
+        );
+
+        const errors = results
+            .filter(r => r.status === 'rejected')
+            .map(r => r.reason);
+
+        // エラーログ出力（Observability）
+        if (errors.length > 0) {
+            console.error(`EventBus[${eventName}]: ${errors.length} handler(s) failed`, {
+                event: eventName,
+                detail,
+                errors: errors.map(e => ({
+                    message: e.message,
+                    stack: e.stack
+                }))
+            });
+        }
+
+        return {
+            success: handlers.size - errors.length,
+            errors
+        };
+    }
+
+    /**
+     * イベント購読（同期ハンドラー）
      * @param {string} eventName - イベント名
      * @param {Function} callback - コールバック関数
      * @returns {Function} - 購読解除関数
@@ -24,12 +64,38 @@ export class EventBus extends EventTarget {
     }
 
     /**
-     * イベント購読解除
+     * イベント購読解除（同期ハンドラー）
      * @param {string} eventName - イベント名
      * @param {Function} callback - コールバック関数
      */
     off(eventName, callback) {
         this.removeEventListener(eventName, callback);
+    }
+
+    /**
+     * イベント購読（非同期ハンドラー）
+     * @param {string} eventName - イベント名
+     * @param {Function} asyncCallback - 非同期コールバック関数
+     * @returns {Function} - 購読解除関数
+     */
+    onAsync(eventName, asyncCallback) {
+        if (!this._asyncHandlers.has(eventName)) {
+            this._asyncHandlers.set(eventName, new Set());
+        }
+        this._asyncHandlers.get(eventName).add(asyncCallback);
+        return () => this.offAsync(eventName, asyncCallback);
+    }
+
+    /**
+     * イベント購読解除（非同期ハンドラー）
+     * @param {string} eventName - イベント名
+     * @param {Function} asyncCallback - 非同期コールバック関数
+     */
+    offAsync(eventName, asyncCallback) {
+        const handlers = this._asyncHandlers.get(eventName);
+        if (handlers) {
+            handlers.delete(asyncCallback);
+        }
     }
 }
 
