@@ -1,5 +1,6 @@
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import { logger } from '../utils/logger.js';
 
 /**
  * SessionController
@@ -67,8 +68,8 @@ export class SessionController {
             });
             res.json(result);
         } catch (error) {
-            console.error('Failed to start session:', error);
-            res.status(500).json({ error: error.message || 'Failed to allocate port' });
+            logger.error('Failed to start session', { error, sessionId });
+            res.status(500).json({ error: 'Failed to start session' });
         }
     };
 
@@ -198,8 +199,8 @@ export class SessionController {
                 proxyPath: result.proxyPath
             });
         } catch (error) {
-            console.error('Failed to restore session:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Failed to restore session', { error, sessionId: id });
+            res.status(500).json({ error: 'Failed to restore session' });
         }
     };
 
@@ -219,8 +220,8 @@ export class SessionController {
             await this.sessionManager.sendInput(id, input, type);
             res.json({ success: true });
         } catch (err) {
-            console.error(`Failed to send input to ${id}:`, err.message);
-            res.status(500).json({ error: err.message || 'Failed to send input' });
+            logger.error('Failed to send input', { error: err, sessionId: id });
+            res.status(500).json({ error: 'Failed to send input' });
         }
     };
 
@@ -230,12 +231,16 @@ export class SessionController {
      */
     getContent = async (req, res) => {
         const { id } = req.params;
-        const lines = parseInt(req.query.lines) || 500;
+
+        // 入力検証: lines パラメータの範囲チェック
+        const linesRaw = parseInt(req.query.lines);
+        const lines = Number.isNaN(linesRaw) ? 500 : Math.min(Math.max(linesRaw, 1), 10000);
 
         try {
             const content = await this.sessionManager.getContent(id, lines);
             res.json({ content });
         } catch (err) {
+            logger.error('Failed to capture content', { error: err, sessionId: id });
             res.status(500).json({ error: 'Failed to capture content' });
         }
     };
@@ -326,8 +331,8 @@ export class SessionController {
                 branchName
             });
         } catch (error) {
-            console.error('Failed to create session with worktree:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Failed to create session with worktree', { error, sessionId, repoPath });
+            res.status(500).json({ error: 'Failed to create session with worktree' });
         }
     };
 
@@ -354,8 +359,8 @@ export class SessionController {
             const status = await this.worktreeService.getStatus(id, session.worktree.repo);
             res.json(status);
         } catch (error) {
-            console.error('Failed to get worktree status:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Failed to get worktree status', { error, sessionId: id });
+            res.status(500).json({ error: 'Failed to get worktree status' });
         }
     };
 
@@ -382,8 +387,8 @@ export class SessionController {
             const result = await this.worktreeService.fixSymlinks(id, session.worktree.repo);
             res.json(result);
         } catch (error) {
-            console.error('Failed to fix symlinks:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Failed to fix symlinks', { error, sessionId: id });
+            res.status(500).json({ error: 'Failed to fix symlinks' });
         }
     };
 
@@ -423,8 +428,8 @@ export class SessionController {
 
             res.json(result);
         } catch (error) {
-            console.error('Failed to merge worktree:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Failed to merge worktree', { error, sessionId: id });
+            res.status(500).json({ error: 'Failed to merge worktree' });
         }
     };
 
@@ -470,8 +475,8 @@ export class SessionController {
                 res.status(500).json({ error: 'Failed to delete worktree' });
             }
         } catch (error) {
-            console.error('Failed to delete worktree:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Failed to delete worktree', { error, sessionId: id });
+            res.status(500).json({ error: 'Failed to delete worktree' });
         }
     };
 }
