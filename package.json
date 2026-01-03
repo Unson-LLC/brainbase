@@ -1,6 +1,6 @@
 {
   "name": "brainbase-ui",
-  "version": "0.1.86",
+  "version": "0.1.87",
   "private": false,
   "type": "module",
   "description": "AI-first project management console for developers",
