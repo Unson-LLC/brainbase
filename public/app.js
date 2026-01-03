@@ -935,6 +935,20 @@ class App {
             });
         });
 
+        // Prevent pinch-to-zoom on mobile
+        // Note: passive: false is required to call preventDefault()
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
         // Mobile FAB (Speed Dial) functionality
         this.setupMobileFAB();
     }
