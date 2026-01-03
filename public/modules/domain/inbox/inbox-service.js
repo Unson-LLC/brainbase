@@ -20,26 +20,31 @@ export class InboxService {
     async loadInbox() {
         const items = await this.httpClient.get('/api/inbox/pending');
         this.store.setState({ inbox: items });
-        this.eventBus.emit(EVENTS.INBOX_LOADED, { items });
+        await this.eventBus.emit(EVENTS.INBOX_LOADED, { items });
         return items;
     }
 
     /**
      * Inboxアイテムを確認済みにする
      * @param {string} itemId - 確認済みにするアイテムのID
+     * @returns {Promise<{success: boolean, itemId: string, eventResult: Object}>}
      */
     async markAsDone(itemId) {
         await this.httpClient.post(`/api/inbox/${itemId}/done`);
         await this.loadInbox(); // リロード
-        this.eventBus.emit(EVENTS.INBOX_ITEM_COMPLETED, { itemId });
+        const eventResult = await this.eventBus.emit(EVENTS.INBOX_ITEM_COMPLETED, { itemId });
+        return { success: true, itemId, eventResult };
     }
 
     /**
      * すべてのInboxアイテムを確認済みにする
+     * @returns {Promise<{success: boolean, count: number}>}
      */
     async markAllAsDone() {
+        const beforeCount = this.getInboxCount();
         await this.httpClient.post('/api/inbox/mark-all-done');
         await this.loadInbox(); // リロード
+        return { success: true, count: beforeCount };
     }
 
     /**
