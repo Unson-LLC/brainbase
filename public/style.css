@@ -3413,8 +3413,8 @@ body::after {
     .app-container {
         flex-direction: column;
         height: 100vh; /* fallback */
-        /* mobile-bottom-navはposition:fixedでoverlayするため、高さは縮小しない */
-        height: 100dvh;
+        /* Safe Area Insetを含めた全体の高さ（iOSホームインジケーター領域まで） */
+        height: calc(100dvh + env(safe-area-inset-bottom, 0px));
     }
 
     .main-content {
@@ -3427,6 +3427,7 @@ body::after {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
+        height: 100%;
         /* flex: 1 inherited from desktop - fills parent (.main-content) */
         overflow: visible;
         /* iframe内部でスクロール */
