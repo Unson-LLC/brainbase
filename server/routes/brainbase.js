@@ -87,6 +87,26 @@ export function createBrainbaseRouter(options = {}) {
     });
 
     /**
+     * GET /api/brainbase/system-health
+     * healthcheckワークフローの実行結果取得（mana + runners）
+     */
+    router.get('/system-health', async (req, res) => {
+        try {
+            const healthStatus = await githubService.getHealthcheckStatus();
+            res.json({
+                success: true,
+                data: healthStatus,
+            });
+        } catch (error) {
+            console.error('[BrainbaseRouter] Error fetching system health:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message,
+            });
+        }
+    });
+
+    /**
      * GET /api/brainbase/storage
      * ストレージ情報
      */

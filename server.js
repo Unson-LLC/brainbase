@@ -56,12 +56,18 @@ const DEFAULT_PORT = isWorktree ? 3001 : 3000;
 // Test Mode: セッション管理を無効化し、読み取り専用モードで起動
 // worktreeでのE2Eテスト・UI検証時に使用
 // Phase 4: worktreeで起動された場合は自動的にTEST_MODEを有効化
-const TEST_MODE = process.env.BRAINBASE_TEST_MODE === 'true' || isWorktree;
+// ただし、BRAINBASE_TEST_MODE=falseが明示的に指定された場合は無効化（E2Eテスト用）
+const TEST_MODE = process.env.BRAINBASE_TEST_MODE === 'false'
+    ? false
+    : (process.env.BRAINBASE_TEST_MODE === 'true' || isWorktree);
 if (TEST_MODE) {
     const reason = isWorktree ? 'Auto-enabled (worktree detected)' : 'Manually enabled';
     console.log(`[BRAINBASE] 🧪 TEST MODE ENABLED - ${reason}`);
     console.log('[BRAINBASE] Session management is disabled');
     console.log('[BRAINBASE] This server is read-only and will not modify state.json');
+} else if (isWorktree && process.env.BRAINBASE_TEST_MODE === 'false') {
+    console.log('[BRAINBASE] ⚠️  TEST MODE DISABLED - Explicitly disabled for E2E testing');
+    console.log('[BRAINBASE] Session management is ENABLED in worktree environment');
 }
 
 const app = express();
@@ -70,7 +76,10 @@ const PORT = process.env.PORT || DEFAULT_PORT;
 // Configuration
 const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
 const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
-const STATE_FILE = path.join(__dirname, 'state.json');
+// Phase 4: worktree環境では正本のstate.jsonを参照（E2Eテスト用）
+const STATE_FILE = isWorktree
+    ? path.join(PROJECTS_ROOT, 'brainbase', 'state.json')
+    : path.join(__dirname, 'state.json');
 const WORKTREES_DIR = path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = path.join(BRAINBASE_ROOT, '_codex');
 const CONFIG_PATH = path.join(BRAINBASE_ROOT, 'config.yml');
@@ -84,7 +93,8 @@ const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, P
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
-app.use(express.json());
+// Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
+app.use(express.json({ limit: '1mb' }));
 
 // ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
 app.get('/', async (req, res) => {
@@ -151,11 +161,26 @@ const sessionManager = new SessionManager({
     await stateStore.init();
     await sessionManager.restoreHookStatus();
 
-    // Phase 3: activeセッションを復元してからcleanupを実行
-    // Phase 4: TEST_MODEでは実行しない（読み取り専用）
+    // Phase 3: activeセッションを復元（TEST_MODEでは読み取り専用のためスキップ）
     if (!TEST_MODE) {
         await sessionManager.restoreActiveSessions();
-        await sessionManager.cleanupOrphans();
+    }
+
+    // 孤児ttydプロセスのクリーンアップ（TEST_MODEでも実行）
+    // BUG FIX: worktree環境でも孤児プロセスをクリーンアップする必要がある
+    await sessionManager.cleanupOrphans();
+
+    if (!TEST_MODE) {
+        // Phase 2: TTL-based lifecycle management
+        try {
+            console.log('[Cleanup] Running Phase 2 TTL-based cleanup...');
+            await sessionManager.cleanupStalePausedSessions();
+            console.log('[Cleanup] cleanupStalePausedSessions completed');
+            await sessionManager.cleanupArchivedSessions();
+            console.log('[Cleanup] cleanupArchivedSessions completed');
+        } catch (err) {
+            console.error('[Cleanup] Phase 2 cleanup error:', err);
+        }
     } else {
         console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
     }
@@ -278,6 +303,23 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', ttydProxy.upgrade);
+
+// Phase 2: Periodic TTL cleanup (every 1 hour)
+// Only run if not in TEST_MODE
+if (!TEST_MODE) {
+    const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+    setInterval(async () => {
+        console.log('[Cleanup] Running periodic TTL cleanup...');
+        try {
+            await sessionManager.cleanupStalePausedSessions();
+            await sessionManager.cleanupArchivedSessions();
+            console.log('[Cleanup] Periodic TTL cleanup completed');
+        } catch (err) {
+            console.error('[Cleanup] Error during periodic cleanup:', err);
+        }
+    }, CLEANUP_INTERVAL);
+    console.log('[Cleanup] Periodic TTL cleanup scheduled (every 1 hour)');
+}
 
 // Graceful shutdown
 async function gracefulShutdown(signal) {

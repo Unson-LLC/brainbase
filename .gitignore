@@ -20,6 +20,16 @@ dist/
 build/
 coverage/
 
+# Test outputs
+test-results/
+playwright-report/
+playwright-report-lambdatest/
+
+# LambdaTest
+LT/
+*.zip
+playwright-lambdatest*.config.js
+
 # Private codex (symlinked from local workspace)
 # Other developers don't have this directory
 # Use _codex-sample/ instead
@@ -93,3 +103,4 @@ docs/dashboard-implementation-prompt.md
 docs/OSS_DIRECTORY_STRUCTURE.md
 nohup.out
 nohup.out
+state.json.backup-*
