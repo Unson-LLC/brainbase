@@ -42,7 +42,7 @@ export class SessionService {
         }
 
         this.store.setState({ sessions, testMode });
-        this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
+        await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         return sessions;
     }
 
@@ -104,7 +104,7 @@ export class SessionService {
         await addSession(newSession);
         await this.loadSessions();
 
-        this.eventBus.emit(EVENTS.SESSION_CREATED, { session: newSession });
+        await this.eventBus.emit(EVENTS.SESSION_CREATED, { session: newSession });
 
         return { sessionId, session: newSession };
     }
@@ -136,7 +136,7 @@ export class SessionService {
         const sessions = this.store.getState().sessions;
         const session = sessions.find(s => s.id === sessionId);
 
-        this.eventBus.emit(EVENTS.SESSION_CREATED, { session });
+        await this.eventBus.emit(EVENTS.SESSION_CREATED, { session });
 
         return { sessionId, session, proxyPath: res.proxyPath };
     }
@@ -145,6 +145,7 @@ export class SessionService {
      * セッション更新
      * @param {string} sessionId - セッションID
      * @param {Object} updates - 更新内容
+     * @returns {Promise<{success: boolean, sessionId: string, updates: Object, eventResult: Object}>}
      */
     async updateSession(sessionId, updates) {
         const state = await this.httpClient.get('/api/state');
@@ -159,19 +160,22 @@ export class SessionService {
         );
         await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
         await this.loadSessions();
-        this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
+        return { success: true, sessionId, updates, eventResult };
     }
 
     /**
      * セッション削除
      * @param {string} sessionId - 削除するセッションのID
+     * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async deleteSession(sessionId) {
         const state = await this.httpClient.get('/api/state');
         const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
         await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
         await this.loadSessions();
-        this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
+        return { success: true, sessionId, eventResult };
     }
 
     /**
@@ -295,26 +299,29 @@ export class SessionService {
      * セッション切り替え
      * currentSessionIdを更新（intendedStateは変更しない）
      * @param {string} sessionId - 切り替え先のセッションID
+     * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}|null>}
      */
     async switchSession(sessionId) {
         const { currentSessionId } = this.store.getState();
 
         // 同じセッションへの切り替えは何もしない
         if (currentSessionId === sessionId) {
-            return;
+            return null;
         }
 
         // currentSessionIdを更新
         this.store.setState({ currentSessionId: sessionId });
 
         // SESSION_CHANGEDイベントを発火（app.jsでターミナルiframe切り替え用）
-        this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+        return { success: true, sessionId, eventResult };
     }
 
     /**
      * セッションを一時停止
      * active → paused に変更し、TTYDプロセスを停止
      * @param {string} sessionId - 一時停止するセッションID
+     * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async pauseSession(sessionId) {
         // TTYDプロセスを停止
@@ -330,13 +337,15 @@ export class SessionService {
             pausedAt: new Date().toISOString()
         });
 
-        this.eventBus.emit(EVENTS.SESSION_PAUSED, { sessionId });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_PAUSED, { sessionId });
+        return { success: true, sessionId, eventResult };
     }
 
     /**
      * セッションを再開
      * paused → active に変更し、TTYDプロセスを起動
      * @param {string} sessionId - 再開するセッションID
+     * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}|null>}
      */
     async resumeSession(sessionId) {
         const { sessions } = this.store.getState();
@@ -344,7 +353,7 @@ export class SessionService {
 
         if (!session) {
             console.error(`Session ${sessionId} not found`);
-            return;
+            return null;
         }
 
         // TTYDプロセスを起動
@@ -362,7 +371,8 @@ export class SessionService {
         // intendedState を active に変更
         await this.updateSession(sessionId, { intendedState: 'active' });
 
-        this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
+        return { success: true, sessionId, eventResult };
     }
 
     /**

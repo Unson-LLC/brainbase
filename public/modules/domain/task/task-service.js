@@ -21,28 +21,31 @@ export class TaskService {
     async loadTasks() {
         const tasks = await this.httpClient.get('/api/tasks');
         this.store.setState({ tasks });
-        this.eventBus.emit(EVENTS.TASK_LOADED, { tasks });
+        await this.eventBus.emit(EVENTS.TASK_LOADED, { tasks });
         return tasks;
     }
 
     /**
      * タスク完了
      * @param {string} taskId - 完了するタスクのID
+     * @returns {Promise<{success: boolean, taskId: string, eventResult: Object}>}
      */
     async completeTask(taskId) {
         await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'done' });
         await this.loadTasks(); // リロード
-        this.eventBus.emit(EVENTS.TASK_COMPLETED, { taskId });
+        const eventResult = await this.eventBus.emit(EVENTS.TASK_COMPLETED, { taskId });
+        return { success: true, taskId, eventResult };
     }
 
     /**
      * タスク延期
      * @param {string} taskId - 延期するタスクのID
+     * @returns {Promise<{success: boolean, taskId: string, newPriority: string, eventResult: Object}|null>}
      */
     async deferTask(taskId) {
         const { tasks } = this.store.getState();
         const task = tasks.find(t => t.id === taskId);
-        if (!task) return;
+        if (!task) return null;
 
         // 優先度を下げる（high → medium → low → low）
         const priorityMap = { high: 'medium', medium: 'low', low: 'low' };
@@ -50,7 +53,8 @@ export class TaskService {
 
         await this.httpClient.post(`/api/tasks/${taskId}/defer`, { priority: newPriority });
         await this.loadTasks(); // リロード
-        this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
+        const eventResult = await this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
+        return { success: true, taskId, newPriority, eventResult };
     }
 
     /**
@@ -145,20 +149,24 @@ export class TaskService {
      * タスク更新
      * @param {string} taskId - 更新するタスクのID
      * @param {Object} updates - 更新内容
+     * @returns {Promise<{success: boolean, taskId: string, updates: Object, eventResult: Object}>}
      */
     async updateTask(taskId, updates) {
         await this.httpClient.put(`/api/tasks/${taskId}`, updates);
         await this.loadTasks(); // リロード
-        this.eventBus.emit(EVENTS.TASK_UPDATED, { taskId, updates });
+        const eventResult = await this.eventBus.emit(EVENTS.TASK_UPDATED, { taskId, updates });
+        return { success: true, taskId, updates, eventResult };
     }
 
     /**
      * タスク削除
      * @param {string} taskId - 削除するタスクのID
+     * @returns {Promise<{success: boolean, taskId: string, eventResult: Object}>}
      */
     async deleteTask(taskId) {
         await this.httpClient.delete(`/api/tasks/${taskId}`);
         await this.loadTasks(); // リロード
-        this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
+        const eventResult = await this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
+        return { success: true, taskId, eventResult };
     }
 }
