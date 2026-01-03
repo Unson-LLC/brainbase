@@ -113,20 +113,22 @@ export class InboxView {
 
         if (this.inboxListEl) {
             this.inboxListEl.innerHTML = this.inboxItems.map(item => {
-                const sender = item.sender || '';
-                const channel = item.channel || '';
-                const message = item.message || '';
+                const escapedId = this._escapeHtml(item.id || '');
+                const sender = this._escapeHtml(item.sender || '');
+                const channel = this._escapeHtml(item.channel || '');
+                const message = this._escapeHtml(item.message || '');
+                const slackUrl = this._escapeHtml(item.slackUrl || '');
 
                 return `
-                    <div class="inbox-item" data-id="${item.id}">
-                        <div class="inbox-item-message">${this._escapeHtml(message)}</div>
+                    <div class="inbox-item" data-id="${escapedId}">
+                        <div class="inbox-item-message">${message}</div>
                         <div class="inbox-item-meta">
                             <span class="inbox-item-sender">${sender}</span>
                             <span class="inbox-item-channel">#${channel}</span>
                         </div>
                         <div class="inbox-item-footer">
-                            ${item.slackUrl ? `<a href="${item.slackUrl}" target="_blank" class="inbox-slack-link">Slackで開く</a>` : ''}
-                            <button class="inbox-done-btn" data-id="${item.id}">確認済み</button>
+                            ${item.slackUrl ? `<a href="${slackUrl}" target="_blank" class="inbox-slack-link">Slackで開く</a>` : ''}
+                            <button class="inbox-done-btn" data-id="${escapedId}">確認済み</button>
                         </div>
                     </div>
                 `;

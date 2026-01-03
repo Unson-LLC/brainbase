@@ -1,5 +1,6 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { escapeHtml } from '../../ui-helpers.js';
 
 /**
  * タイムライン表示のUIコンポーネント
@@ -91,7 +92,7 @@ export class TimelineView {
             const currentClass = isCurrent ? ' current is-current' : '';
             const workTimeClass = event.isWorkTime ? ' is-worktime' : '';
             const timeLabel = event.allDay ? '終日' : (event.start + (event.end ? '-' + event.end : ''));
-            const title = event.title || event.task || '';
+            const title = escapeHtml(event.title || event.task || '');
 
             html += `
                 <div class="timeline-item is-event${currentClass}${workTimeClass}">
@@ -115,7 +116,7 @@ export class TimelineView {
                 html += `
                     <div class="timeline-item is-task">
                         <div class="timeline-marker task-marker"></div>
-                        <span class="timeline-content">${task.task}</span>
+                        <span class="timeline-content">${escapeHtml(task.task || '')}</span>
                     </div>
                 `;
             });
