@@ -207,9 +207,8 @@ export class SessionManager {
                 const parts = line.trim().split(/\s+/);
                 const pid = parseInt(parts[1], 10);
 
-                // コマンドラインからセッションIDを抽出
-                const cmdLine = parts.slice(10).join(' ');
-                const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
+                // 行全体からセッションIDを抽出
+                const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
                 const sessionId = sessionMatch ? sessionMatch[1] : null;
 
                 // activePids にあるか、または activeSessionIds にあれば保護
