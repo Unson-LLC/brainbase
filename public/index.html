@@ -713,40 +713,45 @@
 
         <!-- Speed Dial Actions (ordered bottom-to-top by usage frequency) -->
         <div id="mobile-fab-actions" class="mobile-fab-actions">
+            <!-- Hard reset (top, development use) -->
+            <button class="mobile-fab-action" id="mobile-hard-reset-btn" title="キャッシュクリアして再読込">
+                <span class="fab-action-label">リセット</span>
+                <i data-lucide="refresh-cw"></i>
+            </button>
             <!-- Least frequent: Copy (top, farthest from FAB) -->
             <button class="mobile-fab-action" id="mobile-copy-terminal-btn" title="ターミナル内容をコピー">
-                <i data-lucide="copy"></i>
                 <span class="fab-action-label">コピー</span>
+                <i data-lucide="copy"></i>
             </button>
             <!-- Low frequency: Clear -->
             <button class="mobile-fab-action" id="mobile-send-clear-btn" title="画面クリア (Ctrl+L)">
-                <i data-lucide="eraser"></i>
                 <span class="fab-action-label">クリア</span>
+                <i data-lucide="eraser"></i>
             </button>
             <!-- Medium frequency: Escape -->
             <button class="mobile-fab-action" id="mobile-send-escape-btn" title="Escapeキーを送信">
-                <i data-lucide="x-octagon"></i>
                 <span class="fab-action-label">Escape</span>
+                <i data-lucide="x-octagon"></i>
             </button>
             <!-- Mode toggle: Shift+Tab for plan mode -->
             <button class="mobile-fab-action" id="mobile-send-shift-tab-btn" title="Shift+Tabを送信（プランモード切り替え）">
-                <i data-lucide="panel-left"></i>
                 <span class="fab-action-label">プラン</span>
+                <i data-lucide="panel-left"></i>
             </button>
             <!-- Mode toggle: Virtual keyboard visibility -->
             <button class="mobile-fab-action" id="mobile-toggle-keyboard-btn" title="仮想キーボード表示/非表示">
-                <i data-lucide="keyboard"></i>
                 <span class="fab-action-label">キーボード</span>
+                <i data-lucide="keyboard"></i>
             </button>
             <!-- High frequency: Image upload -->
             <button class="mobile-fab-action" id="mobile-upload-image-btn" title="画像を選択してアップロード">
-                <i data-lucide="image-plus"></i>
                 <span class="fab-action-label">画像</span>
+                <i data-lucide="image-plus"></i>
             </button>
             <!-- Most frequent: Paste (bottom, closest to FAB) -->
             <button class="mobile-fab-action" id="mobile-paste-btn" title="クリップボードからペースト">
-                <i data-lucide="clipboard"></i>
                 <span class="fab-action-label">ペースト</span>
+                <i data-lucide="clipboard"></i>
             </button>
         </div>
 
