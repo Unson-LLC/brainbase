@@ -373,6 +373,7 @@ body::after {
     transition: background-color 0.15s;
     height: 32px;
     /* Fixed height for consistency */
+    touch-action: manipulation;
 }
 
 .session-child-row:hover {
@@ -3052,6 +3053,7 @@ body::after {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
+    touch-action: manipulation;
 }
 
 .mobile-bottom-nav button:hover,
@@ -3296,6 +3298,7 @@ body::after {
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         transition: all 0.2s ease;
         white-space: nowrap;
+        touch-action: manipulation;
     }
 
     .mobile-fab-action:active {
@@ -3327,6 +3330,7 @@ body::after {
         cursor: pointer;
         transition: all 0.3s ease;
         position: relative;
+        touch-action: manipulation;
     }
 
     .mobile-fab:active {
