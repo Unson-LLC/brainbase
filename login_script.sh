@@ -28,8 +28,8 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 
         # Send initial command after Codex starts (if provided)
         if [ -n "$INITIAL_CMD" ]; then
-            # Wait for Codex to initialize
-            sleep 2
+            # Wait for Codex to initialize (increased from 2 to 5 seconds)
+            sleep 5
             # Send initial command as user input
             tmux send-keys -t "$SESSION_NAME" "$INITIAL_CMD" C-m
         fi
@@ -39,8 +39,8 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 
         # Send initial command after Claude starts (if provided)
         if [ -n "$INITIAL_CMD" ]; then
-            # Wait for Claude to initialize
-            sleep 2
+            # Wait for Claude to initialize (increased from 2 to 5 seconds)
+            sleep 5
             # Send initial command as user input
             tmux send-keys -t "$SESSION_NAME" "$INITIAL_CMD" C-m
         fi
