@@ -1,7 +1,41 @@
+import { logger } from '../utils/logger.js';
+
 /**
  * TaskController
  * タスク関連のHTTPリクエスト処理
  */
+
+// タスク更新の許可フィールド
+const ALLOWED_UPDATE_FIELDS = [
+    'title', 'status', 'priority', 'deadline', 'tags', 'description', 'focus'
+];
+
+/**
+ * タスク更新オブジェクトの検証
+ * @param {Object} updates - 更新対象フィールド
+ * @returns {Object|null} 検証済みオブジェクト（不正な場合はnull）
+ */
+function validateTaskUpdates(updates) {
+    if (!updates || typeof updates !== 'object') {
+        return null;
+    }
+
+    // 許可されたフィールドのみ残す
+    const validated = {};
+    for (const key of ALLOWED_UPDATE_FIELDS) {
+        if (key in updates) {
+            validated[key] = updates[key];
+        }
+    }
+
+    // 少なくとも1つのフィールドが必要
+    if (Object.keys(validated).length === 0) {
+        return null;
+    }
+
+    return validated;
+}
+
 export class TaskController {
     constructor(taskParser) {
         this.taskParser = taskParser;
@@ -16,7 +50,7 @@ export class TaskController {
             const tasks = await this.taskParser.getAllTasks();
             res.json(tasks);
         } catch (error) {
-            console.error('Failed to get tasks:', error);
+            logger.error('Failed to get tasks', { error });
             res.status(500).json({ error: 'Failed to get tasks' });
         }
     };
@@ -28,15 +62,26 @@ export class TaskController {
     update = async (req, res) => {
         try {
             const { id } = req.params;
-            const updates = req.body;
-            const success = await this.taskParser.updateTask(id, updates);
+
+            // 入力検証: id は文字列
+            if (!id || typeof id !== 'string') {
+                return res.status(400).json({ error: 'Invalid task ID' });
+            }
+
+            // 入力検証: updates オブジェクト
+            const validatedUpdates = validateTaskUpdates(req.body);
+            if (!validatedUpdates) {
+                return res.status(400).json({ error: 'Invalid update fields' });
+            }
+
+            const success = await this.taskParser.updateTask(id, validatedUpdates);
             if (success) {
                 res.json({ success: true });
             } else {
                 res.status(404).json({ error: 'Task not found or update failed' });
             }
         } catch (error) {
-            console.error('Failed to update task:', error);
+            logger.error('Failed to update task', { error, taskId: req.params.id });
             res.status(500).json({ error: 'Failed to update task' });
         }
     };
@@ -48,6 +93,12 @@ export class TaskController {
     delete = async (req, res) => {
         try {
             const { id } = req.params;
+
+            // 入力検証: id は文字列
+            if (!id || typeof id !== 'string') {
+                return res.status(400).json({ error: 'Invalid task ID' });
+            }
+
             const success = await this.taskParser.deleteTask(id);
             if (success) {
                 res.json({ success: true });
@@ -55,7 +106,7 @@ export class TaskController {
                 res.status(404).json({ error: 'Task not found or delete failed' });
             }
         } catch (error) {
-            console.error('Failed to delete task:', error);
+            logger.error('Failed to delete task', { error, taskId: req.params.id });
             res.status(500).json({ error: 'Failed to delete task' });
         }
     };
@@ -67,7 +118,19 @@ export class TaskController {
     defer = async (req, res) => {
         try {
             const { id } = req.params;
+
+            // 入力検証: id は文字列
+            if (!id || typeof id !== 'string') {
+                return res.status(400).json({ error: 'Invalid task ID' });
+            }
+
+            // 入力検証: priority は許可値のみ
             const { priority = 'low' } = req.body;
+            const allowedPriorities = ['low', 'medium', 'high'];
+            if (!allowedPriorities.includes(priority)) {
+                return res.status(400).json({ error: 'Invalid priority value' });
+            }
+
             const success = await this.taskParser.updateTask(id, { priority });
             if (success) {
                 res.json({ success: true });
@@ -75,7 +138,7 @@ export class TaskController {
                 res.status(404).json({ error: 'Task not found or defer failed' });
             }
         } catch (error) {
-            console.error('Failed to defer task:', error);
+            logger.error('Failed to defer task', { error, taskId: req.params.id });
             res.status(500).json({ error: 'Failed to defer task' });
         }
     };

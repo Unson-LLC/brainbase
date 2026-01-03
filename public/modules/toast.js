@@ -17,7 +17,13 @@ const ICONS = {
 export function showToast(message, type = 'info', duration = 3000) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<i data-lucide="${ICONS[type]}"></i><span>${message}</span>`;
+    // XSS対策: DOMメソッドで構築
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', ICONS[type]);
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    toast.appendChild(icon);
+    toast.appendChild(messageSpan);
 
     toastContainer.appendChild(toast);
 
