@@ -3033,6 +3033,8 @@ body::after {
     z-index: 1003;
     /* bottom-sheet (1002) より高く設定 */
     padding: 0 16px;
+    /* Safe Area Inset 対応 */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     align-items: center;
     justify-content: space-between;
     gap: 8px;
@@ -3230,7 +3232,8 @@ body::after {
     .mobile-fab-container {
         display: block;
         position: fixed;
-        bottom: 72px;
+        /* Safe Area Inset 対応 */
+        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
         right: 16px;
         z-index: 999;
     }
@@ -3410,7 +3413,8 @@ body::after {
     .app-container {
         flex-direction: column;
         height: 100vh; /* fallback */
-        height: 100dvh;
+        /* bottom nav (56px) + Safe Area Inset を除いた高さ */
+        height: calc(100dvh - 56px - env(safe-area-inset-bottom, 0px));
     }
 
     .main-content {
