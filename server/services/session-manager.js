@@ -24,7 +24,8 @@ export class SessionManager {
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
         this.hookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp }
-        this.nextPort = 3001;
+        // ポート範囲を40000番台に設定（開発サーバー3000番台との競合回避）
+        this.nextPort = 40000;
 
         // ターミナル出力パーサー
         this.outputParser = new TerminalOutputParser();
@@ -146,9 +147,10 @@ export class SessionManager {
             console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
 
             // Update nextPort to avoid port conflicts with restored sessions
+            // 既存セッションが3000番台でも、新規セッションは40000番台から開始
             if (this.activeSessions.size > 0) {
                 const maxPort = Math.max(
-                    3001,
+                    40000,
                     ...Array.from(this.activeSessions.values()).map(s => s.port)
                 );
                 this.nextPort = maxPort + 1;
