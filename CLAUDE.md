@@ -834,7 +834,7 @@ import追加 → 「正しい順序か?」
 
 ### 6.1 標準開発フロー
 
-**Explore → Plan → Branch → Edit → Test → Commit → Merge**
+**Explore → Plan → Branch → Edit → Test → Review & Replan → Commit → Merge**
 
 **Phase 1: Explore** (調査)
 - 既存コードの理解
@@ -866,14 +866,44 @@ import追加 → 「正しい順序か?」
 - 既存テストのパス確認
 - **装備Skills**: test-strategy
 
-**Phase 5: Commit** (コミット)
+**Phase 5: Review & Replan** (レビュー・軌道修正)
+- **実装成果物のレビュー**
+  - 要件との整合性確認（Requirement Alignment Check）
+  - 設計一貫性確認（Design Consistency Check）
+  - 影響範囲検証（Impact Range Validation）
+- **差分検出とリスク判定**
+  - Critical: リプラン必須（即座に修正指示）
+  - Minor: 警告+進行許可（記録して継続）
+  - None: 承認（次Phaseへ）
+- **リプラン実行**（必要に応じて）
+  - Subagentへの修正指示（差分の明示化）
+  - Success Criteriaの再定義
+  - 修正実装 + 再レビュー（Phase 3/4へ戻る）
+  - Max Retries管理（上限3回、超過時は人間へエスカレーション）
+- **思考パターン**:
+  ```
+  成果物確認 → 「要件を満たしているか？」
+  テスト結果確認 → 「期待値と実際の差分は？」
+  差分検出 → 「Critical/Minor/Noneのどれか？」
+  Critical判定 → 「どう修正すべきか明示できるか？」
+  リプラン実行 → 「Subagentへの指示は明確か？」
+  ```
+- **既存パターンとの整合性**:
+  - **TDDのRed-Green-Refactor**: テスト失敗（RED）→ 実装（GREEN）→ レビュー（REFACTOR）
+  - **EventBusのemit-listen-react**: emit（成果物提出）→ listen（レビュー検知）→ react（判定＆フィードバック）
+  - **Orchestration**: Subagent実行 → 成果物レビュー → リプラン → 再実行
+
+**Phase 6: Commit** (コミット)
 - Decision-making capture (悩み→判断→結果)
+  - 何を検討したか（技術選択、実装方針）
+  - どう判定したか（レビュー基準、合格/不合格）
+  - 修正ループの履歴（リプラン実施回数、主要な修正内容）
 - Conventional Commits形式
 - Branch safety check
 - **Custom Command**: `/commit`
 - **装備Skills**: git-workflow
 
-**Phase 6: Merge** (マージ)
+**Phase 7: Merge** (マージ)
 - --no-ff merge commit
 - Feature branch cleanup
 - Mode selection (Safe/Fast)
@@ -902,11 +932,30 @@ Claude Code: [tdd-workflow, architecture-patterns, security-patterns装備]
 # 4. Test: テスト追加・実行
 Claude Code: [test-strategy装備] → テスト追加 → vitest実行 → カバレッジ80%以上
 
-# 5. Commit: Decision capture
-User: "/commit"
-Claude Code: [/commit実行] → 悩み→判断→結果を記録 → Conventional Commits
+# 5. Review & Replan: レビュー・軌道修正
+Claude Code: [成果物レビュー]
+→ 要件との整合性確認（✅ 合格）
+→ 設計一貫性確認（✅ 合格）
+→ テストカバレッジ確認（✅ 85%）
+→ 差分検出（None: 承認）
+→ 次Phaseへ進行
 
-# 6. Merge: mainへ統合
+# 5'. Review & Replan: リプラン実行例（差分検出時）
+Claude Code: [成果物レビュー]
+→ 要件との整合性確認（❌ 不合格: EventBus通知が未実装）
+→ 差分検出（Critical: リプラン必須）
+→ Subagentへ修正指示: "削除時にEVENTS.PROJECT_DELETEDイベントを発火してください"
+→ [Phase 3へ戻る] → 修正実装 → 再テスト → 再レビュー（✅ 合格）
+
+# 6. Commit: Decision capture
+User: "/commit"
+Claude Code: [/commit実行]
+→ 悩み: EventBus通知の実装忘れ
+→ 判断: レビューで検出し修正指示
+→ 結果: 1回のリプランで要件を満たす実装に修正
+→ Conventional Commits
+
+# 7. Merge: mainへ統合
 User: "/merge"
 Claude Code: [/merge実行] → --no-ff merge → branch cleanup
 ```
@@ -930,6 +979,187 @@ Claude Code: [/merge実行] → --no-ff merge → branch cleanup
 **Commit Agent**:
 - **目的**: コミット・PR作成
 - **Skill**: `/commit`
+
+---
+
+### 6.3 Orchestrator Review Framework
+
+**目的**: Orchestrator（Main）がSubagentの成果物を体系的にレビューし、リプラン・再実行を自動化するための標準フレームワーク
+
+#### 6.3.1 レビュー実施の4ステップ
+
+**Step 1: ファイル存在確認**
+```yaml
+target:
+  - 成果物ファイルの存在確認
+  - 空ファイルでないことの確認
+  - 最終更新時刻がPhase開始時刻以降であることの確認
+
+criteria:
+  - file exists AND not empty
+  - last_modified >= phase_start_time
+
+判定:
+  - ✅ PASS: 全ファイルが存在し、空でない
+  - ❌ FAIL: ファイル不在 or 空ファイル → リプラン（Critical）
+```
+
+**Step 2: Success Criteriaチェック**
+```yaml
+target:
+  - 各PhaseのSuccess Criteriaが定義されているか
+  - 各Criteriaが達成されているか
+
+criteria:
+  - [✅] SC-1: XXXが含まれている（expected: YES, actual: ?）
+  - [✅] SC-2: YYYが明確である（expected: YES, actual: ?）
+
+判定:
+  - ✅ PASS: 全Success Criteriaを満たす
+  - ⚠️ MINOR: 一部Criteriaを満たさない（警告+進行許可）
+  - ❌ CRITICAL: 重要Criteriaを満たさない → リプラン必須
+```
+
+**Step 3: 差分分析（要件との整合性）**
+```yaml
+target:
+  - 期待値（要件・設計）vs 実際（成果物）の差分
+  - Skills基準（strategy-template, raci-format等）への準拠
+
+criteria:
+  - ICP定義は strategy-template基準を満たすか → [✅/❌]
+  - タスクの粒度は妥当か（1-3日単位か） → [✅/❌]
+  - KPIの定量性があるか → [✅/❌]
+  - RACI定義は raci-format基準を満たすか → [✅/❌]
+
+判定:
+  - ✅ PASS: 差分なし or 許容範囲内
+  - ⚠️ MINOR: 軽微な差分（記録して進行）
+  - ❌ CRITICAL: 重大な差分 → リプラン必須
+```
+
+**Step 4: リスク判定とアクション決定**
+```yaml
+リスクレベル:
+  - Critical: 要件を満たさない、次Phaseの実行が不可能
+  - Minor: 改善余地あり、次Phaseは実行可能
+  - None: 問題なし
+
+アクション:
+  - Critical → リプラン実行（Subagentへ修正指示）
+  - Minor → 警告記録 + 次Phaseへ進行
+  - None → 承認 + 次Phaseへ進行
+```
+
+---
+
+#### 6.3.2 リプラン実行フロー
+
+**リプラン実行の5ステップ**:
+
+```
+1. Issue Detection（問題検出）
+   - Success Criteriaの不合格項目を特定
+   - 差分の詳細化（期待値 vs 実際）
+   - リスクレベルの判定（Critical/Minor/None）
+
+2. Feedback Generation（フィードバック生成）
+   - 何が要件と異なるか（差分の明示化）
+   - どう修正すべきか（修正方向の提示）
+   - 修正チェックリストの作成（具体的なタスク化）
+
+3. Replan Prompt Creation（リプランプロンプト作成）
+   - 元のタスク + フィードバック
+   - Success Criteriaの再定義（修正後の期待値）
+   - 修正実装のガイドライン
+
+4. Subagent Re-execution（Subagent再実行）
+   - Task Tool経由で同じSubagentを再起動
+   - リプランプロンプトを入力
+   - 修正成果物を取得
+
+5. Re-Review（再レビュー）
+   - 修正成果物を同じ基準で再評価
+   - PASS → 次Phaseへ
+   - FAIL → リトライカウント確認
+     - リトライ < Max (3回) → ステップ1へ戻る
+     - リトライ >= Max → 人間へエスカレーション
+```
+
+---
+
+#### 6.3.3 実装パターン（Orchestrator SKILL.md）
+
+**テンプレート**:
+```markdown
+# Orchestrator Skill Template
+
+## Orchestrator Responsibilities
+
+### Phase Management
+- Phase順序の管理
+- Phase間のデータ受け渡し検証
+- 各Phaseの完了確認
+
+### Review & Replan
+**Review実施**:
+1. ファイル存在確認
+   - Phase 1成果物: `01_strategy.md`
+   - Phase 2成果物: `_codex/common/meta/raci/{project_id}.md`
+
+2. Success Criteriaチェック
+   - Phase 1 SC-1: ICP定義が含まれているか
+   - Phase 1 SC-2: 価値提案が明確か
+   - Phase 2 SC-1: RACI定義が完全か
+
+3. 差分分析
+   - strategy-template基準への準拠（Phase 1）
+   - raci-format基準への準拠（Phase 2）
+
+4. リスク判定
+   - Critical: リプラン実行
+   - Minor: 警告+進行
+   - None: 承認
+
+**Replan実行**:
+- Issue Detection: 不合格項目の特定
+- Feedback Generation: 修正方針の明示化
+- Subagent Re-execution: Task Tool経由で再起動
+- Re-Review: 同じ基準で再評価
+- Max Retries: 3回（超過時は人間へエスカレーション）
+
+### Error Handling
+- Phase実行失敗時のフォールバック
+- データ不足時の追加情報取得（AskUserQuestion）
+- Max Retries超過時の人間へのエスカレーション
+```
+
+---
+
+#### 6.3.4 既存Orchestratorへの適用
+
+**適用対象**:
+- `project-onboarding` (6 Phase)
+- `90day-checklist` (2 Phase)
+- `test-workflow-validator` (2 Phase)
+- `tdd-workflow` (4 Phase)
+- `marketing-strategy-planner` (4 Phase)
+- `sns-smart` (5 Phase)
+
+**適用方法**:
+1. 各Orchestrator SKILL.mdの「Orchestrator Responsibilities」セクションに「Review & Replan」を追加
+2. 各PhaseのSuccess Criteriaを明示化
+3. リプラン実行フローを追加
+4. Max Retriesとエスカレーション基準を定義
+
+**実装チェックリスト**:
+- [ ] ファイル存在確認ロジックの追加
+- [ ] Success Criteriaの明示化
+- [ ] 差分分析基準（Skills準拠）の定義
+- [ ] リスク判定基準の明確化
+- [ ] リプランプロンプト生成ロジックの実装
+- [ ] Max Retries管理の実装
+- [ ] 人間へのエスカレーション基準の定義
 
 ---
 

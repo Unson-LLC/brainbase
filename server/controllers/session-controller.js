@@ -126,16 +126,8 @@ export class SessionController {
             }
         }
 
-        // Stop ttyd process first (release port)
+        // Stop ttyd process (includes TMUX + MCP cleanup via stopTtyd)
         await this.sessionManager.stopTtyd(id);
-
-        // Delete TMUX session for archived session
-        try {
-            await this.execPromise(`tmux kill-session -t "${id}"`);
-            console.log(`Deleted TMUX session for archived session: ${id}`);
-        } catch (err) {
-            console.warn(`Failed to delete TMUX session ${id}:`, err.message);
-        }
 
         // Archive: Update intendedState to archived
         const updatedSessions = state.sessions.map(s =>

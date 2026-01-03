@@ -17,13 +17,24 @@ export async function createSession(sessionData) {
 /**
  * セッションをアーカイブ（マージチェック付き）
  * @param {string} sessionId
+ * @param {Object} options
+ * @param {boolean} options.skipMergeCheck - マージチェックをスキップ
  * @returns {Promise<Object>}
  */
-export async function archiveSessionAPI(sessionId) {
+export async function archiveSessionAPI(sessionId, options = {}) {
+  const { skipMergeCheck = false } = options;
+
   const res = await fetch(`/api/sessions/${sessionId}/archive`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skipMergeCheck })
   });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to archive session');
+  }
+
   return await res.json();
 }
 

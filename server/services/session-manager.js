@@ -144,6 +144,16 @@ export class SessionManager {
             }
 
             console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
+
+            // Update nextPort to avoid port conflicts with restored sessions
+            if (this.activeSessions.size > 0) {
+                const maxPort = Math.max(
+                    3001,
+                    ...Array.from(this.activeSessions.values()).map(s => s.port)
+                );
+                this.nextPort = maxPort + 1;
+                console.log(`[restoreActiveSessions] Updated nextPort to ${this.nextPort} (max existing port: ${maxPort})`);
+            }
         } catch (err) {
             console.error('[restoreActiveSessions] Error:', err);
         }
@@ -180,18 +190,36 @@ export class SessionManager {
                 }
             }
 
-            // 3. 孤立したttydプロセスのみ殺す
+            // 3. state.json の intendedState === 'active' のセッションIDを取得
+            // BUG FIX: TEST_MODEでrestoreActiveSessions()がスキップされた場合、
+            // activeSessions Mapが空になるため、state.jsonも確認してアクティブセッションを保護する
+            const state = this.stateStore.get();
+            const activeSessionIds = new Set(
+                state.sessions
+                    .filter(s => s.intendedState === 'active')
+                    .map(s => s.id)
+            );
+            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active session(s) in state.json`);
+
+            // 4. 孤立したttydプロセスのみ殺す
             let orphansKilled = 0;
             for (const line of lines) {
                 const parts = line.trim().split(/\s+/);
                 const pid = parseInt(parts[1], 10);
 
-                if (!activePids.has(pid)) {
-                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid}`);
+                // 行全体からセッションIDを抽出
+                const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
+                const sessionId = sessionMatch ? sessionMatch[1] : null;
+
+                // activePids にあるか、または activeSessionIds にあれば保護
+                const isActive = activePids.has(pid) || (sessionId && activeSessionIds.has(sessionId));
+
+                if (!isActive) {
+                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
                     await this.execPromise(`kill ${pid}`).catch(() => {});
                     orphansKilled++;
                 } else {
-                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid}`);
+                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
                 }
             }
 
@@ -448,6 +476,9 @@ export class SessionManager {
                 console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
             }
 
+            // Cleanup TMUX session and MCP processes
+            await this.cleanupSessionResources(sessionId);
+
             this.activeSessions.delete(sessionId);
             // hookStatusは保持（'done'ステータスを保持するため）
             // this.hookStatus.delete(sessionId);
@@ -461,14 +492,24 @@ export class SessionManager {
      * @param {string} sessionId - セッションID
      */
     async cleanupSessionResources(sessionId) {
-        console.log(`Cleaning up resources for session ${sessionId}...`);
+        // Input validation
+        if (!sessionId || typeof sessionId !== 'string') {
+            console.error('[Cleanup] Invalid sessionId:', sessionId);
+            return;
+        }
+
+        console.log(`[Cleanup] Starting cleanup for session ${sessionId}...`);
+
+        let tmuxDeleted = false;
+        let processesKilled = 0;
 
         // 1. TMUXセッション削除
         try {
             await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
-            console.log(`Deleted TMUX session: ${sessionId}`);
+            tmuxDeleted = true;
+            console.log(`[Cleanup] ✅ TMUX session deleted: ${sessionId}`);
         } catch (err) {
-            // エラーは無視（既に削除されている可能性がある）
+            console.log(`[Cleanup] ⚠️ TMUX session ${sessionId} already deleted or not found`);
         }
 
         // 2. TMUXペインのプロセスID取得 → 子プロセス（MCP含む）を強制終了
@@ -479,17 +520,24 @@ export class SessionManager {
 
             if (stdout.trim()) {
                 const panePids = stdout.trim().split('\n');
+                console.log(`[Cleanup] Found ${panePids.length} pane process(es) for ${sessionId}`);
+
                 for (const pid of panePids) {
                     // 子プロセス（MCP等）を終了
                     await this.execPromise(`pkill -TERM -P ${pid} 2>/dev/null`).catch(() => {});
                     // 親プロセスを終了
                     await this.execPromise(`kill -TERM ${pid} 2>/dev/null`).catch(() => {});
+                    processesKilled++;
                 }
-                console.log(`Cleaned up ${panePids.length} pane processes for session ${sessionId}`);
+                console.log(`[Cleanup] ✅ Killed ${processesKilled} pane processes for ${sessionId}`);
+            } else {
+                console.log(`[Cleanup] ⚠️ No pane processes found for ${sessionId}`);
             }
         } catch (err) {
-            // エラーは無視（TMUXセッションが既に削除されている可能性がある）
+            console.log(`[Cleanup] ⚠️ Error cleaning up pane processes for ${sessionId}:`, err.message);
         }
+
+        console.log(`[Cleanup] Completed for ${sessionId} (TMUX: ${tmuxDeleted ? '✅' : '⚠️'}, Processes: ${processesKilled})`);
     }
 
     /**

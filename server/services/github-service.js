@@ -136,4 +136,128 @@ export class GitHubService {
             return { error: error.message, runs: [] };
         }
     }
+
+    /**
+     * Healthcheckワークフローの最新実行結果取得
+     * mana（Slack Bot）とself-hosted runnersの健全性をチェック
+     * @returns {Promise<Object>} ヘルスチェック結果
+     */
+    async getHealthcheckStatus() {
+        if (!this.token) {
+            return {
+                status: 'unknown',
+                message: 'GITHUB_TOKEN not configured',
+                lastRun: null,
+            };
+        }
+
+        try {
+            // brainbase-workspaceリポジトリのhealthcheckワークフロー取得
+            const { data } = await this.octokit.rest.actions.listWorkflowRuns({
+                owner: this.owner,
+                repo: 'brainbase-workspace',
+                workflow_id: 'actions-healthcheck.yml',
+                per_page: 1,
+                branch: 'main',
+            });
+
+            if (data.workflow_runs.length === 0) {
+                return {
+                    status: 'unknown',
+                    message: 'No healthcheck runs found',
+                    lastRun: null,
+                };
+            }
+
+            const latestRun = data.workflow_runs[0];
+
+            // Job情報を取得して詳細を確認
+            const { data: jobsData } = await this.octokit.rest.actions.listJobsForWorkflowRun({
+                owner: this.owner,
+                repo: 'brainbase-workspace',
+                run_id: latestRun.id,
+            });
+
+            const failedSteps = [];
+            const allSteps = []; // 追加: 全ステップ情報
+            const jobSummary = jobsData.jobs.map(job => {
+                const failed = job.steps.filter(step => step.conclusion === 'failure');
+                failedSteps.push(...failed.map(step => ({
+                    jobName: job.name,
+                    stepName: step.name,
+                    conclusion: step.conclusion,
+                })));
+
+                // 追加: 全ステップを記録
+                allSteps.push(...job.steps.map(step => ({
+                    jobName: job.name,
+                    stepName: step.name,
+                    conclusion: step.conclusion,
+                    status: step.status,
+                })));
+
+                return {
+                    name: job.name,
+                    conclusion: job.conclusion,
+                    failedSteps: failed.length,
+                    steps: job.steps.map(s => ({ // 追加: Job内の全ステップ
+                        name: s.name,
+                        conclusion: s.conclusion,
+                        status: s.status,
+                    })),
+                };
+            });
+
+            // ステータス判定
+            const status = latestRun.conclusion === 'success' ? 'healthy' :
+                          latestRun.conclusion === 'failure' ? 'error' : 'warning';
+
+            // manaとrunnersのステップを個別に評価
+            const manaStep = allSteps.find(s => s.stepName === 'Check Lambda errors');
+            const runnersStep = allSteps.find(s => s.stepName === 'Check workflows and runners');
+
+            const manaStatus = manaStep ?
+                (manaStep.conclusion === 'success' ? 'healthy' :
+                 manaStep.conclusion === 'failure' ? 'error' : 'warning') : 'unknown';
+
+            const runnersStatus = runnersStep ?
+                (runnersStep.conclusion === 'success' ? 'healthy' :
+                 runnersStep.conclusion === 'failure' ? 'error' : 'warning') : 'unknown';
+
+            return {
+                status,
+                lastRun: {
+                    id: latestRun.id,
+                    created_at: latestRun.created_at,
+                    updated_at: latestRun.updated_at,
+                    conclusion: latestRun.conclusion,
+                    html_url: latestRun.html_url,
+                },
+                jobs: jobSummary,
+                failedSteps: failedSteps,
+                allSteps: allSteps,
+                // 個別ステータス
+                mana: {
+                    status: manaStatus,
+                    step: manaStep || null,
+                },
+                runners: {
+                    status: runnersStatus,
+                    step: runnersStep || null,
+                },
+                summary: {
+                    totalJobs: jobsData.jobs.length,
+                    failedJobs: jobsData.jobs.filter(j => j.conclusion === 'failure').length,
+                    failedStepsCount: failedSteps.length,
+                },
+            };
+        } catch (error) {
+            console.error('[GitHubService] Failed to fetch healthcheck status:', error.message);
+            return {
+                status: 'error',
+                message: error.message,
+                lastRun: null,
+            };
+        }
+    }
 }

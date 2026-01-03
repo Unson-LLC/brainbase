@@ -12,7 +12,7 @@ import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
-import { initFileUpload } from './modules/file-upload.js';
+import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
@@ -36,6 +36,7 @@ import { InboxView } from './modules/ui/views/inbox-view.js';
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
+import { RenameModal } from './modules/ui/modals/rename-modal.js';
 
 /**
  * Application initialization
@@ -124,7 +125,7 @@ class App {
             await this.dashboardController.init();
             console.log('Dashboard Controller loaded (Mana extension)');
         } catch (error) {
-            console.log('Dashboard Controller not available (OSS mode)');
+            console.error('Dashboard Controller error:', error);
             this.dashboardController = null;
         }
     }
@@ -182,6 +183,10 @@ class App {
         // Focus engine modal
         this.modals.focusEngineModal = new FocusEngineModal();
         this.modals.focusEngineModal.mount();
+
+        // Rename modal
+        this.modals.renameModal = new RenameModal({ sessionService: this.sessionService });
+        this.modals.renameModal.mount();
     }
 
     /**
@@ -346,6 +351,7 @@ class App {
                 const newSession = await this.sessionService.createSession({
                     project: project,
                     name: sessionName,
+                    initialCommand: `/task ${task.id}`,  // タスクコンテキストを自動読み込み
                     engine: engine,
                     useWorktree: true  // デフォルトでworktree使用
                 });
@@ -378,7 +384,14 @@ class App {
             this.openCreateSessionModal(project);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
+        // Rename session: open rename modal
+        const unsub5 = eventBus.on(EVENTS.RENAME_SESSION, (event) => {
+            const { session } = event.detail;
+            console.log('Rename session requested:', session);
+            this.modals.renameModal.open(session);
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -535,58 +548,119 @@ class App {
                 }
 
                 try {
-                    // Read clipboard
-                    const text = await navigator.clipboard.readText();
-                    if (!text) {
-                        showInfo('クリップボードが空です');
-                        return;
+                    // Try to read clipboard items (supports both text and images)
+                    const clipboardItems = await navigator.clipboard.read();
+
+                    for (const item of clipboardItems) {
+                        // Check for image
+                        const imageType = item.types.find(type => type.startsWith('image/'));
+                        if (imageType) {
+                            showInfo('画像を圧縮中...');
+
+                            const blob = await item.getType(imageType);
+
+                            // 圧縮前のサイズ
+                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
+
+                            // 画像を圧縮
+                            const compressedBlob = await compressImage(blob);
+
+                            // 圧縮後のサイズ
+                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+
+                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+
+                            // Upload compressed image to server
+                            const formData = new FormData();
+                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
+
+                            const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!uploadRes.ok) {
+                                showError('画像のアップロードに失敗しました');
+                                return;
+                            }
+
+                            const { path: imagePath } = await uploadRes.json();
+
+                            // Send image path to terminal with Enter key
+                            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
+                            });
+
+                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
+                            return;
+                        }
+
+                        // Check for text
+                        if (item.types.includes('text/plain')) {
+                            const textBlob = await item.getType('text/plain');
+                            const text = await textBlob.text();
+
+                            if (!text) {
+                                showInfo('クリップボードが空です');
+                                return;
+                            }
+
+                            // Show paste confirm modal for text
+                            const modal = document.getElementById('paste-confirm-modal');
+                            const preview = document.getElementById('paste-preview-text');
+                            const confirmBtn = document.getElementById('paste-confirm-btn');
+                            const cancelBtn = document.getElementById('paste-cancel-btn');
+
+                            if (!modal || !preview || !confirmBtn || !cancelBtn) {
+                                // Fallback: paste directly without modal
+                                await this.pasteTextToTerminal(currentSessionId, text);
+                                return;
+                            }
+
+                            // Show preview
+                            const displayText = text.length > 500 ? text.substring(0, 500) + '\n...(省略)...' : text;
+                            preview.textContent = displayText;
+                            modal.classList.add('active');
+
+                            // Wait for user action
+                            const confirmed = await new Promise((resolve) => {
+                                const confirm = () => {
+                                    cleanup();
+                                    resolve(true);
+                                };
+                                const cancel = () => {
+                                    cleanup();
+                                    resolve(false);
+                                };
+                                const cleanup = () => {
+                                    confirmBtn.removeEventListener('click', confirm);
+                                    cancelBtn.removeEventListener('click', cancel);
+                                };
+
+                                confirmBtn.addEventListener('click', confirm);
+                                cancelBtn.addEventListener('click', cancel);
+                            });
+
+                            modal.classList.remove('active');
+
+                            // Paste if confirmed
+                            if (confirmed) {
+                                await this.pasteTextToTerminal(currentSessionId, text);
+                            }
+                            return;
+                        }
                     }
 
-                    // Show paste confirm modal
-                    const modal = document.getElementById('paste-confirm-modal');
-                    const preview = document.getElementById('paste-preview-text');
-                    const confirmBtn = document.getElementById('paste-confirm-btn');
-                    const cancelBtn = document.getElementById('paste-cancel-btn');
-
-                    if (!modal || !preview || !confirmBtn || !cancelBtn) {
-                        // Fallback: paste directly without modal
-                        await this.pasteTextToTerminal(currentSessionId, text);
-                        return;
-                    }
-
-                    // Show preview
-                    const displayText = text.length > 500 ? text.substring(0, 500) + '\n...(省略)...' : text;
-                    preview.textContent = displayText;
-                    modal.classList.add('active');
-
-                    // Wait for user action
-                    const confirmed = await new Promise((resolve) => {
-                        const confirm = () => {
-                            cleanup();
-                            resolve(true);
-                        };
-                        const cancel = () => {
-                            cleanup();
-                            resolve(false);
-                        };
-                        const cleanup = () => {
-                            confirmBtn.removeEventListener('click', confirm);
-                            cancelBtn.removeEventListener('click', cancel);
-                        };
-
-                        confirmBtn.addEventListener('click', confirm);
-                        cancelBtn.addEventListener('click', cancel);
-                    });
-
-                    modal.classList.remove('active');
-
-                    // Paste if confirmed
-                    if (confirmed) {
-                        await this.pasteTextToTerminal(currentSessionId, text);
-                    }
+                    showInfo('クリップボードが空です');
                 } catch (error) {
-                    console.error('Failed to read clipboard:', error);
-                    showError('クリップボードの読み取りに失敗しました');
+                    console.error('Failed to paste:', error);
+                    if (error.name === 'NotAllowedError') {
+                        showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+                    } else {
+                        showError('ペーストに失敗しました');
+                    }
                 }
             };
         }
@@ -844,8 +918,8 @@ class App {
                 const touchY = e.touches[0].clientY;
                 const diff = touchY - sheetTouchStartY;
 
-                // スクロール可能な要素を取得
-                const scrollableContent = sheet.querySelector('.session-list, .task-content');
+                // スクロール可能な要素を取得（モバイルボトムシート用の正しいセレクタ）
+                const scrollableContent = sheet.querySelector('.bottom-sheet-content');
                 const isAtTop = !scrollableContent || scrollableContent.scrollTop === 0;
 
                 // スクロール位置が一番上 かつ 下方向に100px以上スワイプした場合のみ閉じる
@@ -855,6 +929,20 @@ class App {
                 }
             }, { passive: true });
         });
+
+        // Prevent pinch-to-zoom on mobile
+        // Note: passive: false is required to call preventDefault()
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
 
         // Mobile FAB (Speed Dial) functionality
         this.setupMobileFAB();
@@ -876,6 +964,7 @@ class App {
         const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
         const mobileToggleKeyboardBtn = document.getElementById('mobile-toggle-keyboard-btn');
         const mobileSendShiftTabBtn = document.getElementById('mobile-send-shift-tab-btn');
+        const mobileHardResetBtn = document.getElementById('mobile-hard-reset-btn');
 
         // Toggle FAB menu
         mobileFab?.addEventListener('click', () => {
@@ -900,18 +989,79 @@ class App {
                 }
 
                 try {
-                    // Read clipboard
-                    const text = await navigator.clipboard.readText();
-                    if (!text) {
-                        showInfo('クリップボードが空です');
-                        return;
+                    // Try to read clipboard items (supports both text and images)
+                    const clipboardItems = await navigator.clipboard.read();
+
+                    for (const item of clipboardItems) {
+                        // Check for image
+                        const imageType = item.types.find(type => type.startsWith('image/'));
+                        if (imageType) {
+                            showInfo('画像を圧縮中...');
+
+                            const blob = await item.getType(imageType);
+
+                            // 圧縮前のサイズ
+                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
+
+                            // 画像を圧縮
+                            const compressedBlob = await compressImage(blob);
+
+                            // 圧縮後のサイズ
+                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
+
+                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
+
+                            // Upload compressed image to server
+                            const formData = new FormData();
+                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
+
+                            const uploadRes = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!uploadRes.ok) {
+                                showError('画像のアップロードに失敗しました');
+                                return;
+                            }
+
+                            const { path: imagePath } = await uploadRes.json();
+
+                            // Send image path to terminal with Enter key
+                            await fetch(`/api/sessions/${currentSessionId}/input`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
+                            });
+
+                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
+                            return;
+                        }
+
+                        // Check for text
+                        if (item.types.includes('text/plain')) {
+                            const textBlob = await item.getType('text/plain');
+                            const text = await textBlob.text();
+
+                            if (!text) {
+                                showInfo('クリップボードが空です');
+                                return;
+                            }
+
+                            // Paste directly (skip modal on mobile for better UX)
+                            await this.pasteTextToTerminal(currentSessionId, text);
+                            return;
+                        }
                     }
 
-                    // Paste directly (skip modal on mobile for better UX)
-                    await this.pasteTextToTerminal(currentSessionId, text);
+                    showInfo('クリップボードが空です');
                 } catch (error) {
-                    console.error('Failed to read clipboard:', error);
-                    showError('クリップボードの読み取りに失敗しました');
+                    console.error('Failed to paste:', error);
+                    if (error.name === 'NotAllowedError') {
+                        showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+                    } else {
+                        showError('ペーストに失敗しました');
+                    }
                 }
             };
         }
@@ -1038,6 +1188,43 @@ class App {
                 if (mobileKeyboard) {
                     mobileKeyboard.classList.toggle('visible');
                     console.log('[FAB] Mobile keyboard visibility toggled');
+                }
+            };
+        }
+
+        // Hard reset button
+        if (mobileHardResetBtn) {
+            mobileHardResetBtn.onclick = async () => {
+                console.log('[FAB] Hard reset button clicked');
+
+                // 確認ダイアログ
+                const confirmed = confirm('キャッシュをクリアして再読み込みしますか？');
+                if (!confirmed) {
+                    console.log('[FAB] Hard reset cancelled by user');
+                    return;
+                }
+
+                try {
+                    // Service Workerのキャッシュクリア
+                    if ('serviceWorker' in navigator) {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(registrations.map(reg => reg.unregister()));
+                        console.log('[FAB] Service workers unregistered');
+                    }
+
+                    // キャッシュストレージのクリア
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(cacheNames.map(name => caches.delete(name)));
+                        console.log('[FAB] Cache storage cleared');
+                    }
+
+                    // ハードリロード
+                    console.log('[FAB] Reloading page...');
+                    window.location.reload();
+                } catch (error) {
+                    console.error('[FAB] Failed to hard reset:', error);
+                    alert('リセットに失敗しました');
                 }
             };
         }
