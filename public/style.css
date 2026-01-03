@@ -3427,7 +3427,7 @@ body::after {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        height: 100%; /* Fill parent (.main-content) completely */
+        /* flex: 1 inherited from desktop - fills parent (.main-content) */
         overflow: visible;
         /* iframe内部でスクロール */
         /* 縦スクロールのみ許可 */
@@ -3438,8 +3438,7 @@ body::after {
     .console-area iframe {
         width: 100vw;
         max-width: 100%;
-        height: 100%; /* Fill parent (.console-area) completely */
-        /* .main-content (flex: 1) handles the height calculation */
+        /* flex: 1 inherited from desktop - fills parent (.console-area) */
         border: none;
         /* Enable pointer events for touch scrolling inside iframe */
         pointer-events: auto;
