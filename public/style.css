@@ -3027,12 +3027,15 @@ body::after {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 56px;
+    /* BUG-002: Safe Area Inset対応 - home indicator領域まで背景を拡張 */
+    min-height: 56px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
     z-index: 1003;
     /* bottom-sheet (1002) より高く設定 */
     padding: 0 16px;
+    /* BUG-002: Safe Area Inset分のpaddingを追加（home indicator領域をカバー） */
+    padding-bottom: env(safe-area-inset-bottom, 0);
     align-items: center;
     justify-content: space-between;
     gap: 8px;
@@ -3422,7 +3425,8 @@ body::after {
 
     .main-content {
         flex: 1;
-        padding-bottom: 56px; /* Space for fixed bottom nav */
+        /* BUG-002: padding-bottom不要 - bottom navはposition:fixedでoverlayするため */
+        /* padding-bottom: 56px; を削除 */
     }
 
     /* Console area adjustments */
