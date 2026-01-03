@@ -1,4 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// CORE_PROJECTSをモック化（Proxy問題を回避）
+vi.mock('../../public/modules/project-mapping.js', async (importOriginal) => {
+    const original = await importOriginal();
+    return {
+        ...original,
+        CORE_PROJECTS: ['unson', 'tech-knight', 'baao'],
+        getCORE_PROJECTS: () => ['unson', 'tech-knight', 'baao']
+    };
+});
+
 import {
   groupSessionsByProject,
   createSessionId,
@@ -56,7 +67,7 @@ describe('session-manager', () => {
   describe('createSessionId', () => {
     it('should create unique session id with prefix', async () => {
       const id1 = createSessionId('session');
-      await new Promise(r => setTimeout(r, 1)); // 1ms delay
+      await new Promise(r => setTimeout(r, 5)); // 5ms delay for timestamp uniqueness
       const id2 = createSessionId('session');
 
       expect(id1).toMatch(/^session-\d+$/);
