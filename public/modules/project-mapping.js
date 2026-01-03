@@ -7,6 +7,7 @@
 export let WORKSPACE_ROOT = '/path/to/workspace'; // デフォルト値（API経由で上書きされる）
 let PROJECT_PATH_MAP_CACHE = null;
 let CORE_PROJECTS_CACHE = null;
+let PROJECT_CONFIG_CACHE = null; // プロジェクト設定のキャッシュ（hasGitRepository用）
 
 // 初期化処理（モジュールロード時に実行）
 (async function initWorkspaceRoot() {
@@ -21,7 +22,9 @@ let CORE_PROJECTS_CACHE = null;
                 // プロジェクトマップをキャッシュ
                 if (data.projects.projects && Array.isArray(data.projects.projects)) {
                     PROJECT_PATH_MAP_CACHE = {};
+                    PROJECT_CONFIG_CACHE = {}; // プロジェクト設定をキャッシュ
                     data.projects.projects.forEach(proj => {
+                        PROJECT_CONFIG_CACHE[proj.id] = proj; // 設定全体を保存
                         let path;
                         if (proj.local && proj.local.path) {
                             // 絶対パスの場合はそのまま使用、相対パスの場合はWORKSPACE_ROOTと結合
@@ -172,4 +175,37 @@ export function getProjectFromPath(path) {
   }
 
   return 'general';
+}
+
+/**
+ * プロジェクト設定を取得
+ * @param {string} projectId - プロジェクトID
+ * @returns {Object|null} プロジェクト設定
+ */
+export function getProjectConfig(projectId) {
+  if (!projectId) return null;
+  return PROJECT_CONFIG_CACHE ? PROJECT_CONFIG_CACHE[projectId] : null;
+}
+
+/**
+ * プロジェクトがGitリポジトリを持つかどうかを判定
+ * local.path または github 設定があればtrue
+ * @param {string} projectId - プロジェクトID
+ * @returns {boolean} Gitリポジトリがあればtrue
+ */
+export function hasGitRepository(projectId) {
+  if (!projectId) return false;
+
+  const config = getProjectConfig(projectId);
+  if (!config) {
+    // キャッシュがない場合はtrueを返す（デフォルト動作を維持）
+    console.warn(`[ProjectMapping] Config not found for project: ${projectId}, assuming git available`);
+    return true;
+  }
+
+  // local.path または github 設定があればGitリポジトリあり
+  const hasLocalPath = !!(config.local && config.local.path);
+  const hasGithub = !!config.github;
+
+  return hasLocalPath || hasGithub;
 }

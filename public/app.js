@@ -1427,21 +1427,71 @@ class App {
         const commandInput = document.getElementById('session-command-input');
         const worktreeCheckbox = document.getElementById('use-worktree-checkbox');
         const projectSelect = document.getElementById('session-project-select');
+        const worktreeLabel = worktreeCheckbox?.parentElement;
 
         if (!modal || !nameInput) {
             console.error('Create session modal elements not found');
             return;
         }
 
+        // Helper function to update worktree checkbox state
+        const updateWorktreeAvailability = async (selectedProject) => {
+            if (!worktreeCheckbox) return;
+
+            // general は常にworktree可能（workspace全体を使用）
+            if (selectedProject === 'general') {
+                worktreeCheckbox.disabled = false;
+                worktreeCheckbox.checked = true;
+                if (worktreeLabel) {
+                    worktreeLabel.title = '';
+                    worktreeLabel.style.opacity = '1';
+                }
+                return;
+            }
+
+            try {
+                const { hasGitRepository } = await import('./modules/project-mapping.js');
+                const hasGit = hasGitRepository(selectedProject);
+
+                worktreeCheckbox.disabled = !hasGit;
+                worktreeCheckbox.checked = hasGit;
+
+                if (worktreeLabel) {
+                    if (!hasGit) {
+                        worktreeLabel.title = 'このプロジェクトにはGitリポジトリがないため、worktreeを作成できません';
+                        worktreeLabel.style.opacity = '0.5';
+                    } else {
+                        worktreeLabel.title = '';
+                        worktreeLabel.style.opacity = '1';
+                    }
+                }
+
+                console.log(`[CreateSession] Project ${selectedProject} hasGitRepository: ${hasGit}`);
+            } catch (err) {
+                console.warn('[CreateSession] Failed to check git repository:', err);
+                // エラー時はデフォルト動作（worktree有効）
+                worktreeCheckbox.disabled = false;
+                worktreeCheckbox.checked = true;
+            }
+        };
+
         // Set defaults
         nameInput.value = `New ${project} Session`;
         if (commandInput) commandInput.value = '';
-        if (worktreeCheckbox) worktreeCheckbox.checked = true;
 
         // Set default project selection
         if (projectSelect) {
             projectSelect.value = project;
         }
+
+        // Update worktree checkbox based on initial project
+        updateWorktreeAvailability(project);
+
+        // Add change listener for project select
+        const handleProjectChange = (e) => {
+            updateWorktreeAvailability(e.target.value);
+        };
+        projectSelect?.addEventListener('change', handleProjectChange);
 
         // Show modal
         modal.classList.add('active');
@@ -1478,6 +1528,7 @@ class App {
         const closeHandlers = () => {
             modal.classList.remove('active');
             createBtn?.removeEventListener('click', handleCreate);
+            projectSelect?.removeEventListener('change', handleProjectChange);
         };
 
         modal.querySelectorAll('.close-modal-btn').forEach(btn => {
