@@ -100,6 +100,7 @@ export class DashboardController {
         this.renderSection4();
         this.renderSection5();
         this.renderSection6();
+        this.renderSection7();
     }
 
     renderSection1() {
@@ -519,5 +520,194 @@ export class DashboardController {
         }
 
         return html;
+    }
+
+    async renderSection7() {
+        // Mana Dashboard Section
+        await this.loadManaData();
+        this.renderManaHero();
+        this.renderManaQualityMetrics();
+        this.renderManaWorkflows();
+    }
+
+    async loadManaData() {
+        // Load mana workflow data from API
+        const workflows = ['m1', 'm2', 'm3', 'm4', 'm9', 'daily', 'morning-report', 'self-improve', 'weekly'];
+
+        try {
+            const results = await Promise.all(
+                workflows.map(async (workflow) => {
+                    const response = await fetch(`/api/mana/workflow-history?workflow=${workflow}`);
+                    if (!response.ok) return null;
+                    const data = await response.json();
+                    return { workflow, data };
+                })
+            );
+
+            this.manaData = {
+                workflows: results.filter(r => r !== null),
+                // Mock quality metrics (replace with actual S3 data later)
+                quality: {
+                    usefulness: 4.2,
+                    accuracy: 4.5,
+                    conciseness: 3.9,
+                    tone: 4.1
+                }
+            };
+        } catch (error) {
+            console.error('Failed to load mana data:', error);
+            this.manaData = { workflows: [], quality: {} };
+        }
+    }
+
+    renderManaHero() {
+        const container = document.getElementById('mana-hero');
+        if (!container || !this.manaData) return;
+
+        const { workflows, quality } = this.manaData;
+        const qualityAvg = quality.usefulness
+            ? ((quality.usefulness + quality.accuracy + quality.conciseness + quality.tone) / 4).toFixed(1)
+            : '---';
+
+        const healthyCount = workflows.filter(w => w.data?.stats?.successRate >= 80).length;
+        const warningCount = workflows.filter(w => w.data?.stats?.successRate >= 60 && w.data?.stats?.successRate < 80).length;
+        const criticalCount = workflows.filter(w => w.data?.stats?.successRate < 60).length;
+
+        const overallStatus = criticalCount > 0 ? '🚨 CRITICAL' : warningCount > 0 ? '⚠️ WARNING' : '🟢 HEALTHY';
+
+        container.innerHTML = `
+            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
+                    ${overallStatus}
+                </div>
+                <div style="font-size: 1rem; color: var(--text-secondary); margin-bottom: 8px;">
+                    Quality: ${qualityAvg}/5 | Workflows: ${healthyCount}/${workflows.length} OK | Critical: ${criticalCount} | Warning: ${warningCount}
+                </div>
+                <div style="font-size: 0.9rem; color: var(--text-tertiary);">
+                    Last 7 days: ${criticalCount === 0 && warningCount === 0 ? 'No critical issues detected' : `${criticalCount + warningCount} issue(s) need attention`}
+                </div>
+            </div>
+        `;
+    }
+
+    renderManaQualityMetrics() {
+        const container = document.getElementById('mana-quality-grid');
+        if (!container || !this.manaData?.quality) return;
+
+        const { quality } = this.manaData;
+        const metrics = [
+            { label: 'Usefulness', value: quality.usefulness, color: '#22c55e' },
+            { label: 'Accuracy', value: quality.accuracy, color: '#3b82f6' },
+            { label: 'Conciseness', value: quality.conciseness, color: '#f59e0b' },
+            { label: 'Tone', value: quality.tone, color: '#a855f7' }
+        ];
+
+        container.innerHTML = '';
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+        container.style.gap = '16px';
+        container.style.marginBottom = '24px';
+
+        // Wait for DOM to be ready before initializing charts
+        requestAnimationFrame(() => {
+            metrics.forEach(metric => {
+                const metricDiv = document.createElement('div');
+                metricDiv.style.cssText = 'min-height: 180px;';
+                container.appendChild(metricDiv);
+
+                // Ensure div is in DOM before creating chart
+                requestAnimationFrame(() => {
+                    new GaugeChart(metricDiv, {
+                        value: (metric.value / 5) * 100, // Convert 0-5 to 0-100
+                        label: metric.label,
+                        subtitle: `${metric.value.toFixed(1)}/5.0`,
+                        color: metric.color
+                    });
+                });
+            });
+        });
+    }
+
+    renderManaWorkflows() {
+        const container = document.getElementById('mana-workflows-grid');
+        if (!container || !this.manaData?.workflows) return;
+
+        const { workflows } = this.manaData;
+
+        // Classify workflows
+        const critical = workflows.filter(w => w.data?.stats?.successRate < 60);
+        const warning = workflows.filter(w => w.data?.stats?.successRate >= 60 && w.data?.stats?.successRate < 80);
+        const healthy = workflows.filter(w => w.data?.stats?.successRate >= 80);
+
+        let html = '';
+
+        // Critical workflows (always show if any)
+        if (critical.length > 0) {
+            html += `
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                    <h4 style="color: #ef4444; margin-bottom: 12px; font-size: 1rem; font-weight: 600;">
+                        🚨 CRITICAL WORKFLOWS (${critical.length}/${workflows.length})
+                    </h4>
+                    <div style="display: grid; gap: 12px;">
+                        ${critical.map(w => this.renderWorkflowCard(w, 'critical')).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Warning workflows
+        if (warning.length > 0) {
+            html += `
+                <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                    <h4 style="color: #fbbf24; margin-bottom: 12px; font-size: 1rem; font-weight: 600;">
+                        ⚠️ WARNING WORKFLOWS (${warning.length}/${workflows.length})
+                    </h4>
+                    <div style="display: grid; gap: 12px;">
+                        ${warning.map(w => this.renderWorkflowCard(w, 'warning')).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Healthy workflows (collapsed list)
+        if (healthy.length > 0) {
+            html += `
+                <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 16px;">
+                    <h4 style="color: #22c55e; margin-bottom: 12px; font-size: 1rem; font-weight: 600;">
+                        ✅ HEALTHY WORKFLOWS (${healthy.length}/${workflows.length})
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px;">
+                        ${healthy.map(w => `
+                            <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                <strong style="color: var(--text-primary);">${w.data?.displayName || w.workflow}</strong>: ${w.data?.stats?.successRate || 0}%
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    renderWorkflowCard(workflowData, status) {
+        const { workflow, data } = workflowData;
+        const successRate = data?.stats?.successRate || 0;
+        const totalRuns = data?.stats?.total || 0;
+        const displayName = data?.displayName || workflow;
+
+        return `
+            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong style="color: var(--text-primary); font-size: 0.95rem;">${displayName}</strong>
+                    <span style="color: ${status === 'critical' ? '#ef4444' : '#fbbf24'}; font-weight: 600;">
+                        ${successRate.toFixed(0)}%
+                    </span>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-tertiary);">
+                    Total runs: ${totalRuns} | Last 30 days
+                </div>
+            </div>
+        `;
     }
 }
