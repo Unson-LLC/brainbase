@@ -54,7 +54,11 @@ describe('ScheduleService', () => {
             await scheduleService.loadSchedule();
 
             expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail).toEqual(mockSchedule);
+            // toMatchObject: _meta以外のフィールドが一致することを確認
+            expect(listener.mock.calls[0][0].detail).toMatchObject(mockSchedule);
+            // トレーサビリティ: _metaが付与されている
+            expect(listener.mock.calls[0][0].detail._meta).toBeDefined();
+            expect(listener.mock.calls[0][0].detail._meta.eventId).toMatch(/^evt_/);
         });
 
         it('loadSchedule呼び出し時_APIエラー発生_例外がスローされる', async () => {
