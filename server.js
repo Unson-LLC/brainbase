@@ -33,9 +33,6 @@ import { createMiscRouter } from './server/routes/misc.js';
 import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
 
-// Import middleware
-import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
@@ -98,34 +95,6 @@ const inboxParser = new InboxParser(INBOX_FILE);
 // Middleware
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
 app.use(express.json({ limit: '1mb' }));
-
-// Security Headers Middleware
-app.use((req, res, next) => {
-    // Content Security Policy
-    res.setHeader('Content-Security-Policy', [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline'",  // unsafe-inline needed for Lucide icons
-        "style-src 'self' 'unsafe-inline'",   // unsafe-inline needed for dynamic styles
-        "img-src 'self' data:",
-        "connect-src 'self' ws: wss:",
-        "frame-ancestors 'self'"
-    ].join('; '));
-    // Prevent MIME type sniffing
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    // Clickjacking protection
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    // XSS filter (legacy browsers)
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    // Referrer policy
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    next();
-});
-
-// CSRF Protection Middleware
-app.use(csrfMiddleware());
-
-// CSRF Token Endpoint
-app.get('/api/csrf-token', csrfTokenHandler);
 
 // ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
 app.get('/', async (req, res) => {
@@ -192,26 +161,11 @@ const sessionManager = new SessionManager({
     await stateStore.init();
     await sessionManager.restoreHookStatus();
 
-    // Phase 3: activeセッションを復元（TEST_MODEでは読み取り専用のためスキップ）
+    // Phase 3: activeセッションを復元してからcleanupを実行
+    // Phase 4: TEST_MODEでは実行しない（読み取り専用）
     if (!TEST_MODE) {
         await sessionManager.restoreActiveSessions();
-    }
-
-    // 孤児ttydプロセスのクリーンアップ（TEST_MODEでも実行）
-    // BUG FIX: worktree環境でも孤児プロセスをクリーンアップする必要がある
-    await sessionManager.cleanupOrphans();
-
-    if (!TEST_MODE) {
-        // Phase 2: TTL-based lifecycle management
-        try {
-            console.log('[Cleanup] Running Phase 2 TTL-based cleanup...');
-            await sessionManager.cleanupStalePausedSessions();
-            console.log('[Cleanup] cleanupStalePausedSessions completed');
-            await sessionManager.cleanupArchivedSessions();
-            console.log('[Cleanup] cleanupArchivedSessions completed');
-        } catch (err) {
-            console.error('[Cleanup] Phase 2 cleanup error:', err);
-        }
+        await sessionManager.cleanupOrphans();
     } else {
         console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
     }
@@ -294,6 +248,24 @@ const ttydProxy = createProxyMiddleware({
 
 app.use('/console', ttydProxy);
 
+// Manual proxy for mana dashboard API (temporary, for debugging)
+// Route: /api/mana/* -> http://localhost:3020/api/*
+app.use('/api/mana', async (req, res) => {
+    try {
+        // Express already stripped /api/mana from req.url
+        const targetUrl = `http://localhost:3020/api${req.url}`;
+        console.log('[mana] Proxying:', req.url, '->', targetUrl);
+
+        const response = await fetch(targetUrl);
+        const data = await response.json();
+
+        console.log('[mana] Success:', response.status);
+        res.json(data);
+    } catch (error) {
+        console.error('[mana] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ========================================
 // MVC Router Registration (Phase 3)
@@ -334,23 +306,6 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', ttydProxy.upgrade);
-
-// Phase 2: Periodic TTL cleanup (every 1 hour)
-// Only run if not in TEST_MODE
-if (!TEST_MODE) {
-    const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
-    setInterval(async () => {
-        console.log('[Cleanup] Running periodic TTL cleanup...');
-        try {
-            await sessionManager.cleanupStalePausedSessions();
-            await sessionManager.cleanupArchivedSessions();
-            console.log('[Cleanup] Periodic TTL cleanup completed');
-        } catch (err) {
-            console.error('[Cleanup] Error during periodic cleanup:', err);
-        }
-    }, CLEANUP_INTERVAL);
-    console.log('[Cleanup] Periodic TTL cleanup scheduled (every 1 hour)');
-}
 
 // Graceful shutdown
 async function gracefulShutdown(signal) {

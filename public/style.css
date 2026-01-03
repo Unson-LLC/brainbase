@@ -3415,14 +3415,10 @@ body::after {
     /* Main content takes full width */
     .app-container {
         flex-direction: column;
-        height: 100vh; /* fallback */
-        /* mobile-bottom-navはposition:fixedでoverlayするため、高さは縮小しない */
-        height: 100dvh;
     }
 
     .main-content {
         flex: 1;
-        padding-bottom: 56px; /* Space for fixed bottom nav */
     }
 
     /* Console area adjustments */
@@ -3430,23 +3426,19 @@ body::after {
         padding-left: 0;
         padding-right: 0;
         width: 100vw;
-        /* flex: 1 inherited from desktop - fills parent (.main-content) */
+        height: 100dvh;
         overflow: visible;
-        /* iframe内部でスクロール */
-        /* 縦スクロールのみ許可 */
-        touch-action: pan-y;
+        touch-action: manipulation;
     }
 
-    /* Terminal iframe - full width, proper sizing for xterm fit */
+    /* Terminal iframe - full width, fill to bottom */
     .console-area iframe {
         width: 100vw;
         max-width: 100%;
-        /* flex: 1 inherited from desktop - fills parent (.console-area) */
+        height: 100dvh;
         border: none;
-        /* Enable pointer events for touch scrolling inside iframe */
         pointer-events: auto;
-        /* 縦スクロールのみ、親要素と同じ設定 */
-        touch-action: pan-y;
+        touch-action: auto;
     }
 
     /* Ensure main content doesn't overflow */
