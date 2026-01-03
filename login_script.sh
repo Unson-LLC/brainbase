@@ -23,26 +23,18 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" CODEX_NETWORK_ACCESS "enabled"
         tmux set-environment -t "$SESSION_NAME" CODEX_APPROVAL_POLICY "never"
 
-        # Launch Codex
-        tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && codex" C-m
-
-        # Send initial command after Codex starts (if provided)
+        # Launch Codex with initial command as CLI argument (passed as prompt)
         if [ -n "$INITIAL_CMD" ]; then
-            # Wait for Codex to initialize
-            sleep 2
-            # Send initial command as user input
-            tmux send-keys -t "$SESSION_NAME" "$INITIAL_CMD" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && codex \"$INITIAL_CMD\"" C-m
+        else
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && codex" C-m
         fi
     else
-        # Launch Claude Code
-        tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude" C-m
-
-        # Send initial command after Claude starts (if provided)
+        # Launch Claude Code with initial command as CLI argument (passed as prompt)
         if [ -n "$INITIAL_CMD" ]; then
-            # Wait for Claude to initialize
-            sleep 2
-            # Send initial command as user input
-            tmux send-keys -t "$SESSION_NAME" "$INITIAL_CMD" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude \"$INITIAL_CMD\"" C-m
+        else
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude" C-m
         fi
     fi
 fi
