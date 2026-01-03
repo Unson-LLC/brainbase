@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>brainbase UI</title>
     <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="stylesheet" href="style.css?v=20251224h">
+    <link rel="stylesheet" href="style.css?v=202601032137">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,7 +23,7 @@
         <!-- Left Navigation (Session List) -->
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3 id="app-version" class="app-version">v0.1.89</h3>
+                <h3 id="app-version" class="app-version">v0.1.90</h3>
             </div>
 
             <!-- Main Navigation -->
@@ -221,6 +221,35 @@
                                     style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
                                     Mana Success Rate</h4>
                                 <div class="trend-card" id="trend-mana"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Section 7: Mana Dashboard (Phase 4) -->
+                    <section class="mana-dashboard-section">
+                        <div class="section-header">
+                            <h2><i data-lucide="bot"></i> Mana Dashboard</h2>
+                            <p class="section-description">Slack AI PMエージェントのワークフロー実行状況と品質メトリクス</p>
+                        </div>
+
+                        <!-- Mana Hero Status -->
+                        <div class="mana-hero" id="mana-hero">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+
+                        <!-- Mana Quality Metrics (4 Gauges) -->
+                        <div class="mana-quality-section">
+                            <h3 class="subsection-title">品質メトリクス</h3>
+                            <div class="mana-quality-grid" id="mana-quality-grid">
+                                <div class="loading">読み込み中...</div>
+                            </div>
+                        </div>
+
+                        <!-- Mana Workflow Status -->
+                        <div class="mana-workflows-section">
+                            <h3 class="subsection-title">ワークフロー実行状況</h3>
+                            <div class="mana-workflows-grid" id="mana-workflows-grid">
+                                <div class="loading">読み込み中...</div>
                             </div>
                         </div>
                     </section>
@@ -672,7 +701,7 @@
     <div id="sessions-bottom-sheet" class="bottom-sheet">
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-header">
-            <h3 id="mobile-app-version" class="mobile-version-display">v0.1.89</h3>
+            <h3 id="mobile-app-version" class="mobile-version-display">v0.1.90</h3>
             <button class="add-session-btn-icon" id="mobile-add-session-btn" title="New Session">
                 <i data-lucide="plus"></i>
             </button>
@@ -713,11 +742,6 @@
 
         <!-- Speed Dial Actions (ordered bottom-to-top by usage frequency) -->
         <div id="mobile-fab-actions" class="mobile-fab-actions">
-            <!-- Hard reset (top, development use) -->
-            <button class="mobile-fab-action" id="mobile-hard-reset-btn" title="キャッシュクリアして再読込">
-                <i data-lucide="refresh-cw"></i>
-                <span class="fab-action-label">リセット</span>
-            </button>
             <!-- Least frequent: Copy (top, farthest from FAB) -->
             <button class="mobile-fab-action" id="mobile-copy-terminal-btn" title="ターミナル内容をコピー">
                 <i data-lucide="copy"></i>
