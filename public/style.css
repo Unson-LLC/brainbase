@@ -37,6 +37,12 @@
     padding: 0;
 }
 
+/* BUG-002: html要素もoverflow:hiddenにしてページスクロールを完全に防止 */
+html {
+    overflow: hidden;
+    height: 100%;
+}
+
 body {
     font-family: var(--font-sans);
     background-color: var(--bg-primary);
