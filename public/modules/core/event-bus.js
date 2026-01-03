@@ -1,31 +1,89 @@
 /**
  * アプリケーション全体のイベント通信基盤
  * Native EventTargetを活用したシンプルな実装
+ *
+ * トレーサビリティ機能:
+ * - eventId: 各イベント固有のID
+ * - correlationId: 操作全体を追跡するID（チェーン内で共通）
+ * - causationId: 直前のイベントIDを参照（因果関係追跡）
  */
 export class EventBus extends EventTarget {
     constructor() {
         super();
         // 非同期ハンドラー管理用Map: eventName -> Set<Function>
         this._asyncHandlers = new Map();
+        // トレーサビリティ用
+        this._currentCorrelationId = null;
+        this._lastEventId = null;
+    }
+
+    /**
+     * 新しいcorrelationIdを開始（ユーザー操作の起点で呼び出し）
+     * @returns {string} 生成されたcorrelationId
+     */
+    startCorrelation() {
+        this._currentCorrelationId = `corr_${crypto.randomUUID().slice(0, 8)}`;
+        this._lastEventId = null;
+        return this._currentCorrelationId;
+    }
+
+    /**
+     * 現在のcorrelationIdを取得
+     * @returns {string|null} 現在のcorrelationId
+     */
+    getCurrentCorrelationId() {
+        return this._currentCorrelationId;
+    }
+
+    /**
+     * イベントメタデータを生成
+     * @param {string} [causationId] - 明示的な因果関係ID
+     * @returns {Object} イベントメタデータ
+     * @private
+     */
+    _createEventMeta(causationId) {
+        const eventId = `evt_${crypto.randomUUID().slice(0, 8)}`;
+        return {
+            eventId,
+            correlationId: this._currentCorrelationId || `corr_${crypto.randomUUID().slice(0, 8)}`,
+            causationId: causationId || this._lastEventId,
+            timestamp: Date.now()
+        };
     }
 
     /**
      * イベント発火（同期リスナー + 非同期リスナー対応）
      * @param {string} eventName - イベント名（例: 'task:completed'）
      * @param {any} detail - イベントデータ
-     * @returns {Promise<{success: number, errors: Error[]}>} - 非同期ハンドラーの実行結果
+     * @returns {Promise<{success: number, errors: Error[], meta: Object}>} - 非同期ハンドラーの実行結果
      */
     async emit(eventName, detail) {
+        // トレーサビリティ: メタデータ生成
+        const meta = this._createEventMeta();
+        const enrichedDetail = { ...detail, _meta: meta };
+
+        // 最後のイベントIDを記録（次のイベントのcausationIdになる）
+        this._lastEventId = meta.eventId;
+
+        // デバッグモード時のログ出力
+        if (typeof window !== 'undefined' && window.__EVENTBUS_DEBUG__) {
+            console.log(`[EventBus] ${eventName}`, {
+                eventId: meta.eventId,
+                correlationId: meta.correlationId,
+                causationId: meta.causationId
+            });
+        }
+
         // 1. 同期リスナー発火（Native EventTarget）
-        this.dispatchEvent(new CustomEvent(eventName, { detail }));
+        this.dispatchEvent(new CustomEvent(eventName, { detail: enrichedDetail }));
 
         // 2. 非同期リスナー実行
         const handlers = this._asyncHandlers.get(eventName);
         if (!handlers || handlers.size === 0) {
-            return { success: 0, errors: [] };
+            return { success: 0, errors: [], meta };
         }
 
-        const event = { detail };
+        const event = { detail: enrichedDetail };
         const results = await Promise.allSettled(
             Array.from(handlers).map(handler => handler(event))
         );
@@ -38,7 +96,7 @@ export class EventBus extends EventTarget {
         if (errors.length > 0) {
             console.error(`EventBus[${eventName}]: ${errors.length} handler(s) failed`, {
                 event: eventName,
-                detail,
+                meta,
                 errors: errors.map(e => ({
                     message: e.message,
                     stack: e.stack
@@ -48,8 +106,24 @@ export class EventBus extends EventTarget {
 
         return {
             success: handlers.size - errors.length,
-            errors
+            errors,
+            meta
         };
+    }
+
+    /**
+     * チェーン継続emit（親イベントのcorrelationIdを継承）
+     * @param {string} eventName - イベント名
+     * @param {any} detail - イベントデータ
+     * @param {Object} parentEvent - 親イベント（event.detail._meta を参照）
+     * @returns {Promise<{success: number, errors: Error[], meta: Object}>}
+     */
+    async emitChained(eventName, detail, parentEvent) {
+        const parentMeta = parentEvent?.detail?._meta;
+        if (parentMeta?.correlationId) {
+            this._currentCorrelationId = parentMeta.correlationId;
+        }
+        return this.emit(eventName, detail);
     }
 
     /**
