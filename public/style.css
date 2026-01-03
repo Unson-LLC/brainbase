@@ -3413,8 +3413,8 @@ body::after {
     .app-container {
         flex-direction: column;
         height: 100vh; /* fallback */
-        /* bottom nav (56px) + Safe Area Inset を除いた高さ */
-        height: calc(100dvh - 56px - env(safe-area-inset-bottom, 0px));
+        /* mobile-bottom-navはposition:fixedでoverlayするため、高さは縮小しない */
+        height: 100dvh;
     }
 
     .main-content {
