@@ -3232,8 +3232,8 @@ body::after {
     .mobile-fab-container {
         display: block;
         position: fixed;
-        /* ターミナル領域の上にoverlayとして浮かせる */
-        bottom: calc(56px + 80px + env(safe-area-inset-bottom, 0px));
+        /* bottom navの直上、ターミナルコンテンツに重ねて表示 */
+        bottom: calc(56px + 16px + env(safe-area-inset-bottom, 0px));
         right: 16px;
         z-index: 999;
     }
