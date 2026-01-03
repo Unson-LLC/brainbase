@@ -130,4 +130,115 @@ describe('SessionManager (Server)', () => {
       );
     });
   });
+
+  describe('cleanupOrphans', () => {
+    it('activeSessions Mapが空でもstate.jsonのintendedState=activeなセッションを保護する', async () => {
+      // BUG FIX検証: TEST_MODEでrestoreActiveSessions()がスキップされた場合でも、
+      // state.jsonの情報を使ってアクティブセッションを保護する
+
+      // Mock state.json with active session
+      const mockStateStore = {
+        get: vi.fn().mockReturnValue({
+          sessions: [
+            { id: 'session-12345', intendedState: 'active' },
+            { id: 'session-67890', intendedState: 'paused' }
+          ]
+        })
+      };
+      sessionManager.stateStore = mockStateStore;
+
+      // activeSessions Map is empty (TEST_MODE scenario)
+      sessionManager.activeSessions.clear();
+
+      // Mock ps aux output: 2 ttyd processes running
+      const psOutput = `
+user     11111  0.0  0.1  ttyd -p 3001 -b /console/session-12345
+user     22222  0.0  0.1  ttyd -p 3002 -b /console/session-67890
+      `.trim();
+      execPromiseMock.mockResolvedValueOnce({ stdout: psOutput });
+
+      await sessionManager.cleanupOrphans();
+
+      // Verify: session-12345 is protected (intendedState='active')
+      expect(execPromiseMock).not.toHaveBeenCalledWith(
+        expect.stringContaining('kill 11111')
+      );
+
+      // Verify: session-67890 is killed (intendedState='paused')
+      expect(execPromiseMock).toHaveBeenCalledWith(
+        expect.stringContaining('kill 22222')
+      );
+    });
+
+    it('activePidsに登録されているプロセスは保護される', async () => {
+      // Mock state.json (empty)
+      const mockStateStore = {
+        get: vi.fn().mockReturnValue({ sessions: [] })
+      };
+      sessionManager.stateStore = mockStateStore;
+
+      // Mock activeSessions with PID
+      sessionManager.activeSessions.set('session-99999', {
+        port: 3001,
+        process: { pid: 33333 }
+      });
+
+      // Mock ps aux output
+      const psOutput = `
+user     33333  0.0  0.1  ttyd -p 3001 -b /console/session-99999
+      `.trim();
+      execPromiseMock.mockResolvedValueOnce({ stdout: psOutput });
+
+      await sessionManager.cleanupOrphans();
+
+      // Verify: PID 33333 is protected (in activePids)
+      expect(execPromiseMock).not.toHaveBeenCalledWith(
+        expect.stringContaining('kill 33333')
+      );
+    });
+
+    it('activePidsにもactiveSessionIdsにもないプロセスは削除される', async () => {
+      // Mock state.json (no active sessions)
+      const mockStateStore = {
+        get: vi.fn().mockReturnValue({
+          sessions: [
+            { id: 'session-archived', intendedState: 'archived' }
+          ]
+        })
+      };
+      sessionManager.stateStore = mockStateStore;
+
+      // activeSessions Map is empty
+      sessionManager.activeSessions.clear();
+
+      // Mock ps aux output: orphaned ttyd process
+      const psOutput = `
+user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-orphan
+      `.trim();
+      execPromiseMock.mockResolvedValueOnce({ stdout: psOutput });
+
+      await sessionManager.cleanupOrphans();
+
+      // Verify: orphaned process is killed
+      expect(execPromiseMock).toHaveBeenCalledWith(
+        expect.stringContaining('kill 44444')
+      );
+    });
+
+    it('ttydプロセスが存在しない場合_エラーなく完了する', async () => {
+      // Mock state.json
+      const mockStateStore = {
+        get: vi.fn().mockReturnValue({ sessions: [] })
+      };
+      sessionManager.stateStore = mockStateStore;
+
+      // Mock ps aux output (no ttyd processes)
+      execPromiseMock.mockResolvedValueOnce({ stdout: '' });
+
+      await expect(sessionManager.cleanupOrphans()).resolves.not.toThrow();
+
+      // Verify: no kill commands were executed
+      expect(execPromiseMock).toHaveBeenCalledTimes(1); // Only ps aux
+    });
+  });
 });
