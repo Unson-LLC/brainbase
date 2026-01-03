@@ -3286,12 +3286,12 @@ body::after {
     .mobile-fab-action {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: flex-start;
         gap: 12px;
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
         border-radius: 28px;
-        padding: 0 16px 0 12px;
+        padding: 0 12px 0 16px;
         height: 48px;
         color: var(--text-primary);
         cursor: pointer;
@@ -3374,6 +3374,18 @@ body::after {
 
     .mobile-fab-action:nth-child(5) {
         transition-delay: 0.25s;
+    }
+
+    .mobile-fab-action:nth-child(6) {
+        transition-delay: 0.3s;
+    }
+
+    .mobile-fab-action:nth-child(7) {
+        transition-delay: 0.35s;
+    }
+
+    .mobile-fab-action:nth-child(8) {
+        transition-delay: 0.4s;
     }
 
     /* Show mobile bottom nav */

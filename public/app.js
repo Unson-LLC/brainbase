@@ -950,6 +950,7 @@ class App {
         const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
         const mobileToggleKeyboardBtn = document.getElementById('mobile-toggle-keyboard-btn');
         const mobileSendShiftTabBtn = document.getElementById('mobile-send-shift-tab-btn');
+        const mobileHardResetBtn = document.getElementById('mobile-hard-reset-btn');
 
         // Toggle FAB menu
         mobileFab?.addEventListener('click', () => {
@@ -1112,6 +1113,43 @@ class App {
                 if (mobileKeyboard) {
                     mobileKeyboard.classList.toggle('visible');
                     console.log('[FAB] Mobile keyboard visibility toggled');
+                }
+            };
+        }
+
+        // Hard reset button
+        if (mobileHardResetBtn) {
+            mobileHardResetBtn.onclick = async () => {
+                console.log('[FAB] Hard reset button clicked');
+
+                // 確認ダイアログ
+                const confirmed = confirm('キャッシュをクリアして再読み込みしますか？');
+                if (!confirmed) {
+                    console.log('[FAB] Hard reset cancelled by user');
+                    return;
+                }
+
+                try {
+                    // Service Workerのキャッシュクリア
+                    if ('serviceWorker' in navigator) {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(registrations.map(reg => reg.unregister()));
+                        console.log('[FAB] Service workers unregistered');
+                    }
+
+                    // キャッシュストレージのクリア
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(cacheNames.map(name => caches.delete(name)));
+                        console.log('[FAB] Cache storage cleared');
+                    }
+
+                    // ハードリロード
+                    console.log('[FAB] Reloading page...');
+                    window.location.reload();
+                } catch (error) {
+                    console.error('[FAB] Failed to hard reset:', error);
+                    alert('リセットに失敗しました');
                 }
             };
         }
