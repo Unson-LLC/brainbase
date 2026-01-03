@@ -144,6 +144,16 @@ export class SessionManager {
             }
 
             console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
+
+            // Update nextPort to avoid port conflicts with restored sessions
+            if (this.activeSessions.size > 0) {
+                const maxPort = Math.max(
+                    3001,
+                    ...Array.from(this.activeSessions.values()).map(s => s.port)
+                );
+                this.nextPort = maxPort + 1;
+                console.log(`[restoreActiveSessions] Updated nextPort to ${this.nextPort} (max existing port: ${maxPort})`);
+            }
         } catch (err) {
             console.error('[restoreActiveSessions] Error:', err);
         }
