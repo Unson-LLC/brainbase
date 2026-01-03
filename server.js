@@ -138,7 +138,7 @@ app.use((req, res, next) => {
     // Content Security Policy
     res.setHeader('Content-Security-Policy', [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline'",  // unsafe-inline needed for Lucide icons
+        "script-src 'self' 'unsafe-inline' https://unpkg.com",  // unpkg.com for Lucide icons CDN
         "style-src 'self' 'unsafe-inline'",   // unsafe-inline needed for dynamic styles
         "img-src 'self' data:",
         "connect-src 'self' ws: wss:",
