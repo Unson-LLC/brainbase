@@ -22,13 +22,27 @@
 // Good: EventBusを使用
 import { eventBus, EVENTS } from '/modules/core/event-bus.js';
 
-// タスク完了時
+// タスク完了時（同期イベント発火）
 eventBus.emit(EVENTS.TASK_COMPLETED, { taskId: '123', project: 'brainbase' });
 
-// 別モジュールでリスニング
+// 別モジュールでリスニング（同期ハンドラー）
 eventBus.on(EVENTS.TASK_COMPLETED, (event) => {
   console.log('Task completed:', event.detail);
 });
+
+// 非同期処理が必要な場合（onAsync使用）
+eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
+  const { sessionId } = event.detail;
+  // 非同期処理（API呼び出し等）
+  await switchSession(sessionId);
+  await loadSessionData(sessionId);
+});
+
+// 非同期イベント発火（エラーハンドリング付き）
+const { success, errors } = await eventBus.emit(EVENTS.TASK_COMPLETED, { taskId: '123' });
+if (errors.length > 0) {
+  console.error('Some handlers failed:', errors);
+}
 
 // Bad: 直接呼び出し
 taskService.onComplete(taskId); // ❌ 密結合
@@ -54,6 +68,8 @@ INBOX_LOADED, INBOX_ITEM_COMPLETED
 状態変更が発生する → 「このEventをどう定義するか?」
 他モジュールに通知が必要 → 「EventBusで発火するか?」
 直接呼び出しを見つけた → 「Event経由に変更できないか?」
+非同期処理が必要 → 「onAsync()を使用しているか?」
+エラーハンドリングが必要 → 「emit()の戻り値（success, errors）を確認しているか?」
 ```
 
 **Enforcement**:

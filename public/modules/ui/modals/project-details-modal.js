@@ -115,12 +115,15 @@ export class ProjectDetailsModal {
 
         tasks.forEach(task => {
             const li = document.createElement('li');
-            li.innerHTML = `
-                <span>${task.title}</span>
-                <span style="font-size:0.75rem; font-weight:bold; color: var(--${task.type === 'Overdue' ? 'danger' : task.type === 'Blocked' ? 'warning-color' : 'text-secondary'})">
-                    ${task.type}
-                </span>
-            `;
+            const titleSpan = document.createElement('span');
+            titleSpan.textContent = task.title;
+            const typeSpan = document.createElement('span');
+            typeSpan.style.fontSize = '0.75rem';
+            typeSpan.style.fontWeight = 'bold';
+            typeSpan.style.color = `var(--${task.type === 'Overdue' ? 'danger' : task.type === 'Blocked' ? 'warning-color' : 'text-secondary'})`;
+            typeSpan.textContent = task.type;
+            li.appendChild(titleSpan);
+            li.appendChild(typeSpan);
             list.appendChild(li);
         });
     }

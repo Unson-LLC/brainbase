@@ -42,7 +42,13 @@ export function showConfirm(message, options = {}) {
         danger = true
     } = options;
 
-    confirmTitle.innerHTML = `<i data-lucide="alert-circle"></i> ${title}`;
+    // XSS対策: DOMメソッドで構築
+    confirmTitle.innerHTML = '';
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'alert-circle');
+    const titleText = document.createTextNode(' ' + title);
+    confirmTitle.appendChild(icon);
+    confirmTitle.appendChild(titleText);
     confirmMessage.textContent = message;
     confirmOkBtn.textContent = okText;
     confirmCancelBtn.textContent = cancelText;
