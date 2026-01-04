@@ -24,7 +24,8 @@ export class SessionManager {
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
         this.hookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp }
-        this.nextPort = 3001;
+        // ポート範囲を40000番台に設定（開発サーバー3000番台との競合回避）
+        this.nextPort = 40000;
 
         // ターミナル出力パーサー
         this.outputParser = new TerminalOutputParser();
@@ -144,6 +145,17 @@ export class SessionManager {
             }
 
             console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
+
+            // Update nextPort to avoid port conflicts with restored sessions
+            // 既存セッションが3000番台でも、新規セッションは40000番台から開始
+            if (this.activeSessions.size > 0) {
+                const maxPort = Math.max(
+                    40000,
+                    ...Array.from(this.activeSessions.values()).map(s => s.port)
+                );
+                this.nextPort = maxPort + 1;
+                console.log(`[restoreActiveSessions] Updated nextPort to ${this.nextPort} (max existing port: ${maxPort})`);
+            }
         } catch (err) {
             console.error('[restoreActiveSessions] Error:', err);
         }
@@ -180,18 +192,36 @@ export class SessionManager {
                 }
             }
 
-            // 3. 孤立したttydプロセスのみ殺す
+            // 3. state.json の intendedState === 'active' のセッションIDを取得
+            // BUG FIX: TEST_MODEでrestoreActiveSessions()がスキップされた場合、
+            // activeSessions Mapが空になるため、state.jsonも確認してアクティブセッションを保護する
+            const state = this.stateStore.get();
+            const activeSessionIds = new Set(
+                state.sessions
+                    .filter(s => s.intendedState === 'active')
+                    .map(s => s.id)
+            );
+            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active session(s) in state.json`);
+
+            // 4. 孤立したttydプロセスのみ殺す
             let orphansKilled = 0;
             for (const line of lines) {
                 const parts = line.trim().split(/\s+/);
                 const pid = parseInt(parts[1], 10);
 
-                if (!activePids.has(pid)) {
-                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid}`);
+                // 行全体からセッションIDを抽出
+                const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
+                const sessionId = sessionMatch ? sessionMatch[1] : null;
+
+                // activePids にあるか、または activeSessionIds にあれば保護
+                const isActive = activePids.has(pid) || (sessionId && activeSessionIds.has(sessionId));
+
+                if (!isActive) {
+                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
                     await this.execPromise(`kill ${pid}`).catch(() => {});
                     orphansKilled++;
                 } else {
-                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid}`);
+                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
                 }
             }
 

@@ -2,10 +2,11 @@
  * MiscController
  * その他のHTTPリクエスト処理（version, restart, upload, open-file）
  */
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
+import { logger } from '../utils/logger.js';
 
 export class MiscController {
     constructor(appVersion, uploadMiddleware, workspaceRoot) {
@@ -66,7 +67,7 @@ export class MiscController {
             const { filePath, path: pathParam, line, mode = 'cursor' } = req.body;
             const targetPath = pathParam || filePath;
 
-            console.log('[openFile] Request:', { targetPath, mode, line, isHomeDirPath: targetPath?.startsWith('~/') });
+            logger.debug('openFile request', { mode, line, hasPath: !!targetPath });
 
             if (!targetPath) {
                 return res.status(400).json({ error: 'filePath or path is required' });
@@ -95,9 +96,19 @@ export class MiscController {
             // パスを正規化
             let normalizedPath = path.resolve(absolutePath);
 
+            // パストラバーサル対策: ホームディレクトリからの相対パスは許可
+            // それ以外はworkspaceRoot配下であることを確認
+            if (!isHomeDirPath && !normalizedPath.startsWith(this.workspaceRoot)) {
+                logger.warn('Path traversal attempt detected', { workspaceRoot: this.workspaceRoot });
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid path: outside workspace'
+                });
+            }
+
             // ファイルが存在しない場合、プロジェクトディレクトリ内を検索
             if (!fs.existsSync(normalizedPath) && !path.isAbsolute(targetPath) && !isHomeDirPath) {
-                console.log(`[openFile] File not found at ${normalizedPath}, searching in project directories...`);
+                logger.debug('File not found, searching in project directories');
 
                 try {
                     const subdirs = fs.readdirSync(this.workspaceRoot, { withFileTypes: true })
@@ -107,51 +118,54 @@ export class MiscController {
                     for (const subdir of subdirs) {
                         const candidatePath = path.join(this.workspaceRoot, subdir, expandedPath);
                         if (fs.existsSync(candidatePath)) {
-                            console.log(`[openFile] Found file in project directory: ${candidatePath}`);
+                            logger.debug('Found file in project directory');
                             normalizedPath = path.resolve(candidatePath);
                             break;
                         }
                     }
                 } catch (searchError) {
-                    console.error('[openFile] Error searching project directories:', searchError);
+                    logger.error('Error searching project directories', { error: searchError });
                 }
             }
 
-            let command;
+            let execProgram;
+            let execArgs;
 
-            // modeに応じてコマンドを構築
+            // modeに応じてコマンドを構築（execFileでシェルインジェクションを防止）
             switch (mode) {
                 case 'reveal':
                     // Finderで表示
-                    command = `open -R "${normalizedPath}"`;
+                    execProgram = 'open';
+                    execArgs = ['-R', normalizedPath];
                     break;
                 case 'file':
                     // デフォルトアプリで開く
-                    command = `open "${normalizedPath}"`;
+                    execProgram = 'open';
+                    execArgs = [normalizedPath];
                     break;
                 case 'cursor':
                 default:
                     // Cursorエディタで開く（既存の動作）
-                    const lineArg = line ? `:${line}` : '';
-                    command = `cursor "${normalizedPath}${lineArg}"`;
+                    execProgram = 'cursor';
+                    execArgs = line ? [`${normalizedPath}:${line}`] : [normalizedPath];
                     break;
             }
 
-            console.log(`Opening file: ${command}`);
+            logger.debug('Opening file', { mode });
 
-            exec(command, (error) => {
+            execFile(execProgram, execArgs, (error) => {
                 if (error) {
-                    console.error('Error opening file:', error);
+                    logger.error('Error opening file', { error, mode });
                     return res.status(500).json({
                         success: false,
-                        error: error.message
+                        error: 'Failed to open file'
                     });
                 }
                 res.json({ success: true, path: normalizedPath });
             });
         } catch (error) {
-            console.error('Error in /api/open-file:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error in openFile handler', { error });
+            res.status(500).json({ error: 'Failed to open file' });
         }
     };
 }

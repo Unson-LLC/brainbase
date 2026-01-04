@@ -608,16 +608,22 @@ export class DashboardController {
         container.style.gap = '16px';
         container.style.marginBottom = '24px';
 
-        metrics.forEach(metric => {
-            const metricDiv = document.createElement('div');
-            metricDiv.style.cssText = 'min-height: 180px;';
-            container.appendChild(metricDiv);
+        // Wait for DOM to be ready before initializing charts
+        requestAnimationFrame(() => {
+            metrics.forEach(metric => {
+                const metricDiv = document.createElement('div');
+                metricDiv.style.cssText = 'min-height: 180px;';
+                container.appendChild(metricDiv);
 
-            new GaugeChart(metricDiv, {
-                value: (metric.value / 5) * 100, // Convert 0-5 to 0-100
-                label: metric.label,
-                subtitle: `${metric.value.toFixed(1)}/5.0`,
-                color: metric.color
+                // Ensure div is in DOM before creating chart
+                requestAnimationFrame(() => {
+                    new GaugeChart(metricDiv, {
+                        value: (metric.value / 5) * 100, // Convert 0-5 to 0-100
+                        label: metric.label,
+                        subtitle: `${metric.value.toFixed(1)}/5.0`,
+                        color: metric.color
+                    });
+                });
             });
         });
     }

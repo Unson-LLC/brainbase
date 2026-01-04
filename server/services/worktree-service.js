@@ -42,8 +42,19 @@ export class WorktreeService {
         const branchName = `session/${sessionId}`;
 
         try {
+            // Check if directory exists first
+            try {
+                await fs.access(repoPath);
+            } catch (accessErr) {
+                throw new Error(`Directory does not exist: ${repoPath}. Please check your project configuration in config.yml (local.path or github setting).`);
+            }
+
             // Check if repo is a git repository
-            await this.execPromise(`git -C "${repoPath}" rev-parse --git-dir`);
+            try {
+                await this.execPromise(`git -C "${repoPath}" rev-parse --git-dir`);
+            } catch (gitErr) {
+                throw new Error(`Not a git repository: ${repoPath}. Please ensure the directory is initialized as a git repository or configure the project properly in config.yml.`);
+            }
 
             // Create worktree with new branch
             await this.execPromise(`git -C "${repoPath}" worktree add "${worktreePath}" -b "${branchName}"`);

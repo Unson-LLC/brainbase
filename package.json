@@ -1,6 +1,6 @@
 {
   "name": "brainbase-ui",
-  "version": "0.1.86",
+  "version": "0.1.87",
   "private": false,
   "type": "module",
   "description": "AI-first project management console for developers",
@@ -37,7 +37,9 @@
     "test:coverage": "vitest run --coverage",
     "test:mobile": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js",
     "test:mobile:iphone": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='iPhone 13 Pro - Emulated'",
-    "test:mobile:android": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='Pixel 7 - Emulated'"
+    "test:mobile:android": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='Pixel 7 - Emulated'",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@octokit/rest": "^22.0.1",

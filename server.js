@@ -10,7 +10,7 @@ import util from 'util';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 
 // Import our modules
 import { TaskParser } from './lib/task-parser.js';
@@ -33,6 +33,9 @@ import { createMiscRouter } from './server/routes/misc.js';
 import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
 
+// Import middleware
+import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
@@ -44,8 +47,42 @@ const APP_VERSION = `v${packageJson.version}`;
 // Environment variables for directory structure
 // BRAINBASE_ROOT: Personal data location (_codex, _tasks, _schedules, config.yml)
 // PROJECTS_ROOT: Project code location (where projects are stored)
-const BRAINBASE_ROOT = process.env.BRAINBASE_ROOT || __dirname;
-const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(BRAINBASE_ROOT, 'projects');
+//
+// Auto-detection logic:
+// 1. If BRAINBASE_ROOT env var is set, use it
+// 2. If running from worktree (.worktrees/...), use parent of .worktrees
+// 3. If running from projects directory, look for ../shared
+// 4. Fall back to __dirname
+function detectBrainbaseRoot() {
+    if (process.env.BRAINBASE_ROOT) {
+        return process.env.BRAINBASE_ROOT;
+    }
+
+    // Worktree detection: /path/to/shared/.worktrees/session-xxx/
+    if (__dirname.includes('.worktrees')) {
+        const match = __dirname.match(/(.+)\/\.worktrees\//);
+        if (match) {
+            return match[1];
+        }
+    }
+
+    // Projects directory detection: /path/to/workspace/projects/brainbase/
+    if (__dirname.includes('/projects/')) {
+        const match = __dirname.match(/(.+)\/projects\//);
+        if (match) {
+            const sharedPath = path.join(match[1], 'shared');
+            // Check if shared directory exists
+            if (existsSync(sharedPath)) {
+                return sharedPath;
+            }
+        }
+    }
+
+    return __dirname;
+}
+
+const BRAINBASE_ROOT = detectBrainbaseRoot();
+const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(path.dirname(BRAINBASE_ROOT), 'projects');
 console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
 console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 
@@ -93,7 +130,36 @@ const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, P
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
-app.use(express.json());
+// Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
+app.use(express.json({ limit: '1mb' }));
+
+// Security Headers Middleware
+app.use((req, res, next) => {
+    // Content Security Policy
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' https://unpkg.com",  // unpkg.com for Lucide icons CDN
+        "style-src 'self' 'unsafe-inline'",   // unsafe-inline needed for dynamic styles
+        "img-src 'self' data:",
+        "connect-src 'self' ws: wss:",
+        "frame-ancestors 'self'"
+    ].join('; '));
+    // Prevent MIME type sniffing
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Clickjacking protection
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    // XSS filter (legacy browsers)
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    // Referrer policy
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+});
+
+// CSRF Protection Middleware
+app.use(csrfMiddleware());
+
+// CSRF Token Endpoint
+app.get('/api/csrf-token', csrfTokenHandler);
 
 // ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
 app.get('/', async (req, res) => {
@@ -144,7 +210,7 @@ app.use(express.static('public', {
 // Phase 2: WorktreeServiceを先に初期化（SessionManagerで使用するため）
 const worktreeService = new WorktreeService(
     WORKTREES_DIR,
-    path.dirname(__dirname), // Canonical root (parent of current directory)
+    BRAINBASE_ROOT, // Canonical root (正本ディレクトリルート)
     execPromise
 );
 

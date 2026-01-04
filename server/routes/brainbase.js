@@ -2,6 +2,7 @@ import express from 'express';
 import { GitHubService } from '../services/github-service.js';
 import { SystemService } from '../services/system-service.js';
 import { StorageService } from '../services/storage-service.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * brainbaseダッシュボードAPIルーター
@@ -38,8 +39,8 @@ export function createBrainbaseRouter(options = {}) {
                 timestamp: new Date().toISOString(),
             });
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching dashboard data:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error fetching dashboard data', { error });
+            res.status(500).json({ error: 'Failed to fetch dashboard data' });
         }
     });
 
@@ -52,8 +53,8 @@ export function createBrainbaseRouter(options = {}) {
             const runners = await githubService.getSelfHostedRunners();
             res.json(runners);
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching runners:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error fetching runners', { error });
+            res.status(500).json({ error: 'Failed to fetch runners' });
         }
     });
 
@@ -67,8 +68,8 @@ export function createBrainbaseRouter(options = {}) {
             const workflows = await githubService.getWorkflowRuns(limit);
             res.json(workflows);
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching workflows:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error fetching workflows', { error });
+            res.status(500).json({ error: 'Failed to fetch workflows' });
         }
     });
 
@@ -81,8 +82,8 @@ export function createBrainbaseRouter(options = {}) {
             const system = await systemService.getSystemStatus();
             res.json(system);
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching system status:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error fetching system status', { error });
+            res.status(500).json({ error: 'Failed to fetch system status' });
         }
     });
 
@@ -98,10 +99,10 @@ export function createBrainbaseRouter(options = {}) {
                 data: healthStatus,
             });
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching system health:', error);
+            logger.error('Error fetching system health', { error });
             res.status(500).json({
                 success: false,
-                error: error.message,
+                error: 'Failed to fetch system health',
             });
         }
     });
@@ -115,8 +116,8 @@ export function createBrainbaseRouter(options = {}) {
             const storage = await storageService.getStorageSummary();
             res.json(storage);
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching storage info:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error fetching storage info', { error });
+            res.status(500).json({ error: 'Failed to fetch storage info' });
         }
     });
 
@@ -129,8 +130,8 @@ export function createBrainbaseRouter(options = {}) {
             const tasks = await getTasksInfo();
             res.json(tasks);
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching tasks:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error fetching tasks', { error });
+            res.status(500).json({ error: 'Failed to fetch tasks' });
         }
     });
 
@@ -143,8 +144,8 @@ export function createBrainbaseRouter(options = {}) {
             const worktrees = await getWorktreesInfo();
             res.json(worktrees);
         } catch (error) {
-            console.error('[BrainbaseRouter] Error fetching worktrees:', error);
-            res.status(500).json({ error: error.message });
+            logger.error('Error fetching worktrees', { error });
+            res.status(500).json({ error: 'Failed to fetch worktrees' });
         }
     });
 
@@ -211,8 +212,8 @@ export function createBrainbaseRouter(options = {}) {
                 } : null,
             };
         } catch (error) {
-            console.error('[BrainbaseRouter] Error parsing tasks:', error);
-            return { error: error.message };
+            logger.error('Error parsing tasks', { error });
+            return { error: 'Failed to parse tasks' };
         }
     }
 
@@ -245,8 +246,8 @@ export function createBrainbaseRouter(options = {}) {
                 })),
             };
         } catch (error) {
-            console.error('[BrainbaseRouter] Error getting worktrees:', error);
-            return { error: error.message };
+            logger.error('Error getting worktrees', { error });
+            return { error: 'Failed to get worktrees' };
         }
     }
 

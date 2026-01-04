@@ -9,7 +9,8 @@ vi.mock('../../../public/modules/core/http-client.js', () => ({
     httpClient: {
         get: vi.fn(),
         post: vi.fn(),
-        put: vi.fn()
+        put: vi.fn(),
+        delete: vi.fn()
     }
 }));
 
@@ -248,6 +249,146 @@ describe('TaskService', () => {
 
             // priorityFilter設定時はfocusTaskを除外しないので、1つ表示される
             expect(result.tasks).toHaveLength(1);
+        });
+    });
+
+    describe('deferTask', () => {
+        it('deferTask呼び出し時_high優先度がmediumに変更される', async () => {
+            const tasksWithHigh = [
+                { id: 'task-1', name: 'Task 1', priority: 'high', status: 'todo' }
+            ];
+            appStore.setState({ tasks: tasksWithHigh });
+            httpClient.post.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(tasksWithHigh);
+
+            await taskService.deferTask('task-1');
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/tasks/task-1/defer', { priority: 'medium' });
+        });
+
+        it('deferTask呼び出し時_medium優先度がlowに変更される', async () => {
+            const tasksWithMedium = [
+                { id: 'task-1', name: 'Task 1', priority: 'medium', status: 'todo' }
+            ];
+            appStore.setState({ tasks: tasksWithMedium });
+            httpClient.post.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(tasksWithMedium);
+
+            await taskService.deferTask('task-1');
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/tasks/task-1/defer', { priority: 'low' });
+        });
+
+        it('deferTask呼び出し時_low優先度はlowのまま', async () => {
+            const tasksWithLow = [
+                { id: 'task-1', name: 'Task 1', priority: 'low', status: 'todo' }
+            ];
+            appStore.setState({ tasks: tasksWithLow });
+            httpClient.post.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(tasksWithLow);
+
+            await taskService.deferTask('task-1');
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/tasks/task-1/defer', { priority: 'low' });
+        });
+
+        it('deferTask呼び出し時_存在しないタスク_何もしない', async () => {
+            appStore.setState({ tasks: [] });
+
+            await taskService.deferTask('non-existent');
+
+            expect(httpClient.post).not.toHaveBeenCalled();
+        });
+
+        it('deferTask呼び出し時_TASK_DEFERREDイベントが発火される', async () => {
+            const tasksWithHigh = [
+                { id: 'task-1', name: 'Task 1', priority: 'high', status: 'todo' }
+            ];
+            appStore.setState({ tasks: tasksWithHigh });
+            httpClient.post.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(tasksWithHigh);
+            const listener = vi.fn();
+            eventBus.on(EVENTS.TASK_DEFERRED, listener);
+
+            await taskService.deferTask('task-1');
+
+            expect(listener).toHaveBeenCalled();
+            expect(listener.mock.calls[0][0].detail.taskId).toBe('task-1');
+        });
+    });
+
+    describe('updateTask', () => {
+        it('updateTask呼び出し時_APIにPUTリクエストが送信される', async () => {
+            httpClient.put.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(mockTasks);
+
+            await taskService.updateTask('task-1', { name: 'Updated Task' });
+
+            expect(httpClient.put).toHaveBeenCalledWith('/api/tasks/task-1', { name: 'Updated Task' });
+        });
+
+        it('updateTask呼び出し時_タスク一覧がリロードされる', async () => {
+            httpClient.put.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(mockTasks);
+
+            await taskService.updateTask('task-1', { name: 'Updated' });
+
+            expect(httpClient.get).toHaveBeenCalledWith('/api/tasks');
+        });
+
+        it('updateTask呼び出し時_TASK_UPDATEDイベントが発火される', async () => {
+            httpClient.put.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(mockTasks);
+            const listener = vi.fn();
+            eventBus.on(EVENTS.TASK_UPDATED, listener);
+
+            await taskService.updateTask('task-1', { priority: 'high' });
+
+            expect(listener).toHaveBeenCalled();
+            expect(listener.mock.calls[0][0].detail.taskId).toBe('task-1');
+            expect(listener.mock.calls[0][0].detail.updates).toEqual({ priority: 'high' });
+        });
+
+        it('updateTask呼び出し時_複数フィールドが更新される', async () => {
+            httpClient.put.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(mockTasks);
+
+            const updates = { name: 'New Name', priority: 'high', description: 'New description' };
+            await taskService.updateTask('task-1', updates);
+
+            expect(httpClient.put).toHaveBeenCalledWith('/api/tasks/task-1', updates);
+        });
+    });
+
+    describe('deleteTask', () => {
+        it('deleteTask呼び出し時_APIにDELETEリクエストが送信される', async () => {
+            httpClient.delete.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(mockTasks);
+
+            await taskService.deleteTask('task-1');
+
+            expect(httpClient.delete).toHaveBeenCalledWith('/api/tasks/task-1');
+        });
+
+        it('deleteTask呼び出し時_タスク一覧がリロードされる', async () => {
+            httpClient.delete.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(mockTasks);
+
+            await taskService.deleteTask('task-1');
+
+            expect(httpClient.get).toHaveBeenCalledWith('/api/tasks');
+        });
+
+        it('deleteTask呼び出し時_TASK_DELETEDイベントが発火される', async () => {
+            httpClient.delete.mockResolvedValue({});
+            httpClient.get.mockResolvedValue(mockTasks);
+            const listener = vi.fn();
+            eventBus.on(EVENTS.TASK_DELETED, listener);
+
+            await taskService.deleteTask('task-1');
+
+            expect(listener).toHaveBeenCalled();
+            expect(listener.mock.calls[0][0].detail.taskId).toBe('task-1');
         });
     });
 });

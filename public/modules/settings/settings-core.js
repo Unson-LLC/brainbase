@@ -7,6 +7,7 @@
 
 import { eventBus } from '../core/event-bus.js';
 import { appStore } from '../core/store.js';
+import { escapeHtml } from '../ui-helpers.js';
 
 export class SettingsCore {
   constructor({ pluginRegistry, ui, apiClient }) {
@@ -217,9 +218,9 @@ export class SettingsCore {
       html += `
         <div class="integrity-issues">
           ${issues.map(issue => `
-            <div class="issue-item ${issue.severity}">
+            <div class="issue-item ${escapeHtml(issue.severity || '')}">
               <i data-lucide="${issue.severity === 'error' ? 'alert-circle' : issue.severity === 'warning' ? 'alert-triangle' : 'info'}"></i>
-              <span>${issue.message}</span>
+              <span>${escapeHtml(issue.message || '')}</span>
             </div>
           `).join('')}
         </div>
@@ -259,9 +260,9 @@ export class SettingsCore {
           <tbody>
             ${projects.map(p => `
               <tr>
-                <td><span class="badge badge-project">${p.emoji ? p.emoji + ' ' : ''}${p.id}</span></td>
-                <td class="mono">${p.local?.path || '-'}</td>
-                <td class="mono">${(p.local?.glob_include || []).slice(0, 3).join(', ')}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
+                <td><span class="badge badge-project">${p.emoji ? escapeHtml(p.emoji) + ' ' : ''}${escapeHtml(p.id || '')}</span></td>
+                <td class="mono">${escapeHtml(p.local?.path || '-')}</td>
+                <td class="mono">${escapeHtml((p.local?.glob_include || []).slice(0, 3).join(', '))}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
               </tr>
             `).join('')}
           </tbody>
