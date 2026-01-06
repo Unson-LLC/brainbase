@@ -52,7 +52,11 @@ export class SessionManager {
      * Phase 3: activeセッションを復元
      * サーバー起動時にstate.jsonからintendedState === 'active'のセッションを復元し、
      * 既存のttydプロセスと紐付ける。
-     * ttydプロセスが見つからない場合は新規起動する。
+     *
+     * 改善: state.jsonのttydProcess情報を優先使用
+     * 1. ttydProcess情報がある場合 → プロセス存在確認 → activeSessionsに登録
+     * 2. ttydProcess情報がない場合 → ps auxで検索（後方互換性）
+     * 3. どちらでも見つからない場合 → 新規起動
      */
     async restoreActiveSessions() {
         try {
@@ -72,49 +76,80 @@ export class SessionManager {
                 return;
             }
 
-            // 全ttydプロセスを取得
-            const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
-
             const restoredSessionIds = new Set();
 
-            if (stdout.trim()) {
-                const lines = stdout.trim().split('\n');
-                console.log(`[restoreActiveSessions] Found ${lines.length} ttyd process(es)`);
+            // Phase 3: state.jsonのttydProcess情報を使用して復旧
+            const sessionsWithTtydProcess = activeSessions.filter(s => s.ttydProcess);
+            console.log(`[restoreActiveSessions] Found ${sessionsWithTtydProcess.length} session(s) with ttydProcess info`);
 
-                // 各ttydプロセスから sessionId と port を抽出
-                for (const line of lines) {
-                    const parts = line.trim().split(/\s+/);
-                    const pid = parseInt(parts[1], 10);
+            for (const session of sessionsWithTtydProcess) {
+                const { port, pid } = session.ttydProcess;
 
-                    // コマンドライン全体を取得
-                    const cmdLine = parts.slice(10).join(' ');
+                // プロセスが実際に存在するか確認
+                if (this._isProcessRunning(pid)) {
+                    // activeSessionsに登録（復旧時はprocessはnull）
+                    this.activeSessions.set(session.id, {
+                        port,
+                        pid,
+                        process: null  // 復旧時はChildProcessオブジェクトなし
+                    });
+                    restoredSessionIds.add(session.id);
+                    console.log(`[restoreActiveSessions] Restored session ${session.id} from ttydProcess: PID ${pid}, Port ${port}`);
+                } else {
+                    console.log(`[restoreActiveSessions] Process ${pid} not running for ${session.id}, will restart`);
+                    // ttydProcess情報をクリア
+                    await this._clearTtydProcessInfo(session.id);
+                }
+            }
 
-                    // -p PORT を抽出
-                    const portMatch = cmdLine.match(/-p\s+(\d+)/);
-                    const port = portMatch ? parseInt(portMatch[1], 10) : null;
+            // ttydProcess情報がないセッションに対して、従来のps aux検索（後方互換性）
+            const sessionsWithoutTtydProcess = activeSessions.filter(s => !s.ttydProcess && !restoredSessionIds.has(s.id));
+            if (sessionsWithoutTtydProcess.length > 0) {
+                console.log(`[restoreActiveSessions] Checking ps aux for ${sessionsWithoutTtydProcess.length} session(s) without ttydProcess info...`);
 
-                    // -b /console/SESSION_ID を抽出
-                    const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
-                    const sessionId = sessionMatch ? sessionMatch[1] : null;
+                // 全ttydプロセスを取得
+                const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
 
-                    if (!sessionId || !port) {
-                        console.log(`[restoreActiveSessions] Skipping process PID ${pid}: sessionId or port not found`);
-                        continue;
-                    }
+                if (stdout.trim()) {
+                    const lines = stdout.trim().split('\n');
+                    console.log(`[restoreActiveSessions] Found ${lines.length} ttyd process(es)`);
 
-                    // state.jsonのactiveセッションに一致するか確認
-                    const matchingSession = activeSessions.find(s => s.id === sessionId);
-                    if (matchingSession) {
-                        this.activeSessions.set(sessionId, {
-                            port,
-                            process: { pid }
-                        });
-                        restoredSessionIds.add(sessionId);
-                        console.log(`[restoreActiveSessions] Restored session ${sessionId}: PID ${pid}, Port ${port}`);
+                    // 各ttydプロセスから sessionId と port を抽出
+                    for (const line of lines) {
+                        const parts = line.trim().split(/\s+/);
+                        const pid = parseInt(parts[1], 10);
+
+                        // コマンドライン全体を取得
+                        const cmdLine = parts.slice(10).join(' ');
+
+                        // -p PORT を抽出
+                        const portMatch = cmdLine.match(/-p\s+(\d+)/);
+                        const port = portMatch ? parseInt(portMatch[1], 10) : null;
+
+                        // -b /console/SESSION_ID を抽出
+                        const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
+                        const sessionId = sessionMatch ? sessionMatch[1] : null;
+
+                        if (!sessionId || !port) {
+                            continue;
+                        }
+
+                        // state.jsonのactiveセッションに一致するか確認
+                        const matchingSession = sessionsWithoutTtydProcess.find(s => s.id === sessionId);
+                        if (matchingSession && !restoredSessionIds.has(sessionId)) {
+                            this.activeSessions.set(sessionId, {
+                                port,
+                                pid,
+                                process: null
+                            });
+                            restoredSessionIds.add(sessionId);
+                            console.log(`[restoreActiveSessions] Restored session ${sessionId} from ps aux: PID ${pid}, Port ${port}`);
+
+                            // 見つかったプロセス情報をstate.jsonに永続化
+                            await this._saveTtydProcessInfo(sessionId, { port, pid, engine: matchingSession.engine || 'claude' });
+                        }
                     }
                 }
-            } else {
-                console.log('[restoreActiveSessions] No ttyd processes found');
             }
 
             // ttydプロセスが見つからなかったactiveセッションに対してttydを起動
@@ -401,14 +436,15 @@ export class SessionManager {
         }
         args.push(engine); // Add engine as 3rd argument
 
-        // Options for spawn
+        // Options for spawn (detached: サーバー再起動後もttydが継続)
         const spawnOptions = {
-            stdio: 'pipe',
+            stdio: ['ignore', 'pipe', 'pipe'],  // stdin無視、stdout/stderrはpipe
             env: {
                 ...process.env,  // Inherit parent process environment
                 LANG: 'en_US.UTF-8',
                 LC_ALL: 'en_US.UTF-8'
-            }
+            },
+            detached: true  // 親プロセスから切り離し
         };
 
         // Set CWD if provided
@@ -417,6 +453,9 @@ export class SessionManager {
         }
 
         const ttyd = spawn('ttyd', args, spawnOptions);
+
+        // 親プロセス終了時に子プロセスを待機しない
+        ttyd.unref();
 
         ttyd.stdout.on('data', (data) => {
             console.log(`[ttyd:${sessionId}] ${data}`);
@@ -436,10 +475,17 @@ export class SessionManager {
             // クリーンアップ: TMUXセッションとMCPプロセスを削除
             await this.cleanupSessionResources(sessionId);
 
+            // ttydProcess情報をクリア
+            await this._clearTtydProcessInfo(sessionId);
+
             this.activeSessions.delete(sessionId);
         });
 
-        this.activeSessions.set(sessionId, { port, process: ttyd });
+        // activeSessionsにpidも保存（復旧時の型統一のため）
+        this.activeSessions.set(sessionId, { port, pid: ttyd.pid, process: ttyd });
+
+        // state.jsonにttydProcess情報を永続化
+        await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
 
         // Give ttyd a moment to bind to the port and verify it's still running
         await new Promise((resolve, reject) => {
@@ -463,23 +509,35 @@ export class SessionManager {
     async stopTtyd(sessionId) {
         if (this.activeSessions.has(sessionId)) {
             const sessionData = this.activeSessions.get(sessionId);
-            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port})`);
+            // PIDを取得（新規起動時はprocess.pid、復旧時はpid直接）
+            const pid = sessionData.process?.pid || sessionData.pid;
+            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid})`);
 
-            try {
-                sessionData.process.kill('SIGTERM');
-                // Give it a moment to terminate gracefully
-                await new Promise(resolve => setTimeout(resolve, 500));
+            if (pid) {
+                try {
+                    // PIDベースでkill（ChildProcessオブジェクトがなくても動作）
+                    process.kill(pid, 'SIGTERM');
+                    // Give it a moment to terminate gracefully
+                    await new Promise(resolve => setTimeout(resolve, 500));
 
-                // Force kill if still running
-                if (!sessionData.process.killed) {
-                    sessionData.process.kill('SIGKILL');
+                    // プロセスがまだ存在するか確認
+                    if (this._isProcessRunning(pid)) {
+                        // Force kill if still running
+                        process.kill(pid, 'SIGKILL');
+                    }
+                } catch (err) {
+                    // ESRCH: プロセスが既に存在しない場合は正常
+                    if (err.code !== 'ESRCH') {
+                        console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
+                    }
                 }
-            } catch (err) {
-                console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
             }
 
             // Cleanup TMUX session and MCP processes
             await this.cleanupSessionResources(sessionId);
+
+            // ttydProcess情報をクリア
+            await this._clearTtydProcessInfo(sessionId);
 
             this.activeSessions.delete(sessionId);
             // hookStatusは保持（'done'ステータスを保持するため）
@@ -609,6 +667,67 @@ export class SessionManager {
             await this.stateStore.update({ ...state, sessions: sessionsToKeep });
             const deletedCount = state.sessions.length - sessionsToKeep.length;
             console.log(`[Cleanup] Removed ${deletedCount} archived session(s) (30d TTL)`);
+        }
+    }
+
+    /**
+     * Phase 3: ttydProcess情報をstate.jsonに永続化
+     * @param {string} sessionId - セッションID
+     * @param {Object} processInfo - { port, pid, engine }
+     */
+    async _saveTtydProcessInfo(sessionId, { port, pid, engine }) {
+        try {
+            const state = this.stateStore.get();
+            const updatedSessions = state.sessions.map(session =>
+                session.id === sessionId
+                    ? {
+                        ...session,
+                        ttydProcess: {
+                            port,
+                            pid,
+                            startedAt: new Date().toISOString(),
+                            engine: engine || 'claude'
+                        }
+                    }
+                    : session
+            );
+            await this.stateStore.update({ ...state, sessions: updatedSessions });
+            console.log(`[ttydProcess] Saved for ${sessionId}: port=${port}, pid=${pid}`);
+        } catch (err) {
+            console.error(`[ttydProcess] Failed to save for ${sessionId}:`, err.message);
+        }
+    }
+
+    /**
+     * Phase 3: ttydProcess情報をstate.jsonからクリア
+     * @param {string} sessionId - セッションID
+     */
+    async _clearTtydProcessInfo(sessionId) {
+        try {
+            const state = this.stateStore.get();
+            const updatedSessions = state.sessions.map(session =>
+                session.id === sessionId
+                    ? { ...session, ttydProcess: null }
+                    : session
+            );
+            await this.stateStore.update({ ...state, sessions: updatedSessions });
+            console.log(`[ttydProcess] Cleared for ${sessionId}`);
+        } catch (err) {
+            console.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
+        }
+    }
+
+    /**
+     * Phase 3: プロセスが実行中かどうかを確認
+     * @param {number} pid - プロセスID
+     * @returns {boolean} 実行中ならtrue
+     */
+    _isProcessRunning(pid) {
+        try {
+            process.kill(pid, 0);  // シグナル0 = 存在確認のみ
+            return true;
+        } catch (e) {
+            return false;
         }
     }
 
