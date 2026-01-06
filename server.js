@@ -139,9 +139,10 @@ app.use((req, res, next) => {
     res.setHeader('Content-Security-Policy', [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' https://unpkg.com",  // unpkg.com for Lucide icons CDN
-        "style-src 'self' 'unsafe-inline'",   // unsafe-inline needed for dynamic styles
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",  // Google Fonts CSS
+        "font-src 'self' https://fonts.gstatic.com",  // Google Fonts files
         "img-src 'self' data:",
-        "connect-src 'self' ws: wss:",
+        "connect-src 'self' ws: wss: https://unpkg.com",  // unpkg.com for source maps
         "frame-ancestors 'self'"
     ].join('; '));
     // Prevent MIME type sniffing
