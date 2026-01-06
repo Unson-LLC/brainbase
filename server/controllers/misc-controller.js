@@ -97,9 +97,18 @@ export class MiscController {
             let normalizedPath = path.resolve(absolutePath);
 
             // パストラバーサル対策: ホームディレクトリからの相対パスは許可
+            // worktree環境では共通の親ディレクトリ配下を許可
             // それ以外はworkspaceRoot配下であることを確認
-            if (!isHomeDirPath && !normalizedPath.startsWith(this.workspaceRoot)) {
-                logger.warn('Path traversal attempt detected', { workspaceRoot: this.workspaceRoot });
+            let allowedRoot = this.workspaceRoot;
+
+            // worktree環境の場合、.worktreesの親ディレクトリを許可範囲とする
+            if (this.workspaceRoot.includes('.worktrees')) {
+                const worktreesIndex = this.workspaceRoot.indexOf('.worktrees');
+                allowedRoot = this.workspaceRoot.substring(0, worktreesIndex);
+            }
+
+            if (!isHomeDirPath && !normalizedPath.startsWith(allowedRoot)) {
+                logger.warn('Path traversal attempt detected', { allowedRoot });
                 return res.status(400).json({
                     success: false,
                     error: 'Invalid path: outside workspace'
