@@ -315,6 +315,16 @@ export class SessionManager {
      */
     reportActivity(sessionId, status) {
         console.log(`[Hook] Received status update from ${sessionId}: ${status}`);
+
+        // 現在のステータスを確認
+        const currentHookData = this.hookStatus.get(sessionId);
+
+        // done → working の上書きを防止（緑インジケータを保持）
+        if (currentHookData && currentHookData.status === 'done' && status === 'working') {
+            console.log(`[Hook] Preserving 'done' status for ${sessionId}, ignoring 'working' update`);
+            return;
+        }
+
         const hookStatusData = {
             status,
             timestamp: Date.now()
