@@ -101,10 +101,14 @@ export class MiscController {
             // それ以外はworkspaceRoot配下であることを確認
             let allowedRoot = this.workspaceRoot;
 
-            // worktree環境の場合、.worktreesの親ディレクトリを許可範囲とする
-            if (this.workspaceRoot.includes('.worktrees')) {
-                const worktreesIndex = this.workspaceRoot.indexOf('.worktrees');
-                allowedRoot = this.workspaceRoot.substring(0, worktreesIndex);
+            // worktree環境の場合、または対象パスがworktree内の場合、workspace全体を許可
+            if (this.workspaceRoot.includes('.worktrees') || normalizedPath.includes('.worktrees')) {
+                // workspace親ディレクトリを許可範囲とする（例: /home/user/workspace/）
+                const workspaceMatch = (this.workspaceRoot.match(/^(\/[^/]+\/[^/]+\/workspace\/)/) ||
+                                       normalizedPath.match(/^(\/[^/]+\/[^/]+\/workspace\/)/));
+                if (workspaceMatch) {
+                    allowedRoot = workspaceMatch[1];
+                }
             }
 
             if (!isHomeDirPath && !normalizedPath.startsWith(allowedRoot)) {

@@ -55,12 +55,36 @@ export class SettingsCore {
       order: 0,
       lifecycle: {
         load: async () => {
-          const integrity = await this.apiClient.getIntegrity();
-          appStore.setState({ settingsIntegrity: integrity });
+          const [integrity, unified] = await Promise.all([
+            this.apiClient.getIntegrity(),
+            this.apiClient.getUnified()
+          ]);
+
+          // Mana統計を取得（Mana拡張がロードされている場合）
+          let manaStats = null;
+          try {
+            const config = await this.apiClient.getConfig();
+            if (config.slack) {
+              manaStats = {
+                workspaces: config.slack.workspaces ? Object.keys(config.slack.workspaces).length : 0,
+                channels: config.slack.channels ? config.slack.channels.length : 0,
+                members: config.slack.members ? config.slack.members.length : 0
+              };
+            }
+          } catch (error) {
+            // Mana拡張なし（OSS版）の場合はエラーを無視
+            console.log('Mana stats not available (OSS mode)');
+          }
+
+          appStore.setState({
+            settingsIntegrity: integrity,
+            settingsUnified: unified,
+            settingsManaStats: manaStats
+          });
         },
         render: async (container) => {
-          const integrity = appStore.getState().settingsIntegrity;
-          container.innerHTML = this._renderOverviewHTML(integrity);
+          const { settingsIntegrity, settingsUnified, settingsManaStats } = appStore.getState();
+          container.innerHTML = this._renderOverviewHTML(settingsIntegrity, settingsUnified, settingsManaStats);
 
           // Lucide icons再初期化
           if (typeof lucide !== 'undefined') {
@@ -173,9 +197,11 @@ export class SettingsCore {
    * Overview HTMLレンダリング
    * @private
    * @param {Object} integrity - 整合性データ
+   * @param {Object} unified - 統合ビューデータ
+   * @param {Object} manaStats - Mana統計（OSS版ではnull）
    * @returns {string} HTML文字列
    */
-  _renderOverviewHTML(integrity) {
+  _renderOverviewHTML(integrity, unified = null, manaStats = null) {
     if (!integrity) {
       return '<div class="config-empty">Failed to load integrity data</div>';
     }
@@ -190,8 +216,23 @@ export class SettingsCore {
         </div>
     `;
 
-    // OSS版ではWorkspaces, Channels, Membersは表示しない
-    // Mana拡張がロードされている場合のみ表示される
+    // Mana統計を表示（Mana拡張がロードされている場合のみ）
+    if (manaStats) {
+      html += `
+        <div class="stat-item success">
+          <span class="label">Workspaces</span>
+          <span class="count">${manaStats.workspaces || 0}</span>
+        </div>
+        <div class="stat-item success">
+          <span class="label">Channels</span>
+          <span class="count">${manaStats.channels || 0}</span>
+        </div>
+        <div class="stat-item success">
+          <span class="label">Members</span>
+          <span class="count">${manaStats.members || 0}</span>
+        </div>
+      `;
+    }
 
     if (summary.errors > 0) {
       html += `
@@ -226,6 +267,136 @@ export class SettingsCore {
         </div>
       `;
     }
+
+    // Unified View（統合マッピング表）
+    if (unified) {
+      html += this._renderUnifiedView(unified);
+    }
+
+    return html;
+  }
+
+  /**
+   * Unified View（統合マッピング表）をレンダリング
+   * @private
+   * @param {Object} unified - 統合ビューデータ
+   * @returns {string} HTML文字列
+   */
+  _renderUnifiedView(unified) {
+    const { workspaces, orphanedChannels, orphanedProjects } = unified;
+
+    if (!workspaces || workspaces.length === 0) {
+      return '<div class="config-empty">No workspaces found</div>';
+    }
+
+    let html = '<div class="settings-section"><h3>Unified Configuration Overview</h3><p class="settings-section-desc">Workspace → Project → Slack/GitHub/NocoDB の統合マッピング</p>';
+
+    // Workspace毎にプロジェクト一覧を表示
+    for (const ws of workspaces) {
+      html += `
+        <div class="unified-workspace" data-workspace="${escapeHtml(ws.key || '')}">
+          <h3 class="workspace-header">
+            <span class="workspace-name">${escapeHtml(ws.name || '')}</span>
+            <span class="workspace-id mono">${escapeHtml(ws.id || '-')}</span>
+          </h3>
+      `;
+
+      // アーカイブされていないプロジェクトのみ
+      const activeProjects = (ws.projects || []).filter(p => !p.archived);
+
+      if (activeProjects.length === 0) {
+        html += '<div class="config-empty">No projects in this workspace</div>';
+      } else {
+        html += `
+          <table class="config-table unified-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Slack Channels</th>
+                <th>GitHub</th>
+                <th>NocoDB</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        for (const proj of activeProjects) {
+          const hasGithub = !!proj.github;
+          const hasNocodb = !!proj.nocodb;
+          const warningClass = (!hasGithub || !hasNocodb) ? 'warning-row' : '';
+
+          html += `
+            <tr data-project="${escapeHtml(proj.id || '')}" class="${warningClass}">
+              <td><span class="badge badge-project">${proj.emoji ? escapeHtml(proj.emoji) + ' ' : ''}${escapeHtml(proj.id || '')}</span></td>
+              <td>
+                ${proj.channels && proj.channels.length > 0
+                  ? proj.channels.slice(0, 3).map(ch =>
+                      `<span class="channel-tag" title="${escapeHtml(ch.type || '')}">#${escapeHtml(ch.name || '')}</span>`
+                    ).join(' ')
+                  : '<span class="status-missing">-</span>'
+                }
+                ${proj.channels && proj.channels.length > 3 ? `<span class="channel-count">+${proj.channels.length - 3}</span>` : ''}
+              </td>
+              <td class="${!hasGithub ? 'missing' : ''}">
+                ${hasGithub
+                  ? `<a href="${escapeHtml(proj.github.url || '')}" target="_blank" class="config-link">${escapeHtml(proj.github.owner || '')}/${escapeHtml(proj.github.repo || '')}</a>
+                     ${proj.github.paths && proj.github.paths.length > 0
+                       ? `<span class="paths-hint">[${proj.github.paths.slice(0, 2).map(p => escapeHtml(p)).join(', ')}${proj.github.paths.length > 2 ? '...' : ''}]</span>`
+                       : ''
+                     }`
+                  : '<span class="status-missing">❌ 未設定</span>'
+                }
+              </td>
+              <td class="${!hasNocodb ? 'missing' : ''}">
+                ${hasNocodb
+                  ? `<a href="${escapeHtml(proj.nocodb.url || '')}" target="_blank" class="config-link">${escapeHtml(proj.nocodb.base_name || '')}</a>`
+                  : '<span class="status-missing">❌ 未設定</span>'
+                }
+              </td>
+            </tr>
+          `;
+        }
+
+        html += '</tbody></table>';
+      }
+
+      html += '</div>';
+    }
+
+    // Orphaned Items（孤立したプロジェクト・チャンネル）
+    if ((orphanedProjects && orphanedProjects.length > 0) || (orphanedChannels && orphanedChannels.length > 0)) {
+      html += '<div class="unified-orphans"><h3 class="orphans-header">⚠️ Orphaned Items</h3>';
+
+      if (orphanedProjects && orphanedProjects.length > 0) {
+        html += `
+          <div class="orphan-section">
+            <h4>Unassigned Projects</h4>
+            <ul>
+              ${orphanedProjects.map(p =>
+                `<li><span class="badge badge-project">${escapeHtml(p.id || '')}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, NocoDB: ${p.hasNocodb ? '✅' : '❌'}, Channels: ${p.channelCount || 0})</li>`
+              ).join('')}
+            </ul>
+          </div>
+        `;
+      }
+
+      if (orphanedChannels && orphanedChannels.length > 0) {
+        html += `
+          <div class="orphan-section">
+            <h4>Unmapped Channels</h4>
+            <ul>
+              ${orphanedChannels.map(ch =>
+                `<li>#${escapeHtml(ch.name || '')} (${escapeHtml(ch.workspace || '')}) → ${escapeHtml(ch.project_id || 'no project')}</li>`
+              ).join('')}
+            </ul>
+          </div>
+        `;
+      }
+
+      html += '</div>';
+    }
+
+    html += '</div>';
 
     return html;
   }
@@ -288,6 +459,14 @@ export class CoreApiClient {
     const response = await fetch('/api/config/integrity');
     if (!response.ok) {
       throw new Error('Failed to fetch integrity');
+    }
+    return response.json();
+  }
+
+  async getUnified() {
+    const response = await fetch('/api/config/unified');
+    if (!response.ok) {
+      throw new Error('Failed to fetch unified view');
     }
     return response.json();
   }

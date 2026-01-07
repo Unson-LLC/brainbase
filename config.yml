@@ -280,6 +280,14 @@ projects:
 
   - id: back-office
     emoji: "🗂️"
+    github:
+      owner: Unson-LLC
+      repo: back_office
+      paths:
+        - docs/
+        - scripts/
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/back_office
     airtable:
       base_id: appxybW7Hn5qjaIwP
       base_name: BackOffice
