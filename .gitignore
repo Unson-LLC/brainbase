@@ -106,3 +106,18 @@ nohup.out
 state.json.backup-*
 GITHUB_CACHE_CLEANUP_REQUEST.md
 docs/CODEX_MANAGEMENT_PLAN.md
+
+# Runtime files
+state.json
+state.json.backup-*
+nohup.out
+
+# Log files
+*.log
+
+# Binary files
+*.zip
+*.tar.gz
+
+# macOS
+.DS_Store
