@@ -134,36 +134,46 @@ class App {
      * Setup main view navigation logic
      */
     setupViewNavigation() {
-        const consoleBtn = document.getElementById('nav-console-btn');
-        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+        const toggleBtn = document.getElementById('view-toggle-btn');
         const consoleArea = document.getElementById('console-area');
         const dashboardPanel = document.getElementById('dashboard-panel');
 
-        if (consoleBtn && dashboardBtn && consoleArea && dashboardPanel) {
-            consoleBtn.addEventListener('click', () => {
-                consoleBtn.classList.add('active');
-                dashboardBtn.classList.remove('active');
-                consoleArea.style.display = 'flex';
-                dashboardPanel.style.display = 'none';
+        if (toggleBtn && consoleArea && dashboardPanel) {
+            toggleBtn.addEventListener('click', () => {
+                const currentView = toggleBtn.getAttribute('data-current-view');
+                const icon = toggleBtn.querySelector('.toggle-icon');
+                const label = toggleBtn.querySelector('.toggle-label');
 
-                // Refresh terminal frame if needed
-                const frame = document.getElementById('terminal-frame');
-                if (frame && frame.contentWindow) {
-                    frame.contentWindow.focus();
+                if (currentView === 'console') {
+                    // Switch to Dashboard
+                    toggleBtn.setAttribute('data-current-view', 'dashboard');
+                    icon.setAttribute('data-lucide', 'layout-dashboard');
+                    label.textContent = 'Dashboard';
+                    consoleArea.style.display = 'none';
+                    dashboardPanel.style.display = 'block';
+
+                    // Re-render dashboard data
+                    this.dashboardController.init();
+                    window.dispatchEvent(new Event('resize'));
+                } else {
+                    // Switch to Console
+                    toggleBtn.setAttribute('data-current-view', 'console');
+                    icon.setAttribute('data-lucide', 'terminal-square');
+                    label.textContent = 'Console';
+                    consoleArea.style.display = 'flex';
+                    dashboardPanel.style.display = 'none';
+
+                    // Refresh terminal frame
+                    const frame = document.getElementById('terminal-frame');
+                    if (frame && frame.contentWindow) {
+                        frame.contentWindow.focus();
+                    }
                 }
-            });
 
-            dashboardBtn.addEventListener('click', () => {
-                dashboardBtn.classList.add('active');
-                consoleBtn.classList.remove('active');
-                consoleArea.style.display = 'none';
-                dashboardPanel.style.display = 'block';
-
-                // Re-render dashboard data when switching to it
-                this.dashboardController.init();
-
-                // Also trigger chart window resize event to ensure responsive charts render correctly
-                window.dispatchEvent(new Event('resize'));
+                // Re-render lucide icons
+                if (window.lucide && window.lucide.createIcons) {
+                    window.lucide.createIcons();
+                }
             });
         }
     }
@@ -442,10 +452,10 @@ class App {
                     </div>
                 `;
 
-                // Insert at the top of app-container
+                // Insert at the top of body (before app-container)
                 const appContainer = document.querySelector('.app-container');
                 if (appContainer) {
-                    appContainer.insertBefore(banner, appContainer.firstChild);
+                    document.body.insertBefore(banner, appContainer);
 
                     // Re-render lucide icons
                     if (window.lucide && window.lucide.createIcons) {
