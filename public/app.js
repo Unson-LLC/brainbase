@@ -24,6 +24,7 @@ import { TaskService } from './modules/domain/task/task-service.js';
 import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 import { InboxService } from './modules/domain/inbox/inbox-service.js';
+import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
 
 // Views
 import { TaskView } from './modules/ui/views/task-view.js';
@@ -31,6 +32,7 @@ import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
+import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -63,12 +65,14 @@ class App {
         this.container.register('sessionService', () => new SessionService());
         this.container.register('scheduleService', () => new ScheduleService());
         this.container.register('inboxService', () => new InboxService());
+        this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
 
         // Get service instances
         this.taskService = this.container.get('taskService');
         this.sessionService = this.container.get('sessionService');
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
+        this.nocodbTaskService = this.container.get('nocodbTaskService');
     }
 
     /**
@@ -95,6 +99,16 @@ class App {
             this.views.nextTasksView = new NextTasksView({ taskService: this.taskService });
             this.views.nextTasksView.mount(nextTasksContainer);
         }
+
+        // NocoDB Tasks (right panel - tab)
+        const nocodbTasksContainer = document.getElementById('nocodb-tasks-list');
+        if (nocodbTasksContainer) {
+            this.views.nocodbTasksView = new NocoDBTasksView({ nocodbTaskService: this.nocodbTaskService });
+            this.views.nocodbTasksView.mount(nocodbTasksContainer);
+        }
+
+        // Setup task tabs switching
+        this.setupTaskTabs();
 
         // Sessions (left sidebar)
         const sessionContainer = document.getElementById('session-list');
@@ -173,6 +187,83 @@ class App {
                 // Re-render lucide icons
                 if (window.lucide && window.lucide.createIcons) {
                     window.lucide.createIcons();
+                }
+            });
+        }
+    }
+
+    /**
+     * Setup task tabs switching (ローカル / プロジェクト)
+     */
+    setupTaskTabs() {
+        const tabButtons = document.querySelectorAll('.task-tab');
+        const tabContents = document.querySelectorAll('.task-tab-content');
+
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetTab = btn.dataset.tab;
+
+                // Update tab button states
+                tabButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Update tab content visibility
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === `${targetTab}-tasks-panel`) {
+                        content.classList.add('active');
+                    }
+                });
+
+                // Emit tab change event
+                eventBus.emit(EVENTS.TASK_TAB_CHANGED, { tab: targetTab });
+
+                // If switching to NocoDB tab, trigger data load
+                if (targetTab === 'nocodb' && this.views.nocodbTasksView) {
+                    this.views.nocodbTasksView.onTabActivated();
+                }
+
+                // Re-render Lucide icons
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            });
+        });
+
+        // Setup NocoDB filter handlers
+        this.setupNocoDBFilters();
+    }
+
+    /**
+     * Setup NocoDB filter and sync handlers
+     */
+    setupNocoDBFilters() {
+        // Project filter
+        const projectFilter = document.getElementById('nocodb-project-filter');
+        if (projectFilter) {
+            projectFilter.addEventListener('change', (e) => {
+                if (this.views.nocodbTasksView) {
+                    this.views.nocodbTasksView.handleFilterChange(e.target.value);
+                }
+            });
+        }
+
+        // Hide completed checkbox
+        const hideCompletedCheckbox = document.getElementById('nocodb-hide-completed');
+        if (hideCompletedCheckbox) {
+            hideCompletedCheckbox.addEventListener('change', (e) => {
+                if (this.views.nocodbTasksView) {
+                    this.views.nocodbTasksView.handleHideCompletedChange(e.target.checked);
+                }
+            });
+        }
+
+        // Sync button
+        const syncBtn = document.getElementById('nocodb-sync-btn');
+        if (syncBtn) {
+            syncBtn.addEventListener('click', async () => {
+                if (this.views.nocodbTasksView) {
+                    await this.views.nocodbTasksView.handleSync();
                 }
             });
         }

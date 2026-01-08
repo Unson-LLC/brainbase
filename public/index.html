@@ -288,27 +288,62 @@
                         <i data-lucide="chevron-down"></i>
                     </button>
                 </div>
-                <div class="task-filter">
-                    <div class="filter-group">
-                        <label for="task-filter-input" class="sr-only">タスクフィルター</label>
-                        <input type="text" id="task-filter-input" placeholder="タスクを検索..." aria-label="タスク名または説明で検索" />
-                    </div>
 
-                    <div class="filter-group">
-                        <label for="priority-filter" class="sr-only">優先度フィルター</label>
-                        <select id="priority-filter" class="priority-filter" aria-label="優先度でフィルタ">
-                            <option value="">すべて</option>
-                            <option value="high">🔴 高</option>
-                            <option value="medium">🟡 中</option>
-                            <option value="low">🔵 低</option>
-                        </select>
+                <!-- タブナビゲーション -->
+                <div class="task-tabs" id="task-tabs">
+                    <button class="task-tab active" data-tab="local">
+                        <i data-lucide="file-text"></i> ローカル
+                    </button>
+                    <button class="task-tab" data-tab="nocodb">
+                        <i data-lucide="database"></i> プロジェクト
+                    </button>
+                </div>
+
+                <!-- ローカルタブコンテンツ -->
+                <div class="task-tab-content active" id="local-tasks-panel">
+                    <div class="task-filter">
+                        <div class="filter-group">
+                            <label for="task-filter-input" class="sr-only">タスクフィルター</label>
+                            <input type="text" id="task-filter-input" placeholder="タスクを検索..." aria-label="タスク名または説明で検索" />
+                        </div>
+
+                        <div class="filter-group">
+                            <label for="priority-filter" class="sr-only">優先度フィルター</label>
+                            <select id="priority-filter" class="priority-filter" aria-label="優先度でフィルタ">
+                                <option value="">すべて</option>
+                                <option value="high">🔴 高</option>
+                                <option value="medium">🟡 中</option>
+                                <option value="low">🔵 低</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="next-tasks-list">
+                        <div class="loading">読み込み中...</div>
+                    </div>
+                    <div id="remaining-tasks-toggle" class="remaining-toggle" style="display: none;">
+                        <button id="show-more-tasks">他 <span id="remaining-count">0</span> 件を表示</button>
                     </div>
                 </div>
-                <div id="next-tasks-list">
-                    <div class="loading">読み込み中...</div>
-                </div>
-                <div id="remaining-tasks-toggle" class="remaining-toggle" style="display: none;">
-                    <button id="show-more-tasks">他 <span id="remaining-count">0</span> 件を表示</button>
+
+                <!-- NocoDBタブコンテンツ -->
+                <div class="task-tab-content" id="nocodb-tasks-panel">
+                    <div class="task-filter">
+                        <div class="filter-group">
+                            <label for="nocodb-project-filter" class="sr-only">プロジェクトフィルター</label>
+                            <select id="nocodb-project-filter" class="priority-filter" aria-label="プロジェクトでフィルタ">
+                                <option value="">全プロジェクト</option>
+                            </select>
+                        </div>
+                        <button id="nocodb-sync-btn" class="icon-btn" title="同期">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+                    <div id="nocodb-tasks-list">
+                        <div class="empty-state">
+                            <i data-lucide="database"></i>
+                            <p>プロジェクトタブを選択してください</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </aside>
