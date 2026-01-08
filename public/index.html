@@ -26,15 +26,14 @@
                 <h3 id="app-version" class="app-version">v0.1.102</h3>
             </div>
 
-            <!-- Main Navigation -->
+            <!-- View Toggle -->
             <div class="sidebar-nav">
-                <button class="nav-item active" id="nav-console-btn" title="コンソール">
-                    <i data-lucide="terminal-square"></i>
-                    <span>Console</span>
-                </button>
-                <button class="nav-item" id="nav-dashboard-btn" title="ダッシュボード">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>Dashboard</span>
+                <button class="nav-toggle-btn" id="view-toggle-btn" data-current-view="console" title="ビューを切り替え">
+                    <div class="toggle-content">
+                        <i data-lucide="terminal-square" class="toggle-icon"></i>
+                        <span class="toggle-label">Console</span>
+                    </div>
+                    <i data-lucide="chevrons-right" class="toggle-arrow"></i>
                 </button>
             </div>
 

@@ -349,7 +349,7 @@ app.use('/api/config', createConfigRouter(configParser));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
-app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService }));
+app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot));
 
