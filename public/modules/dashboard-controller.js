@@ -38,60 +38,13 @@ export class DashboardController {
     async loadData() {
         try {
             this.data = await this.brainbaseService.getAllData();
+            this.projects = this.data.projects; // サーバー側で計算済み
         } catch (error) {
             console.error('Failed to load brainbase data:', error);
-            // Fallback for demo/dev if API fails
             this.data = {};
+            this.projects = [];
         }
-        this.projects = this.calculateProjectHealth();
     }
-
-    calculateProjectHealth() {
-        // 12 projects health score calculation
-        const projectNames = [
-            'brainbase', 'TechKnight', 'DialogAI', 'ZEIMS',
-            'BAAO', 'UNSON', 'SalesTailor', 'AI-Wolf',
-            'Mana', 'Portfolio', 'Catalyst', 'NCom'
-        ];
-
-        return projectNames.map(name => {
-            // 1. Generate Raw Metrics (Mocking closer to reality)
-            const completionRate = Math.floor(Math.random() * 30) + 70; // 70-100%
-            const overdue = Math.random() > 0.7 ? Math.floor(Math.random() * 5) : 0; // Most have 0, some have 1-4
-            const blocked = Math.random() > 0.8 ? Math.floor(Math.random() * 3) : 0; // Most have 0
-            const manaScore = Math.floor(Math.random() * 15) + 85; // 85-100%
-
-            // 2. Calculate Component Scores (0-100 normalization)
-            // Overdue: -10 points per overdue item
-            const overdueScore = Math.max(0, 100 - (overdue * 10));
-
-            // Blocked: -20 points per blocked item
-            const blockedScore = Math.max(0, 100 - (blocked * 20));
-
-            // Completion: Use rate directly
-            const completionScore = completionRate;
-
-            // 3. Weighted Formula
-            // Structure matched to wireframe: (Overdue*0.3 + Blocked*0.3 + Completion*0.3 + Mana*0.1)
-            const healthScore = Math.round(
-                (overdueScore * 0.3) +
-                (blockedScore * 0.3) +
-                (completionScore * 0.3) +
-                (manaScore * 0.1)
-            );
-
-            return {
-                name,
-                healthScore,
-                overdue,
-                blocked,
-                completionRate,
-                manaScore
-            };
-        }).sort((a, b) => b.healthScore - a.healthScore);
-    }
-
-    // calculateScore method removed as it's integrated above
 
     render() {
         this.renderSection1();
