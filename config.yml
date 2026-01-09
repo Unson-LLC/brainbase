@@ -299,5 +299,25 @@ projects:
   - id: yakumokai
     emoji: "☁️"
 
+  - id: vibepro
+    emoji: "⚡"
+    local:
+      path: ${PROJECTS_ROOT:-/path/to/projects}/vibepro
+      glob_include:
+        - "docs/**/*"
+        - "app/**/*"
+        - "proposals/**/*"
+    github:
+      owner: Unson-LLC
+      repo: vibepro
+      branch: main
+    airtable:
+      base_id: pfgza5aei6wboaq
+      base_name: VibePro
+    nocodb:
+      base_id: pfgza5aei6wboaq
+      base_name: VibePro
+      url: https://noco.unson.jp/dashboard/#/nc/pfgza5aei6wboaq
+
   - id: other
     emoji: "📁"

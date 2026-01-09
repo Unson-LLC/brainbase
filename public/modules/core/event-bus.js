@@ -213,6 +213,12 @@ export const EVENTS = {
     INBOX_LOADED: 'inbox:loaded',
     INBOX_ITEM_COMPLETED: 'inbox:item-completed',
 
+    // NocoDB Task関連
+    NOCODB_TASKS_LOADED: 'nocodb:tasks-loaded',
+    NOCODB_TASK_UPDATED: 'nocodb:task-updated',
+    NOCODB_TASK_ERROR: 'nocodb:task-error',
+    TASK_TAB_CHANGED: 'task:tab-changed',
+
     // UI関連
     INBOX_TOGGLED: 'inbox:toggled',
     MODAL_OPENED: 'modal:opened',

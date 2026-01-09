@@ -32,6 +32,7 @@ import { createScheduleRouter } from './server/routes/schedule.js';
 import { createMiscRouter } from './server/routes/misc.js';
 import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
+import { createNocoDBRouter } from './server/routes/nocodb.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -348,7 +349,8 @@ app.use('/api/config', createConfigRouter(configParser));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
-app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService }));
+app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
+app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot));
 
 // ========================================
