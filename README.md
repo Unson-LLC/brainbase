@@ -327,7 +327,24 @@ Brainbaseは以下のアーキテクチャパターンを採用:
 
 Brainbaseは今後、以下の機能拡張を予定しています：
 
-- 📅 **Google Calendar連携**: カレンダーから今日の予定を自動取得
+### `/ohayo` コマンド（Google Calendar連携）
+
+Claude CodeでMCPを使用してGoogle Calendarと連携し、今日の予定をタスクとして取り込むことができます。
+
+```bash
+# Claude Codeで実行
+/ohayo
+```
+
+**フロー**:
+1. Google Calendar MCPを通じてClaudeが今日の予定を読み取る
+2. 予定を `_tasks/index.md` にタスクとして自動追加
+3. Brainbase UIでタスク・タイムラインとして表示
+
+> **Note**: この機能を使用するにはGoogle Calendar MCPサーバーの設定が必要です。
+
+### その他の予定機能
+
 - 📬 **Slack連携**: @メンションを受信箱に自動蓄積
 - ⏰ **リマインダー**: 期限間近タスクの自動通知
 - 📝 **会議議事録**: 音声ファイルからの自動議事録生成
