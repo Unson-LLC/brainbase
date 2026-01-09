@@ -1588,6 +1588,11 @@ body::after {
     opacity: 0.6;
 }
 
+.nocodb-task-item.overdue {
+    background: rgba(239, 68, 68, 0.1);
+    border-left: 3px solid var(--danger-color);
+}
+
 .nocodb-task-item .task-header {
     display: flex;
     align-items: center;
