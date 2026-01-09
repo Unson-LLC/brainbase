@@ -49,6 +49,10 @@ export class InboxView {
                     }
                 }
             }
+            // メンバー読み込み完了後に再レンダリング
+            if (this._slackIdMap.size > 0) {
+                this.render();
+            }
         } catch (e) {
             console.warn('Failed to load slack members:', e);
         }
