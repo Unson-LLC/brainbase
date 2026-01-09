@@ -43,24 +43,25 @@ export class NocoDBTaskService {
                 nocodbProjects: this.projects
             });
 
-            // イベント発火
-            eventBus.emit(EVENTS.NOCODB_TASKS_LOADED, {
-                tasks: this.tasks,
-                projects: this.projects
-            });
-
             return this.tasks;
         } catch (error) {
             this.error = error.message || 'Failed to load NocoDB tasks';
             console.error('NocoDBTaskService.loadTasks error:', error);
-
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: this.error
-            });
-
             throw error;
         } finally {
+            // loading = false の後にイベント発火（render時にisLoading()がfalseを返すため）
             this.loading = false;
+
+            if (!this.error) {
+                eventBus.emit(EVENTS.NOCODB_TASKS_LOADED, {
+                    tasks: this.tasks,
+                    projects: this.projects
+                });
+            } else {
+                eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
+                    error: this.error
+                });
+            }
         }
     }
 
@@ -98,6 +99,84 @@ export class NocoDBTaskService {
             console.error('NocoDBTaskService.updateStatus error:', error);
             eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
                 error: error.message || 'Failed to update task'
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * タスク更新（全フィールド対応）
+     * @param {string} taskId - 内部タスクID
+     * @param {Object} updates - 更新データ { name, priority, due, description }
+     */
+    async updateTask(taskId, updates) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        // 内部形式→NocoDB形式に変換
+        const nocoFields = this.adapter.toNocoDBFields(updates);
+
+        try {
+            await this.repository.updateTask(
+                task.nocodbRecordId,
+                task.nocodbBaseId,
+                nocoFields
+            );
+
+            // ローカル状態更新
+            if (updates.name) task.title = updates.name;
+            if (updates.priority) task.priority = updates.priority;
+            if (updates.due !== undefined) task.due = updates.due;
+            if (updates.description !== undefined) task.description = updates.description;
+
+            // Store更新
+            appStore.setState({ nocodbTasks: [...this.tasks] });
+
+            // イベント発火
+            eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
+
+            return task;
+        } catch (error) {
+            console.error('NocoDBTaskService.updateTask error:', error);
+            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
+                error: error.message || 'Failed to update task'
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * タスク削除
+     * @param {string} taskId - 内部タスクID
+     */
+    async deleteTask(taskId) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        try {
+            await this.repository.deleteTask(
+                task.nocodbRecordId,
+                task.nocodbBaseId
+            );
+
+            // ローカル状態から削除
+            this.tasks = this.tasks.filter(t => t.id !== taskId);
+
+            // Store更新
+            appStore.setState({ nocodbTasks: [...this.tasks] });
+
+            // イベント発火
+            eventBus.emit(EVENTS.NOCODB_TASK_DELETED, { taskId });
+
+            return { success: true };
+        } catch (error) {
+            console.error('NocoDBTaskService.deleteTask error:', error);
+            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
+                error: error.message || 'Failed to delete task'
             });
             throw error;
         }

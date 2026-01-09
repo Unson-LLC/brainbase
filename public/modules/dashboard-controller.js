@@ -484,33 +484,9 @@ export class DashboardController {
     }
 
     async loadManaData() {
-        // Load mana workflow data from API
-        const workflows = ['m1', 'm2', 'm3', 'm4', 'm9', 'daily', 'morning-report', 'self-improve', 'weekly'];
-
-        try {
-            const results = await Promise.all(
-                workflows.map(async (workflow) => {
-                    const response = await fetch(`/api/mana/workflow-history?workflow=${workflow}`);
-                    if (!response.ok) return null;
-                    const data = await response.json();
-                    return { workflow, data };
-                })
-            );
-
-            this.manaData = {
-                workflows: results.filter(r => r !== null),
-                // Mock quality metrics (replace with actual S3 data later)
-                quality: {
-                    usefulness: 4.2,
-                    accuracy: 4.5,
-                    conciseness: 3.9,
-                    tone: 4.1
-                }
-            };
-        } catch (error) {
-            console.error('Failed to load mana data:', error);
-            this.manaData = { workflows: [], quality: {} };
-        }
+        // mana API is disabled (mana runs on AWS Lambda, not locally)
+        // TODO: Re-enable when mana Lambda API integration is implemented
+        this.manaData = { workflows: [], quality: {} };
     }
 
     renderManaHero() {

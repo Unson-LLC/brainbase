@@ -273,8 +273,11 @@ class App {
      * Initialize modals
      */
     initModals() {
-        // Task edit modal
-        this.modals.taskEditModal = new TaskEditModal({ taskService: this.taskService });
+        // Task edit modal (supports both local and NocoDB tasks)
+        this.modals.taskEditModal = new TaskEditModal({
+            taskService: this.taskService,
+            nocodbTaskService: this.nocodbTaskService
+        });
         this.modals.taskEditModal.mount();
 
         // Archive modal
@@ -460,7 +463,22 @@ class App {
                 console.log('Session created for task:', task.id, '→', newSession.id);
                 showSuccess(`Session "${sessionName}" created`);
 
-                // Step 5: セッション切り替え
+                // Step 5: タスクステータスを「進行中」に更新
+                try {
+                    if (task.source === 'nocodb') {
+                        // NocoDBタスクの場合
+                        await this.nocodbTaskService.updateStatus(task.id, 'in_progress');
+                    } else {
+                        // ローカルタスクの場合
+                        await this.taskService.updateTask(task.id, { status: 'in_progress' });
+                    }
+                    console.log('Task status updated to in_progress:', task.id);
+                } catch (statusError) {
+                    // ステータス更新失敗はログのみ（セッション作成は成功しているため）
+                    console.warn('Failed to update task status:', statusError);
+                }
+
+                // Step 6: セッション切り替え
                 eventBus.emit(EVENTS.SESSION_CHANGED, {
                     sessionId: newSession.id
                 });

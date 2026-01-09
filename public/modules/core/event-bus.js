@@ -216,6 +216,7 @@ export const EVENTS = {
     // NocoDB Task関連
     NOCODB_TASKS_LOADED: 'nocodb:tasks-loaded',
     NOCODB_TASK_UPDATED: 'nocodb:task-updated',
+    NOCODB_TASK_DELETED: 'nocodb:task-deleted',
     NOCODB_TASK_ERROR: 'nocodb:task-error',
     TASK_TAB_CHANGED: 'task:tab-changed',
 

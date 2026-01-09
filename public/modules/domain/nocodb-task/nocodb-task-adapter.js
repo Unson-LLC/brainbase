@@ -80,4 +80,19 @@ export class NocoDBTaskAdapter {
         };
         return map[priority] || priority;
     }
+
+    /**
+     * 内部フィールド → NocoDBフィールド形式
+     * @param {Object} updates - 更新データ { name, priority, due, description, status }
+     * @returns {Object} NocoDBフィールド形式
+     */
+    toNocoDBFields(updates) {
+        const fields = {};
+        if (updates.name) fields['タイトル'] = updates.name;
+        if (updates.priority) fields['優先度'] = this.toNocoDBPriority(updates.priority);
+        if (updates.due !== undefined) fields['期限'] = updates.due || null;
+        if (updates.description !== undefined) fields['説明'] = updates.description;
+        if (updates.status) fields['ステータス'] = this.toNocoDBStatus(updates.status);
+        return fields;
+    }
 }

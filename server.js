@@ -315,25 +315,6 @@ const ttydProxy = createProxyMiddleware({
 
 app.use('/console', ttydProxy);
 
-// Manual proxy for mana dashboard API (temporary, for debugging)
-// Route: /api/mana/* -> http://localhost:3020/api/*
-app.use('/api/mana', async (req, res) => {
-    try {
-        // Express already stripped /api/mana from req.url
-        const targetUrl = `http://localhost:3020/api${req.url}`;
-        console.log('[mana] Proxying:', req.url, '->', targetUrl);
-
-        const response = await fetch(targetUrl);
-        const data = await response.json();
-
-        console.log('[mana] Success:', response.status);
-        res.json(data);
-    } catch (error) {
-        console.error('[mana] Error:', error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // ========================================
 // MVC Router Registration (Phase 3)
 // ========================================

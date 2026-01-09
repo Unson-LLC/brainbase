@@ -39,12 +39,15 @@ export class NocoDBTasksView {
         // NocoDB タスク更新
         const unsub2 = eventBus.on(EVENTS.NOCODB_TASK_UPDATED, () => this.render());
 
+        // NocoDB タスク削除
+        const unsub3 = eventBus.on(EVENTS.NOCODB_TASK_DELETED, () => this.render());
+
         // NocoDB エラー
-        const unsub3 = eventBus.on(EVENTS.NOCODB_TASK_ERROR, (event) => {
+        const unsub4 = eventBus.on(EVENTS.NOCODB_TASK_ERROR, (event) => {
             this._showError(event.detail?.error || 'エラーが発生しました');
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
     }
 
     /**
@@ -210,6 +213,17 @@ export class NocoDBTasksView {
                 <div class="task-header">
                     <span class="project-badge">${this._escapeHtml(task.projectName || task.project)}</span>
                     <span class="priority-indicator">${priorityEmoji}</span>
+                    <div class="nocodb-task-actions">
+                        <button class="nocodb-task-action-btn nocodb-task-start-btn" data-task-id="${task.id}" title="セッションを開始">
+                            <i data-lucide="play"></i>
+                        </button>
+                        <button class="nocodb-task-action-btn nocodb-task-edit-btn" data-task-id="${task.id}" title="編集">
+                            <i data-lucide="edit-2"></i>
+                        </button>
+                        <button class="nocodb-task-action-btn nocodb-task-delete-btn" data-task-id="${task.id}" title="削除">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="task-title">${this._escapeHtml(task.title)}</div>
                 <div class="task-meta">
@@ -264,6 +278,7 @@ export class NocoDBTasksView {
      * ステータス変更ハンドラをアタッチ
      */
     _attachStatusHandlers() {
+        // ステータス変更
         this.container.querySelectorAll('.task-status-select').forEach(select => {
             select.addEventListener('change', async (e) => {
                 const taskId = e.target.dataset.taskId;
@@ -275,6 +290,48 @@ export class NocoDBTasksView {
                     console.error('Failed to update status:', error);
                     // リバート
                     this.render();
+                }
+            });
+        });
+
+        // 開始ボタン - セッション作成
+        this.container.querySelectorAll('.nocodb-task-start-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.taskId;
+                const task = this.service.tasks.find(t => t.id === taskId);
+                if (task) {
+                    eventBus.emit(EVENTS.START_TASK, { task });
+                }
+            });
+        });
+
+        // 編集ボタン
+        this.container.querySelectorAll('.nocodb-task-edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.taskId;
+                const task = this.service.tasks.find(t => t.id === taskId);
+                if (task) {
+                    eventBus.emit(EVENTS.EDIT_TASK, { task });
+                }
+            });
+        });
+
+        // 削除ボタン
+        this.container.querySelectorAll('.nocodb-task-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.taskId;
+                const task = this.service.tasks.find(t => t.id === taskId);
+
+                if (task && confirm(`「${task.title}」を削除しますか？`)) {
+                    try {
+                        await this.service.deleteTask(taskId);
+                    } catch (error) {
+                        console.error('Failed to delete task:', error);
+                        this._showError('タスクの削除に失敗しました');
+                    }
                 }
             });
         });
