@@ -234,11 +234,5 @@ export const EVENTS = {
     QA_REVIEW_COMPLETED: 'qa:review-completed',
     QA_REPLAN_STARTED: 'qa:replan-started',
     QA_FIXES_APPLIED: 'qa:fixes-applied',
-    QA_ESCALATED: 'qa:escalated',
-
-    // Agent関連 (Auto-Claude parallel agent pattern)
-    AGENTS_STATUS_UPDATED: 'agents:status-updated',
-    AGENT_STARTED: 'agent:started',
-    AGENT_COMPLETED: 'agent:completed',
-    AGENT_FAILED: 'agent:failed'
+    QA_ESCALATED: 'qa:escalated'
 };

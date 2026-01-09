@@ -207,12 +207,5 @@ export const appStore = new Store({
             maxIterations: 3,
             similarityThreshold: 0.8
         }
-    },
-    // Auto-Claude parallel agent pattern
-    agents: {
-        running: [],
-        completed: [],
-        failed: [],
-        maxConcurrent: 12
     }
 });
