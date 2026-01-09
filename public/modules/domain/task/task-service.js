@@ -127,12 +127,26 @@ export class TaskService {
             nextTasks = filterByPriority(nextTasks, priorityFilter);
         }
 
-        // 優先度でソート（critical/highest > high > medium > normal/low）
+        // 期限の昇順でソート（期限なしは最後）、同じ期限なら優先度順
         const priorityOrder = { critical: 5, highest: 5, high: 4, medium: 3, normal: 2, low: 1 };
         nextTasks.sort((a, b) => {
-            const aPriority = priorityOrder[a.priority] || 0;
-            const bPriority = priorityOrder[b.priority] || 0;
-            return bPriority - aPriority;
+            const aDeadline = a.deadline || a.due;
+            const bDeadline = b.deadline || b.due;
+
+            // 期限なしは最後
+            if (!aDeadline && !bDeadline) {
+                // 両方期限なしなら優先度順
+                return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+            }
+            if (!aDeadline) return 1;
+            if (!bDeadline) return -1;
+
+            // 期限の昇順
+            const dateCompare = new Date(aDeadline).getTime() - new Date(bDeadline).getTime();
+            if (dateCompare !== 0) return dateCompare;
+
+            // 同じ期限なら優先度順
+            return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
         });
 
         // 表示件数制限

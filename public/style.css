@@ -1659,6 +1659,145 @@ body::after {
     border-color: var(--accent-color);
 }
 
+.nocodb-task-item .task-assignee-select {
+    padding: 4px 24px 4px 8px;
+    font-size: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    cursor: pointer;
+    margin-left: 8px;
+    max-width: 120px;
+}
+
+.nocodb-task-item .task-assignee-select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+/* Assignee Combobox */
+.assignee-combobox {
+    position: relative;
+    margin-left: 8px;
+}
+
+.assignee-trigger {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    cursor: pointer;
+    max-width: 140px;
+    transition: border-color 0.15s ease;
+}
+
+.assignee-trigger:hover {
+    border-color: var(--accent-color);
+}
+
+.assignee-trigger .assignee-icon {
+    width: 12px;
+    height: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.assignee-trigger .assignee-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    text-align: left;
+}
+
+.assignee-trigger .chevron-icon {
+    width: 12px;
+    height: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.assignee-popover {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 100;
+    min-width: 180px;
+    max-height: 280px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+.assignee-search {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    outline: none;
+}
+
+.assignee-search::placeholder {
+    color: var(--text-secondary);
+}
+
+.assignee-options {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.assignee-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: background-color 0.1s ease;
+}
+
+.assignee-option:hover {
+    background: var(--bg-hover);
+}
+
+.assignee-option.selected {
+    background: var(--accent-color-light, rgba(59, 130, 246, 0.1));
+}
+
+.assignee-option .option-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.assignee-option .check-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--accent-color);
+    flex-shrink: 0;
+}
+
 /* NocoDB Task Action Buttons */
 .nocodb-task-actions {
     display: flex;
@@ -2079,6 +2218,40 @@ body::after {
 
 .next-task-priority.low {
     color: var(--success-color);
+}
+
+/* Deadline display */
+.next-task-deadline {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.next-task-deadline svg {
+    width: 12px;
+    height: 12px;
+}
+
+.next-task-deadline.urgent {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
+.next-task-deadline.overdue {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
+/* Overdue task item */
+.next-task-item.overdue {
+    background: rgba(239, 68, 68, 0.08);
+    border-left: 3px solid var(--danger-color);
+}
+
+.next-task-item.overdue:hover {
+    background: rgba(239, 68, 68, 0.12);
 }
 
 /* Remaining toggle */
