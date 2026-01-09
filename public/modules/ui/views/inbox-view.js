@@ -5,8 +5,9 @@ import { appStore } from '../../core/store.js';
  * Inbox（通知）表示のUIコンポーネント
  */
 export class InboxView {
-    constructor({ inboxService }) {
+    constructor({ inboxService, httpClient }) {
         this.inboxService = inboxService;
+        this.httpClient = httpClient;
         this.eventBus = eventBus;
         this.store = appStore;
         this.inboxTriggerBtn = null;
@@ -16,6 +17,7 @@ export class InboxView {
         this.markAllDoneBtn = null;
         this.inboxItems = [];
         this.inboxOpen = false;
+        this._slackIdMap = new Map();
     }
 
     /**
@@ -30,7 +32,37 @@ export class InboxView {
 
         this._setupEventListeners();
         this._setupStoreSubscription();
+        this._loadSlackMembers();
         this.inboxService.loadInbox();
+    }
+
+    /**
+     * Slackメンバー情報を読み込み、ID→名前マップを構築
+     */
+    async _loadSlackMembers() {
+        try {
+            const members = await this.httpClient.get('/api/config/slack/members');
+            if (Array.isArray(members)) {
+                for (const m of members) {
+                    if (m.slack_id && m.brainbase_name) {
+                        this._slackIdMap.set(m.slack_id, m.brainbase_name);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load slack members:', e);
+        }
+    }
+
+    /**
+     * メッセージ内のSlack ID（<@U07B19N048G>）を人名に変換
+     */
+    _convertSlackMentions(message) {
+        if (!message || this._slackIdMap.size === 0) return message;
+        return message.replace(/<@(U[A-Z0-9]+)>/g, (match, slackId) => {
+            const name = this._slackIdMap.get(slackId);
+            return name ? `@${name}` : match;
+        });
     }
 
     /**
@@ -116,7 +148,9 @@ export class InboxView {
                 const escapedId = this._escapeHtml(item.id || '');
                 const sender = this._escapeHtml(item.sender || '');
                 const channel = this._escapeHtml(item.channel || '');
-                const message = this._escapeHtml(item.message || '');
+                // Slack ID（<@U07B19N048G>）を人名に変換してからエスケープ
+                const convertedMessage = this._convertSlackMentions(item.message || '');
+                const message = this._escapeHtml(convertedMessage);
                 const slackUrl = this._escapeHtml(item.slackUrl || '');
 
                 return `
