@@ -199,6 +199,28 @@ export function createBrainbaseRouter(options = {}) {
         }
     });
 
+    /**
+     * GET /api/brainbase/critical-alerts
+     * Critical Alerts取得（ブロッカー + 期限超過タスク）
+     */
+    router.get('/critical-alerts', async (req, res) => {
+        try {
+            // 1. config.ymlからプロジェクト一覧（project_id必須）
+            const config = await configParser.getAll();
+            const projects = (config.projects?.projects || [])
+                .filter(p => !p.archived && p.nocodb?.project_id)
+                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
+
+            // 2. NocoDBからCritical Alerts取得
+            const alerts = await nocodbService.getCriticalAlerts(projects);
+
+            res.json(alerts);
+        } catch (error) {
+            logger.error('Failed to fetch critical alerts', { error });
+            res.status(500).json({ error: 'Failed to fetch critical alerts' });
+        }
+    });
+
     // ==================== Helper Functions ====================
 
     /**

@@ -11,6 +11,7 @@ export class DashboardController {
         this.data = null;
         this.projects = [];
         this.systemHealth = null;
+        this.criticalAlerts = null;
         this.healthRefreshInterval = null;
     }
 
@@ -19,10 +20,17 @@ export class DashboardController {
         if (!document.getElementById('dashboard-panel')) return;
 
         await this.loadData();
+        await this.loadCriticalAlerts();
         this.render();
 
         // Load system health status
         await this.loadSystemHealth();
+
+        // Auto-refresh data and critical alerts every 30 seconds
+        setInterval(() => {
+            this.loadData();
+            this.loadCriticalAlerts();
+        }, 30000);
 
         // Auto-refresh system health every 5 minutes
         if (!this.healthRefreshInterval) {
@@ -46,6 +54,21 @@ export class DashboardController {
         }
     }
 
+    async loadCriticalAlerts() {
+        try {
+            const response = await fetch('/api/brainbase/critical-alerts');
+            if (!response.ok) {
+                console.error('Failed to load critical alerts:', response.status);
+                this.criticalAlerts = { alerts: [], total_critical: 0, total_warning: 0 };
+                return;
+            }
+            this.criticalAlerts = await response.json();
+        } catch (error) {
+            console.error('Error loading critical alerts:', error);
+            this.criticalAlerts = { alerts: [], total_critical: 0, total_warning: 0 };
+        }
+    }
+
     render() {
         this.renderSection1();
         this.renderSection2();
@@ -57,20 +80,107 @@ export class DashboardController {
     }
 
     renderSection1() {
-        // Top 4 projects health gauges
-        const topProjects = this.projects.slice(0, 4);
-        topProjects.forEach((project, index) => {
-            const container = document.getElementById(`gauge-${index + 1}`);
-            if (container) {
-                // Clear previous to avoid duplication on re-render
-                container.innerHTML = '';
-                new GaugeChart(container, {
-                    value: project.healthScore,
-                    label: project.name,
-                    subtitle: 'Health Score'
-                });
+        // Critical Alerts表示
+        const container = document.getElementById('section-1-alerts');
+        if (!container) return;
+
+        if (!this.criticalAlerts) {
+            container.innerHTML = '<div class="text-gray-400 text-center py-8">Loading...</div>';
+            return;
+        }
+
+        const { alerts, total_critical, total_warning } = this.criticalAlerts;
+
+        if (!alerts || alerts.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-12">
+                    <div class="text-green-500 text-5xl mb-4">✅</div>
+                    <div class="text-xl font-semibold text-white mb-2">No Critical Alerts</div>
+                    <div class="text-gray-400">All systems running smoothly</div>
+                </div>
+            `;
+            return;
+        }
+
+        // Critical Alertsヘッダー
+        const headerHtml = `
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-white flex items-center gap-3">
+                    <span>🚨</span>
+                    <span>CRITICAL ALERTS</span>
+                    <span class="text-sm font-normal text-gray-400">(${alerts.length})</span>
+                </h2>
+                <div class="flex gap-4 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full" style="background: #ee4f27;"></span>
+                        <span class="text-gray-300">Critical: ${total_critical}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full" style="background: #ff9b26;"></span>
+                        <span class="text-gray-300">Warning: ${total_warning}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Alerts一覧
+        const alertsHtml = alerts.map(alert => {
+            const isCritical = alert.severity === 'critical';
+            const bgColor = isCritical ? 'rgba(238, 79, 39, 0.1)' : 'rgba(255, 155, 38, 0.1)';
+            const borderColor = isCritical ? '#ee4f27' : '#ff9b26';
+            const icon = isCritical ? '🚫' : '⚠️';
+
+            if (alert.type === 'blocker') {
+                return `
+                    <div class="rounded-xl p-6 backdrop-blur-[30px] border transition-all duration-300 hover:bg-white/10"
+                         style="background: ${bgColor}; border-color: ${borderColor};">
+                        <div class="flex items-start gap-4">
+                            <div class="text-3xl">${icon}</div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="text-lg font-bold text-white">[ブロッカー]</span>
+                                    <span class="text-white font-semibold">${alert.project}</span>
+                                    <span class="text-gray-400">-</span>
+                                    <span class="text-white">${alert.task}</span>
+                                </div>
+                                <div class="flex items-center gap-4 text-sm text-gray-300 mb-3">
+                                    <span>担当: ${alert.owner}</span>
+                                    <span>|</span>
+                                    <span>${alert.days_blocked}日経過</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (alert.type === 'overdue') {
+                return `
+                    <div class="rounded-xl p-6 backdrop-blur-[30px] border transition-all duration-300 hover:bg-white/10"
+                         style="background: ${bgColor}; border-color: ${borderColor};">
+                        <div class="flex items-start gap-4">
+                            <div class="text-3xl">${icon}</div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="text-lg font-bold text-white">[期限超過]</span>
+                                    <span class="text-white font-semibold">${alert.project}</span>
+                                    <span class="text-gray-400">-</span>
+                                    <span class="text-white">${alert.task}</span>
+                                </div>
+                                <div class="flex items-center gap-4 text-sm text-gray-300 mb-3">
+                                    <span>担当: ${alert.owner}</span>
+                                    <span>|</span>
+                                    <span>期限: ${alert.deadline}</span>
+                                    <span>|</span>
+                                    <span class="text-amber-400">${alert.days_overdue}日超過</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
-        });
+            return '';
+        }).join('');
+
+        container.innerHTML = headerHtml + '<div class="space-y-4">' + alertsHtml + '</div>';
     }
 
     renderSection2() {

@@ -154,6 +154,87 @@ export class NocoDBService {
     }
 
     /**
+     * Critical Alerts取得（ブロッカー + 期限超過タスク）
+     * @param {Array} projects - プロジェクト一覧（{ id, project_id }）
+     * @returns {Promise<Object>} Critical Alerts（alerts, total_critical, total_warning）
+     */
+    async getCriticalAlerts(projects) {
+        try {
+            const alerts = [];
+
+            // 全プロジェクトのタスクを並列取得
+            const projectTasks = await Promise.all(
+                projects.map(async (project) => {
+                    try {
+                        const tasks = await this._fetchRecords(project.project_id, 'タスク');
+                        return { projectId: project.id, tasks };
+                    } catch (error) {
+                        logger.error(`Failed to fetch tasks for project ${project.id}`, { error });
+                        return { projectId: project.id, tasks: [] };
+                    }
+                })
+            );
+
+            const now = new Date();
+
+            // ブロッカータスクと期限超過タスクを抽出
+            for (const { projectId, tasks } of projectTasks) {
+                for (const task of tasks) {
+                    // ブロッカータスク
+                    if (task.ステータス === 'ブロック') {
+                        const createdDate = task.作成日 ? new Date(task.作成日) : now;
+                        const daysBlocked = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+
+                        alerts.push({
+                            type: 'blocker',
+                            project: projectId,
+                            task: task.タスク名 || 'Untitled',
+                            owner: task.担当者 || 'Unassigned',
+                            days_blocked: daysBlocked,
+                            severity: 'critical'
+                        });
+                    }
+
+                    // 期限超過タスク（完了以外）
+                    if (task.ステータス !== '完了' && task.期限) {
+                        const deadline = new Date(task.期限);
+                        if (deadline < now) {
+                            const daysOverdue = Math.floor((now - deadline) / (1000 * 60 * 60 * 24));
+
+                            alerts.push({
+                                type: 'overdue',
+                                project: projectId,
+                                task: task.タスク名 || 'Untitled',
+                                owner: task.担当者 || 'Unassigned',
+                                days_overdue: daysOverdue,
+                                deadline: task.期限,
+                                severity: 'warning'
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Critical/Warning数を集計
+            const total_critical = alerts.filter(a => a.severity === 'critical').length;
+            const total_warning = alerts.filter(a => a.severity === 'warning').length;
+
+            return {
+                alerts,
+                total_critical,
+                total_warning
+            };
+        } catch (error) {
+            logger.error('Failed to get critical alerts', { error });
+            return {
+                alerts: [],
+                total_critical: 0,
+                total_warning: 0
+            };
+        }
+    }
+
+    /**
      * デフォルト統計値（エラー時のフォールバック）
      * @returns {Object} デフォルト統計（フラット構造）
      */
