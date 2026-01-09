@@ -119,7 +119,7 @@ class App {
         }
 
         // Inbox (notifications)
-        this.views.inboxView = new InboxView({ inboxService: this.inboxService });
+        this.views.inboxView = new InboxView({ inboxService: this.inboxService, httpClient });
         this.views.inboxView.mount();
 
         // Dashboard (Mana専用機能 - OSS版では無効)
