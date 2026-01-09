@@ -5,10 +5,16 @@
  * - Orange (working): Hook reports 'working' (AI started)
  * - Green (done): Hook reports 'done' (AI stopped) AND not current session
  * - Hidden: Current session OR no hook status
+ *
+ * Auto-Claude parallel agent pattern:
+ * - Agent status polling (alongside session status)
  */
+
+import { eventBus, EVENTS } from './core/event-bus.js';
 
 // --- Module State ---
 const sessionStatusMap = new Map(); // sessionId -> { isWorking, isDone }
+const agentStatusCache = { running: [], completed: [], failed: [] };
 
 // --- State Accessors ---
 export function getSessionStatus(sessionId) {
@@ -44,6 +50,41 @@ export async function pollSessionStatus(currentSessionId) {
     } catch (error) {
         console.error('Failed to poll session status:', error);
     }
+
+    // Auto-Claude parallel agent pattern: Poll agent status
+    await pollAgentStatus();
+}
+
+/**
+ * Poll agent status from API (Auto-Claude pattern)
+ */
+export async function pollAgentStatus() {
+    try {
+        const res = await fetch('/api/agents/status');
+        if (!res.ok) {
+            // API doesn't exist yet - silently skip
+            return;
+        }
+        const status = await res.json();
+
+        // Update cache
+        agentStatusCache.running = status.running || [];
+        agentStatusCache.completed = status.completed || [];
+        agentStatusCache.failed = status.failed || [];
+
+        // Emit event for AgentPanelView to update
+        await eventBus.emit(EVENTS.AGENTS_STATUS_UPDATED, { agents: agentStatusCache });
+    } catch {
+        // API doesn't exist yet - silently skip
+    }
+}
+
+/**
+ * Get cached agent status
+ * @returns {Object} Agent status cache
+ */
+export function getAgentStatus() {
+    return { ...agentStatusCache };
 }
 
 /**

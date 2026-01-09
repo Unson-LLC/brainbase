@@ -216,5 +216,23 @@ export const EVENTS = {
     // UI関連
     INBOX_TOGGLED: 'inbox:toggled',
     MODAL_OPENED: 'modal:opened',
-    MODAL_CLOSED: 'modal:closed'
+    MODAL_CLOSED: 'modal:closed',
+
+    // Recovery関連 (Auto-Claude RecoveryManager pattern)
+    RECOVERY_HINTS_LOADED: 'recovery:hints-loaded',
+    FAILURE_RECORDED: 'recovery:failure-recorded',
+    STUCK_DETECTED: 'recovery:stuck-detected',
+
+    // QA関連 (Auto-Claude QA Loop pattern)
+    QA_REVIEW_STARTED: 'qa:review-started',
+    QA_REVIEW_COMPLETED: 'qa:review-completed',
+    QA_REPLAN_STARTED: 'qa:replan-started',
+    QA_FIXES_APPLIED: 'qa:fixes-applied',
+    QA_ESCALATED: 'qa:escalated',
+
+    // Agent関連 (Auto-Claude parallel agent pattern)
+    AGENTS_STATUS_UPDATED: 'agents:status-updated',
+    AGENT_STARTED: 'agent:started',
+    AGENT_COMPLETED: 'agent:completed',
+    AGENT_FAILED: 'agent:failed'
 };

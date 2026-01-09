@@ -190,5 +190,29 @@ export const appStore = new Store({
         inboxOpen: false,
         draggedSessionId: null,
         draggedSessionProject: null
+    },
+    // Auto-Claude RecoveryManager pattern
+    recovery: {
+        hints: null,
+        attemptCount: 0,
+        isStuck: false,
+        maxAttempts: 3
+    },
+    // Auto-Claude QA Loop pattern
+    qa: {
+        currentReviews: [],
+        history: [],
+        escalations: [],
+        config: {
+            maxIterations: 3,
+            similarityThreshold: 0.8
+        }
+    },
+    // Auto-Claude parallel agent pattern
+    agents: {
+        running: [],
+        completed: [],
+        failed: [],
+        maxConcurrent: 12
     }
 });
