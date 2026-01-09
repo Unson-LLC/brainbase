@@ -8,12 +8,21 @@ import { addSession } from '../../state-api.js';
 /**
  * セッションのビジネスロジック
  * app.jsから抽出したセッション管理機能を集約
+ *
+ * Auto-Claude RecoveryManager pattern:
+ * - セッション作成時に前回の失敗情報を確認
+ * - スタック検出時にSTUCK_DETECTEDイベントを発火
  */
 export class SessionService {
-    constructor() {
+    /**
+     * @param {Object} options - オプション
+     * @param {Object} options.recoveryService - RecoveryService（オプション）
+     */
+    constructor(options = {}) {
         this.httpClient = httpClient;
         this.store = appStore;
         this.eventBus = eventBus;
+        this.recoveryService = options.recoveryService || null;
     }
 
     /**
@@ -62,13 +71,45 @@ export class SessionService {
         const repoPath = getProjectPath(project);
         const sessionId = createSessionId('session');
 
-        try {
-            if (useWorktree) {
-                return await this._createWorktreeSession(sessionId, repoPath, name, initialCommand, engine);
-            } else {
-                return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine);
+        // Auto-Claude RecoveryManager pattern: 前回の失敗情報を確認
+        let recoveryHints = null;
+        if (this.recoveryService) {
+            recoveryHints = await this.recoveryService.checkPreviousFailures(sessionId);
+
+            // スタック検出時はイベントを発火
+            if (this.recoveryService.isStuck(sessionId)) {
+                await this.eventBus.emit(EVENTS.STUCK_DETECTED, {
+                    sessionId,
+                    attemptCount: recoveryHints?.attemptCount || 0,
+                    lastError: recoveryHints?.lastError
+                });
+                console.warn(`[RecoveryManager] Session ${sessionId} is stuck after ${recoveryHints?.attemptCount} attempts`);
             }
+        }
+
+        try {
+            let result;
+            if (useWorktree) {
+                result = await this._createWorktreeSession(sessionId, repoPath, name, initialCommand, engine);
+            } else {
+                result = await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine);
+            }
+
+            // セッション作成成功時にrecoveryHintsを付加
+            if (recoveryHints) {
+                result.recoveryHints = recoveryHints;
+            }
+
+            return result;
         } catch (error) {
+            // Auto-Claude RecoveryManager pattern: 失敗を記録
+            if (this.recoveryService) {
+                await this.recoveryService.recordFailure(sessionId, {
+                    message: error.message,
+                    type: 'session_creation_failed',
+                    context: { project, name, useWorktree, engine }
+                });
+            }
             console.error('Failed to create session:', error);
             throw error;
         }
