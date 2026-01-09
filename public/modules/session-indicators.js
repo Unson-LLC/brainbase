@@ -7,8 +7,14 @@
  * - Hidden: Current session OR no hook status
  */
 
+import { showError, showInfo } from './toast.js';
+
 // --- Module State ---
 const sessionStatusMap = new Map(); // sessionId -> { isWorking, isDone }
+
+// --- Error State Management ---
+let consecutiveErrors = 0;
+const MAX_CONSECUTIVE_ERRORS = 3;
 
 // --- State Accessors ---
 export function getSessionStatus(sessionId) {
@@ -33,6 +39,12 @@ export function clearDone(sessionId) {
 export async function pollSessionStatus(currentSessionId) {
     try {
         const res = await fetch('/api/sessions/status');
+
+        // HTTPステータスチェック
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
         const status = await res.json();
 
         // Update map
@@ -41,8 +53,21 @@ export async function pollSessionStatus(currentSessionId) {
         }
 
         updateSessionIndicators(currentSessionId);
+
+        // 復旧検知: エラー状態から正常に戻った場合
+        if (consecutiveErrors > 0) {
+            console.log('Session status polling recovered');
+            showInfo('サーバー接続が復旧しました');
+            consecutiveErrors = 0;
+        }
     } catch (error) {
+        consecutiveErrors++;
         console.error('Failed to poll session status:', error);
+
+        // 連続エラー時のユーザー通知（初回のみ）
+        if (consecutiveErrors === MAX_CONSECUTIVE_ERRORS) {
+            showError('サーバーとの接続が不安定です');
+        }
     }
 }
 
