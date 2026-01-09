@@ -24,6 +24,10 @@ export class NocoDBTaskAdapter {
             due: fields['期限'] || null,
             description: fields['説明'] || '',
             assignee: fields['担当者'] || '',
+            // コンテキスト情報（manaから議事録ベースで登録されたタスク）
+            context: fields['背景'] || '',
+            meetingDate: fields['会議日'] || null,
+            meetingTitle: fields['会議タイトル'] || '',
             nocodbRecordId: record.id,
             nocodbBaseId: record.baseId,
             nocodbTableId: record.tableId,
@@ -93,6 +97,7 @@ export class NocoDBTaskAdapter {
         if (updates.due !== undefined) fields['期限'] = updates.due || null;
         if (updates.description !== undefined) fields['説明'] = updates.description;
         if (updates.status) fields['ステータス'] = this.toNocoDBStatus(updates.status);
+        if (updates.assignee !== undefined) fields['担当者'] = updates.assignee;
         return fields;
     }
 }

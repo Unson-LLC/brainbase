@@ -10,6 +10,7 @@ export class NocoDBTasksView {
         this.service = nocodbTaskService;
         this.container = null;
         this.unsubscribers = [];
+        this.members = [];  // メンバーリスト（担当者ドロップダウン用）
         this.currentFilter = {
             project: '',
             hideCompleted: true
@@ -54,6 +55,11 @@ export class NocoDBTasksView {
      * タブ切り替え時の初期化
      */
     async onTabActivated() {
+        // メンバーリストをロード（担当者ドロップダウン用）
+        if (this.members.length === 0) {
+            await this._loadMembers();
+        }
+
         // 初回またはデータなしの場合のみロード
         if (this.service.tasks.length === 0) {
             this._showLoading();
@@ -62,6 +68,22 @@ export class NocoDBTasksView {
             } catch (error) {
                 this._showError(error.message);
             }
+        }
+    }
+
+    /**
+     * メンバーリストを取得（担当者ドロップダウン用）
+     */
+    async _loadMembers() {
+        try {
+            const res = await fetch('/api/config/slack/members');
+            const members = await res.json();
+            // brainbase_nameを抽出し、重複を除去
+            const names = members.map(m => m.brainbase_name).filter(Boolean);
+            this.members = [...new Set(names)];
+        } catch (error) {
+            console.warn('Failed to load members:', error);
+            this.members = [];
         }
     }
 
@@ -233,9 +255,58 @@ export class NocoDBTasksView {
                         <option value="in_progress" ${task.status === 'in_progress' ? 'selected' : ''}>進行中</option>
                         <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>完了</option>
                     </select>
+                    <div class="assignee-combobox" data-task-id="${task.id}">
+                        <button class="assignee-trigger" type="button">
+                            <i data-lucide="user" class="assignee-icon"></i>
+                            <span class="assignee-value">${this._escapeHtml(task.assignee || '未割当')}</span>
+                            <i data-lucide="chevron-down" class="chevron-icon"></i>
+                        </button>
+                        <div class="assignee-popover" style="display: none;">
+                            <input type="text" class="assignee-search" placeholder="検索...">
+                            <div class="assignee-options">
+                                ${this._renderComboboxOptions(task.assignee)}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * Combobox用のオプションを生成
+     */
+    _renderComboboxOptions(currentAssignee) {
+        let options = `<div class="assignee-option ${!currentAssignee ? 'selected' : ''}" data-value="">
+            <span class="option-text">未割当</span>
+            ${!currentAssignee ? '<i data-lucide="check" class="check-icon"></i>' : ''}
+        </div>`;
+
+        for (const name of this.members) {
+            const isSelected = name === currentAssignee;
+            options += `<div class="assignee-option ${isSelected ? 'selected' : ''}" data-value="${this._escapeHtml(name)}">
+                <span class="option-text">${this._escapeHtml(name)}</span>
+                ${isSelected ? '<i data-lucide="check" class="check-icon"></i>' : ''}
+            </div>`;
+        }
+
+        // 現在の担当者がリストにない場合
+        if (currentAssignee && !this.members.includes(currentAssignee)) {
+            options = `<div class="assignee-option" data-value="">
+                <span class="option-text">未割当</span>
+            </div>
+            <div class="assignee-option selected" data-value="${this._escapeHtml(currentAssignee)}">
+                <span class="option-text">${this._escapeHtml(currentAssignee)} ⚠️</span>
+                <i data-lucide="check" class="check-icon"></i>
+            </div>`;
+            for (const name of this.members) {
+                options += `<div class="assignee-option" data-value="${this._escapeHtml(name)}">
+                    <span class="option-text">${this._escapeHtml(name)}</span>
+                </div>`;
+            }
+        }
+
+        return options;
     }
 
     /**
@@ -294,6 +365,9 @@ export class NocoDBTasksView {
             });
         });
 
+        // 担当者Combobox
+        this._attachComboboxHandlers();
+
         // 開始ボタン - セッション作成
         this.container.querySelectorAll('.nocodb-task-start-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -334,6 +408,85 @@ export class NocoDBTasksView {
                     }
                 }
             });
+        });
+    }
+
+    /**
+     * Comboboxイベントハンドラをアタッチ
+     */
+    _attachComboboxHandlers() {
+        this.container.querySelectorAll('.assignee-combobox').forEach(combobox => {
+            const trigger = combobox.querySelector('.assignee-trigger');
+            const popover = combobox.querySelector('.assignee-popover');
+            const searchInput = combobox.querySelector('.assignee-search');
+            const optionsContainer = combobox.querySelector('.assignee-options');
+            const taskId = combobox.dataset.taskId;
+
+            // トリガークリックでポップオーバー表示/非表示
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = popover.style.display !== 'none';
+
+                // 他のポップオーバーを閉じる
+                this.container.querySelectorAll('.assignee-popover').forEach(p => {
+                    p.style.display = 'none';
+                });
+
+                if (!isOpen) {
+                    popover.style.display = 'block';
+                    searchInput.value = '';
+                    searchInput.focus();
+                    this._filterOptions(optionsContainer, '');
+                }
+            });
+
+            // 検索入力でフィルタリング
+            searchInput.addEventListener('input', (e) => {
+                this._filterOptions(optionsContainer, e.target.value);
+            });
+
+            // ESCキーで閉じる
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    popover.style.display = 'none';
+                }
+            });
+
+            // オプション選択
+            optionsContainer.addEventListener('click', async (e) => {
+                const option = e.target.closest('.assignee-option');
+                if (!option) return;
+
+                const newAssignee = option.dataset.value;
+                popover.style.display = 'none';
+
+                try {
+                    await this.service.updateTask(taskId, { assignee: newAssignee });
+                } catch (error) {
+                    console.error('Failed to update assignee:', error);
+                    this.render();
+                }
+            });
+        });
+
+        // クリックアウトでポップオーバーを閉じる
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.assignee-combobox')) {
+                this.container?.querySelectorAll('.assignee-popover').forEach(p => {
+                    p.style.display = 'none';
+                });
+            }
+        });
+    }
+
+    /**
+     * オプションをフィルタリング
+     */
+    _filterOptions(container, searchTerm) {
+        const term = searchTerm.toLowerCase();
+        container.querySelectorAll('.assignee-option').forEach(option => {
+            const text = option.querySelector('.option-text').textContent.toLowerCase();
+            option.style.display = text.includes(term) ? 'flex' : 'none';
         });
     }
 
