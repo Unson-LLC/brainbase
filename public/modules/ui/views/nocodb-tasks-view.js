@@ -228,10 +228,11 @@ export class NocoDBTasksView {
         }[task.priority] || '';
 
         const statusClass = task.status === 'completed' ? 'completed' : '';
+        const isOverdue = this._isOverdue(task.due);
         const dueDateHtml = task.due ? this._formatDueDate(task.due) : '';
 
         return `
-            <div class="nocodb-task-item ${statusClass}" data-task-id="${task.id}">
+            <div class="nocodb-task-item ${statusClass}${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
                 <div class="task-header">
                     <span class="project-badge">${this._escapeHtml(task.projectName || task.project)}</span>
                     <span class="priority-indicator">${priorityEmoji}</span>
@@ -307,6 +308,20 @@ export class NocoDBTasksView {
         }
 
         return options;
+    }
+
+    /**
+     * 期限切れかどうか判定
+     * @param {string|null} dueStr - 期限日
+     * @returns {boolean}
+     */
+    _isOverdue(dueStr) {
+        if (!dueStr) return false;
+        const due = new Date(dueStr);
+        due.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return due < today;
     }
 
     /**
