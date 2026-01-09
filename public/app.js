@@ -14,6 +14,7 @@ import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
+import { showConfirm } from './modules/confirm-modal.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachMenuToggleHandlers, attachSessionActionHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
@@ -501,7 +502,16 @@ class App {
             const session = sessions.find(s => s.id === sessionId);
             const displayName = session?.name || sessionId;
 
-            if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`)) {
+            const confirmed = await showConfirm(
+                `「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`,
+                {
+                    title: 'Merge to main',
+                    okText: 'マージ実行',
+                    cancelText: 'キャンセル',
+                    danger: false
+                }
+            );
+            if (!confirmed) {
                 return;
             }
 
@@ -519,10 +529,10 @@ class App {
                     body: JSON.stringify({ input: 'Enter', type: 'key' })
                 });
 
-                alert('Claude Codeに /merge コマンドを送信しました。\nターミナルで進捗を確認してください。');
+                showSuccess('/merge コマンドを送信しました。ターミナルで進捗を確認してください。');
             } catch (err) {
                 console.error('Failed to send merge command', err);
-                alert('/merge コマンドの送信に失敗しました');
+                showError('/merge コマンドの送信に失敗しました');
             }
         });
 
