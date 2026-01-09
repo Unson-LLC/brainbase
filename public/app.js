@@ -492,7 +492,39 @@ class App {
             this.modals.renameModal.open(session);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+        // Merge session: send /merge command to Claude Code
+        const unsub6 = eventBus.on(EVENTS.MERGE_SESSION, async (event) => {
+            const { sessionId } = event.detail;
+            const { sessions } = appStore.getState();
+            const session = sessions.find(s => s.id === sessionId);
+            const displayName = session?.name || sessionId;
+
+            if (!confirm(`「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`)) {
+                return;
+            }
+
+            try {
+                // Send /merge command to Claude Code via tmux
+                await fetch(`/api/sessions/${sessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: '/merge', type: 'text' })
+                });
+                // Send Enter key to execute the command
+                await fetch(`/api/sessions/${sessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'Enter', type: 'key' })
+                });
+
+                alert('Claude Codeに /merge コマンドを送信しました。\nターミナルで進捗を確認してください。');
+            } catch (err) {
+                console.error('Failed to send merge command', err);
+                alert('/merge コマンドの送信に失敗しました');
+            }
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
