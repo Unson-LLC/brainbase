@@ -167,7 +167,9 @@ class App {
                     dashboardPanel.style.display = 'block';
 
                     // Re-render dashboard data
-                    this.dashboardController.init();
+                    if (this.dashboardController) {
+                        this.dashboardController.init();
+                    }
                     window.dispatchEvent(new Event('resize'));
                 } else {
                     // Switch to Console
