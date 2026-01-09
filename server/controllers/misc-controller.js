@@ -97,22 +97,25 @@ export class MiscController {
             let normalizedPath = path.resolve(absolutePath);
 
             // パストラバーサル対策: ホームディレクトリからの相対パスは許可
-            // worktree環境では共通の親ディレクトリ配下を許可
-            // それ以外はworkspaceRoot配下であることを確認
+            // /workspace/ を含むパスであれば、workspace全体を許可範囲とする
+            // これにより、worktree環境でも通常環境でも、同じworkspace内のファイルにアクセス可能
             let allowedRoot = this.workspaceRoot;
-
-            // worktree環境の場合、または対象パスがworktree内の場合、workspace全体を許可
-            if (this.workspaceRoot.includes('.worktrees') || normalizedPath.includes('.worktrees')) {
-                // workspace親ディレクトリを許可範囲とする（例: /home/user/workspace/）
-                const workspaceMatch = (this.workspaceRoot.match(/^(\/[^/]+\/[^/]+\/workspace\/)/) ||
-                                       normalizedPath.match(/^(\/[^/]+\/[^/]+\/workspace\/)/));
-                if (workspaceMatch) {
-                    allowedRoot = workspaceMatch[1];
-                }
+            const workspaceIndex = this.workspaceRoot.indexOf('/workspace/');
+            if (workspaceIndex !== -1) {
+                // 例: /home/user/workspace/projects/app → /home/user/workspace/
+                allowedRoot = this.workspaceRoot.substring(0, workspaceIndex + '/workspace/'.length);
             }
 
+            logger.debug('Path validation', {
+                workspaceRoot: this.workspaceRoot,
+                normalizedPath,
+                allowedRoot,
+                isHomeDirPath,
+                startsWithAllowed: normalizedPath.startsWith(allowedRoot)
+            });
+
             if (!isHomeDirPath && !normalizedPath.startsWith(allowedRoot)) {
-                logger.warn('Path traversal attempt detected', { allowedRoot });
+                logger.warn('Path traversal attempt detected', { allowedRoot, normalizedPath });
                 return res.status(400).json({
                     success: false,
                     error: 'Invalid path: outside workspace'
