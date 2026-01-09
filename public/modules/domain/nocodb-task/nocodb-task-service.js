@@ -130,6 +130,7 @@ export class NocoDBTaskService {
             if (updates.priority) task.priority = updates.priority;
             if (updates.due !== undefined) task.due = updates.due;
             if (updates.description !== undefined) task.description = updates.description;
+            if (updates.assignee !== undefined) task.assignee = updates.assignee;
 
             // Store更新
             appStore.setState({ nocodbTasks: [...this.tasks] });
@@ -222,7 +223,7 @@ export class NocoDBTaskService {
         // 優先度でソート（high > medium > low）
         const priorityOrder = { high: 0, medium: 1, low: 2 };
         result.sort((a, b) => {
-            return (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2);
+            return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
         });
 
         return result;

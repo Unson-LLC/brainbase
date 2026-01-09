@@ -455,10 +455,28 @@ class App {
 
                 // Step 4: セッション作成
                 console.log('Creating session for task:', task.id, 'project:', project);
+
+                // タスクコンテキストを構築（議事録から登録されたタスクの場合）
+                let initialCommand = `/task ${task.id}`;
+                if (task.context || task.meetingTitle) {
+                    const contextParts = [];
+                    if (task.context) {
+                        contextParts.push(`## 背景\n${task.context}`);
+                    }
+                    if (task.meetingTitle || task.meetingDate) {
+                        const meetingInfo = task.meetingTitle || '';
+                        const dateInfo = task.meetingDate ? `(${task.meetingDate})` : '';
+                        contextParts.push(`会議: ${meetingInfo} ${dateInfo}`.trim());
+                    }
+                    if (contextParts.length > 0) {
+                        initialCommand += '\n\n' + contextParts.join('\n\n');
+                    }
+                }
+
                 const newSession = await this.sessionService.createSession({
                     project: project,
                     name: sessionName,
-                    initialCommand: `/task ${task.id}`,  // タスクコンテキストを自動読み込み
+                    initialCommand: initialCommand,  // タスクコンテキストを自動読み込み
                     engine: engine,
                     useWorktree: true  // デフォルトでworktree使用
                 });

@@ -100,8 +100,11 @@ export class NextTasksView {
             ? `<span class="next-task-priority ${task.priority}">${task.priority}</span>`
             : '';
 
+        const deadlineHtml = this._formatDeadline(task.deadline || task.due);
+        const isOverdue = this._isOverdue(task.deadline || task.due);
+
         return `
-            <div class="next-task-item" data-task-id="${task.id}">
+            <div class="next-task-item${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
                 <div class="next-task-checkbox" data-id="${task.id}">
                     <i data-lucide="check"></i>
                 </div>
@@ -110,6 +113,7 @@ export class NextTasksView {
                     <div class="next-task-meta">
                         <span class="next-task-project">${task.project || 'general'}</span>
                         ${priorityBadge}
+                        ${deadlineHtml}
                     </div>
                 </div>
                 <div class="next-task-actions">
@@ -125,6 +129,53 @@ export class NextTasksView {
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * 期限をフォーマット
+     * @param {string|null} deadline - 期限日
+     * @returns {string} HTML文字列
+     */
+    _formatDeadline(deadline) {
+        if (!deadline) return '';
+
+        const due = new Date(deadline);
+        due.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        let text;
+        let cssClass = 'next-task-deadline';
+
+        if (due < today) {
+            text = '期限切れ';
+            cssClass += ' overdue';
+        } else if (due.getTime() === today.getTime()) {
+            text = '今日';
+            cssClass += ' urgent';
+        } else if (due.getTime() === tomorrow.getTime()) {
+            text = '明日';
+        } else {
+            text = `${due.getMonth() + 1}/${due.getDate()}`;
+        }
+
+        return `<span class="${cssClass}"><i data-lucide="calendar"></i> ${text}</span>`;
+    }
+
+    /**
+     * 期限切れかどうか判定
+     * @param {string|null} deadline - 期限日
+     * @returns {boolean}
+     */
+    _isOverdue(deadline) {
+        if (!deadline) return false;
+        const due = new Date(deadline);
+        due.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return due < today;
     }
 
     /**

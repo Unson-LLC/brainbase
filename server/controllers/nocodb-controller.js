@@ -32,30 +32,58 @@ export class NocoDBController {
                 return res.json({ records: [], projects: [] });
             }
 
-            // 各プロジェクトからタスクを取得
+            // 同じbase_idを持つプロジェクトをグループ化（重複取得を防止）
+            const baseIdToMappings = new Map();
+            for (const mapping of mappings) {
+                const baseId = mapping.base_id;
+                if (!baseIdToMappings.has(baseId)) {
+                    baseIdToMappings.set(baseId, []);
+                }
+                baseIdToMappings.get(baseId).push(mapping);
+            }
+
+            // 各ベースからタスクを取得（重複なし）
             const allTasks = [];
             const projectInfo = [];
 
-            for (const mapping of mappings) {
-                try {
-                    const tasks = await this._fetchProjectTasks(mapping);
+            for (const [baseId, baseMappings] of baseIdToMappings) {
+                // 最初のマッピングを使用してタスクを取得
+                const primaryMapping = baseMappings[0];
 
-                    // プロジェクト情報を付与
+                try {
+                    const tasks = await this._fetchProjectTasks(primaryMapping);
+
+                    // 同じベースを参照する全プロジェクトの情報を記録
+                    for (const mapping of baseMappings) {
+                        projectInfo.push({
+                            id: mapping.project_id,
+                            name: mapping.base_name || mapping.project_id,
+                            baseId: mapping.base_id
+                        });
+                    }
+
+                    // タスクには最初のマッピングのプロジェクト情報を付与
+                    // （UIでは base_name を表示するため、実際のプロジェクト名になる）
                     tasks.forEach(task => {
-                        task.project = mapping.project_id;
-                        task.projectName = mapping.base_name || mapping.project_id;
+                        task.project = primaryMapping.project_id;
+                        task.projectName = primaryMapping.base_name || primaryMapping.project_id;
                     });
 
                     allTasks.push(...tasks);
-                    projectInfo.push({
-                        id: mapping.project_id,
-                        name: mapping.base_name || mapping.project_id,
-                        baseId: mapping.base_id
-                    });
+
+                    // 同じベースを参照する複数プロジェクトがある場合は警告
+                    if (baseMappings.length > 1) {
+                        logger.info('Multiple projects share same NocoDB base', {
+                            baseId,
+                            projects: baseMappings.map(m => m.project_id),
+                            usingPrimary: primaryMapping.project_id
+                        });
+                    }
                 } catch (projectError) {
-                    // 個別プロジェクトのエラーはログして続行
-                    logger.warn('Failed to fetch tasks from project', {
-                        project: mapping.project_id,
+                    // 個別ベースのエラーはログして続行
+                    logger.warn('Failed to fetch tasks from base', {
+                        baseId,
+                        projects: baseMappings.map(m => m.project_id),
                         error: projectError.message
                     });
                 }
@@ -102,9 +130,59 @@ export class NocoDBController {
                 return res.status(404).json({ error: 'Unknown base_id' });
             }
 
+            // テーブル一覧を取得してタスクテーブルIDを特定
+            const tablesResponse = await fetch(
+                `${this.nocodbUrl}/api/v2/meta/bases/${mapping.base_id}/tables`,
+                {
+                    headers: {
+                        'xc-token': this.nocodbToken
+                    }
+                }
+            );
+
+            if (!tablesResponse.ok) {
+                throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
+            }
+
+            const tablesData = await tablesResponse.json();
+            const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+
+            if (!taskTable) {
+                return res.status(404).json({ error: 'Task table not found' });
+            }
+
+            // Fetch table details to get columns (tables list doesn't include columns)
+            const tableDetailResponse = await fetch(
+                `${this.nocodbUrl}/api/v2/meta/tables/${taskTable.id}`,
+                {
+                    headers: {
+                        'xc-token': this.nocodbToken
+                    }
+                }
+            );
+
+            let hasIdColumn = false;
+            if (tableDetailResponse.ok) {
+                const tableDetail = await tableDetailResponse.json();
+                // Check if table has an actual ID column (pk or ID type)
+                hasIdColumn = tableDetail.columns?.some(col =>
+                    col.pk === true || col.uidt === 'ID' || col.title === 'ID'
+                );
+            }
+
+            // Tables with ID column use 'ID' (uppercase), tables without use 'Id' (row index)
+            const idFieldName = hasIdColumn ? 'ID' : 'Id';
+
+            logger.info('NocoDB update: ID column detection', {
+                tableId: taskTable.id,
+                hasIdColumn,
+                idFieldName,
+                recordId: id
+            });
+
             // NocoDB APIでタスク更新
             const response = await fetch(
-                `${this.nocodbUrl}/api/v2/tables/${mapping.base_id}/records`,
+                `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -112,7 +190,7 @@ export class NocoDBController {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        Id: parseInt(id, 10),
+                        [idFieldName]: parseInt(id, 10),
                         ...fields
                     })
                 }
@@ -190,6 +268,35 @@ export class NocoDBController {
                 return res.status(404).json({ error: 'Task table not found' });
             }
 
+            // Fetch table details to get columns (tables list doesn't include columns)
+            const tableDetailResponse = await fetch(
+                `${this.nocodbUrl}/api/v2/meta/tables/${taskTable.id}`,
+                {
+                    headers: {
+                        'xc-token': this.nocodbToken
+                    }
+                }
+            );
+
+            let hasIdColumn = false;
+            if (tableDetailResponse.ok) {
+                const tableDetail = await tableDetailResponse.json();
+                // Check if table has an actual ID column (pk or ID type)
+                hasIdColumn = tableDetail.columns?.some(col =>
+                    col.pk === true || col.uidt === 'ID' || col.title === 'ID'
+                );
+            }
+
+            // Tables with ID column use 'ID' (uppercase), tables without use 'Id' (row index)
+            const idFieldName = hasIdColumn ? 'ID' : 'Id';
+
+            logger.info('NocoDB delete: ID column detection', {
+                tableId: taskTable.id,
+                hasIdColumn,
+                idFieldName,
+                recordId: id
+            });
+
             // NocoDB APIでタスク削除
             const response = await fetch(
                 `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records`,
@@ -200,7 +307,7 @@ export class NocoDBController {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        Id: parseInt(id, 10)
+                        [idFieldName]: parseInt(id, 10)
                     })
                 }
             );
@@ -276,11 +383,14 @@ export class NocoDBController {
         // インデックスベースのIDを生成（更新には別途テーブルスキーマが必要）
         return (recordsData.list || []).map((record, index) => {
             // Try various ID field names that NocoDB might use
-            const recordId = record.Id || record.id || record.ID ||
-                             record.nc_id || record._nc_id ||
-                             record.row_id || record.RowId ||
-                             // Fallback: create a hash from unique fields
-                             `${mapping.base_id}_${index}`;
+            // Note: Using nullish coalescing (??) to handle 0 as valid ID
+            // Priority: ID (BAAO style) > RecordId (manually added) > other variants
+            const recordId = record.ID ?? record.Id ?? record.id ??
+                             record.RecordId ?? record.recordId ??
+                             record.nc_id ?? record._nc_id ??
+                             record.row_id ?? record.RowId ??
+                             // Fallback: use row index (1-based)
+                             (index + 1);
             return {
                 id: String(recordId),
                 fields: this._extractFields(record),
