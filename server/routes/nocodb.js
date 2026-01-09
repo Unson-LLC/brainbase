@@ -15,5 +15,8 @@ export function createNocoDBRouter(configParser) {
     // PUT /api/nocodb/tasks/:id - タスク更新
     router.put('/tasks/:id', controller.update);
 
+    // DELETE /api/nocodb/tasks/:id - タスク削除
+    router.delete('/tasks/:id', controller.delete);
+
     return router;
 }

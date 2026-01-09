@@ -30,4 +30,17 @@ export class NocoDBTaskRepository {
         });
         return response;
     }
+
+    /**
+     * タスクを削除
+     * @param {string} recordId - NocoDBレコードID
+     * @param {string} baseId - NocoDBベースID
+     * @returns {Promise<Object>}
+     */
+    async deleteTask(recordId, baseId) {
+        const response = await this.http.delete(`/api/nocodb/tasks/${recordId}`, {
+            baseId
+        });
+        return response;
+    }
 }

@@ -139,6 +139,92 @@ export class NocoDBController {
     };
 
     /**
+     * DELETE /api/nocodb/tasks/:id
+     * タスクを削除
+     */
+    delete = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { baseId } = req.body;
+
+            // 入力検証
+            if (!id || typeof id !== 'string') {
+                return res.status(400).json({ error: 'Invalid task ID' });
+            }
+            if (!baseId) {
+                return res.status(400).json({ error: 'Missing baseId' });
+            }
+
+            // 環境変数チェック
+            if (!this.nocodbUrl || !this.nocodbToken) {
+                return res.status(500).json({
+                    error: 'NocoDB configuration missing'
+                });
+            }
+
+            // NocoDBマッピングからtableIdを取得
+            const mappings = await this.configParser.getNocoDBMappings();
+            const mapping = mappings.find(m => m.base_id === baseId);
+            if (!mapping) {
+                return res.status(404).json({ error: 'Unknown base_id' });
+            }
+
+            // テーブル一覧を取得してタスクテーブルIDを特定
+            const tablesResponse = await fetch(
+                `${this.nocodbUrl}/api/v2/meta/bases/${mapping.base_id}/tables`,
+                {
+                    headers: {
+                        'xc-token': this.nocodbToken
+                    }
+                }
+            );
+
+            if (!tablesResponse.ok) {
+                throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
+            }
+
+            const tablesData = await tablesResponse.json();
+            const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+
+            if (!taskTable) {
+                return res.status(404).json({ error: 'Task table not found' });
+            }
+
+            // NocoDB APIでタスク削除
+            const response = await fetch(
+                `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'xc-token': this.nocodbToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        Id: parseInt(id, 10)
+                    })
+                }
+            );
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error('NocoDB delete failed', {
+                    status: response.status,
+                    error: errorText
+                });
+                return res.status(response.status).json({
+                    error: 'NocoDB delete failed',
+                    details: errorText
+                });
+            }
+
+            res.json({ success: true, deletedId: id });
+        } catch (error) {
+            logger.error('Failed to delete NocoDB task', { error, taskId: req.params.id });
+            res.status(500).json({ error: 'Failed to delete task' });
+        }
+    };
+
+    /**
      * プロジェクトからタスクを取得（内部メソッド）
      */
     async _fetchProjectTasks(mapping) {
