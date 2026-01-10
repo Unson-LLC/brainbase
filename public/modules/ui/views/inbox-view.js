@@ -156,16 +156,17 @@ export class InboxView {
                 const convertedMessage = this._convertSlackMentions(item.message || '');
                 const message = this._escapeHtml(convertedMessage);
                 const slackUrl = this._escapeHtml(item.slackUrl || '');
-                // タイトルから時刻を抽出（例: "12:06 | #hp営業 | 倉本裕太"）
-                const timeMatch = (item.title || '').match(/^(\d{1,2}:\d{2})/);
-                const time = timeMatch ? timeMatch[1] : '';
+                // 日付と時刻（APIから取得、なければタイトルから抽出）
+                const date = this._escapeHtml(item.date || '');
+                const time = this._escapeHtml(item.time || '');
+                const datetime = date && time ? `${date} ${time}` : (date || time || '');
 
                 return `
                     <div class="inbox-item" data-id="${escapedId}">
                         <div class="inbox-item-header">
                             <span class="inbox-item-sender">${sender}</span>
                             <span class="inbox-item-channel">#${channel}</span>
-                            ${time ? `<span class="inbox-item-time">${time}</span>` : ''}
+                            ${datetime ? `<span class="inbox-item-time">${datetime}</span>` : ''}
                         </div>
                         <div class="inbox-item-message">${message}</div>
                         <div class="inbox-item-footer">
