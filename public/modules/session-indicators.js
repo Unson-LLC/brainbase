@@ -7,8 +7,14 @@
  * - Hidden: Current session OR no hook status
  */
 
+import { showError, showInfo } from './toast.js';
+
 // --- Module State ---
 const sessionStatusMap = new Map(); // sessionId -> { isWorking, isDone }
+
+// --- Error State Management ---
+let consecutiveErrors = 0;
+const MAX_CONSECUTIVE_ERRORS = 3;
 
 // --- State Accessors ---
 export function getSessionStatus(sessionId) {
@@ -24,6 +30,35 @@ export function clearDone(sessionId) {
     }
 }
 
+// --- Connection Status ---
+
+/**
+ * Update connection status indicator in sidebar
+ * @param {boolean} isConnected - Whether server is connected
+ */
+export function updateConnectionStatus(isConnected) {
+    const statusEl = document.getElementById('connection-status');
+    if (!statusEl) return;
+
+    const icon = statusEl.querySelector('.connection-icon');
+    const text = statusEl.querySelector('.connection-text');
+
+    if (isConnected) {
+        statusEl.classList.remove('disconnected');
+        icon?.setAttribute('data-lucide', 'wifi');
+        if (text) text.textContent = '接続中';
+    } else {
+        statusEl.classList.add('disconnected');
+        icon?.setAttribute('data-lucide', 'wifi-off');
+        if (text) text.textContent = 'サーバー未接続';
+    }
+
+    // Lucideアイコン再描画
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+}
+
 // --- Core Functions ---
 
 /**
@@ -33,6 +68,12 @@ export function clearDone(sessionId) {
 export async function pollSessionStatus(currentSessionId) {
     try {
         const res = await fetch('/api/sessions/status');
+
+        // HTTPステータスチェック
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
         const status = await res.json();
 
         // Update map
@@ -41,8 +82,26 @@ export async function pollSessionStatus(currentSessionId) {
         }
 
         updateSessionIndicators(currentSessionId);
+
+        // 接続状態を更新（正常）
+        updateConnectionStatus(true);
+
+        // 復旧検知: エラー状態から正常に戻った場合
+        if (consecutiveErrors > 0) {
+            console.log('Session status polling recovered');
+            showInfo('サーバー接続が復旧しました');
+            consecutiveErrors = 0;
+        }
     } catch (error) {
+        consecutiveErrors++;
         console.error('Failed to poll session status:', error);
+
+        // 連続エラー時のユーザー通知（初回のみ）
+        if (consecutiveErrors === MAX_CONSECUTIVE_ERRORS) {
+            showError('サーバーとの接続が不安定です');
+            // 接続状態を更新（切断）
+            updateConnectionStatus(false);
+        }
     }
 }
 

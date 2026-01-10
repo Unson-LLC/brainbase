@@ -1,17 +1,20 @@
-import { promisify } from 'util';
-import { exec } from 'child_process';
-import { logger } from '../utils/logger.js';
-
 /**
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
+import { ZepService } from '../services/zep-service.js';
+import { ClaudeLogParser } from '../utils/claude-log-parser.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore) {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
-        this.execPromise = promisify(exec);
+        this.zepService = new ZepService();
     }
 
     // ========================================
@@ -47,10 +50,10 @@ export class SessionController {
 
     /**
      * POST /api/sessions/start
-     * ttydプロセスを起動
+     * ttydプロセスを起動 + ZEPセッション初期化
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine = 'claude' } = req.body;
+        const { sessionId, initialCommand, cwd, engine = 'claude', userId = 'ksato' } = req.body;
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
@@ -60,16 +63,31 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
+            // ttydプロセス起動（既存）
             const result = await this.sessionManager.startTtyd({
                 sessionId,
                 cwd,
                 initialCommand,
                 engine
             });
+
+            // ZEPセッション初期化（新規）
+            try {
+                const gitBranch = await this.getGitBranch(cwd);
+                await this.zepService.initializeSession(sessionId, userId, {
+                    engine,
+                    cwd,
+                    git_branch: gitBranch
+                });
+            } catch (zepError) {
+                // ZEP初期化失敗時はログのみ出力（セッション起動自体は継続）
+                console.error('[SessionController] ZEP initialization failed:', zepError);
+            }
+
             res.json(result);
         } catch (error) {
-            logger.error('Failed to start session', { error, sessionId });
-            res.status(500).json({ error: 'Failed to start session' });
+            console.error('Failed to start session:', error);
+            res.status(500).json({ error: error.message || 'Failed to allocate port' });
         }
     };
 
@@ -127,7 +145,7 @@ export class SessionController {
             }
         }
 
-        // Stop ttyd process (includes TMUX + MCP cleanup via stopTtyd)
+        // Stop ttyd process first (release port)
         await this.sessionManager.stopTtyd(id);
 
         // Archive: Update intendedState to archived
@@ -199,8 +217,8 @@ export class SessionController {
                 proxyPath: result.proxyPath
             });
         } catch (error) {
-            logger.error('Failed to restore session', { error, sessionId: id });
-            res.status(500).json({ error: 'Failed to restore session' });
+            console.error('Failed to restore session:', error);
+            res.status(500).json({ error: error.message });
         }
     };
 
@@ -220,8 +238,8 @@ export class SessionController {
             await this.sessionManager.sendInput(id, input, type);
             res.json({ success: true });
         } catch (err) {
-            logger.error('Failed to send input', { error: err, sessionId: id });
-            res.status(500).json({ error: 'Failed to send input' });
+            console.error(`Failed to send input to ${id}:`, err.message);
+            res.status(500).json({ error: err.message || 'Failed to send input' });
         }
     };
 
@@ -231,16 +249,12 @@ export class SessionController {
      */
     getContent = async (req, res) => {
         const { id } = req.params;
-
-        // 入力検証: lines パラメータの範囲チェック
-        const linesRaw = parseInt(req.query.lines);
-        const lines = Number.isNaN(linesRaw) ? 500 : Math.min(Math.max(linesRaw, 1), 10000);
+        const lines = parseInt(req.query.lines) || 500;
 
         try {
             const content = await this.sessionManager.getContent(id, lines);
             res.json({ content });
         } catch (err) {
-            logger.error('Failed to capture content', { error: err, sessionId: id });
             res.status(500).json({ error: 'Failed to capture content' });
         }
     };
@@ -331,8 +345,8 @@ export class SessionController {
                 branchName
             });
         } catch (error) {
-            logger.error('Failed to create session with worktree', { error, sessionId, repoPath });
-            res.status(500).json({ error: 'Failed to create session with worktree' });
+            console.error('Failed to create session with worktree:', error);
+            res.status(500).json({ error: error.message });
         }
     };
 
@@ -359,8 +373,8 @@ export class SessionController {
             const status = await this.worktreeService.getStatus(id, session.worktree.repo);
             res.json(status);
         } catch (error) {
-            logger.error('Failed to get worktree status', { error, sessionId: id });
-            res.status(500).json({ error: 'Failed to get worktree status' });
+            console.error('Failed to get worktree status:', error);
+            res.status(500).json({ error: error.message });
         }
     };
 
@@ -387,8 +401,8 @@ export class SessionController {
             const result = await this.worktreeService.fixSymlinks(id, session.worktree.repo);
             res.json(result);
         } catch (error) {
-            logger.error('Failed to fix symlinks', { error, sessionId: id });
-            res.status(500).json({ error: 'Failed to fix symlinks' });
+            console.error('Failed to fix symlinks:', error);
+            res.status(500).json({ error: error.message });
         }
     };
 
@@ -428,8 +442,8 @@ export class SessionController {
 
             res.json(result);
         } catch (error) {
-            logger.error('Failed to merge worktree', { error, sessionId: id });
-            res.status(500).json({ error: 'Failed to merge worktree' });
+            console.error('Failed to merge worktree:', error);
+            res.status(500).json({ error: error.message });
         }
     };
 
@@ -475,8 +489,113 @@ export class SessionController {
                 res.status(500).json({ error: 'Failed to delete worktree' });
             }
         } catch (error) {
-            logger.error('Failed to delete worktree', { error, sessionId: id });
-            res.status(500).json({ error: 'Failed to delete worktree' });
+            console.error('Failed to delete worktree:', error);
+            res.status(500).json({ error: error.message });
         }
     };
+
+    // ========================================
+    // ZEP Integration
+    // ========================================
+
+    /**
+     * POST /api/sessions/save_to_zep
+     * セッション終了時にZEPへ会話履歴を保存
+     */
+    saveToZep = async (req, res) => {
+        const { brainbase_session_id, claude_session_uuid, jsonl_path } = req.body;
+
+        if (!brainbase_session_id || !claude_session_uuid || !jsonl_path) {
+            return res.status(400).json({
+                error: 'brainbase_session_id, claude_session_uuid, and jsonl_path are required'
+            });
+        }
+
+        try {
+            console.log('[SessionController] Saving to ZEP:', {
+                brainbase_session_id,
+                claude_session_uuid,
+                jsonl_path
+            });
+
+            // jsonlファイルから会話履歴を抽出
+            const messages = await ClaudeLogParser.extractMessages(jsonl_path);
+
+            // ZEPセッションを確定（brainbase:session-{timestamp} → brainbase:{CLAUDE_UUID}）
+            const finalSessionId = await this.zepService.finalizeSession(
+                brainbase_session_id,
+                claude_session_uuid,
+                messages
+            );
+
+            res.json({
+                success: true,
+                zep_session_id: finalSessionId,
+                message_count: messages.length
+            });
+        } catch (error) {
+            console.error('[SessionController] Failed to save to ZEP:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
+     * GET /api/sessions/zep/list
+     * ZEPセッション一覧を取得
+     */
+    listZepSessions = async (req, res) => {
+        const { userId = 'ksato' } = req.query;
+
+        try {
+            const sessions = await this.zepService.listSessions(userId);
+            res.json(sessions);
+        } catch (error) {
+            console.error('[SessionController] Failed to list ZEP sessions:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
+     * GET /api/sessions/zep/:sessionId/memory
+     * ZEPセッションのメモリを取得
+     */
+    getZepMemory = async (req, res) => {
+        const { sessionId } = req.params;
+        const { limit = 50 } = req.query;
+
+        if (!sessionId) {
+            return res.status(400).json({ error: 'sessionId is required' });
+        }
+
+        try {
+            const memory = await this.zepService.getMemory(sessionId, parseInt(limit));
+            res.json(memory);
+        } catch (error) {
+            console.error('[SessionController] Failed to get ZEP memory:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    // ========================================
+    // Helper Methods
+    // ========================================
+
+    /**
+     * Gitブランチ名を取得
+     * @param {string} cwd - 作業ディレクトリ
+     * @returns {Promise<string|null>}
+     */
+    async getGitBranch(cwd) {
+        if (!cwd) {
+            return null;
+        }
+
+        try {
+            const { stdout } = await execAsync('git branch --show-current', { cwd });
+            return stdout.trim() || 'main';
+        } catch (error) {
+            console.error('[SessionController] Failed to get git branch:', error);
+            return null;
+        }
+    }
 }
