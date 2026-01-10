@@ -522,5 +522,61 @@
     console.log('[Terminal] Auto-scroll listener initialized');
 })();
 </script>
+<script>
+// WebSocket monitoring for parent window communication
+(function() {
+    // Extract session ID from URL
+    const sessionId = window.location.pathname.match(/\/console\/([^/]+)/)?.[1];
+    if (!sessionId) {
+        console.warn('[ttyd-monitor] Could not extract session ID from URL');
+        return;
+    }
+
+    // Store original WebSocket
+    const OriginalWebSocket = window.WebSocket;
+
+    // Wrap WebSocket to monitor connection state
+    window.WebSocket = class extends OriginalWebSocket {
+        constructor(url, protocols) {
+            super(url, protocols);
+
+            this.addEventListener('open', () => {
+                console.log('[ttyd-monitor] WebSocket connected');
+                if (parent !== window) {
+                    parent.postMessage({
+                        type: 'ttyd-connect',
+                        sessionId
+                    }, '*');
+                }
+            });
+
+            this.addEventListener('close', (e) => {
+                console.log('[ttyd-monitor] WebSocket closed:', e.code, e.reason);
+                if (parent !== window) {
+                    parent.postMessage({
+                        type: 'ttyd-disconnect',
+                        sessionId,
+                        code: e.code,
+                        reason: e.reason,
+                        wasClean: e.wasClean
+                    }, '*');
+                }
+            });
+
+            this.addEventListener('error', () => {
+                console.log('[ttyd-monitor] WebSocket error');
+                if (parent !== window) {
+                    parent.postMessage({
+                        type: 'ttyd-error',
+                        sessionId
+                    }, '*');
+                }
+            });
+        }
+    };
+
+    console.log('[ttyd-monitor] WebSocket monitoring initialized for session:', sessionId);
+})();
+</script>
 </body>
 </html>
