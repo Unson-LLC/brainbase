@@ -4478,6 +4478,34 @@ body::after {
     gap: 4px;
 }
 
+/* Connection Status Indicator */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    margin: 0 12px 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+    transition: all 0.3s ease;
+}
+
+.connection-status.disconnected {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--error-color);
+}
+
+.connection-status .connection-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.connection-status .connection-text {
+    font-weight: 500;
+}
+
 .nav-item {
     display: flex;
     align-items: center;

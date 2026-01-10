@@ -42,6 +42,91 @@ import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 import { RenameModal } from './modules/ui/modals/rename-modal.js';
 
 /**
+ * Terminal Reconnect Manager
+ * Handles iframe disconnection detection and automatic reconnection
+ */
+class TerminalReconnectManager {
+    constructor() {
+        this.maxRetries = 3;
+        this.retryCount = 0;
+        this.retryDelay = 2000; // 初回2秒
+        this.currentSessionId = null;
+        this.terminalFrame = null;
+        this.isReconnecting = false;
+    }
+
+    init(terminalFrame) {
+        this.terminalFrame = terminalFrame;
+
+        // iframeのエラー検知
+        terminalFrame.addEventListener('error', () => {
+            this.handleDisconnect();
+        });
+
+        // iframeのload成功
+        terminalFrame.addEventListener('load', () => {
+            this.handleConnect();
+        });
+    }
+
+    handleDisconnect() {
+        // 再接続中または既にリトライ上限に達している場合はスキップ
+        if (this.isReconnecting || !this.currentSessionId) return;
+
+        if (this.retryCount < this.maxRetries) {
+            this.isReconnecting = true;
+            this.retryCount++;
+            const delay = this.retryDelay * Math.pow(2, this.retryCount - 1);
+
+            showInfo(`ターミナル再接続中... (${this.retryCount}/${this.maxRetries})`);
+
+            setTimeout(() => {
+                this.reconnect();
+            }, delay);
+        } else {
+            showError('ターミナル接続に失敗しました。ページをリロードしてください。');
+        }
+    }
+
+    handleConnect() {
+        if (this.retryCount > 0) {
+            showInfo('ターミナル接続が復旧しました');
+        }
+        this.retryCount = 0;
+        this.isReconnecting = false;
+    }
+
+    async reconnect() {
+        if (!this.currentSessionId) {
+            this.isReconnecting = false;
+            return;
+        }
+
+        try {
+            const res = await httpClient.post('/api/sessions/start', {
+                sessionId: this.currentSessionId
+            });
+
+            if (res?.proxyPath) {
+                this.terminalFrame.src = res.proxyPath;
+            } else {
+                this.handleDisconnect();
+            }
+        } catch (error) {
+            console.error('Reconnect failed:', error);
+            this.isReconnecting = false;
+            this.handleDisconnect();
+        }
+    }
+
+    setCurrentSession(sessionId) {
+        this.currentSessionId = sessionId;
+        this.retryCount = 0;
+        this.isReconnecting = false;
+    }
+}
+
+/**
  * Application initialization
  */
 class App {
@@ -55,6 +140,7 @@ class App {
         this.choiceCheckInterval = null;
         this.lastChoiceHash = null;
         this.settingsCore = null; // Settings Plugin Architecture
+        this.reconnectManager = null; // Terminal Reconnect Manager
     }
 
     /**
@@ -1460,6 +1546,9 @@ class App {
             if (proxyPath) {
                 terminalFrame.src = proxyPath;
                 console.log('Terminal switched to:', proxyPath);
+
+                // Update reconnect manager with current session
+                this.reconnectManager?.setCurrentSession(sessionId);
             } else {
                 console.error('No proxyPath available for session:', sessionId);
                 terminalFrame.src = 'about:blank';
@@ -1574,6 +1663,13 @@ class App {
 
         // 6. Initialize file upload (Drag & Drop, Clipboard)
         initFileUpload(() => appStore.getState().currentSessionId);
+
+        // 6.5. Initialize terminal reconnect manager
+        const terminalFrame = document.getElementById('terminal-frame');
+        if (terminalFrame) {
+            this.reconnectManager = new TerminalReconnectManager();
+            this.reconnectManager.init(terminalFrame);
+        }
 
         // 7. Start session status polling (every 3 seconds)
         this.pollingIntervalId = startPolling(() => appStore.getState().currentSessionId, 3000);
