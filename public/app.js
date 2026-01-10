@@ -67,6 +67,67 @@ class TerminalReconnectManager {
         terminalFrame.addEventListener('load', () => {
             this.handleConnect();
         });
+
+        // ttyd内部WebSocket監視用のpostMessageリスナー
+        this.initPostMessageListener();
+    }
+
+    initPostMessageListener() {
+        window.addEventListener('message', (event) => {
+            // セキュリティ: 同一オリジンのみ許可
+            if (event.origin !== window.location.origin) return;
+
+            const { type, sessionId, code } = event.data || {};
+
+            switch (type) {
+                case 'ttyd-disconnect':
+                    console.log(`[ttyd] Session ${sessionId} WebSocket disconnected (code: ${code})`);
+                    this.handleTtydDisconnect(sessionId, code);
+                    break;
+                case 'ttyd-error':
+                    console.log(`[ttyd] Session ${sessionId} WebSocket error`);
+                    this.handleTtydError(sessionId);
+                    break;
+                case 'ttyd-connect':
+                    console.log(`[ttyd] Session ${sessionId} WebSocket connected`);
+                    this.handleTtydConnect(sessionId);
+                    break;
+            }
+        });
+    }
+
+    handleTtydDisconnect(sessionId, code) {
+        // 現在のセッションの場合のみ処理
+        if (sessionId !== this.currentSessionId) return;
+
+        // 正常切断（code 1000）は無視（セッション切り替え等）
+        if (code === 1000) return;
+
+        // 自動再接続トリガー
+        if (!this.isReconnecting) {
+            showInfo('ターミナル接続が切断されました。再接続中...');
+            this.handleDisconnect();
+        }
+    }
+
+    handleTtydError(sessionId) {
+        // 現在のセッションの場合のみ処理
+        if (sessionId !== this.currentSessionId) return;
+
+        if (!this.isReconnecting) {
+            this.handleDisconnect();
+        }
+    }
+
+    handleTtydConnect(sessionId) {
+        // 現在のセッションの場合のみ処理
+        if (sessionId !== this.currentSessionId) return;
+
+        if (this.retryCount > 0 || this.isReconnecting) {
+            showInfo('ターミナル接続が復旧しました');
+            this.retryCount = 0;
+            this.isReconnecting = false;
+        }
     }
 
     handleDisconnect() {
