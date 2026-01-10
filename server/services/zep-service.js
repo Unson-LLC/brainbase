@@ -33,14 +33,25 @@ export class ZepService {
     console.log(`[ZepService] Initializing session: ${tempSessionId}`);
 
     try {
-      const result = await this.client.createSession(
-        tempSessionId,
-        userId,
-        sessionMetadata
-      );
+      // Check if session already exists
+      try {
+        await this.client.callTool('zep_get_session', { session_id: tempSessionId });
+        console.log(`[ZepService] Session already exists, skipping creation: ${tempSessionId}`);
+        return { success: true, exists: true };
+      } catch (e) {
+        // Session doesn't exist, create it
+        if (e.message && (e.message.includes('404') || e.message.includes('not found'))) {
+          const result = await this.client.createSession(
+            tempSessionId,
+            userId,
+            sessionMetadata
+          );
 
-      console.log(`[ZepService] Session initialized: ${tempSessionId}`);
-      return result;
+          console.log(`[ZepService] Session initialized: ${tempSessionId}`);
+          return result;
+        }
+        throw e;
+      }
     } catch (error) {
       console.error(`[ZepService] Failed to initialize session:`, error);
       throw error;
@@ -65,16 +76,31 @@ export class ZepService {
     console.log(`[ZepService] Message count: ${messages.length}`);
 
     try {
-      // 1. 新しいセッションIDで作成
-      await this.client.createSession(finalSessionId, 'ksato', {
-        claude_session_uuid: claudeUuid,
-        brainbase_session_id: brainbaseSessionId,
-        project_id: 'brainbase',
-        migrated_from: tempSessionId,
-        finalized_at: new Date().toISOString()
-      });
+      // 1. Check if final session already exists
+      let sessionExists = false;
+      try {
+        await this.client.callTool('zep_get_session', { session_id: finalSessionId });
+        sessionExists = true;
+        console.log(`[ZepService] Final session already exists: ${finalSessionId}`);
+      } catch (e) {
+        if (!e.message || (!e.message.includes('404') && !e.message.includes('not found'))) {
+          throw e;
+        }
+        // Session doesn't exist, continue
+      }
 
-      // 2. メッセージ追加
+      // 2. Create final session if it doesn't exist
+      if (!sessionExists) {
+        await this.client.createSession(finalSessionId, 'ksato', {
+          claude_session_uuid: claudeUuid,
+          brainbase_session_id: brainbaseSessionId,
+          project_id: 'brainbase',
+          migrated_from: tempSessionId,
+          finalized_at: new Date().toISOString()
+        });
+      }
+
+      // 3. Add messages
       await this.client.addMessages(finalSessionId, messages);
 
       console.log(`[ZepService] Session finalized: ${finalSessionId}`);

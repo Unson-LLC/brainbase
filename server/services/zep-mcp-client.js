@@ -24,6 +24,7 @@ export class ZepMCPClient {
       command: "node",
       args: [process.env.ZEP_MCP_SERVER_PATH || "zep-mcp-server"],
       env: {
+        ...process.env,
         ZEP_API_KEY: process.env.ZEP_API_KEY
       }
     });
