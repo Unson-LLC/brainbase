@@ -18,6 +18,7 @@ import { ScheduleParser } from './lib/schedule-parser.js';
 import { StateStore } from './lib/state-store.js';
 import { ConfigParser } from './lib/config-parser.js';
 import { InboxParser } from './lib/inbox-parser.js';
+import { TimelineStorage } from './lib/timeline-storage.js';
 
 // Import services
 import { SessionManager } from './server/services/session-manager.js';
@@ -29,6 +30,7 @@ import { createStateRouter } from './server/routes/state.js';
 import { createConfigRouter } from './server/routes/config.js';
 import { createInboxRouter } from './server/routes/inbox.js';
 import { createScheduleRouter } from './server/routes/schedule.js';
+import { createTimelineRouter } from './server/routes/timeline.js';
 import { createMiscRouter } from './server/routes/misc.js';
 import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
@@ -122,6 +124,7 @@ const WORKTREES_DIR = path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = path.join(BRAINBASE_ROOT, '_codex');
 const CONFIG_PATH = path.join(BRAINBASE_ROOT, 'config.yml');
 const INBOX_FILE = path.join(BRAINBASE_ROOT, '_inbox/pending.md');
+const TIMELINE_DIR = path.join(BRAINBASE_ROOT, '_timeline');
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
@@ -129,6 +132,7 @@ const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
+const timelineStorage = new TimelineStorage(TIMELINE_DIR);
 
 // Middleware
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
@@ -329,6 +333,7 @@ app.use('/api/state', createStateRouter(stateStore, sessionManager.getActiveSess
 app.use('/api/config', createConfigRouter(configParser));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
+app.use('/api/timeline', createTimelineRouter(timelineStorage));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
