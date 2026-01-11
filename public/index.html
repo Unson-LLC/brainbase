@@ -66,14 +66,15 @@
             <!-- Settings Link -->
             <div class="sidebar-footer">
                 <div class="sidebar-divider"></div>
-                <!-- Inbox Notification -->
+                <!-- [OSS] Inbox Notification - mana/Slack連携のため削除
+                     Slackメンション通知はmana連携機能の一部であり、OSSユーザーは利用不可
+                     mana連携機能を利用するには、Unson LLCの有償サポートが必要
                 <div class="inbox-trigger-container">
                     <button id="inbox-trigger-btn" class="inbox-trigger" style="display: none;">
                         <i data-lucide="bell"></i>
                         <span>通知</span>
                         <span class="inbox-badge" id="inbox-badge">0</span>
                     </button>
-                    <!-- Inbox Dropdown -->
                     <div id="inbox-dropdown" class="inbox-dropdown">
                         <div class="inbox-dropdown-header">
                             <span>未対応メンション</span>
@@ -87,6 +88,7 @@
                         </div>
                     </div>
                 </div>
+                -->
                 <button id="settings-btn" class="settings-link">
                     <i data-lucide="settings"></i>
                     <span>Settings</span>
@@ -194,11 +196,13 @@
                             <!-- System gauges injected via JS -->
                         </div>
 
-                        <!-- System Health Status -->
+                        <!-- [OSS] System Health Status - mana依存のため削除
+                             manaはAWS Lambda上で動作し、OSSユーザーは利用不可
                         <div class="system-health-section" style="margin-top: 20px;">
                             <h4 style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; font-weight: 600;">System Health</h4>
                             <div id="system-health-status"></div>
                         </div>
+                        -->
                     </section>
 
                     <!-- Section 6: Trend Graphs (Phase 3) -->
@@ -221,28 +225,31 @@
                                     Overdue Tasks</h4>
                                 <div class="trend-card" id="trend-overdue"></div>
                             </div>
+                            <!-- [OSS] Mana Success Rate - mana依存のため削除
                             <div class="trend-wrapper">
                                 <h4
                                     style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
                                     Mana Success Rate</h4>
                                 <div class="trend-card" id="trend-mana"></div>
                             </div>
+                            -->
                         </div>
                     </section>
 
-                    <!-- Section 7: Mana Dashboard (Phase 4) -->
+                    <!-- [OSS] Section 7: Mana Dashboard (Phase 4) - mana依存のため削除
+                         mana (Slack AI PMエージェント) はAWS Lambda上で動作し、OSSユーザーは利用不可
+                         mana連携機能を利用するには、Unson LLCの有償サポートが必要です
+
                     <section class="mana-dashboard-section">
                         <div class="section-header">
                             <h2><i data-lucide="bot"></i> Mana Dashboard</h2>
                             <p class="section-description">Slack AI PMエージェントのワークフロー実行状況と品質メトリクス</p>
                         </div>
 
-                        <!-- Mana Hero Status -->
                         <div class="mana-hero" id="mana-hero">
                             <div class="loading">読み込み中...</div>
                         </div>
 
-                        <!-- Mana Quality Metrics (4 Gauges) -->
                         <div class="mana-quality-section">
                             <h3 class="subsection-title">品質メトリクス</h3>
                             <div class="mana-quality-grid" id="mana-quality-grid">
@@ -250,7 +257,6 @@
                             </div>
                         </div>
 
-                        <!-- Mana Workflow Status -->
                         <div class="mana-workflows-section">
                             <h3 class="subsection-title">ワークフロー実行状況</h3>
                             <div class="mana-workflows-grid" id="mana-workflows-grid">
@@ -258,6 +264,7 @@
                             </div>
                         </div>
                     </section>
+                    -->
                 </div>
             </div>
 

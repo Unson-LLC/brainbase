@@ -21,15 +21,16 @@ export class DashboardController {
         await this.loadData();
         this.render();
 
-        // Load system health status
-        await this.loadSystemHealth();
+        // [OSS] System Health Status - mana依存のため無効化
+        // manaはAWS Lambda上で動作し、OSSユーザーは利用不可
+        // await this.loadSystemHealth();
 
-        // Auto-refresh system health every 5 minutes
-        if (!this.healthRefreshInterval) {
-            this.healthRefreshInterval = setInterval(() => {
-                this.loadSystemHealth();
-            }, 5 * 60 * 1000);
-        }
+        // [OSS] Auto-refresh system health - mana依存のため無効化
+        // if (!this.healthRefreshInterval) {
+        //     this.healthRefreshInterval = setInterval(() => {
+        //         this.loadSystemHealth();
+        //     }, 5 * 60 * 1000);
+        // }
 
         // Make dashboardController globally accessible for modal callbacks
         window.dashboardController = this;
@@ -53,7 +54,8 @@ export class DashboardController {
         this.renderSection4();
         this.renderSection5();
         this.renderSection6();
-        this.renderSection7();
+        // [OSS] renderSection7 (Mana Dashboard) - mana依存のため無効化
+        // this.renderSection7();
     }
 
     renderSection1() {
@@ -282,20 +284,31 @@ export class DashboardController {
             });
         }
 
-        // 3. Mana Success Rate
-        const manaContainer = document.getElementById('trend-mana');
-        if (manaContainer) {
-            new LineChart(manaContainer, {
-                label: 'Mana応答成功率',
-                labels: weeks,
-                data: [88, 92, 95, 98],
-                color: '#6b21ef', // Purple
-                yAxisMax: 100,
-                height: 250
-            });
-        }
+        // [OSS] 3. Mana Success Rate - mana依存のため無効化
+        // const manaContainer = document.getElementById('trend-mana');
+        // if (manaContainer) {
+        //     new LineChart(manaContainer, {
+        //         label: 'Mana応答成功率',
+        //         labels: weeks,
+        //         data: [88, 92, 95, 98],
+        //         color: '#6b21ef', // Purple
+        //         yAxisMax: 100,
+        //         height: 250
+        //     });
+        // }
     }
 
+    /**
+     * [OSS] System Health関連メソッド - mana依存のため無効化
+     *
+     * コメントアウト理由:
+     * - mana (Slack AI PMエージェント) はAWS Lambda上で動作
+     * - OSSユーザーはmanaを利用不可のため、これらのメソッドは無効化
+     * - mana連携機能を利用するには、Unson LLCの有償サポートが必要
+     *
+     * 復元方法: 下記のコメントを解除し、関連するAPI・UIも復元する
+     */
+    /*
     async loadSystemHealth() {
         try {
             const response = await fetch('/api/brainbase/system-health');
@@ -316,12 +329,11 @@ export class DashboardController {
 
         const { mana, runners } = this.systemHealth;
 
-        // 個別ステータスアイコン
         const getIcon = (status) => {
             if (status === 'healthy') return '✅';
             if (status === 'error') return '❌';
             if (status === 'warning') return '⚠️';
-            return '❓'; // unknown
+            return '❓';
         };
 
         const manaIcon = getIcon(mana?.status);
@@ -358,7 +370,28 @@ export class DashboardController {
         const modal = document.getElementById('health-detail-modal');
         modal.classList.remove('active');
     }
+    */
 
+    /**
+     * [OSS] Mana関連メソッド - mana依存のため無効化
+     *
+     * 以下のメソッドはすべてmana (Slack AI PMエージェント) に依存しています:
+     * - _renderManaHealthDetails()
+     * - _renderRunnersHealthDetails()
+     * - renderSection7()
+     * - loadManaData()
+     * - renderManaHero()
+     * - renderManaQualityMetrics()
+     * - renderManaWorkflows()
+     * - renderWorkflowCard()
+     *
+     * コメントアウト理由:
+     * - manaはAWS Lambda上で動作し、OSSユーザーは利用不可
+     * - mana連携機能を利用するには、Unson LLCの有償サポートが必要
+     *
+     * 復元方法: 下記のコメントを解除し、関連するAPI・UIも復元する
+     */
+    /*
     _renderManaHealthDetails() {
         if (!this.systemHealth) return '<p>Loading...</p>';
 
@@ -476,7 +509,6 @@ export class DashboardController {
     }
 
     async renderSection7() {
-        // Mana Dashboard Section
         await this.loadManaData();
         this.renderManaHero();
         this.renderManaQualityMetrics();
@@ -484,8 +516,6 @@ export class DashboardController {
     }
 
     async loadManaData() {
-        // mana API is disabled (mana runs on AWS Lambda, not locally)
-        // TODO: Re-enable when mana Lambda API integration is implemented
         this.manaData = { workflows: [], quality: {} };
     }
 
@@ -537,17 +567,15 @@ export class DashboardController {
         container.style.gap = '16px';
         container.style.marginBottom = '24px';
 
-        // Wait for DOM to be ready before initializing charts
         requestAnimationFrame(() => {
             metrics.forEach(metric => {
                 const metricDiv = document.createElement('div');
                 metricDiv.style.cssText = 'min-height: 180px;';
                 container.appendChild(metricDiv);
 
-                // Ensure div is in DOM before creating chart
                 requestAnimationFrame(() => {
                     new GaugeChart(metricDiv, {
-                        value: (metric.value / 5) * 100, // Convert 0-5 to 0-100
+                        value: (metric.value / 5) * 100,
                         label: metric.label,
                         subtitle: `${metric.value.toFixed(1)}/5.0`,
                         color: metric.color
@@ -563,14 +591,12 @@ export class DashboardController {
 
         const { workflows } = this.manaData;
 
-        // Classify workflows
         const critical = workflows.filter(w => w.data?.stats?.successRate < 60);
         const warning = workflows.filter(w => w.data?.stats?.successRate >= 60 && w.data?.stats?.successRate < 80);
         const healthy = workflows.filter(w => w.data?.stats?.successRate >= 80);
 
         let html = '';
 
-        // Critical workflows (always show if any)
         if (critical.length > 0) {
             html += `
                 <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
@@ -584,7 +610,6 @@ export class DashboardController {
             `;
         }
 
-        // Warning workflows
         if (warning.length > 0) {
             html += `
                 <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
@@ -598,7 +623,6 @@ export class DashboardController {
             `;
         }
 
-        // Healthy workflows (collapsed list)
         if (healthy.length > 0) {
             html += `
                 <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 16px;">
@@ -639,4 +663,5 @@ export class DashboardController {
             </div>
         `;
     }
+    */
 }

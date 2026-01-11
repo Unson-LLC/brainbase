@@ -90,9 +90,17 @@ export function createBrainbaseRouter(options = {}) {
     });
 
     /**
-     * GET /api/brainbase/system-health
+     * [OSS] GET /api/brainbase/system-health
      * healthcheckワークフローの実行結果取得（mana + runners）
+     *
+     * コメントアウト理由:
+     * - mana (Slack AI PMエージェント) はAWS Lambda上で動作
+     * - OSSユーザーはmanaを利用不可のため、このエンドポイントは無効化
+     * - mana連携機能を利用するには、Unson LLCの有償サポートが必要
+     *
+     * 復元方法: 下記のコメントを解除し、GitHubServiceのgetHealthcheckStatus()も復元する
      */
+    /*
     router.get('/system-health', async (req, res) => {
         try {
             const healthStatus = await githubService.getHealthcheckStatus();
@@ -108,6 +116,7 @@ export function createBrainbaseRouter(options = {}) {
             });
         }
     });
+    */
 
     /**
      * GET /api/brainbase/storage

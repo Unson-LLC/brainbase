@@ -1037,6 +1037,17 @@ body::after {
 }
 
 /* === Inbox (Notification) - matches .settings-link style === */
+/*
+ * [OSS] Inbox Notification Styles - mana/Slack連携のため無効化
+ *
+ * コメントアウト理由:
+ * - Inbox通知はSlackメンション連携機能の一部
+ * - mana (Slack AI PMエージェント) はAWS Lambda上で動作
+ * - OSSユーザーはmanaを利用不可のため、これらのスタイルは無効化
+ * - mana連携機能を利用するには、Unson LLCの有償サポートが必要
+ *
+ * 復元方法: 下記のコメントを解除し、関連するHTML・JSも復元する
+
 .inbox-trigger-container {
     position: relative;
     padding: 0 0.5rem;
@@ -1082,7 +1093,6 @@ body::after {
     margin-left: auto;
 }
 
-/* Dropdown */
 .inbox-dropdown {
     position: absolute;
     bottom: 100%;
@@ -1140,7 +1150,6 @@ body::after {
     overflow-y: auto;
     padding: 8px;
     touch-action: manipulation;
-    /* Disable pinch-zoom in scrollable area */
 }
 
 .inbox-empty {
@@ -1150,7 +1159,6 @@ body::after {
     font-size: 0.85rem;
 }
 
-/* Inbox Item */
 .inbox-item {
     background: var(--bg-primary);
     border-radius: 6px;
@@ -1247,6 +1255,7 @@ body::after {
     border-color: var(--success-color);
     color: white;
 }
+*/
 
 /* === Focus Section === */
 .focus-section {
@@ -4778,6 +4787,15 @@ body:has(.test-mode-banner) .app-container {
 }
 
 /* ==================== System Health Status ==================== */
+/*
+ * [OSS] System Health Status - mana依存のため無効化
+ *
+ * コメントアウト理由:
+ * - mana (Slack AI PMエージェント) はAWS Lambda上で動作
+ * - OSSユーザーはmanaを利用不可のため、これらのスタイルは無効化
+ * - mana連携機能を利用するには、Unson LLCの有償サポートが必要
+ *
+ * 復元方法: 下記のコメントを解除する
 
 .system-health-section {
     margin-top: 20px;
@@ -4818,7 +4836,6 @@ body:has(.test-mode-banner) .app-container {
     font-weight: 500;
 }
 
-/* Health Detail Modal */
 #health-detail-modal .modal-content {
     max-width: 600px;
 }
@@ -4906,6 +4923,7 @@ body:has(.test-mode-banner) .app-container {
     font-size: 13px;
     padding: 20px;
 }
+*/
 
 /* ===== Task Add & Completed Tasks Modal Styles ===== */
 

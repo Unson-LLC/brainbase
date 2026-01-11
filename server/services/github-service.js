@@ -138,10 +138,20 @@ export class GitHubService {
     }
 
     /**
-     * Healthcheckワークフローの最新実行結果取得
+     * [OSS] Healthcheckワークフローの最新実行結果取得
      * mana（Slack Bot）とself-hosted runnersの健全性をチェック
+     *
+     * コメントアウト理由:
+     * - mana (Slack AI PMエージェント) はAWS Lambda上で動作
+     * - OSSユーザーはmanaを利用不可のため、このメソッドは無効化
+     * - brainbase-workspaceリポジトリへのアクセスも必要
+     * - mana連携機能を利用するには、Unson LLCの有償サポートが必要
+     *
+     * 復元方法: 下記のコメントを解除し、brainbase.jsのエンドポイントも復元する
+     *
      * @returns {Promise<Object>} ヘルスチェック結果
      */
+    /*
     async getHealthcheckStatus() {
         if (!this.token) {
             return {
@@ -179,7 +189,7 @@ export class GitHubService {
             });
 
             const failedSteps = [];
-            const allSteps = []; // 追加: 全ステップ情報
+            const allSteps = [];
             const jobSummary = jobsData.jobs.map(job => {
                 const failed = job.steps.filter(step => step.conclusion === 'failure');
                 failedSteps.push(...failed.map(step => ({
@@ -188,7 +198,6 @@ export class GitHubService {
                     conclusion: step.conclusion,
                 })));
 
-                // 追加: 全ステップを記録
                 allSteps.push(...job.steps.map(step => ({
                     jobName: job.name,
                     stepName: step.name,
@@ -200,7 +209,7 @@ export class GitHubService {
                     name: job.name,
                     conclusion: job.conclusion,
                     failedSteps: failed.length,
-                    steps: job.steps.map(s => ({ // 追加: Job内の全ステップ
+                    steps: job.steps.map(s => ({
                         name: s.name,
                         conclusion: s.conclusion,
                         status: s.status,
@@ -208,11 +217,9 @@ export class GitHubService {
                 };
             });
 
-            // ステータス判定
             const status = latestRun.conclusion === 'success' ? 'healthy' :
                           latestRun.conclusion === 'failure' ? 'error' : 'warning';
 
-            // manaとrunnersのステップを個別に評価
             const manaStep = allSteps.find(s => s.stepName === 'Check Lambda errors');
             const runnersStep = allSteps.find(s => s.stepName === 'Check workflows and runners');
 
@@ -236,7 +243,6 @@ export class GitHubService {
                 jobs: jobSummary,
                 failedSteps: failedSteps,
                 allSteps: allSteps,
-                // 個別ステータス
                 mana: {
                     status: manaStatus,
                     step: manaStep || null,
@@ -260,4 +266,5 @@ export class GitHubService {
             };
         }
     }
+    */
 }

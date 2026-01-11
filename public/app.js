@@ -24,7 +24,8 @@ import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { TaskService } from './modules/domain/task/task-service.js';
 import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
-import { InboxService } from './modules/domain/inbox/inbox-service.js';
+// [OSS] InboxService - mana/Slack連携のため無効化
+// import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
 
 // Views
@@ -32,7 +33,8 @@ import { TaskView } from './modules/ui/views/task-view.js';
 import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
-import { InboxView } from './modules/ui/views/inbox-view.js';
+// [OSS] InboxView - mana/Slack連携のため無効化
+// import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 
 // Modals
@@ -214,14 +216,16 @@ class App {
         this.container.register('taskService', () => new TaskService());
         this.container.register('sessionService', () => new SessionService());
         this.container.register('scheduleService', () => new ScheduleService());
-        this.container.register('inboxService', () => new InboxService());
+        // [OSS] inboxService - mana/Slack連携のため無効化
+        // this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
 
         // Get service instances
         this.taskService = this.container.get('taskService');
         this.sessionService = this.container.get('sessionService');
         this.scheduleService = this.container.get('scheduleService');
-        this.inboxService = this.container.get('inboxService');
+        // [OSS] inboxService - mana/Slack連携のため無効化
+        // this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
     }
 
@@ -267,9 +271,9 @@ class App {
             this.views.sessionView.mount(sessionContainer);
         }
 
-        // Inbox (notifications)
-        this.views.inboxView = new InboxView({ inboxService: this.inboxService, httpClient });
-        this.views.inboxView.mount();
+        // [OSS] Inbox (notifications) - mana/Slack連携のため無効化
+        // this.views.inboxView = new InboxView({ inboxService: this.inboxService, httpClient });
+        // this.views.inboxView.mount();
 
         // Dashboard (Mana専用機能 - OSS版では無効)
         this.initDashboardController();
@@ -1948,9 +1952,10 @@ class App {
             try {
                 await this.scheduleService.loadSchedule();
                 await this.taskService.loadTasks();
-                if (this.views.inboxView && this.views.inboxView.loadInbox) {
-                    await this.views.inboxView.loadInbox();
-                }
+                // [OSS] Inbox refresh - mana/Slack連携のため無効化
+                // if (this.views.inboxView && this.views.inboxView.loadInbox) {
+                //     await this.views.inboxView.loadInbox();
+                // }
                 console.log('Periodic refresh completed');
             } catch (error) {
                 console.error('Periodic refresh failed:', error);
