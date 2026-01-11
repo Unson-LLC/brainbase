@@ -12,7 +12,8 @@ describe('TaskController (Backend)', () => {
         mockTaskParser = {
             getAllTasks: vi.fn(),
             updateTask: vi.fn(),
-            deleteTask: vi.fn()
+            deleteTask: vi.fn(),
+            createTask: vi.fn()
         };
 
         // Mock Request/Response
@@ -76,6 +77,101 @@ describe('TaskController (Backend)', () => {
 
             expect(mockTaskParser.updateTask).toHaveBeenCalledWith('task-123', { priority: 'low' });
             expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+        });
+    });
+
+    describe('create', () => {
+        it('create呼び出し時_有効なデータでタスクが作成される', async () => {
+            const newTask = { id: 'task-new', name: 'New Task', status: 'todo' };
+            mockReq.body = {
+                title: 'New Task',
+                project: 'general',
+                priority: 'medium',
+                due: '2025-12-31',
+                description: 'Test description'
+            };
+            mockTaskParser.createTask.mockResolvedValue(newTask);
+
+            await taskController.create(mockReq, mockRes);
+
+            expect(mockTaskParser.createTask).toHaveBeenCalledWith({
+                title: 'New Task',
+                project: 'general',
+                priority: 'medium',
+                due: '2025-12-31',
+                description: 'Test description'
+            });
+            expect(mockRes.status).toHaveBeenCalledWith(201);
+            expect(mockRes.json).toHaveBeenCalledWith(newTask);
+        });
+
+        it('create呼び出し時_titleが未指定の場合は400エラーを返す', async () => {
+            mockReq.body = {};
+
+            await taskController.create(mockReq, mockRes);
+
+            expect(mockTaskParser.createTask).not.toHaveBeenCalled();
+            expect(mockRes.status).toHaveBeenCalledWith(400);
+            expect(mockRes.json).toHaveBeenCalledWith({ error: 'Title is required' });
+        });
+
+        it('create呼び出し時_titleが空文字の場合は400エラーを返す', async () => {
+            mockReq.body = { title: '   ' };
+
+            await taskController.create(mockReq, mockRes);
+
+            expect(mockTaskParser.createTask).not.toHaveBeenCalled();
+            expect(mockRes.status).toHaveBeenCalledWith(400);
+            expect(mockRes.json).toHaveBeenCalledWith({ error: 'Title is required' });
+        });
+
+        it('create呼び出し時_無効なpriorityの場合は400エラーを返す', async () => {
+            mockReq.body = { title: 'Task', priority: 'invalid' };
+
+            await taskController.create(mockReq, mockRes);
+
+            expect(mockTaskParser.createTask).not.toHaveBeenCalled();
+            expect(mockRes.status).toHaveBeenCalledWith(400);
+            expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid priority value' });
+        });
+
+        it('create呼び出し時_必須項目のみでタスクが作成される', async () => {
+            const newTask = { id: 'task-new', name: 'Task Title', status: 'todo' };
+            mockReq.body = { title: 'Task Title' };
+            mockTaskParser.createTask.mockResolvedValue(newTask);
+
+            await taskController.create(mockReq, mockRes);
+
+            expect(mockTaskParser.createTask).toHaveBeenCalledWith({
+                title: 'Task Title',
+                project: 'general',
+                priority: 'medium',
+                due: null,
+                description: ''
+            });
+            expect(mockRes.status).toHaveBeenCalledWith(201);
+        });
+
+        it('create呼び出し時_エラーが発生した場合は500を返す', async () => {
+            mockReq.body = { title: 'Task' };
+            mockTaskParser.createTask.mockRejectedValue(new Error('Database error'));
+
+            await taskController.create(mockReq, mockRes);
+
+            expect(mockRes.status).toHaveBeenCalledWith(500);
+            expect(mockRes.json).toHaveBeenCalledWith({ error: 'Failed to create task' });
+        });
+
+        it('create呼び出し時_titleの前後空白がトリムされる', async () => {
+            const newTask = { id: 'task-new', name: 'Trimmed Task', status: 'todo' };
+            mockReq.body = { title: '  Trimmed Task  ' };
+            mockTaskParser.createTask.mockResolvedValue(newTask);
+
+            await taskController.create(mockReq, mockRes);
+
+            expect(mockTaskParser.createTask).toHaveBeenCalledWith(expect.objectContaining({
+                title: 'Trimmed Task'
+            }));
         });
     });
 });
