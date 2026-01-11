@@ -112,6 +112,40 @@ export class TaskController {
     };
 
     /**
+     * POST /api/tasks
+     * 新しいタスクを作成
+     */
+    create = async (req, res) => {
+        try {
+            const { title, project, priority, due, description } = req.body;
+
+            // 入力検証: title は必須
+            if (!title || typeof title !== 'string' || title.trim() === '') {
+                return res.status(400).json({ error: 'Title is required' });
+            }
+
+            // 入力検証: priority は許可値のみ
+            const allowedPriorities = ['low', 'medium', 'high'];
+            if (priority && !allowedPriorities.includes(priority)) {
+                return res.status(400).json({ error: 'Invalid priority value' });
+            }
+
+            const task = await this.taskParser.createTask({
+                title: title.trim(),
+                project: project || 'general',
+                priority: priority || 'medium',
+                due: due || null,
+                description: description || ''
+            });
+
+            res.status(201).json(task);
+        } catch (error) {
+            logger.error('Failed to create task', { error });
+            res.status(500).json({ error: 'Failed to create task' });
+        }
+    };
+
+    /**
      * POST /api/tasks/:id/defer
      * タスクを延期（優先度を下げる）
      */

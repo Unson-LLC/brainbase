@@ -37,6 +37,8 @@ import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
+import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
+import { CompletedTasksModal } from './modules/ui/modals/completed-tasks-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 import { RenameModal } from './modules/ui/modals/rename-modal.js';
@@ -429,6 +431,18 @@ class App {
             nocodbTaskService: this.nocodbTaskService
         });
         this.modals.taskEditModal.mount();
+
+        // Task add modal
+        this.modals.taskAddModal = new TaskAddModal({
+            taskService: this.taskService
+        });
+        this.modals.taskAddModal.mount();
+
+        // Completed tasks modal
+        this.modals.completedTasksModal = new CompletedTasksModal({
+            taskService: this.taskService
+        });
+        this.modals.completedTasksModal.mount();
 
         // Archive modal
         this.modals.archiveModal = new ArchiveModal({ sessionService: this.sessionService });
@@ -1213,6 +1227,19 @@ class App {
         addSessionBtn?.addEventListener('click', () => {
             eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
         });
+
+        // Task add button
+        const addTaskBtn = document.getElementById('add-task-btn');
+        addTaskBtn?.addEventListener('click', () => {
+            this.modals.taskAddModal.open();
+        });
+
+        // View completed tasks button
+        const viewCompletedBtn = document.getElementById('view-completed-btn');
+        viewCompletedBtn?.addEventListener('click', () => {
+            this.modals.completedTasksModal.open();
+        });
+
         closeSessionsSheetBtn?.addEventListener('click', closeSessionsSheet);
         closeTasksSheetBtn?.addEventListener('click', closeTasksSheet);
         sessionsSheetOverlay?.addEventListener('click', closeSessionsSheet);

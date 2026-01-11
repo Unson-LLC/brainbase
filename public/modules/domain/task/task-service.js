@@ -183,4 +183,60 @@ export class TaskService {
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
         return { success: true, taskId, eventResult };
     }
+
+    /**
+     * タスク作成
+     * @param {Object} taskData - タスクデータ
+     * @param {string} taskData.title - タスク名（必須）
+     * @param {string} taskData.project - プロジェクト名
+     * @param {string} taskData.priority - 優先度 (low, medium, high)
+     * @param {string} taskData.due - 期限 (YYYY-MM-DD)
+     * @param {string} taskData.description - 説明
+     * @returns {Promise<{success: boolean, task: Object, eventResult: Object}>}
+     */
+    async createTask(taskData) {
+        const task = await this.httpClient.post('/api/tasks', taskData);
+        await this.loadTasks(); // リロード
+        const eventResult = await this.eventBus.emit(EVENTS.TASK_CREATED, { task });
+        return { success: true, task, eventResult };
+    }
+
+    /**
+     * 完了済みタスク取得
+     * @param {number|null} dayFilter - 過去N日間のフィルター（nullで全期間）
+     * @returns {Array} 完了済みタスク配列（新しい順）
+     */
+    getCompletedTasks(dayFilter = null) {
+        const { tasks } = this.store.getState();
+        let completed = (tasks || []).filter(t => t.status === 'done');
+
+        if (dayFilter) {
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - dayFilter);
+            completed = completed.filter(t => {
+                // created または updated を完了日として使用
+                const completedDate = t.updated ? new Date(t.updated) : (t.created ? new Date(t.created) : null);
+                return completedDate && completedDate >= cutoff;
+            });
+        }
+
+        // 新しい順でソート
+        return completed.sort((a, b) => {
+            const dateA = a.updated ? new Date(a.updated) : (a.created ? new Date(a.created) : new Date(0));
+            const dateB = b.updated ? new Date(b.updated) : (b.created ? new Date(b.created) : new Date(0));
+            return dateB - dateA;
+        });
+    }
+
+    /**
+     * タスク復活（完了→未完了に戻す）
+     * @param {string} taskId - 復活するタスクのID
+     * @returns {Promise<{success: boolean, taskId: string, eventResult: Object}>}
+     */
+    async restoreTask(taskId) {
+        await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'todo' });
+        await this.loadTasks(); // リロード
+        const eventResult = await this.eventBus.emit(EVENTS.TASK_RESTORED, { taskId });
+        return { success: true, taskId, eventResult };
+    }
 }
