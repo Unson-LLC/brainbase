@@ -181,6 +181,14 @@ export const appStore = new Store({
     tasks: [],
     schedule: null,
     inbox: [],
+    timeline: {
+        items: [],
+        date: null,
+        filters: {
+            type: null,
+            search: ''
+        }
+    },
     testMode: false, // テストモード（読み取り専用）
     filters: {
         taskFilter: '',

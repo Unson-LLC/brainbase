@@ -213,6 +213,18 @@ export const EVENTS = {
     SCHEDULE_LOADED: 'schedule:loaded',
     SCHEDULE_UPDATED: 'schedule:updated',
 
+    // Timeline関連
+    TIMELINE_LOADED: 'timeline:loaded',
+    TIMELINE_ITEM_CREATED: 'timeline:item-created',
+    TIMELINE_ITEM_UPDATED: 'timeline:item-updated',
+    TIMELINE_ITEM_DELETED: 'timeline:item-deleted',
+    TIMELINE_FILTER_CHANGED: 'timeline:filter-changed',
+    TIMELINE_TASK_LINKED: 'timeline:task-linked',
+    TIMELINE_TASK_UNLINKED: 'timeline:task-unlinked',
+    TIMELINE_ADD_ITEM: 'timeline:add-item',
+    TIMELINE_EDIT_ITEM: 'timeline:edit-item',
+    CREATE_TASK_FROM_TIMELINE: 'timeline:create-task',
+
     // Inbox関連
     INBOX_LOADED: 'inbox:loaded',
     INBOX_ITEM_COMPLETED: 'inbox:item-completed',
