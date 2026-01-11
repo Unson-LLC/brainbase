@@ -43,8 +43,14 @@ _schedules/
 _ops/
 
 # Symlinks (local development only)
-.claude
+# Note: .claude/commands/ is tracked for cc-sdd slash commands
 shared
+
+# ========================================
+# cc-sdd (Spec-Driven Development)
+# ========================================
+# WIP files during spec generation
+.kiro/specs/**/.wip
 
 # Temporary files
 *.log

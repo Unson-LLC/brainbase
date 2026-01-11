@@ -378,6 +378,70 @@ async archiveTask(taskId) {
 
 ---
 
+### 1.6 Spec-Driven Development (SDD) for Large-Scale Features
+
+**原則**: 大規模機能開発（3+ファイル）はcc-sddのSpec-Driven Workflowを使用する
+
+**Why**:
+- 要件の明確化（実装前に仕様を承認）
+- 手戻りの削減（設計段階でのレビュー）
+- 並列実装可能（依存関係の明確化）
+- ドキュメント自動生成（specs/に仕様が残る）
+
+**使用基準**:
+```
+3+ファイルの変更 → cc-sdd
+クロスモジュール変更 → cc-sdd
+新ドメイン追加 → cc-sdd
+バグ修正/リファクタ → TDD（従来通り）
+```
+
+**Workflow**:
+```
+/kiro:steering (既存コード強化) または /kiro:spec-init (新規機能)
+    ↓
+/kiro:spec-requirements → 要件定義 (EARS形式)
+    ↓
+/kiro:validate-gap → 人間による承認
+    ↓
+/kiro:spec-design → 設計 (Mermaid図)
+    ↓
+/kiro:validate-design → 人間による承認
+    ↓
+/kiro:spec-tasks → タスク分解 (依存関係付き)
+    ↓
+session/* branch作成
+    ↓
+/kiro:spec-impl → 実装 (TDDサイクル適用)
+    ↓
+git commit → git merge（手動）
+
+※ /commit, /mergeコマンドが利用可能になり次第、手動操作を置き換え
+```
+
+**成果物の保存先**:
+```
+.kiro/specs/{feature-name}/
+├── requirements.md    # 要件定義
+├── design.md          # 設計書
+└── tasks.md           # タスク一覧
+```
+
+**思考パターン**:
+```
+大規模機能開発 → 「cc-sddを使用すべきか?」
+3+ファイル変更 → 「/kiro:spec-initから始めるか?」
+既存機能拡張 → 「/kiro:steeringが適切か?」
+実装開始前 → 「validate-gapで承認を得たか?」
+```
+
+**Enforcement**:
+- ファイル: `.kiro/specs/{feature}/requirements.md`, `design.md`, `tasks.md`
+- 承認ゲート: `/kiro:validate-gap`, `/kiro:validate-design`
+- ルール: `.kiro/settings/rules/brainbase-architecture.md`
+
+---
+
 ## 2. Test Strategy
 
 ### 2.1 Test Pyramid
@@ -834,7 +898,7 @@ import追加 → 「正しい順序か?」
 
 ### 6.1 標準開発フロー
 
-**Explore → Plan → Branch → Edit → Test → Review & Replan → Commit → Merge**
+**Explore → [Spec Phase (大規模のみ)] → Plan → Branch → Edit → Test → Review & Replan → Commit → Merge**
 
 **Phase 1: Explore** (調査)
 - 既存コードの理解
@@ -842,8 +906,19 @@ import追加 → 「正しい順序か?」
 - 依存関係の確認
 - **装備Skills**: architecture-patterns, refactoring-workflow
 
+**Phase 1.5: Spec Phase** (大規模機能のみ - CLAUDE.md 1.6参照)
+- **対象**: 3+ファイル変更、クロスモジュール、新ドメイン追加
+- `/kiro:steering` (既存コード強化) または `/kiro:spec-init` (新規)
+- `/kiro:spec-requirements` → EARS形式要件
+- `/kiro:validate-gap` → 人間承認
+- `/kiro:spec-design` → Mermaid設計図
+- `/kiro:validate-design` → 人間承認
+- `/kiro:spec-tasks` → タスク分解
+- **装備Skills**: cc-sdd commands, architecture-patterns
+- **成果物**: `.kiro/specs/{feature}/requirements.md`, `design.md`, `tasks.md`
+
 **Phase 2: Plan** (設計)
-- 実装方針の決定
+- 実装方針の決定（Spec Phaseを使用した場合はスキップ可）
 - Skills適合性の確認
 - トレードオフの検討
 - **装備Skills**: architecture-patterns, test-strategy, refactoring-workflow
@@ -1216,6 +1291,17 @@ npm run lint:imports
 ### docs/REFACTORING_PLAN.md
 - **役割**: リファクタリング計画（詳細設計）
 - **対象**: 3-Phase戦略、移行計画、コードメトリクス
+
+### .kiro/specs/{feature}/
+- **役割**: 大規模機能の仕様書（cc-sdd生成）
+- **対象**: 要件定義（requirements.md）、設計書（design.md）、タスク一覧（tasks.md）
+- **関係**: docs/REFACTORING_PLAN.mdの詳細版（機能単位）
+- **使用条件**: 3+ファイル変更、クロスモジュール、新ドメイン追加時
+
+### .kiro/settings/
+- **役割**: cc-sddテンプレートとルール（brainbaseカスタマイズ済み）
+- **対象**: 仕様書テンプレート、アーキテクチャルール
+- **重要ファイル**: `rules/brainbase-architecture.md`
 
 ---
 
