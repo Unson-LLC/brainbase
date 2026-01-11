@@ -12,6 +12,9 @@ export function createTaskRouter(taskParser) {
     // GET /api/tasks - すべてのタスクを取得
     router.get('/', controller.list);
 
+    // POST /api/tasks - 新しいタスクを作成
+    router.post('/', controller.create);
+
     // POST /api/tasks/:id - タスクを更新
     router.post('/:id', controller.update);
 

@@ -290,9 +290,17 @@
             <div class="next-tasks-section" id="next-tasks-section">
                 <div class="section-header">
                     <h3><i data-lucide="list-todo"></i> 次にやること</h3>
-                    <button id="toggle-all-tasks" class="icon-btn" title="全て表示" aria-label="全てのタスクを表示">
-                        <i data-lucide="chevron-down"></i>
-                    </button>
+                    <div class="section-header-actions">
+                        <button id="add-task-btn" class="icon-btn" title="タスク追加" aria-label="新しいタスクを追加">
+                            <i data-lucide="plus"></i>
+                        </button>
+                        <button id="view-completed-btn" class="icon-btn" title="完了タスク" aria-label="完了タスクを表示">
+                            <i data-lucide="check-circle-2"></i>
+                        </button>
+                        <button id="toggle-all-tasks" class="icon-btn" title="全て表示" aria-label="全てのタスクを表示">
+                            <i data-lucide="chevron-down"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- タブナビゲーション -->
@@ -442,6 +450,83 @@
             <div class="modal-footer">
                 <button class="btn-secondary close-modal-btn">Cancel</button>
                 <button id="save-task-btn" class="btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div id="add-task-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="plus-circle"></i> タスク追加</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="add-task-error" class="form-error" style="display: none;"></div>
+                <div class="form-group">
+                    <label for="add-task-title">タスク名 <span class="required">*</span></label>
+                    <input type="text" id="add-task-title" class="form-input" placeholder="タスク名を入力" required>
+                </div>
+                <div class="form-group">
+                    <label for="add-task-project">プロジェクト</label>
+                    <select id="add-task-project" class="form-input">
+                        <option value="general">general</option>
+                        <option value="brainbase">brainbase</option>
+                        <option value="unson">unson</option>
+                        <option value="tech-knight">tech-knight</option>
+                        <option value="salestailor">salestailor</option>
+                        <option value="zeims">zeims</option>
+                        <option value="baao">baao</option>
+                        <option value="ncom">ncom</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="add-task-priority">優先度</label>
+                    <select id="add-task-priority" class="form-input">
+                        <option value="high">高</option>
+                        <option value="medium" selected>中</option>
+                        <option value="low">低</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="add-task-due">期限</label>
+                    <input type="date" id="add-task-due" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label for="add-task-description">説明</label>
+                    <textarea id="add-task-description" class="form-input" rows="3" placeholder="タスクの詳細（任意）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn">キャンセル</button>
+                <button id="save-add-task-btn" class="btn-primary">追加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Completed Tasks Modal -->
+    <div id="completed-tasks-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3><i data-lucide="check-circle-2"></i> 完了タスク</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="completed-tasks-filter">
+                    <select id="completed-date-filter" class="form-input">
+                        <option value="">すべての期間</option>
+                        <option value="7">過去7日</option>
+                        <option value="30">過去30日</option>
+                        <option value="90">過去90日</option>
+                    </select>
+                </div>
+                <div id="completed-tasks-list" class="completed-tasks-list">
+                    <!-- Dynamically rendered -->
+                </div>
+                <div id="completed-tasks-empty" class="completed-empty" style="display: none;">
+                    <i data-lucide="inbox"></i>
+                    <p>完了タスクはありません</p>
+                </div>
             </div>
         </div>
     </div>
