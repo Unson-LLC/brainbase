@@ -7,7 +7,7 @@ import { logger } from '../utils/logger.js';
 
 // タスク更新の許可フィールド
 const ALLOWED_UPDATE_FIELDS = [
-    'title', 'status', 'priority', 'deadline', 'tags', 'description', 'focus'
+    'title', 'status', 'priority', 'deadline', 'tags', 'description', 'focus', 'project'
 ];
 
 /**
@@ -76,19 +76,24 @@ export class TaskController {
     update = async (req, res) => {
         try {
             const { id } = req.params;
+            console.log('[TaskController] update called, id:', id, 'body:', req.body);
 
             // 入力検証: id は文字列
             if (!id || typeof id !== 'string') {
+                console.log('[TaskController] Invalid task ID');
                 return res.status(400).json({ error: 'Invalid task ID' });
             }
 
             // 入力検証: updates オブジェクト
             const validatedUpdates = validateTaskUpdates(req.body);
+            console.log('[TaskController] validatedUpdates:', validatedUpdates);
             if (!validatedUpdates) {
+                console.log('[TaskController] Invalid update fields');
                 return res.status(400).json({ error: 'Invalid update fields' });
             }
 
             const success = await this.taskParser.updateTask(id, validatedUpdates);
+            console.log('[TaskController] updateTask result:', success);
             if (success) {
                 res.json({ success: true });
             } else {
