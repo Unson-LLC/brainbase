@@ -424,6 +424,8 @@ export class SessionManager {
         // IMPORTANT: ttyd base path must match the proxy route
         const basePath = `/console/${sessionId}`;
 
+        // Use BASH_PATH env var if set, otherwise use platform-appropriate default
+        const bashPath = process.env.BASH_PATH || 'bash';
         const args = [
             '-p', port.toString(),
             '-W',
@@ -435,7 +437,7 @@ export class SessionManager {
             '-t', 'fontFamily=Menlo', // Use Menlo font (macOS default monospace with Japanese support)
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
-            'bash',
+            bashPath,
             scriptPath,
             sessionId
         ];
@@ -463,7 +465,9 @@ export class SessionManager {
             spawnOptions.cwd = cwd;
         }
 
-        const ttyd = spawn('ttyd', args, spawnOptions);
+        // Use TTYD_PATH env var if set, otherwise use 'ttyd' from PATH
+        const ttydPath = process.env.TTYD_PATH || 'ttyd';
+        const ttyd = spawn(ttydPath, args, spawnOptions);
 
         // 親プロセス終了時に子プロセスを待機しない
         ttyd.unref();
