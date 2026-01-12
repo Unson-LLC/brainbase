@@ -449,51 +449,53 @@ describe('TaskService', () => {
         const completedTasks = [
             { id: '1', name: 'Task 1', status: 'done', updated: '2025-01-10T10:00:00Z' },
             { id: '2', name: 'Task 2', status: 'done', updated: '2025-01-05T10:00:00Z' },
-            { id: '3', name: 'Task 3', status: 'done', updated: '2024-12-01T10:00:00Z' },
-            { id: '4', name: 'Task 4', status: 'todo', updated: '2025-01-10T10:00:00Z' }
+            { id: '3', name: 'Task 3', status: 'done', updated: '2024-12-01T10:00:00Z' }
         ];
 
-        beforeEach(() => {
-            appStore.setState({ tasks: completedTasks });
-        });
+        it('getCompletedTasks呼び出し時_APIから完了タスクが取得される', async () => {
+            httpClient.get.mockResolvedValue(completedTasks);
 
-        it('getCompletedTasks呼び出し時_完了済みタスクのみ返される', () => {
-            const result = taskService.getCompletedTasks();
+            const result = await taskService.getCompletedTasks();
 
+            expect(httpClient.get).toHaveBeenCalledWith('/api/tasks/completed');
             expect(result).toHaveLength(3);
             expect(result.every(t => t.status === 'done')).toBe(true);
         });
 
-        it('getCompletedTasks呼び出し時_新しい順でソートされる', () => {
-            const result = taskService.getCompletedTasks();
+        it('getCompletedTasks呼び出し時_新しい順でソートされる', async () => {
+            httpClient.get.mockResolvedValue(completedTasks);
+
+            const result = await taskService.getCompletedTasks();
 
             expect(result[0].id).toBe('1'); // 最新
             expect(result[1].id).toBe('2');
             expect(result[2].id).toBe('3'); // 最古
         });
 
-        it('getCompletedTasks呼び出し時_日付フィルターが適用される', () => {
+        it('getCompletedTasks呼び出し時_日付フィルターが適用される', async () => {
+            httpClient.get.mockResolvedValue(completedTasks);
+
             // 過去7日間のみ（2025-01-10基準でテスト）
             // Note: 実際のテストでは日付のモックが必要な場合がある
-            const result = taskService.getCompletedTasks(7);
+            const result = await taskService.getCompletedTasks(7);
 
             // フィルター結果は現在日付に依存するため、存在確認のみ
             expect(Array.isArray(result)).toBe(true);
             expect(result.every(t => t.status === 'done')).toBe(true);
         });
 
-        it('getCompletedTasks呼び出し時_タスクなし_空配列が返される', () => {
-            appStore.setState({ tasks: [] });
+        it('getCompletedTasks呼び出し時_タスクなし_空配列が返される', async () => {
+            httpClient.get.mockResolvedValue([]);
 
-            const result = taskService.getCompletedTasks();
+            const result = await taskService.getCompletedTasks();
 
             expect(result).toEqual([]);
         });
 
-        it('getCompletedTasks呼び出し時_完了タスクなし_空配列が返される', () => {
-            appStore.setState({ tasks: [{ id: '1', status: 'todo' }] });
+        it('getCompletedTasks呼び出し時_完了タスクなし_空配列が返される', async () => {
+            httpClient.get.mockResolvedValue([]);
 
-            const result = taskService.getCompletedTasks();
+            const result = await taskService.getCompletedTasks();
 
             expect(result).toEqual([]);
         });

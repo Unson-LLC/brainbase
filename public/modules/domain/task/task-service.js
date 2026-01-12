@@ -202,13 +202,13 @@ export class TaskService {
     }
 
     /**
-     * 完了済みタスク取得
+     * 完了済みタスク取得（API経由）
      * @param {number|null} dayFilter - 過去N日間のフィルター（nullで全期間）
-     * @returns {Array} 完了済みタスク配列（新しい順）
+     * @returns {Promise<Array>} 完了済みタスク配列（新しい順）
      */
-    getCompletedTasks(dayFilter = null) {
-        const { tasks } = this.store.getState();
-        let completed = (tasks || []).filter(t => t.status === 'done');
+    async getCompletedTasks(dayFilter = null) {
+        // API経由で完了タスクを取得
+        let completed = await this.httpClient.get('/api/tasks/completed');
 
         if (dayFilter) {
             const cutoff = new Date();

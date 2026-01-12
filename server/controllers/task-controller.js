@@ -56,6 +56,20 @@ export class TaskController {
     };
 
     /**
+     * GET /api/tasks/completed
+     * 完了済みタスクを取得
+     */
+    listCompleted = async (req, res) => {
+        try {
+            const tasks = await this.taskParser.getCompletedTasks();
+            res.json(tasks);
+        } catch (error) {
+            logger.error('Failed to get completed tasks', { error });
+            res.status(500).json({ error: 'Failed to get completed tasks' });
+        }
+    };
+
+    /**
      * POST/PUT /api/tasks/:id
      * タスクを更新
      */

@@ -11,6 +11,7 @@ describe('TaskController (Backend)', () => {
         // Mock TaskParser
         mockTaskParser = {
             getAllTasks: vi.fn(),
+            getCompletedTasks: vi.fn(),
             updateTask: vi.fn(),
             deleteTask: vi.fn(),
             createTask: vi.fn()
@@ -172,6 +173,39 @@ describe('TaskController (Backend)', () => {
             expect(mockTaskParser.createTask).toHaveBeenCalledWith(expect.objectContaining({
                 title: 'Trimmed Task'
             }));
+        });
+    });
+
+    describe('listCompleted', () => {
+        it('listCompleted呼び出し時_完了タスク一覧が返される', async () => {
+            const completedTasks = [
+                { id: 'task-1', name: 'Task 1', status: 'done' },
+                { id: 'task-2', name: 'Task 2', status: 'done' }
+            ];
+            mockTaskParser.getCompletedTasks.mockResolvedValue(completedTasks);
+
+            await taskController.listCompleted(mockReq, mockRes);
+
+            expect(mockTaskParser.getCompletedTasks).toHaveBeenCalled();
+            expect(mockRes.json).toHaveBeenCalledWith(completedTasks);
+        });
+
+        it('listCompleted呼び出し時_完了タスクがない場合は空配列が返される', async () => {
+            mockTaskParser.getCompletedTasks.mockResolvedValue([]);
+
+            await taskController.listCompleted(mockReq, mockRes);
+
+            expect(mockTaskParser.getCompletedTasks).toHaveBeenCalled();
+            expect(mockRes.json).toHaveBeenCalledWith([]);
+        });
+
+        it('listCompleted呼び出し時_エラーが発生した場合は500を返す', async () => {
+            mockTaskParser.getCompletedTasks.mockRejectedValue(new Error('Database error'));
+
+            await taskController.listCompleted(mockReq, mockRes);
+
+            expect(mockRes.status).toHaveBeenCalledWith(500);
+            expect(mockRes.json).toHaveBeenCalledWith({ error: 'Failed to get completed tasks' });
         });
     });
 });

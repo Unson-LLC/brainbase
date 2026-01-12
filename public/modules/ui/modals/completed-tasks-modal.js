@@ -27,7 +27,7 @@ export class CompletedTasksModal {
     /**
      * モーダルを開く
      */
-    open() {
+    async open() {
         if (!this.modalElement) return;
 
         // フィルターをリセット
@@ -37,11 +37,11 @@ export class CompletedTasksModal {
             filterSelect.value = '';
         }
 
-        // リストを描画
-        this._renderList();
-
-        // モーダルを表示
+        // モーダルを表示（ローディング中も表示）
         this.modalElement.classList.add('active');
+
+        // リストを描画
+        await this._renderList();
     }
 
     /**
@@ -61,7 +61,7 @@ export class CompletedTasksModal {
         try {
             await this.taskService.restoreTask(taskId);
             // リストを再描画
-            this._renderList();
+            await this._renderList();
         } catch (error) {
             console.error('Failed to restore task:', error);
         }
@@ -70,13 +70,13 @@ export class CompletedTasksModal {
     /**
      * リストを描画
      */
-    _renderList() {
+    async _renderList() {
         const listElement = document.getElementById('completed-tasks-list');
         const emptyElement = document.getElementById('completed-tasks-empty');
 
         if (!listElement) return;
 
-        const completedTasks = this.taskService.getCompletedTasks(this.dateFilter);
+        const completedTasks = await this.taskService.getCompletedTasks(this.dateFilter);
 
         if (completedTasks.length === 0) {
             listElement.innerHTML = '';
@@ -210,17 +210,17 @@ export class CompletedTasksModal {
         // 日付フィルター変更
         const filterSelect = document.getElementById('completed-date-filter');
         if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
+            filterSelect.addEventListener('change', async (e) => {
                 const value = e.target.value;
                 this.dateFilter = value ? parseInt(value, 10) : null;
-                this._renderList();
+                await this._renderList();
             });
         }
 
         // TASK_COMPLETED イベントをリスン（モーダル表示中に更新）
-        const unsub = eventBus.on(EVENTS.TASK_COMPLETED, () => {
+        const unsub = eventBus.on(EVENTS.TASK_COMPLETED, async () => {
             if (this.modalElement?.classList.contains('active')) {
-                this._renderList();
+                await this._renderList();
             }
         });
         this._unsubscribers.push(unsub);
