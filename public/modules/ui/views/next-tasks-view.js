@@ -102,9 +102,20 @@ export class NextTasksView {
 
         const deadlineHtml = this._formatDeadline(task.deadline || task.due);
         const isOverdue = this._isOverdue(task.deadline || task.due);
+        const isInProgress = task.status === 'in-progress' || task.status === 'doing';
+
+        // Status badge for in-progress
+        const statusBadge = isInProgress
+            ? '<span class="next-task-status in-progress">進行中</span>'
+            : '';
+
+        // Build class list
+        const classList = ['next-task-item'];
+        if (isOverdue) classList.push('overdue');
+        if (isInProgress) classList.push('in-progress');
 
         return `
-            <div class="next-task-item${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
+            <div class="${classList.join(' ')}" data-task-id="${task.id}">
                 <div class="next-task-checkbox" data-id="${task.id}">
                     <i data-lucide="check"></i>
                 </div>
@@ -112,6 +123,7 @@ export class NextTasksView {
                     <div class="next-task-title">${task.name || task.title}</div>
                     <div class="next-task-meta">
                         <span class="next-task-project">${task.project || 'general'}</span>
+                        ${statusBadge}
                         ${priorityBadge}
                         ${deadlineHtml}
                     </div>
