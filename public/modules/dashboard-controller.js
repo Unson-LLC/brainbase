@@ -1,22 +1,43 @@
-import { BrainbaseService } from './domain/brainbase/brainbase-service.js';
+// [OSS] BrainbaseService は動的インポート（存在しない場合はスタブを使用）
 import { GaugeChart } from './components/gauge-chart.js';
 import { DonutChart } from './components/donut-chart.js';
 import { ProjectCard } from './components/project-card.js';
 import { HeatmapRow } from './components/heatmap-row.js';
 import { LineChart } from './components/line-chart.js';
 
+// OSSモード用スタブサービス
+class BrainbaseServiceStub {
+    async getAllData() {
+        return {
+            tasks: { total: 0, overdue: 0, completed: 0, blocked: 0, completionRate: 0 },
+            projects: []
+        };
+    }
+}
+
 export class DashboardController {
     constructor() {
-        this.brainbaseService = new BrainbaseService();
+        this.brainbaseService = null; // init()で初期化
         this.data = null;
         this.projects = [];
         this.systemHealth = null;
         this.healthRefreshInterval = null;
+        this.isOSSMode = false;
     }
 
     async init() {
         // Only initialize if dashboard panel exists
         if (!document.getElementById('dashboard-panel')) return;
+
+        // 動的インポートでBrainbaseServiceを取得（存在しない場合はスタブ使用）
+        try {
+            const { BrainbaseService } = await import('./domain/brainbase/brainbase-service.js');
+            this.brainbaseService = new BrainbaseService();
+        } catch (error) {
+            console.log('Dashboard: OSS mode (brainbase-service not available)');
+            this.brainbaseService = new BrainbaseServiceStub();
+            this.isOSSMode = true;
+        }
 
         await this.loadData();
         this.render();
