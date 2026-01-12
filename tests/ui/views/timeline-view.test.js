@@ -11,6 +11,9 @@ vi.mock('../../../public/modules/domain/schedule/schedule-service.js', () => {
             constructor() {
                 this.loadSchedule = vi.fn();
                 this.getTimeline = vi.fn(() => []);
+                this.getEvents = vi.fn(() => []); // Kiro形式イベント（デフォルトは空）
+                this.findEventById = vi.fn(() => null);
+                this.toggleEventComplete = vi.fn();
             }
         }
     };

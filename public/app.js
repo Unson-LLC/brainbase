@@ -46,6 +46,8 @@ import { CompletedTasksModal } from './modules/ui/modals/completed-tasks-modal.j
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 import { RenameModal } from './modules/ui/modals/rename-modal.js';
+import { ScheduleAddModal } from './modules/ui/modals/schedule-add-modal.js';
+import { ScheduleEditModal } from './modules/ui/modals/schedule-edit-modal.js';
 
 /**
  * Terminal Reconnect Manager
@@ -248,6 +250,15 @@ class App {
         const timelineContainer = document.getElementById('timeline-list');
         if (timelineContainer) {
             this.views.timelineView = new TimelineView({ scheduleService: this.scheduleService });
+
+            // Connect timeline callbacks to modals (modals initialized in initModals)
+            this.views.timelineView.onAddRequest = () => {
+                this.modals.scheduleAddModal?.open();
+            };
+            this.views.timelineView.onEditRequest = (eventId) => {
+                this.modals.scheduleEditModal?.open(eventId);
+            };
+
             this.views.timelineView.mount(timelineContainer);
         }
 
@@ -432,6 +443,18 @@ class App {
         // Rename modal
         this.modals.renameModal = new RenameModal({ sessionService: this.sessionService });
         this.modals.renameModal.mount();
+
+        // Schedule add modal
+        this.modals.scheduleAddModal = new ScheduleAddModal({
+            scheduleService: this.scheduleService
+        });
+        this.modals.scheduleAddModal.mount();
+
+        // Schedule edit modal
+        this.modals.scheduleEditModal = new ScheduleEditModal({
+            scheduleService: this.scheduleService
+        });
+        this.modals.scheduleEditModal.mount();
     }
 
     /**

@@ -799,6 +799,65 @@
         </div>
     </div>
 
+    <!-- Schedule Add Modal -->
+    <div id="add-schedule-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3><i data-lucide="calendar-plus"></i> 予定を追加</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-schedule-start">開始時間 *</label>
+                    <input type="time" id="add-schedule-start" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label for="add-schedule-end">終了時間</label>
+                    <input type="time" id="add-schedule-end" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label for="add-schedule-title">タイトル *</label>
+                    <input type="text" id="add-schedule-title" class="form-input" placeholder="予定のタイトル" required>
+                </div>
+                <div id="add-schedule-error" class="error-message" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn">キャンセル</button>
+                <button id="save-add-schedule-btn" class="btn-primary">追加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Edit Modal -->
+    <div id="edit-schedule-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3><i data-lucide="calendar-clock"></i> 予定を編集</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-schedule-start">開始時間 *</label>
+                    <input type="time" id="edit-schedule-start" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-schedule-end">終了時間</label>
+                    <input type="time" id="edit-schedule-end" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label for="edit-schedule-title">タイトル *</label>
+                    <input type="text" id="edit-schedule-title" class="form-input" required>
+                </div>
+                <div id="edit-schedule-error" class="error-message" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="delete-schedule-btn" class="btn-danger">削除</button>
+                <button class="btn-secondary close-modal-btn">キャンセル</button>
+                <button id="save-edit-schedule-btn" class="btn-primary">保存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
