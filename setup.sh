@@ -31,11 +31,24 @@ if [ ! -f ".env" ]; then
     echo "   ✅ .env created (Kiro task format enabled by default)"
 fi
 
-# Create _tasks directory if it doesn't exist
+# Create _tasks directory with sample data if it doesn't exist
 if [ ! -d "_tasks" ]; then
     echo "📂 Creating _tasks directory (Kiro format)..."
-    cp -r _tasks-sample-kiro _tasks
-    echo "   ✅ _tasks created with Kiro format sample data"
+    mkdir -p _tasks/inbox
+    cat > _tasks/inbox/tasks.md << 'TASKS_EOF'
+- [ ] Brainbaseへようこそ！
+  - _ID: sample-task-1_
+  - _Priority: high_
+  - _Description: このサンプルタスクを編集してみましょう_
+- [ ] UIを探索する
+  - _ID: sample-task-2_
+  - _Priority: medium_
+  - _Description: タスク管理、タイムライン、セッション切り替えを試してみましょう_
+TASKS_EOF
+    touch _tasks/inbox/done.md
+    echo "   ✅ _tasks/inbox created with sample tasks"
+else
+    echo "📂 _tasks directory found (Kiro format)"
 fi
 
 # Create _schedules directory if it doesn't exist
@@ -43,13 +56,6 @@ if [ ! -d "_schedules" ]; then
     echo "📅 Creating _schedules directory..."
     cp -r _schedules-sample _schedules
     echo "   ✅ _schedules created with sample data"
-fi
-
-# Create _inbox directory if it doesn't exist
-if [ ! -d "_inbox" ]; then
-    echo "📥 Creating _inbox directory..."
-    cp -r _inbox-sample _inbox
-    echo "   ✅ _inbox created with sample data"
 fi
 
 # Create empty _codex if it doesn't exist (use sample as fallback)
