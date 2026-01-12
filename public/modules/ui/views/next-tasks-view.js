@@ -31,8 +31,9 @@ export class NextTasksView {
         const unsub2 = eventBus.on(EVENTS.TASK_COMPLETED, () => this.render());
         const unsub3 = eventBus.on(EVENTS.TASK_DELETED, () => this.render());
         const unsub4 = eventBus.on(EVENTS.TASK_FILTER_CHANGED, () => this.render());
+        const unsub5 = eventBus.on(EVENTS.TASK_UPDATED, () => this.render());
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
     }
 
     /**
@@ -102,7 +103,7 @@ export class NextTasksView {
 
         const deadlineHtml = this._formatDeadline(task.deadline || task.due);
         const isOverdue = this._isOverdue(task.deadline || task.due);
-        const isInProgress = task.status === 'in-progress' || task.status === 'doing';
+        const isInProgress = task.status === 'in-progress' || task.status === 'in_progress' || task.status === 'doing';
 
         // Status badge for in-progress
         const statusBadge = isInProgress
