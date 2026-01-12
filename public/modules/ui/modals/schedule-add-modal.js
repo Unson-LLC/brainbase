@@ -158,10 +158,11 @@ export class ScheduleAddModal {
         });
 
         // Enterキーで保存
+        // IME変換中（isComposing）はスキップ
         const titleInput = document.getElementById('add-schedule-title');
         if (titleInput) {
             titleInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                     e.preventDefault();
                     this.save();
                 }
