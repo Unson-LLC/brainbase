@@ -221,6 +221,7 @@ npm start
    | `Priority` | - | `high` / `medium` / `low` |
    | `Due` | - | 期限（YYYY-MM-DD） |
    | `Parent` | - | 親タスクID（サブタスク用） |
+   | `Description` | - | タスクの説明 |
 
    **メリット**:
    - プロジェクト別に分離されたファイル構造
