@@ -2330,6 +2330,47 @@ body::after {
     background: rgba(239, 68, 68, 0.12);
 }
 
+/* In-progress task item */
+.next-task-item.in-progress {
+    background: rgba(59, 130, 246, 0.08);
+    border-left: 3px solid var(--accent-color);
+}
+
+.next-task-item.in-progress:hover {
+    background: rgba(59, 130, 246, 0.12);
+}
+
+/* In-progress checkbox with pulse animation */
+.next-task-item.in-progress .next-task-checkbox {
+    border-color: var(--accent-color);
+    animation: inProgressPulse 2s infinite;
+}
+
+@keyframes inProgressPulse {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+    70% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+/* Status badge */
+.next-task-status {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 1px 4px;
+    border-radius: 2px;
+}
+
+.next-task-status.in-progress {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--accent-color);
+}
+
+/* Combined: overdue + in-progress */
+.next-task-item.overdue.in-progress {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+}
+
 /* Remaining toggle */
 .remaining-toggle {
     padding: 0.75rem 1rem;
