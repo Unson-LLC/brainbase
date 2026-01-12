@@ -49,7 +49,7 @@ export class DashboardController {
     async loadData() {
         try {
             this.data = await this.brainbaseService.getAllData();
-            this.projects = this.data.projects; // サーバー側で計算済み
+            this.projects = this.data.projects || []; // サーバー側で計算済み
         } catch (error) {
             console.error('Failed to load brainbase data:', error);
             this.data = {};
@@ -518,6 +518,49 @@ export class DashboardController {
         const gridContainer = container.querySelector('.metrics-trend-grid');
         if (!gridContainer) return;
 
+        // Check for empty data
+        if (this.projects.length === 0) {
+            gridContainer.innerHTML = `
+                <div class="empty-state-card" style="
+                    grid-column: 1 / -1;
+                    background: rgba(255, 255, 255, 0.02);
+                    backdrop-filter: blur(10px);
+                    border: 1px dashed rgba(255, 255, 255, 0.1);
+                    border-radius: 12px;
+                    padding: 40px;
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 16px;
+                ">
+                    <div style="
+                        width: 64px;
+                        height: 64px;
+                        background: rgba(255, 255, 255, 0.05);
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: var(--text-tertiary);
+                    ">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                             <line x1="18" y1="20" x2="18" y2="10"></line>
+                             <line x1="12" y1="20" x2="12" y2="4"></line>
+                             <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                    </div>
+                    <div>
+                        <h4 style="color: var(--text-primary); font-size: 16px; margin-bottom: 8px; font-weight: 600;">データ収集中</h4>
+                        <p style="color: var(--text-secondary); font-size: 13px; max-width: 400px; line-height: 1.6;">
+                            全体トレンドを表示するには、プロジェクトデータの蓄積が必要です。
+                        </p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
         // Calculate overall metrics from all projects
         const totalTasks = this.projects.reduce((sum, p) => sum + p.total, 0);
         const completedTasks = this.projects.reduce((sum, p) => sum + p.completed, 0);
@@ -580,6 +623,27 @@ export class DashboardController {
 
         const chartContainer = container.querySelector('#validation-chart-container');
         if (!chartContainer) return;
+
+        // Check for empty data
+        if (this.projects.length === 0) {
+            chartContainer.innerHTML = `
+                <div class="empty-state-card" style="
+                    height: 100%;
+                    background: rgba(255, 255, 255, 0.02);
+                    backdrop-filter: blur(10px);
+                    border: 1px dashed rgba(255, 255, 255, 0.1);
+                    border-radius: 12px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 12px;
+                ">
+                    <p style="color: var(--text-secondary); font-size: 13px;">データ不足のため表示できません</p>
+                </div>
+            `;
+            return;
+        }
 
         // Count projects by maturity stage
         const stageCounts = { CPF: 0, PSF: 0, SPF: 0, PMF: 0 };
