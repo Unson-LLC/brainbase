@@ -89,6 +89,9 @@ config.local.yml
 # ========================================
 _local/
 _private/
+.worktrees/
+_schedules-backup/
+madoguchi-ai/
 
 # ========================================
 # サンプルデータの個人プロジェクト
