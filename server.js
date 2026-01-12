@@ -175,7 +175,8 @@ app.get('/', async (req, res) => {
         res.set('Content-Type', 'text/html; charset=utf-8');
         res.send(content);
     } catch (error) {
-        res.status(500).send('Error loading page');
+        console.error('Error loading index.html:', error);
+        res.status(500).send('Error loading page: ' + error.message);
     }
 });
 
