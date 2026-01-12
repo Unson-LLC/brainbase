@@ -20,11 +20,22 @@ echo "📝 Creating state.json from state.sample.json..."
 cp state.sample.json state.json
 echo "   ✅ state.json created"
 
+# Create .env from example if it doesn't exist
+if [ ! -f ".env" ]; then
+    echo "⚙️  Creating .env from .env.example..."
+    cp .env.example .env
+    # Comment out the paths to use auto-detection
+    sed -i.bak 's/^BRAINBASE_ROOT=/#BRAINBASE_ROOT=/' .env 2>/dev/null || true
+    sed -i.bak 's/^PROJECTS_ROOT=/#PROJECTS_ROOT=/' .env 2>/dev/null || true
+    rm -f .env.bak 2>/dev/null || true
+    echo "   ✅ .env created (Kiro task format enabled by default)"
+fi
+
 # Create _tasks directory if it doesn't exist
 if [ ! -d "_tasks" ]; then
-    echo "📂 Creating _tasks directory..."
-    cp -r _tasks-sample _tasks
-    echo "   ✅ _tasks created with sample data"
+    echo "📂 Creating _tasks directory (Kiro format)..."
+    cp -r _tasks-sample-kiro _tasks
+    echo "   ✅ _tasks created with Kiro format sample data"
 fi
 
 # Create _schedules directory if it doesn't exist
@@ -49,6 +60,10 @@ fi
 
 echo ""
 echo "✅ Setup complete!"
+echo ""
+echo "📋 Task format: Kiro (directory-based)"
+echo "   Tasks are stored in _tasks/{project}/tasks.md"
+echo "   Completed tasks go to _tasks/{project}/done.md"
 echo ""
 echo "Next steps:"
 echo "1. Start the server: npm start"
