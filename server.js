@@ -114,12 +114,19 @@ const PORT = process.env.PORT || DEFAULT_PORT;
 
 // Configuration
 const USE_KIRO_FORMAT = process.env.KIRO_TASK_FORMAT === 'true';
+const USE_KIRO_SCHEDULE_FORMAT = process.env.KIRO_SCHEDULE_FORMAT === 'true';
 if (USE_KIRO_FORMAT) {
     console.log('[BRAINBASE] 📋 Kiro task format ENABLED');
     console.log('[BRAINBASE] Tasks will be stored in _tasks/{project}/tasks.md and done.md');
 } else {
     console.log('[BRAINBASE] 📋 YAML task format (default)');
     console.log('[BRAINBASE] Tasks will be stored in _tasks/index.md');
+}
+if (USE_KIRO_SCHEDULE_FORMAT) {
+    console.log('[BRAINBASE] 📅 Kiro schedule format ENABLED');
+    console.log('[BRAINBASE] Schedules will be stored in _schedules/{date}/schedule.md');
+} else {
+    console.log('[BRAINBASE] 📅 Legacy schedule format (default)');
 }
 const TASKS_DIR = path.join(BRAINBASE_ROOT, '_tasks');
 const TASKS_FILE = path.join(TASKS_DIR, 'index.md');
@@ -140,7 +147,7 @@ const TIMELINE_DIR = path.join(BRAINBASE_ROOT, '_timeline');
 const taskParser = USE_KIRO_FORMAT
     ? new TaskParser(TASKS_DIR, { useKiroFormat: true })
     : new TaskParser(TASKS_FILE);
-const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
+const scheduleParser = new ScheduleParser(SCHEDULES_DIR, { useKiroFormat: USE_KIRO_SCHEDULE_FORMAT });
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
