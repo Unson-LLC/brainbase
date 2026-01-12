@@ -311,6 +311,8 @@
                 </div>
 
                 <!-- タブナビゲーション -->
+                <!-- [OSS] NocoDBタブは無効化 - ローカルタスクのみ表示 -->
+                <!--
                 <div class="task-tabs" id="task-tabs">
                     <button class="task-tab active" data-tab="local">
                         <i data-lucide="file-text"></i> ローカル
@@ -319,6 +321,7 @@
                         <i data-lucide="database"></i> プロジェクト
                     </button>
                 </div>
+                -->
 
                 <!-- ローカルタブコンテンツ -->
                 <div class="task-tab-content active" id="local-tasks-panel">
@@ -346,7 +349,7 @@
                     </div>
                 </div>
 
-                <!-- NocoDBタブコンテンツ -->
+                <!-- [OSS] NocoDBタブコンテンツは無効化
                 <div class="task-tab-content" id="nocodb-tasks-panel">
                     <div class="task-filter">
                         <div class="filter-group">
@@ -366,6 +369,7 @@
                         </div>
                     </div>
                 </div>
+                -->
             </div>
         </aside>
     </div>
@@ -686,9 +690,11 @@
                     <button class="settings-tab" data-tab="github">
                         <i data-lucide="github"></i> GitHub
                     </button>
+                    <!-- [OSS] NocoDB連携は無効化
                     <button class="settings-tab" data-tab="nocodb">
                         <i data-lucide="table-2"></i> NocoDB
                     </button>
+                    -->
                 </div>
 
                 <!-- Tab Content -->
@@ -760,7 +766,7 @@
                         </div>
                     </div>
 
-                    <!-- NocoDB Tab -->
+                    <!-- [OSS] NocoDB連携は無効化
                     <div class="settings-panel" id="nocodb-panel">
                         <div class="settings-section">
                             <h3>NocoDB Base Mappings</h3>
@@ -770,6 +776,7 @@
                             </div>
                         </div>
                     </div>
+                    -->
                 </div>
             </div>
         </div>

@@ -26,7 +26,8 @@ import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 // [OSS] InboxService - mana/Slack連携のため無効化
 // import { InboxService } from './modules/domain/inbox/inbox-service.js';
-import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
+// [OSS] NocoDBTaskService - NocoDB連携のため無効化
+// import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
 
 // Views
 import { TaskView } from './modules/ui/views/task-view.js';
@@ -35,7 +36,8 @@ import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 // [OSS] InboxView - mana/Slack連携のため無効化
 // import { InboxView } from './modules/ui/views/inbox-view.js';
-import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
+// [OSS] NocoDBTasksView - NocoDB連携のため無効化
+// import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -218,7 +220,8 @@ class App {
         this.container.register('scheduleService', () => new ScheduleService());
         // [OSS] inboxService - mana/Slack連携のため無効化
         // this.container.register('inboxService', () => new InboxService());
-        this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
+        // [OSS] nocodbTaskService - NocoDB連携のため無効化
+        // this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -226,7 +229,8 @@ class App {
         this.scheduleService = this.container.get('scheduleService');
         // [OSS] inboxService - mana/Slack連携のため無効化
         // this.inboxService = this.container.get('inboxService');
-        this.nocodbTaskService = this.container.get('nocodbTaskService');
+        // [OSS] nocodbTaskService - NocoDB連携のため無効化
+        // this.nocodbTaskService = this.container.get('nocodbTaskService');
     }
 
     /**
@@ -254,12 +258,12 @@ class App {
             this.views.nextTasksView.mount(nextTasksContainer);
         }
 
-        // NocoDB Tasks (right panel - tab)
-        const nocodbTasksContainer = document.getElementById('nocodb-tasks-list');
-        if (nocodbTasksContainer) {
-            this.views.nocodbTasksView = new NocoDBTasksView({ nocodbTaskService: this.nocodbTaskService });
-            this.views.nocodbTasksView.mount(nocodbTasksContainer);
-        }
+        // [OSS] NocoDB Tasks - NocoDB連携のため無効化
+        // const nocodbTasksContainer = document.getElementById('nocodb-tasks-list');
+        // if (nocodbTasksContainer) {
+        //     this.views.nocodbTasksView = new NocoDBTasksView({ nocodbTaskService: this.nocodbTaskService });
+        //     this.views.nocodbTasksView.mount(nocodbTasksContainer);
+        // }
 
         // Setup task tabs switching
         this.setupTaskTabs();
@@ -374,10 +378,10 @@ class App {
                 // Emit tab change event
                 eventBus.emit(EVENTS.TASK_TAB_CHANGED, { tab: targetTab });
 
-                // If switching to NocoDB tab, trigger data load
-                if (targetTab === 'nocodb' && this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.onTabActivated();
-                }
+                // [OSS] NocoDB tab - NocoDB連携のため無効化
+                // if (targetTab === 'nocodb' && this.views.nocodbTasksView) {
+                //     this.views.nocodbTasksView.onTabActivated();
+                // }
 
                 // Re-render Lucide icons
                 if (window.lucide) {
@@ -386,53 +390,22 @@ class App {
             });
         });
 
-        // Setup NocoDB filter handlers
-        this.setupNocoDBFilters();
+        // [OSS] NocoDB filter handlers - NocoDB連携のため無効化
+        // this.setupNocoDBFilters();
     }
 
-    /**
-     * Setup NocoDB filter and sync handlers
-     */
-    setupNocoDBFilters() {
-        // Project filter
-        const projectFilter = document.getElementById('nocodb-project-filter');
-        if (projectFilter) {
-            projectFilter.addEventListener('change', (e) => {
-                if (this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.handleFilterChange(e.target.value);
-                }
-            });
-        }
-
-        // Hide completed checkbox
-        const hideCompletedCheckbox = document.getElementById('nocodb-hide-completed');
-        if (hideCompletedCheckbox) {
-            hideCompletedCheckbox.addEventListener('change', (e) => {
-                if (this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.handleHideCompletedChange(e.target.checked);
-                }
-            });
-        }
-
-        // Sync button
-        const syncBtn = document.getElementById('nocodb-sync-btn');
-        if (syncBtn) {
-            syncBtn.addEventListener('click', async () => {
-                if (this.views.nocodbTasksView) {
-                    await this.views.nocodbTasksView.handleSync();
-                }
-            });
-        }
-    }
+    // [OSS] setupNocoDBFilters - NocoDB連携のため無効化
+    // setupNocoDBFilters() { ... }
 
     /**
      * Initialize modals
      */
     initModals() {
-        // Task edit modal (supports both local and NocoDB tasks)
+        // Task edit modal
         this.modals.taskEditModal = new TaskEditModal({
-            taskService: this.taskService,
-            nocodbTaskService: this.nocodbTaskService
+            taskService: this.taskService
+            // [OSS] nocodbTaskService - NocoDB連携のため無効化
+            // nocodbTaskService: this.nocodbTaskService
         });
         this.modals.taskEditModal.mount();
 
@@ -651,13 +624,8 @@ class App {
 
                 // Step 5: タスクステータスを「進行中」に更新
                 try {
-                    if (task.source === 'nocodb') {
-                        // NocoDBタスクの場合
-                        await this.nocodbTaskService.updateStatus(task.id, 'in_progress');
-                    } else {
-                        // ローカルタスクの場合
-                        await this.taskService.updateTask(task.id, { status: 'in_progress' });
-                    }
+                    // [OSS] NocoDB分岐削除 - ローカルタスクのみ対応
+                    await this.taskService.updateTask(task.id, { status: 'in_progress' });
                     console.log('Task status updated to in_progress:', task.id);
                 } catch (statusError) {
                     // ステータス更新失敗はログのみ（セッション作成は成功しているため）

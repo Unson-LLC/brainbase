@@ -202,7 +202,8 @@ projects:
     });
   });
 
-  describe('getNocoDBMappings', () => {
+  // [OSS] NocoDB連携は無効化されています
+  describe.skip('getNocoDBMappings', () => {
     it('config.ymlのnocodb設定_正しく変換されたマッピングが返される', async () => {
       // Arrange: config.yml with nocodb settings
       const mockConfig = `
@@ -276,7 +277,8 @@ projects:
     });
   });
 
-  describe('getAll - includes nocodb', () => {
+  // [OSS] NocoDB連携は無効化されています
+  describe.skip('getAll - includes nocodb', () => {
     it('should include nocodb in the response', async () => {
       // Mock all file reads
       const mockConfig = `
@@ -308,7 +310,8 @@ projects:
     });
   });
 
-  describe('checkIntegrity - nocodb validation', () => {
+  // [OSS] NocoDB連携は無効化されています
+  describe.skip('checkIntegrity - nocodb validation', () => {
     it('should report projects with local path but no nocodb mapping as info', async () => {
       const mockConfig = `
 root: /path/to/workspace

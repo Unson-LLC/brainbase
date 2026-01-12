@@ -34,7 +34,6 @@ import { createTimelineRouter } from './server/routes/timeline.js';
 import { createMiscRouter } from './server/routes/misc.js';
 import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
-import { createNocoDBRouter } from './server/routes/nocodb.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -114,7 +113,9 @@ const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
 
 // Configuration
-const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
+const USE_KIRO_FORMAT = process.env.KIRO_TASK_FORMAT === 'true';
+const TASKS_DIR = path.join(BRAINBASE_ROOT, '_tasks');
+const TASKS_FILE = path.join(TASKS_DIR, 'index.md');
 const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
 // Phase 4: worktree環境では正本のstate.jsonを参照（E2Eテスト用）
 const STATE_FILE = isWorktree
@@ -127,7 +128,11 @@ const INBOX_FILE = path.join(BRAINBASE_ROOT, '_inbox/pending.md');
 const TIMELINE_DIR = path.join(BRAINBASE_ROOT, '_timeline');
 
 // Initialize Modules
-const taskParser = new TaskParser(TASKS_FILE);
+// Kiro format: tasks stored in _tasks/{project}/tasks.md and _tasks/{project}/done.md
+// YAML format (default): tasks stored in _tasks/index.md
+const taskParser = USE_KIRO_FORMAT
+    ? new TaskParser(TASKS_DIR, { useKiroFormat: true })
+    : new TaskParser(TASKS_FILE);
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
@@ -336,7 +341,6 @@ app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/timeline', createTimelineRouter(timelineStorage));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
-app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot));
 
 // ========================================
@@ -354,7 +358,11 @@ app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRo
 const server = app.listen(PORT, async () => {
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
-    console.log(`Reading tasks from: ${TASKS_FILE}`);
+    if (USE_KIRO_FORMAT) {
+        console.log(`[KIRO] Reading tasks from: ${TASKS_DIR}/{project}/tasks.md`);
+    } else {
+        console.log(`[YAML] Reading tasks from: ${TASKS_FILE}`);
+    }
     console.log(`Reading schedules from: ${SCHEDULES_DIR}`);
 });
 

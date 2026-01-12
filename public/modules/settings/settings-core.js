@@ -289,7 +289,8 @@ export class SettingsCore {
       return '<div class="config-empty">No workspaces found</div>';
     }
 
-    let html = '<div class="settings-section"><h3>Unified Configuration Overview</h3><p class="settings-section-desc">Workspace → Project → Slack/GitHub/NocoDB の統合マッピング</p>';
+    // [OSS] NocoDB連携は無効化
+    let html = '<div class="settings-section"><h3>Unified Configuration Overview</h3><p class="settings-section-desc">Workspace → Project → Slack/GitHub の統合マッピング</p>';
 
     // Workspace毎にプロジェクト一覧を表示
     for (const ws of workspaces) {
@@ -314,7 +315,7 @@ export class SettingsCore {
                 <th>Project</th>
                 <th>Slack Channels</th>
                 <th>GitHub</th>
-                <th>NocoDB</th>
+                <!-- [OSS] NocoDB連携は無効化 -->
               </tr>
             </thead>
             <tbody>
@@ -322,8 +323,9 @@ export class SettingsCore {
 
         for (const proj of activeProjects) {
           const hasGithub = !!proj.github;
-          const hasNocodb = !!proj.nocodb;
-          const warningClass = (!hasGithub || !hasNocodb) ? 'warning-row' : '';
+          // [OSS] NocoDB連携は無効化
+          // const hasNocodb = !!proj.nocodb;
+          const warningClass = !hasGithub ? 'warning-row' : '';
 
           html += `
             <tr data-project="${escapeHtml(proj.id || '')}" class="${warningClass}">
@@ -347,12 +349,14 @@ export class SettingsCore {
                   : '<span class="status-missing">❌ 未設定</span>'
                 }
               </td>
+              <!-- [OSS] NocoDB連携は無効化
               <td class="${!hasNocodb ? 'missing' : ''}">
                 ${hasNocodb
                   ? `<a href="${escapeHtml(proj.nocodb.url || '')}" target="_blank" class="config-link">${escapeHtml(proj.nocodb.base_name || '')}</a>`
                   : '<span class="status-missing">❌ 未設定</span>'
                 }
               </td>
+              -->
             </tr>
           `;
         }
@@ -373,7 +377,8 @@ export class SettingsCore {
             <h4>Unassigned Projects</h4>
             <ul>
               ${orphanedProjects.map(p =>
-                `<li><span class="badge badge-project">${escapeHtml(p.id || '')}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, NocoDB: ${p.hasNocodb ? '✅' : '❌'}, Channels: ${p.channelCount || 0})</li>`
+                // [OSS] NocoDB連携は無効化 - hasNocodbを削除
+                `<li><span class="badge badge-project">${escapeHtml(p.id || '')}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, Channels: ${p.channelCount || 0})</li>`
               ).join('')}
             </ul>
           </div>

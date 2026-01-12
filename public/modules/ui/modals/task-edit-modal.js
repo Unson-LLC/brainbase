@@ -2,15 +2,12 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 
 /**
  * タスク編集モーダル
- * ローカルタスクとNocoDBタスクの両方に対応
  */
 export class TaskEditModal {
-    constructor({ taskService, nocodbTaskService = null }) {
+    constructor({ taskService }) {
         this.taskService = taskService;
-        this.nocodbTaskService = nocodbTaskService;
         this.modalElement = null;
         this.currentTaskId = null;
-        this.currentTaskSource = null;  // 'local' or 'nocodb'
         this._unsubscribers = [];
     }
 
@@ -35,8 +32,6 @@ export class TaskEditModal {
         if (!this.modalElement) return;
 
         this.currentTaskId = task.id;
-        // ソース判定: task.source='nocodb' またはIDが 'nocodb:' で始まる場合
-        this.currentTaskSource = task.source === 'nocodb' || (task.id && task.id.startsWith('nocodb:')) ? 'nocodb' : 'local';
 
         // フォームに値を設定
         const idInput = document.getElementById('edit-task-id');
@@ -45,7 +40,6 @@ export class TaskEditModal {
         const priorityInput = document.getElementById('edit-task-priority');
         const dueInput = document.getElementById('edit-task-due');
 
-        // NocoDBタスクはtitleフィールドも持つ
         const taskName = task.name || task.title || '';
 
         if (idInput) idInput.value = task.id || '';
@@ -87,12 +81,7 @@ export class TaskEditModal {
         };
 
         try {
-            // ソースに応じて適切なサービスを使用
-            if (this.currentTaskSource === 'nocodb' && this.nocodbTaskService) {
-                await this.nocodbTaskService.updateTask(this.currentTaskId, updates);
-            } else {
-                await this.taskService.updateTask(this.currentTaskId, updates);
-            }
+            await this.taskService.updateTask(this.currentTaskId, updates);
             this.close();
         } catch (error) {
             console.error('Failed to update task:', error);
