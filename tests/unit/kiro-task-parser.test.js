@@ -155,6 +155,55 @@ describe('KiroTaskParser', () => {
     });
   });
 
+  describe('prependTask', () => {
+    it('prependTask呼び出し時_タスクがファイル先頭に追加される', () => {
+      const existingContent = `- [x] 既存タスク
+  - _ID: task-old_`;
+      const newTask = {
+        id: 'task-new',
+        name: '新規タスク',
+        status: 'done'
+      };
+
+      const result = parser.prependTask(existingContent, newTask);
+
+      expect(result).toMatch(/^- \[x\] 新規タスク/);
+      expect(result.indexOf('新規タスク')).toBeLessThan(result.indexOf('既存タスク'));
+    });
+
+    it('prependTask呼び出し時_空ファイルでもタスクが追加される', () => {
+      const newTask = {
+        id: 'task-first',
+        name: '最初のタスク',
+        status: 'done'
+      };
+
+      const result = parser.prependTask('', newTask);
+
+      expect(result).toContain('- [x] 最初のタスク');
+      expect(result).toContain('_ID: task-first_');
+    });
+
+    it('prependTask呼び出し時_複数タスクの順序が保持される', () => {
+      let content = '';
+      const task1 = { id: 'task-1', name: 'タスク1', status: 'done' };
+      const task2 = { id: 'task-2', name: 'タスク2', status: 'done' };
+      const task3 = { id: 'task-3', name: 'タスク3', status: 'done' };
+
+      content = parser.prependTask(content, task1);
+      content = parser.prependTask(content, task2);
+      content = parser.prependTask(content, task3);
+
+      // 最後に追加されたtask3が先頭にあるべき
+      const pos1 = content.indexOf('タスク1');
+      const pos2 = content.indexOf('タスク2');
+      const pos3 = content.indexOf('タスク3');
+
+      expect(pos3).toBeLessThan(pos2);
+      expect(pos2).toBeLessThan(pos1);
+    });
+  });
+
   describe('serializeTask', () => {
     it('serializeTask呼び出し時_未完了タスクが正しくシリアライズされる', () => {
       const task = {
