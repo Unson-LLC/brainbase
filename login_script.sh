@@ -8,6 +8,7 @@ ENGINE=${3:-claude}  # claude or codex
 # Resolve repo root (this script lives in the repo root)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/scripts/codex-notify.sh"
+CODEX_WRAPPER="$SCRIPT_DIR/scripts/codex-wrapper.sh"
 CODEX_NOTIFY_ARG=""
 if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
@@ -33,9 +34,9 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 
         # Launch Codex with initial command as CLI argument (passed as prompt)
         if [ -n "$INITIAL_CMD" ]; then
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && codex $CODEX_NOTIFY_ARG \"$INITIAL_CMD\"" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"$CODEX_WRAPPER\" $CODEX_NOTIFY_ARG \"$INITIAL_CMD\"" C-m
         else
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && codex $CODEX_NOTIFY_ARG" C-m
+            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"$CODEX_WRAPPER\" $CODEX_NOTIFY_ARG" C-m
         fi
     else
         # Launch Claude Code with initial command as CLI argument (passed as prompt)
