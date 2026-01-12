@@ -53,9 +53,19 @@ fi
 
 # Create _schedules directory if it doesn't exist
 if [ ! -d "_schedules" ]; then
-    echo "📅 Creating _schedules directory..."
-    cp -r _schedules-sample _schedules
-    echo "   ✅ _schedules created with sample data"
+    echo "📅 Creating _schedules directory (Kiro format)..."
+    # Get today's date in YYYY-MM-DD format
+    TODAY=$(date +%Y-%m-%d)
+    mkdir -p "_schedules/$TODAY"
+    cat > "_schedules/$TODAY/schedule.md" << 'SCHEDULE_EOF'
+- [ ] 10:00-11:00 Brainbaseを始めよう
+  - _ID: event-sample-1_
+  - _Source: manual_
+- [ ] 14:00-15:00 機能を探索する
+  - _ID: event-sample-2_
+  - _Source: manual_
+SCHEDULE_EOF
+    echo "   ✅ _schedules created with sample data (Kiro format)"
 fi
 
 # Create empty _codex if it doesn't exist (use sample as fallback)
@@ -70,6 +80,9 @@ echo ""
 echo "📋 Task format: Kiro (directory-based)"
 echo "   Tasks are stored in _tasks/{project}/tasks.md"
 echo "   Completed tasks go to _tasks/{project}/done.md"
+echo ""
+echo "📅 Schedule format: Kiro (directory-based)"
+echo "   Schedules are stored in _schedules/{date}/schedule.md"
 echo ""
 echo "Next steps:"
 echo "1. Start the server: npm start"
