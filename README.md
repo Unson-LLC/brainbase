@@ -164,6 +164,11 @@ export BRAINBASE_ROOT=/path/to/your/workspace
 # カスタムポート（デフォルト: 3000、worktree内では3001）
 export PORT=4000
 
+# タスク形式の選択（デフォルト: YAML形式）
+# true: Kiro形式（ディレクトリベース、推奨）
+# false/未設定: YAML形式（従来の単一ファイル）
+export KIRO_TASK_FORMAT=true
+
 # サーバー起動
 npm start
 ```
@@ -179,6 +184,50 @@ npm start
    - プロジェクト名とディレクトリパスを入力
 
 2. **タスク管理**
+
+   Brainbaseは2つのタスク形式をサポートしています:
+
+   #### Kiro形式（推奨）
+
+   `KIRO_TASK_FORMAT=true` を設定すると、ディレクトリベースのタスク管理が有効になります:
+
+   ```
+   _tasks/
+   ├── brainbase/
+   │   ├── tasks.md   ← アクティブタスク
+   │   └── done.md    ← 完了タスク
+   ├── my-project/
+   │   ├── tasks.md
+   │   └── done.md
+   └── inbox/
+       ├── tasks.md
+       └── done.md
+   ```
+
+   **tasks.md のフォーマット**:
+   ```markdown
+   - [ ] 機能Aを実装する
+     - _ID: task-1736617200000_
+     - _Priority: high_
+     - _Due: 2025-01-15_
+   - [ ] バグBを修正する
+     - _ID: task-1736617200001_
+     - _Priority: medium_
+   ```
+
+   | フィールド | 必須 | 説明 |
+   |-----------|------|------|
+   | `ID` | ○ | 一意のタスクID（自動生成） |
+   | `Priority` | - | `high` / `medium` / `low` |
+   | `Due` | - | 期限（YYYY-MM-DD） |
+   | `Parent` | - | 親タスクID（サブタスク用） |
+
+   **メリット**:
+   - プロジェクト別に分離されたファイル構造
+   - 完了タスクが別ファイル（done.md）で管理され、コンテキストウィンドウを節約
+   - チェックボックス形式で直感的
+
+   #### YAML形式（従来）
 
    `_tasks/index.md` にYAMLフロントマター形式でタスクを記述します。
 
@@ -196,15 +245,6 @@ npm start
    # 機能Aを実装する
 
    詳細な説明をここに書く
-
-   ---
-   id: task-002
-   title: "バグBを修正する"
-   status: in-progress
-   priority: 2
-   ---
-
-   # バグBを修正する
    ```
 
    | フィールド | 必須 | 説明 |
@@ -215,6 +255,13 @@ npm start
    | `priority` | - | 優先度（数値、1が最高） |
    | `due` | - | 期限（YYYY-MM-DD） |
    | `tags` | - | タグ配列 |
+
+   #### マイグレーション
+
+   YAML形式からKiro形式への移行:
+   ```bash
+   npm run migrate:tasks
+   ```
 
    **UI操作**: 完了・優先度変更（defer）・削除はブラウザUIから可能
 
