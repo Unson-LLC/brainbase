@@ -2,7 +2,8 @@ import express from 'express';
 import { GitHubService } from '../services/github-service.js';
 import { SystemService } from '../services/system-service.js';
 import { StorageService } from '../services/storage-service.js';
-import { NocoDBService } from '../services/nocodb-service.js';
+// [OSS] NocoDB連携は無効化されています
+// import { NocoDBService } from '../services/nocodb-service.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -16,7 +17,8 @@ export function createBrainbaseRouter(options = {}) {
     const githubService = new GitHubService();
     const systemService = new SystemService();
     const storageService = new StorageService();
-    const nocodbService = new NocoDBService();
+    // [OSS] NocoDB連携は無効化されています
+    // const nocodbService = new NocoDBService();
 
     /**
      * GET /api/brainbase
@@ -161,47 +163,25 @@ export function createBrainbaseRouter(options = {}) {
     });
 
     /**
-     * GET /api/brainbase/projects
-     * 全プロジェクトの健全性スコアを返却（NocoDB実データ使用）
+     * [OSS] GET /api/brainbase/projects
+     * NocoDB連携は無効化されています
+     * ローカルタスクからプロジェクト情報を取得する簡易版
      */
     router.get('/projects', async (req, res) => {
         try {
-            // 1. config.ymlからプロジェクト一覧（project_id必須）
+            // config.ymlからプロジェクト一覧を取得
             const config = await configParser.getAll();
             const projects = (config.projects?.projects || [])
-                .filter(p => !p.archived && p.nocodb?.project_id)
-                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
+                .filter(p => !p.archived)
+                .map(p => ({
+                    name: p.id,
+                    healthScore: 100, // ローカルタスクのみ（NocoDB統合なし）
+                    overdue: 0,
+                    blocked: 0,
+                    completionRate: 0,
+                }));
 
-            // 2. NocoDBから統計取得
-            const stats = await Promise.all(
-                projects.map(p => nocodbService.getProjectStats(p.project_id))
-            );
-
-            // 3. 健全性スコア計算
-            const healthScores = stats.map((stat, i) => {
-                const taskCompletion = stat.completionRate || 0;
-                const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
-                const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
-                const milestoneProgress = stat.averageProgress || 0;
-
-                const healthScore = Math.round(
-                    (taskCompletion * 0.3) +
-                    (overdueScore * 0.2) +
-                    (blockedScore * 0.2) +
-                    (milestoneProgress * 0.3)
-                );
-
-                return {
-                    name: projects[i].id,
-                    healthScore,
-                    overdue: stat.overdue,
-                    blocked: stat.blocked,
-                    completionRate: taskCompletion,
-                    manaScore: 92 // 固定値（Phase 3でmana統合）
-                };
-            });
-
-            res.json(healthScores.sort((a, b) => b.healthScore - a.healthScore));
+            res.json(projects);
         } catch (error) {
             logger.error('Failed to fetch projects', { error });
             res.status(500).json({ error: 'Failed to fetch projects' });
