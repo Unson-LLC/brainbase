@@ -130,6 +130,11 @@ export class NextTasksView {
                     </div>
                 </div>
                 <div class="next-task-actions">
+                    ${isInProgress
+                        ? `<button class="next-task-action restore-task-btn" data-id="${task.id}" title="Todoに戻す">
+                            <i data-lucide="undo-2"></i>
+                           </button>`
+                        : ''}
                     <button class="next-task-action start-task-btn" data-id="${task.id}" title="Start Session">
                         <i data-lucide="terminal-square"></i>
                     </button>
@@ -238,6 +243,17 @@ export class NextTasksView {
                 const taskId = btn.dataset.id;
                 if (taskId && confirm('このタスクを削除しますか？')) {
                     await this.taskService.deleteTask(taskId);
+                }
+            });
+        });
+
+        // Restore button - Restore in_progress task to todo
+        this.container.querySelectorAll('.restore-task-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.id;
+                if (taskId) {
+                    await this.taskService.updateTask(taskId, { status: 'todo' });
                 }
             });
         });
