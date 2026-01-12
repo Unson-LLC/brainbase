@@ -50,6 +50,17 @@ export class TimelineView {
 
         this.container.addEventListener('click', this._handleClick);
         this.container.addEventListener('dblclick', this._handleDoubleClick);
+
+        // section-header内のプラスボタン
+        const addBtn = document.getElementById('add-schedule-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (this.onAddRequest) {
+                    this.onAddRequest();
+                }
+            });
+        }
     }
 
     /**
@@ -57,12 +68,14 @@ export class TimelineView {
      * @param {Event} e
      */
     _handleClick(e) {
-        // 追加ボタン
-        const addBtn = e.target.closest('.timeline-add-btn');
-        if (addBtn) {
+        // 編集ボタン
+        const editBtn = e.target.closest('.timeline-edit-btn');
+        if (editBtn) {
             e.preventDefault();
-            if (this.onAddRequest) {
-                this.onAddRequest();
+            e.stopPropagation();
+            const eventId = editBtn.dataset.editId;
+            if (eventId && this.onEditRequest) {
+                this.onEditRequest(eventId);
             }
             return;
         }
@@ -136,9 +149,7 @@ export class TimelineView {
      * @returns {string} HTML文字列
      */
     _formatTimelineHTML(events, currentTime) {
-        // 追加ボタン付きのコンテナ
         let html = '<div class="timeline">';
-        html += '<button class="timeline-add-btn" title="予定を追加">+</button>';
 
         if (!events || events.length === 0) {
             html += '<div class="timeline-empty">予定なし</div>';
@@ -178,11 +189,19 @@ export class TimelineView {
             const timeLabel = event.allDay ? '終日' : (event.start + (event.end ? '-' + event.end : ''));
             const title = escapeHtml(event.title || event.task || '');
 
+            // 編集ボタン（イベントIDがある場合のみ）
+            const editBtn = event.id ? `
+                <button class="timeline-edit-btn" title="編集" data-edit-id="${escapeHtml(event.id)}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                </button>
+            ` : '';
+
             html += `
                 <div class="timeline-item is-event${currentClass}${workTimeClass}${completedClass}"${eventIdAttr}>
                     <div class="timeline-marker"></div>
                     <span class="timeline-time">${timeLabel}</span>
                     <span class="timeline-content">${title}</span>
+                    ${editBtn}
                 </div>
             `;
         });

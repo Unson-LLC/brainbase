@@ -1525,10 +1525,40 @@ body::after {
 .timeline-item[data-event-id] {
     cursor: pointer;
     transition: background-color 0.15s;
+    position: relative;
 }
 
 .timeline-item[data-event-id]:hover {
     background-color: var(--hover-bg);
+}
+
+/* 編集ボタン */
+.timeline-edit-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.timeline-item:hover .timeline-edit-btn {
+    opacity: 1;
+}
+
+.timeline-edit-btn:hover {
+    background: var(--hover-bg);
+    color: var(--accent-color);
 }
 
 .timeline-item.is-completed .timeline-content {
