@@ -4316,28 +4316,45 @@ body::after {
 .strategic-overview-section {
     display: flex;
     flex-direction: column;
-    gap: 24px;
-}
-
-/* Strategic Projects List */
-.strategic-projects-list {
-    display: flex;
-    flex-direction: column;
     gap: 16px;
 }
 
-/* Strategic Project Item */
+/* Main Container: Projects (Left) + Bottlenecks (Right) */
+#strategic-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+@media (min-width: 1024px) {
+    #strategic-content {
+        grid-template-columns: 3fr 1fr;
+        /* Projects takes 75%, Bottlenecks 25% */
+    }
+}
+
+/* Strategic Projects List (Grid of Cards) */
+.strategic-projects-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 16px;
+    width: 100%;
+}
+
+/* Strategic Project Item (Card Style) */
 .strategic-project-item {
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.08), transparent);
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
     backdrop-filter: blur(30px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
-    padding: 20px;
+    padding: 16px 20px;
     transition: all 0.3s ease;
     display: grid;
-    grid-template-columns: 1fr 80px 120px;
-    gap: 20px;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px;
     align-items: center;
+    height: 100%;
+    /* Align heights in grid */
 }
 
 .strategic-project-item:hover {
@@ -4378,21 +4395,47 @@ body::after {
 
 .strategic-project-trend {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
+    justify-content: center;
+    gap: 2px;
+    font-size: 13px;
+    font-weight: 600;
+    width: 60px;
+}
+
+.strategic-project-trend .trend-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s;
 }
 
 .strategic-project-trend.up {
     color: var(--success-color);
 }
 
+.strategic-project-trend.up .trend-icon {
+    transform: translateY(-2px);
+}
+
 .strategic-project-trend.down {
     color: var(--danger-color);
 }
 
+.strategic-project-trend.down .trend-icon {
+    transform: translateY(2px);
+}
+
 .strategic-project-trend.stable {
     color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+.rec-item {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 2px;
 }
 
 .strategic-project-score {
@@ -5038,168 +5081,222 @@ body:has(.test-mode-banner) .app-container {
 
 /* ==================== Section 1: Critical Alerts（統一デザイン版）==================== */
 
+/* ==================== Section 1: Critical Alerts（Improved）==================== */
+
 .critical-alerts-section {
-    margin-bottom: 0.5rem;
+    margin-bottom: 24px;
 }
 
 .critical-alerts-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.1875rem;
+    gap: 12px;
+    margin-bottom: 12px;
 }
 
 .critical-alerts-header h2 {
-    font-size: 0.9375rem;
+    font-size: 14px;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--text-secondary);
+    /* Unify with Strategic Overview style */
     margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .critical-alerts-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.75rem;
-    height: 1.75rem;
-    padding: 0 0.5rem;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
     background: var(--danger-color);
-    color: var(--text-primary);
-    font-size: 0.8125rem;
+    color: white;
+    font-size: 11px;
     font-weight: 700;
-    border-radius: 9999px;
+    border-radius: 10px;
 }
 
 .critical-alerts-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0.125rem;
+    gap: 8px;
 }
 
+/* New Cleaner Card Style */
 .critical-alert-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 0.375rem;
-    padding: 0.375rem;
-    transition: all 0.3s ease;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(30px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 20px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
 }
 
 .critical-alert-card:hover {
-    background: var(--hover-bg);
-    border-color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
-.critical-alert-card.alert-type-blocker {
-    border-left: 4px solid var(--danger-color);
-}
-
-.critical-alert-card.alert-type-overdue {
-    border-left: 4px solid var(--warning-color);
-}
-
-.alert-header {
+.alert-main-content {
     display: flex;
-    align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 0.125rem;
+    align-items: center;
+    width: 100%;
+}
+
+.alert-left-col {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .alert-type-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    display: inline-block;
 }
 
 .alert-type-badge.blocker {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--danger-color);
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border: none;
 }
 
 .alert-type-badge.overdue {
-    background: rgba(245, 158, 11, 0.15);
-    color: var(--warning-color);
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+    border: none;
 }
 
-.alert-severity {
+.alert-project-task {
     display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.alert-severity.critical {
-    color: var(--danger-color);
-}
-
-.alert-severity.warning {
-    color: var(--warning-color);
-}
-
-.alert-severity-icon {
-    width: 1rem;
-    height: 1rem;
-}
-
-.alert-body {
-    margin-bottom: 0.125rem;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
 }
 
 .alert-project {
-    font-size: 0.75rem;
     color: var(--text-secondary);
-    margin-bottom: 0.09375rem;
-}
-
-.alert-task-name {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.09375rem;
-}
-
-.alert-details {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 0.09375rem;
-    margin-bottom: 0.125rem;
-}
-
-.alert-detail-item {
-    display: flex;
-    align-items: center;
-    gap: 0.0625rem;
-    font-size: 0.6875rem;
-    color: var(--text-secondary);
-}
-
-.alert-detail-icon {
-    width: 0.875rem;
-    height: 0.875rem;
-    color: var(--text-primary);
-}
-
-.alert-detail-label {
     font-weight: 500;
 }
 
-.alert-detail-value {
-    color: var(--text-primary);
+.alert-divider {
+    color: var(--text-tertiary);
 }
 
-.alert-actions {
+.alert-task-name {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.alert-right-col {
     display: flex;
-    gap: 0.125rem;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+}
+
+.alert-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.alert-meta.warning-text {
+    color: var(--warning-color);
+    font-weight: 500;
+}
+
+.alert-icon-sm {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+/* Helper styles for toggle */
+.hidden-alerts {
+    margin-top: 8px;
+    display: grid;
+    gap: 8px;
+}
+
+.alerts-toggle-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px;
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.alerts-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.alerts-toggle-btn i,
+.alerts-toggle-btn svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.3s ease;
+}
+
+/* Common Section Header Style (Strictly Unified) */
+.dashboard-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    /* Unified margin */
+    padding-left: 4px;
+    /* Slight alignment for optical balance */
+}
+
+.section-header-title {
+    font-size: 13px;
+    /* Slightly smaller for premium feel */
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0;
+    line-height: normal;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .alert-main-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .alert-right-col {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+gap: 0.125rem;
+flex-wrap: wrap;
 }
 
 .alert-action-btn {
@@ -5300,7 +5397,7 @@ body:has(.test-mode-banner) .app-container {
 /* Mana Hero Status Card */
 .mana-hero-card {
     background: radial-gradient(circle closest-corner at 50% 110%, #0f0a19, #26214900);
-    box-shadow: inset -1px -1px rgba(255,255,255,0.2), inset 1px 1px rgba(255,255,255,0.3);
+    box-shadow: inset -1px -1px rgba(255, 255, 255, 0.2), inset 1px 1px rgba(255, 255, 255, 0.3);
 }
 
 /* Mana Workflow Card */
@@ -5310,7 +5407,7 @@ body:has(.test-mode-banner) .app-container {
 
 .mana-workflow-card:hover {
     transform: translateY(-4px);
-    border-color: rgba(255,255,255,0.2);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Badge Styles */
@@ -5341,7 +5438,7 @@ body:has(.test-mode-banner) .app-container {
 .progress-bar {
     width: 100%;
     height: 8px;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     overflow: hidden;
 }

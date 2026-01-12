@@ -111,113 +111,119 @@ export class DashboardController {
         const { alerts, total_critical, total_warning } = this.criticalAlerts;
 
         if (!alerts || alerts.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <svg class="empty-state-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div class="empty-state-title">No Critical Alerts</div>
-                    <div class="empty-state-message">All systems running smoothly</div>
-                </div>
-            `;
+            // アラートがない場合はセクション自体を隠してスッキリさせる
+            container.innerHTML = '';
+            container.style.display = 'none';
             return;
         }
 
+        container.style.display = 'block';
+
         // Critical Alertsヘッダー
         const headerHtml = `
-            <div class="critical-alerts-header">
-                <h2>CRITICAL ALERTS</h2>
+            <div class="dashboard-section-header">
+                <h2 class="section-header-title">CRITICAL ALERTS</h2>
                 <span class="critical-alerts-badge">${alerts.length}</span>
             </div>
         `;
 
-        // Alerts一覧
-        const alertsHtml = alerts.map(alert => {
+        // 上位3件のみ表示
+        const visibleAlerts = alerts.slice(0, 3);
+        const hiddenAlerts = alerts.slice(3);
+
+        const renderAlertCard = (alert) => {
             const isCritical = alert.severity === 'critical';
             const alertTypeClass = alert.type === 'blocker' ? 'alert-type-blocker' : 'alert-type-overdue';
-            const severityClass = isCritical ? 'critical' : 'warning';
             const badgeClass = alert.type === 'blocker' ? 'blocker' : 'overdue';
+            const label = alert.type === 'blocker' ? 'BLOCKER' : 'OVERDUE';
 
+            // 日数表示のロジック
+            let daysLabel = '';
+            let daysValue = '';
             if (alert.type === 'blocker') {
-                return `
-                    <div class="critical-alert-card ${alertTypeClass}">
-                        <div class="alert-header">
-                            <span class="alert-type-badge ${badgeClass}">BLOCKER</span>
-                            <div class="alert-severity ${severityClass}">
-                                <svg class="alert-severity-icon" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                                </svg>
-                                <span>${isCritical ? 'CRITICAL' : 'WARNING'}</span>
-                            </div>
-                        </div>
-                        <div class="alert-body">
-                            <div class="alert-project">${alert.project}</div>
-                            <div class="alert-task-name">${alert.task}</div>
-                            <div class="alert-details">
-                                <div class="alert-detail-item">
-                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                    <span class="alert-detail-label">担当:</span>
-                                    <span class="alert-detail-value">${alert.owner}</span>
-                                </div>
-                                <div class="alert-detail-item">
-                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span class="alert-detail-label">経過:</span>
-                                    <span class="alert-detail-value">${alert.days_blocked}日</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            } else if (alert.type === 'overdue') {
-                return `
-                    <div class="critical-alert-card ${alertTypeClass}">
-                        <div class="alert-header">
-                            <span class="alert-type-badge ${badgeClass}">OVERDUE</span>
-                            <div class="alert-severity ${severityClass}">
-                                <svg class="alert-severity-icon" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                </svg>
-                                <span>${isCritical ? 'CRITICAL' : 'WARNING'}</span>
-                            </div>
-                        </div>
-                        <div class="alert-body">
-                            <div class="alert-project">${alert.project}</div>
-                            <div class="alert-task-name">${alert.task}</div>
-                            <div class="alert-details">
-                                <div class="alert-detail-item">
-                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                    <span class="alert-detail-label">担当:</span>
-                                    <span class="alert-detail-value">${alert.owner}</span>
-                                </div>
-                                <div class="alert-detail-item">
-                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <span class="alert-detail-label">期限:</span>
-                                    <span class="alert-detail-value">${alert.deadline}</span>
-                                </div>
-                                <div class="alert-detail-item">
-                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span class="alert-detail-label">超過:</span>
-                                    <span class="alert-detail-value">${alert.days_overdue}日</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                daysLabel = '経過';
+                daysValue = `${alert.days_blocked}日`;
+            } else {
+                daysLabel = '超過';
+                daysValue = `${alert.days_overdue}日`;
             }
-            return '';
-        }).join('');
 
-        container.innerHTML = headerHtml + '<div class="critical-alerts-grid">' + alertsHtml + '</div>';
+            return `
+                <div class="critical-alert-card ${alertTypeClass}">
+                    <div class="alert-main-content">
+                        <div class="alert-left-col">
+                            <span class="alert-type-badge ${badgeClass}">${label}</span>
+                            <div class="alert-project-task">
+                                <span class="alert-project">${alert.project}</span>
+                                <span class="alert-divider">/</span>
+                                <span class="alert-task-name">${alert.task}</span>
+                            </div>
+                        </div>
+                        <div class="alert-right-col">
+                            <div class="alert-meta">
+                                <i data-lucide="user" class="alert-icon-sm"></i>
+                                <span>${alert.owner}</span>
+                            </div>
+                            <div class="alert-meta warning-text">
+                                <i data-lucide="clock" class="alert-icon-sm"></i>
+                                <span>${daysLabel}: ${daysValue}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const visibleAlertsHtml = visibleAlerts.map(renderAlertCard).join('');
+
+        // 隠れているアラートのHTML
+        let hiddenAlertsHtml = '';
+        let toggleButtonHtml = '';
+
+        if (hiddenAlerts.length > 0) {
+            hiddenAlertsHtml = `
+                <div id="hidden-alerts" class="hidden-alerts" style="display: none;">
+                    ${hiddenAlerts.map(renderAlertCard).join('')}
+                </div>
+            `;
+
+            toggleButtonHtml = `
+                <button id="alerts-toggle-btn" class="alerts-toggle-btn" onclick="dashboardController.toggleAlerts()">
+                    <span id="alerts-toggle-text">Show ${hiddenAlerts.length} more alerts</span>
+                    <i data-lucide="chevron-down"></i>
+                </button>
+            `;
+        }
+
+        container.innerHTML = headerHtml +
+            '<div class="critical-alerts-grid">' +
+            visibleAlertsHtml +
+            hiddenAlertsHtml +
+            '</div>' +
+            toggleButtonHtml;
+
+        // アイコンの初期化
+        if (window.lucide) {
+            window.lucide.createIcons({ root: container });
+        }
+    }
+
+    toggleAlerts() {
+        const hiddenDiv = document.getElementById('hidden-alerts');
+        const btn = document.getElementById('alerts-toggle-btn');
+        const btnText = document.getElementById('alerts-toggle-text');
+        const btnIcon = btn.querySelector('svg'); // lucide replaces i with svg
+
+        if (hiddenDiv.style.display === 'none') {
+            hiddenDiv.style.display = 'grid'; // grid layout for spacing
+            btnText.textContent = 'Show less';
+            if (btnIcon) btnIcon.style.transform = 'rotate(180deg)';
+        } else {
+            hiddenDiv.style.display = 'none';
+            const count = this.criticalAlerts.alerts.length - 3;
+            btnText.textContent = `Show ${count} more alerts`;
+            if (btnIcon) btnIcon.style.transform = 'rotate(0deg)';
+        }
     }
 
     async renderSection2() {
@@ -236,24 +242,26 @@ export class DashboardController {
 
             // Project Priority Ranking
             const projectsHtml = projects.map((project, index) => {
-                const trendIcon = project.trend === 'up' ? '↑' : project.trend === 'down' ? '↓' : '→';
-                const trendClass = project.trend;
+                const trendIcon = project.trend === 'up' ? 'arrow-up' : project.trend === 'down' ? 'arrow-down' : 'arrow-right';
+                const trendColor = project.trend === 'up' ? 'text-green-500' : project.trend === 'down' ? 'text-red-500' : 'text-gray-500';
                 const scoreClass = project.health_score >= 80 ? 'healthy' : project.health_score >= 60 ? 'warning' : 'critical';
-                const changeSign = project.change >= 0 ? '+' : '';
 
                 return `
                     <div class="strategic-project-item">
                         <div class="strategic-project-info">
                             <div class="strategic-project-name">${index + 1}. ${project.name}</div>
-                            ${project.recommendations && project.recommendations.length > 0 ? `
+                             ${project.recommendations && project.recommendations.length > 0 ? `
                                 <div class="strategic-project-recommendations">
-                                    ${project.recommendations.map(rec => `<div>${rec}</div>`).join('')}
+                                    ${project.recommendations.map(rec => `<div class="rec-item">• ${rec}</div>`).join('')}
                                 </div>
-                            ` : ''}
+                            ` : `<div class="strategic-project-recommendations" style="opacity: 0.5;">
+                                  特記事項なし。順調に進捗中。
+                                 </div>`
+                    }
                         </div>
-                        <div class="strategic-project-trend ${trendClass}">
-                            <span class="trend-icon">${trendIcon}</span>
-                            <span class="trend-change">${changeSign}${project.change}</span>
+                        <div class="strategic-project-trend ${project.trend}">
+                            <i data-lucide="${trendIcon}" class="trend-icon"></i>
+                            <span class="trend-value">${project.change > 0 ? '+' : ''}${project.change || 0}</span>
                         </div>
                         <div class="strategic-project-score ${scoreClass}">
                             ${project.health_score}
@@ -265,9 +273,11 @@ export class DashboardController {
             // Bottlenecks
             const bottlenecksHtml = bottlenecks && bottlenecks.length > 0 ? `
                 <div class="strategic-bottlenecks">
-                    <h4 style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em;">
-                        ボトルネック検出
-                    </h4>
+                    <div class="dashboard-section-header">
+                        <h4 class="section-header-title">
+                            ボトルネック検出
+                        </h4>
+                    </div>
                     ${bottlenecks.map(bn => `
                         <div class="strategic-bottleneck-item">
                             <div class="strategic-bottleneck-type">${bn.type === 'project_overload' ? 'プロジェクト過負荷' : '全体リソース不足'}</div>
@@ -335,7 +345,44 @@ export class DashboardController {
                 .slice(0, 3);
 
             if (topProjects.length === 0) {
-                gridContainer.innerHTML = '<div class="empty-state">No project data available</div>';
+                gridContainer.innerHTML = `
+                    <div class="empty-state-card" style="
+                        grid-column: 1 / -1;
+                        background: rgba(255, 255, 255, 0.02);
+                        backdrop-filter: blur(10px);
+                        border: 1px dashed rgba(255, 255, 255, 0.1);
+                        border-radius: 12px;
+                        padding: 40px;
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 16px;
+                    ">
+                        <div style="
+                            width: 64px;
+                            height: 64px;
+                            background: rgba(255, 255, 255, 0.05);
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: var(--text-tertiary);
+                        ">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="20" x2="18" y2="10"></line>
+                                <line x1="12" y1="20" x2="12" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="14"></line>
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 style="color: var(--text-primary); font-size: 16px; margin-bottom: 8px; font-weight: 600;">データ収集中</h4>
+                            <p style="color: var(--text-secondary); font-size: 13px; max-width: 400px; line-height: 1.6;">
+                                トレンド分析を表示するには、最低1週間のプロジェクトデータが必要です。<br>現在データを蓄積しています。
+                            </p>
+                        </div>
+                    </div>
+                `;
                 return;
             }
 
@@ -509,8 +556,8 @@ export class DashboardController {
 
         gridContainer.innerHTML = metrics.map(metric => {
             const changeColor = metric.trend === 'up' && metric.label === 'タスク完了率' ? 'var(--accent-green)' :
-                               metric.trend === 'down' && metric.label === '期限超過数' ? 'var(--accent-green)' :
-                               metric.trend === 'up' ? 'var(--accent-orange)' : 'var(--accent-green)';
+                metric.trend === 'down' && metric.label === '期限超過数' ? 'var(--accent-green)' :
+                    metric.trend === 'up' ? 'var(--accent-orange)' : 'var(--accent-green)';
 
             return `
                 <div class="metric-trend-item">
@@ -547,15 +594,15 @@ export class DashboardController {
         chartContainer.innerHTML = `
             <div style="display: flex; gap: 8px; align-items: flex-end; height: 100%; padding: 0 20px;">
                 ${Object.entries(stageCounts).map(([stage, count]) => {
-                    const percentage = total > 0 ? (count / total) * 100 : 0;
-                    const stageColors = {
-                        'CPF': '#35a670',
-                        'PSF': '#ff9b26',
-                        'SPF': '#6b21ef',
-                        'PMF': '#05f'
-                    };
+            const percentage = total > 0 ? (count / total) * 100 : 0;
+            const stageColors = {
+                'CPF': '#35a670',
+                'PSF': '#ff9b26',
+                'SPF': '#6b21ef',
+                'PMF': '#05f'
+            };
 
-                    return `
+            return `
                         <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
                             <div style="width: 100%; background: ${stageColors[stage]}; border-radius: 4px 4px 0 0; height: ${percentage}%; min-height: 20px; display: flex; align-items: center; justify-content: center;">
                                 <span style="color: #fff; font-size: 12px; font-weight: 600;">${count}</span>
@@ -563,7 +610,7 @@ export class DashboardController {
                             <div style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">${stage}</div>
                         </div>
                     `;
-                }).join('')}
+        }).join('')}
             </div>
         `;
     }
@@ -600,15 +647,72 @@ export class DashboardController {
                 ? workflowStats.reduce((sum, w) => sum + w.stats.success_rate, 0) / workflowStats.length
                 : 0;
 
+            // Empty State Handling
+            if (workflowStats.length === 0) {
+                manaSection.innerHTML = `
+                    <div class="section-header" style="margin-bottom: 24px;">
+                        <div class="dashboard-section-header">
+                            <h2 class="section-header-title"><i data-lucide="bot"></i> Mana Dashboard</h2>
+                        </div>
+                        <p class="section-description">Slack AI PMエージェントのワークフロー実行状況と品質メトリクス</p>
+                    </div>
+
+                    <div class="empty-state-card" style="
+                        background: rgba(255, 255, 255, 0.02);
+                        backdrop-filter: blur(10px);
+                        border: 1px dashed rgba(255, 255, 255, 0.1);
+                        border-radius: 12px;
+                        padding: 60px;
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 24px;
+                        margin-top: 20px;
+                    ">
+                        <div style="
+                            width: 80px;
+                            height: 80px;
+                            background: rgba(59, 130, 246, 0.1);
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: var(--accent-color);
+                            box-shadow: 0 0 40px rgba(59, 130, 246, 0.1);
+                        ">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M12 16v-4"></path>
+                                <path d="M12 8h.01"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 style="color: var(--text-primary); font-size: 18px; margin-bottom: 12px; font-weight: 600;">Mana接続待機中</h3>
+                            <p style="color: var(--text-secondary); font-size: 14px; max-width: 480px; line-height: 1.6; margin: 0 auto;">
+                                Slack AI PMエージェント(Mana)との接続が確立されていません。<br>
+                                設定画面から連携ステータスを確認し、APIキーが正しく設定されているかご確認ください。
+                            </p>
+                        </div>
+                        <button class="btn-primary" style="margin-top: 8px;">
+                            <i data-lucide="settings"></i> 連携設定を確認
+                        </button>
+                    </div>
+                `;
+                // Re-initialize icons just in case
+                if (window.lucide) window.lucide.createIcons({ root: manaSection });
+                return;
+            }
+
             const overallStatus = overallSuccessRate >= 80 ? 'HEALTHY'
-                                : overallSuccessRate >= 60 ? 'WARNING'
-                                : 'CRITICAL';
+                : overallSuccessRate >= 60 ? 'WARNING'
+                    : 'CRITICAL';
 
             // Workflow実行状況
             const workflowStatusHTML = workflowStats.map(w => {
                 const severity = w.stats.success_rate >= 80 ? 'Healthy'
-                               : w.stats.success_rate >= 60 ? 'Warning'
-                               : 'Critical';
+                    : w.stats.success_rate >= 60 ? 'Warning'
+                        : 'Critical';
 
                 return `
                     <div class="mana-workflow-card" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; transition: all 0.3s ease;">
@@ -632,8 +736,8 @@ export class DashboardController {
 
             // HTML更新
             manaSection.innerHTML = `
-                <div class="section-header" style="margin-bottom: 24px;">
-                    <h2 style="color: var(--text-primary); font-size: 24px; font-weight: 700;">Section 5: Mana Quality Dashboard</h2>
+                <div class="dashboard-section-header" style="margin-bottom: 24px;">
+                    <h2 class="section-header-title">Mana Quality Dashboard</h2>
                 </div>
 
                 <!-- Mana Hero Status -->
