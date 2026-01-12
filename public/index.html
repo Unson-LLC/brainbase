@@ -139,12 +139,12 @@
             <div class="main-panel" id="dashboard-panel" style="display: none;">
                 <div class="dashboard-container">
                     <!-- Section 1: Critical Alerts -->
-                    <section id="section-1-alerts" class="critical-alerts-section">
+                    <section id="section-1-alerts" class="critical-alerts-section" aria-labelledby="section-1-heading" role="region">
                         <!-- Rendered by DashboardController.renderSection1() -->
                     </section>
 
                     <!-- Section 1 (Old): 健全性ゲージ（4つ） -->
-                    <section class="health-gauges">
+                    <section class="health-gauges" aria-label="健全性ゲージ" role="region">
                         <div id="gauge-1" class="gauge-chart"></div>
                         <div id="gauge-2" class="gauge-chart"></div>
                         <div id="gauge-3" class="gauge-chart"></div>
@@ -152,9 +152,9 @@
                     </section>
 
                     <!-- Section 2: Strategic Overview -->
-                    <section id="section-2-strategic" class="strategic-overview-section">
+                    <section id="section-2-strategic" class="strategic-overview-section" aria-labelledby="section-2-heading" role="region">
                         <div class="section-header" style="margin-bottom: 24px;">
-                            <h3 style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <h3 id="section-2-heading" style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
                                 Strategic Overview
                             </h3>
                         </div>
@@ -164,14 +164,14 @@
                     </section>
 
                     <!-- Section 3: プロジェクトカードグリッド -->
-                    <section class="project-cards-grid">
+                    <section id="section-3-projects" class="project-cards-grid" aria-label="Project Health Grid" role="region">
                         <!-- 12プロジェクトカード will be injected via JS -->
                     </section>
 
                     <!-- Section 4: Trend Analysis -->
-                    <section id="section-4-trends" class="trend-analysis-section" style="margin-top: 48px;">
+                    <section id="section-4-trends" class="trend-analysis-section" aria-labelledby="section-4-heading" role="region" style="margin-top: 48px;">
                         <div class="section-header" style="margin-bottom: 24px;">
-                            <h3 style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <h3 id="section-4-heading" style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
                                 Trend Analysis
                             </h3>
                             <p style="color: var(--text-tertiary); font-size: 13px; margin-top: 8px;">
@@ -253,12 +253,12 @@
                     </section>
 
                     <!-- Section 5: Mana Quality Dashboard (Week 7-8) -->
-                    <section id="mana-quality" style="margin-top: 32px; margin-bottom: 40px;">
+                    <section id="mana-quality" aria-label="Mana Quality Dashboard" role="region" style="margin-top: 32px; margin-bottom: 40px;">
                         <!-- Section 5 content injected via renderSection5() -->
                     </section>
 
                     <!-- Section 6: システムリソース (Phase 2) -->
-                    <section class="system-resources-section" id="system-resources-section" style="
+                    <section class="system-resources-section" id="system-resources-section" aria-labelledby="system-section-heading" role="region" style="
                         margin-top: 32px;
                         margin-bottom: 40px;
                         background: rgba(255, 255, 255, 0.05);
@@ -277,7 +277,7 @@
                             cursor: pointer;
                             user-select: none;
                         ">
-                            <h3 style="
+                            <h3 id="system-section-heading" style="
                                 color: var(--text-secondary);
                                 font-size: 14px;
                                 text-transform: uppercase;
@@ -316,9 +316,9 @@
                     </section>
 
                     <!-- Section 7: Trend Graphs (Phase 3) -->
-                    <section class="trend-graphs-section" style="margin-top: 32px; margin-bottom: 40px;">
+                    <section class="trend-graphs-section" aria-labelledby="trend-graphs-heading" role="region" style="margin-top: 32px; margin-bottom: 40px;">
                         <div class="section-header" style="margin-bottom: 16px;">
-                            <h3
+                            <h3 id="trend-graphs-heading"
                                 style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
                                 Overall Trends</h3>
                         </div>
@@ -345,9 +345,9 @@
                     </section>
 
                     <!-- Section 7: Mana Dashboard (Phase 4) -->
-                    <section class="mana-dashboard-section">
+                    <section class="mana-dashboard-section" aria-labelledby="mana-dashboard-heading" role="region">
                         <div class="section-header">
-                            <h2><i data-lucide="bot"></i> Mana Dashboard</h2>
+                            <h2 id="mana-dashboard-heading"><i data-lucide="bot"></i> Mana Dashboard</h2>
                             <p class="section-description">Slack AI PMエージェントのワークフロー実行状況と品質メトリクス</p>
                         </div>
 
@@ -374,7 +374,7 @@
                     </section>
 
                     <!-- Section 7: Actionable Insights (Phase 3) -->
-                    <section class="actionable-insights-section" style="
+                    <section class="actionable-insights-section" aria-labelledby="section-7-heading" role="region" style="
                         margin-top: 32px;
                         margin-bottom: 40px;
                         background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
@@ -385,7 +385,7 @@
                         text-align: center;
                     ">
                         <div class="section-header" style="margin-bottom: 20px;">
-                            <h3 style="
+                            <h3 id="section-7-heading" style="
                                 color: var(--text-primary);
                                 font-size: 20px;
                                 font-weight: 700;

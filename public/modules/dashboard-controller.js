@@ -72,14 +72,30 @@ export class DashboardController {
         }
     }
 
-    render() {
-        this.renderSection1();
-        this.renderSection2();
-        this.renderSection3();
-        this.renderSection4();
-        this.renderSection5();
-        this.renderSection6();
-        this.renderSection7();
+    async render() {
+        const results = await Promise.allSettled([
+            this.renderSection1(),
+            this.renderSection2(),
+            this.renderSection3(),
+            this.renderSection4(),
+            this.renderSection5(),
+            this.renderSection6(),
+            this.renderTrendGraphs(),
+            this.renderManaDashboard()
+        ]);
+
+        // エラーチェック
+        const errors = results
+            .map((result, index) => ({ result, index }))
+            .filter(({ result }) => result.status === 'rejected');
+
+        if (errors.length > 0) {
+            console.error('Some sections failed to render:', errors);
+            errors.forEach(({ result, index }) => {
+                const sectionId = this._getSectionId(index);
+                this._renderErrorFallback(sectionId, result.reason);
+            });
+        }
     }
 
     renderSection1() {
@@ -335,7 +351,17 @@ export class DashboardController {
                 }
             });
 
-            const trendsData = await Promise.all(trendsPromises);
+            const trendsResults = await Promise.allSettled(trendsPromises);
+
+            // Extract successful results, handle failures
+            const trendsData = trendsResults.map((result, index) => {
+                if (result.status === 'fulfilled' && result.value) {
+                    return result.value;
+                }
+                // Log failed trend fetch
+                console.warn(`Failed to fetch trends for ${topProjects[index]?.name}:`, result.reason);
+                return null;
+            });
 
             // Render project trend cards
             gridContainer.innerHTML = topProjects.map((project, index) => {
@@ -557,10 +583,22 @@ export class DashboardController {
                 return response.json();
             });
 
-            const workflowStats = await Promise.all(workflowStatsPromises);
+            const workflowStatsResults = await Promise.allSettled(workflowStatsPromises);
+
+            // Extract successful results, handle failures
+            const workflowStats = workflowStatsResults.map((result, index) => {
+                if (result.status === 'fulfilled' && result.value) {
+                    return result.value;
+                }
+                // Log failed workflow fetch
+                console.warn(`Failed to fetch stats for ${workflows[index]}:`, result.reason);
+                return null;
+            }).filter(stat => stat !== null); // Filter out failed requests
 
             // Overall Status 判定（成功率ベース）
-            const overallSuccessRate = workflowStats.reduce((sum, w) => sum + w.stats.success_rate, 0) / workflowStats.length;
+            const overallSuccessRate = workflowStats.length > 0
+                ? workflowStats.reduce((sum, w) => sum + w.stats.success_rate, 0) / workflowStats.length
+                : 0;
 
             const overallStatus = overallSuccessRate >= 80 ? 'HEALTHY'
                                 : overallSuccessRate >= 60 ? 'WARNING'
@@ -696,7 +734,7 @@ export class DashboardController {
         });
     }
 
-    renderSection7() {
+    renderTrendGraphs() {
         // Trend Graphs (3 metrics)
         // Mock Data for Phase 3
         const weeks = ['4w ago', '3w ago', '2w ago', '1w ago'];
@@ -920,7 +958,7 @@ export class DashboardController {
         return html;
     }
 
-    async renderSection7() {
+    async renderManaDashboard() {
         // Mana Dashboard Section
         await this.loadManaData();
         this.renderManaHero();
@@ -933,17 +971,27 @@ export class DashboardController {
         const workflows = ['m1', 'm2', 'm3', 'm4', 'm9', 'daily', 'morning-report', 'self-improve', 'weekly'];
 
         try {
-            const results = await Promise.all(
+            const results = await Promise.allSettled(
                 workflows.map(async (workflow) => {
                     const response = await fetch(`/api/mana/workflow-history?workflow=${workflow}`);
-                    if (!response.ok) return null;
+                    if (!response.ok) throw new Error(`Failed to fetch workflow ${workflow}`);
                     const data = await response.json();
                     return { workflow, data };
                 })
             );
 
+            // Extract successful results, handle failures
+            const workflowData = results.map((result, index) => {
+                if (result.status === 'fulfilled' && result.value) {
+                    return result.value;
+                }
+                // Log failed workflow fetch
+                console.warn(`Failed to fetch mana data for ${workflows[index]}:`, result.reason);
+                return null;
+            }).filter(r => r !== null);
+
             this.manaData = {
-                workflows: results.filter(r => r !== null),
+                workflows: workflowData,
                 // Mock quality metrics (replace with actual S3 data later)
                 quality: {
                     usefulness: 4.2,
@@ -994,10 +1042,10 @@ export class DashboardController {
 
         const { quality } = this.manaData;
         const metrics = [
-            { label: 'Usefulness', value: quality.usefulness, color: '#22c55e' },
-            { label: 'Accuracy', value: quality.accuracy, color: '#3b82f6' },
-            { label: 'Conciseness', value: quality.conciseness, color: '#f59e0b' },
-            { label: 'Tone', value: quality.tone, color: '#a855f7' }
+            { label: '有用性', value: quality.usefulness, color: '#22c55e' },
+            { label: '正確性', value: quality.accuracy, color: '#3b82f6' },
+            { label: '簡潔性', value: quality.conciseness, color: '#f59e0b' },
+            { label: 'トーン', value: quality.tone, color: '#a855f7' }
         ];
 
         container.innerHTML = '';
@@ -1143,5 +1191,56 @@ export class DashboardController {
         // 異常検知時の自動展開（Phase 2で実装）
         // TODO: systemHealth取得後、異常があればisOpen = trueで自動展開
         // 異常時のハイライト: section.style.borderColor = '#ee4f27'; section.style.animation = 'pulse 2s infinite';
+    }
+
+    /**
+     * セクションインデックスからコンテナIDを取得
+     * @private
+     * @param {number} index - セクションインデックス (0-7)
+     * @returns {string} コンテナID
+     */
+    _getSectionId(index) {
+        const sectionIds = [
+            'section-1-alerts',           // Section 1: Critical Alerts
+            'strategic-content',          // Section 2: Strategic Overview
+            'project-cards-grid',         // Section 3: Project Health Grid
+            'project-trends-container',   // Section 4: Trend Analysis
+            'mana-quality',               // Section 5: Mana Quality Dashboard
+            'system-resources-section',   // Section 6: System Health
+            'trend-completion',           // Section 7: Trend Graphs
+            'mana-hero'                   // Section 8: Mana Dashboard
+        ];
+        return sectionIds[index] || `section-${index + 1}`;
+    }
+
+    /**
+     * セクションのエラーフォールバックUIをレンダリング
+     * @private
+     * @param {string} sectionId - コンテナID
+     * @param {Error} error - エラーオブジェクト
+     */
+    _renderErrorFallback(sectionId, error) {
+        const container = document.getElementById(sectionId) || document.querySelector(`.${sectionId}`);
+        if (!container) {
+            console.warn(`Container not found for section: ${sectionId}`);
+            return;
+        }
+
+        const errorHtml = `
+            <div class="error-fallback" style="padding: 20px; background: rgba(238, 79, 39, 0.1); border: 1px solid rgba(238, 79, 39, 0.3); border-radius: 8px; margin: 10px 0;">
+                <h4 style="color: #ee4f27; margin: 0 0 10px 0;">⚠️ セクションの読み込みに失敗しました</h4>
+                <p style="color: #c4bbd3; margin: 0; font-size: 14px;">
+                    エラー: ${error.message || '不明なエラー'}
+                </p>
+                <button
+                    onclick="window.location.reload()"
+                    style="margin-top: 10px; padding: 8px 16px; background: #ee4f27; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;"
+                >
+                    ページを再読み込み
+                </button>
+            </div>
+        `;
+
+        container.innerHTML = errorHtml;
     }
 }
