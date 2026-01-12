@@ -11,6 +11,7 @@ export class DashboardController {
         this.data = null;
         this.projects = [];
         this.systemHealth = null;
+        this.criticalAlerts = null;
         this.healthRefreshInterval = null;
     }
 
@@ -19,10 +20,20 @@ export class DashboardController {
         if (!document.getElementById('dashboard-panel')) return;
 
         await this.loadData();
+        await this.loadCriticalAlerts();
         this.render();
 
         // Load system health status
         await this.loadSystemHealth();
+
+        // Setup Section 6 accordion
+        this.setupSystemAccordion();
+
+        // Auto-refresh data and critical alerts every 30 seconds
+        setInterval(() => {
+            this.loadData();
+            this.loadCriticalAlerts();
+        }, 30000);
 
         // Auto-refresh system health every 5 minutes
         if (!this.healthRefreshInterval) {
@@ -46,117 +57,249 @@ export class DashboardController {
         }
     }
 
-    render() {
-        this.renderSection1();
-        this.renderSection2();
-        this.renderSection3();
-        this.renderSection4();
-        this.renderSection5();
-        this.renderSection6();
-        this.renderSection7();
+    async loadCriticalAlerts() {
+        try {
+            const response = await fetch('/api/brainbase/critical-alerts');
+            if (!response.ok) {
+                console.error('Failed to load critical alerts:', response.status);
+                this.criticalAlerts = { alerts: [], total_critical: 0, total_warning: 0 };
+                return;
+            }
+            this.criticalAlerts = await response.json();
+        } catch (error) {
+            console.error('Error loading critical alerts:', error);
+            this.criticalAlerts = { alerts: [], total_critical: 0, total_warning: 0 };
+        }
+    }
+
+    async render() {
+        const results = await Promise.allSettled([
+            this.renderSection1(),
+            this.renderSection2(),
+            this.renderSection3(),
+            this.renderSection4(),
+            this.renderSection5(),
+            this.renderSection6(),
+            this.renderTrendGraphs(),
+            this.renderManaDashboard()
+        ]);
+
+        // エラーチェック
+        const errors = results
+            .map((result, index) => ({ result, index }))
+            .filter(({ result }) => result.status === 'rejected');
+
+        if (errors.length > 0) {
+            console.error('Some sections failed to render:', errors);
+            errors.forEach(({ result, index }) => {
+                const sectionId = this._getSectionId(index);
+                this._renderErrorFallback(sectionId, result.reason);
+            });
+        }
     }
 
     renderSection1() {
-        // Top 4 projects health gauges
-        const topProjects = this.projects.slice(0, 4);
-        topProjects.forEach((project, index) => {
-            const container = document.getElementById(`gauge-${index + 1}`);
-            if (container) {
-                // Clear previous to avoid duplication on re-render
-                container.innerHTML = '';
-                new GaugeChart(container, {
-                    value: project.healthScore,
-                    label: project.name,
-                    subtitle: 'Health Score'
-                });
-            }
-        });
-    }
+        // Critical Alerts表示
+        const container = document.getElementById('section-1-alerts');
+        if (!container) return;
 
-    renderSection2() {
-        // ... existing logic ...
-        // (Keeping existing renderSection2 logic abbreviated for brevity if unchanged, 
-        // but since replace_file_content needs contiguous block, I will just keep render() updated 
-        // and append new methods. Wait, I should probably append new methods at the end 
-        // and update render() method at the top.
-        // Let's do this in two chunks or just overwrite the end of the file.)
+        if (!this.criticalAlerts) {
+            container.innerHTML = '<div class="text-gray-400 text-center py-8">Loading...</div>';
+            return;
+        }
 
-        // Actually, to be safe, I will replace `render()` and append the new methods at the end of the class.
-        // But `renderSection3` is at the end. I will replace from `render()` to the end of file.
+        const { alerts, total_critical, total_warning } = this.criticalAlerts;
 
-        // Metrics (Left)
-        // Ensure data exists and has defaults for all fields
-        const defaultTasks = { total: 121, overdue: 8, completed: 0, blocked: 3, completionRate: 85 };
-        const apiTasks = this.data?.tasks || {};
-        const tasks = {
-            total: apiTasks.total !== undefined ? apiTasks.total : defaultTasks.total,
-            overdue: apiTasks.overdue !== undefined ? apiTasks.overdue : defaultTasks.overdue,
-            completed: apiTasks.completed !== undefined ? apiTasks.completed : defaultTasks.completed,
-            blocked: apiTasks.blocked !== undefined ? apiTasks.blocked : defaultTasks.blocked,
-            completionRate: apiTasks.completionRate !== undefined ? apiTasks.completionRate : defaultTasks.completionRate
-        };
-
-        const metricsContainer = document.querySelector('.metrics-left');
-        if (metricsContainer) {
-            metricsContainer.innerHTML = `
-                <div class="metric-card">
-                    <div class="value" style="color: #35a670">${tasks.total}</div>
-                    <div class="label"><i data-lucide="list-todo" style="width:16px"></i> タスク総数</div>
-                </div>
-                <div class="metric-card">
-                    <div class="value" style="color: #ee4f27">${tasks.overdue}</div>
-                    <div class="label"><i data-lucide="alert-triangle" style="width:16px"></i> 期限超過</div>
-                </div>
-                <div class="metric-card">
-                    <div class="value" style="color: #35a670">${tasks.completionRate}%</div>
-                    <div class="label"><i data-lucide="check-circle" style="width:16px"></i> 完了率</div>
-                </div>
-                <div class="metric-card">
-                    <div class="value" style="color: #ff9b26">${tasks.blocked}</div>
-                    <div class="label"><i data-lucide="ban" style="width:16px"></i> ブロック</div>
+        if (!alerts || alerts.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg class="empty-state-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div class="empty-state-title">No Critical Alerts</div>
+                    <div class="empty-state-message">All systems running smoothly</div>
                 </div>
             `;
-            // Re-render icons for injected HTML
-            if (window.lucide) window.lucide.createIcons();
+            return;
         }
 
-        // Donut Chart (Center)
-        const overallScore = Math.round(
-            this.projects.reduce((sum, p) => sum + p.healthScore, 0) / this.projects.length
-        );
+        // Critical Alertsヘッダー
+        const headerHtml = `
+            <div class="critical-alerts-header">
+                <h2>CRITICAL ALERTS</h2>
+                <span class="critical-alerts-badge">${alerts.length}</span>
+            </div>
+        `;
 
-        const centerContainer = document.querySelector('.donut-center');
-        if (centerContainer) {
-            centerContainer.innerHTML = ''; // Clear previous
-            new DonutChart(centerContainer, {
-                value: overallScore,
-                label: '全体健全性',
-                size: 280,
-                fontSize: 64,
-                strokeWidth: 20
-            });
+        // Alerts一覧
+        const alertsHtml = alerts.map(alert => {
+            const isCritical = alert.severity === 'critical';
+            const alertTypeClass = alert.type === 'blocker' ? 'alert-type-blocker' : 'alert-type-overdue';
+            const severityClass = isCritical ? 'critical' : 'warning';
+            const badgeClass = alert.type === 'blocker' ? 'blocker' : 'overdue';
+
+            if (alert.type === 'blocker') {
+                return `
+                    <div class="critical-alert-card ${alertTypeClass}">
+                        <div class="alert-header">
+                            <span class="alert-type-badge ${badgeClass}">BLOCKER</span>
+                            <div class="alert-severity ${severityClass}">
+                                <svg class="alert-severity-icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                </svg>
+                                <span>${isCritical ? 'CRITICAL' : 'WARNING'}</span>
+                            </div>
+                        </div>
+                        <div class="alert-body">
+                            <div class="alert-project">${alert.project}</div>
+                            <div class="alert-task-name">${alert.task}</div>
+                            <div class="alert-details">
+                                <div class="alert-detail-item">
+                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <span class="alert-detail-label">担当:</span>
+                                    <span class="alert-detail-value">${alert.owner}</span>
+                                </div>
+                                <div class="alert-detail-item">
+                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span class="alert-detail-label">経過:</span>
+                                    <span class="alert-detail-value">${alert.days_blocked}日</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (alert.type === 'overdue') {
+                return `
+                    <div class="critical-alert-card ${alertTypeClass}">
+                        <div class="alert-header">
+                            <span class="alert-type-badge ${badgeClass}">OVERDUE</span>
+                            <div class="alert-severity ${severityClass}">
+                                <svg class="alert-severity-icon" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                                <span>${isCritical ? 'CRITICAL' : 'WARNING'}</span>
+                            </div>
+                        </div>
+                        <div class="alert-body">
+                            <div class="alert-project">${alert.project}</div>
+                            <div class="alert-task-name">${alert.task}</div>
+                            <div class="alert-details">
+                                <div class="alert-detail-item">
+                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <span class="alert-detail-label">担当:</span>
+                                    <span class="alert-detail-value">${alert.owner}</span>
+                                </div>
+                                <div class="alert-detail-item">
+                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span class="alert-detail-label">期限:</span>
+                                    <span class="alert-detail-value">${alert.deadline}</span>
+                                </div>
+                                <div class="alert-detail-item">
+                                    <svg class="alert-detail-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span class="alert-detail-label">超過:</span>
+                                    <span class="alert-detail-value">${alert.days_overdue}日</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            return '';
+        }).join('');
+
+        container.innerHTML = headerHtml + '<div class="critical-alerts-grid">' + alertsHtml + '</div>';
+    }
+
+    async renderSection2() {
+        const container = document.getElementById('strategic-content');
+        if (!container) return;
+
+        try {
+            const overview = await this.loadStrategicOverview();
+
+            if (!overview || !overview.projects) {
+                container.innerHTML = '<div class="empty-state">戦略的概要データの読み込みに失敗しました</div>';
+                return;
+            }
+
+            const { projects, bottlenecks } = overview;
+
+            // Project Priority Ranking
+            const projectsHtml = projects.map((project, index) => {
+                const trendIcon = project.trend === 'up' ? '↑' : project.trend === 'down' ? '↓' : '→';
+                const trendClass = project.trend;
+                const scoreClass = project.health_score >= 80 ? 'healthy' : project.health_score >= 60 ? 'warning' : 'critical';
+                const changeSign = project.change >= 0 ? '+' : '';
+
+                return `
+                    <div class="strategic-project-item">
+                        <div class="strategic-project-info">
+                            <div class="strategic-project-name">${index + 1}. ${project.name}</div>
+                            ${project.recommendations && project.recommendations.length > 0 ? `
+                                <div class="strategic-project-recommendations">
+                                    ${project.recommendations.map(rec => `<div>${rec}</div>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="strategic-project-trend ${trendClass}">
+                            <span class="trend-icon">${trendIcon}</span>
+                            <span class="trend-change">${changeSign}${project.change}</span>
+                        </div>
+                        <div class="strategic-project-score ${scoreClass}">
+                            ${project.health_score}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Bottlenecks
+            const bottlenecksHtml = bottlenecks && bottlenecks.length > 0 ? `
+                <div class="strategic-bottlenecks">
+                    <h4 style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em;">
+                        ボトルネック検出
+                    </h4>
+                    ${bottlenecks.map(bn => `
+                        <div class="strategic-bottleneck-item">
+                            <div class="strategic-bottleneck-type">${bn.type === 'project_overload' ? 'プロジェクト過負荷' : '全体リソース不足'}</div>
+                            <div class="strategic-bottleneck-recommendation">${bn.recommendation}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            container.innerHTML = `
+                <div class="strategic-projects-list">
+                    ${projectsHtml}
+                </div>
+                ${bottlenecksHtml}
+            `;
+
+        } catch (error) {
+            console.error('Strategic Overview rendering error:', error);
+            container.innerHTML = '<div class="empty-state">戦略的概要の表示中にエラーが発生しました</div>';
         }
+    }
 
-        // Problem Projects (Right)
-        const problemProjects = [...this.projects].sort((a, b) => a.healthScore - b.healthScore).slice(0, 2);
-        const rightContainer = document.querySelector('.donuts-right');
-        if (rightContainer) {
-            rightContainer.innerHTML = ''; // Clear previous
-            problemProjects.forEach(project => {
-                const div = document.createElement('div');
-                div.style.display = 'flex';
-                div.style.flexDirection = 'column';
-                div.style.alignItems = 'center';
-                rightContainer.appendChild(div);
-
-                new DonutChart(div, {
-                    value: project.healthScore,
-                    label: project.name,
-                    size: 140,
-                    fontSize: 32,
-                    strokeWidth: 12
-                });
-            });
+    async loadStrategicOverview() {
+        try {
+            const response = await fetch('/api/brainbase/strategic-overview');
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to load strategic overview:', error);
+            return null;
         }
     }
 
@@ -171,33 +314,373 @@ export class DashboardController {
         }
     }
 
-    renderSection4() {
-        // Heatmap (Last 4 weeks trend for top 3 projects)
-        // Mock data generation (since API doesn't support history yet)
-        const container = document.querySelector('.health-heatmap-container');
-        if (!container) return;
-
-        container.innerHTML = '';
-
-        const topProjects = this.projects.slice(0, 3);
-        topProjects.forEach(project => {
-            // Generate 4 weeks of mock history ending with current score
-            const history = [
-                Math.max(0, Math.min(100, project.healthScore + Math.floor(Math.random() * 20 - 10))), // Week 1
-                Math.max(0, Math.min(100, project.healthScore + Math.floor(Math.random() * 10 - 5))),  // Week 2
-                Math.max(0, Math.min(100, project.healthScore + Math.floor(Math.random() * 5 - 2))),   // Week 3
-                project.healthScore                                                                    // Current
-            ];
-
-            new HeatmapRow(container, {
-                label: project.name,
-                data: history,
-                weeks: 4
-            });
-        });
+    async renderSection4() {
+        // Section 4: Trend Analysis（Past 4 weeks）
+        await this.renderProjectTrends();
+        this.renderOverallMetricsTrend();
+        this.renderValidationStageDistribution();
     }
 
-    renderSection5() {
+    async renderProjectTrends() {
+        const container = document.getElementById('project-trends-container');
+        if (!container) return;
+
+        const gridContainer = container.querySelector('.project-trends-grid');
+        if (!gridContainer) return;
+
+        try {
+            // Get top 3 projects by health score
+            const topProjects = this.projects
+                .sort((a, b) => b.healthScore - a.healthScore)
+                .slice(0, 3);
+
+            if (topProjects.length === 0) {
+                gridContainer.innerHTML = '<div class="empty-state">No project data available</div>';
+                return;
+            }
+
+            // Fetch trend data for each project
+            const trendsPromises = topProjects.map(async (project) => {
+                try {
+                    const response = await fetch(`/api/brainbase/trends?project_id=${project.name}&days=30`);
+                    if (!response.ok) return null;
+                    return await response.json();
+                } catch (error) {
+                    console.error(`Failed to load trends for ${project.name}:`, error);
+                    return null;
+                }
+            });
+
+            const trendsResults = await Promise.allSettled(trendsPromises);
+
+            // Extract successful results, handle failures
+            const trendsData = trendsResults.map((result, index) => {
+                if (result.status === 'fulfilled' && result.value) {
+                    return result.value;
+                }
+                // Log failed trend fetch
+                console.warn(`Failed to fetch trends for ${topProjects[index]?.name}:`, result.reason);
+                return null;
+            });
+
+            // Render project trend cards
+            gridContainer.innerHTML = topProjects.map((project, index) => {
+                const trends = trendsData[index];
+                const trendAnalysis = trends?.trend_analysis || { trend: 'insufficient_data', health_score_change: 0 };
+
+                // Determine maturity stage based on project metrics
+                const maturityStage = this.determineMaturityStage(project);
+
+                // Trend badge
+                const trendBadge = this.getTrendBadge(trendAnalysis.trend);
+
+                // Health score change
+                const changeSign = trendAnalysis.health_score_change >= 0 ? '+' : '';
+                const changeColor = trendAnalysis.health_score_change >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)';
+                const changeArrow = trendAnalysis.health_score_change >= 0 ? '↑' : '↓';
+
+                return `
+                    <div class="project-trend-card" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(30px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h4 style="color: var(--text-primary); font-size: 16px; font-weight: 600;">${project.name}</h4>
+                            <span class="trend-badge" style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; ${trendBadge.style}">${trendBadge.label}</span>
+                        </div>
+
+                        <!-- Maturity Heatmap (CPF/PSF/SPF/PMF) -->
+                        <div class="maturity-heatmap" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px;">
+                            ${this.renderMaturityCells(maturityStage)}
+                        </div>
+
+                        <!-- Health Score Trend -->
+                        <div class="health-score-trend" style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: var(--text-secondary); font-size: 13px;">Health Score:</span>
+                            <span style="color: var(--text-primary); font-size: 16px; font-weight: 600;">${project.healthScore}</span>
+                            <span class="trend-arrow" style="color: ${changeColor}; font-size: 14px;">${changeArrow} ${changeSign}${trendAnalysis.health_score_change}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+        } catch (error) {
+            console.error('Failed to render project trends:', error);
+            gridContainer.innerHTML = '<div class="empty-state">Failed to load trend data</div>';
+        }
+    }
+
+    determineMaturityStage(project) {
+        // saas-ai-roadmap-playbook のバリデーション段階判定ロジック
+        // CPF: Customer/Problem Fit - 課題が存在するか
+        // PSF: Problem/Solution Fit - ソリューションが受け入れられるか
+        // SPF: Solution/Product Fit - プロダクトとして磨かれているか
+        // PMF: Product/Market Fit - 市場にフィットしているか
+
+        const { healthScore, completionRate } = project;
+
+        if (healthScore >= 90 && completionRate >= 90) {
+            return 'PMF'; // Product/Market Fit
+        } else if (healthScore >= 75 && completionRate >= 70) {
+            return 'SPF'; // Solution/Product Fit
+        } else if (healthScore >= 60 && completionRate >= 50) {
+            return 'PSF'; // Problem/Solution Fit
+        } else {
+            return 'CPF'; // Customer/Problem Fit
+        }
+    }
+
+    renderMaturityCells(currentStage) {
+        const stages = ['CPF', 'PSF', 'SPF', 'PMF'];
+        const stageColors = {
+            'CPF': '#35a670',  // green
+            'PSF': '#ff9b26',  // amber
+            'SPF': '#6b21ef',  // purple
+            'PMF': '#05f'      // blue
+        };
+
+        const currentIndex = stages.indexOf(currentStage);
+
+        return stages.map((stage, index) => {
+            const isActive = index <= currentIndex;
+            const bgColor = isActive ? stageColors[stage] : 'rgba(255, 255, 255, 0.1)';
+            const textColor = isActive ? '#fff' : 'var(--text-tertiary)';
+
+            return `
+                <div style="background: ${bgColor}; border-radius: 4px; padding: 8px; text-align: center;">
+                    <div style="color: ${textColor}; font-size: 11px; font-weight: 600;">${stage}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    getTrendBadge(trend) {
+        switch (trend) {
+            case 'up':
+                return { label: '改善中', style: 'background: rgba(53, 166, 112, 0.2); color: #35a670;' };
+            case 'down':
+                return { label: '悪化中', style: 'background: rgba(238, 79, 39, 0.2); color: #ee4f27;' };
+            case 'stable':
+                return { label: '安定', style: 'background: rgba(255, 155, 38, 0.2); color: #ff9b26;' };
+            default:
+                return { label: 'データ不足', style: 'background: rgba(255, 255, 255, 0.1); color: var(--text-tertiary);' };
+        }
+    }
+
+    renderOverallMetricsTrend() {
+        const container = document.getElementById('overall-metrics-trend');
+        if (!container) return;
+
+        const gridContainer = container.querySelector('.metrics-trend-grid');
+        if (!gridContainer) return;
+
+        // Calculate overall metrics from all projects
+        const totalTasks = this.projects.reduce((sum, p) => sum + p.total, 0);
+        const completedTasks = this.projects.reduce((sum, p) => sum + p.completed, 0);
+        const overdueTasks = this.projects.reduce((sum, p) => sum + p.overdue, 0);
+        const blockedTasks = this.projects.reduce((sum, p) => sum + p.blocked, 0);
+
+        const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+        // Mock trend data (replace with actual /api/brainbase/trends aggregation in the future)
+        const metrics = [
+            {
+                label: 'タスク完了率',
+                value: `${completionRate}%`,
+                change: '+3%',
+                trend: 'up'
+            },
+            {
+                label: '期限超過数',
+                value: overdueTasks,
+                change: '-2',
+                trend: 'down'
+            },
+            {
+                label: 'ブロックタスク数',
+                value: blockedTasks,
+                change: '+1',
+                trend: 'up'
+            },
+            {
+                label: 'マイルストーン進捗',
+                value: `${Math.round(this.projects.reduce((sum, p) => sum + (p.completionRate || 0), 0) / this.projects.length)}%`,
+                change: '+5%',
+                trend: 'up'
+            }
+        ];
+
+        gridContainer.innerHTML = metrics.map(metric => {
+            const changeColor = metric.trend === 'up' && metric.label === 'タスク完了率' ? 'var(--accent-green)' :
+                               metric.trend === 'down' && metric.label === '期限超過数' ? 'var(--accent-green)' :
+                               metric.trend === 'up' ? 'var(--accent-orange)' : 'var(--accent-green)';
+
+            return `
+                <div class="metric-trend-item">
+                    <div style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">${metric.label}</div>
+                    <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
+                        <span style="color: var(--text-primary); font-size: 24px; font-weight: 600;">${metric.value}</span>
+                        <span style="color: ${changeColor}; font-size: 14px;">${metric.change}</span>
+                    </div>
+                    <div class="mini-chart" style="height: 40px; background: rgba(255, 255, 255, 0.05); border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                        <span style="color: var(--text-tertiary); font-size: 11px;">Chart placeholder</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    renderValidationStageDistribution() {
+        const container = document.getElementById('validation-stage-distribution');
+        if (!container) return;
+
+        const chartContainer = container.querySelector('#validation-chart-container');
+        if (!chartContainer) return;
+
+        // Count projects by maturity stage
+        const stageCounts = { CPF: 0, PSF: 0, SPF: 0, PMF: 0 };
+
+        this.projects.forEach(project => {
+            const stage = this.determineMaturityStage(project);
+            stageCounts[stage]++;
+        });
+
+        // Render simple bar chart (replace with Chart.js in future)
+        const total = this.projects.length;
+        chartContainer.innerHTML = `
+            <div style="display: flex; gap: 8px; align-items: flex-end; height: 100%; padding: 0 20px;">
+                ${Object.entries(stageCounts).map(([stage, count]) => {
+                    const percentage = total > 0 ? (count / total) * 100 : 0;
+                    const stageColors = {
+                        'CPF': '#35a670',
+                        'PSF': '#ff9b26',
+                        'SPF': '#6b21ef',
+                        'PMF': '#05f'
+                    };
+
+                    return `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                            <div style="width: 100%; background: ${stageColors[stage]}; border-radius: 4px 4px 0 0; height: ${percentage}%; min-height: 20px; display: flex; align-items: center; justify-content: center;">
+                                <span style="color: #fff; font-size: 12px; font-weight: 600;">${count}</span>
+                            </div>
+                            <div style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">${stage}</div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+
+    async renderSection5() {
+        // Mana Quality Dashboard (Week 7-8)
+        const manaSection = document.getElementById('mana-quality');
+        if (!manaSection) return;
+
+        try {
+            // NocoDB から Mana ワークフロー統計を取得
+            const workflows = ['m1_ceo_daily', 'm2_blocker_detection', 'm3_deadline_reminder', 'm4_overdue_alert', 'm9_weekly_report'];
+
+            const workflowStatsPromises = workflows.map(async (workflowId) => {
+                const response = await fetch(`/api/brainbase/mana-workflow-stats?workflow_id=${workflowId}`);
+                if (!response.ok) throw new Error(`Failed to fetch stats for ${workflowId}`);
+                return response.json();
+            });
+
+            const workflowStatsResults = await Promise.allSettled(workflowStatsPromises);
+
+            // Extract successful results, handle failures
+            const workflowStats = workflowStatsResults.map((result, index) => {
+                if (result.status === 'fulfilled' && result.value) {
+                    return result.value;
+                }
+                // Log failed workflow fetch
+                console.warn(`Failed to fetch stats for ${workflows[index]}:`, result.reason);
+                return null;
+            }).filter(stat => stat !== null); // Filter out failed requests
+
+            // Overall Status 判定（成功率ベース）
+            const overallSuccessRate = workflowStats.length > 0
+                ? workflowStats.reduce((sum, w) => sum + w.stats.success_rate, 0) / workflowStats.length
+                : 0;
+
+            const overallStatus = overallSuccessRate >= 80 ? 'HEALTHY'
+                                : overallSuccessRate >= 60 ? 'WARNING'
+                                : 'CRITICAL';
+
+            // Workflow実行状況
+            const workflowStatusHTML = workflowStats.map(w => {
+                const severity = w.stats.success_rate >= 80 ? 'Healthy'
+                               : w.stats.success_rate >= 60 ? 'Warning'
+                               : 'Critical';
+
+                return `
+                    <div class="mana-workflow-card" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; transition: all 0.3s ease;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h4 style="font-size: 18px; font-weight: 600; color: white;">${this._getWorkflowName(w.workflow_id)}</h4>
+                            <span class="badge badge-${severity.toLowerCase()}">${severity}</span>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Success Rate</div>
+                            <div class="progress-bar" style="width: 100%; height: 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden;">
+                                <div class="progress-fill" style="width: ${w.stats.success_rate}%; height: 100%; background: ${this._getProgressColor(w.stats.success_rate)}; transition: width 0.3s ease;"></div>
+                            </div>
+                            <div style="font-size: 24px; font-weight: 700; color: white; margin-top: 4px;">${w.stats.success_rate}%</div>
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">
+                            Total Executions: ${w.stats.total_executions} (Success: ${w.stats.total_success}, Failure: ${w.stats.total_failure})
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // HTML更新
+            manaSection.innerHTML = `
+                <div class="section-header" style="margin-bottom: 24px;">
+                    <h2 style="color: var(--text-primary); font-size: 24px; font-weight: 700;">Section 5: Mana Quality Dashboard</h2>
+                </div>
+
+                <!-- Mana Hero Status -->
+                <div class="mana-hero-card" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(30px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 32px; margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="font-size: 24px; font-weight: 700; color: white;">Mana Overall Status</h3>
+                        <span class="badge badge-${overallStatus.toLowerCase()}" style="font-size: 16px; padding: 8px 16px;">${overallStatus}</span>
+                    </div>
+                    <div style="color: var(--text-secondary);">
+                        Overall Success Rate: <span style="color: white; font-weight: 600;">${Math.round(overallSuccessRate)}%</span>
+                    </div>
+                </div>
+
+                <!-- Workflow実行状況 -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+                    ${workflowStatusHTML}
+                </div>
+            `;
+        } catch (error) {
+            console.error('Failed to render Section 5:', error);
+            manaSection.innerHTML = `
+                <div class="section-header">
+                    <h2>Section 5: Mana Quality Dashboard</h2>
+                </div>
+                <div class="error-message" style="color: var(--accent-orange); padding: 16px; background: rgba(238, 79, 39, 0.1); border-radius: 8px;">
+                    Failed to load Mana quality data: ${error.message}
+                </div>
+            `;
+        }
+    }
+
+    _getWorkflowName(workflowId) {
+        const names = {
+            'm1_ceo_daily': 'M1: 朝のブリーフィング',
+            'm2_blocker_detection': 'M2: ブロッカー早期発見',
+            'm3_deadline_reminder': 'M3: 期限前リマインド',
+            'm4_overdue_alert': 'M4: 期限超過アラート',
+            'm9_weekly_report': 'M9: 週次レポート自動生成'
+        };
+        return names[workflowId] || workflowId;
+    }
+
+    _getProgressColor(rate) {
+        return rate >= 80 ? '#35a670' : rate >= 60 ? '#ff9b26' : '#ee4f27';
+    }
+
+    renderSection6() {
         // System Resource Gauges (8 metrics)
         const container = document.querySelector('.system-grid');
         if (!container) return;
@@ -251,7 +734,7 @@ export class DashboardController {
         });
     }
 
-    renderSection6() {
+    renderTrendGraphs() {
         // Trend Graphs (3 metrics)
         // Mock Data for Phase 3
         const weeks = ['4w ago', '3w ago', '2w ago', '1w ago'];
@@ -475,7 +958,7 @@ export class DashboardController {
         return html;
     }
 
-    async renderSection7() {
+    async renderManaDashboard() {
         // Mana Dashboard Section
         await this.loadManaData();
         this.renderManaHero();
@@ -484,9 +967,51 @@ export class DashboardController {
     }
 
     async loadManaData() {
-        // mana API is disabled (mana runs on AWS Lambda, not locally)
-        // TODO: Re-enable when mana Lambda API integration is implemented
-        this.manaData = { workflows: [], quality: {} };
+        // Load mana workflow data from NocoDB-backed API
+        const workflows = ['m1_ceo_daily', 'm2_blocker_detection', 'm3_deadline_reminder', 'm4_overdue_alert', 'm9_weekly_report'];
+
+        try {
+            const results = await Promise.allSettled(
+                workflows.map(async (workflow) => {
+                    const response = await fetch(`/api/brainbase/mana-workflow-stats?workflow_id=${workflow}`);
+                    if (!response.ok) throw new Error(`Failed to fetch workflow ${workflow}`);
+                    const data = await response.json();
+
+                    return {
+                        workflow,
+                        data: {
+                            displayName: this._getWorkflowName(workflow),
+                            stats: {
+                                successRate: data.stats?.success_rate ?? 0,
+                                total: data.stats?.total_executions ?? 0
+                            }
+                        }
+                    };
+                })
+            );
+
+            const workflowData = results.map((result, index) => {
+                if (result.status === 'fulfilled' && result.value) {
+                    return result.value;
+                }
+                console.warn(`Failed to fetch mana data for ${workflows[index]}:`, result.reason);
+                return null;
+            }).filter(Boolean);
+
+            this.manaData = {
+                workflows: workflowData,
+                // Mock quality metrics (replace with actual S3 data later)
+                quality: {
+                    usefulness: 4.2,
+                    accuracy: 4.5,
+                    conciseness: 3.9,
+                    tone: 4.1
+                }
+            };
+        } catch (error) {
+            console.error('Failed to load mana data:', error);
+            this.manaData = { workflows: [], quality: {} };
+        }
     }
 
     renderManaHero() {
@@ -525,10 +1050,10 @@ export class DashboardController {
 
         const { quality } = this.manaData;
         const metrics = [
-            { label: 'Usefulness', value: quality.usefulness, color: '#22c55e' },
-            { label: 'Accuracy', value: quality.accuracy, color: '#3b82f6' },
-            { label: 'Conciseness', value: quality.conciseness, color: '#f59e0b' },
-            { label: 'Tone', value: quality.tone, color: '#a855f7' }
+            { label: '有用性', value: quality.usefulness, color: '#22c55e' },
+            { label: '正確性', value: quality.accuracy, color: '#3b82f6' },
+            { label: '簡潔性', value: quality.conciseness, color: '#f59e0b' },
+            { label: 'トーン', value: quality.tone, color: '#a855f7' }
         ];
 
         container.innerHTML = '';
@@ -638,5 +1163,92 @@ export class DashboardController {
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * Section 6: System Health Accordion Setup
+     * デフォルトで折りたたみ、クリックで展開/折りたたみ
+     */
+    setupSystemAccordion() {
+        const header = document.getElementById('system-section-header');
+        const content = document.getElementById('system-content');
+        const chevron = document.getElementById('system-chevron');
+        const section = document.getElementById('system-resources-section');
+
+        if (!header || !content || !chevron || !section) {
+            console.warn('Section 6 accordion elements not found');
+            return;
+        }
+
+        let isOpen = false;
+
+        header.addEventListener('click', () => {
+            isOpen = !isOpen;
+
+            if (isOpen) {
+                // 展開
+                content.style.maxHeight = `${content.scrollHeight}px`;
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                // 折りたたみ
+                content.style.maxHeight = '0';
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        });
+
+        // 異常検知時の自動展開（Phase 2で実装）
+        // TODO: systemHealth取得後、異常があればisOpen = trueで自動展開
+        // 異常時のハイライト: section.style.borderColor = '#ee4f27'; section.style.animation = 'pulse 2s infinite';
+    }
+
+    /**
+     * セクションインデックスからコンテナIDを取得
+     * @private
+     * @param {number} index - セクションインデックス (0-7)
+     * @returns {string} コンテナID
+     */
+    _getSectionId(index) {
+        const sectionIds = [
+            'section-1-alerts',           // Section 1: Critical Alerts
+            'strategic-content',          // Section 2: Strategic Overview
+            'project-cards-grid',         // Section 3: Project Health Grid
+            'project-trends-container',   // Section 4: Trend Analysis
+            'mana-quality',               // Section 5: Mana Quality Dashboard
+            'system-resources-section',   // Section 6: System Health
+            'trend-completion',           // Section 7: Trend Graphs
+            'mana-hero'                   // Section 8: Mana Dashboard
+        ];
+        return sectionIds[index] || `section-${index + 1}`;
+    }
+
+    /**
+     * セクションのエラーフォールバックUIをレンダリング
+     * @private
+     * @param {string} sectionId - コンテナID
+     * @param {Error} error - エラーオブジェクト
+     */
+    _renderErrorFallback(sectionId, error) {
+        const container = document.getElementById(sectionId) || document.querySelector(`.${sectionId}`);
+        if (!container) {
+            console.warn(`Container not found for section: ${sectionId}`);
+            return;
+        }
+
+        const errorHtml = `
+            <div class="error-fallback" style="padding: 20px; background: rgba(238, 79, 39, 0.1); border: 1px solid rgba(238, 79, 39, 0.3); border-radius: 8px; margin: 10px 0;">
+                <h4 style="color: #ee4f27; margin: 0 0 10px 0;">⚠️ セクションの読み込みに失敗しました</h4>
+                <p style="color: #c4bbd3; margin: 0; font-size: 14px;">
+                    エラー: ${error.message || '不明なエラー'}
+                </p>
+                <button
+                    onclick="window.location.reload()"
+                    style="margin-top: 10px; padding: 8px 16px; background: #ee4f27; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;"
+                >
+                    ページを再読み込み
+                </button>
+            </div>
+        `;
+
+        container.innerHTML = errorHtml;
     }
 }
