@@ -14,7 +14,7 @@ export class NocoDBController {
 
     /**
      * GET /api/nocodb/tasks
-     * 全プロジェクトから担当者="佐藤"のタスクを取得
+     * 全プロジェクトから担当者="サンプル"のタスクを取得
      */
     list = async (req, res) => {
         try {
@@ -336,7 +336,7 @@ export class NocoDBController {
      */
     async _fetchProjectTasks(mapping) {
         const tableName = encodeURIComponent('タスク');
-        const where = encodeURIComponent('(担当者,like,%佐藤%)');
+        const where = encodeURIComponent('(担当者,like,%サンプル%)');
 
         // NocoDB v2 API: /api/v2/tables/{tableId}/records
         // tableIdはbase_idから取得する必要がある場合がある

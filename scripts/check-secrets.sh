@@ -34,6 +34,7 @@ check_pattern() {
     # grepで検索（除外パターンを考慮）
     local results=$(grep -r -n -I \
         --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,.claude,config,migration,docs,_inbox-sample} \
+        --exclude=".git" \
         --exclude="state.json" \
         --exclude=".env" \
         --exclude="*.log" \
