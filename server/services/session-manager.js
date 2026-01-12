@@ -274,7 +274,8 @@ export class SessionManager {
     findFreePort(startPort) {
         return new Promise((resolve, reject) => {
             const server = net.createServer();
-            server.listen(startPort, () => {
+            // ttydはIPv4で待ち受けるため、同じ条件で空きポート判定する
+            server.listen({ port: startPort, host: '0.0.0.0' }, () => {
                 server.close(() => resolve(startPort));
             });
             server.on('error', (err) => {

@@ -47,7 +47,8 @@ body {
     font-family: var(--font-sans);
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    height: 100vh; /* fallback */
+    height: 100vh;
+    /* fallback */
     height: 100dvh;
     overflow: hidden;
     font-size: 0.9rem;
@@ -84,7 +85,8 @@ body::after {
    ========================================= */
 .app-container {
     display: flex;
-    height: 100vh; /* fallback */
+    height: 100vh;
+    /* fallback */
     height: 100dvh;
     width: 100vw;
     overflow: hidden;
@@ -1937,8 +1939,13 @@ body::after {
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 #nocodb-sync-btn i,
@@ -3766,6 +3773,7 @@ body::after {
 }
 
 @media (max-width: 768px) {
+
     /* BUG-002: iOS Safe Area Inset領域でbody背景が露出する問題を解消 */
     /* 紺色(#0f172a)からターミナルと同じ黒に変更し、隙間を視覚的に消す */
     body {
@@ -4034,7 +4042,8 @@ body::after {
     .modal-fullscreen {
         width: 100%;
         height: 100%;
-        max-height: 100vh; /* fallback */
+        max-height: 100vh;
+        /* fallback */
         max-height: 100dvh;
         margin: 0;
         border-radius: 0;
@@ -4303,69 +4312,190 @@ body::after {
     min-height: 160px;
 }
 
-/* Section 2: Summary Dashboard */
-.summary-dashboard {
-    display: grid;
-    grid-template-columns: 3fr 4fr 5fr;
-    gap: 24px;
-    min-height: 300px;
-}
-
-/* Metrics Left */
-.metrics-left {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+/* Section 2: Strategic Overview */
+.strategic-overview-section {
+    display: flex;
+    flex-direction: column;
     gap: 16px;
 }
 
-.metric-card {
+/* Main Container: Projects (Left) + Bottlenecks (Right) */
+#strategic-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+@media (min-width: 1024px) {
+    #strategic-content {
+        grid-template-columns: 3fr 1fr;
+        /* Projects takes 75%, Bottlenecks 25% */
+    }
+}
+
+/* Strategic Projects List (Grid of Cards) */
+.strategic-projects-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 16px;
+    width: 100%;
+}
+
+/* Strategic Project Item (Card Style) */
+.strategic-project-item {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(30px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px 20px;
+    transition: all 0.3s ease;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+    height: 100%;
+    /* Align heights in grid */
+}
+
+.strategic-project-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.strategic-project-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.strategic-project-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-white);
+}
+
+.strategic-project-metrics {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.strategic-project-recommendations {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.strategic-project-recommendations ul {
+    margin: 4px 0 0 20px;
+    padding: 0;
+}
+
+.strategic-project-trend {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 13px;
+    font-weight: 600;
+    width: 60px;
+}
+
+.strategic-project-trend .trend-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s;
+}
+
+.strategic-project-trend.up {
+    color: var(--success-color);
+}
+
+.strategic-project-trend.up .trend-icon {
+    transform: translateY(-2px);
+}
+
+.strategic-project-trend.down {
+    color: var(--danger-color);
+}
+
+.strategic-project-trend.down .trend-icon {
+    transform: translateY(2px);
+}
+
+.strategic-project-trend.stable {
+    color: var(--text-secondary);
+    opacity: 0.5;
+}
+
+.rec-item {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 2px;
+}
+
+.strategic-project-score {
+    font-size: 48px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.strategic-project-score.healthy {
+    color: var(--success-color);
+}
+
+.strategic-project-score.warning {
+    color: var(--warning-color);
+}
+
+.strategic-project-score.critical {
+    color: var(--danger-color);
+}
+
+/* Strategic Bottlenecks */
+.strategic-bottlenecks {
+    margin-top: 24px;
+}
+
+.strategic-bottlenecks-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-white);
+    margin-bottom: 16px;
+}
+
+.strategic-bottleneck-item {
     background: var(--bg-overlay);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 16px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
+    margin-bottom: 12px;
 }
 
-.metric-card .value {
-    font-size: 32px;
-    font-weight: bold;
-    color: var(--text-white);
-    margin-bottom: 4px;
-}
-
-.metric-card .label {
+.strategic-bottleneck-type {
     font-size: 14px;
+    font-weight: 600;
+    color: var(--warning-color);
+    margin-bottom: 8px;
+}
+
+.strategic-bottleneck-recommendation {
+    font-size: 13px;
     color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    line-height: 1.5;
 }
 
-/* Donut Center */
-.donut-center {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-}
-
-/* Donuts Right */
-.donuts-right {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 16px;
-}
-
-.donuts-right>div {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 16px;
+/* Empty State */
+.strategic-empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+    font-size: 14px;
 }
 
 /* Section 3: Project Cards Grid */
@@ -4422,9 +4552,14 @@ body::after {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .summary-dashboard {
-        grid-template-columns: 1fr;
-        gap: 32px;
+    .strategic-overview-section {
+        padding: 16px;
+    }
+
+    .strategic-project-item {
+        grid-template-columns: 1fr 70px 100px;
+        gap: 16px;
+        padding: 16px;
     }
 
     .metrics-left {
@@ -4455,9 +4590,24 @@ body::after {
         grid-template-columns: 1fr;
     }
 
-    .summary-dashboard {
+    .strategic-overview-section {
+        padding: 12px;
+    }
+
+    .strategic-project-item {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .strategic-project-metrics {
         display: flex;
-        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .strategic-project-info {
+        margin-bottom: 8px;
     }
 
     .donuts-right {
@@ -4550,63 +4700,77 @@ body::after {
     height: 16px;
 }
 
-/* View Toggle Button */
-.nav-toggle-btn {
+/* View Toggle Switch (Segmented) */
+.view-toggle-container {
+    padding: 0 12px;
+    margin-bottom: 24px;
+}
+
+.view-toggle {
+    display: flex;
+    position: relative;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 4px;
+    height: 48px;
+    /* Touch friendly */
+    isolation: isolate;
+}
+
+.toggle-option {
+    flex: 1;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 10px 12px;
+    justify-content: center;
+    gap: 8px;
+    background: transparent;
     border: none;
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--text-white);
-    font-size: 14px;
+    color: var(--text-secondary);
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.2s;
-    text-align: left;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    z-index: 2;
+    transition: color 0.3s ease;
+    border-radius: 6px;
 }
 
-.nav-toggle-btn:hover {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: rgba(59, 130, 246, 0.3);
-    transform: translateX(2px);
+.toggle-option.active {
+    color: var(--text-white);
 }
 
-.nav-toggle-btn:active {
-    transform: scale(0.98);
-}
-
-.toggle-content {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.toggle-icon {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-}
-
-.toggle-label {
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.toggle-arrow {
+.toggle-option i {
     width: 16px;
     height: 16px;
-    flex-shrink: 0;
-    opacity: 0.6;
-    transition: transform 0.2s;
 }
 
-.nav-toggle-btn:hover .toggle-arrow {
-    opacity: 1;
-    transform: translateX(2px);
+/* Sliding Background Pill */
+.toggle-bg-slider {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: var(--primary-color);
+    /* Use primary color for active state */
+    border-radius: 6px;
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    z-index: 1;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Slider position when dashboard is active */
+.view-toggle.dashboard-active .toggle-bg-slider {
+    transform: translateX(100%);
+}
+
+.toggle-bg-slider::after {
+    /* Optional: Add a subtle shine/gradient or inner border */
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Phase 2: Heatmap & System Resources */
@@ -4699,6 +4863,14 @@ body::after {
 
 .trend-wrapper h4 {
     margin-top: 0;
+}
+
+.trend-card {
+    min-height: 280px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
 }
 
 @media (max-width: 1024px) {
@@ -4905,4 +5077,373 @@ body:has(.test-mode-banner) .app-container {
     color: var(--text-secondary);
     font-size: 13px;
     padding: 20px;
+}
+
+/* ==================== Section 1: Critical Alerts（統一デザイン版）==================== */
+
+/* ==================== Section 1: Critical Alerts（Improved）==================== */
+
+.critical-alerts-section {
+    margin-bottom: 24px;
+}
+
+.critical-alerts-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.critical-alerts-header h2 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    /* Unify with Strategic Overview style */
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.critical-alerts-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: var(--danger-color);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 10px;
+}
+
+.critical-alerts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+/* New Cleaner Card Style */
+.critical-alert-card {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(30px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 20px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.critical-alert-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.alert-main-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.alert-left-col {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.alert-type-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+}
+
+.alert-type-badge.blocker {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border: none;
+}
+
+.alert-type-badge.overdue {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fcd34d;
+    border: none;
+}
+
+.alert-project-task {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.alert-project {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.alert-divider {
+    color: var(--text-tertiary);
+}
+
+.alert-task-name {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.alert-right-col {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.alert-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.alert-meta.warning-text {
+    color: var(--warning-color);
+    font-weight: 500;
+}
+
+.alert-icon-sm {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+/* Helper styles for toggle */
+.hidden-alerts {
+    margin-top: 8px;
+    display: grid;
+    gap: 8px;
+}
+
+.alerts-toggle-btn {
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px;
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.alerts-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.alerts-toggle-btn i,
+.alerts-toggle-btn svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.3s ease;
+}
+
+/* Common Section Header Style (Strictly Unified) */
+.dashboard-section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    /* Unified margin */
+    padding-left: 4px;
+    /* Slight alignment for optical balance */
+}
+
+.section-header-title {
+    font-size: 13px;
+    /* Slightly smaller for premium feel */
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0;
+    line-height: normal;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .alert-main-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .alert-right-col {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+gap: 0.125rem;
+flex-wrap: wrap;
+}
+
+.alert-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.3125rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.alert-action-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--accent-color);
+}
+
+.alert-action-btn.primary {
+    background: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.alert-action-btn.primary:hover {
+    background: rgba(239, 68, 68, 0.9);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.empty-state-icon {
+    width: 4rem;
+    height: 4rem;
+    margin: 0 auto 1rem;
+    color: var(--success-color);
+}
+
+.empty-state-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-message {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+/* Loading State */
+.loading-spinner {
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .critical-alerts-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .alert-details {
+        grid-template-columns: 1fr;
+    }
+
+    .alert-actions {
+        flex-direction: column;
+    }
+
+    .alert-action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* ========================================
+   Section 5: Mana Quality Dashboard
+   ======================================== */
+
+/* Mana Hero Status Card */
+.mana-hero-card {
+    background: radial-gradient(circle closest-corner at 50% 110%, #0f0a19, #26214900);
+    box-shadow: inset -1px -1px rgba(255, 255, 255, 0.2), inset 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+/* Mana Workflow Card */
+.mana-workflow-card {
+    transition: all 0.3s ease;
+}
+
+.mana-workflow-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Badge Styles */
+.badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-healthy {
+    background-color: #35a670;
+    color: white;
+}
+
+.badge-warning {
+    background-color: #ff9b26;
+    color: white;
+}
+
+.badge-critical {
+    background-color: #ee4f27;
+    color: white;
+}
+
+/* Progress Bar */
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    transition: width 0.3s ease;
 }

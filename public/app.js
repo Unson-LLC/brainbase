@@ -296,50 +296,51 @@ class App {
      * Setup main view navigation logic
      */
     setupViewNavigation() {
-        const toggleBtn = document.getElementById('view-toggle-btn');
+        const consoleBtn = document.getElementById('nav-console-btn');
+        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+        const toggleContainer = document.querySelector('.view-toggle');
         const consoleArea = document.getElementById('console-area');
         const dashboardPanel = document.getElementById('dashboard-panel');
 
-        if (toggleBtn && consoleArea && dashboardPanel) {
-            toggleBtn.addEventListener('click', () => {
-                const currentView = toggleBtn.getAttribute('data-current-view');
-                const icon = toggleBtn.querySelector('.toggle-icon');
-                const label = toggleBtn.querySelector('.toggle-label');
+        // Functions to switch views
+        const showConsole = () => {
+            consoleBtn?.classList.add('active');
+            dashboardBtn?.classList.remove('active');
+            toggleContainer?.classList.remove('dashboard-active');
 
-                if (currentView === 'console') {
-                    // Switch to Dashboard
-                    toggleBtn.setAttribute('data-current-view', 'dashboard');
-                    icon.setAttribute('data-lucide', 'layout-dashboard');
-                    label.textContent = 'Dashboard';
-                    consoleArea.style.display = 'none';
-                    dashboardPanel.style.display = 'block';
+            if (consoleArea) consoleArea.style.display = 'flex';
+            if (dashboardPanel) dashboardPanel.style.display = 'none';
 
-                    // Re-render dashboard data
-                    if (this.dashboardController) {
-                        this.dashboardController.init();
-                    }
-                    window.dispatchEvent(new Event('resize'));
-                } else {
-                    // Switch to Console
-                    toggleBtn.setAttribute('data-current-view', 'console');
-                    icon.setAttribute('data-lucide', 'terminal-square');
-                    label.textContent = 'Console';
-                    consoleArea.style.display = 'flex';
-                    dashboardPanel.style.display = 'none';
+            // Refresh terminal frame if needed
+            const frame = document.getElementById('terminal-frame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.focus();
+            }
+        };
 
-                    // Refresh terminal frame
-                    const frame = document.getElementById('terminal-frame');
-                    if (frame && frame.contentWindow) {
-                        frame.contentWindow.focus();
-                    }
-                }
+        const showDashboard = () => {
+            dashboardBtn?.classList.add('active');
+            consoleBtn?.classList.remove('active');
+            toggleContainer?.classList.add('dashboard-active');
 
-                // Re-render lucide icons
-                if (window.lucide && window.lucide.createIcons) {
-                    window.lucide.createIcons();
-                }
-            });
+            if (consoleArea) consoleArea.style.display = 'none';
+            if (dashboardPanel) dashboardPanel.style.display = 'block';
+
+            // Re-render dashboard data
+            if (this.dashboardController) {
+                this.dashboardController.init();
+            }
+            window.dispatchEvent(new Event('resize'));
+        };
+
+        if (consoleBtn && dashboardBtn) {
+            consoleBtn.addEventListener('click', showConsole);
+            dashboardBtn.addEventListener('click', showDashboard);
         }
+
+        // Expose switch methods
+        this.showConsole = showConsole;
+        this.showDashboard = showDashboard;
     }
 
     /**
@@ -562,11 +563,16 @@ class App {
 
             // Load session-specific data
             await this.loadSessionData(sessionId);
+
+            // Auto-return to console view if available
+            if (this.showConsole) {
+                this.showConsole();
+            }
         });
 
         // Start task: create session and switch to it
         const unsub2 = eventBus.onAsync(EVENTS.START_TASK, async (event) => {
-            const { task: taskObj, taskId, engine = 'claude' } = event.detail;
+            const { task: taskObj, taskId, engine } = event.detail;
 
             try {
                 // Step 1: Task objectを取得
@@ -589,10 +595,21 @@ class App {
                     return;
                 }
 
-                // Step 2: セッション名を生成
+                // Step 2: エンジン未指定なら選択モーダルを開く
+                if (!engine) {
+                    if (this.modals?.focusEngineModal) {
+                        this.modals.focusEngineModal.open(task);
+                        return;
+                    }
+                    console.warn('FocusEngineModal not available, falling back to Claude engine.');
+                }
+
+                const resolvedEngine = engine || 'claude';
+
+                // Step 3: セッション名を生成
                 const sessionName = task.title || task.name || `Task: ${task.id}`;
 
-                // Step 3: プロジェクト名を取得
+                // Step 4: プロジェクト名を取得
                 const project = task.project;
                 if (!project) {
                     console.error('Task has no project:', task);
@@ -600,7 +617,7 @@ class App {
                     return;
                 }
 
-                // Step 4: セッション作成
+                // Step 5: セッション作成
                 console.log('Creating session for task:', task.id, 'project:', project);
 
                 // タスクコンテキストを構築（議事録から登録されたタスクの場合）
@@ -624,14 +641,14 @@ class App {
                     project: project,
                     name: sessionName,
                     initialCommand: initialCommand,  // タスクコンテキストを自動読み込み
-                    engine: engine,
+                    engine: resolvedEngine,
                     useWorktree: true  // デフォルトでworktree使用
                 });
 
                 console.log('Session created for task:', task.id, '→', newSession.id);
                 showSuccess(`Session "${sessionName}" created`);
 
-                // Step 5: タスクステータスを「進行中」に更新
+                // Step 6: タスクステータスを「進行中」に更新
                 try {
                     if (task.source === 'nocodb') {
                         // NocoDBタスクの場合
@@ -646,7 +663,7 @@ class App {
                     console.warn('Failed to update task status:', statusError);
                 }
 
-                // Step 6: セッション切り替え
+                // Step 7: セッション切り替え
                 eventBus.emit(EVENTS.SESSION_CHANGED, {
                     sessionId: newSession.id
                 });

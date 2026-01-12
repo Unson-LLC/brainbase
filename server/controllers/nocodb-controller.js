@@ -14,10 +14,12 @@ export class NocoDBController {
 
     /**
      * GET /api/nocodb/tasks
-     * 全プロジェクトから担当者="サンプル"のタスクを取得
+     * 全プロジェクトから担当者フィルタ付きのタスクを取得
      */
     list = async (req, res) => {
         try {
+            const assignee = req.query.assignee || null;
+
             // 環境変数チェック
             if (!this.nocodbUrl || !this.nocodbToken) {
                 return res.status(500).json({
@@ -51,7 +53,7 @@ export class NocoDBController {
                 const primaryMapping = baseMappings[0];
 
                 try {
-                    const tasks = await this._fetchProjectTasks(primaryMapping);
+                    const tasks = await this._fetchProjectTasks(primaryMapping, assignee);
 
                     // 同じベースを参照する全プロジェクトの情報を記録
                     for (const mapping of baseMappings) {
@@ -334,9 +336,9 @@ export class NocoDBController {
     /**
      * プロジェクトからタスクを取得（内部メソッド）
      */
-    async _fetchProjectTasks(mapping) {
+    async _fetchProjectTasks(mapping, assignee = null) {
         const tableName = encodeURIComponent('タスク');
-        const where = encodeURIComponent('(担当者,like,%サンプル%)');
+        const where = assignee ? encodeURIComponent(`(担当者,like,%${assignee}%)`) : null;
 
         // NocoDB v2 API: /api/v2/tables/{tableId}/records
         // tableIdはbase_idから取得する必要がある場合がある
@@ -364,7 +366,7 @@ export class NocoDBController {
 
         // タスクレコードを取得
         const recordsResponse = await fetch(
-            `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records?where=${where}&limit=100`,
+            `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records?limit=100${where ? `&where=${where}` : ''}`,
             {
                 headers: {
                     'xc-token': this.nocodbToken

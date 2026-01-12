@@ -40,6 +40,7 @@ check_pattern() {
         --exclude="*.log" \
         --exclude="*.tmp" \
         --exclude="*.backup.*" \
+        --exclude=".git" \
         --exclude="check-secrets.sh" \
         --exclude="auto-cleanup-cron.sh" \
         --exclude="run-cleanup-phase2.js" \

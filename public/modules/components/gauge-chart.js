@@ -4,7 +4,7 @@ export class GaugeChart {
         this.value = options.value || 0;
         this.label = options.label || '';
         this.subtitle = options.subtitle || '';
-        this.color = this.getColor(this.value);
+        this.color = options.color || this.getColor(this.value);
         this.render();
     }
 
@@ -22,7 +22,7 @@ export class GaugeChart {
         const canvas = document.createElement('canvas');
         // Set display size (css pixels)
         const width = 160;
-        const height = 120;
+        const height = 150;
         canvas.style.width = width + "px";
         canvas.style.height = height + "px";
 
@@ -67,7 +67,7 @@ export class GaugeChart {
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 32px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(this.value, centerX, centerY - 15);
+        ctx.fillText(Math.round(this.value).toString(), centerX, centerY - 15);
 
         // サブタイトル（スコア説明）
         if (this.subtitle) {
@@ -77,8 +77,8 @@ export class GaugeChart {
         }
 
         // ラベル（プロジェクト名など）
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '13px Inter, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 15px Inter, sans-serif';
         ctx.fillText(this.label, centerX, centerY + 30);
     }
 }

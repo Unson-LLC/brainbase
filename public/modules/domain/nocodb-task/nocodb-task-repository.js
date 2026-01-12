@@ -8,7 +8,7 @@ export class NocoDBTaskRepository {
     }
 
     /**
-     * 全プロジェクトから担当者="サンプル"のタスクを取得
+     * 全プロジェクトからタスクを取得
      * @returns {Promise<{records: Array, projects: Array}>}
      */
     async fetchAllTasks() {
