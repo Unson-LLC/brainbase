@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>brainbase UI</title>
@@ -27,14 +28,19 @@
             </div>
 
             <!-- View Toggle -->
-            <div class="sidebar-nav">
-                <button class="nav-toggle-btn" id="view-toggle-btn" data-current-view="console" title="ビューを切り替え">
-                    <div class="toggle-content">
-                        <i data-lucide="terminal-square" class="toggle-icon"></i>
-                        <span class="toggle-label">Console</span>
-                    </div>
-                    <i data-lucide="chevrons-right" class="toggle-arrow"></i>
-                </button>
+            <!-- View Toggle Switch (Segmented Control) -->
+            <div class="view-toggle-container">
+                <div class="view-toggle">
+                    <button class="toggle-option active" id="nav-console-btn" title="コンソール">
+                        <i data-lucide="terminal-square"></i>
+                        <span>Console</span>
+                    </button>
+                    <button class="toggle-option" id="nav-dashboard-btn" title="ダッシュボード">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>Dashboard</span>
+                    </button>
+                    <div class="toggle-bg-slider"></div>
+                </div>
             </div>
 
             <!-- Connection Status Indicator -->
@@ -196,7 +202,9 @@
 
                         <!-- System Health Status -->
                         <div class="system-health-section" style="margin-top: 20px;">
-                            <h4 style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; font-weight: 600;">System Health</h4>
+                            <h4
+                                style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; font-weight: 600;">
+                                System Health</h4>
                             <div id="system-health-status"></div>
                         </div>
                     </section>
@@ -310,7 +318,8 @@
                     <div class="task-filter">
                         <div class="filter-group">
                             <label for="task-filter-input" class="sr-only">タスクフィルター</label>
-                            <input type="text" id="task-filter-input" placeholder="タスクを検索..." aria-label="タスク名または説明で検索" />
+                            <input type="text" id="task-filter-input" placeholder="タスクを検索..."
+                                aria-label="タスク名または説明で検索" />
                         </div>
 
                         <div class="filter-group">

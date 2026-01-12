@@ -296,50 +296,51 @@ class App {
      * Setup main view navigation logic
      */
     setupViewNavigation() {
-        const toggleBtn = document.getElementById('view-toggle-btn');
+        const consoleBtn = document.getElementById('nav-console-btn');
+        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+        const toggleContainer = document.querySelector('.view-toggle');
         const consoleArea = document.getElementById('console-area');
         const dashboardPanel = document.getElementById('dashboard-panel');
 
-        if (toggleBtn && consoleArea && dashboardPanel) {
-            toggleBtn.addEventListener('click', () => {
-                const currentView = toggleBtn.getAttribute('data-current-view');
-                const icon = toggleBtn.querySelector('.toggle-icon');
-                const label = toggleBtn.querySelector('.toggle-label');
+        // Functions to switch views
+        const showConsole = () => {
+            consoleBtn?.classList.add('active');
+            dashboardBtn?.classList.remove('active');
+            toggleContainer?.classList.remove('dashboard-active');
 
-                if (currentView === 'console') {
-                    // Switch to Dashboard
-                    toggleBtn.setAttribute('data-current-view', 'dashboard');
-                    icon.setAttribute('data-lucide', 'layout-dashboard');
-                    label.textContent = 'Dashboard';
-                    consoleArea.style.display = 'none';
-                    dashboardPanel.style.display = 'block';
+            if (consoleArea) consoleArea.style.display = 'flex';
+            if (dashboardPanel) dashboardPanel.style.display = 'none';
 
-                    // Re-render dashboard data
-                    if (this.dashboardController) {
-                        this.dashboardController.init();
-                    }
-                    window.dispatchEvent(new Event('resize'));
-                } else {
-                    // Switch to Console
-                    toggleBtn.setAttribute('data-current-view', 'console');
-                    icon.setAttribute('data-lucide', 'terminal-square');
-                    label.textContent = 'Console';
-                    consoleArea.style.display = 'flex';
-                    dashboardPanel.style.display = 'none';
+            // Refresh terminal frame if needed
+            const frame = document.getElementById('terminal-frame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.focus();
+            }
+        };
 
-                    // Refresh terminal frame
-                    const frame = document.getElementById('terminal-frame');
-                    if (frame && frame.contentWindow) {
-                        frame.contentWindow.focus();
-                    }
-                }
+        const showDashboard = () => {
+            dashboardBtn?.classList.add('active');
+            consoleBtn?.classList.remove('active');
+            toggleContainer?.classList.add('dashboard-active');
 
-                // Re-render lucide icons
-                if (window.lucide && window.lucide.createIcons) {
-                    window.lucide.createIcons();
-                }
-            });
+            if (consoleArea) consoleArea.style.display = 'none';
+            if (dashboardPanel) dashboardPanel.style.display = 'block';
+
+            // Re-render dashboard data
+            if (this.dashboardController) {
+                this.dashboardController.init();
+            }
+            window.dispatchEvent(new Event('resize'));
+        };
+
+        if (consoleBtn && dashboardBtn) {
+            consoleBtn.addEventListener('click', showConsole);
+            dashboardBtn.addEventListener('click', showDashboard);
         }
+
+        // Expose switch methods
+        this.showConsole = showConsole;
+        this.showDashboard = showDashboard;
     }
 
     /**
@@ -562,6 +563,11 @@ class App {
 
             // Load session-specific data
             await this.loadSessionData(sessionId);
+
+            // Auto-return to console view if available
+            if (this.showConsole) {
+                this.showConsole();
+            }
         });
 
         // Start task: create session and switch to it
