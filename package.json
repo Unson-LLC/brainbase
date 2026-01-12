@@ -39,7 +39,8 @@
     "test:mobile:iphone": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='iPhone 13 Pro - Emulated'",
     "test:mobile:android": "playwright test --config=playwright-lambdatest.config.js tests/e2e/mobile-keyboard-scroll.spec.js --project='Pixel 7 - Emulated'",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "migrate:tasks": "node scripts/migrate-tasks-to-kiro.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
