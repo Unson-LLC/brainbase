@@ -12,19 +12,28 @@ describe('FocusEngineModal', () => {
             <div id="focus-engine-modal" class="modal">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h3><i data-lucide="split"></i> フォーカスの起動先</h3>
+                        <h3><i data-lucide="split"></i> セッションの起動先</h3>
                         <button class="close-modal-btn"><i data-lucide="x"></i></button>
                     </div>
                     <div class="modal-body">
-                        <p>今日のフォーカスをどのエンジンで立ち上げますか？</p>
-                        <div class="engine-select-grid">
-                            <button class="engine-select-btn btn-primary" data-engine="claude">
-                                <i data-lucide="sparkles"></i> Claude Code
-                            </button>
-                            <button class="engine-select-btn btn-secondary" data-engine="codex">
-                                <i data-lucide="boxes"></i> OpenAI Codex
-                            </button>
+                        <p>どのエンジンでセッションを立ち上げますか？</p>
+                        <div class="form-group">
+                            <label>AI Engine</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="focus-engine" value="claude" checked>
+                                    <span>Claude Code</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="focus-engine" value="codex">
+                                    <span>OpenAI Codex</span>
+                                </label>
+                            </div>
                         </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary close-modal-btn">キャンセル</button>
+                        <button class="btn-primary" id="focus-engine-start-btn">開始</button>
                     </div>
                 </div>
             </div>
@@ -134,8 +143,8 @@ describe('FocusEngineModal', () => {
 
             modal.open(task);
 
-            const claudeBtn = modalElement.querySelector('[data-engine="claude"]');
-            claudeBtn.click();
+            const startBtn = modalElement.querySelector('#focus-engine-start-btn');
+            startBtn.click();
 
             expect(emitSpy).toHaveBeenCalledWith(EVENTS.START_TASK, {
                 task,
@@ -149,8 +158,12 @@ describe('FocusEngineModal', () => {
 
             modal.open(task);
 
-            const codexBtn = modalElement.querySelector('[data-engine="codex"]');
-            codexBtn.click();
+            const claudeInput = modalElement.querySelector('input[name="focus-engine"][value="claude"]');
+            const codexInput = modalElement.querySelector('input[name="focus-engine"][value="codex"]');
+            claudeInput.checked = false;
+            codexInput.checked = true;
+            const startBtn = modalElement.querySelector('#focus-engine-start-btn');
+            startBtn.click();
 
             expect(emitSpy).toHaveBeenCalledWith(EVENTS.START_TASK, {
                 task,
@@ -163,8 +176,8 @@ describe('FocusEngineModal', () => {
 
             modal.open(task);
 
-            const claudeBtn = modalElement.querySelector('[data-engine="claude"]');
-            claudeBtn.click();
+            const startBtn = modalElement.querySelector('#focus-engine-start-btn');
+            startBtn.click();
 
             expect(modalElement.classList.contains('active')).toBe(false);
         });
@@ -174,8 +187,8 @@ describe('FocusEngineModal', () => {
 
             modal.open(task);
 
-            const claudeBtn = modalElement.querySelector('[data-engine="claude"]');
-            claudeBtn.click();
+            const startBtn = modalElement.querySelector('#focus-engine-start-btn');
+            startBtn.click();
 
             expect(modal.pendingTask).toBeNull();
         });

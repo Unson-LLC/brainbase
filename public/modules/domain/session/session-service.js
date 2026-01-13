@@ -1,7 +1,7 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { getProjectPath, getProjectFromPath } from '../../project-mapping.js';
+import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject } from '../../session-manager.js';
 import { addSession } from '../../state-api.js';
 
@@ -90,9 +90,9 @@ export class SessionService {
         try {
             let result;
             if (useWorktree) {
-                result = await this._createWorktreeSession(sessionId, repoPath, name, initialCommand, engine);
+                result = await this._createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project);
             } else {
-                result = await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine);
+                result = await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine, project);
             }
 
             // セッション作成成功時にrecoveryHintsを付加
@@ -119,7 +119,7 @@ export class SessionService {
      * 通常セッション作成
      * @private
      */
-    async _createRegularSession(sessionId, name, repoPath, initialCommand, engine) {
+    async _createRegularSession(sessionId, name, repoPath, initialCommand, engine, project) {
         // Start terminal session
         const res = await this.httpClient.post('/api/sessions/start', {
             sessionId,
@@ -137,6 +137,7 @@ export class SessionService {
             id: sessionId,
             name,
             path: repoPath,
+            project,
             initialCommand,
             engine,
             intendedState: 'active'
@@ -154,13 +155,14 @@ export class SessionService {
      * Worktreeセッション作成
      * @private
      */
-    async _createWorktreeSession(sessionId, repoPath, name, initialCommand, engine) {
+    async _createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project) {
         const res = await this.httpClient.post('/api/sessions/create-with-worktree', {
             sessionId,
             repoPath,
             name,
             initialCommand,
-            engine
+            engine,
+            project
         });
 
         if (!res || res.error) {
@@ -273,7 +275,7 @@ export class SessionService {
         // 検索フィルタ
         if (searchTerm) {
             archived = archived.filter(s => {
-                const project = getProjectFromPath(s.path);
+                const project = getProjectFromSession(s);
                 return s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                        project?.toLowerCase().includes(searchTerm.toLowerCase());
             });
@@ -283,7 +285,7 @@ export class SessionService {
         // プロジェクトフィルタ
         if (projectFilter) {
             archived = archived.filter(s => {
-                const project = getProjectFromPath(s.path);
+                const project = getProjectFromSession(s);
                 return project === projectFilter;
             });
             console.log('[DEBUG] getArchivedSessions - After project filter:', archived.length);

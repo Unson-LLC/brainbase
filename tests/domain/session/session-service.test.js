@@ -29,6 +29,12 @@ vi.mock('../../../public/modules/project-mapping.js', () => ({
         const match = path.match(/\/path\/to\/([^/]+)/);
         return match ? match[1] : 'general';
     }),
+    getProjectFromSession: vi.fn((session) => {
+        if (!session) return 'general';
+        if (session.project) return session.project;
+        const match = session.path ? session.path.match(/\/path\/to\/([^/]+)/) : null;
+        return match ? match[1] : 'general';
+    }),
     CORE_PROJECTS: ['unson', 'tech-knight', 'baao']
 }));
 

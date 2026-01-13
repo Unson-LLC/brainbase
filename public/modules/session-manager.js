@@ -3,7 +3,7 @@
  * DRY: app.jsから抽出したセッション操作関数
  */
 
-import { CORE_PROJECTS, getProjectFromPath } from './project-mapping.js';
+import { CORE_PROJECTS, getProjectFromSession } from './project-mapping.js';
 
 /**
  * セッションをプロジェクト別にグループ化
@@ -26,7 +26,7 @@ export function groupSessionsByProject(sessions, options = {}) {
 
   // Group by project
   filteredSessions.forEach(session => {
-    const projectName = getProjectFromPath(session.path);
+    const projectName = getProjectFromSession(session);
     if (!output[projectName]) output[projectName] = [];
     output[projectName].push(session);
   });
@@ -65,6 +65,7 @@ export function buildSessionObject(params) {
     id,
     name,
     path,
+    project = null,
     initialCommand = null,
     taskId = null,
     worktree = null,
@@ -76,6 +77,7 @@ export function buildSessionObject(params) {
     id,
     name,
     path,
+    project,
     initialCommand,
     taskId,
     worktree,

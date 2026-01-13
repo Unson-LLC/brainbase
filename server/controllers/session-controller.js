@@ -283,7 +283,7 @@ export class SessionController {
      * worktreeを作成してセッションを開始
      */
     createWithWorktree = async (req, res) => {
-        const { sessionId, repoPath, name, initialCommand, engine = 'claude' } = req.body;
+        const { sessionId, repoPath, name, initialCommand, engine = 'claude', project } = req.body;
 
         if (!sessionId || !repoPath) {
             return res.status(400).json({ error: 'sessionId and repoPath are required' });
@@ -321,6 +321,7 @@ export class SessionController {
                 id: sessionId,
                 name: name || sessionId,
                 path: worktreePath,  // 追加: プロジェクト判定に必要
+                project,
                 worktree: {
                     repo: repoPath,
                     path: worktreePath,
