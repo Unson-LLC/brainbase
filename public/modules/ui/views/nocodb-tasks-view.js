@@ -11,8 +11,11 @@ export class NocoDBTasksView {
         this.container = null;
         this.unsubscribers = [];
         this.members = [];  // メンバーリスト（担当者ドロップダウン用）
+        this.unassignedFilterValue = '__unassigned__';
         this.currentFilter = {
             project: '',
+            assignee: '',
+            searchText: '',
             hideCompleted: true
         };
     }
@@ -34,6 +37,7 @@ export class NocoDBTasksView {
         // NocoDB タスク読み込み完了
         const unsub1 = eventBus.on(EVENTS.NOCODB_TASKS_LOADED, () => {
             this._updateProjectFilter();
+            this._updateAssigneeFilter();
             this.render();
         });
 
@@ -81,6 +85,7 @@ export class NocoDBTasksView {
             // brainbase_nameを抽出し、重複を除去
             const names = members.map(m => m.brainbase_name).filter(Boolean);
             this.members = [...new Set(names)];
+            this._updateAssigneeFilter();
         } catch (error) {
             console.warn('Failed to load members:', error);
             this.members = [];
@@ -113,10 +118,67 @@ export class NocoDBTasksView {
     }
 
     /**
+     * 担当者フィルタの更新
+     */
+    _updateAssigneeFilter() {
+        const assigneeFilter = document.getElementById('nocodb-assignee-filter');
+        if (!assigneeFilter) return;
+
+        const currentValue = assigneeFilter.value;
+        const candidates = new Set();
+
+        this.members.forEach(name => {
+            if (name) candidates.add(name);
+        });
+
+        (this.service.tasks || []).forEach(task => {
+            if (task.assignee) candidates.add(task.assignee);
+        });
+
+        const sorted = Array.from(candidates).sort((a, b) => a.localeCompare(b));
+
+        assigneeFilter.innerHTML = `
+            <option value="">全担当者</option>
+            <option value="${this.unassignedFilterValue}">未割当</option>
+        `;
+
+        sorted.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            assigneeFilter.appendChild(option);
+        });
+
+        if (currentValue) {
+            assigneeFilter.value = currentValue;
+            if (assigneeFilter.value !== currentValue) {
+                assigneeFilter.value = '';
+                this.currentFilter.assignee = '';
+            }
+        }
+    }
+
+    /**
      * フィルタ変更ハンドラ
      */
     handleFilterChange(project) {
         this.currentFilter.project = project;
+        this.render();
+    }
+
+    /**
+     * 担当者フィルタ変更ハンドラ
+     */
+    handleAssigneeFilterChange(assignee) {
+        this.currentFilter.assignee = assignee;
+        this.render();
+    }
+
+    /**
+     * タスク名検索変更ハンドラ
+     */
+    handleSearchFilterChange(searchText) {
+        this.currentFilter.searchText = searchText.trim();
         this.render();
     }
 

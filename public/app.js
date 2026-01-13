@@ -389,6 +389,26 @@ class App {
      * Setup NocoDB filter and sync handlers
      */
     setupNocoDBFilters() {
+        // Task name search
+        const taskSearchInput = document.getElementById('nocodb-task-search');
+        if (taskSearchInput) {
+            taskSearchInput.addEventListener('input', (e) => {
+                if (this.views.nocodbTasksView) {
+                    this.views.nocodbTasksView.handleSearchFilterChange(e.target.value);
+                }
+            });
+        }
+
+        // Assignee filter
+        const assigneeFilter = document.getElementById('nocodb-assignee-filter');
+        if (assigneeFilter) {
+            assigneeFilter.addEventListener('change', (e) => {
+                if (this.views.nocodbTasksView) {
+                    this.views.nocodbTasksView.handleAssigneeFilterChange(e.target.value);
+                }
+            });
+        }
+
         // Project filter
         const projectFilter = document.getElementById('nocodb-project-filter');
         if (projectFilter) {

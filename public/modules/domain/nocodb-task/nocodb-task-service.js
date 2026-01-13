@@ -190,6 +190,7 @@ export class NocoDBTaskService {
      */
     getFilteredTasks(filters = {}) {
         let result = [...this.tasks];
+        const unassignedValue = '__unassigned__';
 
         // プロジェクトフィルタ
         if (filters.project) {
@@ -209,6 +210,14 @@ export class NocoDBTaskService {
         // 優先度フィルタ
         if (filters.priority) {
             result = result.filter(t => t.priority === filters.priority);
+        }
+
+        // 担当者フィルタ
+        if (filters.assignee === unassignedValue) {
+            result = result.filter(t => !t.assignee);
+        } else if (filters.assignee) {
+            const assignee = filters.assignee.toLowerCase();
+            result = result.filter(t => t.assignee?.toLowerCase() === assignee);
         }
 
         // テキスト検索

@@ -549,6 +549,18 @@
                 <div class="task-tab-content" id="nocodb-tasks-panel">
                     <div class="task-filter">
                         <div class="filter-group">
+                            <label for="nocodb-task-search" class="sr-only">タスク名フィルター</label>
+                            <input type="text" id="nocodb-task-search" placeholder="タスク名で検索..."
+                                aria-label="タスク名で検索" />
+                        </div>
+                        <div class="filter-group">
+                            <label for="nocodb-assignee-filter" class="sr-only">担当者フィルター</label>
+                            <select id="nocodb-assignee-filter" aria-label="担当者でフィルタ">
+                                <option value="">全担当者</option>
+                                <option value="__unassigned__">未割当</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
                             <label for="nocodb-project-filter" class="sr-only">プロジェクトフィルター</label>
                             <select id="nocodb-project-filter" class="priority-filter" aria-label="プロジェクトでフィルタ">
                                 <option value="">全プロジェクト</option>
