@@ -4,7 +4,7 @@
  * Simple logic:
  * - Orange (working): Hook reports 'working' (AI started)
  * - Green (done): Hook reports 'done' (AI stopped) AND not current session
- * - Hidden: Current session OR no hook status
+ * - Hidden: No hook status
  */
 
 import { showError, showInfo } from './toast.js';
@@ -124,7 +124,7 @@ export function updateSessionIndicators(currentSessionId) {
         // Simple logic:
         // 1. Orange: isWorking (AI running)
         // 2. Green: isDone AND not current session
-        // 3. Hidden: current session OR no status
+        // 3. Hidden: no status
 
         if (status?.isWorking) {
             const indicator = document.createElement('div');

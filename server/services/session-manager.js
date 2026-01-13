@@ -297,11 +297,15 @@ export class SessionManager {
 
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
-            let isWorking = false;
-            let isDone = false;
+            const normalized = this._normalizeHookData(hookData);
+            if (!normalized) continue;
 
-            if (hookData.status === 'working') isWorking = true;
-            else if (hookData.status === 'done') isDone = true;
+            const hasWorking = normalized.lastWorkingAt > 0;
+            const hasDone = normalized.lastDoneAt > 0;
+            if (!hasWorking && !hasDone) continue;
+
+            const isWorking = normalized.lastWorkingAt > normalized.lastDoneAt;
+            const isDone = !isWorking && normalized.lastDoneAt > 0;
 
             status[sessionId] = { isWorking, isDone };
         }
@@ -313,22 +317,38 @@ export class SessionManager {
      * Activity報告を記録
      * @param {string} sessionId - セッションID
      * @param {string} status - ステータス（'working' | 'done'）
+     * @param {number} reportedAt - 報告時刻（ms）
      */
-    reportActivity(sessionId, status) {
-        console.log(`[Hook] Received status update from ${sessionId}: ${status}`);
-
-        // 現在のステータスを確認
-        const currentHookData = this.hookStatus.get(sessionId);
-
-        // done → working の上書きを防止（緑インジケータを保持）
-        if (currentHookData && currentHookData.status === 'done' && status === 'working') {
-            console.log(`[Hook] Preserving 'done' status for ${sessionId}, ignoring 'working' update`);
+    reportActivity(sessionId, status, reportedAt) {
+        if (status !== 'working' && status !== 'done') {
+            console.warn(`[Hook] Ignoring invalid status for ${sessionId}: ${status}`);
             return;
         }
 
+        const timestamp = this._coerceTimestamp(reportedAt);
+        console.log(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp}`);
+
+        const currentHookData = this._normalizeHookData(this.hookStatus.get(sessionId)) || {
+            lastWorkingAt: 0,
+            lastDoneAt: 0
+        };
+
+        let lastWorkingAt = currentHookData.lastWorkingAt;
+        let lastDoneAt = currentHookData.lastDoneAt;
+
+        if (status === 'working') {
+            lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+        } else {
+            lastDoneAt = Math.max(lastDoneAt, timestamp);
+        }
+
+        const effectiveStatus = lastWorkingAt > lastDoneAt ? 'working' : 'done';
+
         const hookStatusData = {
-            status,
-            timestamp: Date.now()
+            status: effectiveStatus,
+            timestamp,
+            lastWorkingAt,
+            lastDoneAt
         };
 
         this.hookStatus.set(sessionId, hookStatusData);
@@ -350,8 +370,8 @@ export class SessionManager {
      * @param {string} sessionId - セッションID
      */
     clearDoneStatus(sessionId) {
-        const hookData = this.hookStatus.get(sessionId);
-        if (hookData && hookData.status === 'done') {
+        const normalized = this._normalizeHookData(this.hookStatus.get(sessionId));
+        if (normalized && normalized.lastDoneAt >= normalized.lastWorkingAt && normalized.lastDoneAt > 0) {
             this.hookStatus.delete(sessionId);
 
             // Update persisted state
@@ -369,6 +389,39 @@ export class SessionManager {
                 sessions: updatedSessions
             });
         }
+    }
+
+    _normalizeHookData(hookData) {
+        if (!hookData) return null;
+
+        const timestamp = Number.isFinite(hookData.timestamp) ? hookData.timestamp : 0;
+        const status = hookData.status;
+        const lastWorkingAt = Number.isFinite(hookData.lastWorkingAt)
+            ? hookData.lastWorkingAt
+            : status === 'working'
+                ? timestamp
+                : 0;
+        const lastDoneAt = Number.isFinite(hookData.lastDoneAt)
+            ? hookData.lastDoneAt
+            : status === 'done'
+                ? timestamp
+                : 0;
+
+        return {
+            ...hookData,
+            status,
+            timestamp,
+            lastWorkingAt,
+            lastDoneAt
+        };
+    }
+
+    _coerceTimestamp(value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric) && numeric > 0) {
+            return numeric;
+        }
+        return Date.now();
     }
 
     /**
