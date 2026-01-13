@@ -1,5 +1,5 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { getProjectFromPath } from '../../project-mapping.js';
+import { getProjectFromSession } from '../../project-mapping.js';
 import { escapeHtml } from '../../ui-helpers.js';
 
 /**
@@ -81,7 +81,7 @@ export class ArchiveModal {
         const archivedSessions = this.sessionService.getArchivedSessions('', '');
         const projects = new Set();
         archivedSessions.forEach(s => {
-            const project = getProjectFromPath(s.path);
+            const project = getProjectFromSession(s);
             if (project) projects.add(project);
         });
         const sortedProjects = Array.from(projects).sort();
@@ -127,7 +127,7 @@ export class ArchiveModal {
 
         archiveListEl.innerHTML = archivedSessions.map(session => {
             const name = session.name || session.id;
-            const project = getProjectFromPath(session.path);
+            const project = getProjectFromSession(session);
 
             // 日付の優先順位: archivedAt > createdDate > createdAt > セッションIDから抽出
             let dateValue = session.archivedAt || session.createdDate || session.createdAt;

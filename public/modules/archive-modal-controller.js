@@ -2,7 +2,7 @@
  * アーカイブモーダルのロジック
  */
 
-import { getProjectFromPath } from './project-mapping.js';
+import { getProjectFromSession } from './project-mapping.js';
 
 /**
  * アーカイブ済みセッションをフィルタリング
@@ -24,11 +24,10 @@ export function filterArchivedSessions(sessions, searchTerm, projectFilter) {
 
   // Project filter
   if (projectFilter) {
+    const normalized = projectFilter.toLowerCase();
     archived = archived.filter(s => {
-      if (projectFilter === 'General') {
-        return !s.path;
-      }
-      return s.path && s.path.includes(projectFilter);
+      const project = getProjectFromSession(s);
+      return project?.toLowerCase() === normalized;
     });
   }
 
@@ -55,6 +54,6 @@ export function sortByCreatedDate(sessions) {
  */
 export function getUniqueProjects(sessions) {
   const archived = sessions.filter(s => s.intendedState === 'archived');
-  const projects = archived.map(s => getProjectFromPath(s.path) || 'General');
+  const projects = archived.map(s => getProjectFromSession(s));
   return [...new Set(projects)].sort();
 }

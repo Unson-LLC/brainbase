@@ -3,19 +3,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // CORE_PROJECTSをモック化（Proxy問題を回避）+ getProjectFromPath実装
 vi.mock('../../public/modules/project-mapping.js', async (importOriginal) => {
     const original = await importOriginal();
+    const mockGetProjectFromPath = (path) => {
+        if (!path) return 'general';
+        const parts = path.split('/').filter(Boolean);
+        if (parts.length === 0) return 'general';
+        const workspaceIndex = parts.findIndex(p => p === 'workspace');
+        if (workspaceIndex !== -1 && workspaceIndex < parts.length - 1) {
+            return parts[workspaceIndex + 1];
+        }
+        return parts[parts.length - 1] || 'general';
+    };
+
     return {
         ...original,
         CORE_PROJECTS: ['unson', 'tech-knight', 'baao'],
         getCORE_PROJECTS: () => ['unson', 'tech-knight', 'baao'],
-        getProjectFromPath: (path) => {
-            if (!path) return 'general';
-            const parts = path.split('/').filter(Boolean);
-            if (parts.length === 0) return 'general';
-            const workspaceIndex = parts.findIndex(p => p === 'workspace');
-            if (workspaceIndex !== -1 && workspaceIndex < parts.length - 1) {
-                return parts[workspaceIndex + 1];
-            }
-            return parts[parts.length - 1] || 'general';
+        getProjectFromPath: mockGetProjectFromPath,
+        getProjectFromSession: (session) => {
+            if (!session) return 'general';
+            if (session.project) return session.project;
+            return mockGetProjectFromPath(session.path);
         }
     };
 });
@@ -50,6 +57,17 @@ describe('session-manager', () => {
       const result = groupSessionsByProject(sessions);
 
       expect(result['general']).toHaveLength(2);
+    });
+
+    it('should prefer session.project over path', () => {
+      const sessions = [
+        { id: '1', path: '/path/to/workspace/unson', project: 'back-office' }
+      ];
+
+      const result = groupSessionsByProject(sessions);
+
+      expect(result['back-office']).toHaveLength(1);
+      expect(result['unson']).toBeUndefined();
     });
 
     it('should filter out archived sessions', () => {

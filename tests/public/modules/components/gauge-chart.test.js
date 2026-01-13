@@ -142,11 +142,11 @@ describe('GaugeChart', () => {
 
             // CSS pixels
             expect(canvas.style.width).toBe('160px');
-            expect(canvas.style.height).toBe('120px');
+            expect(canvas.style.height).toBe('150px');
 
             // Actual size (scaled)
             expect(canvas.width).toBe(320); // 160 * 2 (devicePixelRatio)
-            expect(canvas.height).toBe(240); // 120 * 2
+            expect(canvas.height).toBe(300); // 150 * 2
         });
 
         it('2D Contextが取得される', () => {
@@ -308,7 +308,7 @@ describe('GaugeChart', () => {
 
             // Canvas実サイズ
             expect(canvas.width).toBe(160); // 160 * 1
-            expect(canvas.height).toBe(120); // 120 * 1
+            expect(canvas.height).toBe(150); // 150 * 1
 
             // Contextスケール
             expect(mockContext.scale).toHaveBeenCalledWith(1, 1);

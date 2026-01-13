@@ -240,12 +240,14 @@ projects:
       expect(result[0]).toEqual({
         project_id: 'brainbase',
         base_id: 'p1234567890',
+        legacy_base_id: 'p1234567890',
         base_name: 'brainbase-prod',
         url: 'https://nocodb.example.com/dashboard/#/nc/p1234567890'
       });
       expect(result[1]).toEqual({
         project_id: 'another-project',
         base_id: 'p9876543210',
+        legacy_base_id: 'p9876543210',
         base_name: 'another-prod',
         url: 'https://nocodb.example.com/dashboard/#/nc/p9876543210'
       });

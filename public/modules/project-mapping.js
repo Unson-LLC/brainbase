@@ -178,6 +178,17 @@ export function getProjectFromPath(path) {
 }
 
 /**
+ * セッションからプロジェクト名を取得
+ * @param {Object|null|undefined} session - セッション
+ * @returns {string} プロジェクト名
+ */
+export function getProjectFromSession(session) {
+  if (!session) return 'general';
+  if (session.project) return session.project;
+  return getProjectFromPath(session.path);
+}
+
+/**
  * プロジェクト設定を取得
  * @param {string} projectId - プロジェクトID
  * @returns {Object|null} プロジェクト設定
