@@ -9,6 +9,24 @@ let PROJECT_PATH_MAP_CACHE = null;
 let CORE_PROJECTS_CACHE = null;
 let PROJECT_CONFIG_CACHE = null; // プロジェクト設定のキャッシュ（hasGitRepository用）
 
+function normalizeProjectKey(value) {
+  if (!value || typeof value !== 'string') return '';
+  return value.toLowerCase().replace(/_/g, '-');
+}
+
+function resolveProjectId(projectId, coreProjects = []) {
+  const normalized = normalizeProjectKey(projectId);
+  if (!normalized) return '';
+
+  const exact = coreProjects.find(p => p.toLowerCase() === projectId.toLowerCase());
+  if (exact) return exact;
+
+  const normalizedMatch = coreProjects.find(p => normalizeProjectKey(p) === normalized);
+  if (normalizedMatch) return normalizedMatch;
+
+  return projectId;
+}
+
 // 初期化処理（モジュールロード時に実行）
 (async function initWorkspaceRoot() {
     try {
@@ -67,6 +85,7 @@ function getProjectPathMap() {
         'senrigan': `${PROJECTS_ROOT}/senrigan`,
         'aitle': `${PROJECTS_ROOT}/Aitle`,
         'mana': `${PROJECTS_ROOT}/mana`,
+        'back-office': `${PROJECTS_ROOT}/back_office`,
     };
 }
 
@@ -115,11 +134,12 @@ export const CORE_PROJECTS = new Proxy([], {
 export function getProjectPath(project) {
   if (!project) return WORKSPACE_ROOT;
 
-  const normalized = project.toLowerCase();
+  const normalized = normalizeProjectKey(project);
   if (normalized === 'general') return WORKSPACE_ROOT;
 
   const pathMap = getProjectPathMap();
-  return pathMap[normalized] || `${WORKSPACE_ROOT}/${project}`;
+  const resolvedId = resolveProjectId(project, Object.keys(pathMap));
+  return pathMap[resolvedId] || pathMap[normalized] || `${WORKSPACE_ROOT}/${project}`;
 }
 
 /**
@@ -140,14 +160,13 @@ export function getProjectFromPath(path) {
     // workspace -> general
     if (projectHint === 'workspace') return 'general';
 
-    // 完全一致を優先
-    for (const proj of coreProjects) {
-      if (projectHint === proj) return proj;
-    }
+    const resolvedHint = resolveProjectId(projectHint, coreProjects);
+    if (resolvedHint && coreProjects.includes(resolvedHint)) return resolvedHint;
 
     // 部分一致（brainbase-ui -> brainbase など）
+    const normalizedHint = normalizeProjectKey(projectHint);
     for (const proj of coreProjects) {
-      if (projectHint.includes(proj)) {
+      if (normalizedHint.includes(normalizeProjectKey(proj))) {
         return proj;
       }
     }
@@ -184,7 +203,10 @@ export function getProjectFromPath(path) {
  */
 export function getProjectFromSession(session) {
   if (!session) return 'general';
-  if (session.project) return session.project;
+  if (session.project) {
+    const coreProjects = Object.keys(getProjectPathMap());
+    return resolveProjectId(session.project, coreProjects) || session.project;
+  }
   return getProjectFromPath(session.path);
 }
 
