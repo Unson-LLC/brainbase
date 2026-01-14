@@ -351,6 +351,18 @@ export class NocoDBController {
             return [];
         }
 
+        // テーブル詳細を取得（IDフィールド解決用）
+        const tableDetailResponse = await fetch(
+            `${this.nocodbUrl}/api/v2/meta/tables/${taskTable.id}`,
+            {
+                headers: {
+                    'xc-token': this.nocodbToken
+                }
+            }
+        );
+        const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
+        const idFieldName = this._resolveIdFieldName(tableDetail);
+
         // タスクレコードを取得
         const recordsResponse = await fetch(
             `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records?limit=100${where ? `&where=${where}` : ''}`,
@@ -374,7 +386,7 @@ export class NocoDBController {
             // Try various ID field names that NocoDB might use
             // Note: Using nullish coalescing (??) to handle 0 as valid ID
             // Priority: ID (BAAO style) > RecordId (manually added) > other variants
-            const recordId = this._selectRecordId(record, index);
+            const recordId = this._selectRecordId(record, index, idFieldName);
             return {
                 id: String(recordId),
                 fields: this._extractFields(record),
@@ -443,14 +455,24 @@ export class NocoDBController {
      * @param {number} index - レコードインデックス
      * @returns {number|string}
      */
-    _selectRecordId(record, index) {
-        const recordId = record.Id ?? record.id ?? record.ID ??
-                         record.RecordId ?? record.recordId ??
-                         record.nc_id ?? record._nc_id ??
-                         record.row_id ?? record.RowId ??
-                         // Fallback: use row index (1-based)
-                         (index + 1);
-        return recordId;
+    _selectRecordId(record, index, idFieldName = null) {
+        if (idFieldName && record[idFieldName] !== undefined) {
+            return record[idFieldName];
+        }
+        const rowId = record.Id ?? record.id;
+        if (rowId !== undefined) {
+            return rowId;
+        }
+        if (!idFieldName) {
+            const recordId = record.ID ??
+                             record.RecordId ?? record.recordId ??
+                             record.nc_id ?? record._nc_id ??
+                             record.row_id ?? record.RowId ??
+                             // Fallback: use row index (1-based)
+                             (index + 1);
+            return recordId;
+        }
+        return index + 1;
     }
 
     /**

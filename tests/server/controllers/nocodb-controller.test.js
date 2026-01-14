@@ -67,4 +67,25 @@ describe('NocoDBController', () => {
 
         expect(controller._selectRecordId(record, 0)).toBe(12);
     });
+
+    it('selectRecordId呼び出し時_idFieldNameがあればその値を使う', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+        const record = { CustomId: 'TASK-34', Id: 34 };
+
+        expect(controller._selectRecordId(record, 0, 'CustomId')).toBe('TASK-34');
+    });
+
+    it('selectRecordId呼び出し時_idFieldNameが無い場合はrow Idを使う', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+        const record = { Id: 9 };
+
+        expect(controller._selectRecordId(record, 1, 'CustomId')).toBe(9);
+    });
+
+    it('selectRecordId呼び出し時_idFieldName指定でrow Idも無い場合はindexを使う', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+        const record = { name: 'task' };
+
+        expect(controller._selectRecordId(record, 2, 'CustomId')).toBe(3);
+    });
 });
