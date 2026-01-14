@@ -192,10 +192,15 @@ export class SessionService {
      */
     async updateSession(sessionId, updates) {
         const state = await this.httpClient.get('/api/state');
+        const now = new Date().toISOString();
 
         // アーカイブ時にarchivedAtを自動設定
         if (updates.intendedState === 'archived' && !updates.archivedAt) {
-            updates.archivedAt = new Date().toISOString();
+            updates.archivedAt = now;
+        }
+
+        if (!updates.updatedAt) {
+            updates.updatedAt = now;
         }
 
         const updatedSessions = state.sessions.map(s =>

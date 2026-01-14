@@ -833,6 +833,8 @@ class App {
         // Initialize settings module with conditional extension loading
         await this.initSettingsWithExtensions();
 
+        this.setupSessionViewToggle();
+
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
         if (toggleArchivedBtn) {
@@ -867,6 +869,44 @@ class App {
 
         // Mobile bottom navigation
         this.setupMobileNavigation();
+    }
+
+    /**
+     * Setup session view mode toggle
+     */
+    setupSessionViewToggle() {
+        const buttons = document.querySelectorAll('.session-view-btn');
+        if (!buttons.length) return;
+
+        const applyActive = (view) => {
+            buttons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.view === view);
+            });
+        };
+
+        const setView = (view) => {
+            const { ui } = appStore.getState();
+            appStore.setState({
+                ui: {
+                    ...ui,
+                    sessionListView: view
+                }
+            });
+        };
+
+        buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                if (view) setView(view);
+            });
+        });
+
+        applyActive(appStore.getState().ui?.sessionListView || 'project');
+        const unsub = appStore.subscribeToSelector(
+            state => state.ui?.sessionListView,
+            ({ value }) => applyActive(value || 'project')
+        );
+        this.unsubscribers.push(unsub);
     }
 
     /**

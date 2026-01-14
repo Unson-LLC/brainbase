@@ -3,22 +3,28 @@
  * DOM操作からテンプレート生成を分離
  */
 
+import { getProjectConfig } from './project-mapping.js';
+import { escapeHtml } from './ui-helpers.js';
+
 /**
  * セッション行のHTMLを生成
  * @param {Object} session - セッションオブジェクト
  * @param {Object} options - オプション
  * @param {boolean} options.isActive - アクティブかどうか
  * @param {string} options.project - プロジェクト名
+ * @param {boolean} options.showProjectEmoji - プロジェクト絵文字を表示するか
+ * @param {boolean} options.isDraggable - ドラッグ可能か
  * @returns {string} HTML文字列
  */
 export function renderSessionRowHTML(session, options = {}) {
-  const { isActive = false, project = 'General' } = options;
-  const displayName = session.name || session.id;
+  const { isActive = false, project = 'General', showProjectEmoji = false, isDraggable = true } = options;
+  const displayName = escapeHtml(session.name || session.id);
   const hasWorktree = !!session.worktree;
   const engine = session.engine || 'claude';
   const activeClass = isActive ? ' active' : '';
   const archivedClass = session.intendedState === 'archived' ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
+  const draggableAttr = isDraggable ? 'true' : 'false';
 
   // runtimeStatus.needsRestart を使って予期しない停止状態を判定
   const needsRestart = session.runtimeStatus?.needsRestart || false;
@@ -31,9 +37,17 @@ export function renderSessionRowHTML(session, options = {}) {
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
 
-  // Engine badge: codexの場合のみ表示（claudeはデフォルトなので省略）
-  const engineBadge = engine === 'codex'
-    ? '<span class="engine-badge engine-codex" title="OpenAI Codex">Codex</span>'
+  // Engine icon: codex/claudeの区別をアイコンで表示
+  const engineMeta = engine === 'codex'
+    ? { icon: 'code-2', title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
+    : { icon: 'feather', title: 'Claude Code', className: 'engine-icon engine-claude' };
+  const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><i data-lucide="${engineMeta.icon}"></i></span>`;
+
+  const projectConfig = showProjectEmoji ? getProjectConfig(project) : null;
+  const projectEmoji = projectConfig?.emoji ? escapeHtml(projectConfig.emoji) : '';
+  const projectLabel = escapeHtml(project);
+  const projectEmojiBadge = showProjectEmoji && projectEmoji
+    ? `<span class="session-project-emoji" title="${projectLabel}">${projectEmoji}</span>`
     : '';
 
   // エージェント活動インジケーター（session-indicators.js）のみ使用
@@ -69,12 +83,17 @@ export function renderSessionRowHTML(session, options = {}) {
   const archiveIcon = session.intendedState === 'archived' ? 'archive-restore' : 'archive';
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="true">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="${draggableAttr}">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
       <div class="session-name-container">
-        <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
+        <span class="session-meta">
+          <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
+        </span>
+        ${projectEmojiBadge}
         <span class="session-name">${displayName}</span>
-        ${engineBadge}
+        <span class="session-meta session-meta-right">
+          ${engineBadge}
+        </span>
       </div>
       <div class="session-actions-container">
         <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
@@ -111,12 +130,19 @@ export function renderSessionRowHTML(session, options = {}) {
 export function renderSessionGroupHeaderHTML(project, options = {}) {
   const { isExpanded = true } = options;
   const folderIcon = isExpanded ? 'folder-open' : 'folder';
+  const projectConfig = getProjectConfig(project);
+  const projectEmoji = projectConfig?.emoji ? escapeHtml(projectConfig.emoji) : '';
+  const projectLabel = escapeHtml(project);
+  const projectEmojiBadge = projectEmoji
+    ? `<span class="session-project-emoji group" title="${projectLabel}">${projectEmoji}</span>`
+    : '';
 
   return `
     <div class="session-group-header">
       <span class="folder-icon"><i data-lucide="${folderIcon}"></i></span>
-      <span class="group-title">${project}</span>
-      <button class="add-project-session-btn" data-project="${project}" title="New Session in ${project}"><i data-lucide="plus"></i></button>
+      ${projectEmojiBadge}
+      <span class="group-title">${projectLabel}</span>
+      <button class="add-project-session-btn" data-project="${project}" title="New Session in ${projectLabel}"><i data-lucide="plus"></i></button>
     </div>
   `;
 }
