@@ -14,6 +14,24 @@ describe('NocoDBController', () => {
         expect(controller._normalizeRecordId('TASK-001')).toBe('TASK-001');
     });
 
+    it('getFallbackIdFields呼び出し時_数値IDならIdとIDの候補を返す', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+
+        expect(controller._getFallbackIdFields('CustomId', 12)).toEqual(['Id', 'ID']);
+    });
+
+    it('getFallbackIdFields呼び出し時_既にIdならIDだけを返す', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+
+        expect(controller._getFallbackIdFields('Id', 12)).toEqual(['ID']);
+    });
+
+    it('getFallbackIdFields呼び出し時_文字列IDは空配列になる', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+
+        expect(controller._getFallbackIdFields('CustomId', 'TASK-1')).toEqual([]);
+    });
+
     it('resolveIdFieldName呼び出し時_pkカラムが優先される', () => {
         const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
         const tableDetail = {

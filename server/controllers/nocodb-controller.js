@@ -166,30 +166,30 @@ export class NocoDBController {
             const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
             const idFieldName = this._resolveIdFieldName(tableDetail);
 
+            const recordIdValue = this._normalizeRecordId(id);
+            const fallbackIdFields = this._getFallbackIdFields(idFieldName, recordIdValue);
+
             logger.info('NocoDB update: ID column detection', {
                 tableId: taskTable.id,
-                hasIdColumn,
                 idFieldName,
-                recordId: id
+                recordId: id,
+                recordIdValue,
+                fallbackIdFields
             });
 
-            const recordIdValue = this._normalizeRecordId(id);
-
             // NocoDB APIでタスク更新
-            const response = await fetch(
-                `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records`,
-                {
-                    method: 'PATCH',
-                    headers: {
-                        'xc-token': this.nocodbToken,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        [idFieldName]: recordIdValue,
-                        ...fields
-                    })
+            let response = await this._patchRecord(taskTable.id, idFieldName, recordIdValue, fields);
+            for (const fallbackField of fallbackIdFields) {
+                if (response.ok || response.status !== 404) {
+                    break;
                 }
-            );
+                logger.warn('NocoDB update retry with fallback id field', {
+                    tableId: taskTable.id,
+                    fallbackField,
+                    recordIdValue
+                });
+                response = await this._patchRecord(taskTable.id, fallbackField, recordIdValue, fields);
+            }
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -276,29 +276,30 @@ export class NocoDBController {
             const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
             const idFieldName = this._resolveIdFieldName(tableDetail);
 
+            const recordIdValue = this._normalizeRecordId(id);
+            const fallbackIdFields = this._getFallbackIdFields(idFieldName, recordIdValue);
+
             logger.info('NocoDB delete: ID column detection', {
                 tableId: taskTable.id,
-                hasIdColumn,
                 idFieldName,
-                recordId: id
+                recordId: id,
+                recordIdValue,
+                fallbackIdFields
             });
 
-            const recordIdValue = this._normalizeRecordId(id);
-
             // NocoDB APIでタスク削除
-            const response = await fetch(
-                `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records`,
-                {
-                    method: 'DELETE',
-                    headers: {
-                        'xc-token': this.nocodbToken,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        [idFieldName]: recordIdValue
-                    })
+            let response = await this._deleteRecord(taskTable.id, idFieldName, recordIdValue);
+            for (const fallbackField of fallbackIdFields) {
+                if (response.ok || response.status !== 404) {
+                    break;
                 }
-            );
+                logger.warn('NocoDB delete retry with fallback id field', {
+                    tableId: taskTable.id,
+                    fallbackField,
+                    recordIdValue
+                });
+                response = await this._deleteRecord(taskTable.id, fallbackField, recordIdValue);
+            }
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -424,6 +425,19 @@ export class NocoDBController {
     }
 
     /**
+     * 代替IDフィールド候補を取得
+     * @param {string} idFieldName - 現在のIDフィールド名
+     * @param {number|string} recordIdValue - レコードID
+     * @returns {string[]}
+     */
+    _getFallbackIdFields(idFieldName, recordIdValue) {
+        if (typeof recordIdValue !== 'number' || Number.isNaN(recordIdValue)) {
+            return [];
+        }
+        return ['Id', 'ID'].filter(name => name !== idFieldName);
+    }
+
+    /**
      * レコードIDを選択
      * @param {Object} record - NocoDBレコード
      * @param {number} index - レコードインデックス
@@ -437,6 +451,54 @@ export class NocoDBController {
                          // Fallback: use row index (1-based)
                          (index + 1);
         return recordId;
+    }
+
+    /**
+     * NocoDBレコード更新
+     * @param {string} tableId - テーブルID
+     * @param {string} idFieldName - IDフィールド名
+     * @param {number|string} recordIdValue - レコードID
+     * @param {Object} fields - 更新フィールド
+     * @returns {Promise<Response>}
+     */
+    _patchRecord(tableId, idFieldName, recordIdValue, fields) {
+        return fetch(
+            `${this.nocodbUrl}/api/v2/tables/${tableId}/records`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'xc-token': this.nocodbToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    [idFieldName]: recordIdValue,
+                    ...fields
+                })
+            }
+        );
+    }
+
+    /**
+     * NocoDBレコード削除
+     * @param {string} tableId - テーブルID
+     * @param {string} idFieldName - IDフィールド名
+     * @param {number|string} recordIdValue - レコードID
+     * @returns {Promise<Response>}
+     */
+    _deleteRecord(tableId, idFieldName, recordIdValue) {
+        return fetch(
+            `${this.nocodbUrl}/api/v2/tables/${tableId}/records`,
+            {
+                method: 'DELETE',
+                headers: {
+                    'xc-token': this.nocodbToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    [idFieldName]: recordIdValue
+                })
+            }
+        );
     }
 
     /**
