@@ -83,6 +83,7 @@ export function buildSessionObject(params) {
     worktree,
     intendedState,
     engine,
-    created: new Date().toISOString()
+    created: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 }

@@ -189,7 +189,8 @@ export const appStore = new Store({
     ui: {
         inboxOpen: false,
         draggedSessionId: null,
-        draggedSessionProject: null
+        draggedSessionProject: null,
+        sessionListView: 'project'
     },
     // Auto-Claude RecoveryManager pattern
     recovery: {

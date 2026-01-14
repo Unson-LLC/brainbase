@@ -191,6 +191,42 @@ body::after {
     height: 16px;
 }
 
+.session-view-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px 6px;
+}
+
+.session-view-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.session-view-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+}
+
+.session-view-btn.active {
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.session-view-btn i {
+    width: 14px;
+    height: 14px;
+}
+
 .session-list {
     flex: 1;
     overflow-y: auto;
@@ -421,6 +457,22 @@ body::after {
     gap: 8px;
 }
 
+.session-meta {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.session-meta-right {
+    margin-left: 6px;
+}
+
+.session-child-row:hover .session-meta,
+.session-child-row:focus-within .session-meta {
+    display: inline-flex;
+}
+
 .session-icon {
     display: flex;
     align-items: center;
@@ -455,25 +507,42 @@ body::after {
     flex: 1;
 }
 
-/* Worktree Badge (deprecated - now using session-icon instead) */
-
-/* Engine Badge */
-.engine-badge {
+.session-project-emoji {
     display: inline-flex;
     align-items: center;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    justify-content: center;
+    font-size: 0.9rem;
+    line-height: 1;
     flex-shrink: 0;
 }
 
-.engine-badge.engine-codex {
-    background-color: rgba(16, 163, 127, 0.2);
+.session-project-emoji.group {
+    margin-right: 6px;
+}
+
+/* Worktree Badge (deprecated - now using session-icon instead) */
+
+/* Engine Icon */
+.engine-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.engine-icon i {
+    width: 12px;
+    height: 12px;
+}
+
+.engine-icon.engine-codex {
     color: #10a37f;
-    border: 1px solid rgba(16, 163, 127, 0.3);
+}
+
+.engine-icon.engine-claude {
+    color: var(--text-secondary);
 }
 
 /* Archived Label */
@@ -606,15 +675,20 @@ body::after {
 /* Session Actions Container and Menu Toggle */
 .session-actions-container {
     position: relative;
-    display: flex;
+    display: none;
     align-items: center;
     margin-left: auto;
     flex-shrink: 0;
 }
 
+.session-child-row:hover .session-actions-container,
+.session-child-row:focus-within .session-actions-container {
+    display: flex;
+}
+
 .session-menu-toggle {
     display: flex;
-    /* Always visible on desktop and mobile */
+    /* Visible on hover/focus (always on mobile via media override) */
     align-items: center;
     justify-content: center;
     width: 32px;
@@ -744,11 +818,11 @@ body::after {
     color: var(--text-secondary);
     opacity: 0;
     cursor: grab;
-    padding: 0 2px;
+    padding: 0;
     transition: opacity 0.15s;
-    margin-left: -2px;
+    margin-left: 0;
     flex-shrink: 0;
-    width: 16px;
+    width: 0;
 }
 
 .drag-handle:active {
@@ -762,6 +836,9 @@ body::after {
 
 .session-child-row:hover .drag-handle {
     opacity: 0.6;
+    padding: 0 2px;
+    margin-left: -2px;
+    width: 16px;
 }
 
 .session-child-row:hover .drag-handle:hover {
@@ -780,6 +857,11 @@ body::after {
 
 .session-child-row[draggable="true"] {
     user-select: none;
+}
+
+.session-child-row[draggable="false"] .drag-handle {
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* =========================================
@@ -4215,6 +4297,10 @@ body::after {
         display: flex;
         min-width: 44px;
         min-height: 44px;
+    }
+
+    .session-actions-container {
+        display: flex;
     }
 
     /* Show child actions when active */
