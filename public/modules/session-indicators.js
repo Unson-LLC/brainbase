@@ -136,7 +136,7 @@ export function updateSessionIndicators(currentSessionId) {
             } else {
                 item.appendChild(indicator);
             }
-        } else if (status?.isDone && currentSessionId !== sessionId) {
+        } else if (status?.isDone) {
             const indicator = document.createElement('div');
             indicator.className = 'session-activity-indicator done';
             // drag-handleの後に挿入（左側に配置）

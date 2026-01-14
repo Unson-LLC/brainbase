@@ -110,6 +110,29 @@ if (TEST_MODE) {
 
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
+const PORT_FILE_FALLBACK = path.join(BRAINBASE_ROOT, '.brainbase-port');
+const HOME_PORT_FILE = process.env.HOME
+    ? path.join(process.env.HOME, '.brainbase', 'active-port')
+    : null;
+
+async function writePortFiles(port) {
+    const portValue = String(port);
+
+    if (HOME_PORT_FILE) {
+        try {
+            await fs.mkdir(path.dirname(HOME_PORT_FILE), { recursive: true });
+            await fs.writeFile(HOME_PORT_FILE, portValue);
+        } catch (error) {
+            console.warn('[BRAINBASE] Failed to write home port file:', error.message);
+        }
+    }
+
+    try {
+        await fs.writeFile(PORT_FILE_FALLBACK, portValue);
+    } catch (error) {
+        console.warn('[BRAINBASE] Failed to write port file:', error.message);
+    }
+}
 
 // Configuration
 const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
@@ -162,6 +185,11 @@ app.use(csrfMiddleware());
 
 // CSRF Token Endpoint
 app.get('/api/csrf-token', csrfTokenHandler);
+// Active port registration (UI -> hook target)
+app.get('/api/active-port', async (req, res) => {
+    await writePortFiles(PORT);
+    res.json({ port: PORT });
+});
 
 // ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
 app.get('/', async (req, res) => {
@@ -352,6 +380,7 @@ const server = app.listen(PORT, async () => {
     console.log(`Serving static files from ${path.join(__dirname, 'public')}`);
     console.log(`Reading tasks from: ${TASKS_FILE}`);
     console.log(`Reading schedules from: ${SCHEDULES_DIR}`);
+    await writePortFiles(PORT);
 });
 
 // Handle WebSocket Upgrades
