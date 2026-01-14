@@ -8,7 +8,8 @@ import { logger } from '../utils/logger.js';
 // セッションオブジェクトの許可フィールド
 const ALLOWED_SESSION_FIELDS = [
     'id', 'name', 'path', 'cwd', 'worktree', 'initialCommand',
-    'engine', 'intendedState', 'createdAt', 'archivedAt', 'merged', 'mergedAt'
+    'engine', 'intendedState', 'createdAt', 'archivedAt', 'merged', 'mergedAt',
+    'updatedAt'
 ];
 
 /**

@@ -355,8 +355,17 @@ export class SessionManager {
 
         // Update persisted state
         const currentState = this.stateStore.get();
+        const updatedAt = status === 'working'
+            ? new Date(timestamp).toISOString()
+            : null;
         const updatedSessions = currentState.sessions.map(session =>
-            session.id === sessionId ? { ...session, hookStatus: hookStatusData } : session
+            session.id === sessionId
+                ? {
+                    ...session,
+                    hookStatus: hookStatusData,
+                    ...(updatedAt ? { updatedAt } : {})
+                }
+                : session
         );
 
         this.stateStore.update({
