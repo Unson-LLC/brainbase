@@ -342,6 +342,25 @@ function setupKeyHandling() {
                 }
             }
         }
+
+        if (event.data && event.data.type === 'TURN_START') {
+            const currentSessionId = getSessionId?.();
+            if (currentSessionId) {
+                try {
+                    await fetch('/api/sessions/report_activity', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sessionId: currentSessionId,
+                            status: 'working',
+                            reportedAt: Date.now()
+                        })
+                    });
+                } catch (error) {
+                    console.error('Failed to report activity:', error);
+                }
+            }
+        }
     });
 }
 

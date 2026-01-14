@@ -11,15 +11,20 @@
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && e.shiftKey) {
             console.log('Shift+Enter detected, posting message to parent');
-            
+
             // Prevent default behavior (newline in xterm)
             e.preventDefault();
             e.stopPropagation();
-            
+
             // Send message to parent
             // We don't know the exact parent origin easily if ports differ, 
             // but we can use '*' for now as it's localhost.
             window.parent.postMessage({ type: 'SHIFT_ENTER' }, '*');
+            return;
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+            window.parent.postMessage({ type: 'TURN_START' }, '*');
         }
     }, true); // Use capture phase
 })();

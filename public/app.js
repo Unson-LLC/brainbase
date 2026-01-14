@@ -1796,6 +1796,9 @@ class App {
         // 4. Setup event listeners
         await this.setupEventListeners();
 
+        // 4.5. Register active port for hook routing
+        await this.registerActivePort();
+
         // 5. Load initial data
         await this.loadInitialData();
 
@@ -1828,6 +1831,17 @@ class App {
         initMobileKeyboard();
 
         console.log('brainbase-ui started successfully');
+    }
+
+    /**
+     * Register active UI port for hook routing
+     */
+    async registerActivePort() {
+        try {
+            await fetch('/api/active-port', { cache: 'no-store' });
+        } catch (error) {
+            console.warn('Failed to register active port:', error);
+        }
     }
 
     /**
