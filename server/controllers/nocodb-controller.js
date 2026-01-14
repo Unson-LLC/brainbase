@@ -163,17 +163,8 @@ export class NocoDBController {
                 }
             );
 
-            let hasIdColumn = false;
-            if (tableDetailResponse.ok) {
-                const tableDetail = await tableDetailResponse.json();
-                // Check if table has an actual ID column (pk or ID type)
-                hasIdColumn = tableDetail.columns?.some(col =>
-                    col.pk === true || col.uidt === 'ID' || col.title === 'ID'
-                );
-            }
-
-            // Tables with ID column use 'ID' (uppercase), tables without use 'Id' (row index)
-            const idFieldName = hasIdColumn ? 'ID' : 'Id';
+            const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
+            const idFieldName = this._resolveIdFieldName(tableDetail);
 
             logger.info('NocoDB update: ID column detection', {
                 tableId: taskTable.id,
@@ -282,17 +273,8 @@ export class NocoDBController {
                 }
             );
 
-            let hasIdColumn = false;
-            if (tableDetailResponse.ok) {
-                const tableDetail = await tableDetailResponse.json();
-                // Check if table has an actual ID column (pk or ID type)
-                hasIdColumn = tableDetail.columns?.some(col =>
-                    col.pk === true || col.uidt === 'ID' || col.title === 'ID'
-                );
-            }
-
-            // Tables with ID column use 'ID' (uppercase), tables without use 'Id' (row index)
-            const idFieldName = hasIdColumn ? 'ID' : 'Id';
+            const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
+            const idFieldName = this._resolveIdFieldName(tableDetail);
 
             logger.info('NocoDB delete: ID column detection', {
                 tableId: taskTable.id,
@@ -391,12 +373,7 @@ export class NocoDBController {
             // Try various ID field names that NocoDB might use
             // Note: Using nullish coalescing (??) to handle 0 as valid ID
             // Priority: ID (BAAO style) > RecordId (manually added) > other variants
-            const recordId = record.ID ?? record.Id ?? record.id ??
-                             record.RecordId ?? record.recordId ??
-                             record.nc_id ?? record._nc_id ??
-                             record.row_id ?? record.RowId ??
-                             // Fallback: use row index (1-based)
-                             (index + 1);
+            const recordId = this._selectRecordId(record, index);
             return {
                 id: String(recordId),
                 fields: this._extractFields(record),
@@ -427,6 +404,39 @@ export class NocoDBController {
             fields[key] = value;
         }
         return fields;
+    }
+
+    /**
+     * レコードIDフィールド名を解決
+     * @param {Object|null} tableDetail - テーブル詳細
+     * @returns {string}
+     */
+    _resolveIdFieldName(tableDetail) {
+        const pkColumn = tableDetail?.columns?.find(col => col.pk === true);
+        if (pkColumn?.title) {
+            return pkColumn.title;
+        }
+        const idColumn = tableDetail?.columns?.find(col => col.uidt === 'ID');
+        if (idColumn?.title) {
+            return idColumn.title;
+        }
+        return 'Id';
+    }
+
+    /**
+     * レコードIDを選択
+     * @param {Object} record - NocoDBレコード
+     * @param {number} index - レコードインデックス
+     * @returns {number|string}
+     */
+    _selectRecordId(record, index) {
+        const recordId = record.Id ?? record.id ?? record.ID ??
+                         record.RecordId ?? record.recordId ??
+                         record.nc_id ?? record._nc_id ??
+                         record.row_id ?? record.RowId ??
+                         // Fallback: use row index (1-based)
+                         (index + 1);
+        return recordId;
     }
 
     /**

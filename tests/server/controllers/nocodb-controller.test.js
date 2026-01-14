@@ -13,4 +13,40 @@ describe('NocoDBController', () => {
 
         expect(controller._normalizeRecordId('TASK-001')).toBe('TASK-001');
     });
+
+    it('resolveIdFieldName呼び出し時_pkカラムが優先される', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+        const tableDetail = {
+            columns: [
+                { title: 'CustomId', pk: true },
+                { title: 'ID', uidt: 'ID' }
+            ]
+        };
+
+        expect(controller._resolveIdFieldName(tableDetail)).toBe('CustomId');
+    });
+
+    it('resolveIdFieldName呼び出し時_ID型カラムが使用される', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+        const tableDetail = {
+            columns: [
+                { title: 'RowId', uidt: 'ID' }
+            ]
+        };
+
+        expect(controller._resolveIdFieldName(tableDetail)).toBe('RowId');
+    });
+
+    it('resolveIdFieldName呼び出し時_デフォルトはIdを返す', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+
+        expect(controller._resolveIdFieldName(null)).toBe('Id');
+    });
+
+    it('selectRecordId呼び出し時_Idを優先する', () => {
+        const controller = new NocoDBController({ getNocoDBMappings: async () => [] });
+        const record = { Id: 12, ID: 'TASK-12' };
+
+        expect(controller._selectRecordId(record, 0)).toBe(12);
+    });
 });
