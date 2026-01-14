@@ -182,6 +182,8 @@ export class NocoDBController {
                 recordId: id
             });
 
+            const recordIdValue = this._normalizeRecordId(id);
+
             // NocoDB APIでタスク更新
             const response = await fetch(
                 `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records`,
@@ -192,7 +194,7 @@ export class NocoDBController {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        [idFieldName]: parseInt(id, 10),
+                        [idFieldName]: recordIdValue,
                         ...fields
                     })
                 }
@@ -299,6 +301,8 @@ export class NocoDBController {
                 recordId: id
             });
 
+            const recordIdValue = this._normalizeRecordId(id);
+
             // NocoDB APIでタスク削除
             const response = await fetch(
                 `${this.nocodbUrl}/api/v2/tables/${taskTable.id}/records`,
@@ -309,7 +313,7 @@ export class NocoDBController {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        [idFieldName]: parseInt(id, 10)
+                        [idFieldName]: recordIdValue
                     })
                 }
             );
@@ -423,5 +427,15 @@ export class NocoDBController {
             fields[key] = value;
         }
         return fields;
+    }
+
+    /**
+     * レコードIDをNocoDB用に正規化
+     * @param {string} id - レコードID
+     * @returns {number|string}
+     */
+    _normalizeRecordId(id) {
+        const numericId = Number(id);
+        return Number.isNaN(numericId) ? id : numericId;
     }
 }

@@ -39,7 +39,7 @@ export class NocoDBTaskRepository {
      */
     async deleteTask(recordId, baseId) {
         const response = await this.http.delete(`/api/nocodb/tasks/${recordId}`, {
-            baseId
+            body: JSON.stringify({ baseId })
         });
         return response;
     }
