@@ -7,6 +7,7 @@
  * - Hidden: No hook status
  */
 
+import { eventBus, EVENTS } from './core/event-bus.js';
 import { showError, showInfo } from './toast.js';
 
 // --- Module State ---
@@ -65,7 +66,7 @@ export function updateConnectionStatus(isConnected) {
  * Poll session status from API
  * @param {string|null} currentSessionId - Currently active session ID
  */
-export async function pollSessionStatus(currentSessionId) {
+export async function pollSessionStatus(currentSessionId, onStatusChange) {
     try {
         const res = await fetch('/api/sessions/status');
 
@@ -75,10 +76,28 @@ export async function pollSessionStatus(currentSessionId) {
         }
 
         const status = await res.json();
+        const previousStatuses = new Map(sessionStatusMap);
+        let hasStatusChange = false;
 
         // Update map
         for (const [sessionId, newStatus] of Object.entries(status)) {
+            const prev = previousStatuses.get(sessionId);
+            if (!prev ||
+                prev.isWorking !== newStatus.isWorking ||
+                prev.isDone !== newStatus.isDone ||
+                prev.lastWorkingAt !== newStatus.lastWorkingAt ||
+                prev.lastDoneAt !== newStatus.lastDoneAt
+            ) {
+                hasStatusChange = true;
+            }
             sessionStatusMap.set(sessionId, newStatus);
+        }
+
+        if (hasStatusChange) {
+            if (typeof onStatusChange === 'function') {
+                await onStatusChange(status);
+            }
+            await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId: null, updates: { hookStatus: status } });
         }
 
         updateSessionIndicators(currentSessionId);
@@ -156,12 +175,12 @@ export function updateSessionIndicators(currentSessionId) {
  * @param {number} intervalMs - Polling interval in milliseconds
  * @returns {number} Interval ID for clearing
  */
-export function startPolling(getCurrentSessionId, intervalMs = 3000) {
+export function startPolling(getCurrentSessionId, intervalMs = 3000, onStatusChange) {
     // Initial poll
-    pollSessionStatus(getCurrentSessionId());
+    pollSessionStatus(getCurrentSessionId(), onStatusChange);
 
     // Set up interval
     return setInterval(() => {
-        pollSessionStatus(getCurrentSessionId());
+        pollSessionStatus(getCurrentSessionId(), onStatusChange);
     }, intervalMs);
 }

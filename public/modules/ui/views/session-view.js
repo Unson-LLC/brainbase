@@ -3,7 +3,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
-import { updateSessionIndicators } from '../../session-indicators.js';
+import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
 import { escapeHtml } from '../../ui-helpers.js';
 
 /**
@@ -197,6 +197,19 @@ export class SessionView {
             const parsed = Date.parse(value);
             return Number.isNaN(parsed) ? null : parsed;
         };
+
+        const liveStatus = session?.id ? getSessionStatus(session.id) : null;
+        const statusTimestamp = Math.max(
+            liveStatus?.lastWorkingAt || 0,
+            liveStatus?.lastDoneAt || 0,
+            liveStatus?.timestamp || 0,
+            session?.hookStatus?.lastWorkingAt || 0,
+            session?.hookStatus?.lastDoneAt || 0,
+            session?.hookStatus?.timestamp || 0
+        );
+        if (statusTimestamp > 0) {
+            return statusTimestamp;
+        }
 
         const candidates = [
             session.updatedAt,

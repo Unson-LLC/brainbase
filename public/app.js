@@ -1813,7 +1813,13 @@ class App {
         }
 
         // 7. Start session status polling (every 3 seconds)
-        this.pollingIntervalId = startPolling(() => appStore.getState().currentSessionId, 3000);
+        this.pollingIntervalId = startPolling(
+            () => appStore.getState().currentSessionId,
+            3000,
+            async () => {
+                await this.sessionService.loadSessions();
+            }
+        );
 
         // 8. Start periodic refresh (every 5 minutes)
         this.startPeriodicRefresh();
