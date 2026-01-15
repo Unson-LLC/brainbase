@@ -3,7 +3,7 @@
  *
  * Simple logic:
  * - Orange (working): Hook reports 'working' (AI started)
- * - Green (done): Hook reports 'done' (AI stopped) AND not current session
+ * - Green (done): Hook reports 'done' (AI stopped)
  * - Hidden: No hook status
  */
 

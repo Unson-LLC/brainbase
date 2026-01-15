@@ -11,7 +11,7 @@ import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
-import { pollSessionStatus, updateSessionIndicators, clearDone, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, updateSessionIndicators, startPolling } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { showConfirm } from './modules/confirm-modal.js';
@@ -1700,8 +1700,7 @@ class App {
                 }
             });
 
-            // Clear done indicator and update session indicators
-            clearDone(sessionId);
+            // Update session indicators (keep done status visible for current session too)
             updateSessionIndicators(appStore.getState().currentSessionId);
 
         } catch (error) {
