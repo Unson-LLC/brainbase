@@ -93,7 +93,12 @@ PY
       --max-time 1 >/dev/null 2>&1 || true &
   fi
 
-  if [ "$event_type" = "agent-turn-complete" ]; then
+  is_done_event=false
+  if [ "$event_type" = "agent-turn-complete" ] || [ "$event_type" = "agent-turn-end" ] || [ "$event_type" = "assistant-message" ] || [ "$event_type" = "assistant-response" ] || [ "$event_type" = "assistant-message-complete" ] || [ "$event_type" = "assistant-response-complete" ]; then
+    is_done_event=true
+  fi
+
+  if [ "$is_done_event" = true ]; then
     if [ -n "$TURN_STATE_FILE" ] && [ -f "$TURN_STATE_FILE" ]; then
       rm -f "$TURN_STATE_FILE" >/dev/null 2>&1 || true
     fi
@@ -104,8 +109,8 @@ PY
   fi
 fi
 
-if [ "$event_type" = "agent-turn-complete" ] && [ -x /usr/bin/afplay ]; then
+if [ "$is_done_event" = true ] && [ -x /usr/bin/afplay ]; then
   /usr/bin/afplay /System/Library/Sounds/Glass.aiff >/dev/null 2>&1
-elif [ "$event_type" = "agent-turn-complete" ] && [ -x /usr/bin/say ]; then
+elif [ "$is_done_event" = true ] && [ -x /usr/bin/say ]; then
   /usr/bin/say "done" >/dev/null 2>&1
 fi

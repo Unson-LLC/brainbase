@@ -307,7 +307,13 @@ export class SessionManager {
             const isWorking = normalized.lastWorkingAt > normalized.lastDoneAt;
             const isDone = !isWorking && normalized.lastDoneAt > 0;
 
-            status[sessionId] = { isWorking, isDone };
+            status[sessionId] = {
+                isWorking,
+                isDone,
+                lastWorkingAt: normalized.lastWorkingAt,
+                lastDoneAt: normalized.lastDoneAt,
+                timestamp: normalized.timestamp
+            };
         }
 
         return status;
@@ -355,15 +361,13 @@ export class SessionManager {
 
         // Update persisted state
         const currentState = this.stateStore.get();
-        const updatedAt = status === 'working'
-            ? new Date(timestamp).toISOString()
-            : null;
+        const updatedAt = new Date(timestamp).toISOString();
         const updatedSessions = currentState.sessions.map(session =>
             session.id === sessionId
                 ? {
                     ...session,
                     hookStatus: hookStatusData,
-                    ...(updatedAt ? { updatedAt } : {})
+                    updatedAt
                 }
                 : session
         );
