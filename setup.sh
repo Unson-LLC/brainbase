@@ -8,41 +8,56 @@ echo "🧠 Brainbase Initial Setup"
 echo "=========================="
 echo ""
 
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+DATA_DIR="${BRAINBASE_ROOT:-$REPO_ROOT/data}"
+VAR_DIR="${BRAINBASE_VAR_DIR:-$REPO_ROOT/var}"
+STATE_FILE="$VAR_DIR/state.json"
+
 # Check if already initialized
-if [ -f "state.json" ]; then
+if [ -f "$STATE_FILE" ]; then
     echo "⚠️  state.json already exists. Skipping initialization."
-    echo "   If you want to reset, run: rm state.json && ./setup.sh"
+    echo "   If you want to reset, run: rm \"$STATE_FILE\" && ./setup.sh"
     exit 0
 fi
 
+# Ensure local data/runtime dirs exist
+mkdir -p "$DATA_DIR" "$VAR_DIR"
+
 # Create state.json from sample
 echo "📝 Creating state.json from state.sample.json..."
-cp state.sample.json state.json
+cp "$REPO_ROOT/state.sample.json" "$STATE_FILE"
 echo "   ✅ state.json created"
 
 # Create _tasks directory if it doesn't exist
-if [ ! -d "_tasks" ]; then
+if [ ! -d "$DATA_DIR/_tasks" ]; then
     echo "📂 Creating _tasks directory..."
-    cp -r _tasks-sample _tasks
+    cp -r "$REPO_ROOT/_tasks-sample" "$DATA_DIR/_tasks"
     echo "   ✅ _tasks created with sample data"
 fi
 
 # Create _schedules directory if it doesn't exist
-if [ ! -d "_schedules" ]; then
+if [ ! -d "$DATA_DIR/_schedules" ]; then
     echo "📅 Creating _schedules directory..."
-    cp -r _schedules-sample _schedules
+    cp -r "$REPO_ROOT/_schedules-sample" "$DATA_DIR/_schedules"
     echo "   ✅ _schedules created with sample data"
 fi
 
 # Create _inbox directory if it doesn't exist
-if [ ! -d "_inbox" ]; then
+if [ ! -d "$DATA_DIR/_inbox" ]; then
     echo "📥 Creating _inbox directory..."
-    cp -r _inbox-sample _inbox
+    cp -r "$REPO_ROOT/_inbox-sample" "$DATA_DIR/_inbox"
     echo "   ✅ _inbox created with sample data"
 fi
 
+# Create config.yml in data dir if missing
+if [ ! -f "$DATA_DIR/config.yml" ]; then
+    echo "⚙️  Creating config.yml..."
+    cp "$REPO_ROOT/config.yml" "$DATA_DIR/config.yml"
+    echo "   ✅ config.yml created"
+fi
+
 # Create empty _codex if it doesn't exist (use sample as fallback)
-if [ ! -d "_codex" ]; then
+if [ ! -d "$DATA_DIR/_codex" ]; then
     echo "📚 Using _codex-sample as knowledge base..."
     echo "   (You can create your own _codex later)"
 fi
@@ -57,4 +72,6 @@ echo "3. Explore the sample tasks and sessions"
 echo ""
 echo "Optional: Set BRAINBASE_ROOT to use a different workspace"
 echo "  export BRAINBASE_ROOT=/path/to/your/workspace"
+echo "Optional: Set BRAINBASE_VAR_DIR to store runtime files elsewhere"
+echo "  export BRAINBASE_VAR_DIR=/path/to/your/var"
 echo ""

@@ -18,7 +18,7 @@ if [ -f "$PROJECT_ROOT/.git" ]; then
     echo -e "${YELLOW}⚠️  Worktree環境でのサーバー起動を検出${NC}"
     echo ""
     echo -e "${YELLOW}注意事項:${NC}"
-    echo "  - 正本とworktreeが同じstate.jsonを共有しています"
+    echo "  - 正本とworktreeが同じvar/state.jsonを共有しています"
     echo "  - セッション管理機能を使用すると競合が発生します"
     echo ""
     echo -e "${GREEN}推奨: テストモードで起動${NC}"

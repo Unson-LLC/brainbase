@@ -11,10 +11,10 @@
 - `/ohayo` 由来のタイムスケジュールを常時表示する
 
 ## 情報源と前提
-- タスク正本: `_tasks/index.md`（ローカル読み取りのみ）
-- スケジュール: `_schedules/YYYY-MM-DD.md`（なければ「未登録」表示）
+- タスク正本: `data/_tasks/index.md`（ローカル読み取りのみ）
+- スケジュール: `data/_schedules/YYYY-MM-DD.md`（なければ「未登録」表示）
 - /ohayoログ: 任意（存在すれば最優先で表示、なければスケジュールにフォールバック）
-- 状態保存: `brainbase-ui/state.json`（Git無視）＋ LocalStorage
+- 状態保存: `var/state.json`（Git無視）＋ LocalStorage
 - ネットワーク不要、ローカルHTTPサーバのみ
 - タスク登録/更新は実装しない（Claude Code経由で実施するため）
 
@@ -63,14 +63,14 @@
 - フッター: Start/Stop Focus、ポモドーロ切替、リロード、設定。モバイルでは下部固定。
 
 ## データフロー
-1) サーバ起動時に `_tasks/index.md` と当日 `_schedules/YYYY-MM-DD.md` を読み取り、メモリにキャッシュ（必要に応じて短時間リロード可能）。
+1) サーバ起動時に `data/_tasks/index.md` と当日 `data/_schedules/YYYY-MM-DD.md` を読み取り、メモリにキャッシュ（必要に応じて短時間リロード可能）。
 2) `/api/tasks` でタスクJSONを返却（status/priority/due/overdue フラグ付与）。
 3) `/api/schedule/today` で今日のタイムブロックと次予定までの分数を返却（/ohayoログがあればそちらを整形）。
-4) `/api/state` で state.json を読み書き（開いていたタスクID、フィルタ、既読通知）。LocalStorageと二重化。
+4) `/api/state` で `var/state.json` を読み書き（開いていたタスクID、フィルタ、既読通知）。LocalStorageと二重化。
 5) フロントは HTMX でタブ・検索・トグルを即時フィルタ（0.4s以内応答目標）。
 
 ## 状態管理
-- 永続: `brainbase-ui/state.json`（Git無視）、LocalStorage
+- 永続: `var/state.json`（Git無視）、LocalStorage
   - lastOpenTaskId, filters, readNotifications, focusSession(開始時刻)
 - 揮発: メモリキャッシュ（タスク、スケジュール）
 
@@ -97,8 +97,8 @@
 - 目的: IDEを閉じてもサーバを維持し、ターミナルを独立したセッションとして並行稼働させる。
 - 実装方針:
   - `ttyd` は1つのポートで起動し、URL引数（`arg`）で接続するtmuxセッションを振り分けるスクリプトを実行する。
-  - 起動スクリプト: `ttyd login_script.sh`
-  - `login_script.sh`: 引数を受け取り、`tmux attach -t $1 || tmux new -s $1` を実行する。
+  - 起動スクリプト: `ttyd scripts/login_script.sh`
+  - `scripts/login_script.sh`: 引数を受け取り、`tmux attach -t $1 || tmux new -s $1` を実行する。
 
 ## 実装スコープ外
 - タスクの追加/編集/正本書き込み（Claude Code経由で対応）

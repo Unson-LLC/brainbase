@@ -5,9 +5,9 @@
 import express from 'express';
 import { MiscController } from '../controllers/misc-controller.js';
 
-export function createMiscRouter(appVersion, uploadMiddleware, workspaceRoot) {
+export function createMiscRouter(appVersion, uploadMiddleware, workspaceRoot, uploadsDir) {
     const router = express.Router();
-    const controller = new MiscController(appVersion, uploadMiddleware, workspaceRoot);
+    const controller = new MiscController(appVersion, uploadMiddleware, workspaceRoot, uploadsDir);
 
     // GET /api/version - アプリケーションバージョンを取得
     router.get('/version', controller.getVersion);

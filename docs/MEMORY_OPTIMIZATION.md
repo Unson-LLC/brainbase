@@ -30,7 +30,7 @@ Brainbase UIでは、TMUXセッションとMCPサーバープロセスが適切�
 ### 原因1: TMUXセッションのライフサイクル管理不在
 
 **現状**:
-- `login_script.sh`: セッション作成のみ実装
+- `scripts/login_script.sh`: セッション作成のみ実装
 - セッション終了時のクリーンアップ処理が存在しない
 - detachedセッションが無期限に残り続ける
 
@@ -69,10 +69,10 @@ Brainbase UIでは、TMUXセッションとMCPサーバープロセスが適切�
 
 ```bash
 # 3日以上前のdetachedセッションとMCPプロセスを削除
-/Users/ksato/workspace/projects/brainbase/scripts/cleanup-old-sessions.sh
+/path/to/brainbase/scripts/cleanup-old-sessions.sh
 
 # オプション: 保持期間を変更（例: 1日）
-/Users/ksato/workspace/projects/brainbase/scripts/cleanup-old-sessions.sh 1
+/path/to/brainbase/scripts/cleanup-old-sessions.sh 1
 ```
 
 **実行タイミング**:
@@ -86,7 +86,7 @@ Brainbase UIでは、TMUXセッションとMCPサーバープロセスが適切�
 
 1. launchdエージェントの配置:
    ```bash
-   cp /Users/ksato/workspace/projects/brainbase/config/com.brainbase.cleanup.plist \
+   cp /path/to/brainbase/config/com.brainbase.cleanup.plist \
       ~/Library/LaunchAgents/
    ```
 
@@ -128,13 +128,13 @@ pkill -f 'zep-mcp-server/src/index.ts'
 #### Phase 1: セッション終了時のクリーンアップ（優先度: High）
 
 **実装内容**:
-- `login_script.sh`の拡張: セッション終了時のフック追加
+- `scripts/login_script.sh`の拡張: セッション終了時のフック追加
 - TMUXの`set-hook`機能を使用してセッション終了を検出
 - セッション終了時に関連MCPプロセスを自動終了
 
 **実装例**:
 ```bash
-# login_script.sh に追加
+# scripts/login_script.sh に追加
 tmux set-hook -t "$SESSION_NAME" session-closed \
     "run-shell '/path/to/cleanup-session.sh $SESSION_NAME'"
 ```
@@ -219,13 +219,13 @@ Node.jsプロセス: 20個以下
 
 1. **クリーンアップログの確認**
    ```bash
-   tail -100 /Users/ksato/workspace/projects/brainbase/logs/cleanup-*.log
+   tail -100 /path/to/brainbase/var/logs/cleanup-*.log
    ```
 
 2. **手動メンテナンス**（必要に応じて）
    ```bash
    # 強制クリーンアップ（1日以上前のセッション）
-   /Users/ksato/workspace/projects/brainbase/scripts/cleanup-old-sessions.sh 1
+   /path/to/brainbase/scripts/cleanup-old-sessions.sh 1
    ```
 
 ### 月次オペレーション
@@ -249,9 +249,9 @@ Node.jsプロセス: 20個以下
 
 ### 内部ドキュメント
 
-- [CLAUDE.md](/Users/ksato/workspace/shared/.worktrees/session-1767277421803-brainbase/CLAUDE.md): brainbase開発標準
-- [login_script.sh](/Users/ksato/workspace/projects/brainbase/login_script.sh): セッション起動スクリプト
-- [dev.sh](/Users/ksato/workspace/projects/brainbase/dev.sh): 開発サーバー起動スクリプト
+- [CLAUDE.md](../CLAUDE.md): brainbase開発標準
+- [login_script.sh](../scripts/login_script.sh): セッション起動スクリプト
+- [dev.sh](../dev.sh): 開発サーバー起動スクリプト
 
 ### 外部リソース
 
@@ -266,9 +266,9 @@ Node.jsプロセス: 20個以下
 ### Q: クリーンアップスクリプトが動作しない
 
 **A**: 以下を確認してください：
-1. 実行権限があるか: `ls -la /Users/ksato/workspace/projects/brainbase/scripts/cleanup-old-sessions.sh`
+1. 実行権限があるか: `ls -la /path/to/brainbase/scripts/cleanup-old-sessions.sh`
 2. TMUXが起動しているか: `tmux list-sessions`
-3. エラーログを確認: `cat /Users/ksato/workspace/projects/brainbase/logs/cleanup-*.log`
+3. エラーログを確認: `cat /path/to/brainbase/var/logs/cleanup-*.log`
 
 ### Q: launchdエージェントが起動しない
 

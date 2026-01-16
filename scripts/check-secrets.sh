@@ -20,7 +20,7 @@ ERRORS=0
 WARNINGS=0
 
 # 除外パターン（.gitignoreに含まれるファイルはスキップ）
-EXCLUDE_DIRS="node_modules|.git|dist|build|coverage|test-results|.worktrees"
+EXCLUDE_DIRS="node_modules|.git|dist|build|coverage|test-results|.worktrees|var|data"
 EXCLUDE_FILES="state.json|*.log|*.tmp|SCREENSHOT_REQUEST.md|SCREENSHOT_REQUEST_SLACK.md|MIGRATION_2025-12-31.md|dashboard-implementation-prompt.md"
 
 # チェック関数
@@ -33,7 +33,7 @@ check_pattern() {
 
     # grepで検索（除外パターンを考慮）
     local results=$(grep -r -n -I \
-        --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,.claude,config,migration,docs,_inbox-sample} \
+        --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,_inbox-sample} \
         --exclude=".git" \
         --exclude="state.json" \
         --exclude=".env" \

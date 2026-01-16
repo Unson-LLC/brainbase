@@ -47,13 +47,14 @@ const APP_VERSION = `v${packageJson.version}`;
 
 // Environment variables for directory structure
 // BRAINBASE_ROOT: Personal data location (_codex, _tasks, _schedules, config.yml)
+// BRAINBASE_VAR_DIR: Runtime data location (state.json, uploads, logs)
 // PROJECTS_ROOT: Project code location (where projects are stored)
 //
 // Auto-detection logic:
 // 1. If BRAINBASE_ROOT env var is set, use it
 // 2. If running from worktree (.worktrees/...), use parent of .worktrees
 // 3. If running from projects directory, look for ../shared
-// 4. Fall back to __dirname
+// 4. Fall back to __dirname/data
 function detectBrainbaseRoot() {
     if (process.env.BRAINBASE_ROOT) {
         return process.env.BRAINBASE_ROOT;
@@ -79,7 +80,7 @@ function detectBrainbaseRoot() {
         }
     }
 
-    return __dirname;
+    return path.join(__dirname, 'data');
 }
 
 const BRAINBASE_ROOT = detectBrainbaseRoot();
@@ -90,6 +91,12 @@ console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
 const DEFAULT_PORT = isWorktree ? 3001 : 3000;
+const VAR_DIR = process.env.BRAINBASE_VAR_DIR || (
+    isWorktree
+        ? path.join(PROJECTS_ROOT, 'brainbase', 'var')
+        : path.join(__dirname, 'var')
+);
+const UPLOADS_DIR = path.join(VAR_DIR, 'uploads');
 
 // Test Mode: セッション管理を無効化し、読み取り専用モードで起動
 // worktreeでのE2Eテスト・UI検証時に使用
@@ -110,7 +117,7 @@ if (TEST_MODE) {
 
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
-const PORT_FILE_FALLBACK = path.join(BRAINBASE_ROOT, '.brainbase-port');
+const PORT_FILE_FALLBACK = path.join(VAR_DIR, '.brainbase-port');
 const HOME_PORT_FILE = process.env.HOME
     ? path.join(process.env.HOME, '.brainbase', 'active-port')
     : null;
@@ -139,12 +146,28 @@ const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
 const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
 // Phase 4: worktree環境では正本のstate.jsonを参照（E2Eテスト用）
 const STATE_FILE = isWorktree
-    ? path.join(PROJECTS_ROOT, 'brainbase', 'state.json')
-    : path.join(__dirname, 'state.json');
-const WORKTREES_DIR = path.join(BRAINBASE_ROOT, '.worktrees');
-const CODEX_PATH = path.join(BRAINBASE_ROOT, '_codex');
-const CONFIG_PATH = path.join(BRAINBASE_ROOT, 'config.yml');
+    ? path.join(PROJECTS_ROOT, 'brainbase', 'var', 'state.json')
+    : path.join(VAR_DIR, 'state.json');
+const WORKTREES_DIR = process.env.BRAINBASE_WORKTREES_DIR || path.join(BRAINBASE_ROOT, '.worktrees');
+const CODEX_PATH = existsSync(path.join(BRAINBASE_ROOT, '_codex'))
+    ? path.join(BRAINBASE_ROOT, '_codex')
+    : path.join(__dirname, '_codex-sample');
+const CONFIG_PATH = existsSync(path.join(BRAINBASE_ROOT, 'config.yml'))
+    ? path.join(BRAINBASE_ROOT, 'config.yml')
+    : path.join(__dirname, 'config.yml');
 const INBOX_FILE = path.join(BRAINBASE_ROOT, '_inbox/pending.md');
+
+const ensureDir = async (dir) => {
+    try {
+        await fs.mkdir(dir, { recursive: true });
+    } catch (error) {
+        console.warn(`[BRAINBASE] Failed to create directory: ${dir}`, error.message);
+    }
+};
+
+await ensureDir(BRAINBASE_ROOT);
+await ensureDir(VAR_DIR);
+await ensureDir(UPLOADS_DIR);
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
@@ -249,7 +272,8 @@ const sessionManager = new SessionManager({
     serverDir: __dirname,
     execPromise,
     stateStore,
-    worktreeService  // Phase 2: Archived session cleanup用
+    worktreeService,  // Phase 2: Archived session cleanup用
+    uiPort: PORT
 });
 
 // Initialize State Store and restore session state
@@ -276,7 +300,7 @@ const sessionManager = new SessionManager({
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/')
+        cb(null, UPLOADS_DIR)
     },
     filename: function (req, file, cb) {
         // Keep original extension
@@ -372,7 +396,7 @@ app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
-app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot));
+app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR));
 
 // ========================================
 // All API routes are now handled by routers:

@@ -3,6 +3,7 @@
  * セッション管理とttyd/tmuxプロセス管理を担当
  */
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import net from 'net';
 import path from 'path';
 import { TerminalOutputParser } from './terminal-output-parser.js';
@@ -14,12 +15,14 @@ export class SessionManager {
      * @param {Function} options.execPromise - util.promisify(exec)
      * @param {Object} options.stateStore - StateStoreインスタンス
      * @param {Object} options.worktreeService - WorktreeServiceインスタンス（Phase 2）
+     * @param {number|string} [options.uiPort] - UIサーバーのポート
      */
-    constructor({ serverDir, execPromise, stateStore, worktreeService }) {
+    constructor({ serverDir, execPromise, stateStore, worktreeService, uiPort }) {
         this.serverDir = serverDir;
         this.execPromise = execPromise;
         this.stateStore = stateStore;
         this.worktreeService = worktreeService;  // Phase 2: Worktree削除用
+        this.uiPort = uiPort;
 
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
@@ -548,8 +551,12 @@ export class SessionManager {
         if (cwd) console.log(`Working directory: ${cwd}`);
 
         // Spawn ttyd with Base Path
-        const scriptPath = path.join(this.serverDir, 'login_script.sh');
-        const customIndexPath = path.join(this.serverDir, 'custom_ttyd_index.html');
+        const scriptPath = existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
+            ? path.join(this.serverDir, 'scripts', 'login_script.sh')
+            : path.join(this.serverDir, 'login_script.sh');
+        const customIndexPath = existsSync(path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html'))
+            ? path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html')
+            : path.join(this.serverDir, 'custom_ttyd_index.html');
         // IMPORTANT: ttyd base path must match the proxy route
         const basePath = `/console/${sessionId}`;
 
@@ -588,6 +595,11 @@ export class SessionManager {
             },
             detached: true  // 親プロセスから切り離し
         };
+
+        const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
+        if (resolvedUiPort) {
+            spawnOptions.env.BRAINBASE_PORT = String(resolvedUiPort);
+        }
 
         // Set CWD if provided
         if (cwd) {
