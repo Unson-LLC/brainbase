@@ -38,9 +38,9 @@ function validateSession(session) {
 }
 
 export class StateController {
-    constructor(stateStore, activeSessions, testMode = false) {
+    constructor(stateStore, sessionManager, testMode = false) {
         this.stateStore = stateStore;
-        this.activeSessions = activeSessions;
+        this.sessionManager = sessionManager;
         this.testMode = testMode;
     }
 
@@ -48,25 +48,26 @@ export class StateController {
      * GET /api/state
      * アプリケーション状態を取得（ランタイムステータス付き）
      */
-    get = (req, res) => {
+    get = async (req, res) => {
         try {
+            const ready = await this.sessionManager.waitUntilReady();
+            if (!ready) {
+                res.status(503).json({ error: 'Service not ready' });
+                return;
+            }
+
             const state = this.stateStore.get();
 
             // Add runtime status to each session
             const sessionsWithStatus = (state.sessions || []).map(session => {
-                const ttydRunning = this.activeSessions.has(session.id);
-                // 本来アクティブであるべきなのに停止している場合は再起動が必要
-                const needsRestart = session.intendedState === 'active' && !ttydRunning;
+                const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
 
                 return {
                     ...session,
                     // 後方互換性のためttydRunningも残す（将来削除予定）
-                    ttydRunning,
+                    ttydRunning: runtimeStatus.ttydRunning,
                     // 新しいruntimeStatus
-                    runtimeStatus: {
-                        ttydRunning,
-                        needsRestart
-                    }
+                    runtimeStatus
                 };
             });
 

@@ -27,6 +27,13 @@ export class SessionManager {
         // ポート範囲を40000番台に設定（開発サーバー3000番台との競合回避）
         this.nextPort = 40000;
 
+        // 起動準備完了フラグ
+        this._isReady = false;
+        this._readyResolver = null;
+        this._readyPromise = new Promise((resolve) => {
+            this._readyResolver = resolve;
+        });
+
         // ターミナル出力パーサー
         this.outputParser = new TerminalOutputParser();
 
@@ -452,6 +459,62 @@ export class SessionManager {
      */
     getActiveSessions() {
         return this.activeSessions;
+    }
+
+    /**
+     * 起動準備完了フラグを設定
+     */
+    markReady() {
+        if (this._isReady) {
+            return;
+        }
+        this._isReady = true;
+        if (this._readyResolver) {
+            this._readyResolver(true);
+        }
+    }
+
+    /**
+     * 起動準備完了かどうか
+     * @returns {boolean}
+     */
+    isReady() {
+        return this._isReady;
+    }
+
+    /**
+     * 起動準備完了を待機
+     * @param {number} timeoutMs - タイムアウト（ms）
+     * @returns {Promise<boolean>} 準備完了ならtrue
+     */
+    async waitUntilReady(timeoutMs = 10000) {
+        if (this._isReady) {
+            return true;
+        }
+
+        return await Promise.race([
+            this._readyPromise.then(() => true),
+            new Promise(resolve => setTimeout(() => resolve(false), timeoutMs))
+        ]);
+    }
+
+    /**
+     * セッションのランタイム状態を取得
+     * @param {Object} session - セッション情報
+     * @returns {{ttydRunning: boolean, needsRestart: boolean}}
+     */
+    getRuntimeStatus(session) {
+        const activeEntry = this.activeSessions.get(session.id);
+        const activePid = activeEntry?.process?.pid || activeEntry?.pid;
+        const persistedPid = session?.ttydProcess?.pid;
+        const pidToCheck = activePid || persistedPid;
+        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
+        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+
+        return {
+            ttydRunning,
+            needsRestart
+        };
     }
 
     /**
