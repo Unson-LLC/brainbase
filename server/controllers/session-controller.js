@@ -380,34 +380,6 @@ export class SessionController {
     };
 
     /**
-     * POST /api/sessions/:id/fix-symlinks
-     * worktreeのシンボリックリンクを修正
-     */
-    fixSymlinks = async (req, res) => {
-        const { id } = req.params;
-
-        // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-
-        if (!session.worktree) {
-            return res.status(400).json({ error: 'Session does not have a worktree' });
-        }
-
-        try {
-            const result = await this.worktreeService.fixSymlinks(id, session.worktree.repo);
-            res.json(result);
-        } catch (error) {
-            console.error('Failed to fix symlinks:', error);
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    /**
      * POST /api/sessions/:id/merge
      * worktreeをmainブランチにマージ
      */
