@@ -254,16 +254,22 @@ const sessionManager = new SessionManager({
 
 // Initialize State Store and restore session state
 (async () => {
-    await stateStore.init();
-    await sessionManager.restoreHookStatus();
+    try {
+        await stateStore.init();
+        await sessionManager.restoreHookStatus();
 
-    // Phase 3: activeセッションを復元してからcleanupを実行
-    // Phase 4: TEST_MODEでは実行しない（読み取り専用）
-    if (!TEST_MODE) {
-        await sessionManager.restoreActiveSessions();
-        await sessionManager.cleanupOrphans();
-    } else {
-        console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
+        // Phase 3: activeセッションを復元してからcleanupを実行
+        // Phase 4: TEST_MODEでは実行しない（読み取り専用）
+        if (!TEST_MODE) {
+            await sessionManager.restoreActiveSessions();
+            await sessionManager.cleanupOrphans();
+        } else {
+            console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
+        }
+    } catch (error) {
+        console.error('[BRAINBASE] Initialization failed:', error);
+    } finally {
+        sessionManager.markReady();
     }
 })();
 
@@ -353,8 +359,13 @@ app.use('/console', ttydProxy);
 // not its parent, to correctly resolve file paths for open-file API
 const workspaceRoot = __dirname;
 
+app.get('/health/ready', (req, res) => {
+    const ready = sessionManager.isReady();
+    res.status(ready ? 200 : 503).json({ ready });
+});
+
 app.use('/api/tasks', createTaskRouter(taskParser));
-app.use('/api/state', createStateRouter(stateStore, sessionManager.getActiveSessions(), TEST_MODE));
+app.use('/api/state', createStateRouter(stateStore, sessionManager, TEST_MODE));
 app.use('/api/config', createConfigRouter(configParser));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
