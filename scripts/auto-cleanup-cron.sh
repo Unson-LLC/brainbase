@@ -3,7 +3,9 @@
 # 毎日深夜3時に実行し、3日以上前のdetachedセッションとMCPプロセスを削除
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG_DIR="/Users/ksato/workspace/projects/brainbase/logs"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+VAR_DIR="${BRAINBASE_VAR_DIR:-$REPO_ROOT/var}"
+LOG_DIR="$VAR_DIR/logs"
 LOG_FILE="$LOG_DIR/cleanup-$(date +%Y%m%d).log"
 
 # ログディレクトリ作成

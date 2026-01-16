@@ -19,7 +19,7 @@ LambdaTestを使用して、実機(iPhone/Android)でのモバイルキーボー
 
 ### 3. 環境変数設定
 
-`/Users/ksato/workspace/.env` に以下を追記:
+`/path/to/workspace/.env` に以下を追記:
 
 ```bash
 # LambdaTest
@@ -30,7 +30,7 @@ LT_ACCESS_KEY="your-access-key-here"
 ### 4. テスト実行
 
 ```bash
-cd /Users/ksato/workspace/projects/brainbase
+cd /path/to/brainbase
 
 # すべてのモバイルデバイスでテスト
 npm run test:mobile
@@ -73,7 +73,7 @@ https://automation.lambdatest.com/timeline
 
 ```bash
 # 環境変数が読み込まれているか確認
-source /Users/ksato/workspace/.env
+source /path/to/workspace/.env
 echo $LT_USERNAME
 echo $LT_ACCESS_KEY
 ```

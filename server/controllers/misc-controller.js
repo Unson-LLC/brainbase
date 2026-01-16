@@ -9,10 +9,11 @@ import fs from 'fs';
 import { logger } from '../utils/logger.js';
 
 export class MiscController {
-    constructor(appVersion, uploadMiddleware, workspaceRoot) {
+    constructor(appVersion, uploadMiddleware, workspaceRoot, uploadsDir) {
         this.appVersion = appVersion;
         this.uploadMiddleware = uploadMiddleware;
         this.workspaceRoot = workspaceRoot;
+        this.uploadsDir = uploadsDir;
     }
 
     /**
@@ -44,9 +45,7 @@ export class MiscController {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        const path = await import('path');
-        const __dirname = path.dirname(new URL(import.meta.url).pathname);
-        const absolutePath = path.resolve(__dirname, '../../uploads', req.file.filename);
+        const absolutePath = path.resolve(this.uploadsDir, req.file.filename);
         res.json({ path: absolutePath, filename: req.file.filename });
     };
 

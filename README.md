@@ -107,10 +107,11 @@ npm install -g @anthropic-ai/claude-code
    ```
 
    このスクリプトは以下を実行します:
-   - `state.json` のサンプル作成（セッション管理用）
-   - `_tasks/` ディレクトリ作成（サンプルタスク付き）
-   - `_schedules/` ディレクトリ作成（サンプルスケジュール付き）
-   - `_inbox/` ディレクトリ作成（受信箱）
+   - `var/state.json` のサンプル作成（セッション管理用）
+   - `data/_tasks/` ディレクトリ作成（サンプルタスク付き）
+   - `data/_schedules/` ディレクトリ作成（サンプルスケジュール付き）
+   - `data/_inbox/` ディレクトリ作成（受信箱）
+   - `data/config.yml` の作成（設定ファイル）
 
 4. **サーバー起動**
    ```bash
@@ -158,8 +159,11 @@ npm install -g @anthropic-ai/claude-code
 ### 環境変数（任意）
 
 ```bash
-# カスタムワークスペースルート（デフォルト: カレントディレクトリ）
-export BRAINBASE_ROOT=/path/to/your/workspace
+# カスタムデータルート（デフォルト: ./data）
+export BRAINBASE_ROOT=/path/to/your/data
+
+# ランタイム用ディレクトリ（デフォルト: ./var）
+export BRAINBASE_VAR_DIR=/path/to/your/var
 
 # カスタムポート（デフォルト: 3000、worktree内では3001）
 export PORT=4000
@@ -180,7 +184,7 @@ npm start
 
 2. **タスク管理**
 
-   `_tasks/index.md` にYAMLフロントマター形式でタスクを記述します。
+  `data/_tasks/index.md` にYAMLフロントマター形式でタスクを記述します。
 
    ```markdown
    ---
@@ -220,7 +224,7 @@ npm start
 
 3. **スケジュール管理**
 
-   `_schedules/YYYY-MM-DD.md` に日単位でスケジュールを作成します。
+  `data/_schedules/YYYY-MM-DD.md` に日単位でスケジュールを作成します。
 
    ```markdown
    # 2025-01-09
@@ -245,7 +249,7 @@ npm start
 
 4. **受信箱（Inbox）**
 
-   `_inbox/pending.md` で通知・メモを管理します。
+  `data/_inbox/pending.md` で通知・メモを管理します。
 
    ```markdown
    ---
@@ -338,7 +342,7 @@ Claude CodeでMCPを使用してGoogle Calendarと連携し、今日の予定を
 
 **フロー**:
 1. Google Calendar MCPを通じてClaudeが今日の予定を読み取る
-2. 予定を `_tasks/index.md` にタスクとして自動追加
+2. 予定を `data/_tasks/index.md` にタスクとして自動追加
 3. Brainbase UIでタスク・タイムラインとして表示
 
 > **Note**: この機能を使用するにはGoogle Calendar MCPサーバーの設定が必要です。
@@ -408,10 +412,12 @@ git --version
 
 **A**: 可能です。以下を手動で実行してください:
 ```bash
-cp state.sample.json state.json
-cp -r _tasks-sample _tasks
-cp -r _schedules-sample _schedules
-cp -r _inbox-sample _inbox
+mkdir -p data var
+cp state.sample.json var/state.json
+cp -r _tasks-sample data/_tasks
+cp -r _schedules-sample data/_schedules
+cp -r _inbox-sample data/_inbox
+cp config.yml data/config.yml
 ```
 
 その他のトラブルは [Issues](https://github.com/Unson-LLC/brainbase/issues) で報告してください。

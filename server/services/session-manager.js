@@ -3,6 +3,7 @@
  * セッション管理とttyd/tmuxプロセス管理を担当
  */
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import net from 'net';
 import path from 'path';
 import { TerminalOutputParser } from './terminal-output-parser.js';
@@ -550,8 +551,12 @@ export class SessionManager {
         if (cwd) console.log(`Working directory: ${cwd}`);
 
         // Spawn ttyd with Base Path
-        const scriptPath = path.join(this.serverDir, 'login_script.sh');
-        const customIndexPath = path.join(this.serverDir, 'custom_ttyd_index.html');
+        const scriptPath = existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
+            ? path.join(this.serverDir, 'scripts', 'login_script.sh')
+            : path.join(this.serverDir, 'login_script.sh');
+        const customIndexPath = existsSync(path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html'))
+            ? path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html')
+            : path.join(this.serverDir, 'custom_ttyd_index.html');
         // IMPORTANT: ttyd base path must match the proxy route
         const basePath = `/console/${sessionId}`;
 

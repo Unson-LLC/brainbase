@@ -79,7 +79,7 @@ If the check fails:
 
 The following files and directories are automatically excluded from checks:
 
-- `node_modules/`, `.git/`, `dist/`, `build/`, `coverage/`, `test-results/`, `.worktrees/`, `.claude/`
+- `node_modules/`, `.git/`, `dist/`, `build/`, `coverage/`, `test-results/`, `.worktrees/`, `.claude/`, `data/`, `var/`
 - `state.json`, `*.log`, `*.tmp`
 - Internal documentation files (see `.gitignore`)
 

@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/ksato/workspace/projects/brainbase/scripts/auto-cleanup-cron.sh</string>
+        <string>/path/to/brainbase/scripts/auto-cleanup-cron.sh</string>
     </array>
 
     <key>StartCalendarInterval</key>
@@ -19,10 +19,10 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/ksato/workspace/projects/brainbase/logs/launchd-stdout.log</string>
+    <string>/path/to/brainbase/var/logs/launchd-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/ksato/workspace/projects/brainbase/logs/launchd-stderr.log</string>
+    <string>/path/to/brainbase/var/logs/launchd-stderr.log</string>
 
     <key>RunAtLoad</key>
     <false/>

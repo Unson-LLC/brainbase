@@ -11,6 +11,10 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const repoRoot = path.join(__dirname, '..');
+const brainbaseRoot = process.env.BRAINBASE_ROOT || path.join(repoRoot, 'data');
+const varDir = process.env.BRAINBASE_VAR_DIR || path.join(repoRoot, 'var');
+const worktreesDir = process.env.BRAINBASE_WORKTREES_DIR || path.join(brainbaseRoot, '.worktrees');
 
 // StateStore と SessionManager をインポート
 import { StateStore } from '../lib/state-store.js';
@@ -23,7 +27,7 @@ async function main() {
     console.log('=== Phase 2 クリーンアップ実行 ===\n');
 
     // StateStore 初期化
-    const stateStore = new StateStore(path.join(__dirname, '..', 'state.json'));
+    const stateStore = new StateStore(path.join(varDir, 'state.json'), brainbaseRoot);
     await stateStore.init();
 
     console.log('✅ StateStore initialized');
@@ -31,10 +35,7 @@ async function main() {
     console.log(`   Total sessions: ${stateStore.get().sessions.length}\n`);
 
     // WorktreeService 初期化
-    const worktreeService = new WorktreeService({
-        execPromise,
-        rootPath: '/Users/ksato/workspace/.worktrees'
-    });
+    const worktreeService = new WorktreeService(worktreesDir, brainbaseRoot, execPromise);
 
     // SessionManager 初期化
     const sessionManager = new SessionManager({
