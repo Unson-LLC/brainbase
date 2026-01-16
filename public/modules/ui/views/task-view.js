@@ -30,8 +30,9 @@ export class TaskView {
         const unsub1 = eventBus.on(EVENTS.TASK_LOADED, () => this.render());
         const unsub2 = eventBus.on(EVENTS.TASK_COMPLETED, () => this.render());
         const unsub3 = eventBus.on(EVENTS.TASK_FILTER_CHANGED, () => this.render());
+        const unsub4 = eventBus.on(EVENTS.TASK_UPDATED, () => this.render());
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
     }
 
     /**
@@ -69,18 +70,27 @@ export class TaskView {
     _renderFocusTask(task) {
         const isUrgent = task.due && new Date(task.due) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
         const dueText = task.due ? this._formatDueDate(task.due) : '';
+        const isInProgress = task.status === 'in-progress' || task.status === 'in_progress' || task.status === 'doing';
+
+        // in_progress時は「戻す」ボタン、それ以外は「開始」ボタンを表示
+        const startOrRestoreButton = isInProgress
+            ? `<button class="focus-btn-restore" data-id="${task.id}">
+                   <i data-lucide="undo-2"></i> 戻す
+               </button>`
+            : `<button class="focus-btn-start" data-id="${task.id}">
+                   <i data-lucide="terminal-square"></i> 開始
+               </button>`;
 
         return `
-            <div class="focus-card" data-task-id="${task.id}">
+            <div class="focus-card ${isInProgress ? 'in-progress' : ''}" data-task-id="${task.id}">
                 <div class="focus-card-title">${task.name || task.title}</div>
                 <div class="focus-card-meta">
                     <span class="project-tag">${task.project || 'general'}</span>
+                    ${isInProgress ? '<span class="status-tag in-progress">進行中</span>' : ''}
                     ${dueText ? `<span class="due-tag ${isUrgent ? 'urgent' : ''}"><i data-lucide="clock"></i>${dueText}</span>` : ''}
                 </div>
                 <div class="focus-card-actions">
-                    <button class="focus-btn-start" data-id="${task.id}">
-                        <i data-lucide="terminal-square"></i> 開始
-                    </button>
+                    ${startOrRestoreButton}
                     <button class="focus-btn-complete" data-id="${task.id}">
                         <i data-lucide="check"></i> 完了
                     </button>
@@ -171,6 +181,18 @@ export class TaskView {
                 const task = this.taskService.getFocusTask();
                 if (task && task.id === taskId) {
                     eventBus.emit(EVENTS.START_TASK, { task });
+                }
+            });
+        }
+
+        // Focus Task - Restore button (in_progress → todo)
+        const focusRestoreBtn = this.container.querySelector('.focus-btn-restore');
+        if (focusRestoreBtn) {
+            focusRestoreBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskId = focusRestoreBtn.dataset.id;
+                if (taskId) {
+                    await this.taskService.updateTask(taskId, { status: 'todo' });
                 }
             });
         }

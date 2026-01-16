@@ -1,14 +1,13 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 
 /**
- * セッション起動エンジン選択モーダル
+ * フォーカスエンジン選択モーダル
  */
 export class FocusEngineModal {
     constructor() {
         this.modalElement = null;
         this.pendingTask = null;
         this._unsubscribers = [];
-        this.startButton = null;
     }
 
     /**
@@ -21,7 +20,6 @@ export class FocusEngineModal {
             return;
         }
 
-        this.startButton = this.modalElement.querySelector('#focus-engine-start-btn');
         this._attachEventHandlers();
     }
 
@@ -85,14 +83,16 @@ export class FocusEngineModal {
             }
         });
 
-        // 開始ボタン
-        if (this.startButton) {
-            this.startButton.addEventListener('click', () => {
-                const selected = this.modalElement.querySelector('input[name="focus-engine"]:checked');
-                const engine = selected?.value || 'claude';
-                this._selectEngine(engine);
+        // エンジン選択ボタン
+        const engineBtns = this.modalElement.querySelectorAll('.engine-select-btn');
+        engineBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const engine = btn.dataset.engine;
+                if (engine) {
+                    this._selectEngine(engine);
+                }
             });
-        }
+        });
     }
 
     /**
@@ -103,6 +103,5 @@ export class FocusEngineModal {
         this._unsubscribers = [];
         this.modalElement = null;
         this.pendingTask = null;
-        this.startButton = null;
     }
 }
