@@ -7,8 +7,8 @@ ENGINE=${3:-claude}  # claude or codex
 
 # Resolve repo root (this script lives in the repo root)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NOTIFY_SCRIPT="$SCRIPT_DIR/scripts/codex-notify.sh"
-CODEX_WRAPPER="$SCRIPT_DIR/scripts/codex-wrapper.sh"
+NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
+CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
 CODEX_NOTIFY_ARG=""
 if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
