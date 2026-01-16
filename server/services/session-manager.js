@@ -14,12 +14,14 @@ export class SessionManager {
      * @param {Function} options.execPromise - util.promisify(exec)
      * @param {Object} options.stateStore - StateStoreインスタンス
      * @param {Object} options.worktreeService - WorktreeServiceインスタンス（Phase 2）
+     * @param {number|string} [options.uiPort] - UIサーバーのポート
      */
-    constructor({ serverDir, execPromise, stateStore, worktreeService }) {
+    constructor({ serverDir, execPromise, stateStore, worktreeService, uiPort }) {
         this.serverDir = serverDir;
         this.execPromise = execPromise;
         this.stateStore = stateStore;
         this.worktreeService = worktreeService;  // Phase 2: Worktree削除用
+        this.uiPort = uiPort;
 
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
@@ -588,6 +590,11 @@ export class SessionManager {
             },
             detached: true  // 親プロセスから切り離し
         };
+
+        const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
+        if (resolvedUiPort) {
+            spawnOptions.env.BRAINBASE_PORT = String(resolvedUiPort);
+        }
 
         // Set CWD if provided
         if (cwd) {

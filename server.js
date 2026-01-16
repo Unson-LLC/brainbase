@@ -249,7 +249,8 @@ const sessionManager = new SessionManager({
     serverDir: __dirname,
     execPromise,
     stateStore,
-    worktreeService  // Phase 2: Archived session cleanup用
+    worktreeService,  // Phase 2: Archived session cleanup用
+    uiPort: PORT
 });
 
 // Initialize State Store and restore session state

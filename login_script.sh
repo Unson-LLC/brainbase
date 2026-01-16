@@ -48,5 +48,9 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     fi
 fi
 
+if [ -n "$BRAINBASE_PORT" ]; then
+    tmux set-environment -t "$SESSION_NAME" BRAINBASE_PORT "$BRAINBASE_PORT"
+fi
+
 # Attach to session
 exec tmux attach-session -t "$SESSION_NAME"
