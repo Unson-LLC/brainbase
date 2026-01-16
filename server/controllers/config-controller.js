@@ -162,4 +162,19 @@ export class ConfigController {
             res.status(500).json({ error: 'Failed to fetch root directory' });
         }
     };
+
+    /**
+     * GET /api/config/plugins
+     * UI Plugin設定を取得
+     * @returns {{ enabled: string[] }} - 有効なプラグインID一覧
+     */
+    getPlugins = async (req, res) => {
+        try {
+            const plugins = await this.configParser.getPlugins();
+            res.json(plugins);
+        } catch (error) {
+            console.error('Failed to get plugins config:', error);
+            res.status(500).json({ error: 'Failed to get plugins config' });
+        }
+    };
 }

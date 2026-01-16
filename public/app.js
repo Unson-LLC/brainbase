@@ -20,6 +20,11 @@ import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-h
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachMenuToggleHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 
+// UI Plugin System
+import { UIPluginManager, getUIPluginManager, PLUGIN_EVENTS } from './modules/core/ui-plugin-manager.js';
+import { SlotManager, SLOTS, createSlotManager } from './modules/core/slot-manager.js';
+import { registerAllPlugins, businessPlugins } from './modules/plugins/index.js';
+
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
 import { SessionService } from './modules/domain/session/session-service.js';
@@ -202,6 +207,9 @@ class App {
         this.lastChoiceHash = null;
         this.settingsCore = null; // Settings Plugin Architecture
         this.reconnectManager = null; // Terminal Reconnect Manager
+        this.pluginManager = null; // UI Plugin Manager
+        this.slotManager = null; // Slot Manager
+        this.pluginsEnabled = false; // Plugin Systemが有効かどうか
     }
 
     /**
@@ -221,6 +229,73 @@ class App {
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
+    }
+
+    /**
+     * Initialize UI Plugin System
+     * Plugin有効時はPlugin経由でコンポーネントをマウント
+     * @returns {Promise<boolean>} - Plugin Systemが有効化されたかどうか
+     */
+    async initPlugins() {
+        try {
+            // 1. UIPluginManager初期化
+            this.pluginManager = getUIPluginManager({ store: appStore });
+
+            // 2. DIコンテナに登録
+            this.container.register('pluginManager', () => this.pluginManager);
+
+            // 3. 全ビジネスPluginを登録
+            registerAllPlugins(this.pluginManager);
+
+            // 4. config.ymlからPlugin設定をロード（有効/無効判定）
+            await this.pluginManager.loadConfig();
+
+            // 5. SlotManager初期化
+            this.slotManager = createSlotManager({
+                pluginManager: this.pluginManager,
+                root: document.body
+            });
+
+            // 6. 既存DOM要素をスロットにマッピング
+            this.slotManager.mapExistingElements({
+                'dashboard-panel': SLOTS.VIEW_DASHBOARD,
+                'focus-task': SLOTS.SIDEBAR_FOCUS,
+                'next-tasks-list': SLOTS.SIDEBAR_NEXT_TASKS,
+                'timeline-list': SLOTS.SIDEBAR_SCHEDULE,
+                'inbox-dropdown': SLOTS.SIDEBAR_INBOX
+            });
+
+            // 7. Fallback関数を登録（Plugin無効時に従来の初期化を実行）
+            this.slotManager.registerFallback(SLOTS.SIDEBAR_FOCUS, async (container) => {
+                const { TaskView } = await import('./modules/ui/views/task-view.js');
+                this.views.taskView = new TaskView({ taskService: this.taskService });
+                this.views.taskView.mount(container);
+            });
+
+            this.slotManager.registerFallback(SLOTS.SIDEBAR_NEXT_TASKS, async (container) => {
+                const { NextTasksView } = await import('./modules/ui/views/next-tasks-view.js');
+                this.views.nextTasksView = new NextTasksView({ taskService: this.taskService });
+                this.views.nextTasksView.mount(container);
+            });
+
+            this.slotManager.registerFallback(SLOTS.SIDEBAR_SCHEDULE, async (container) => {
+                const { TimelineView } = await import('./modules/ui/views/timeline-view.js');
+                this.views.timelineView = new TimelineView({ scheduleService: this.scheduleService });
+                this.views.timelineView.mount(container);
+            });
+
+            // 8. 全Pluginをロード
+            await this.pluginManager.loadAll();
+
+            this.pluginsEnabled = true;
+            console.log('[App] UI Plugin System initialized');
+
+            return true;
+        } catch (error) {
+            console.warn('[App] UI Plugin System initialization failed, falling back to legacy mode:', error);
+            this.pluginsEnabled = false;
+            return false;
+        }
     }
 
     /**
@@ -270,6 +345,36 @@ class App {
         this.views.inboxView.mount();
 
         // Dashboard (Mana専用機能 - OSS版では無効)
+        this.initDashboardController();
+
+        // Setup View Navigation (Console <-> Dashboard)
+        this.setupViewNavigation();
+    }
+
+    /**
+     * Initialize Core Views (non-plugin components)
+     * Plugin Systemが有効な場合に呼ばれる
+     * Plugin化されていないコアコンポーネントを初期化
+     */
+    initCoreViews() {
+        // NocoDB Tasks (right panel - tab) - Core機能
+        const nocodbTasksContainer = document.getElementById('nocodb-tasks-list');
+        if (nocodbTasksContainer) {
+            this.views.nocodbTasksView = new NocoDBTasksView({ nocodbTaskService: this.nocodbTaskService });
+            this.views.nocodbTasksView.mount(nocodbTasksContainer);
+        }
+
+        // Setup task tabs switching
+        this.setupTaskTabs();
+
+        // Sessions (left sidebar) - Core機能
+        const sessionContainer = document.getElementById('session-list');
+        if (sessionContainer) {
+            this.views.sessionView = new SessionView({ sessionService: this.sessionService });
+            this.views.sessionView.mount(sessionContainer);
+        }
+
+        // Dashboard (Plugin経由でマウント済みだが、Navigation設定が必要)
         this.initDashboardController();
 
         // Setup View Navigation (Console <-> Dashboard)
@@ -1783,35 +1888,46 @@ class App {
         // 1. Initialize services
         this.initServices();
 
-        // 2. Initialize views
-        this.initViews();
+        // 2. Initialize UI Plugin System
+        await this.initPlugins();
 
-        // 3. Initialize modals
+        // 3. Mount plugins or fallback to legacy views
+        if (this.pluginsEnabled && this.slotManager) {
+            // Plugin経由でコンポーネントをマウント
+            await this.slotManager.mountAllSlots();
+            // Core views (non-plugin) を初期化
+            this.initCoreViews();
+        } else {
+            // Fallback: 従来の方式で全Viewを初期化
+            this.initViews();
+        }
+
+        // 4. Initialize modals
         this.initModals();
 
-        // 3.5. Initialize project select dropdown
+        // 4.5. Initialize project select dropdown
         this.initProjectSelect();
 
-        // 4. Setup event listeners
+        // 5. Setup event listeners
         await this.setupEventListeners();
 
-        // 4.5. Register active port for hook routing
+        // 5.5. Register active port for hook routing
         await this.registerActivePort();
 
-        // 5. Load initial data
+        // 6. Load initial data
         await this.loadInitialData();
 
-        // 6. Initialize file upload (Drag & Drop, Clipboard)
+        // 7. Initialize file upload (Drag & Drop, Clipboard)
         initFileUpload(() => appStore.getState().currentSessionId);
 
-        // 6.5. Initialize terminal reconnect manager
+        // 7.5. Initialize terminal reconnect manager
         const terminalFrame = document.getElementById('terminal-frame');
         if (terminalFrame) {
             this.reconnectManager = new TerminalReconnectManager();
             this.reconnectManager.init(terminalFrame);
         }
 
-        // 7. Start session status polling (every 3 seconds)
+        // 8. Start session status polling (every 3 seconds)
         this.pollingIntervalId = startPolling(
             () => appStore.getState().currentSessionId,
             3000,
@@ -1820,19 +1936,19 @@ class App {
             }
         );
 
-        // 8. Start periodic refresh (every 5 minutes)
+        // 9. Start periodic refresh (every 5 minutes)
         this.startPeriodicRefresh();
 
-        // 9. Setup choice detection (mobile only)
+        // 10. Setup choice detection (mobile only)
         this.setupResponsiveChoiceDetection();
 
-        // 10. Setup file opener shortcuts
+        // 11. Setup file opener shortcuts
         setupFileOpenerShortcuts();
 
-        // 11. Setup terminal contextmenu listener
+        // 12. Setup terminal contextmenu listener
         setupTerminalContextMenuListener();
 
-        // 12. Setup mobile keyboard handling
+        // 13. Setup mobile keyboard handling
         initMobileKeyboard();
 
         console.log('brainbase-ui started successfully');

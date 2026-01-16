@@ -36,5 +36,8 @@ export function createConfigRouter(configParser) {
     // GET /api/config/root - BRAINBASE_ROOTを取得
     router.get('/root', controller.getRoot);
 
+    // GET /api/config/plugins - UI Plugin設定を取得
+    router.get('/plugins', controller.getPlugins);
+
     return router;
 }
