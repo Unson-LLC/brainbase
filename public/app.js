@@ -17,7 +17,7 @@ import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { showConfirm } from './modules/confirm-modal.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
-import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachMenuToggleHandlers, attachSessionActionHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
+import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachMenuToggleHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 
 // Services
@@ -1235,7 +1235,7 @@ class App {
                     attachMenuToggleHandlers(mobileSessionList);
 
                     // セッションアクションハンドラ（リネーム、削除、アーカイブ等）
-                    attachSessionActionHandlers(mobileSessionList, this.sessionService, appStore);
+                    this.sessionView.attachActionHandlersToContainer(mobileSessionList);
                 } catch (error) {
                     console.error('Error attaching handlers:', error);
                 }
