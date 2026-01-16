@@ -12,6 +12,13 @@ import { NocoDBService } from '../../../server/services/nocodb-service.js';
  * 5. insertSnapshot() - スナップショット挿入
  */
 
+// 相対日付を生成するヘルパー関数
+const getRelativeDate = (daysFromNow) => {
+    const date = new Date();
+    date.setDate(date.getDate() + daysFromNow);
+    return date.toISOString().split('T')[0]; // YYYY-MM-DD形式
+};
+
 // NocoDB APIレスポンスのモックデータ
 const mockTasksResponse = {
     list: [
@@ -20,32 +27,32 @@ const mockTasksResponse = {
             タスク名: 'タスク1',
             ステータス: '完了',
             担当者: 'テスト担当',
-            期限: '2026-01-01',
-            作成日: '2025-12-01'
+            期限: getRelativeDate(-30), // 30日前（完了なので期限超過にならない）
+            作成日: getRelativeDate(-60)
         },
         {
             Id: 2,
             タスク名: 'タスク2',
             ステータス: '進行中',
             担当者: '太田',
-            期限: '2026-01-15',
-            作成日: '2025-12-15'
+            期限: getRelativeDate(7), // 7日後（期限超過にならない）
+            作成日: getRelativeDate(-14)
         },
         {
             Id: 3,
             タスク名: 'タスク3',
             ステータス: 'ブロック',
             担当者: '山田',
-            期限: '2026-01-10',
-            作成日: '2025-11-01'
+            期限: getRelativeDate(-7), // 7日前（期限超過）
+            作成日: getRelativeDate(-60)
         },
         {
             Id: 4,
             タスク名: 'タスク4',
             ステータス: '未着手',
             担当者: '田中',
-            期限: '2025-12-01', // 期限超過
-            作成日: '2025-12-01'
+            期限: getRelativeDate(-30), // 30日前（期限超過）
+            作成日: getRelativeDate(-45)
         }
     ]
 };

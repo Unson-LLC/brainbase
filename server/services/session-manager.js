@@ -290,10 +290,13 @@ export class SessionManager {
 
     /**
      * セッション状態を取得（Hook報告ベース）
+     * ハートビートタイムアウト: 90秒以上working報告がなければisWorking=falseとする
      * @returns {Object} sessionId -> {isWorking, isDone}
      */
     getSessionStatus() {
         const status = {};
+        const HEARTBEAT_TIMEOUT = 90 * 1000; // 90秒
+        const now = Date.now();
 
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
@@ -304,8 +307,10 @@ export class SessionManager {
             const hasDone = normalized.lastDoneAt > 0;
             if (!hasWorking && !hasDone) continue;
 
-            const isWorking = normalized.lastWorkingAt > normalized.lastDoneAt;
-            const isDone = !isWorking && normalized.lastDoneAt > 0;
+            // タイムアウト判定: 最後のworking報告から90秒経過したらisWorking: false
+            const isStale = now - normalized.lastWorkingAt > HEARTBEAT_TIMEOUT;
+            const isWorking = !isStale && normalized.lastWorkingAt > normalized.lastDoneAt;
+            const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
 
             status[sessionId] = {
                 isWorking,
