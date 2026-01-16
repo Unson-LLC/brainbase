@@ -7,9 +7,16 @@ import { logger } from '../utils/logger.js';
 
 // セッションオブジェクトの許可フィールド
 const ALLOWED_SESSION_FIELDS = [
+    // 基本情報
     'id', 'name', 'path', 'cwd', 'worktree', 'initialCommand',
     'engine', 'intendedState', 'createdAt', 'archivedAt', 'merged', 'mergedAt',
-    'updatedAt'
+    'updatedAt',
+    // Schema v2 追加フィールド
+    'lastAccessedAt', 'pausedAt', 'tmuxCleanedAt',
+    // Schema v3 追加フィールド
+    'ttydProcess',
+    // 状態管理フィールド
+    'hookStatus'
 ];
 
 /**
