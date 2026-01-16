@@ -10,6 +10,14 @@ export class TimelineView {
         this.scheduleService = scheduleService;
         this.container = null;
         this._unsubscribers = [];
+
+        // モーダルコールバック
+        this.onAddRequest = null;      // 追加モーダルを開く
+        this.onEditRequest = null;     // 編集モーダルを開く
+
+        // バインド
+        this._handleClick = this._handleClick.bind(this);
+        this._handleDoubleClick = this._handleDoubleClick.bind(this);
     }
 
     /**
@@ -19,11 +27,12 @@ export class TimelineView {
     mount(container) {
         this.container = container;
         this._setupEventListeners();
+        this._setupDOMEventListeners();
         this.render();
     }
 
     /**
-     * イベントリスナーの設定
+     * EventBusイベントリスナーの設定
      */
     _setupEventListeners() {
         // イベント購読
@@ -34,12 +43,89 @@ export class TimelineView {
     }
 
     /**
+     * DOMイベントリスナーの設定（イベント委譲）
+     */
+    _setupDOMEventListeners() {
+        if (!this.container) return;
+
+        this.container.addEventListener('click', this._handleClick);
+        this.container.addEventListener('dblclick', this._handleDoubleClick);
+
+        // section-header内のプラスボタン
+        const addBtn = document.getElementById('add-schedule-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (this.onAddRequest) {
+                    this.onAddRequest();
+                }
+            });
+        }
+    }
+
+    /**
+     * クリックハンドラ（完了トグル・追加ボタン）
+     * @param {Event} e
+     */
+    _handleClick(e) {
+        // 編集ボタン
+        const editBtn = e.target.closest('.timeline-edit-btn');
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const eventId = editBtn.dataset.editId;
+            if (eventId && this.onEditRequest) {
+                this.onEditRequest(eventId);
+            }
+            return;
+        }
+
+        // タイムラインアイテム（完了トグル）
+        const item = e.target.closest('.timeline-item[data-event-id]');
+        if (item) {
+            const eventId = item.dataset.eventId;
+            if (eventId) {
+                this._toggleComplete(eventId);
+            }
+        }
+    }
+
+    /**
+     * ダブルクリックハンドラ（編集モーダル）
+     * @param {Event} e
+     */
+    _handleDoubleClick(e) {
+        const item = e.target.closest('.timeline-item[data-event-id]');
+        if (item) {
+            const eventId = item.dataset.eventId;
+            if (eventId && this.onEditRequest) {
+                this.onEditRequest(eventId);
+            }
+        }
+    }
+
+    /**
+     * 完了状態トグル
+     * @param {string} eventId
+     */
+    async _toggleComplete(eventId) {
+        try {
+            await this.scheduleService.toggleEventComplete(eventId);
+        } catch (error) {
+            console.error('Failed to toggle event complete:', error);
+        }
+    }
+
+    /**
      * タイムラインをレンダリング
      */
     render() {
         if (!this.container) return;
 
-        const events = this.scheduleService.getTimeline();
+        // Kiro形式イベント（ID付き）を優先、なければlegacy形式
+        const kiroEvents = this.scheduleService.getEvents();
+        const legacyEvents = this.scheduleService.getTimeline();
+        const events = kiroEvents.length > 0 ? kiroEvents : legacyEvents;
         const currentTime = this._getCurrentTimeStr();
 
         this.container.innerHTML = this._formatTimelineHTML(events, currentTime);
@@ -63,8 +149,12 @@ export class TimelineView {
      * @returns {string} HTML文字列
      */
     _formatTimelineHTML(events, currentTime) {
+        let html = '<div class="timeline">';
+
         if (!events || events.length === 0) {
-            return '<div class="timeline-empty">予定なし</div>';
+            html += '<div class="timeline-empty">予定なし</div>';
+            html += '</div>';
+            return html;
         }
 
         // Separate timed events from tasks
@@ -72,7 +162,6 @@ export class TimelineView {
         const tasks = events.filter(e => !e.start && !e.allDay && e.isTask);
 
         const sortedEvents = this._sortEventsByTime(timedEvents);
-        let html = '<div class="timeline">';
         let nowInserted = false;
 
         sortedEvents.forEach((event) => {
@@ -89,16 +178,30 @@ export class TimelineView {
                 eventTime <= currentTime &&
                 (event.end ? event.end > currentTime : true);
 
+            // Build class list
             const currentClass = isCurrent ? ' current is-current' : '';
             const workTimeClass = event.isWorkTime ? ' is-worktime' : '';
+            const completedClass = event.completed ? ' is-completed' : '';
+
+            // Event ID for interactivity (Kiro format only)
+            const eventIdAttr = event.id ? ` data-event-id="${escapeHtml(event.id)}"` : '';
+
             const timeLabel = event.allDay ? '終日' : (event.start + (event.end ? '-' + event.end : ''));
             const title = escapeHtml(event.title || event.task || '');
 
+            // 編集ボタン（イベントIDがある場合のみ）
+            const editBtn = event.id ? `
+                <button class="timeline-edit-btn" title="編集" data-edit-id="${escapeHtml(event.id)}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                </button>
+            ` : '';
+
             html += `
-                <div class="timeline-item is-event${currentClass}${workTimeClass}">
+                <div class="timeline-item is-event${currentClass}${workTimeClass}${completedClass}"${eventIdAttr}>
                     <div class="timeline-marker"></div>
                     <span class="timeline-time">${timeLabel}</span>
                     <span class="timeline-content">${title}</span>
+                    ${editBtn}
                 </div>
             `;
         });
@@ -144,9 +247,14 @@ export class TimelineView {
      * クリーンアップ
      */
     unmount() {
+        // EventBus購読解除
         this._unsubscribers.forEach(unsub => unsub());
         this._unsubscribers = [];
+
+        // DOMイベントリスナー解除
         if (this.container) {
+            this.container.removeEventListener('click', this._handleClick);
+            this.container.removeEventListener('dblclick', this._handleDoubleClick);
             this.container.innerHTML = '';
             this.container = null;
         }

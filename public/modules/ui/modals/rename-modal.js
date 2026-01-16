@@ -100,10 +100,11 @@ export class RenameModal {
         });
 
         // Enterキーで保存
+        // IME変換中（isComposing）はスキップ
         const input = document.getElementById('rename-session-input');
         if (input) {
             input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.isComposing) {
                     this.save();
                 }
             });

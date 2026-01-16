@@ -31,8 +31,9 @@ export class NextTasksView {
         const unsub2 = eventBus.on(EVENTS.TASK_COMPLETED, () => this.render());
         const unsub3 = eventBus.on(EVENTS.TASK_DELETED, () => this.render());
         const unsub4 = eventBus.on(EVENTS.TASK_FILTER_CHANGED, () => this.render());
+        const unsub5 = eventBus.on(EVENTS.TASK_UPDATED, () => this.render());
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
     }
 
     /**
@@ -102,9 +103,20 @@ export class NextTasksView {
 
         const deadlineHtml = this._formatDeadline(task.deadline || task.due);
         const isOverdue = this._isOverdue(task.deadline || task.due);
+        const isInProgress = task.status === 'in-progress' || task.status === 'in_progress' || task.status === 'doing';
+
+        // Status badge for in-progress
+        const statusBadge = isInProgress
+            ? '<span class="next-task-status in-progress">進行中</span>'
+            : '';
+
+        // Build class list
+        const classList = ['next-task-item'];
+        if (isOverdue) classList.push('overdue');
+        if (isInProgress) classList.push('in-progress');
 
         return `
-            <div class="next-task-item${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
+            <div class="${classList.join(' ')}" data-task-id="${task.id}">
                 <div class="next-task-checkbox" data-id="${task.id}">
                     <i data-lucide="check"></i>
                 </div>
@@ -112,11 +124,17 @@ export class NextTasksView {
                     <div class="next-task-title">${task.name || task.title}</div>
                     <div class="next-task-meta">
                         <span class="next-task-project">${task.project || 'general'}</span>
+                        ${statusBadge}
                         ${priorityBadge}
                         ${deadlineHtml}
                     </div>
                 </div>
                 <div class="next-task-actions">
+                    ${isInProgress
+                        ? `<button class="next-task-action restore-task-btn" data-id="${task.id}" title="Todoに戻す">
+                            <i data-lucide="undo-2"></i>
+                           </button>`
+                        : ''}
                     <button class="next-task-action start-task-btn" data-id="${task.id}" title="Start Session">
                         <i data-lucide="terminal-square"></i>
                     </button>
@@ -225,6 +243,17 @@ export class NextTasksView {
                 const taskId = btn.dataset.id;
                 if (taskId && confirm('このタスクを削除しますか？')) {
                     await this.taskService.deleteTask(taskId);
+                }
+            });
+        });
+
+        // Restore button - Restore in_progress task to todo
+        this.container.querySelectorAll('.restore-task-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.id;
+                if (taskId) {
+                    await this.taskService.updateTask(taskId, { status: 'todo' });
                 }
             });
         });

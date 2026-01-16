@@ -186,12 +186,12 @@ describe('TaskEditModal', () => {
             saveBtn.click();
 
             await vi.waitFor(() => {
-                expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', {
-                    name: 'New Name',
+                expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', expect.objectContaining({
+                    title: 'New Name',
                     project: 'brainbase',
                     priority: 'high',
-                    due: '2025-12-31'
-                });
+                    deadline: '2025-12-31'
+                }));
             });
         });
 
@@ -221,7 +221,7 @@ describe('TaskEditModal', () => {
 
             await vi.waitFor(() => {
                 expect(mockTaskService.updateTask).toHaveBeenCalledWith('task-1', expect.objectContaining({
-                    due: null
+                    deadline: null
                 }));
             });
         });

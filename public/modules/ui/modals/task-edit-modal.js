@@ -2,15 +2,12 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 
 /**
  * タスク編集モーダル
- * ローカルタスクとNocoDBタスクの両方に対応
  */
 export class TaskEditModal {
-    constructor({ taskService, nocodbTaskService = null }) {
+    constructor({ taskService }) {
         this.taskService = taskService;
-        this.nocodbTaskService = nocodbTaskService;
         this.modalElement = null;
         this.currentTaskId = null;
-        this.currentTaskSource = null;  // 'local' or 'nocodb'
         this._unsubscribers = [];
     }
 
@@ -35,8 +32,6 @@ export class TaskEditModal {
         if (!this.modalElement) return;
 
         this.currentTaskId = task.id;
-        // ソース判定: task.source='nocodb' またはIDが 'nocodb:' で始まる場合
-        this.currentTaskSource = task.source === 'nocodb' || (task.id && task.id.startsWith('nocodb:')) ? 'nocodb' : 'local';
 
         // フォームに値を設定
         const idInput = document.getElementById('edit-task-id');
@@ -44,15 +39,17 @@ export class TaskEditModal {
         const projectInput = document.getElementById('edit-task-project');
         const priorityInput = document.getElementById('edit-task-priority');
         const dueInput = document.getElementById('edit-task-due');
+        const descriptionInput = document.getElementById('edit-task-description');
 
-        // NocoDBタスクはtitleフィールドも持つ
         const taskName = task.name || task.title || '';
+        const taskDue = task.due || task.deadline || '';
 
         if (idInput) idInput.value = task.id || '';
         if (titleInput) titleInput.value = taskName;
         if (projectInput) projectInput.value = task.project || '';
-        if (priorityInput) priorityInput.value = task.priority || '';
-        if (dueInput) dueInput.value = task.due || '';
+        if (priorityInput) priorityInput.value = task.priority || 'medium';
+        if (dueInput) dueInput.value = taskDue;
+        if (descriptionInput) descriptionInput.value = task.description || '';
 
         // モーダルを表示
         this.modalElement.classList.add('active');
@@ -72,30 +69,35 @@ export class TaskEditModal {
      * タスクを保存
      */
     async save() {
-        if (!this.currentTaskId) return;
+        console.log('[TaskEditModal] save() called, taskId:', this.currentTaskId);
+        if (!this.currentTaskId) {
+            console.warn('[TaskEditModal] No currentTaskId, returning');
+            return;
+        }
 
         const titleInput = document.getElementById('edit-task-title');
         const projectInput = document.getElementById('edit-task-project');
         const priorityInput = document.getElementById('edit-task-priority');
         const dueInput = document.getElementById('edit-task-due');
+        const descriptionInput = document.getElementById('edit-task-description');
 
+        // サーバー側の許可フィールドに合わせたキー名で送信
         const updates = {
-            name: titleInput?.value || '',
+            title: titleInput?.value || '',
             project: projectInput?.value || '',
-            priority: priorityInput?.value || '',
-            due: dueInput?.value || null
+            priority: priorityInput?.value || 'medium',
+            deadline: dueInput?.value || null,
+            description: descriptionInput?.value || ''
         };
 
+        console.log('[TaskEditModal] updates:', updates);
+
         try {
-            // ソースに応じて適切なサービスを使用
-            if (this.currentTaskSource === 'nocodb' && this.nocodbTaskService) {
-                await this.nocodbTaskService.updateTask(this.currentTaskId, updates);
-            } else {
-                await this.taskService.updateTask(this.currentTaskId, updates);
-            }
+            const result = await this.taskService.updateTask(this.currentTaskId, updates);
+            console.log('[TaskEditModal] updateTask result:', result);
             this.close();
         } catch (error) {
-            console.error('Failed to update task:', error);
+            console.error('[TaskEditModal] Failed to update task:', error);
         }
     }
 
@@ -103,6 +105,8 @@ export class TaskEditModal {
      * イベントハンドラーをアタッチ
      */
     _attachEventHandlers() {
+        console.log('[TaskEditModal] _attachEventHandlers called');
+
         // 閉じるボタン
         const closeBtns = this.modalElement.querySelectorAll('.close-modal-btn');
         closeBtns.forEach(btn => {
@@ -111,8 +115,14 @@ export class TaskEditModal {
 
         // 保存ボタン
         const saveBtn = document.getElementById('save-task-btn');
+        console.log('[TaskEditModal] saveBtn found:', !!saveBtn);
         if (saveBtn) {
-            saveBtn.addEventListener('click', () => this.save());
+            saveBtn.addEventListener('click', () => {
+                console.log('[TaskEditModal] Save button clicked');
+                this.save();
+            });
+        } else {
+            console.error('[TaskEditModal] #save-task-btn not found!');
         }
 
         // バックドロップクリック
