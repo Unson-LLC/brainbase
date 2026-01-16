@@ -323,6 +323,31 @@ export class SessionService {
     }
 
     /**
+     * セッションをアーカイブ（worktreeマージチェック付き）
+     * @param {string} sessionId - アーカイブするセッションのID
+     * @param {Object} options - オプション
+     * @param {boolean} options.skipMergeCheck - マージチェックをスキップするか
+     * @returns {Promise<{success?: boolean, needsConfirmation?: boolean, status?: Object}>}
+     */
+    async archiveSession(sessionId, options = {}) {
+        const { skipMergeCheck = false } = options;
+
+        const result = await this.httpClient.post(
+            `/api/sessions/${sessionId}/archive`,
+            { skipMergeCheck }
+        );
+
+        if (result.needsConfirmation) {
+            // 呼び出し元で警告表示が必要
+            return result;
+        }
+
+        await this.loadSessions();
+        await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+        return { success: true };
+    }
+
+    /**
      * セッションをアンアーカイブ（復元）
      * @param {string} sessionId - 復元するセッションのID
      */

@@ -432,8 +432,42 @@ export class SessionView {
             archiveBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                const newState = session.intendedState === 'archived' ? 'active' : 'archived';
-                await this.sessionService.updateSession(session.id, { intendedState: newState });
+
+                try {
+                    // 復元の場合
+                    if (session.intendedState === 'archived') {
+                        if (confirm(`セッション "${session.name || session.id}" を復元しますか？`)) {
+                            await this.sessionService.unarchiveSession(session.id);
+                        }
+                        return;
+                    }
+
+                    // アーカイブ（worktreeチェック付き）
+                    let result = await this.sessionService.archiveSession(session.id);
+
+                    if (result.needsConfirmation) {
+                        const { status } = result;
+                        const warnings = [];
+                        if (status.commitsAhead > 0) {
+                            warnings.push(`未マージのコミット: ${status.commitsAhead}件`);
+                        }
+                        if (status.hasUncommittedChanges) {
+                            warnings.push('未コミットの変更あり');
+                        }
+
+                        const message = `セッション "${session.name || session.id}" に以下の未保存の作業があります:\n\n` +
+                            warnings.join('\n') + '\n\n' +
+                            'このままアーカイブすると作業が失われる可能性があります。\n' +
+                            '本当にアーカイブしますか？';
+
+                        if (!confirm(message)) return;
+
+                        result = await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
+                    }
+                } catch (error) {
+                    console.error('Failed to archive session:', error);
+                    alert(`セッションのアーカイブに失敗しました: ${error.message}`);
+                }
             });
         }
 
@@ -555,6 +589,25 @@ export class SessionView {
                 }
             });
         }
+    }
+
+    /**
+     * 外部コンテナ（モバイルボトムシート等）にセッションアクションハンドラーをアタッチ
+     * @param {HTMLElement} container - セッションリストを含むコンテナ要素
+     */
+    attachActionHandlersToContainer(container) {
+        const rows = container.querySelectorAll('.session-child-row');
+        const { sessions } = appStore.getState();
+
+        rows.forEach(row => {
+            const sessionId = row.dataset.id;
+            if (!sessionId) return;
+
+            const session = sessions.find(s => s.id === sessionId);
+            if (!session) return;
+
+            this._attachSessionActionHandlers(row, session, { enableDrag: false });
+        });
     }
 
     /**

@@ -8,7 +8,7 @@ import path from 'path';
 export class WorktreeService {
     /**
      * @param {string} worktreesDir - worktrees保存ディレクトリ
-     * @param {string} canonicalRoot - 正本ディレクトリルート（環境変数BRAINBASE_ROOTまたはconfig.yml）
+     * @param {string} canonicalRoot - メインリポジトリのパス（listWorktrees()で使用）
      * @param {Function} execPromise - util.promisify(exec)
      */
     constructor(worktreesDir, canonicalRoot, execPromise) {
@@ -29,7 +29,8 @@ export class WorktreeService {
     }
 
     /**
-     * 新しいworktreeを作成し、正本ディレクトリへのシンボリックリンクを設定
+     * 新しいworktreeを作成
+     * NOTE: シンボリックリンク方式は廃止。各worktreeが独立したコピーを持つ
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<{worktreePath: string, branchName: string, repoPath: string}|null>}
@@ -73,79 +74,13 @@ export class WorktreeService {
                 }
             }
 
-            // Set skip-worktree flag BEFORE creating symlinks
-            // This must be done while files still exist in the worktree
-            const excludePaths = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude', 'config.yml'];
-            const allFilesToSkip = [];
-
-            // Collect all files first
-            for (const p of excludePaths) {
-                try {
-                    const { stdout } = await this.execPromise(
-                        `git -C "${worktreePath}" ls-files ${p} 2>/dev/null || echo ""`
-                    );
-                    if (stdout.trim()) {
-                        const files = stdout.trim().split('\n').filter(f => f.trim());
-                        allFilesToSkip.push(...files);
-                        console.log(`Found ${files.length} files under: ${p}`);
-                    }
-                } catch (skipErr) {
-                    console.log(`Note: No files to skip-worktree under ${p}`);
-                }
-            }
-
-            // Set skip-worktree for all files in batches
-            if (allFilesToSkip.length > 0) {
-                console.log(`Setting skip-worktree for ${allFilesToSkip.length} files...`);
-                const batchSize = 100;
-                for (let i = 0; i < allFilesToSkip.length; i += batchSize) {
-                    const batch = allFilesToSkip.slice(i, i + batchSize);
-                    const filesArg = batch.map(f => `"${f}"`).join(' ');
-                    await this.execPromise(
-                        `git -C "${worktreePath}" update-index --skip-worktree ${filesArg}`
-                    );
-                    console.log(`Set skip-worktree for batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allFilesToSkip.length/batchSize)} (${batch.length} files)`);
-                }
-                console.log(`Successfully set skip-worktree for ${allFilesToSkip.length} files`);
-            }
-
-            // Create symlinks for canonical directories (正本ディレクトリ)
-            // These directories are shared across all worktrees and committed directly to main
-            // IMPORTANT: 正本は常に BRAINBASE_ROOT（環境変数または設定ファイル）にある
-            const canonicalDirs = ['_codex', '_tasks', '_inbox', '_schedules', '_ops', '.claude'];
-            const canonicalFiles = ['config.yml'];
-
-            for (const dir of canonicalDirs) {
-                const sourcePath = path.join(this.canonicalRoot, dir);
-                const targetPath = path.join(worktreePath, dir);
-                try {
-                    await fs.access(sourcePath);
-                    // Remove the directory/file created by worktree
-                    await fs.rm(targetPath, { recursive: true, force: true });
-                    // Create symlink to canonical path
-                    await fs.symlink(sourcePath, targetPath);
-                    console.log(`Created canonical symlink: ${dir} -> ${sourcePath}`);
-                } catch (symlinkErr) {
-                    if (symlinkErr.code !== 'ENOENT') {
-                        console.log(`Note: Could not create ${dir} symlink: ${symlinkErr.message}`);
-                    }
-                }
-            }
-
-            for (const file of canonicalFiles) {
-                const sourcePath = path.join(this.canonicalRoot, file);
-                const targetPath = path.join(worktreePath, file);
-                try {
-                    await fs.access(sourcePath);
-                    await fs.rm(targetPath, { force: true });
-                    await fs.symlink(sourcePath, targetPath);
-                    console.log(`Created canonical symlink: ${file} -> ${sourcePath}`);
-                } catch (symlinkErr) {
-                    if (symlinkErr.code !== 'ENOENT') {
-                        console.log(`Note: Could not create ${file} symlink: ${symlinkErr.message}`);
-                    }
-                }
-            }
+            // NOTE: シンボリックリンク方式を廃止
+            // 以前は _codex, _tasks 等を正本へのシンボリックリンクにしていたが、
+            // 新方式では各worktreeが独立したコピーを持ち、PRでマージする運用に変更
+            // これにより：
+            // - セッション間で変更が混ざらない
+            // - 変更が全てブランチにコミットされる
+            // - PRでマージに一本化できる
 
             console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
             return { worktreePath, branchName, repoPath };
@@ -233,24 +168,13 @@ export class WorktreeService {
                 }
             }
 
-            // Check for uncommitted changes (excluding symlinked directories like .claude/)
+            // Check for uncommitted changes
+            // NOTE: シンボリックリンク方式を廃止したため、フィルタリング不要
+            // 全ての変更（_codex, _tasks等を含む）を検出する
             const { stdout: statusOutput } = await this.execPromise(
                 `git -C "${worktreePath}" status --porcelain`
             );
-            // Filter out symlinked directories/files (they show as deleted/typechange but are actually fine)
-            const significantChanges = statusOutput.trim().split('\n').filter(line => {
-                if (!line.trim()) return false;
-                // Exclude .claude directory/file changes (symlink to canonical)
-                // Matches: ".claude/xxx", ".claude" (standalone), "?? .claude"
-                if (line.includes('.claude')) return false;
-                // Exclude _codex/, _tasks/, _inbox/, _schedules/, _ops/ (all symlinked to canonical)
-                // Also exclude the directory names themselves when shown as untracked
-                if (line.match(/(_codex|_tasks|_inbox|_schedules|_ops)(\/|$|\s*$)/)) return false;
-                // Exclude config.yml (symlinked to canonical)
-                if (line.includes('config.yml')) return false;
-                return true;
-            });
-            const hasUncommittedChanges = significantChanges.length > 0;
+            const hasUncommittedChanges = statusOutput.trim().length > 0;
 
             return {
                 exists: true,
