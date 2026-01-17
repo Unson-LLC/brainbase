@@ -39,6 +39,7 @@ import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
+import { renderViewToggle } from './modules/ui/view-toggle.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -263,6 +264,14 @@ class App {
             id: 'bb-dashboard',
             layer: 'business',
             slots: {
+                'nav:view-toggle': {
+                    mount: ({ container }) => {
+                        const cleanupToggle = renderViewToggle(container);
+                        return () => {
+                            cleanupToggle?.();
+                        };
+                    }
+                },
                 'view:dashboard': {
                     manageVisibility: false,
                     mount: async ({ container }) => {
@@ -490,36 +499,47 @@ class App {
      * Initialize project select dropdown
      */
     initProjectSelect() {
+        this.refreshProjectSelect();
+    }
+
+    /**
+     * Refresh project select options (filters archived)
+     * @param {string} selectedProject - Project ID to preselect
+     */
+    async refreshProjectSelect(selectedProject = 'general') {
         const projectSelect = document.getElementById('session-project-select');
         if (!projectSelect) {
             console.warn('[App] session-project-select not found');
             return;
         }
 
-        // Wait for project-mapping.js to initialize
-        setTimeout(() => {
-            import('./modules/project-mapping.js').then(({ getCORE_PROJECTS }) => {
-                const projects = getCORE_PROJECTS();
-                console.log('[App] Initializing project select with projects:', projects);
+        try {
+            const { getSessionSelectableProjects, projectMappingReady } = await import('./modules/project-mapping.js');
+            await projectMappingReady;
+            const projects = getSessionSelectableProjects();
+            console.log('[App] Initializing project select with projects:', projects);
 
-                // Clear existing options
-                projectSelect.innerHTML = '';
+            // Clear existing options
+            projectSelect.innerHTML = '';
 
-                // Add general option
-                const generalOption = document.createElement('option');
-                generalOption.value = 'general';
-                generalOption.textContent = 'general';
-                projectSelect.appendChild(generalOption);
+            // Add general option
+            const generalOption = document.createElement('option');
+            generalOption.value = 'general';
+            generalOption.textContent = 'general';
+            projectSelect.appendChild(generalOption);
 
-                // Add all projects
-                projects.forEach(proj => {
-                    const option = document.createElement('option');
-                    option.value = proj;
-                    option.textContent = proj;
-                    projectSelect.appendChild(option);
-                });
+            // Add all projects
+            projects.forEach((proj) => {
+                const option = document.createElement('option');
+                option.value = proj;
+                option.textContent = proj;
+                projectSelect.appendChild(option);
             });
-        }, 500); // Wait 500ms for API call to complete
+
+            projectSelect.value = selectedProject;
+        } catch (error) {
+            console.warn('[App] Failed to refresh project select:', error);
+        }
     }
 
     /**
@@ -1906,9 +1926,9 @@ class App {
         nameInput.value = `New ${project} Session`;
         if (commandInput) commandInput.value = '';
 
-        // Set default project selection
+        // Refresh project options (filters archived) and set selection
         if (projectSelect) {
-            projectSelect.value = project;
+            this.refreshProjectSelect(project);
         }
 
         // Update worktree checkbox based on initial project

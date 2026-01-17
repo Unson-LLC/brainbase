@@ -28,20 +28,7 @@
             </div>
 
             <!-- View Toggle -->
-            <!-- View Toggle Switch (Segmented Control) -->
-            <div class="view-toggle-container">
-                <div class="view-toggle">
-                    <button class="toggle-option active" id="nav-console-btn" title="コンソール">
-                        <i data-lucide="terminal-square"></i>
-                        <span>Console</span>
-                    </button>
-                    <button class="toggle-option" id="nav-dashboard-btn" title="ダッシュボード" style="display: none;">
-                        <i data-lucide="layout-dashboard"></i>
-                        <span>Dashboard</span>
-                    </button>
-                    <div class="toggle-bg-slider"></div>
-                </div>
-            </div>
+            <div class="view-toggle-container" data-slot="nav:view-toggle"></div>
 
             <!-- Connection Status Indicator -->
             <div class="connection-status" id="connection-status">
