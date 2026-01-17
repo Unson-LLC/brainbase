@@ -28,7 +28,7 @@ function resolveProjectId(projectId, coreProjects = []) {
 }
 
 // 初期化処理（モジュールロード時に実行）
-(async function initWorkspaceRoot() {
+export const projectMappingReady = (async function initWorkspaceRoot() {
     try {
         const response = await fetch('/api/config');
         if (response.ok) {
@@ -55,7 +55,9 @@ function resolveProjectId(projectId, coreProjects = []) {
                         }
                         PROJECT_PATH_MAP_CACHE[proj.id] = path;
                     });
-                    CORE_PROJECTS_CACHE = Object.keys(PROJECT_PATH_MAP_CACHE);
+                    CORE_PROJECTS_CACHE = data.projects.projects
+                        .filter(proj => !proj.archived)
+                        .map(proj => proj.id);
                     console.log('[ProjectMapping] Loaded projects:', CORE_PROJECTS_CACHE);
                 }
             }
@@ -113,7 +115,24 @@ export const PROJECT_PATH_MAP = new Proxy({}, {
 
 // CORE_PROJECTSも統合（動的に取得）
 export function getCORE_PROJECTS() {
-    return CORE_PROJECTS_CACHE || Object.keys(getProjectPathMap());
+    const projects = CORE_PROJECTS_CACHE || Object.keys(getProjectPathMap());
+    if (PROJECT_CONFIG_CACHE) {
+        return projects.filter((id) => !PROJECT_CONFIG_CACHE[id]?.archived);
+    }
+    return projects;
+}
+
+/**
+ * セッション作成UIで選択可能なプロジェクト一覧を取得
+ * archived: true と session_select: false を除外
+ * @returns {string[]} プロジェクトID配列
+ */
+export function getSessionSelectableProjects() {
+    const projects = getCORE_PROJECTS();
+    if (PROJECT_CONFIG_CACHE) {
+        return projects.filter((id) => PROJECT_CONFIG_CACHE[id]?.session_select !== false);
+    }
+    return projects;
 }
 
 // 後方互換性のため
