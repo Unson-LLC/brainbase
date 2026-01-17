@@ -38,8 +38,11 @@ _codex
 
 # brainbaseの他の正本ディレクトリ（シンボリックリンク）
 _tasks/
+_tasks
 _inbox/
+_inbox
 _schedules/
+_schedules
 _ops/
 
 # Symlinks (local development only)
