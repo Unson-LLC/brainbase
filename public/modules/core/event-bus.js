@@ -235,5 +235,13 @@ export const EVENTS = {
     QA_REVIEW_COMPLETED: 'qa:review-completed',
     QA_REPLAN_STARTED: 'qa:replan-started',
     QA_FIXES_APPLIED: 'qa:fixes-applied',
-    QA_ESCALATED: 'qa:escalated'
+    QA_ESCALATED: 'qa:escalated',
+
+    // Plugin関連
+    PLUGIN_CONFIG_LOADED: 'plugin:config-loaded',
+    PLUGIN_REGISTERED: 'plugin:registered',
+    PLUGIN_ENABLED: 'plugin:enabled',
+    PLUGIN_DISABLED: 'plugin:disabled',
+    PLUGIN_REQUIREMENTS_FAILED: 'plugin:requirements-failed',
+    PLUGIN_SLOT_MISSING: 'plugin:slot-missing'
 };

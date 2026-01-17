@@ -27,6 +27,9 @@ export function createConfigRouter(configParser) {
     // GET /api/config/github - GitHub設定を取得
     router.get('/github', controller.getGitHub);
 
+    // GET /api/config/plugins - Plugin設定を取得
+    router.get('/plugins', controller.getPlugins);
+
     // GET /api/config/integrity - 整合性チェック
     router.get('/integrity', controller.checkIntegrity);
 
@@ -35,6 +38,9 @@ export function createConfigRouter(configParser) {
 
     // GET /api/config/root - BRAINBASE_ROOTを取得
     router.get('/root', controller.getRoot);
+
+    // GET /api/config/env - 環境変数の存在チェック
+    router.get('/env', controller.getEnvStatus);
 
     return router;
 }

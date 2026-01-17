@@ -22,7 +22,8 @@ export class ConfigController {
                 slack: config.slack || null,
                 github: config.github || null,
                 nocodb: config.nocodb || null,
-                airtable: config.airtable || null  // 後方互換性
+                airtable: config.airtable || null,  // 後方互換性
+                plugins: config.plugins || { enabled: [], disabled: [] }
             };
 
             res.json(sanitized);
@@ -103,6 +104,20 @@ export class ConfigController {
     };
 
     /**
+     * GET /api/config/plugins
+     * Plugin設定を取得
+     */
+    getPlugins = async (req, res) => {
+        try {
+            const plugins = await this.configParser.getPlugins();
+            res.json(plugins);
+        } catch (error) {
+            console.error('Failed to get plugins config:', error);
+            res.status(500).json({ error: 'Failed to get plugins config' });
+        }
+    };
+
+    /**
      * GET /api/config/integrity
      * 整合性チェック
      * OSS版対応: Mana拡張の統計が未定義の場合は 0 を返す
@@ -160,6 +175,30 @@ export class ConfigController {
         } catch (error) {
             console.error('Error fetching root:', error);
             res.status(500).json({ error: 'Failed to fetch root directory' });
+        }
+    };
+
+    /**
+     * GET /api/config/env
+     * 環境変数の存在チェック（値は返さない）
+     */
+    getEnvStatus = async (req, res) => {
+        try {
+            const keysParam = req.query.keys || '';
+            const keys = String(keysParam)
+                .split(',')
+                .map(key => key.trim())
+                .filter(Boolean);
+
+            const status = {};
+            keys.forEach(key => {
+                status[key] = Boolean(process.env[key]);
+            });
+
+            res.json({ keys: status });
+        } catch (error) {
+            console.error('Failed to get env status:', error);
+            res.status(500).json({ error: 'Failed to get env status' });
         }
     };
 }
