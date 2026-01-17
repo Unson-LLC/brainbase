@@ -5,7 +5,103 @@ SESSION_NAME=${1:-brainbase}
 INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
 
-# Resolve repo root (this script lives in the repo root)
+# Windows/MSYS2 support: Ensure core tools are available
+if [ -d /usr/bin ]; then
+    export PATH="/usr/bin:$PATH"
+fi
+# Also check for MSYS64 installation
+if [ -d /c/msys64/usr/bin ]; then
+    export PATH="/c/msys64/usr/bin:$PATH"
+fi
+
+# Ensure Windows npm global binaries are reachable (claude/codex)
+if [ -z "$APPDATA" ] && [ -n "$HOMEDRIVE" ] && [ -n "$HOMEPATH" ]; then
+    APPDATA="${HOMEDRIVE}${HOMEPATH}\\AppData\\Roaming"
+fi
+
+APPDATA_POSIX=""
+NPM_BIN=""
+if [ -n "$APPDATA" ] && command -v cygpath >/dev/null 2>&1; then
+    APPDATA_POSIX="$(cygpath -u "$APPDATA")"
+    NPM_BIN="${APPDATA_POSIX}/npm"
+    if [ -d "$NPM_BIN" ]; then
+        export PATH="$NPM_BIN:$PATH"
+    fi
+fi
+
+# MSYS2/ttyd fallback: Use HOME to find npm global path
+if [ -z "$NPM_BIN" ] && [ -n "$HOME" ]; then
+    NPM_BIN_HOME="$HOME/AppData/Roaming/npm"
+    if [ -d "$NPM_BIN_HOME" ]; then
+        export PATH="$NPM_BIN_HOME:$PATH"
+        NPM_BIN="$NPM_BIN_HOME"
+    fi
+fi
+
+# Last resort: scan /c/Users/*/AppData/Roaming/npm for claude
+if ! command -v claude >/dev/null 2>&1; then
+    for npm_path in /c/Users/*/AppData/Roaming/npm; do
+        if [ -x "$npm_path/claude" ]; then
+            export PATH="$npm_path:$PATH"
+            NPM_BIN="$npm_path"
+            break
+        fi
+    done
+fi
+
+# Ensure Node.js is reachable for npm-installed CLIs
+if ! command -v node >/dev/null 2>&1; then
+    if [ -n "$PROGRAMFILES" ] && command -v cygpath >/dev/null 2>&1; then
+        NODE_BIN="$(cygpath -u "$PROGRAMFILES")/nodejs"
+        if [ -d "$NODE_BIN" ]; then
+            export PATH="$NODE_BIN:$PATH"
+        fi
+    fi
+fi
+
+# Resolve Claude CLI path - always get full path for tmux compatibility
+CLAUDE_BIN=""
+
+# If claude is in PATH, get its full path
+if command -v claude >/dev/null 2>&1; then
+    CLAUDE_BIN="$(command -v claude)"
+fi
+
+# Windows/MSYS2: Find claude in npm global paths if not found
+if [ -z "$CLAUDE_BIN" ] || [ ! -x "$CLAUDE_BIN" ]; then
+    for candidate in \
+        "$NPM_BIN/claude" \
+        "$APPDATA_POSIX/npm/claude" \
+        "$HOME/AppData/Roaming/npm/claude" \
+        "/c/Users/SalesTailor/AppData/Roaming/npm/claude"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            CLAUDE_BIN="$candidate"
+            break
+        fi
+    done
+fi
+
+# Last resort: scan /c/Users/*/AppData/Roaming/npm
+if [ -z "$CLAUDE_BIN" ] || [ ! -x "$CLAUDE_BIN" ]; then
+    for npm_path in /c/Users/*/AppData/Roaming/npm/claude; do
+        if [ -x "$npm_path" ]; then
+            CLAUDE_BIN="$npm_path"
+            break
+        fi
+    done
+fi
+
+# Fallback to just "claude" if nothing found
+if [ -z "$CLAUDE_BIN" ]; then
+    CLAUDE_BIN="claude"
+fi
+
+# Ensure tmux server inherits PATH for new sessions
+if command -v tmux >/dev/null 2>&1; then
+    tmux set-environment -g PATH "$PATH" 2>/dev/null || true
+fi
+
+# Resolve repo root (this script lives in scripts/ directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
 CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
@@ -40,10 +136,12 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         fi
     else
         # Launch Claude Code with initial command as CLI argument (passed as prompt)
+        # Include PATH with Node.js for Windows/MSYS2 compatibility
+        TMUX_PATH="$PATH"
         if [ -n "$INITIAL_CMD" ]; then
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude \"$INITIAL_CMD\"" C-m
+            tmux send-keys -t "$SESSION_NAME" "export PATH='$TMUX_PATH' BRAINBASE_SESSION_ID='$SESSION_NAME' && \"$CLAUDE_BIN\" \"$INITIAL_CMD\"" C-m
         else
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' && claude" C-m
+            tmux send-keys -t "$SESSION_NAME" "export PATH='$TMUX_PATH' BRAINBASE_SESSION_ID='$SESSION_NAME' && \"$CLAUDE_BIN\"" C-m
         fi
     fi
 fi

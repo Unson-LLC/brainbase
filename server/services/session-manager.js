@@ -3,7 +3,7 @@
  * セッション管理とttyd/tmuxプロセス管理を担当
  */
 import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+import fs from 'fs';
 import net from 'net';
 import path from 'path';
 import { TerminalOutputParser } from './terminal-output-parser.js';
@@ -556,39 +556,80 @@ export class SessionManager {
         if (cwd) console.log(`Working directory: ${cwd}`);
 
         // Spawn ttyd with Base Path
-        const scriptPath = existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
+        const scriptPath = fs.existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
             ? path.join(this.serverDir, 'scripts', 'login_script.sh')
             : path.join(this.serverDir, 'login_script.sh');
-        const customIndexPath = existsSync(path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html'))
+        const customIndexPath = fs.existsSync(path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html'))
             ? path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html')
             : path.join(this.serverDir, 'custom_ttyd_index.html');
         // IMPORTANT: ttyd base path must match the proxy route
         const basePath = `/console/${sessionId}`;
 
-        // Use BASH_PATH env var if set, otherwise use platform-appropriate default
-        const bashPath = process.env.BASH_PATH || 'bash';
+        const resolveBashPath = () => {
+            const envPath = process.env.BASH_PATH;
+            if (envPath && fs.existsSync(envPath)) return envPath;
+
+            if (process.platform === 'win32') {
+                const candidates = [
+                    'C:\\msys64\\usr\\bin\\bash.exe',
+                    'C:\\Program Files\\Git\\bin\\bash.exe',
+                    'C:\\Program Files\\Git\\usr\\bin\\bash.exe'
+                ];
+                for (const candidate of candidates) {
+                    if (fs.existsSync(candidate)) return candidate;
+                }
+
+                const userProfile = process.env.USERPROFILE;
+                if (userProfile) {
+                    const userGit = path.join(userProfile, 'AppData', 'Local', 'Programs', 'Git', 'bin', 'bash.exe');
+                    if (fs.existsSync(userGit)) return userGit;
+                }
+            }
+
+            return 'bash';
+        };
+
+        const bashPath = resolveBashPath();
+        const toBashPath = (value) =>
+            value
+                .replace(/\\/g, '/')
+                .replace(/^([A-Za-z]):\//, (_, drive) => `/${drive.toLowerCase()}/`);
+        const bashScriptPath = toBashPath(scriptPath);
+
+        // Build ttyd arguments
+        // Note: On Windows, -b (base-path) option doesn't work correctly, so we skip it
+        // and handle path rewriting in the proxy instead
         const args = [
             '-p', port.toString(),
             '-W',
-            '-b', basePath, // Set Base Path
+        ];
+
+        // Only use base path on non-Windows platforms
+        if (process.platform !== 'win32') {
+            args.push('-b', basePath);
+        }
+
+        // On Windows, -w (working directory) is required to prevent crash
+        // See: https://github.com/tsl0922/ttyd/issues/1292
+        if (process.platform === 'win32') {
+            const workingDir = cwd || 'C:/';
+            args.push('-w', workingDir);
+        }
+
+        args.push(
             '-I', customIndexPath, // Custom HTML with keyboard shortcuts and mobile scroll support
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
-            '-t', 'fontFamily=Menlo', // Use Menlo font (macOS default monospace with Japanese support)
+            '-t', `fontFamily=${process.platform === 'win32' ? 'Cascadia Code, Consolas, monospace' : 'Menlo'}`, // Platform-specific monospace font
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             bashPath,
-            scriptPath,
-            sessionId
-        ];
-
-        if (initialCommand) {
-            args.push(initialCommand);
-        } else {
-            args.push(''); // Empty initial command
-        }
-        args.push(engine); // Add engine as 3rd argument
+            bashScriptPath,
+            sessionId,
+            initialCommand || '',
+            engine
+        );
 
         // Options for spawn (detached: サーバー再起動後もttydが継続)
         const spawnOptions = {
@@ -611,8 +652,25 @@ export class SessionManager {
             spawnOptions.cwd = cwd;
         }
 
-        // Use TTYD_PATH env var if set, otherwise use 'ttyd' from PATH
-        const ttydPath = process.env.TTYD_PATH || 'ttyd';
+        const resolveTtydPath = () => {
+            const envPath = process.env.TTYD_PATH;
+            if (envPath && fs.existsSync(envPath)) return envPath;
+
+            if (process.platform === 'win32') {
+                const userProfile = process.env.USERPROFILE;
+                if (userProfile) {
+                    const userTtyd = path.join(userProfile, 'bin', 'ttyd.exe');
+                    if (fs.existsSync(userTtyd)) return userTtyd;
+                }
+            }
+
+            return 'ttyd';
+        };
+
+        const ttydPath = resolveTtydPath();
+        console.log(`[ttyd:${sessionId}] Command: ${ttydPath}`);
+        console.log(`[ttyd:${sessionId}] Args: ${JSON.stringify(args)}`);
+        console.log(`[ttyd:${sessionId}] CWD: ${spawnOptions.cwd || 'default'}`);
         const ttyd = spawn(ttydPath, args, spawnOptions);
 
         // 親プロセス終了時に子プロセスを待機しない
