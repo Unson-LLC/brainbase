@@ -13,6 +13,7 @@ export class DashboardController {
         this.systemHealth = null;
         this.criticalAlerts = null;
         this.healthRefreshInterval = null;
+        this.dataRefreshInterval = null;
     }
 
     async init() {
@@ -30,10 +31,12 @@ export class DashboardController {
         this.setupSystemAccordion();
 
         // Auto-refresh data and critical alerts every 30 seconds
-        setInterval(() => {
-            this.loadData();
-            this.loadCriticalAlerts();
-        }, 30000);
+        if (!this.dataRefreshInterval) {
+            this.dataRefreshInterval = setInterval(() => {
+                this.loadData();
+                this.loadCriticalAlerts();
+            }, 30000);
+        }
 
         // Auto-refresh system health every 5 minutes
         if (!this.healthRefreshInterval) {
@@ -44,6 +47,17 @@ export class DashboardController {
 
         // Make dashboardController globally accessible for modal callbacks
         window.dashboardController = this;
+    }
+
+    destroy() {
+        if (this.dataRefreshInterval) {
+            clearInterval(this.dataRefreshInterval);
+            this.dataRefreshInterval = null;
+        }
+        if (this.healthRefreshInterval) {
+            clearInterval(this.healthRefreshInterval);
+            this.healthRefreshInterval = null;
+        }
     }
 
     async loadData() {

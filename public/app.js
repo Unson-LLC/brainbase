@@ -8,6 +8,7 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
@@ -34,6 +35,10 @@ import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
+import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
+import { setupTaskTabs } from './modules/ui/task-tabs.js';
+import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
+import { setupViewNavigation } from './modules/ui/view-navigation.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -202,6 +207,7 @@ class App {
         this.lastChoiceHash = null;
         this.settingsCore = null; // Settings Plugin Architecture
         this.reconnectManager = null; // Terminal Reconnect Manager
+        this.pluginManager = null;
     }
 
     /**
@@ -227,53 +233,211 @@ class App {
      * Initialize views
      */
     initViews() {
-        // Focus task (left panel top)
-        const taskContainer = document.getElementById('focus-task');
-        if (taskContainer) {
-            this.views.taskView = new TaskView({ taskService: this.taskService });
-            this.views.taskView.mount(taskContainer);
-        }
-
-        // Timeline (right panel)
-        const timelineContainer = document.getElementById('timeline-list');
-        if (timelineContainer) {
-            this.views.timelineView = new TimelineView({ scheduleService: this.scheduleService });
-            this.views.timelineView.mount(timelineContainer);
-        }
-
-        // Next Tasks (right panel)
-        const nextTasksContainer = document.getElementById('next-tasks-list');
-        if (nextTasksContainer) {
-            this.views.nextTasksView = new NextTasksView({ taskService: this.taskService });
-            this.views.nextTasksView.mount(nextTasksContainer);
-        }
-
-        // NocoDB Tasks (right panel - tab)
-        const nocodbTasksContainer = document.getElementById('nocodb-tasks-list');
-        if (nocodbTasksContainer) {
-            this.views.nocodbTasksView = new NocoDBTasksView({ nocodbTaskService: this.nocodbTaskService });
-            this.views.nocodbTasksView.mount(nocodbTasksContainer);
-        }
-
-        // Setup task tabs switching
-        this.setupTaskTabs();
-
         // Sessions (left sidebar)
         const sessionContainer = document.getElementById('session-list');
         if (sessionContainer) {
             this.views.sessionView = new SessionView({ sessionService: this.sessionService });
             this.views.sessionView.mount(sessionContainer);
         }
+    }
 
-        // Inbox (notifications)
-        this.views.inboxView = new InboxView({ inboxService: this.inboxService, httpClient });
-        this.views.inboxView.mount();
+    /**
+     * Initialize UI plugins
+     */
+    async initPlugins() {
+        this.pluginManager = new PluginManager({ eventBus, store: appStore });
+        this.pluginManager.registerSlotsFromDOM();
+        this._registerUIPlugins();
+        await this.pluginManager.loadConfig();
+        await this.pluginManager.enableConfiguredPlugins();
+    }
 
-        // Dashboard (Mana専用機能 - OSS版では無効)
-        this.initDashboardController();
+    /**
+     * Register UI plugins
+     * @private
+     */
+    _registerUIPlugins() {
+        if (!this.pluginManager) return;
 
-        // Setup View Navigation (Console <-> Dashboard)
-        this.setupViewNavigation();
+        this.pluginManager.registerPlugin({
+            id: 'bb-dashboard',
+            layer: 'business',
+            slots: {
+                'view:dashboard': {
+                    manageVisibility: false,
+                    mount: async ({ container }) => {
+                        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+                        if (dashboardBtn) {
+                            dashboardBtn.style.display = '';
+                        }
+
+                        const { cleanup, showConsole, showDashboard } = setupViewNavigation({
+                            onDashboardActivated: () => {
+                                this.dashboardController?.init();
+                            }
+                        });
+                        this.showConsole = showConsole;
+                        this.showDashboard = showDashboard;
+                        await this.initDashboardController();
+
+                        return () => {
+                            cleanup?.();
+                            if (this.showConsole) {
+                                this.showConsole();
+                            }
+                            if (dashboardBtn) {
+                                dashboardBtn.style.display = 'none';
+                            }
+                            if (this.dashboardController?.destroy) {
+                                this.dashboardController.destroy();
+                            }
+                            this.dashboardController = null;
+                            container.style.display = 'none';
+                        };
+                    }
+                }
+            }
+        });
+
+        this.pluginManager.registerPlugin({
+            id: 'bb-tasks',
+            layer: 'core',
+            slots: {
+                'sidebar:today': {
+                    mount: ({ container }) => {
+                        const taskContainer = document.getElementById('focus-task');
+                        if (taskContainer) {
+                            this.views.taskView = new TaskView({ taskService: this.taskService });
+                            this.views.taskView.mount(taskContainer);
+                        }
+
+                        return () => {
+                            this.views.taskView?.unmount?.();
+                            delete this.views.taskView;
+                            container.style.display = 'none';
+                        };
+                    }
+                },
+                'sidebar:next-tasks': {
+                    mount: ({ container }) => {
+                        const nextTasksContainer = document.getElementById('next-tasks-list');
+                        if (nextTasksContainer) {
+                            this.views.nextTasksView = new NextTasksView({ taskService: this.taskService });
+                            this.views.nextTasksView.mount(nextTasksContainer);
+                        }
+
+                        const cleanupTabs = setupTaskTabs({
+                            eventBus,
+                            events: EVENTS,
+                            onTabActivated: () => {
+                                this.views.nocodbTasksView?.onTabActivated?.();
+                            }
+                        });
+
+                        return () => {
+                            cleanupTabs?.();
+                            this.views.nextTasksView?.unmount?.();
+                            delete this.views.nextTasksView;
+                            container.style.display = 'none';
+                        };
+                    }
+                },
+                'mobile:tasks': {
+                    mount: () => {
+                        const tasksBottomSheet = document.getElementById('tasks-bottom-sheet');
+                        const tasksSheetOverlay = document.getElementById('tasks-sheet-overlay');
+                        if (tasksBottomSheet) tasksBottomSheet.style.display = '';
+                        if (tasksSheetOverlay) tasksSheetOverlay.style.display = '';
+
+                        return () => {
+                            if (tasksBottomSheet) tasksBottomSheet.style.display = 'none';
+                            if (tasksSheetOverlay) tasksSheetOverlay.style.display = 'none';
+                        };
+                    }
+                }
+            }
+        });
+
+        this.pluginManager.registerPlugin({
+            id: 'bb-tasks-project',
+            layer: 'business',
+            requirements: {
+                configKeys: ['nocodb']
+            },
+            slots: {
+                'sidebar:project-tasks-tab': {
+                    mount: () => {}
+                },
+                'sidebar:project-tasks-panel': {
+                    mount: () => {
+                        const nocodbTasksContainer = document.getElementById('nocodb-tasks-list');
+                        if (nocodbTasksContainer) {
+                            this.views.nocodbTasksView = new NocoDBTasksView({ nocodbTaskService: this.nocodbTaskService });
+                            this.views.nocodbTasksView.mount(nocodbTasksContainer);
+                        }
+
+                        const cleanupFilters = setupNocoDBFilters({
+                            onSearchChange: (value) => this.views.nocodbTasksView?.handleSearchFilterChange(value),
+                            onAssigneeChange: (value) => this.views.nocodbTasksView?.handleAssigneeFilterChange(value),
+                            onProjectChange: (value) => this.views.nocodbTasksView?.handleFilterChange(value),
+                            onHideCompletedChange: (checked) => this.views.nocodbTasksView?.handleHideCompletedChange(checked),
+                            onSync: () => this.views.nocodbTasksView?.handleSync?.()
+                        });
+
+                        return () => {
+                            cleanupFilters?.();
+                            this.views.nocodbTasksView?.unmount?.();
+                            delete this.views.nocodbTasksView;
+                        };
+                    }
+                }
+            }
+        });
+
+        this.pluginManager.registerPlugin({
+            id: 'bb-inbox',
+            layer: 'business',
+            slots: {
+                'nav:inbox': {
+                    mount: () => {
+                        this.views.inboxView = new InboxView({ inboxService: this.inboxService, httpClient });
+                        this.views.inboxView.mount();
+
+                        return () => {
+                            this.views.inboxView?.unmount?.();
+                            delete this.views.inboxView;
+                        };
+                    }
+                }
+            }
+        });
+
+        this.pluginManager.registerPlugin({
+            id: 'bb-schedule',
+            layer: 'core',
+            slots: {
+                'sidebar:schedule': {
+                    mount: () => {
+                        const timelineContainer = document.getElementById('timeline-list');
+                        if (timelineContainer) {
+                            this.views.timelineView = new TimelineView({ scheduleService: this.scheduleService });
+                            this.views.timelineView.mount(timelineContainer);
+                        }
+
+                        return () => {
+                            this.views.timelineView?.unmount?.();
+                            delete this.views.timelineView;
+                        };
+                    }
+                }
+            }
+        });
+
+        this.pluginManager.registerPlugin({
+            id: 'bb-mana',
+            layer: 'business',
+            slots: {}
+        });
     }
 
     /**
@@ -281,162 +445,20 @@ class App {
      * OSS版では利用不可
      */
     async initDashboardController() {
+        if (this.dashboardController) {
+            return this.dashboardController;
+        }
+
         try {
             const { DashboardController } = await import('./modules/dashboard-controller.js');
             this.dashboardController = new DashboardController();
             await this.dashboardController.init();
             console.log('Dashboard Controller loaded (Mana extension)');
+            return this.dashboardController;
         } catch (error) {
             console.error('Dashboard Controller error:', error);
             this.dashboardController = null;
-        }
-    }
-
-    /**
-     * Setup main view navigation logic
-     */
-    setupViewNavigation() {
-        const consoleBtn = document.getElementById('nav-console-btn');
-        const dashboardBtn = document.getElementById('nav-dashboard-btn');
-        const toggleContainer = document.querySelector('.view-toggle');
-        const consoleArea = document.getElementById('console-area');
-        const dashboardPanel = document.getElementById('dashboard-panel');
-
-        // Functions to switch views
-        const showConsole = () => {
-            consoleBtn?.classList.add('active');
-            dashboardBtn?.classList.remove('active');
-            toggleContainer?.classList.remove('dashboard-active');
-
-            if (consoleArea) consoleArea.style.display = 'flex';
-            if (dashboardPanel) dashboardPanel.style.display = 'none';
-
-            // Refresh terminal frame if needed
-            const frame = document.getElementById('terminal-frame');
-            if (frame && frame.contentWindow) {
-                frame.contentWindow.focus();
-            }
-        };
-
-        const showDashboard = () => {
-            dashboardBtn?.classList.add('active');
-            consoleBtn?.classList.remove('active');
-            toggleContainer?.classList.add('dashboard-active');
-
-            if (consoleArea) consoleArea.style.display = 'none';
-            if (dashboardPanel) dashboardPanel.style.display = 'block';
-
-            // Re-render dashboard data
-            if (this.dashboardController) {
-                this.dashboardController.init();
-            }
-            window.dispatchEvent(new Event('resize'));
-        };
-
-        if (consoleBtn && dashboardBtn) {
-            consoleBtn.addEventListener('click', showConsole);
-            dashboardBtn.addEventListener('click', showDashboard);
-        }
-
-        // Expose switch methods
-        this.showConsole = showConsole;
-        this.showDashboard = showDashboard;
-    }
-
-    /**
-     * Setup task tabs switching (ローカル / プロジェクト)
-     */
-    setupTaskTabs() {
-        const tabButtons = document.querySelectorAll('.task-tab');
-        const tabContents = document.querySelectorAll('.task-tab-content');
-
-        tabButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetTab = btn.dataset.tab;
-
-                // Update tab button states
-                tabButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-
-                // Update tab content visibility
-                tabContents.forEach(content => {
-                    content.classList.remove('active');
-                    if (content.id === `${targetTab}-tasks-panel`) {
-                        content.classList.add('active');
-                    }
-                });
-
-                // Emit tab change event
-                eventBus.emit(EVENTS.TASK_TAB_CHANGED, { tab: targetTab });
-
-                // If switching to NocoDB tab, trigger data load
-                if (targetTab === 'nocodb' && this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.onTabActivated();
-                }
-
-                // Re-render Lucide icons
-                if (window.lucide) {
-                    window.lucide.createIcons();
-                }
-            });
-        });
-
-        // Setup NocoDB filter handlers
-        this.setupNocoDBFilters();
-    }
-
-    /**
-     * Setup NocoDB filter and sync handlers
-     */
-    setupNocoDBFilters() {
-        // Task name search
-        const taskSearchInput = document.getElementById('nocodb-task-search');
-        if (taskSearchInput) {
-            taskSearchInput.addEventListener('input', (e) => {
-                if (this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.handleSearchFilterChange(e.target.value);
-                }
-            });
-        }
-
-        // Assignee filter
-        const assigneeFilter = document.getElementById('nocodb-assignee-filter');
-        if (assigneeFilter) {
-            assigneeFilter.addEventListener('change', (e) => {
-                if (this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.handleAssigneeFilterChange(e.target.value);
-                }
-            });
-        }
-
-        // Project filter
-        const projectFilter = document.getElementById('nocodb-project-filter');
-        if (projectFilter) {
-            projectFilter.addEventListener('change', (e) => {
-                if (this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.handleFilterChange(e.target.value);
-                }
-            });
-        }
-
-        // Hide completed checkbox
-        const hideCompletedCheckbox = document.getElementById('nocodb-hide-completed');
-        if (hideCompletedCheckbox) {
-            hideCompletedCheckbox.addEventListener('change', (e) => {
-                if (this.views.nocodbTasksView) {
-                    this.views.nocodbTasksView.handleHideCompletedChange(e.target.checked);
-                }
-            });
-        }
-
-        // Sync button
-        const syncBtn = document.getElementById('nocodb-sync-btn');
-        if (syncBtn) {
-            syncBtn.addEventListener('click', async () => {
-                if (this.views.nocodbTasksView) {
-                    await this.views.nocodbTasksView.handleSync();
-                }
-            });
+            return null;
         }
     }
 
@@ -833,7 +855,8 @@ class App {
         // Initialize settings module with conditional extension loading
         await this.initSettingsWithExtensions();
 
-        this.setupSessionViewToggle();
+        const cleanupSessionViewToggle = setupSessionViewToggle({ store: appStore });
+        this.unsubscribers.push(cleanupSessionViewToggle);
 
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
@@ -872,44 +895,6 @@ class App {
     }
 
     /**
-     * Setup session view mode toggle
-     */
-    setupSessionViewToggle() {
-        const buttons = document.querySelectorAll('.session-view-btn');
-        if (!buttons.length) return;
-
-        const applyActive = (view) => {
-            buttons.forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.view === view);
-            });
-        };
-
-        const setView = (view) => {
-            const { ui } = appStore.getState();
-            appStore.setState({
-                ui: {
-                    ...ui,
-                    sessionListView: view
-                }
-            });
-        };
-
-        buttons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const view = btn.dataset.view;
-                if (view) setView(view);
-            });
-        });
-
-        applyActive(appStore.getState().ui?.sessionListView || 'project');
-        const unsub = appStore.subscribeToSelector(
-            state => state.ui?.sessionListView,
-            ({ value }) => applyActive(value || 'project')
-        );
-        this.unsubscribers.push(unsub);
-    }
-
-    /**
      * Initialize Settings with conditional Mana extension loading
      * Phase 3: Plugin Architecture - Dynamic extension loading
      */
@@ -923,6 +908,11 @@ class App {
         await this.settingsCore.init();
 
         // 2. Mana拡張の条件付きロード（OSS版では拡張なし）
+        if (this.pluginManager && !this.pluginManager.isActive('bb-mana')) {
+            console.log('Mana Settings Extension disabled by plugin config');
+            return;
+        }
+
         try {
             const { ManaSettingsPlugin } = await import('/extensions/mana-integration/index.js');
             const manaPlugin = new ManaSettingsPlugin({
@@ -1791,6 +1781,9 @@ class App {
 
         // 3.5. Initialize project select dropdown
         this.initProjectSelect();
+
+        // 3.8. Initialize UI plugins
+        await this.initPlugins();
 
         // 4. Setup event listeners
         await this.setupEventListeners();

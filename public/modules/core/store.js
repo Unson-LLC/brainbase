@@ -208,5 +208,11 @@ export const appStore = new Store({
             maxIterations: 3,
             similarityThreshold: 0.8
         }
+    },
+    plugins: {
+        enabled: [],
+        disabled: [],
+        active: [],
+        failed: {}
     }
 });

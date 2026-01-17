@@ -35,7 +35,7 @@
                         <i data-lucide="terminal-square"></i>
                         <span>Console</span>
                     </button>
-                    <button class="toggle-option" id="nav-dashboard-btn" title="ダッシュボード">
+                    <button class="toggle-option" id="nav-dashboard-btn" title="ダッシュボード" style="display: none;">
                         <i data-lucide="layout-dashboard"></i>
                         <span>Dashboard</span>
                     </button>
@@ -82,7 +82,7 @@
             <div class="sidebar-footer">
                 <div class="sidebar-divider"></div>
                 <!-- Inbox Notification -->
-                <div class="inbox-trigger-container">
+                <div class="inbox-trigger-container" data-slot="nav:inbox">
                     <button id="inbox-trigger-btn" class="inbox-trigger" style="display: none;">
                         <i data-lucide="bell"></i>
                         <span>通知</span>
@@ -157,7 +157,7 @@
             </div>
 
             <!-- Dashboard Panel (Phase 1) -->
-            <div class="main-panel" id="dashboard-panel" style="display: none;">
+            <div class="main-panel" id="dashboard-panel" data-slot="view:dashboard" style="display: none;">
                 <div class="dashboard-container">
                     <!-- Section 1: Critical Alerts -->
                     <section id="section-1-alerts" class="critical-alerts-section" aria-labelledby="section-1-heading"
@@ -489,7 +489,7 @@
         <aside class="context-sidebar" id="context-sidebar">
 
             <!-- Focus Section: 最重要タスク1つ -->
-            <div class="focus-section" id="focus-section">
+            <div class="focus-section" id="focus-section" data-slot="sidebar:today">
                 <div class="section-header">
                     <h3><i data-lucide="target"></i> 今日のフォーカス</h3>
                 </div>
@@ -499,7 +499,7 @@
             </div>
 
             <!-- Timeline Section: 予定+タスク統合 -->
-            <div class="timeline-section" id="timeline-section">
+            <div class="timeline-section" id="timeline-section" data-slot="sidebar:schedule">
                 <div class="section-header">
                     <h3><i data-lucide="calendar"></i> タイムライン</h3>
                 </div>
@@ -509,7 +509,7 @@
             </div>
 
             <!-- Next Tasks Section: 残りのタスク -->
-            <div class="next-tasks-section" id="next-tasks-section">
+            <div class="next-tasks-section" id="next-tasks-section" data-slot="sidebar:next-tasks">
                 <div class="section-header">
                     <h3><i data-lucide="list-todo"></i> 次にやること</h3>
                     <button id="toggle-all-tasks" class="icon-btn" title="全て表示" aria-label="全てのタスクを表示">
@@ -522,7 +522,7 @@
                     <button class="task-tab active" data-tab="local">
                         <i data-lucide="file-text"></i> ローカル
                     </button>
-                    <button class="task-tab" data-tab="nocodb">
+                    <button class="task-tab" data-tab="nocodb" data-slot="sidebar:project-tasks-tab">
                         <i data-lucide="database"></i> プロジェクト
                     </button>
                 </div>
@@ -555,7 +555,7 @@
                 </div>
 
                 <!-- NocoDBタブコンテンツ -->
-                <div class="task-tab-content" id="nocodb-tasks-panel">
+                <div class="task-tab-content" id="nocodb-tasks-panel" data-slot="sidebar:project-tasks-panel">
                     <div class="task-filter">
                         <div class="filter-group">
                             <label for="nocodb-task-search" class="sr-only">タスク名フィルター</label>
@@ -970,7 +970,7 @@
             <i data-lucide="layers"></i>
             <span>Sessions</span>
         </button>
-        <button id="mobile-tasks-btn">
+        <button id="mobile-tasks-btn" data-slot="mobile:tasks">
             <i data-lucide="list-todo"></i>
             <span>Tasks</span>
         </button>

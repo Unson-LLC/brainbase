@@ -18,6 +18,8 @@ export class InboxView {
         this.inboxItems = [];
         this.inboxOpen = false;
         this._slackIdMap = new Map();
+        this._unsubscribers = [];
+        this._outsideClickHandler = null;
     }
 
     /**
@@ -83,14 +85,15 @@ export class InboxView {
         }
 
         // Close dropdown on outside click
-        document.addEventListener('click', (e) => {
+        this._outsideClickHandler = (e) => {
             if (this.inboxOpen &&
                 !this.inboxDropdown.contains(e.target) &&
                 !this.inboxTriggerBtn.contains(e.target)) {
                 this.inboxOpen = false;
                 this.inboxDropdown.classList.remove('open');
             }
-        });
+        };
+        document.addEventListener('click', this._outsideClickHandler);
 
         // Mark all done button
         if (this.markAllDoneBtn) {
@@ -100,18 +103,20 @@ export class InboxView {
         }
 
         // EventBusリスナー
-        this.eventBus.on(EVENTS.INBOX_LOADED, () => this.render());
+        const unsub = this.eventBus.on(EVENTS.INBOX_LOADED, () => this.render());
+        this._unsubscribers.push(unsub);
     }
 
     /**
      * Store変更の購読設定
      */
     _setupStoreSubscription() {
-        this.store.subscribe((change) => {
+        const unsub = this.store.subscribe((change) => {
             if (change.key === 'inbox') {
                 this.render();
             }
         });
+        this._unsubscribers.push(unsub);
     }
 
 
@@ -206,6 +211,20 @@ export class InboxView {
      * クリーンアップ
      */
     unmount() {
+        this._unsubscribers.forEach(unsub => unsub());
+        this._unsubscribers = [];
+
+        if (this.inboxTriggerBtn) {
+            this.inboxTriggerBtn.onclick = null;
+        }
+        if (this.markAllDoneBtn) {
+            this.markAllDoneBtn.onclick = null;
+        }
+        if (this._outsideClickHandler) {
+            document.removeEventListener('click', this._outsideClickHandler);
+            this._outsideClickHandler = null;
+        }
+
         this.inboxTriggerBtn = null;
         this.inboxDropdown = null;
         this.inboxListEl = null;

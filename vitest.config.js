@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
     include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js'],
+    setupFiles: ['tests/setup/test-setup.js'],
     environmentMatchGlobs: [
       // config-parser等のサーバーサイドテストのみnode環境
       ['tests/unit/config-parser.test.js', 'node'],

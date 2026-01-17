@@ -85,6 +85,8 @@ describe('NocoDBService', () => {
 
     describe('getProjectStats()', () => {
         it('正常にプロジェクト統計を返す', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-01-12T12:00:00Z'));
             // モック設定: タスクとマイルストーンを返す
             fetchMock
                 .mockResolvedValueOnce({
@@ -119,6 +121,8 @@ describe('NocoDBService', () => {
                     headers: { 'xc-token': 'test-token' }
                 })
             );
+
+            vi.useRealTimers();
         });
 
         it('存在しないproject_idでデフォルト統計を返す', async () => {
@@ -153,6 +157,8 @@ describe('NocoDBService', () => {
 
     describe('getCriticalAlerts()', () => {
         it('ブロッカー・期限超過タスクを正しく分類する', async () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-01-12T12:00:00Z'));
             const projects = [
                 { id: 'project1', project_id: 'proj1' },
                 { id: 'project2', project_id: 'proj2' }
@@ -188,6 +194,8 @@ describe('NocoDBService', () => {
             expect(task4OverdueAlert).toBeDefined();
             expect(task4OverdueAlert.project).toBe('project1');
             expect(task4OverdueAlert.severity).toBe('warning');
+
+            vi.useRealTimers();
         });
 
         it('アラートなし時に空配列を返す', async () => {

@@ -108,6 +108,11 @@ projects:
       // Mock all file reads
       const mockConfig = `
 root: /path/to/workspace
+plugins:
+  enabled:
+    - bb-dashboard
+  disabled:
+    - public-core
 projects:
   - id: zeims
     airtable:
@@ -131,6 +136,41 @@ projects:
       expect(result).toHaveProperty('airtable');
       expect(result.airtable).toHaveLength(1);
       expect(result.airtable[0].project_id).toBe('zeims');
+      expect(result).toHaveProperty('plugins');
+      expect(result.plugins.enabled).toContain('bb-dashboard');
+    });
+  });
+
+  describe('getPlugins', () => {
+    it('should return plugins config from config.yml', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+plugins:
+  enabled:
+    - bb-dashboard
+    - bb-tasks
+  disabled:
+    - public-core
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getPlugins();
+
+      expect(result.enabled).toEqual(['bb-dashboard', 'bb-tasks']);
+      expect(result.disabled).toEqual(['public-core']);
+    });
+
+    it('should return empty lists when plugins are missing', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+projects: []
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getPlugins();
+
+      expect(result.enabled).toEqual([]);
+      expect(result.disabled).toEqual([]);
     });
   });
 

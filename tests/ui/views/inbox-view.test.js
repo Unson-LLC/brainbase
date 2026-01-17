@@ -21,6 +21,7 @@ vi.mock('../../../public/modules/domain/inbox/inbox-service.js', () => {
 describe('InboxView', () => {
     let inboxView;
     let mockInboxService;
+    let mockHttpClient;
 
     beforeEach(() => {
         // DOM準備
@@ -35,7 +36,8 @@ describe('InboxView', () => {
 
         // モックサービス
         mockInboxService = new InboxService();
-        inboxView = new InboxView({ inboxService: mockInboxService });
+        mockHttpClient = { get: vi.fn().mockResolvedValue([]) };
+        inboxView = new InboxView({ inboxService: mockInboxService, httpClient: mockHttpClient });
 
         // ストア初期化
         appStore.setState({ inbox: [] });
