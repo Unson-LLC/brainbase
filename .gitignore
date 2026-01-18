@@ -52,6 +52,9 @@ settings/
 .worktrees
 .claude-oss-backup/
 
+# External references (symlinks to workspace/projects, mcp-servers)
+external/
+
 # Symlinks (local development only)
 .claude
 shared
