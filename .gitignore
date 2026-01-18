@@ -36,14 +36,21 @@ playwright-lambdatest*.config.js
 _codex/
 _codex
 
-# brainbaseの他の正本ディレクトリ（シンボリックリンク）
+# brainbaseの正本ディレクトリ（個人データ）
 _tasks/
 _tasks
 _inbox/
 _inbox
 _schedules/
 _schedules
+_sources/
+_sources
 _ops/
+config.yml
+settings/
+.worktrees/
+.worktrees
+.claude-oss-backup/
 
 # Symlinks (local development only)
 .claude
