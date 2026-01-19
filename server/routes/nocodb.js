@@ -12,6 +12,9 @@ export function createNocoDBRouter(configParser) {
     // GET /api/nocodb/tasks - 全プロジェクトのタスク取得
     router.get('/tasks', controller.list);
 
+    // POST /api/nocodb/tasks - タスク作成
+    router.post('/tasks', controller.create);
+
     // PUT /api/nocodb/tasks/:id - タスク更新
     router.put('/tasks/:id', controller.update);
 

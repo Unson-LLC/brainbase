@@ -1,13 +1,16 @@
-import { eventBus, EVENTS } from '../../core/event-bus.js';
-
 /**
  * タスク追加モーダル
  */
 export class TaskAddModal {
-    constructor({ taskService }) {
+    constructor({ taskService, nocodbTaskService }) {
         this.taskService = taskService;
+        this.nocodbTaskService = nocodbTaskService;
         this.modalElement = null;
         this._unsubscribers = [];
+        this.mode = 'local';
+        this.projects = [];
+        this.nocodbProjects = [];
+        this._configLoaded = false;
     }
 
     /**
@@ -26,11 +29,14 @@ export class TaskAddModal {
     /**
      * モーダルを開く
      */
-    open() {
+    async open({ mode = 'local' } = {}) {
         if (!this.modalElement) return;
 
+        this.mode = mode;
+        this._setModalTitle();
+
         // フォームをクリア
-        this._clearForm();
+        await this._clearForm();
 
         // モーダルを表示
         this.modalElement.classList.add('active');
@@ -55,17 +61,19 @@ export class TaskAddModal {
     /**
      * フォームをクリア
      */
-    _clearForm() {
+    async _clearForm() {
         const titleInput = document.getElementById('add-task-title');
+        const assigneeInput = document.getElementById('add-task-assignee');
         const projectInput = document.getElementById('add-task-project');
         const priorityInput = document.getElementById('add-task-priority');
         const dueInput = document.getElementById('add-task-due');
         const descriptionInput = document.getElementById('add-task-description');
 
         if (titleInput) titleInput.value = '';
-        if (projectInput) projectInput.value = 'general';
+        if (assigneeInput) assigneeInput.value = this._getDefaultAssignee();
+        await this._populateProjectSelect();
         if (priorityInput) priorityInput.value = 'medium';
-        if (dueInput) dueInput.value = '';
+        if (dueInput) dueInput.value = this._getDefaultDueDate();
         if (descriptionInput) descriptionInput.value = '';
 
         // エラー表示をクリア
@@ -77,12 +85,16 @@ export class TaskAddModal {
      */
     async save() {
         const titleInput = document.getElementById('add-task-title');
+        const assigneeInput = document.getElementById('add-task-assignee');
         const projectInput = document.getElementById('add-task-project');
         const priorityInput = document.getElementById('add-task-priority');
         const dueInput = document.getElementById('add-task-due');
         const descriptionInput = document.getElementById('add-task-description');
 
         const title = titleInput?.value?.trim() || '';
+        let assignee = assigneeInput?.value?.trim() || '';
+        let priority = priorityInput?.value || '';
+        let due = dueInput?.value || '';
 
         // バリデーション
         if (!title) {
@@ -90,17 +102,59 @@ export class TaskAddModal {
             titleInput?.focus();
             return;
         }
+        if (!assignee) {
+            assignee = this._getDefaultAssignee();
+            if (assigneeInput) assigneeInput.value = assignee;
+        }
+        if (!priority) {
+            priority = 'medium';
+            if (priorityInput) priorityInput.value = priority;
+        }
+        if (!due) {
+            due = this._getDefaultDueDate();
+            if (dueInput) dueInput.value = due;
+        }
+        if (!assignee) {
+            this._showError('担当者は必須です');
+            assigneeInput?.focus();
+            return;
+        }
+        if (!due) {
+            this._showError('期限は必須です');
+            dueInput?.focus();
+            return;
+        }
 
-        const taskData = {
-            title,
-            project: projectInput?.value || 'general',
-            priority: priorityInput?.value || 'medium',
-            due: dueInput?.value || null,
-            description: descriptionInput?.value || ''
-        };
+        const project = projectInput?.value || (this.mode === 'nocodb' ? '' : 'general');
+        if (!project) {
+            this._showError('プロジェクトは必須です');
+            projectInput?.focus();
+            return;
+        }
 
         try {
-            await this.taskService.createTask(taskData);
+            if (this.mode === 'nocodb') {
+                if (!this.nocodbTaskService) {
+                    throw new Error('NocoDBタスクサービスが初期化されていません');
+                }
+                await this.nocodbTaskService.createTask({
+                    projectId: project,
+                    title,
+                    assignee,
+                    priority,
+                    due,
+                    description: descriptionInput?.value || ''
+                });
+            } else {
+                await this.taskService.createTask({
+                    title,
+                    project,
+                    priority,
+                    due,
+                    description: descriptionInput?.value || '',
+                    owner: assignee
+                });
+            }
             this.close();
         } catch (error) {
             console.error('Failed to create task:', error);
@@ -164,6 +218,106 @@ export class TaskAddModal {
                     this.save();
                 }
             });
+        }
+    }
+
+    /**
+     * モーダルタイトルを更新
+     */
+    _setModalTitle() {
+        const titleEl = document.getElementById('add-task-modal-title');
+        if (!titleEl) return;
+        titleEl.textContent = this.mode === 'nocodb' ? 'プロジェクトタスク追加' : 'ローカルタスク追加';
+    }
+
+    /**
+     * デフォルト担当者名を取得
+     */
+    _getDefaultAssignee() {
+        return '自分';
+    }
+
+    /**
+     * 1週間後の期限日を取得
+     */
+    _getDefaultDueDate() {
+        const date = new Date();
+        date.setDate(date.getDate() + 7);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    /**
+     * プロジェクト一覧を読み込み
+     */
+    async _loadProjects() {
+        if (this._configLoaded) return;
+
+        try {
+            const res = await fetch('/api/config/projects');
+            if (!res.ok) {
+                throw new Error('Failed to load project config');
+            }
+            const data = await res.json();
+            const projects = data.projects || [];
+            this.projects = projects.filter(p => !p.archived);
+            this.nocodbProjects = this.projects.filter(p => p.nocodb);
+            this._configLoaded = true;
+        } catch (error) {
+            console.warn('Failed to load projects:', error);
+            this.projects = [];
+            this.nocodbProjects = [];
+        }
+    }
+
+    /**
+     * プロジェクト選択肢を更新
+     */
+    async _populateProjectSelect() {
+        const projectInput = document.getElementById('add-task-project');
+        if (!projectInput) return;
+
+        await this._loadProjects();
+
+        const list = this.mode === 'nocodb' ? this.nocodbProjects : this.projects;
+        const previousValue = projectInput.value;
+
+        projectInput.innerHTML = '';
+
+        if (list.length === 0) {
+            const option = document.createElement('option');
+            option.value = 'general';
+            option.textContent = 'general';
+            projectInput.appendChild(option);
+            projectInput.value = 'general';
+            return;
+        }
+
+        if (this.mode !== 'nocodb') {
+            const generalOption = document.createElement('option');
+            generalOption.value = 'general';
+            generalOption.textContent = 'general';
+            projectInput.appendChild(generalOption);
+        }
+
+        list.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = this.mode === 'nocodb'
+                ? (project.nocodb?.base_name || project.id)
+                : project.id;
+            projectInput.appendChild(option);
+        });
+
+        const optionValues = Array.from(projectInput.options).map(opt => opt.value);
+        if (previousValue && optionValues.includes(previousValue)) {
+            projectInput.value = previousValue;
+        } else {
+            projectInput.value = this.mode === 'nocodb'
+                ? (list[0]?.id || '')
+                : 'general';
         }
     }
 

@@ -149,6 +149,31 @@ export class NocoDBTaskService {
     }
 
     /**
+     * タスク作成
+     * @param {Object} payload - 新規タスク情報
+     * @param {string} payload.projectId - プロジェクトID
+     * @param {string} payload.title - タスク名
+     * @param {string} payload.assignee - 担当者
+     * @param {string} payload.priority - 優先度
+     * @param {string} payload.due - 期限
+     * @param {string} payload.description - 説明
+     */
+    async createTask(payload) {
+        try {
+            const created = await this.repository.createTask(payload);
+            await this.loadTasks();
+            eventBus.emit(EVENTS.NOCODB_TASK_CREATED, { task: created });
+            return created;
+        } catch (error) {
+            console.error('NocoDBTaskService.createTask error:', error);
+            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
+                error: error.message || 'Failed to create task'
+            });
+            throw error;
+        }
+    }
+
+    /**
      * タスク削除
      * @param {string} taskId - 内部タスクID
      */

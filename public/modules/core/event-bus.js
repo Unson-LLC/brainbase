@@ -182,10 +182,12 @@ export const eventBus = new EventBus();
 export const EVENTS = {
     // Task関連
     TASK_LOADED: 'task:loaded',
+    TASK_CREATED: 'task:created',
     TASK_COMPLETED: 'task:completed',
     TASK_UPDATED: 'task:updated',
     TASK_DELETED: 'task:deleted',
     TASK_DEFERRED: 'task:deferred',
+    TASK_RESTORED: 'task:restored',
     START_TASK: 'task:start',
     EDIT_TASK: 'task:edit',
     TASK_FILTER_CHANGED: 'task:filter-changed',
@@ -215,6 +217,7 @@ export const EVENTS = {
 
     // NocoDB Task関連
     NOCODB_TASKS_LOADED: 'nocodb:tasks-loaded',
+    NOCODB_TASK_CREATED: 'nocodb:task-created',
     NOCODB_TASK_UPDATED: 'nocodb:task-updated',
     NOCODB_TASK_DELETED: 'nocodb:task-deleted',
     NOCODB_TASK_ERROR: 'nocodb:task-error',

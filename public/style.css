@@ -2707,6 +2707,12 @@ body::after {
     border-color: var(--accent-color);
 }
 
+.form-error {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: var(--danger-color);
+}
+
 .modal-footer {
     padding: 1rem;
     border-top: 1px solid var(--border-color);
