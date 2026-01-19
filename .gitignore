@@ -36,17 +36,113 @@ playwright-lambdatest*.config.js
 _codex/
 _codex
 
-# brainbaseの他の正本ディレクトリ（シンボリックリンク）
+# brainbaseの正本ディレクトリ（個人データ）
 _tasks/
 _tasks
 _inbox/
 _inbox
 _schedules/
 _schedules
+_sources/
+_sources
 _ops/
+config.yml
+settings/
+.worktrees/
+.worktrees
+.claude-oss-backup/
+
+# External references (symlinks to workspace/projects, mcp-servers)
+external/
+
+# ========================================
+# .claude - 公開/非公開の分離
+# ========================================
+
+# 非公開: 個人設定・データ
+.claude/commands/
+.claude/hooks/
+.claude/agents/
+.claude/learning/
+.claude/output/
+.claude/mcp/
+.claude/rules/
+.claude/*.md
+.claude/*.txt
+.claude/*.json
+.claude/skills-backup-oss/
+
+# 非公開skills: 個人ノウハウ・ビジネス知識
+.claude/skills/_archived/
+.claude/skills/_templates/
+.claude/skills/1on1-mastery/
+.claude/skills/90day-checklist/
+.claude/skills/ai-driven-marketing-genai-playbook/
+.claude/skills/all-for-saas-playbook/
+.claude/skills/b2b-marketing-60-tactics-playbook/
+.claude/skills/branding-strategy-guide/
+.claude/skills/business-growth-playbook/
+.claude/skills/context-check/
+.claude/skills/customer-centric-marketing-n1/
+.claude/skills/data-meta-guide/
+.claude/skills/drive-organize/
+.claude/skills/email-classifier/
+.claude/skills/garber-shikumi-keiei/
+.claude/skills/gmail-auto-labeling/
+.claude/skills/hiring-retention/
+.claude/skills/ismp-vulnerability-check/
+.claude/skills/jutaku-1oku-shikumi/
+.claude/skills/knowledge-frontmatter/
+.claude/skills/kpi-calculation/
+.claude/skills/leadership-frameworks/
+.claude/skills/learning-extraction/
+.claude/skills/mana-deployment/
+.claude/skills/mana-slack-test/
+.claude/skills/manager-leverage/
+.claude/skills/marketing-compass/
+.claude/skills/marketing-failure-patterns/
+.claude/skills/marketing-framework-115-methods/
+.claude/skills/marketing-strategy-planner/
+.claude/skills/milestone-management/
+.claude/skills/nano-banana-pro-tips/
+.claude/skills/note-article-writing/
+.claude/skills/note-smart/
+.claude/skills/ohayo-orchestrator/
+.claude/skills/ops-tools-guide/
+.claude/skills/performance-review/
+.claude/skills/planning-okr/
+.claude/skills/principles/
+.claude/skills/project-onboarding/
+.claude/skills/raci-format/
+.claude/skills/saas-ai-roadmap-playbook/
+.claude/skills/sales-playbook/
+.claude/skills/small-company-shikumika/
+.claude/skills/sns-16-tricks-doshiroto/
+.claude/skills/sns-copy-patterns/
+.claude/skills/sns-smart/
+.claude/skills/strategy-template/
+.claude/skills/task-format/
+.claude/skills/task-relevant-maturity/
+.claude/skills/test-orchestrator/
+.claude/skills/x-analytics-source/
+.claude/skills/x-bookmarks-source/
+.claude/skills/x-curate-smart/
+.claude/skills/x-curate-strategy/
+.claude/skills/x-quote-smart/
+.claude/skills/x-quote-strategy/
+.claude/skills/x-reply-smart/
+.claude/skills/x-reply-strategy/
+.claude/skills/*.md
+
+# 公開skills（以下は.gitignoreに含まれないのでOSS公開される）:
+# - architecture-patterns, codex-validation, dev-workflow-guide
+# - git-commit-rules, git-workflow, kernel-prompt-engineering
+# - pdf-read-python, refactoring-workflow, security-patterns
+# - tdd-workflow, test-strategy, test-workflow-validator
+# - ui-design-resources, verify-first-debugging, ttyd-upload-locator
+# - brainbase-ops-guide, config-ops, settings-validator
 
 # Symlinks (local development only)
-.claude
 shared
 
 # Temporary files

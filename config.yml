@@ -1,7 +1,0 @@
-root: ${BRAINBASE_ROOT:-.}
-
-# Projects root directory
-projects_root: ${PROJECTS_ROOT:-./projects}
-
-# Add your projects here
-projects: []

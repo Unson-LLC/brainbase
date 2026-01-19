@@ -105,15 +105,22 @@ export class MiscController {
                 allowedRoot = this.workspaceRoot.substring(0, workspaceIndex + '/workspace/'.length);
             }
 
+            // ホームディレクトリ配下のパスかどうかをチェック
+            const homeDir = os.homedir();
+            const isUnderHomeDir = normalizedPath.startsWith(homeDir + '/');
+
             logger.debug('Path validation', {
                 workspaceRoot: this.workspaceRoot,
                 normalizedPath,
                 allowedRoot,
+                homeDir,
                 isHomeDirPath,
+                isUnderHomeDir,
                 startsWithAllowed: normalizedPath.startsWith(allowedRoot)
             });
 
-            if (!isHomeDirPath && !normalizedPath.startsWith(allowedRoot)) {
+            // ホームディレクトリ配下、または許可されたワークスペース配下のみ許可
+            if (!isHomeDirPath && !isUnderHomeDir && !normalizedPath.startsWith(allowedRoot)) {
                 logger.warn('Path traversal attempt detected', { allowedRoot, normalizedPath });
                 return res.status(400).json({
                     success: false,
