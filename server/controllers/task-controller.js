@@ -7,8 +7,24 @@ import { logger } from '../utils/logger.js';
 
 // タスク更新の許可フィールド
 const ALLOWED_UPDATE_FIELDS = [
-    'title', 'status', 'priority', 'deadline', 'tags', 'description', 'focus', 'project'
+    'title', 'status', 'priority', 'deadline', 'tags', 'description', 'focus', 'project', 'owner'
 ];
+
+const DEFAULT_ASSIGNEE = '自分';
+const DEFAULT_PRIORITY = 'medium';
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getDefaultDueDate() {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return formatDate(date);
+}
 
 /**
  * タスク更新オブジェクトの検証
@@ -136,7 +152,7 @@ export class TaskController {
      */
     create = async (req, res) => {
         try {
-            const { title, project, priority, due, description } = req.body;
+            const { title, project, priority, due, description, owner, assignee } = req.body;
 
             // 入力検証: title は必須
             if (!title || typeof title !== 'string' || title.trim() === '') {
@@ -145,16 +161,25 @@ export class TaskController {
 
             // 入力検証: priority は許可値のみ
             const allowedPriorities = ['low', 'medium', 'high'];
-            if (priority && !allowedPriorities.includes(priority)) {
+            const normalizedPriority = typeof priority === 'string' ? priority.trim().toLowerCase() : '';
+            if (normalizedPriority && !allowedPriorities.includes(normalizedPriority)) {
                 return res.status(400).json({ error: 'Invalid priority value' });
             }
+
+            const normalizedOwner = typeof owner === 'string' && owner.trim()
+                ? owner.trim()
+                : (typeof assignee === 'string' && assignee.trim() ? assignee.trim() : DEFAULT_ASSIGNEE);
+            const normalizedDue = typeof due === 'string' && due.trim()
+                ? due.trim()
+                : getDefaultDueDate();
 
             const task = await this.taskParser.createTask({
                 title: title.trim(),
                 project: project || 'general',
-                priority: priority || 'medium',
-                due: due || null,
-                description: description || ''
+                priority: normalizedPriority || DEFAULT_PRIORITY,
+                due: normalizedDue,
+                description: description || '',
+                owner: normalizedOwner
             });
 
             res.status(201).json(task);

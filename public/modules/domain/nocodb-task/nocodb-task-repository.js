@@ -17,6 +17,16 @@ export class NocoDBTaskRepository {
     }
 
     /**
+     * タスクを作成
+     * @param {Object} payload - 作成データ
+     * @returns {Promise<Object>}
+     */
+    async createTask(payload) {
+        const response = await this.http.post('/api/nocodb/tasks', payload);
+        return response;
+    }
+
+    /**
      * タスクを更新
      * @param {string} recordId - NocoDBレコードID
      * @param {string} baseId - NocoDBベースID

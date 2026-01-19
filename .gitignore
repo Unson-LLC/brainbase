@@ -224,3 +224,17 @@ nohup.out
 
 # macOS
 .DS_Store
+
+# ========================================
+# Debug/Test scripts (removed from repo)
+# ========================================
+capture-dashboard-with-toggle.cjs
+debug-console.mjs
+test-claude-log-parser.js
+test-zep-e2e.js
+
+# ========================================
+# Session-specific files (personal data)
+# ========================================
+HANDOFF_SESSION.md
+HANDOFF*.md

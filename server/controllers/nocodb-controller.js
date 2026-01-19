@@ -102,6 +102,105 @@ export class NocoDBController {
     };
 
     /**
+     * POST /api/nocodb/tasks
+     * タスクを作成
+     */
+    create = async (req, res) => {
+        try {
+            const { projectId, baseId, title, assignee, priority, due, description } = req.body;
+
+            // 入力検証: title は必須
+            if (!title || typeof title !== 'string' || title.trim() === '') {
+                return res.status(400).json({ error: 'Title is required' });
+            }
+
+            // 環境変数チェック
+            if (!this.nocodbUrl || !this.nocodbToken) {
+                return res.status(500).json({
+                    error: 'NocoDB configuration missing'
+                });
+            }
+
+            // NocoDBマッピングからprojectId/baseIdを解決
+            const mappings = await this.configParser.getNocoDBMappings();
+            let mapping = null;
+            if (projectId) {
+                mapping = mappings.find(m => m.project_id === projectId);
+            }
+            if (!mapping && baseId) {
+                mapping = mappings.find(m => m.base_id === baseId);
+            }
+            if (!mapping) {
+                return res.status(404).json({ error: 'Unknown project or baseId' });
+            }
+
+            // テーブル一覧を取得してタスクテーブルIDを特定
+            const tablesResponse = await fetch(
+                `${this.nocodbUrl}/api/v2/meta/bases/${mapping.base_id}/tables`,
+                {
+                    headers: {
+                        'xc-token': this.nocodbToken
+                    }
+                }
+            );
+
+            if (!tablesResponse.ok) {
+                throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
+            }
+
+            const tablesData = await tablesResponse.json();
+            const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+
+            if (!taskTable) {
+                return res.status(404).json({ error: 'Task table not found' });
+            }
+
+            // デフォルト値の適用
+            const normalizedAssignee = typeof assignee === 'string' && assignee.trim()
+                ? assignee.trim()
+                : '自分';
+            const rawPriority = typeof priority === 'string' ? priority.trim().toLowerCase() : '';
+            const allowedPriorities = ['low', 'medium', 'high'];
+            if (rawPriority && !allowedPriorities.includes(rawPriority)) {
+                return res.status(400).json({ error: 'Invalid priority value' });
+            }
+            const normalizedPriority = rawPriority || 'medium';
+            const normalizedDue = typeof due === 'string' && due.trim()
+                ? due.trim()
+                : this._getDefaultDueDate();
+
+            const priorityMap = { high: '高', medium: '中', low: '低' };
+            const fields = {
+                'タイトル': title.trim(),
+                '担当者': normalizedAssignee,
+                '優先度': priorityMap[normalizedPriority] || '中',
+                '期限': normalizedDue,
+                '説明': typeof description === 'string' ? description : '',
+                'ステータス': '未着手'
+            };
+
+            const response = await this._createRecord(taskTable.id, fields);
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error('NocoDB create failed', {
+                    status: response.status,
+                    error: errorText
+                });
+                return res.status(response.status).json({
+                    error: 'NocoDB create failed',
+                    details: errorText
+                });
+            }
+
+            const result = await response.json();
+            res.status(201).json({ success: true, record: result });
+        } catch (error) {
+            logger.error('Failed to create NocoDB task', { error });
+            res.status(500).json({ error: 'Failed to create task' });
+        }
+    };
+
+    /**
      * PUT /api/nocodb/tasks/:id
      * タスクステータスを更新
      */
@@ -501,6 +600,40 @@ export class NocoDBController {
     }
 
     /**
+     * NocoDBレコード作成
+     * @param {string} tableId - テーブルID
+     * @param {Object} fields - 作成フィールド
+     * @returns {Promise<Response>}
+     */
+    async _createRecord(tableId, fields) {
+        const url = `${this.nocodbUrl}/api/v2/tables/${tableId}/records`;
+        const headers = {
+            'xc-token': this.nocodbToken,
+            'Content-Type': 'application/json'
+        };
+
+        const payloads = [
+            JSON.stringify(fields),
+            JSON.stringify({ records: [fields] }),
+            JSON.stringify({ records: [{ fields }] })
+        ];
+
+        let response = null;
+        for (const body of payloads) {
+            response = await fetch(url, {
+                method: 'POST',
+                headers,
+                body
+            });
+            if (response.ok) {
+                return response;
+            }
+        }
+
+        return response;
+    }
+
+    /**
      * NocoDBレコード削除
      * @param {string} tableId - テーブルID
      * @param {string} idFieldName - IDフィールド名
@@ -531,5 +664,27 @@ export class NocoDBController {
     _normalizeRecordId(id) {
         const numericId = Number(id);
         return Number.isNaN(numericId) ? id : numericId;
+    }
+
+    /**
+     * 1週間後の期限日を取得
+     * @returns {string}
+     */
+    _getDefaultDueDate() {
+        const date = new Date();
+        date.setDate(date.getDate() + 7);
+        return this._formatDate(date);
+    }
+
+    /**
+     * 日付をYYYY-MM-DD形式に整形
+     * @param {Date} date
+     * @returns {string}
+     */
+    _formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 }
