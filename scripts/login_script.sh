@@ -146,6 +146,9 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     fi
 fi
 
+# Ensure BRAINBASE_SESSION_ID is always set even when re-attaching to an existing session
+tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME" 2>/dev/null || true
+
 if [ -n "$BRAINBASE_PORT" ]; then
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_PORT "$BRAINBASE_PORT"
 fi

@@ -38,6 +38,12 @@ resolve_brainbase_port() {
   echo "${BRAINBASE_FALLBACK_PORT:-3000}"
 }
 
+# If missing, derive session id from tmux session name
+if [ -z "$BRAINBASE_SESSION_ID" ] && [ -n "$TMUX" ] && command -v tmux >/dev/null 2>&1; then
+  BRAINBASE_SESSION_ID="$(tmux display-message -p '#S' 2>/dev/null)"
+  export BRAINBASE_SESSION_ID
+fi
+
 if [ -n "$BRAINBASE_SESSION_ID" ] && command -v curl >/dev/null 2>&1; then
   PORT="$(resolve_brainbase_port)"
   REPORTED_AT=$(($(date +%s) * 1000))
