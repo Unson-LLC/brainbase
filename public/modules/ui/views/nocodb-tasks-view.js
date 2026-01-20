@@ -11,10 +11,11 @@ export class NocoDBTasksView {
         this.container = null;
         this.unsubscribers = [];
         this.members = [];  // メンバーリスト（担当者ドロップダウン用）
+        this.selfFilterValue = '__self__';
         this.unassignedFilterValue = '__unassigned__';
         this.currentFilter = {
             project: '',
-            assignee: '',
+            assignee: this.selfFilterValue,
             searchText: '',
             hideCompleted: true
         };
@@ -52,7 +53,14 @@ export class NocoDBTasksView {
             this._showError(event.detail?.error || 'エラーが発生しました');
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4);
+        const unsub5 = appStore.subscribe((change) => {
+            if (change.key === 'preferences') {
+                this._updateAssigneeFilter();
+                this.render();
+            }
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
     }
 
     /**
@@ -139,6 +147,7 @@ export class NocoDBTasksView {
 
         assigneeFilter.innerHTML = `
             <option value="">全担当者</option>
+            <option value="${this.selfFilterValue}">自分だけ</option>
             <option value="${this.unassignedFilterValue}">未割当</option>
         `;
 
@@ -149,12 +158,14 @@ export class NocoDBTasksView {
             assigneeFilter.appendChild(option);
         });
 
-        if (currentValue) {
-            assigneeFilter.value = currentValue;
-            if (assigneeFilter.value !== currentValue) {
-                assigneeFilter.value = '';
-                this.currentFilter.assignee = '';
-            }
+        const desiredValue = this.currentFilter.assignee || currentValue || '';
+        if (desiredValue) {
+            this.currentFilter.assignee = desiredValue;
+        }
+        assigneeFilter.value = desiredValue;
+        if (assigneeFilter.value !== desiredValue) {
+            assigneeFilter.value = '';
+            this.currentFilter.assignee = '';
         }
     }
 
@@ -256,7 +267,17 @@ export class NocoDBTasksView {
             return;
         }
 
-        const tasks = this.service.getFilteredTasks(this.currentFilter);
+        const resolvedFilter = { ...this.currentFilter };
+        const selfAssignee = appStore.getState().preferences?.user?.assignee?.trim() || '';
+        if (resolvedFilter.assignee === this.selfFilterValue) {
+            if (!selfAssignee) {
+                this._showMissingSelfAssignee();
+                return;
+            }
+            resolvedFilter.assignee = selfAssignee;
+        }
+
+        const tasks = this.service.getFilteredTasks(resolvedFilter);
 
         if (tasks.length === 0) {
             this.container.innerHTML = `
@@ -273,6 +294,31 @@ export class NocoDBTasksView {
 
         this.container.innerHTML = tasks.map(task => this._renderTaskItem(task)).join('');
         this._attachStatusHandlers();
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    /**
+     * 自分の担当者名が未設定の場合の表示
+     */
+    _showMissingSelfAssignee() {
+        if (!this.container) return;
+        this.container.innerHTML = `
+            <div class="empty-state">
+                <i data-lucide="user"></i>
+                <p>「自分だけ」フィルタを使うには、Settings → NocoDB で担当者名を設定してください</p>
+                <button class="btn-secondary btn-sm" id="open-nocodb-self-settings">設定を開く</button>
+            </div>
+        `;
+
+        const openBtn = this.container.querySelector('#open-nocodb-self-settings');
+        if (openBtn) {
+            openBtn.addEventListener('click', () => {
+                document.getElementById('settings-btn')?.click();
+            });
+        }
 
         if (window.lucide) {
             window.lucide.createIcons();

@@ -33,6 +33,16 @@ export class SessionService {
         const state = await this.httpClient.get('/api/state');
         let sessions = state.sessions || [];
         const testMode = state.testMode || false;
+        const storedPreferences = state.preferences || {};
+        const currentPreferences = this.store.getState().preferences || {};
+        const preferences = {
+            ...currentPreferences,
+            ...storedPreferences,
+            user: {
+                ...(currentPreferences.user || {}),
+                ...(storedPreferences.user || {})
+            }
+        };
 
         // マイグレーション: stopped状態をpausedに変換
         let migrationNeeded = false;
@@ -50,7 +60,7 @@ export class SessionService {
             console.log('[Migration] Converted "stopped" sessions to "paused"');
         }
 
-        this.store.setState({ sessions, testMode });
+        this.store.setState({ sessions, testMode, preferences });
         await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         return sessions;
     }

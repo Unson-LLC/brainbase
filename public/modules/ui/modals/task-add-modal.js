@@ -1,6 +1,8 @@
 /**
  * タスク追加モーダル
  */
+import { appStore } from '../../core/store.js';
+
 export class TaskAddModal {
     constructor({ taskService, nocodbTaskService }) {
         this.taskService = taskService;
@@ -234,7 +236,8 @@ export class TaskAddModal {
      * デフォルト担当者名を取得
      */
     _getDefaultAssignee() {
-        return '自分';
+        const assignee = appStore.getState().preferences?.user?.assignee?.trim();
+        return assignee || '自分';
     }
 
     /**
