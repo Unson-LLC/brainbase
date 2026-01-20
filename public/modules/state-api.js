@@ -20,6 +20,36 @@ export async function fetchState() {
 }
 
 /**
+ * Preferencesを取得
+ * @returns {Promise<Object>}
+ */
+export async function fetchPreferences() {
+  const state = await fetchState();
+  return state.preferences || {};
+}
+
+/**
+ * Preferencesを更新
+ * @param {Object} updates - 更新内容
+ * @returns {Promise<Object>} - 更新後のPreferences
+ */
+export async function updatePreferences(updates) {
+  const state = await fetchState();
+  const current = state.preferences || {};
+  const next = {
+    ...current,
+    ...updates,
+    user: {
+      ...(current.user || {}),
+      ...(updates?.user || {})
+    }
+  };
+
+  await saveState({ ...state, preferences: next });
+  return next;
+}
+
+/**
  * セッションからcomputed fieldsを除去
  * @param {Object} session - セッション
  * @returns {Object} - サニタイズされたセッション

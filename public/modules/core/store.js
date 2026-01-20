@@ -186,6 +186,11 @@ export const appStore = new Store({
         taskFilter: '',
         showAllTasks: false
     },
+    preferences: {
+        user: {
+            assignee: ''
+        }
+    },
     ui: {
         inboxOpen: false,
         draggedSessionId: null,
