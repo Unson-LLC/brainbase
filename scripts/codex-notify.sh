@@ -39,6 +39,12 @@ resolve_brainbase_port() {
 
 event_type=""
 
+# If missing, derive session id from tmux session name
+if [ -z "$BRAINBASE_SESSION_ID" ] && [ -n "$TMUX" ] && command -v tmux >/dev/null 2>&1; then
+  BRAINBASE_SESSION_ID="$(tmux display-message -p '#S' 2>/dev/null)"
+  export BRAINBASE_SESSION_ID
+fi
+
 if [ -n "$BRAINBASE_SESSION_ID" ] && command -v curl >/dev/null 2>&1; then
   payload="$*"
   if [ -z "$payload" ]; then
@@ -83,7 +89,7 @@ PY
     TURN_STATE_FILE="${TURN_STATE_DIR}/${turn_id}.start"
   fi
 
-  if [ "$event_type" = "agent-turn-start" ] || [ "$event_type" = "agent-turn-begin" ] || [ "$event_type" = "user-message" ]; then
+  if [ "$event_type" = "agent-turn-start" ] || [ "$event_type" = "agent-turn-begin" ]; then
     if [ -n "$TURN_STATE_FILE" ]; then
       echo "$REPORTED_AT" > "$TURN_STATE_FILE" 2>/dev/null || true
     fi
