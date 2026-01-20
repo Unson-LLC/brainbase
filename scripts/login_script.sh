@@ -136,12 +136,12 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         fi
     else
         # Launch Claude Code with initial command as CLI argument (passed as prompt)
-        # Include PATH with Node.js for Windows/MSYS2 compatibility
-        TMUX_PATH="$PATH"
+        # Set PATH via tmux environment instead of inline export (prevents command truncation)
+        tmux set-environment -t "$SESSION_NAME" PATH "$PATH"
         if [ -n "$INITIAL_CMD" ]; then
-            tmux send-keys -t "$SESSION_NAME" "export PATH='$TMUX_PATH' BRAINBASE_SESSION_ID='$SESSION_NAME' && \"$CLAUDE_BIN\" \"$INITIAL_CMD\"" C-m
+            tmux send-keys -t "$SESSION_NAME" "\"$CLAUDE_BIN\" \"$INITIAL_CMD\"" C-m
         else
-            tmux send-keys -t "$SESSION_NAME" "export PATH='$TMUX_PATH' BRAINBASE_SESSION_ID='$SESSION_NAME' && \"$CLAUDE_BIN\"" C-m
+            tmux send-keys -t "$SESSION_NAME" "\"$CLAUDE_BIN\"" C-m
         fi
     fi
 fi
