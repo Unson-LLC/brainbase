@@ -1,7 +1,13 @@
 #!/bin/bash
 
 # Default session name if none provided
-SESSION_NAME=${1:-brainbase}
+# Use a unique session id unless a valid session-<digits> name is provided
+RAW_SESSION_NAME="$1"
+if [ -z "$RAW_SESSION_NAME" ] || ! [[ "$RAW_SESSION_NAME" =~ ^session-[0-9]+$ ]]; then
+    SESSION_NAME="session-$(date +%s%3N)"
+else
+    SESSION_NAME="$RAW_SESSION_NAME"
+fi
 INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
 
