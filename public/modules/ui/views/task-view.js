@@ -208,17 +208,7 @@ export class TaskView {
             });
         });
 
-        // フィルター入力
-        const filterInput = this.container.querySelector('[data-filter-input]');
-        if (filterInput) {
-            filterInput.addEventListener('input', (e) => {
-                const { filters } = appStore.getState();
-                appStore.setState({
-                    filters: { ...filters, taskFilter: e.target.value }
-                });
-                eventBus.emit(EVENTS.TASK_FILTER_CHANGED, {});
-            });
-        }
+        // フィルター入力は現行UIに存在しないため削除
     }
 
     /**

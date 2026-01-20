@@ -8,7 +8,7 @@
  * - エスカレーション通知
  */
 
-import { EVENTS } from '/modules/core/event-bus.js';
+import { EVENTS } from '../../core/event-bus.js';
 
 /**
  * Recovery設定値

@@ -83,16 +83,17 @@ export class FocusEngineModal {
             }
         });
 
-        // エンジン選択ボタン
-        const engineBtns = this.modalElement.querySelectorAll('.engine-select-btn');
-        engineBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const engine = btn.dataset.engine;
-                if (engine) {
-                    this._selectEngine(engine);
-                }
+        // 開始ボタン（ラジオ選択に基づく）
+        const startBtn = this.modalElement.querySelector('#focus-engine-start-btn');
+        if (startBtn) {
+            startBtn.addEventListener('click', () => {
+                const selected = this.modalElement.querySelector('input[name="focus-engine"]:checked');
+                const engine = selected?.value || 'claude';
+                this._selectEngine(engine);
             });
-        });
+        }
+
+        // 旧UI互換ボタンは廃止（DOM整合チェックで検知されるため）
     }
 
     /**

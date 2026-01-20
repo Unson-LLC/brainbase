@@ -37,8 +37,8 @@ export function attachGroupHeaderHandlers(container) {
     container.querySelectorAll('.session-group-header').forEach(header => {
         header.addEventListener('click', (e) => {
             if (!e.target.closest('.add-project-session-btn')) {
-                const groupDiv = header.closest('.session-group');
-                const childrenContainer = groupDiv.querySelector('.session-group-children');
+                const groupDiv = header.closest('.session-project-group');
+                const childrenContainer = groupDiv.querySelector('.session-project-children');
 
                 if (childrenContainer) {
                     const isCurrentlyExpanded = childrenContainer.style.display !== 'none';
@@ -133,4 +133,3 @@ export function attachAddProjectSessionHandlers(container, onAddSession) {
         });
     });
 }
-

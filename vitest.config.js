@@ -1,6 +1,15 @@
 import { defineConfig } from 'vitest/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '/modules': path.resolve(__dirname, 'public/modules'),
+    },
+  },
   test: {
     environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
     include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js'],

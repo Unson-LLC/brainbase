@@ -12,50 +12,50 @@ import { NocoDBService } from '../../../server/services/nocodb-service.js';
  * 5. insertSnapshot() - スナップショット挿入
  */
 
-// 相対日付を生成するヘルパー関数
-const getRelativeDate = (daysFromNow) => {
-    const date = new Date();
+// 相対日付を生成するヘルパー関数（基準日指定）
+const getRelativeDate = (baseDate, daysFromNow) => {
+    const date = new Date(baseDate);
     date.setDate(date.getDate() + daysFromNow);
     return date.toISOString().split('T')[0]; // YYYY-MM-DD形式
 };
 
-// NocoDB APIレスポンスのモックデータ
-const mockTasksResponse = {
+// NocoDB APIレスポンスのモックデータ（基準日から生成）
+const buildMockTasksResponse = (baseDate) => ({
     list: [
         {
             Id: 1,
             タスク名: 'タスク1',
             ステータス: '完了',
             担当者: 'テスト担当',
-            期限: getRelativeDate(-30), // 30日前（完了なので期限超過にならない）
-            作成日: getRelativeDate(-60)
+            期限: getRelativeDate(baseDate, -30), // 30日前（完了なので期限超過にならない）
+            作成日: getRelativeDate(baseDate, -60)
         },
         {
             Id: 2,
             タスク名: 'タスク2',
             ステータス: '進行中',
             担当者: '太田',
-            期限: getRelativeDate(7), // 7日後（期限超過にならない）
-            作成日: getRelativeDate(-14)
+            期限: getRelativeDate(baseDate, 7), // 7日後（期限超過にならない）
+            作成日: getRelativeDate(baseDate, -14)
         },
         {
             Id: 3,
             タスク名: 'タスク3',
             ステータス: 'ブロック',
             担当者: '山田',
-            期限: getRelativeDate(-7), // 7日前（期限超過）
-            作成日: getRelativeDate(-60)
+            期限: getRelativeDate(baseDate, -7), // 7日前（期限超過）
+            作成日: getRelativeDate(baseDate, -60)
         },
         {
             Id: 4,
             タスク名: 'タスク4',
             ステータス: '未着手',
             担当者: '田中',
-            期限: getRelativeDate(-30), // 30日前（期限超過）
-            作成日: getRelativeDate(-45)
+            期限: getRelativeDate(baseDate, -30), // 30日前（期限超過）
+            作成日: getRelativeDate(baseDate, -45)
         }
     ]
-};
+});
 
 const mockMilestonesResponse = {
     list: [
@@ -94,6 +94,7 @@ describe('NocoDBService', () => {
         it('正常にプロジェクト統計を返す', async () => {
             vi.useFakeTimers();
             vi.setSystemTime(new Date('2026-01-12T12:00:00Z'));
+            const mockTasksResponse = buildMockTasksResponse(new Date());
             // モック設定: タスクとマイルストーンを返す
             fetchMock
                 .mockResolvedValueOnce({
@@ -166,6 +167,7 @@ describe('NocoDBService', () => {
         it('ブロッカー・期限超過タスクを正しく分類する', async () => {
             vi.useFakeTimers();
             vi.setSystemTime(new Date('2026-01-12T12:00:00Z'));
+            const mockTasksResponse = buildMockTasksResponse(new Date());
             const projects = [
                 { id: 'project1', project_id: 'proj1' },
                 { id: 'project2', project_id: 'proj2' }
@@ -424,6 +426,7 @@ describe('NocoDBService', () => {
         });
 
         it('タイムアウト時にエラーをスローする', async () => {
+            vi.useFakeTimers();
             // タイムアウトをシミュレート
             fetchMock.mockImplementationOnce(() => {
                 return new Promise((_, reject) => {
@@ -437,7 +440,11 @@ describe('NocoDBService', () => {
                 health_score: 82
             };
 
-            await expect(service.insertSnapshot(data)).rejects.toThrow();
+            const promise = service.insertSnapshot(data);
+            const assertion = expect(promise).rejects.toThrow();
+            await vi.advanceTimersByTimeAsync(150);
+            await assertion;
+            vi.useRealTimers();
         });
     });
 });

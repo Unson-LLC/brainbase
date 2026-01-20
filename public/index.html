@@ -489,6 +489,9 @@
             <div class="timeline-section" id="timeline-section" data-slot="sidebar:schedule">
                 <div class="section-header">
                     <h3><i data-lucide="calendar"></i> タイムライン</h3>
+                    <button id="add-schedule-btn" class="icon-btn" title="予定を追加" aria-label="予定を追加">
+                        <i data-lucide="plus"></i>
+                    </button>
                 </div>
                 <div id="timeline-list">
                     <div class="loading">読み込み中...</div>
@@ -716,6 +719,10 @@
                 <div class="form-group">
                     <label>Due Date</label>
                     <input type="date" id="edit-task-due" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="edit-task-description" class="form-input" rows="3" placeholder="Details or context"></textarea>
                 </div>
             </div>
             <div class="modal-footer">

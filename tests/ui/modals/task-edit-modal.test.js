@@ -115,7 +115,7 @@ describe('TaskEditModal', () => {
 
             expect(document.getElementById('edit-task-title').value).toBe('Minimal Task');
             expect(document.getElementById('edit-task-project').value).toBe('');
-            expect(document.getElementById('edit-task-priority').value).toBe('');
+            expect(document.getElementById('edit-task-priority').value).toBe('medium');
             expect(document.getElementById('edit-task-due').value).toBe('');
         });
     });

@@ -1,5 +1,5 @@
-import { eventBus, EVENTS } from '/modules/core/event-bus.js';
-import { appStore } from '/modules/core/store.js';
+import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { appStore } from '../../core/store.js';
 
 /**
  * NocoDBTasksView

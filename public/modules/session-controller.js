@@ -15,6 +15,23 @@ export async function createSession(sessionData) {
 }
 
 /**
+ * セッションをアーカイブ（worktreeマージチェック付き）
+ * @param {string} sessionId
+ * @param {Object} options
+ * @param {boolean} options.skipMergeCheck
+ * @returns {Promise<Object>}
+ */
+export async function archiveSessionAPI(sessionId, options = {}) {
+  const { skipMergeCheck = false } = options;
+  const res = await fetch(`/api/sessions/${sessionId}/archive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skipMergeCheck })
+  });
+  return await res.json();
+}
+
+/**
  * Worktreeの状態を確認
  * @param {string} sessionId
  * @returns {Promise<Object|null>}

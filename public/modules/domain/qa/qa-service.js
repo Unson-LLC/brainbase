@@ -10,7 +10,7 @@
  * - 類似問題検出（ISSUE_SIMILARITY_THRESHOLD）
  */
 
-import { EVENTS } from '/modules/core/event-bus.js';
+import { EVENTS } from '../../core/event-bus.js';
 
 /**
  * QA設定値

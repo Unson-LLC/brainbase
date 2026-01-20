@@ -197,7 +197,7 @@ class TerminalReconnectManager {
 /**
  * Application initialization
  */
-class App {
+export class App {
     constructor() {
         this.container = new DIContainer();
         this.views = {};
@@ -957,7 +957,8 @@ class App {
         }
 
         try {
-            const { ManaSettingsPlugin } = await import('/extensions/mana-integration/index.js');
+            const manaModulePath = '/extensions/mana-integration/index.js';
+            const { ManaSettingsPlugin } = await import(/* @vite-ignore */ manaModulePath);
             const manaPlugin = new ManaSettingsPlugin({
                 pluginRegistry: registry,
                 store: appStore,
@@ -2228,15 +2229,21 @@ class App {
     }
 }
 
-// Initialize and start application
-const app = new App();
+export const createApp = () => new App();
 
-// Start when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => app.start());
-} else {
-    app.start();
+const shouldAutoStart = !(typeof window !== 'undefined' && window.__BRAINBASE_TEST__ === true);
+
+if (shouldAutoStart) {
+    // Initialize and start application
+    const app = createApp();
+
+    // Start when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => app.start());
+    } else {
+        app.start();
+    }
+
+    // Expose for debugging
+    window.brainbaseApp = app;
 }
-
-// Expose for debugging
-window.brainbaseApp = app;
