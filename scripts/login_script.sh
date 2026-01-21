@@ -120,7 +120,7 @@ fi
 # These settings help prevent character duplication when typing fast over WebSocket (ttyd)
 tmux set -g escape-time 0 2>/dev/null || true
 tmux set -g default-terminal "screen-256color" 2>/dev/null || true
-tmux set -g mouse on 2>/dev/null || true
+tmux set -g mouse off 2>/dev/null || true
 
 # Check if session exists
 if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then

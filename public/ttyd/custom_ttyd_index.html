@@ -413,6 +413,72 @@
 </script>
 
 <script>
+// Ctrl/Cmd+C: copy selected text from xterm instead of sending SIGINT
+(function() {
+    'use strict';
+
+    function getSelectionText() {
+        try {
+            if (window.term && typeof window.term.getSelection === 'function') {
+                return window.term.getSelection().trim();
+            }
+            const selection = window.getSelection();
+            return selection ? selection.toString().trim() : '';
+        } catch (error) {
+            console.error('[CopyOnCtrlC] Failed to read selection:', error);
+            return '';
+        }
+    }
+
+    function copyFallback(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.top = '-9999px';
+        textarea.style.left = '-9999px';
+        textarea.setAttribute('readonly', '');
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, text.length);
+        let ok = false;
+        try {
+            ok = document.execCommand('copy');
+        } catch (err) {
+            console.error('[CopyOnCtrlC] execCommand failed:', err);
+        }
+        document.body.removeChild(textarea);
+        return ok;
+    }
+
+    document.addEventListener('keydown', async function(e) {
+        const key = (e.key || '').toLowerCase();
+        const isCopy = key == 'c' && (e.ctrlKey || e.metaKey);
+        if (!isCopy) return;
+
+        const text = getSelectionText();
+        if (!text) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                console.log('[CopyOnCtrlC] Copied selection to clipboard');
+                return;
+            }
+        } catch (err) {
+            console.warn('[CopyOnCtrlC] Clipboard API failed, using fallback:', err);
+        }
+
+        if (!copyFallback(text)) {
+            console.error('[CopyOnCtrlC] Failed to copy selection');
+        }
+    }, true);
+})();
+</script>
+
+<script>
 // Context menu support for file paths in terminal
 (function() {
     console.log('[ContextMenu] Initializing context menu support...');
