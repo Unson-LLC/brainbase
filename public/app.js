@@ -1848,6 +1848,9 @@ export class App {
         // 2. Initialize views
         this.initViews();
 
+        // 2.5. Update app version display
+        await this.updateAppVersionDisplay();
+
         // 3. Initialize modals
         this.initModals();
 
@@ -1911,6 +1914,29 @@ export class App {
             await fetch('/api/active-port', { cache: 'no-store' });
         } catch (error) {
             console.warn('Failed to register active port:', error);
+        }
+    }
+
+    /**
+     * Update app version display from server
+     */
+    async updateAppVersionDisplay() {
+        const versionElements = [
+            document.getElementById('app-version'),
+            document.getElementById('mobile-app-version')
+        ].filter(Boolean);
+
+        if (versionElements.length === 0) return;
+
+        try {
+            const { version } = await httpClient.get('/api/version');
+            if (!version) return;
+
+            versionElements.forEach((element) => {
+                element.textContent = version;
+            });
+        } catch (error) {
+            console.warn('Failed to load app version:', error?.message || error);
         }
     }
 
