@@ -39,7 +39,25 @@ jobs:
             HEAD_SHA=${{ github.sha }}
           fi
 
+          # Fallback for first push on new branches (github.event.before can be all zeros)
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            if git show-ref --verify --quiet refs/remotes/origin/main; then
+              BASE_SHA=$(git merge-base origin/main "$HEAD_SHA")
+            else
+              BASE_SHA=$(git rev-parse "$HEAD_SHA^" 2>/dev/null || true)
+            fi
+          fi
+
+          if [ -z "$BASE_SHA" ]; then
+            echo "⏭️ No valid BASE_SHA; skipping TDD check"
+            exit 0
+          fi
+
           commits=$(git rev-list ${BASE_SHA}..${HEAD_SHA})
+          if [ -z "$commits" ]; then
+            echo "⏭️ No commits to check"
+            exit 0
+          fi
 
           # Track violations
           violations=0
