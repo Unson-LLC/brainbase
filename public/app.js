@@ -1848,6 +1848,9 @@ export class App {
         // 2. Initialize views
         this.initViews();
 
+        // 2.5. Update app version display
+        await this.updateAppVersionDisplay();
+
         // 3. Initialize modals
         this.initModals();
 
