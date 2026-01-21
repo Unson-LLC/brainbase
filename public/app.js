@@ -1335,6 +1335,8 @@ export class App {
             await openSettings();
         });
         mobileAddSessionBtn?.addEventListener('click', () => {
+            // Close sheet so the modal is immediately visible
+            closeSessionsSheet();
             eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
         });
         // Desktop New Session button
