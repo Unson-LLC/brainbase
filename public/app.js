@@ -1863,6 +1863,9 @@ export class App {
         // 4.5. Register active port for hook routing
         await this.registerActivePort();
 
+        // 4.6. Update app version display (include runtime info)
+        await this.updateAppVersionDisplay();
+
         // 5. Load initial data
         await this.loadInitialData();
 
@@ -1911,6 +1914,44 @@ export class App {
             await fetch('/api/active-port', { cache: 'no-store' });
         } catch (error) {
             console.warn('Failed to register active port:', error);
+        }
+    }
+
+    /**
+     * Update app version display from server
+     */
+    async updateAppVersionDisplay() {
+        const versionElements = [
+            document.getElementById('app-version'),
+            document.getElementById('mobile-app-version')
+        ].filter(Boolean);
+
+        if (versionElements.length === 0) return;
+
+        try {
+            const { version, runtime } = await httpClient.get('/api/version');
+            if (!version) return;
+
+            const gitSha = runtime?.git?.sha ? String(runtime.git.sha) : null;
+            const branch = runtime?.git?.branch ? String(runtime.git.branch) : null;
+            const cwd = runtime?.cwd ? String(runtime.cwd) : null;
+            const pid = Number.isFinite(runtime?.pid) ? String(runtime.pid) : null;
+
+            const display = gitSha ? `${version} (${gitSha})` : version;
+            const details = [
+                branch ? `branch: ${branch}` : null,
+                cwd ? `cwd: ${cwd}` : null,
+                pid ? `pid: ${pid}` : null
+            ].filter(Boolean).join(' | ');
+
+            versionElements.forEach((element) => {
+                element.textContent = display;
+                if (details) {
+                    element.title = details;
+                }
+            });
+        } catch (error) {
+            console.warn('Failed to load app version:', error?.message || error);
         }
     }
 
