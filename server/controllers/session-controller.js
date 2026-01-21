@@ -274,6 +274,23 @@ export class SessionController {
         }
     };
 
+    /**
+     * POST /api/sessions/:id/scroll
+     * tmux copy-mode scroll
+     */
+    scroll = async (req, res) => {
+        const { id } = req.params;
+        const { direction, steps } = req.body;
+
+        try {
+            await this.sessionManager.scrollSession(id, direction, steps);
+            res.json({ success: true });
+        } catch (err) {
+            console.error(`Failed to scroll ${id}:`, err.message);
+            res.status(500).json({ error: err.message || 'Failed to scroll' });
+        }
+    };
+
     // ========================================
     // Worktree Operations
     // ========================================

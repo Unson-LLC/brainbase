@@ -343,6 +343,45 @@ function setupKeyHandling() {
             }
         }
 
+        if (event.data && event.data.type === 'CMD_BACKSPACE') {
+            const currentSessionId = getSessionId?.();
+            if (currentSessionId) {
+                console.log('Received CMD_BACKSPACE from iframe, sending C-u to session');
+                try {
+                    await fetch(`/api/sessions/${currentSessionId}/input`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            input: 'C-u',
+                            type: 'key'
+                        })
+                    });
+                } catch (error) {
+                    console.error('Failed to send key command:', error);
+                }
+            }
+        }
+
+        if (event.data && event.data.type === 'TMUX_SCROLL') {
+            const currentSessionId = getSessionId?.();
+            if (currentSessionId) {
+                const direction = event.data.direction === 'down' ? 'down' : 'up';
+                const steps = Math.min(5, Math.max(1, Number(event.data.steps) || 1));
+                try {
+                    await fetch(`/api/sessions/${currentSessionId}/scroll`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            direction,
+                            steps
+                        })
+                    });
+                } catch (error) {
+                    console.error('Failed to send scroll command:', error);
+                }
+            }
+        }
+
         if (event.data && event.data.type === 'TURN_START') {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {

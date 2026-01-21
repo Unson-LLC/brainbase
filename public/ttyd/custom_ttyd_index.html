@@ -6,9 +6,18 @@
 // bypassing the need to access the internal terminal instance directly.
 (function() {
     console.log('Custom key handler (postMessage version) loaded');
-    
+    const isMac = navigator.platform.toUpperCase().includes('MAC');
+
     // Capture phase listener on document to intercept before xterm
     document.addEventListener('keydown', function(e) {
+        if (isMac && e.key === 'Backspace' && e.metaKey) {
+            // Command+Delete on macOS should delete the entire line
+            e.preventDefault();
+            e.stopPropagation();
+            window.parent.postMessage({ type: 'CMD_BACKSPACE' }, '*');
+            return;
+        }
+
         if (e.key === 'Enter' && e.shiftKey) {
             console.log('Shift+Enter detected, posting message to parent');
 
@@ -27,6 +36,52 @@
             window.parent.postMessage({ type: 'TURN_START' }, '*');
         }
     }, true); // Use capture phase
+})();
+</script>
+
+<script>
+// Wheel scroll support when tmux mouse is off (delegate to parent -> tmux copy-mode)
+(function() {
+    'use strict';
+
+    function isAlternateBuffer(term) {
+        try {
+            return !!(term && term.buffer && term.buffer.alternate && term.buffer.active === term.buffer.alternate);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function postScroll(direction, steps) {
+        try {
+            if (!window.parent || window.parent === window) return false;
+            window.parent.postMessage({
+                type: 'TMUX_SCROLL',
+                direction: direction,
+                steps: steps
+            }, '*');
+            return true;
+        } catch (error) {
+            console.error('[WheelScroll] Failed to post message:', error);
+        }
+        return false;
+    }
+
+    document.addEventListener('wheel', function(e) {
+        const term = window.term;
+        if (!term) return;
+
+        // Only intercept in alternate buffer (tmux full-screen), otherwise allow xterm scrollback
+        if (!isAlternateBuffer(term)) return;
+
+        // Prevent page scroll / default behavior
+        e.preventDefault();
+
+        const delta = e.deltaY || 0;
+        const steps = Math.min(3, Math.max(1, Math.round(Math.abs(delta) / 80)));
+        const direction = delta > 0 ? 'down' : 'up';
+        postScroll(direction, steps);
+    }, { passive: false });
 })();
 </script>
 

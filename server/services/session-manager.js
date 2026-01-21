@@ -41,7 +41,7 @@ export class SessionManager {
         this.outputParser = new TerminalOutputParser();
 
         // 許可されたキー
-        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'Enter', 'Escape', 'Up', 'Down', 'Tab', 'S-Tab', 'BTab'];
+        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Tab', 'S-Tab', 'BTab'];
     }
 
     /**
@@ -948,6 +948,29 @@ export class SessionManager {
         } catch (e) {
             return false;
         }
+    }
+
+    /**
+     * tmux copy-mode scroll
+     * @param {string} sessionId - セッションID
+     * @param {string} direction - 'up' | 'down'
+     * @param {number} steps - スクロール量
+     */
+    async scrollSession(sessionId, direction, steps = 1) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const dir = direction === 'down' ? 'scroll-down' : direction === 'up' ? 'scroll-up' : null;
+        if (!dir) {
+            throw new Error('Invalid scroll direction');
+        }
+
+        const count = Math.min(10, Math.max(1, Number(steps) || 1));
+        const target = sessionId.replace(/"/g, '\\"');
+        const cmd = `tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X -N ${count} ${dir}" "copy-mode -t \\"${target}\\"; send-keys -t \\"${target}\\" -X -N ${count} ${dir}"`;
+
+        await this.execPromise(cmd);
     }
 
     /**
