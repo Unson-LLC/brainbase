@@ -1239,8 +1239,13 @@ export class App {
         const mobileSessionList = document.getElementById('mobile-session-list');
         const mobileTasksContent = document.getElementById('mobile-tasks-content');
 
-        // Open Sessions bottom sheet
-        const openSessionsSheet = () => {
+        // Close Sessions bottom sheet
+        const closeSessionsSheet = () => {
+            sessionsSheetOverlay?.classList.remove('active');
+            sessionsBottomSheet?.classList.remove('active');
+        };
+
+        const renderMobileSessionList = () => {
             const sessionList = document.getElementById('session-list');
             const sessionListContent = sessionList?.innerHTML || '';
 
@@ -1274,17 +1279,30 @@ export class App {
                     console.error('Error attaching handlers:', error);
                 }
             }
+        };
+
+        // Open Sessions bottom sheet
+        const openSessionsSheet = () => {
+            renderMobileSessionList();
 
             sessionsSheetOverlay?.classList.add('active');
             sessionsBottomSheet?.classList.add('active');
             lucide.createIcons();
         };
 
-        // Close Sessions bottom sheet
-        const closeSessionsSheet = () => {
-            sessionsSheetOverlay?.classList.remove('active');
-            sessionsBottomSheet?.classList.remove('active');
+        const refreshMobileSessionListIfOpen = () => {
+            if (sessionsBottomSheet?.classList.contains('active')) {
+                requestAnimationFrame(() => {
+                    renderMobileSessionList();
+                });
+            }
         };
+
+        const unsubscribeMobileSessionView = appStore.subscribeToSelector(
+            state => state.ui?.sessionListView,
+            () => refreshMobileSessionListIfOpen()
+        );
+        this.unsubscribers.push(unsubscribeMobileSessionView);
 
         // Open Tasks bottom sheet
         const openTasksSheet = () => {

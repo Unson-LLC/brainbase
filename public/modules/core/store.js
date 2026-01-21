@@ -195,7 +195,7 @@ export const appStore = new Store({
         inboxOpen: false,
         draggedSessionId: null,
         draggedSessionProject: null,
-        sessionListView: 'project'
+        sessionListView: 'timeline'
     },
     // Auto-Claude RecoveryManager pattern
     recovery: {

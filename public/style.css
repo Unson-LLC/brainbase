@@ -3831,6 +3831,15 @@ body::after {
     /* 十分なスクロール余白を確保 */
 }
 
+#sessions-bottom-sheet .session-view-toggle {
+    padding: 4px 16px 8px;
+    justify-content: flex-end;
+}
+
+#sessions-bottom-sheet .session-view-btn {
+    padding: 6px 10px;
+}
+
 #sessions-bottom-sheet .session-group-header,
 #sessions-bottom-sheet .session-child-row {
     padding: 12px 16px;
