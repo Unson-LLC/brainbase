@@ -141,6 +141,34 @@ describe('SessionService', () => {
 
             expect(listener).toHaveBeenCalled();
         });
+
+        it('should emit SESSION_WORKTREE_FALLBACK when worktree creation fails', async () => {
+            const newSession = { name: 'New Session', project: 'project-a', useWorktree: true };
+            const listener = vi.fn();
+            const unsubscribe = eventBus.on(EVENTS.SESSION_WORKTREE_FALLBACK, listener);
+
+            httpClient.post
+                .mockResolvedValueOnce({ error: 'Not a git repo' })
+                .mockResolvedValueOnce({});
+            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            addSession.mockResolvedValue();
+
+            await sessionService.createSession(newSession);
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/create-with-worktree', expect.objectContaining({
+                sessionId: expect.any(String),
+                repoPath: expect.stringContaining('project-a')
+            }));
+            expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+                sessionId: expect.any(String),
+                cwd: expect.stringContaining('project-a'),
+                engine: 'claude'
+            }));
+            expect(listener).toHaveBeenCalled();
+            expect(listener.mock.calls[0][0].detail.reason).toBe('Not a git repo');
+
+            unsubscribe();
+        });
     });
 
     describe('updateSession', () => {

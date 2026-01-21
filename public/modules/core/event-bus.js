@@ -201,6 +201,7 @@ export const EVENTS = {
     SESSION_DELETED: 'session:deleted',
     SESSION_PAUSED: 'session:paused',
     SESSION_RESUMED: 'session:resumed',
+    SESSION_WORKTREE_FALLBACK: 'session:worktree-fallback',
     RESTART_SESSION: 'session:restart',
     STOP_SESSION: 'session:stop',
     MERGE_SESSION: 'session:merge',
