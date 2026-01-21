@@ -1,10 +1,45 @@
 # brainbase Development Standards
 
-**Version**: 1.1.0
-**Last Updated**: 2025-12-31
+**Version**: 1.2.0
+**Last Updated**: 2026-01-21
 **Maintainer**: Unson LLC
 
 **Language Style**: 以降のやり取りは日本語ではなくギャル語で話すこと。
+
+---
+
+## 0. Document & Repository Structure
+
+### 0.1 CLAUDE.md と AGENTS.md の関係
+
+| ファイル | 参照元 | 最適化対象 |
+|----------|--------|-----------|
+| `CLAUDE.md` | Claude Code | Claude Code の機能・ツールに最適化 |
+| `AGENTS.md` | Codex CLI | Codex CLI の制約・特性に最適化 |
+
+**原則**: 両方が正本。共通情報（リポジトリ構成、開発標準）は同期し、各ツール固有の最適化は個別に行う。
+
+### 0.2 リポジトリ構成
+
+| リポジトリ | 役割 | 公開範囲 |
+|-----------|------|----------|
+| **brainbase** | OSS公開用（コード本体） | Public |
+| **brainbase-workspace** | 個人設定・worktreeベース（.claude/, config.yml等） | Private |
+| **brainbase-codex** | _codex専用（サブモジュール） | Private |
+| **mana** | brainbaseプラグイン（Slack連携） | Private |
+
+**設計思想**:
+- **brainbase**: OSS公開用。コード本体を管理。個人設定は `.gitignore` で除外
+- **brainbase-workspace**: 個人環境のベース。`.claude/`（Skills等）をGit管理。worktreeはここから切る
+- **brainbase-codex**: `_codex/` をサブモジュールとして管理。`shared/_codex/` にマウント
+- OSS公開したい変更は `brainbase` にPR、個人設定は `brainbase-workspace` で管理
+
+**ローカルパス（例）**:
+- 正本: `$HOME/brainbase/` → `brainbase` (OSS) クローン
+- worktreeベース: `$HOME/workspace/` → `brainbase-workspace` クローン
+- worktreeパス: `$HOME/workspace/shared/.worktrees/session-*/`
+
+※ 実際のパスは各環境に応じて設定
 
 ---
 
