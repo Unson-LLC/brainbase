@@ -45,6 +45,57 @@ const execPromise = util.promisify(exec);
 const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
 const APP_VERSION = `v${packageJson.version}`;
 
+const isWorktree = __dirname.includes('.worktrees');
+
+async function resolveGitInfo(repoDir) {
+    const info = {
+        sha: process.env.BRAINBASE_GIT_SHA || process.env.GIT_SHA || null,
+        branch: null,
+        dirty: null,
+        error: null
+    };
+
+    try {
+        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse --short HEAD`);
+        const sha = stdout.trim();
+        if (sha) info.sha = sha;
+    } catch (error) {
+        info.error = error?.message || String(error);
+    }
+
+    try {
+        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse --abbrev-ref HEAD`);
+        const branch = stdout.trim();
+        info.branch = branch || null;
+    } catch {
+        info.branch = info.branch || null;
+    }
+
+    try {
+        const { stdout } = await execPromise(`git -C "${repoDir}" status --porcelain`);
+        info.dirty = stdout.trim().length > 0;
+    } catch {
+        info.dirty = info.dirty ?? null;
+    }
+
+    return info;
+}
+
+async function buildRuntimeInfo({ repoDir, port, defaultPort }) {
+    return {
+        cwd: process.cwd(),
+        dirname: repoDir,
+        pid: process.pid,
+        node: process.version,
+        execArgv: process.execArgv,
+        isWorktree,
+        port,
+        defaultPort,
+        git: await resolveGitInfo(repoDir),
+        startedAt: new Date().toISOString()
+    };
+}
+
 // Environment variables for directory structure
 // BRAINBASE_ROOT: Personal data location (_codex, _tasks, _schedules, config.yml)
 // BRAINBASE_VAR_DIR: Runtime data location (state.json, uploads, logs)
@@ -89,7 +140,6 @@ console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
 console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
-const isWorktree = __dirname.includes('.worktrees');
 const DEFAULT_PORT = isWorktree ? 3001 : 3000;
 const VAR_DIR = process.env.BRAINBASE_VAR_DIR || (
     isWorktree
@@ -117,6 +167,11 @@ if (TEST_MODE) {
 
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
+const RUNTIME_INFO = await buildRuntimeInfo({
+    repoDir: __dirname,
+    port: PORT,
+    defaultPort: DEFAULT_PORT
+});
 const PORT_FILE_FALLBACK = path.join(VAR_DIR, '.brainbase-port');
 const HOME_PORT_FILE = process.env.HOME
     ? path.join(process.env.HOME, '.brainbase', 'active-port')
@@ -418,7 +473,7 @@ app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
-app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR));
+app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO));
 
 // ========================================
 // All API routes are now handled by routers:

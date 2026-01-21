@@ -9,11 +9,12 @@ import fs from 'fs';
 import { logger } from '../utils/logger.js';
 
 export class MiscController {
-    constructor(appVersion, uploadMiddleware, workspaceRoot, uploadsDir) {
+    constructor(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo = null) {
         this.appVersion = appVersion;
         this.uploadMiddleware = uploadMiddleware;
         this.workspaceRoot = workspaceRoot;
         this.uploadsDir = uploadsDir;
+        this.runtimeInfo = runtimeInfo;
     }
 
     /**
@@ -21,7 +22,7 @@ export class MiscController {
      * アプリケーションバージョンを取得
      */
     getVersion = (req, res) => {
-        res.json({ version: this.appVersion });
+        res.json({ version: this.appVersion, runtime: this.runtimeInfo });
     };
 
     /**
