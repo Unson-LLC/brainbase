@@ -32,16 +32,25 @@ describe('setupSessionViewToggle', () => {
     beforeEach(() => {
         document.body.innerHTML = `
             <button class="session-view-btn" data-view="project">project</button>
-            <button class="session-view-btn" data-view="list">list</button>
+            <button class="session-view-btn" data-view="timeline">timeline</button>
         `;
     });
 
     it('初期表示時_storeの値に応じてactiveが設定される', () => {
-        const store = createStore({ ui: { sessionListView: 'list' } });
+        const store = createStore({ ui: { sessionListView: 'timeline' } });
 
         setupSessionViewToggle({ store });
 
-        expect(document.querySelector('[data-view="list"]').classList.contains('active')).toBe(true);
+        expect(document.querySelector('[data-view="timeline"]').classList.contains('active')).toBe(true);
+        expect(document.querySelector('[data-view="project"]').classList.contains('active')).toBe(false);
+    });
+
+    it('storeに値がない場合_timelineがactiveになる', () => {
+        const store = createStore({});
+
+        setupSessionViewToggle({ store });
+
+        expect(document.querySelector('[data-view="timeline"]').classList.contains('active')).toBe(true);
         expect(document.querySelector('[data-view="project"]').classList.contains('active')).toBe(false);
     });
 
@@ -50,11 +59,11 @@ describe('setupSessionViewToggle', () => {
 
         setupSessionViewToggle({ store });
 
-        document.querySelector('[data-view="list"]').click();
+        document.querySelector('[data-view="timeline"]').click();
 
-        expect(store.getState().ui.sessionListView).toBe('list');
+        expect(store.getState().ui.sessionListView).toBe('timeline');
         expect(store.setState).toHaveBeenCalled();
-        expect(document.querySelector('[data-view="list"]').classList.contains('active')).toBe(true);
+        expect(document.querySelector('[data-view="timeline"]').classList.contains('active')).toBe(true);
         expect(document.querySelector('[data-view="project"]').classList.contains('active')).toBe(false);
     });
 
@@ -63,7 +72,7 @@ describe('setupSessionViewToggle', () => {
         const cleanup = setupSessionViewToggle({ store });
 
         cleanup();
-        document.querySelector('[data-view="list"]').click();
+        document.querySelector('[data-view="timeline"]').click();
 
         expect(store.setState).not.toHaveBeenCalled();
     });

@@ -34,10 +34,10 @@ export function setupSessionViewToggle({
         handlers.push({ element: btn, handler });
     });
 
-    applyActive(store.getState().ui?.sessionListView || 'project');
+    applyActive(store.getState().ui?.sessionListView || 'timeline');
     const unsubscribe = store.subscribeToSelector(
         state => state.ui?.sessionListView,
-        ({ value }) => applyActive(value || 'project')
+        ({ value }) => applyActive(value || 'timeline')
     );
 
     return () => {

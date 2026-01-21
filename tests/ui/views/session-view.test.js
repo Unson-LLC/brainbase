@@ -42,7 +42,8 @@ describe('SessionView', () => {
         appStore.setState({
             sessions: [],
             currentSessionId: null,
-            filters: { sessionFilter: '', showArchivedSessions: false }
+            filters: { sessionFilter: '', showArchivedSessions: false },
+            ui: { sessionListView: 'timeline' }
         });
 
         vi.clearAllMocks();
@@ -85,6 +86,18 @@ describe('SessionView', () => {
             expect(sessionElements.length).toBe(2);
         });
 
+        it('should render timeline list when sessionListView is timeline', () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'project-a', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', project: 'project-b', intendedState: 'active' }
+            ];
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'timeline' } });
+
+            sessionView.render();
+
+            expect(container.querySelector('.session-timeline-list')).toBeTruthy();
+        });
+
         it('should display empty state when no sessions', () => {
             appStore.setState({ sessions: [] });
 
@@ -112,7 +125,7 @@ describe('SessionView', () => {
                 { id: 'session-2', name: 'Session 2', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-2-brainbase' },
                 { id: 'session-3', name: 'Session 3', project: 'unson', intendedState: 'active', path: '.worktrees/session-3-unson' }
             ];
-            appStore.setState({ sessions: mockSessions });
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'project' } });
 
             sessionView.render();
 
@@ -127,7 +140,7 @@ describe('SessionView', () => {
                 { id: 'session-1', name: 'Session 1', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-1-brainbase' },
                 { id: 'session-2', name: 'Session 2', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-2-brainbase' }
             ];
-            appStore.setState({ sessions: mockSessions });
+            appStore.setState({ sessions: mockSessions, ui: { sessionListView: 'project' } });
             sessionView.mount(container);
         });
 

@@ -94,7 +94,7 @@ export class SessionView {
         this.container.innerHTML = '';
 
         const { sessions, currentSessionId, ui } = appStore.getState();
-        const sessionListView = ui?.sessionListView || 'project';
+        const sessionListView = ui?.sessionListView || 'timeline';
 
         if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
