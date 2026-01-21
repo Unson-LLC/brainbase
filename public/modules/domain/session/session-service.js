@@ -177,7 +177,14 @@ export class SessionService {
 
         if (!res || res.error) {
             // Fallback to regular session
-            console.warn('Worktree creation failed, falling back to regular session');
+            const reason = res?.error || 'Worktree creation failed';
+            console.warn('Worktree creation failed, falling back to regular session:', reason);
+            await this.eventBus.emit(EVENTS.SESSION_WORKTREE_FALLBACK, {
+                sessionId,
+                project,
+                repoPath,
+                reason
+            });
             return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine);
         }
 

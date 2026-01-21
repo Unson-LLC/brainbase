@@ -758,6 +758,14 @@ export class App {
             this.openCreateSessionModal(project);
         });
 
+        // Worktree fallback: warn user when session falls back to main workspace
+        const unsubWorktreeFallback = eventBus.on(EVENTS.SESSION_WORKTREE_FALLBACK, (event) => {
+            const { project, reason } = event.detail || {};
+            const projectLabel = project ? `「${project}」` : 'このプロジェクト';
+            showInfo(`Worktree作成に失敗したため、${projectLabel}は本体フォルダで開始しました。`);
+            console.warn('[Session] Worktree fallback:', reason || 'unknown');
+        });
+
         // Rename session: open rename modal
         const unsub5 = eventBus.on(EVENTS.RENAME_SESSION, (event) => {
             const { session } = event.detail;
@@ -806,7 +814,7 @@ export class App {
             }
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
