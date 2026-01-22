@@ -11,6 +11,35 @@ fi
 INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
 
+escape_initial_cmd() {
+    local input="$1"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$input" <<'PY'
+import sys
+s = sys.argv[1]
+out = []
+for b in s.encode('utf-8'):
+    if b == 10:
+        out.append('\\n')
+    elif b == 13:
+        out.append('\\r')
+    elif b == 9:
+        out.append('\\t')
+    elif b == 39:
+        out.append("\\'")
+    elif b == 92:
+        out.append('\\\\')
+    elif 32 <= b <= 126:
+        out.append(chr(b))
+    else:
+        out.append(f'\\x{b:02x}')
+print("$'" + ''.join(out) + "'")
+PY
+    else
+        printf %q "$input"
+    fi
+}
+
 # Windows/MSYS2 support: Ensure core tools are available
 if [ -d /usr/bin ]; then
     export PATH="/usr/bin:$PATH"
@@ -133,22 +162,52 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" CODEX_SANDBOX_MODE "danger-full-access"
         tmux set-environment -t "$SESSION_NAME" CODEX_NETWORK_ACCESS "enabled"
         tmux set-environment -t "$SESSION_NAME" CODEX_APPROVAL_POLICY "never"
+        # Ensure UTF-8 locale inside tmux session (fix mojibake)
+        tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
+        LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
 
         # Launch Codex with initial command as CLI argument (passed as prompt)
         if [ -n "$INITIAL_CMD" ]; then
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"$CODEX_WRAPPER\" $CODEX_NOTIFY_ARG \"$INITIAL_CMD\"" C-m
+            INITIAL_CMD_ESCAPED=$(escape_initial_cmd "$INITIAL_CMD")
+            printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s %s" \
+                "$LOCALE_EXPORT" \
+                "$SESSION_NAME" \
+                "$CODEX_WRAPPER" \
+                "$CODEX_NOTIFY_ARG" \
+                "$INITIAL_CMD_ESCAPED"
+            tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
         else
-            tmux send-keys -t "$SESSION_NAME" "export BRAINBASE_SESSION_ID='$SESSION_NAME' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"$CODEX_WRAPPER\" $CODEX_NOTIFY_ARG" C-m
+            printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s" \
+                "$LOCALE_EXPORT" \
+                "$SESSION_NAME" \
+                "$CODEX_WRAPPER" \
+                "$CODEX_NOTIFY_ARG"
+            tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
         fi
     else
         # Launch Claude Code with initial command as CLI argument (passed as prompt)
         # Set PATH via tmux environment instead of inline export (prevents command truncation)
         # --dangerously-skip-permissions: skip permission prompts for trusted brainbase environment
         tmux set-environment -t "$SESSION_NAME" PATH "$PATH"
+        # Ensure UTF-8 locale inside tmux session (fix mojibake)
+        tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
+        LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
         if [ -n "$INITIAL_CMD" ]; then
-            tmux send-keys -t "$SESSION_NAME" "\"$CLAUDE_BIN\" --dangerously-skip-permissions \"$INITIAL_CMD\"" C-m
+            INITIAL_CMD_ESCAPED=$(escape_initial_cmd "$INITIAL_CMD")
+            printf -v CLAUDE_CMD "%s && \"%s\" --dangerously-skip-permissions %s" \
+                "$LOCALE_EXPORT" \
+                "$CLAUDE_BIN" \
+                "$INITIAL_CMD_ESCAPED"
+            tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         else
-            tmux send-keys -t "$SESSION_NAME" "\"$CLAUDE_BIN\" --dangerously-skip-permissions" C-m
+            printf -v CLAUDE_CMD "%s && \"%s\" --dangerously-skip-permissions" \
+                "$LOCALE_EXPORT" \
+                "$CLAUDE_BIN"
+            tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         fi
     fi
 fi
