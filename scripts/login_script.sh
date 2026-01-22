@@ -198,14 +198,16 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
         if [ -n "$INITIAL_CMD" ]; then
             INITIAL_CMD_ESCAPED=$(escape_initial_cmd "$INITIAL_CMD")
-            printf -v CLAUDE_CMD "%s && \"%s\" --dangerously-skip-permissions %s" \
+            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions %s" \
                 "$LOCALE_EXPORT" \
+                "$SESSION_NAME" \
                 "$CLAUDE_BIN" \
                 "$INITIAL_CMD_ESCAPED"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         else
-            printf -v CLAUDE_CMD "%s && \"%s\" --dangerously-skip-permissions" \
+            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions" \
                 "$LOCALE_EXPORT" \
+                "$SESSION_NAME" \
                 "$CLAUDE_BIN"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         fi
