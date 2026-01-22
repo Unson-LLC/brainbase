@@ -74,8 +74,10 @@
         // Only intercept in alternate buffer (tmux full-screen), otherwise allow xterm scrollback
         if (!isAlternateBuffer(term)) return;
 
-        // Prevent page scroll / default behavior
+        // Prevent page scroll / default behavior and block xterm wheel handling
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
 
         const delta = e.deltaY || 0;
         const steps = Math.min(3, Math.max(1, Math.round(Math.abs(delta) / 80)));
