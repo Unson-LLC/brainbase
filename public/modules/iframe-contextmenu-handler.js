@@ -10,6 +10,17 @@ import {
 } from './iframe-contextmenu-utils.js';
 
 import { openFile, openInCursor } from './file-opener.js';
+import { appStore } from './core/store.js';
+
+/**
+ * 現在のセッションのcwd（worktreeパス）を取得
+ * @returns {string|null}
+ */
+function getCurrentSessionCwd() {
+    const { sessions, currentSessionId } = appStore.getState();
+    const session = sessions.find(s => s.id === currentSessionId);
+    return session?.path || null;
+}
 
 let currentSelectedText = '';
 
@@ -68,10 +79,12 @@ function createContextMenu() {
             const fileInfo = extractFilePathFromSelection(currentSelectedText);
             if (fileInfo) {
                 try {
+                    const cwd = getCurrentSessionCwd();
+                    const options = cwd ? { cwd } : {};
                     if (item.mode === 'cursor' && fileInfo.line) {
-                        await openInCursor(fileInfo.path, fileInfo.line);
+                        await openInCursor(fileInfo.path, fileInfo.line, options);
                     } else {
-                        await openFile(fileInfo.path, item.mode);
+                        await openFile(fileInfo.path, item.mode, options);
                     }
                     showNotification(`${item.label}しました`);
                 } catch (error) {

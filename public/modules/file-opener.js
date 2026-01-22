@@ -21,14 +21,19 @@ const FILE_PATH_PATTERNS = [
  * ファイルを開く
  * @param {string} path - ファイルパス
  * @param {string} mode - 開き方 ('file' | 'reveal' | 'cursor')
+ * @param {Object} options - オプション
+ * @param {string} options.cwd - 相対パス解決のベースディレクトリ
  * @returns {Promise<Object>} APIレスポンス
  */
-export async function openFile(path, mode = 'file') {
+export async function openFile(path, mode = 'file', options = {}) {
     try {
+        const body = { path, mode };
+        if (options.cwd) body.cwd = options.cwd;
+
         const response = await fetch('/api/open-file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path, mode })
+            body: JSON.stringify(body)
         });
 
         const result = await response.json();
@@ -57,14 +62,19 @@ export async function revealInFinder(path) {
  * Cursorエディタでファイルを開く
  * @param {string} path - ファイルパス
  * @param {number} line - 行番号（オプション）
+ * @param {Object} options - オプション
+ * @param {string} options.cwd - 相対パス解決のベースディレクトリ
  * @returns {Promise<Object>} APIレスポンス
  */
-export async function openInCursor(path, line) {
+export async function openInCursor(path, line, options = {}) {
     try {
+        const body = { path, mode: 'cursor', line };
+        if (options.cwd) body.cwd = options.cwd;
+
         const response = await fetch('/api/open-file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path, mode: 'cursor', line })
+            body: JSON.stringify(body)
         });
 
         const result = await response.json();

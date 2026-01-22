@@ -64,7 +64,7 @@ export class MiscController {
      */
     openFile = async (req, res) => {
         try {
-            const { filePath, path: pathParam, line, mode = 'cursor' } = req.body;
+            const { filePath, path: pathParam, line, mode = 'cursor', cwd } = req.body;
             const targetPath = pathParam || filePath;
 
             logger.debug('openFile request', { mode, line, hasPath: !!targetPath });
@@ -88,10 +88,22 @@ export class MiscController {
                 expandedPath = path.join(os.homedir(), targetPath.slice(2));
             }
 
-            // Resolve relative paths from workspace root
+            // cwdのセキュリティチェック: ホームディレクトリ配下であることを確認
+            let resolveBase = this.workspaceRoot;
+            if (cwd) {
+                const resolvedCwd = path.resolve(cwd);
+                const homeDir = os.homedir();
+                if (resolvedCwd.startsWith(homeDir + '/')) {
+                    resolveBase = resolvedCwd;
+                } else {
+                    logger.warn('Invalid cwd: outside home directory', { cwd: resolvedCwd, homeDir });
+                }
+            }
+
+            // Resolve relative paths from cwd or workspace root
             let absolutePath = path.isAbsolute(expandedPath)
                 ? expandedPath
-                : path.join(this.workspaceRoot, expandedPath);
+                : path.join(resolveBase, expandedPath);
 
             // パスを正規化
             let normalizedPath = path.resolve(absolutePath);
