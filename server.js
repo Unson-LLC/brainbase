@@ -397,16 +397,12 @@ const ttydProxy = createProxyMiddleware({
         const originalUrl = req.originalUrl || url;
         const activeSessions = sessionManager.getActiveSessions();
 
-        console.error(`[Proxy] url=${url}, originalUrl=${originalUrl}, activeSessions=${Array.from(activeSessions.keys()).join(',')}`);
-
         // 1. Try full path match: /console/SESSION_ID/...
         let match = originalUrl.match(/^\/console\/([^/]+)/);
         if (match) {
             const sessionId = match[1];
             if (activeSessions.has(sessionId)) {
-                const target = `http://localhost:${activeSessions.get(sessionId).port}`;
-                console.error(`[Proxy] Routing ${sessionId} to ${target}`);
-                return target;
+                return `http://localhost:${activeSessions.get(sessionId).port}`;
             }
         }
 
@@ -415,9 +411,7 @@ const ttydProxy = createProxyMiddleware({
         if (match) {
             const sessionId = match[1];
             if (activeSessions.has(sessionId)) {
-                const target = `http://localhost:${activeSessions.get(sessionId).port}`;
-                console.error(`[Proxy] Routing ${sessionId} to ${target} (stripped)`);
-                return target;
+                return `http://localhost:${activeSessions.get(sessionId).port}`;
             }
         }
 
