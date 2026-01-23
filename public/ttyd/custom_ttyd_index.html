@@ -8,6 +8,104 @@
     console.log('Custom key handler (postMessage version) loaded');
     const isMac = navigator.platform.toUpperCase().includes('MAC');
 
+    const TURN_IDLE_MS = 4000;
+    let turnPending = false;
+    let turnActive = false;
+    let lastOutputAt = 0;
+    let idleTimer = null;
+    let outputHooked = false;
+
+    function post(type) {
+        try {
+            window.parent.postMessage({ type }, '*');
+        } catch (err) {
+            console.error('Failed to post message:', err);
+        }
+    }
+
+    function resetTurnState() {
+        turnPending = false;
+        turnActive = false;
+        lastOutputAt = 0;
+        if (idleTimer) {
+            clearTimeout(idleTimer);
+            idleTimer = null;
+        }
+    }
+
+    function scheduleIdleCheck() {
+        if (idleTimer) {
+            clearTimeout(idleTimer);
+        }
+        idleTimer = setTimeout(() => {
+            if (!turnActive) {
+                return;
+            }
+            const now = Date.now();
+            if (now - lastOutputAt >= TURN_IDLE_MS) {
+                post('TURN_DONE');
+                resetTurnState();
+            } else {
+                scheduleIdleCheck();
+            }
+        }, TURN_IDLE_MS);
+    }
+
+    function noteOutput() {
+        if (!turnPending && !turnActive) return;
+        turnPending = false;
+        turnActive = true;
+        lastOutputAt = Date.now();
+        scheduleIdleCheck();
+    }
+
+    function startTurn() {
+        turnPending = true;
+        turnActive = false;
+        lastOutputAt = 0;
+        if (idleTimer) {
+            clearTimeout(idleTimer);
+            idleTimer = null;
+        }
+    }
+
+
+    function attachOutputHooks(term) {
+        if (outputHooked || !term) return;
+        const handler = () => noteOutput();
+
+        let attached = false;
+        if (typeof term.onWriteParsed === 'function') {
+            term.onWriteParsed(handler);
+            attached = true;
+        }
+        if (typeof term.onLineFeed === 'function') {
+            term.onLineFeed(handler);
+            attached = true;
+        }
+        if (!attached && typeof term.onRender === 'function') {
+            term.onRender(() => {
+                if (turnPending || turnActive) {
+                    noteOutput();
+                }
+            });
+            attached = true;
+        }
+        outputHooked = attached;
+    }
+
+    function waitForTerminal(attempts = 0) {
+        if (window.term) {
+            attachOutputHooks(window.term);
+            return;
+        }
+        if (attempts < 50) {
+            setTimeout(() => waitForTerminal(attempts + 1), 100);
+        }
+    }
+
+    waitForTerminal();
+
     // Capture phase listener on document to intercept before xterm
     document.addEventListener('keydown', function(e) {
         if (isMac && e.key === 'Backspace' && e.metaKey) {
@@ -33,6 +131,7 @@
         }
 
         if (e.key === 'Enter' && !e.shiftKey) {
+            startTurn();
             window.parent.postMessage({ type: 'TURN_START' }, '*');
         }
     }, true); // Use capture phase
