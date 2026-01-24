@@ -382,6 +382,20 @@ function setupKeyHandling() {
             }
         }
 
+        if (event.data && event.data.type === 'TERMINAL_INTERACT') {
+            const currentSessionId = getSessionId?.();
+            if (currentSessionId) {
+                try {
+                    await fetch(`/api/sessions/${currentSessionId}/exit_copy_mode`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                } catch (error) {
+                    console.error('Failed to exit copy mode:', error);
+                }
+            }
+        }
+
         if (event.data && event.data.type === 'TURN_START') {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {

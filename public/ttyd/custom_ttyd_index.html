@@ -23,6 +23,17 @@
         }
     }
 
+    let lastInteractAt = 0;
+    function notifyInteract() {
+        const now = Date.now();
+        if (now - lastInteractAt < 250) return;
+        lastInteractAt = now;
+        post('TERMINAL_INTERACT');
+    }
+
+    document.addEventListener('pointerdown', notifyInteract, true);
+    document.addEventListener('touchstart', notifyInteract, { passive: true, capture: true });
+
     function resetTurnState() {
         turnPending = false;
         turnActive = false;

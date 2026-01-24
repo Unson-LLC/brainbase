@@ -35,6 +35,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore)
     // ========================================
     router.post('/:id/input', controller.sendInput);
     router.post('/:id/scroll', controller.scroll);
+    router.post('/:id/exit_copy_mode', controller.exitCopyMode);
     router.get('/:id/content', controller.getContent);
     router.get('/:id/output', controller.getOutput);
 

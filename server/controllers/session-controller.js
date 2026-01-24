@@ -291,6 +291,22 @@ export class SessionController {
         }
     };
 
+    /**
+     * POST /api/sessions/:id/exit_copy_mode
+     * tmux copy-mode exit
+     */
+    exitCopyMode = async (req, res) => {
+        const { id } = req.params;
+
+        try {
+            await this.sessionManager.exitCopyMode(id);
+            res.json({ success: true });
+        } catch (err) {
+            console.error(`Failed to exit copy mode for ${id}:`, err.message);
+            res.status(500).json({ error: err.message || 'Failed to exit copy mode' });
+        }
+    };
+
     // ========================================
     // Worktree Operations
     // ========================================

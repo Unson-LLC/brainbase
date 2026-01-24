@@ -974,6 +974,21 @@ export class SessionManager {
     }
 
     /**
+     * tmux copy-mode exit
+     * @param {string} sessionId - セッションID
+     */
+    async exitCopyMode(sessionId) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const target = sessionId.replace(/"/g, '\\"');
+        const cmd = `tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\\"${target}\\\" -X cancel" ""`;
+
+        await this.execPromise(cmd);
+    }
+
+    /**
      * ターミナルに入力を送信
      * @param {string} sessionId - セッションID
      * @param {string} input - 入力内容
