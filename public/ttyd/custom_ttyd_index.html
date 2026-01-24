@@ -194,6 +194,46 @@
         const direction = delta > 0 ? 'down' : 'up';
         postScroll(direction, steps);
     }, { passive: false });
+
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    if (isTouchDevice) {
+        let touchY = 0;
+        let touchAccum = 0;
+        const touchThreshold = 24;
+
+        document.addEventListener('touchstart', function(e) {
+            if (!e.touches || e.touches.length !== 1) return;
+            touchY = e.touches[0].clientY;
+            touchAccum = 0;
+        }, { passive: true });
+
+        document.addEventListener('touchmove', function(e) {
+            const term = window.term;
+            if (!term) return;
+            if (!e.touches || e.touches.length !== 1) return;
+
+            // Prevent xterm from interpreting scroll as history navigation
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            const currentY = e.touches[0].clientY;
+            const delta = currentY - touchY;
+            touchY = currentY;
+            touchAccum += delta;
+
+            if (Math.abs(touchAccum) < touchThreshold) return;
+
+            const steps = Math.min(3, Math.max(1, Math.round(Math.abs(touchAccum) / touchThreshold)));
+            const direction = touchAccum > 0 ? 'down' : 'up';
+            touchAccum = 0;
+            postScroll(direction, steps);
+        }, { passive: false });
+
+        document.addEventListener('touchend', function() {
+            touchAccum = 0;
+        }, { passive: true });
+    }
 })();
 </script>
 
