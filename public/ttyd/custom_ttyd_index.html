@@ -205,7 +205,7 @@
             if (!e.touches || e.touches.length !== 1) return;
             touchY = e.touches[0].clientY;
             touchAccum = 0;
-        }, { passive: true });
+        }, { passive: true, capture: true });
 
         document.addEventListener('touchmove', function(e) {
             const term = window.term;
@@ -228,11 +228,11 @@
             const direction = touchAccum > 0 ? 'down' : 'up';
             touchAccum = 0;
             postScroll(direction, steps);
-        }, { passive: false });
+        }, { passive: false, capture: true });
 
         document.addEventListener('touchend', function() {
             touchAccum = 0;
-        }, { passive: true });
+        }, { passive: true, capture: true });
     }
 })();
 </script>
