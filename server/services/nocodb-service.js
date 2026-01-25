@@ -425,11 +425,49 @@ export class NocoDBService {
             alert_level = 'warning';
         }
 
+        // 慢性的止まり検出（Story 4: 構造的な問題を見抜く）
+        const chronic_stall = this._detectChronicStall(snapshots);
+
         return {
             trend,
             health_score_change: Math.round(change),
-            alert_level
+            alert_level,
+            chronic_stall
         };
+    }
+
+    /**
+     * 慢性的止まり検出（2週以上連続で健全性<60）
+     * Story 4: 構造的な問題を見抜く
+     * @param {Array} snapshots - スナップショット一覧（降順）
+     * @returns {Object|null} 慢性的止まり情報（検出時）またはnull
+     */
+    _detectChronicStall(snapshots) {
+        // 直近14日分のデータを確認
+        const recent = snapshots.slice(0, 14);
+        if (recent.length < 14) return null;
+
+        // 2週連続で健全性<60ならchronic
+        const allBelowThreshold = recent.every(s => (s.health_score || 0) < 60);
+        if (allBelowThreshold) {
+            // 健全性<60が続いている期間を計算
+            let durationDays = 0;
+            for (const snapshot of snapshots) {
+                if ((snapshot.health_score || 0) < 60) {
+                    durationDays++;
+                } else {
+                    break;
+                }
+            }
+
+            return {
+                level: 'chronic',
+                duration_days: durationDays,
+                threshold: 60,
+                message: `${durationDays}日連続で健全性スコア<60`
+            };
+        }
+        return null;
     }
 
     /**
@@ -564,5 +602,186 @@ export class NocoDBService {
             total_success,
             total_failure
         };
+    }
+
+    // ==================== Actions API (Story 3) ====================
+
+    /**
+     * アクションを作成
+     * Story 3: 介入判断を実行に移す
+     *
+     * @param {Object} actionData - アクションデータ
+     * @param {string} actionData.project - プロジェクトID
+     * @param {number} actionData.taskId - タスクID
+     * @param {string} actionData.tableId - NocoDBテーブルID
+     * @param {string} actionData.actionType - アクション種別
+     * @param {Object} actionData.details - アクション詳細
+     * @param {string} actionData.status - ステータス
+     * @param {string} actionData.createdAt - 作成日時
+     * @returns {Promise<Object>} 作成されたアクション
+     */
+    async createAction(actionData) {
+        try {
+            // NocoDB v1 API: POST /api/v1/db/data/noco/{baseId}/{tableId}
+            // brainbase Base ID: pk0u76ctiookpf8
+            // アクション Table ID: mgek5oxrwh9ox2x
+            const baseId = 'pk0u76ctiookpf8';
+            const tableId = 'mgek5oxrwh9ox2x';
+            const url = `${this.baseUrl}/api/v1/db/data/noco/${baseId}/${tableId}`;
+
+            const response = await this._fetchWithRetry(url, {
+                method: 'POST',
+                headers: {
+                    'xc-token': this.apiToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    プロジェクト: actionData.project,
+                    タスクID: actionData.taskId,
+                    テーブルID: actionData.tableId,
+                    アクション種別: actionData.actionType,
+                    詳細: JSON.stringify(actionData.details),
+                    ステータス: actionData.status,
+                    作成日時: actionData.createdAt
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error('Failed to create action in NocoDB', {
+                    status: response.status,
+                    error: errorText
+                });
+                throw new Error(`NocoDB API failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            logger.info('Action created in NocoDB', { id: result.Id, project: actionData.project });
+
+            return {
+                id: result.Id,
+                project: actionData.project,
+                taskId: actionData.taskId,
+                tableId: actionData.tableId,
+                actionType: actionData.actionType,
+                details: actionData.details,
+                status: actionData.status,
+                createdAt: actionData.createdAt
+            };
+        } catch (error) {
+            logger.error('Failed to create action', { error });
+            throw error;
+        }
+    }
+
+    /**
+     * アクション一覧を取得
+     * Story 3: 介入判断を実行に移す
+     *
+     * @param {string|null} project - プロジェクトIDフィルタ（オプション）
+     * @param {number} limit - 取得件数
+     * @returns {Promise<Object>} { actions: [...], total: number }
+     */
+    async getActions(project = null, limit = 50) {
+        try {
+            const baseId = 'pk0u76ctiookpf8';
+            const tableId = 'mgek5oxrwh9ox2x';
+            let url = `${this.baseUrl}/api/v1/db/data/noco/${baseId}/${tableId}?limit=${limit}&sort=-作成日時`;
+
+            if (project) {
+                url += `&where=(プロジェクト,eq,${project})`;
+            }
+
+            const response = await this._fetchWithRetry(url, {
+                method: 'GET',
+                headers: {
+                    'xc-token': this.apiToken
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error('Failed to fetch actions from NocoDB', {
+                    status: response.status,
+                    error: errorText
+                });
+                return { actions: [], total: 0 };
+            }
+
+            const result = await response.json();
+            const actions = (result.list || []).map(record => ({
+                id: record.Id,
+                project: record.プロジェクト,
+                taskId: record.タスクID,
+                tableId: record.テーブルID,
+                actionType: record.アクション種別,
+                details: this._safeJsonParse(record.詳細),
+                status: record.ステータス,
+                createdAt: record.作成日時
+            }));
+
+            return {
+                actions,
+                total: result.pageInfo?.totalRows || actions.length
+            };
+        } catch (error) {
+            logger.error('Failed to fetch actions', { error });
+            return { actions: [], total: 0 };
+        }
+    }
+
+    /**
+     * アクションステータスを更新
+     * Story 3: 介入判断を実行に移す
+     *
+     * @param {number} actionId - アクションID
+     * @param {string} status - 新しいステータス
+     * @returns {Promise<void>}
+     */
+    async updateActionStatus(actionId, status) {
+        try {
+            const baseId = 'pk0u76ctiookpf8';
+            const tableId = 'mgek5oxrwh9ox2x';
+            const url = `${this.baseUrl}/api/v1/db/data/noco/${baseId}/${tableId}/${actionId}`;
+
+            const response = await this._fetchWithRetry(url, {
+                method: 'PATCH',
+                headers: {
+                    'xc-token': this.apiToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ステータス: status
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error('Failed to update action status in NocoDB', {
+                    status: response.status,
+                    error: errorText
+                });
+                throw new Error(`NocoDB API failed: ${response.status}`);
+            }
+
+            logger.info('Action status updated in NocoDB', { actionId, status });
+        } catch (error) {
+            logger.error('Failed to update action status', { error });
+            throw error;
+        }
+    }
+
+    /**
+     * JSONを安全にパース
+     * @param {string} jsonStr - JSON文字列
+     * @returns {Object} パース結果
+     */
+    _safeJsonParse(jsonStr) {
+        if (!jsonStr) return {};
+        try {
+            return JSON.parse(jsonStr);
+        } catch {
+            return {};
+        }
     }
 }

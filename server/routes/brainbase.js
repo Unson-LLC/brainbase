@@ -7,6 +7,28 @@ import { logger } from '../utils/logger.js';
 import { cacheMiddleware } from '../middleware/cache.js';
 
 /**
+ * アクション型定義
+ * Story 3: 介入判断を実行に移す
+ */
+export const ACTION_TYPES = {
+    MTG_INVITE: { id: 'mtg_invite', label: 'MTG招集', icon: '📅' },
+    REASSIGN: { id: 'reassign', label: '担当変更', icon: '👤' },
+    DEADLINE_CHANGE: { id: 'deadline_change', label: '期限変更', icon: '📆' },
+    UNBLOCK: { id: 'unblock', label: 'ブロック解除', icon: '🔓' },
+    ESCALATE: { id: 'escalate', label: 'エスカレーション', icon: '⚡' }
+};
+
+/**
+ * アクションステータス定義
+ */
+export const ACTION_STATUS = {
+    PENDING: 'pending',     // 発行済み・未実行
+    APPROVED: 'approved',   // 承認済み
+    EXECUTED: 'executed',   // 実行完了
+    FAILED: 'failed'        // 実行失敗
+};
+
+/**
  * brainbaseダッシュボードAPIルーター
  * システム全体の監視情報を提供
  */
@@ -336,6 +358,124 @@ export function createBrainbaseRouter(options = {}) {
     });
 
     /**
+     * GET /api/brainbase/trends/heatmap
+     * 全プロジェクトの8週分トレンドをヒートマップ形式で返す
+     * Story 4: 構造的な問題を見抜く
+     *
+     * @query {number} weeks - 取得週数（デフォルト: 8週）
+     *
+     * @returns {Object} ヒートマップデータ
+     *   - heatmap: 各プロジェクトの週次データ配列
+     *   - chronic_alerts: 慢性的止まりプロジェクトのアラート配列
+     */
+    // TTL: 10分（週次データなので頻繁に変わらない）
+    router.get('/trends/heatmap', cacheMiddleware(600), async (req, res) => {
+        try {
+            const weeks = parseInt(req.query.weeks) || 8;
+            const days = weeks * 7;
+
+            // 1. config.ymlからプロジェクト一覧（project_id必須）
+            const config = await configParser.getAll();
+            const projects = (config.projects?.projects || [])
+                .filter(p => !p.archived && p.nocodb?.project_id)
+                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
+
+            // 2. 各プロジェクトのトレンドを並列取得
+            const heatmapData = await Promise.all(
+                projects.map(async (project) => {
+                    try {
+                        const trends = await nocodbService.getTrends(project.project_id, days);
+                        const weeklyData = aggregateToWeekly(trends.snapshots, weeks);
+                        return {
+                            project_id: project.id,
+                            weeks: weeklyData,
+                            trend_analysis: trends.trend_analysis
+                        };
+                    } catch (error) {
+                        logger.error(`Failed to get trends for project ${project.id}`, { error });
+                        return {
+                            project_id: project.id,
+                            weeks: [],
+                            trend_analysis: {
+                                trend: 'unknown',
+                                health_score_change: 0,
+                                alert_level: 'none',
+                                chronic_stall: null
+                            }
+                        };
+                    }
+                })
+            );
+
+            // 3. 慢性的止まりプロジェクト抽出
+            const chronicAlerts = heatmapData
+                .filter(p => p.trend_analysis.chronic_stall)
+                .map(p => ({
+                    project_id: p.project_id,
+                    stall_info: p.trend_analysis.chronic_stall
+                }));
+
+            res.json({
+                heatmap: heatmapData,
+                chronic_alerts: chronicAlerts,
+                weeks_requested: weeks,
+                generated_at: new Date().toISOString()
+            });
+        } catch (error) {
+            logger.error('Failed to fetch trends heatmap', { error });
+            res.status(500).json({ error: 'Failed to fetch trends heatmap' });
+        }
+    });
+
+    /**
+     * 日次データを週次に集約
+     * @param {Array} snapshots - 日次スナップショット（降順）
+     * @param {number} numWeeks - 週数
+     * @returns {Array} 週次集約データ
+     */
+    function aggregateToWeekly(snapshots, numWeeks) {
+        const weeks = [];
+
+        for (let w = 0; w < numWeeks; w++) {
+            // 各週の開始・終了インデックス（降順なので逆順）
+            const startIdx = w * 7;
+            const endIdx = startIdx + 7;
+            const weekSnapshots = snapshots.slice(startIdx, endIdx);
+
+            if (weekSnapshots.length === 0) {
+                weeks.push({
+                    week: `W${w + 1}`,
+                    health_score: null,
+                    status: 'no_data',
+                    data_points: 0
+                });
+                continue;
+            }
+
+            // 週の平均health_scoreを計算
+            const scores = weekSnapshots.map(s => s.health_score || 0);
+            const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+
+            // ステータス判定
+            let status = 'healthy';
+            if (avgScore < 60) {
+                status = 'critical';
+            } else if (avgScore < 80) {
+                status = 'warning';
+            }
+
+            weeks.push({
+                week: `W${w + 1}`,
+                health_score: avgScore,
+                status,
+                data_points: weekSnapshots.length
+            });
+        }
+
+        return weeks;
+    }
+
+    /**
      * GET /api/brainbase/mana-workflow-stats
      * Manaワークフロー統計を取得
      * @query {string} workflow_id - ワークフローID（オプション: 指定なしで全体統計）
@@ -560,6 +700,114 @@ export function createBrainbaseRouter(options = {}) {
             return { error: 'Failed to get worktrees' };
         }
     }
+
+    // ==================== Actions API (Story 3) ====================
+
+    /**
+     * POST /api/brainbase/actions
+     * アクションを発行（NocoDBに記録）
+     * Story 3: 介入判断を実行に移す
+     */
+    router.post('/actions', async (req, res) => {
+        try {
+            const { project, taskId, tableId, actionType, details } = req.body;
+
+            // バリデーション
+            if (!project || !taskId || !tableId || !actionType) {
+                return res.status(400).json({
+                    error: 'Missing required fields',
+                    message: 'project, taskId, tableId, actionType are required'
+                });
+            }
+
+            // アクション種別の検証
+            const validTypes = Object.values(ACTION_TYPES).map(t => t.id);
+            if (!validTypes.includes(actionType)) {
+                return res.status(400).json({
+                    error: 'Invalid action type',
+                    message: `Valid types: ${validTypes.join(', ')}`
+                });
+            }
+
+            // NocoDBにアクション記録
+            const action = await nocodbService.createAction({
+                project,
+                taskId: parseInt(taskId, 10),
+                tableId,
+                actionType,
+                details: details || {},
+                status: ACTION_STATUS.PENDING,
+                createdAt: new Date().toISOString()
+            });
+
+            logger.info('Action created', { project, taskId, actionType });
+            res.json({ success: true, action });
+        } catch (error) {
+            logger.error('Failed to create action', { error });
+            res.status(500).json({ error: 'Failed to create action' });
+        }
+    });
+
+    /**
+     * GET /api/brainbase/actions
+     * 発行済みアクション一覧を取得
+     * Story 3: 介入判断を実行に移す
+     */
+    router.get('/actions', async (req, res) => {
+        try {
+            const { project } = req.query;
+            const limit = parseInt(req.query.limit) || 50;
+
+            const result = await nocodbService.getActions(project, limit);
+
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to fetch actions', { error });
+            res.status(500).json({
+                error: 'Failed to fetch actions',
+                actions: [],
+                total: 0
+            });
+        }
+    });
+
+    /**
+     * PATCH /api/brainbase/actions/:actionId/status
+     * アクションのステータスを更新
+     * Story 3: 介入判断を実行に移す
+     */
+    router.patch('/actions/:actionId/status', async (req, res) => {
+        try {
+            const { actionId } = req.params;
+            const { status } = req.body;
+
+            // ステータスの検証
+            const validStatuses = Object.values(ACTION_STATUS);
+            if (!validStatuses.includes(status)) {
+                return res.status(400).json({
+                    error: 'Invalid status',
+                    message: `Valid statuses: ${validStatuses.join(', ')}`
+                });
+            }
+
+            await nocodbService.updateActionStatus(parseInt(actionId, 10), status);
+
+            logger.info('Action status updated', { actionId, status });
+            res.json({ success: true });
+        } catch (error) {
+            logger.error('Failed to update action status', { error });
+            res.status(500).json({ error: 'Failed to update action status' });
+        }
+    });
+
+    /**
+     * GET /api/brainbase/action-types
+     * アクション種別一覧を取得
+     * Story 3: 介入判断を実行に移す
+     */
+    router.get('/action-types', (req, res) => {
+        res.json(ACTION_TYPES);
+    });
 
     return router;
 }
