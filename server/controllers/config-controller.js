@@ -22,8 +22,7 @@ export class ConfigController {
                 slack: config.slack || null,
                 github: config.github || null,
                 nocodb: config.nocodb || null,
-                airtable: config.airtable || null,  // 後方互換性
-                plugins: config.plugins || { enabled: [], disabled: [] }
+                airtable: config.airtable || null  // 後方互換性
             };
 
             res.json(sanitized);
@@ -104,20 +103,6 @@ export class ConfigController {
     };
 
     /**
-     * GET /api/config/plugins
-     * Plugin設定を取得
-     */
-    getPlugins = async (req, res) => {
-        try {
-            const plugins = await this.configParser.getPlugins();
-            res.json(plugins);
-        } catch (error) {
-            console.error('Failed to get plugins config:', error);
-            res.status(500).json({ error: 'Failed to get plugins config' });
-        }
-    };
-
-    /**
      * GET /api/config/integrity
      * 整合性チェック
      * OSS版対応: Mana拡張の統計が未定義の場合は 0 を返す
@@ -179,26 +164,59 @@ export class ConfigController {
     };
 
     /**
-     * GET /api/config/env
-     * 環境変数の存在チェック（値は返さない）
+     * GET /api/config/plugins
+     * UI Plugin設定を取得
+     * @returns {{ enabled: string[] }} - 有効なプラグインID一覧
      */
-    getEnvStatus = async (req, res) => {
+    getPlugins = async (req, res) => {
         try {
-            const keysParam = req.query.keys || '';
-            const keys = String(keysParam)
-                .split(',')
-                .map(key => key.trim())
-                .filter(Boolean);
-
-            const status = {};
-            keys.forEach(key => {
-                status[key] = Boolean(process.env[key]);
-            });
-
-            res.json({ keys: status });
+            const plugins = await this.configParser.getPlugins();
+            res.json(plugins);
         } catch (error) {
-            console.error('Failed to get env status:', error);
-            res.status(500).json({ error: 'Failed to get env status' });
+            console.error('Failed to get plugins config:', error);
+            res.status(500).json({ error: 'Failed to get plugins config' });
+        }
+    };
+
+    /**
+     * GET /api/config/organizations
+     * Organizations（法人）設定を取得
+     */
+    getOrganizations = async (req, res) => {
+        try {
+            const organizations = await this.configParser.getOrganizations();
+            res.json(organizations);
+        } catch (error) {
+            console.error('Failed to get organizations:', error);
+            res.status(500).json({ error: 'Failed to get organizations' });
+        }
+    };
+
+    /**
+     * GET /api/config/dependencies
+     * Dependencies（依存関係）設定を取得
+     */
+    getDependencies = async (req, res) => {
+        try {
+            const dependencies = await this.configParser.getDependencies();
+            res.json(dependencies);
+        } catch (error) {
+            console.error('Failed to get dependencies:', error);
+            res.status(500).json({ error: 'Failed to get dependencies' });
+        }
+    };
+
+    /**
+     * GET /api/config/notifications
+     * Notifications（通知）設定を取得
+     */
+    getNotifications = async (req, res) => {
+        try {
+            const notifications = await this.configParser.getNotifications();
+            res.json(notifications);
+        } catch (error) {
+            console.error('Failed to get notifications:', error);
+            res.status(500).json({ error: 'Failed to get notifications' });
         }
     };
 }
