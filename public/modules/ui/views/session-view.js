@@ -4,6 +4,8 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
+import { showConfirm } from '../../confirm-modal.js';
+import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
 
 /**
@@ -420,9 +422,13 @@ export class SessionView {
             deleteBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                if (confirm(`セッション "${session.name || session.id}" を削除しますか？`)) {
-                    await this.sessionService.deleteSession(session.id);
-                }
+                const displayName = session.name || session.id;
+                const confirmed = await showConfirm(
+                    `セッション「${displayName}」を削除しますか？`,
+                    { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
+                );
+                if (!confirmed) return;
+                await this.sessionService.deleteSession(session.id);
             });
         }
 
@@ -432,8 +438,71 @@ export class SessionView {
             archiveBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                const newState = session.intendedState === 'archived' ? 'active' : 'archived';
-                await this.sessionService.updateSession(session.id, { intendedState: newState });
+                const displayName = session.name || session.id;
+
+                try {
+                    if (session.intendedState === 'archived') {
+                        await this.sessionService.unarchiveSession(session.id);
+                        showSuccess(`セッション「${displayName}」を復元しました`);
+                        return;
+                    }
+
+                    if (session.worktree) {
+                        const status = await this.sessionService.getWorktreeStatus(session.id);
+                        if (status?.localMainStale) {
+                            const behindCount = status.localMainBehind || 0;
+                            const mainBranch = status.mainBranch || 'main';
+                            const confirmed = await showConfirm(
+                                `ローカル${mainBranch}が${behindCount}コミット遅れています。最新化しますか？`,
+                                { title: 'main更新', okText: '更新する', cancelText: 'スキップ', danger: false }
+                            );
+                            if (confirmed) {
+                                try {
+                                    const updateResult = await this.sessionService.updateLocalMain(session.id);
+                                    if (updateResult?.success && updateResult.updated !== false) {
+                                        showSuccess(`ローカル${mainBranch}を更新しました`);
+                                    } else if (updateResult?.success) {
+                                        showInfo(`ローカル${mainBranch}は最新です`);
+                                    } else {
+                                        showError(updateResult?.error || 'ローカルmainの更新に失敗しました');
+                                    }
+                                } catch (err) {
+                                    console.error('Failed to update local main:', err);
+                                    showError('ローカルmainの更新に失敗しました');
+                                }
+                            }
+                        }
+                    }
+
+                    const result = await this.sessionService.archiveSession(session.id);
+                    if (result?.needsConfirmation) {
+                        const status = result.status || {};
+                        const details = [];
+                        if (status.commitsAhead > 0) {
+                            details.push(`mainより${status.commitsAhead}コミット進んでいます`);
+                        }
+                        if (status.hasUncommittedChanges) {
+                            details.push('未コミット変更があります');
+                        }
+                        const detailText = details.length ? `\n\n${details.join(' / ')}` : '';
+                        const confirmed = await showConfirm(
+                            `未マージの変更があります。マージチェックをスキップしてアーカイブしますか？${detailText}`,
+                            { title: 'アーカイブ確認', okText: 'スキップしてアーカイブ', cancelText: 'キャンセル', danger: true }
+                        );
+                        if (!confirmed) {
+                            showInfo('アーカイブをキャンセルしました');
+                            return;
+                        }
+                        await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
+                        showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                        return;
+                    }
+
+                    showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                } catch (error) {
+                    console.error('Failed to archive session:', error);
+                    showError('アーカイブに失敗しました');
+                }
             });
         }
 
