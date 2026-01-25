@@ -44,6 +44,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore)
     // ========================================
     router.post('/create-with-worktree', controller.createWithWorktree);
     router.get('/:id/worktree-status', controller.getWorktreeStatus);
+    router.post('/:id/update-local-main', controller.updateLocalMain);
     router.post('/:id/merge', controller.merge);
     router.delete('/:id/worktree', controller.deleteWorktree);
 

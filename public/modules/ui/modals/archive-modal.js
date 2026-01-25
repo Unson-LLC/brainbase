@@ -1,4 +1,5 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { showConfirm } from '../../confirm-modal.js';
 import { getProjectFromPath } from '../../project-mapping.js';
 import { escapeHtml } from '../../ui-helpers.js';
 
@@ -238,10 +239,14 @@ export class ArchiveModal {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const sessionId = btn.dataset.id;
-                if (sessionId && confirm('このセッションを完全に削除しますか？')) {
-                    await this.sessionService.deleteSession(sessionId);
-                    this._renderList();
-                }
+                if (!sessionId) return;
+                const confirmed = await showConfirm(
+                    'このセッションを完全に削除しますか？',
+                    { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
+                );
+                if (!confirmed) return;
+                await this.sessionService.deleteSession(sessionId);
+                this._renderList();
             });
         });
     }

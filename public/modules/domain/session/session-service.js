@@ -340,6 +340,29 @@ export class SessionService {
     }
 
     /**
+     * Worktree状態取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object|null>}
+     */
+    async getWorktreeStatus(sessionId) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/worktree-status`);
+        } catch (error) {
+            console.error('Failed to get worktree status:', error);
+            return null;
+        }
+    }
+
+    /**
+     * ローカルmainブランチ更新
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object>}
+     */
+    async updateLocalMain(sessionId) {
+        return await this.httpClient.post(`/api/sessions/${sessionId}/update-local-main`, {});
+    }
+
+    /**
      * セッションをアーカイブ（worktreeマージチェック付き）
      * @param {string} sessionId - アーカイブするセッションのID
      * @param {Object} options - オプション

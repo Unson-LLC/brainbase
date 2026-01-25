@@ -134,15 +134,12 @@ export class WorktreeService {
             await fs.access(worktreePath);
 
             // Get main branch name
-            const { stdout: mainBranch } = await this.execPromise(
-                `git -C "${repoPath}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"`
-            );
-            const mainBranchName = mainBranch.trim() || 'main';
+            const mainBranchName = await this._getMainBranchName(repoPath);
 
             // Check if branch has commits ahead of main (use repoPath's main, not worktree's)
             // This ensures we compare against the canonical main branch, not a stale worktree reference
             const { stdout: mainCommit } = await this.execPromise(
-                `git -C "${repoPath}" rev-parse ${mainBranchName} 2>/dev/null || echo ""`
+                `git -C "${repoPath}" rev-parse origin/${mainBranchName} 2>/dev/null || echo ""`
             );
             const { stdout: headCommit } = await this.execPromise(
                 `git -C "${worktreePath}" rev-parse HEAD 2>/dev/null || echo ""`
@@ -176,11 +173,38 @@ export class WorktreeService {
             );
             const hasUncommittedChanges = statusOutput.trim().length > 0;
 
+            // Check if local main is behind origin/main
+            let localMainCommit = '';
+            let originMainCommit = mainCommit.trim();
+            let localMainAhead = 0;
+            let localMainBehind = 0;
+            try {
+                const localRes = await this.execPromise(
+                    `git -C "${repoPath}" rev-parse ${mainBranchName} 2>/dev/null || echo ""`
+                );
+                localMainCommit = localRes.stdout.trim();
+                if (localMainCommit && originMainCommit) {
+                    const { stdout: countOutput } = await this.execPromise(
+                        `git -C "${repoPath}" rev-list --left-right --count ${mainBranchName}...origin/${mainBranchName} 2>/dev/null || echo "0 0"`
+                    );
+                    const [aheadStr, behindStr] = countOutput.trim().split(/\s+/);
+                    localMainAhead = parseInt(aheadStr, 10) || 0;
+                    localMainBehind = parseInt(behindStr, 10) || 0;
+                }
+            } catch (err) {
+                // ignore local main status errors
+            }
+
             return {
                 exists: true,
                 worktreePath,
                 branchName,
                 mainBranch: mainBranchName,
+                localMainCommit,
+                originMainCommit,
+                localMainAhead,
+                localMainBehind,
+                localMainStale: localMainBehind > 0,
                 commitsAhead: ahead || 0,
                 commitsBehind: behind || 0,
                 hasUncommittedChanges,
@@ -194,6 +218,112 @@ export class WorktreeService {
                 needsMerge: false
             };
         }
+    }
+
+    /**
+     * ローカルmainブランチを更新（origin/mainにfast-forward）
+     * @param {string} repoPath - リポジトリパス
+     * @returns {Promise<{success: boolean, updated?: boolean, error?: string, mainBranch?: string, localMainCommit?: string, originMainCommit?: string}>}
+     */
+    async updateLocalMain(repoPath) {
+        const mainBranchName = await this._getMainBranchName(repoPath);
+
+        try {
+            await this.execPromise(`git -C "${repoPath}" fetch origin ${mainBranchName}`);
+        } catch (err) {
+            return { success: false, error: `fetch失敗: ${err.message}` };
+        }
+
+        let localMainCommit = '';
+        let originMainCommit = '';
+        try {
+            const localRes = await this.execPromise(
+                `git -C "${repoPath}" rev-parse ${mainBranchName} 2>/dev/null || echo ""`
+            );
+            localMainCommit = localRes.stdout.trim();
+            const originRes = await this.execPromise(
+                `git -C "${repoPath}" rev-parse origin/${mainBranchName} 2>/dev/null || echo ""`
+            );
+            originMainCommit = originRes.stdout.trim();
+        } catch (err) {
+            return { success: false, error: `commit取得失敗: ${err.message}` };
+        }
+
+        // If local main has unique commits, don't auto-update
+        try {
+            const { stdout: countOutput } = await this.execPromise(
+                `git -C "${repoPath}" rev-list --left-right --count ${mainBranchName}...origin/${mainBranchName} 2>/dev/null || echo "0 0"`
+            );
+            const [aheadStr, behindStr] = countOutput.trim().split(/\s+/);
+            const localMainAhead = parseInt(aheadStr, 10) || 0;
+            const localMainBehind = parseInt(behindStr, 10) || 0;
+            if (localMainAhead > 0) {
+                return {
+                    success: false,
+                    error: `${mainBranchName}に独自コミットがあるため自動更新できません`
+                };
+            }
+            if (localMainBehind === 0) {
+                return { success: true, updated: false, mainBranch: mainBranchName, localMainCommit, originMainCommit };
+            }
+        } catch (err) {
+            return { success: false, error: `差分確認失敗: ${err.message}` };
+        }
+
+        // Ensure clean working tree
+        try {
+            const { stdout: statusOutput } = await this.execPromise(
+                `git -C "${repoPath}" status --porcelain`
+            );
+            if (statusOutput.trim().length > 0) {
+                return { success: false, error: `${mainBranchName}に未コミット変更があります` };
+            }
+        } catch (err) {
+            return { success: false, error: `status確認失敗: ${err.message}` };
+        }
+
+        // Ensure main branch is checked out
+        try {
+            const { stdout: currentBranch } = await this.execPromise(
+                `git -C "${repoPath}" rev-parse --abbrev-ref HEAD`
+            );
+            if (currentBranch.trim() !== mainBranchName) {
+                return {
+                    success: false,
+                    error: `${mainBranchName}がcheckoutされていないため自動更新できません`
+                };
+            }
+        } catch (err) {
+            return { success: false, error: `ブランチ確認失敗: ${err.message}` };
+        }
+
+        try {
+            await this.execPromise(`git -C "${repoPath}" merge --ff-only origin/${mainBranchName}`);
+            const { stdout: updatedCommit } = await this.execPromise(
+                `git -C "${repoPath}" rev-parse ${mainBranchName}`
+            );
+            return {
+                success: true,
+                updated: true,
+                mainBranch: mainBranchName,
+                localMainCommit: updatedCommit.trim(),
+                originMainCommit
+            };
+        } catch (err) {
+            return { success: false, error: `更新失敗: ${err.message}` };
+        }
+    }
+
+    /**
+     * mainブランチ名を取得
+     * @param {string} repoPath - リポジトリパス
+     * @returns {Promise<string>}
+     */
+    async _getMainBranchName(repoPath) {
+        const { stdout: mainBranch } = await this.execPromise(
+            `git -C "${repoPath}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"`
+        );
+        return mainBranch.trim() || 'main';
     }
 
     /**

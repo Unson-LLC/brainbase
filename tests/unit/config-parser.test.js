@@ -108,11 +108,6 @@ projects:
       // Mock all file reads
       const mockConfig = `
 root: /path/to/workspace
-plugins:
-  enabled:
-    - bb-dashboard
-  disabled:
-    - public-core
 projects:
   - id: zeims
     airtable:
@@ -136,41 +131,6 @@ projects:
       expect(result).toHaveProperty('airtable');
       expect(result.airtable).toHaveLength(1);
       expect(result.airtable[0].project_id).toBe('zeims');
-      expect(result).toHaveProperty('plugins');
-      expect(result.plugins.enabled).toContain('bb-dashboard');
-    });
-  });
-
-  describe('getPlugins', () => {
-    it('should return plugins config from config.yml', async () => {
-      const mockConfig = `
-root: /path/to/workspace
-plugins:
-  enabled:
-    - bb-dashboard
-    - bb-tasks
-  disabled:
-    - public-core
-`;
-      fs.readFile.mockResolvedValue(mockConfig);
-
-      const result = await parser.getPlugins();
-
-      expect(result.enabled).toEqual(['bb-dashboard', 'bb-tasks']);
-      expect(result.disabled).toEqual(['public-core']);
-    });
-
-    it('should return empty lists when plugins are missing', async () => {
-      const mockConfig = `
-root: /path/to/workspace
-projects: []
-`;
-      fs.readFile.mockResolvedValue(mockConfig);
-
-      const result = await parser.getPlugins();
-
-      expect(result.enabled).toEqual([]);
-      expect(result.disabled).toEqual([]);
     });
   });
 
@@ -418,6 +378,159 @@ projects:
       const result = await parser.checkIntegrity();
 
       expect(result.stats.nocodb).toBe(2);
+    });
+  });
+
+  describe('getOrganizations', () => {
+    it('config.ymlのorganizations設定_法人一覧が返される', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+
+organizations:
+  - id: unson
+    name: UNSON LLC
+    ceo: ksato
+    projects: [brainbase, salestailor, mana]
+
+  - id: tech-knight
+    name: Tech Knight Inc.
+    ceo: yamada
+    projects: [tech-knight]
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getOrganizations();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        id: 'unson',
+        name: 'UNSON LLC',
+        ceo: 'ksato',
+        projects: ['brainbase', 'salestailor', 'mana']
+      });
+      expect(result[1]).toEqual({
+        id: 'tech-knight',
+        name: 'Tech Knight Inc.',
+        ceo: 'yamada',
+        projects: ['tech-knight']
+      });
+    });
+
+    it('organizations設定が存在しない_空配列が返される', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+projects: []
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getOrganizations();
+
+      expect(result).toEqual([]);
+    });
+
+    it('ファイル読み込みエラー_空配列が返される', async () => {
+      fs.readFile.mockRejectedValue(new Error('File not found'));
+
+      const result = await parser.getOrganizations();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getDependencies', () => {
+    it('config.ymlのdependencies設定_依存関係マッピングが返される', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+
+dependencies:
+  brainbase:
+    depends_on: []
+  mana:
+    depends_on: [brainbase]
+  salestailor:
+    depends_on: [brainbase, mana]
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getDependencies();
+
+      expect(result).toEqual({
+        brainbase: { depends_on: [] },
+        mana: { depends_on: ['brainbase'] },
+        salestailor: { depends_on: ['brainbase', 'mana'] }
+      });
+    });
+
+    it('dependencies設定が存在しない_空オブジェクトが返される', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+projects: []
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getDependencies();
+
+      expect(result).toEqual({});
+    });
+
+    it('ファイル読み込みエラー_空オブジェクトが返される', async () => {
+      fs.readFile.mockRejectedValue(new Error('File not found'));
+
+      const result = await parser.getDependencies();
+
+      expect(result).toEqual({});
+    });
+  });
+
+  describe('getNotifications', () => {
+    it('config.ymlのnotifications設定_通知設定が返される', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+
+notifications:
+  channels:
+    slack: true
+    web: true
+    email: false
+  dnd:
+    enabled: true
+    start: 22
+    end: 9
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getNotifications();
+
+      expect(result).toEqual({
+        channels: { slack: true, web: true, email: false },
+        dnd: { enabled: true, start: 22, end: 9 }
+      });
+    });
+
+    it('notifications設定が存在しない_デフォルト値が返される', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+projects: []
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getNotifications();
+
+      expect(result).toEqual({
+        channels: { slack: true, web: true, email: false },
+        dnd: { enabled: false, start: 22, end: 9 }
+      });
+    });
+
+    it('ファイル読み込みエラー_デフォルト値が返される', async () => {
+      fs.readFile.mockRejectedValue(new Error('File not found'));
+
+      const result = await parser.getNotifications();
+
+      expect(result).toEqual({
+        channels: { slack: true, web: true, email: false },
+        dnd: { enabled: false, start: 22, end: 9 }
+      });
     });
   });
 });

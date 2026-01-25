@@ -231,6 +231,9 @@ export class SettingsUI {
     const iconMap = {
       'overview': 'layout-grid',
       'projects': 'folder-git-2',
+      'organizations': 'building-2',
+      'integrations': 'plug-zap',
+      'notifications': 'bell',
       'slack': 'hash',
       'github': 'github',
       'nocodb': 'table-2',

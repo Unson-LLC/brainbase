@@ -55,9 +55,10 @@ export class SettingsCore {
       order: 0,
       lifecycle: {
         load: async () => {
-          const [integrity, unified] = await Promise.all([
+          const [integrity, unified, health] = await Promise.all([
             this.apiClient.getIntegrity(),
-            this.apiClient.getUnified()
+            this.apiClient.getUnified(),
+            this.apiClient.getHealth().catch(() => null) // ヘルスチェック失敗時もUIは表示
           ]);
 
           // Mana統計を取得（Mana拡張がロードされている場合）
@@ -79,12 +80,13 @@ export class SettingsCore {
           appStore.setState({
             settingsIntegrity: integrity,
             settingsUnified: unified,
-            settingsManaStats: manaStats
+            settingsManaStats: manaStats,
+            settingsHealth: health
           });
         },
         render: async (container) => {
-          const { settingsIntegrity, settingsUnified, settingsManaStats } = appStore.getState();
-          container.innerHTML = this._renderOverviewHTML(settingsIntegrity, settingsUnified, settingsManaStats);
+          const { settingsIntegrity, settingsUnified, settingsManaStats, settingsHealth } = appStore.getState();
+          container.innerHTML = this._renderOverviewHTML(settingsIntegrity, settingsUnified, settingsManaStats, settingsHealth);
 
           // Lucide icons再初期化
           if (typeof lucide !== 'undefined') {
@@ -107,6 +109,89 @@ export class SettingsCore {
         render: async (container) => {
           const projects = appStore.getState().settingsProjects;
           container.innerHTML = this._renderProjectsHTML(projects);
+        }
+      }
+    });
+
+    // Organizations Panel登録
+    this.pluginRegistry.register({
+      id: 'organizations',
+      displayName: 'Organizations',
+      order: 5,
+      lifecycle: {
+        load: async () => {
+          const [organizations, dependencies] = await Promise.all([
+            this.apiClient.getOrganizations(),
+            this.apiClient.getDependencies()
+          ]);
+          appStore.setState({
+            settingsOrganizations: organizations,
+            settingsDependencies: dependencies
+          });
+        },
+        render: async (container) => {
+          const { settingsOrganizations, settingsDependencies } = appStore.getState();
+          container.innerHTML = this._renderOrganizationsHTML(settingsOrganizations, settingsDependencies);
+
+          // Lucide icons再初期化
+          if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+          }
+        }
+      }
+    });
+
+    // Integrations Panel登録
+    this.pluginRegistry.register({
+      id: 'integrations',
+      displayName: 'Integrations',
+      order: 20,
+      lifecycle: {
+        load: async () => {
+          // 同期ステータスはConfigとHealthから取得
+          const [config, health] = await Promise.all([
+            this.apiClient.getConfig(),
+            this.apiClient.getHealth().catch(() => null)
+          ]);
+          appStore.setState({
+            settingsIntegrations: {
+              slack: config.slack,
+              github: config.github,
+              nocodb: config.nocodb,
+              health: health
+            }
+          });
+        },
+        render: async (container) => {
+          const integrations = appStore.getState().settingsIntegrations;
+          container.innerHTML = this._renderIntegrationsHTML(integrations);
+
+          // Lucide icons再初期化
+          if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+          }
+        }
+      }
+    });
+
+    // Notifications Panel登録
+    this.pluginRegistry.register({
+      id: 'notifications',
+      displayName: 'Notifications',
+      order: 30,
+      lifecycle: {
+        load: async () => {
+          const notifications = await this.apiClient.getNotifications();
+          appStore.setState({ settingsNotifications: notifications });
+        },
+        render: async (container) => {
+          const notifications = appStore.getState().settingsNotifications;
+          container.innerHTML = this._renderNotificationsHTML(notifications);
+
+          // Lucide icons再初期化
+          if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+          }
         }
       }
     });
@@ -199,16 +284,20 @@ export class SettingsCore {
    * @param {Object} integrity - 整合性データ
    * @param {Object} unified - 統合ビューデータ
    * @param {Object} manaStats - Mana統計（OSS版ではnull）
+   * @param {Object} health - システムヘルスチェック結果
    * @returns {string} HTML文字列
    */
-  _renderOverviewHTML(integrity, unified = null, manaStats = null) {
+  _renderOverviewHTML(integrity, unified = null, manaStats = null, health = null) {
     if (!integrity) {
       return '<div class="config-empty">Failed to load integrity data</div>';
     }
 
     const { stats, summary, issues } = integrity;
 
-    let html = `
+    // System Health セクション
+    let html = this._renderHealthSection(health);
+
+    html += `
       <div class="integrity-stats">
         <div class="stat-item success">
           <span class="label">Projects</span>
@@ -272,6 +361,76 @@ export class SettingsCore {
     if (unified) {
       html += this._renderUnifiedView(unified);
     }
+
+    return html;
+  }
+
+  /**
+   * System Healthセクションをレンダリング
+   * @private
+   * @param {Object} health - ヘルスチェック結果
+   * @returns {string} HTML文字列
+   */
+  _renderHealthSection(health) {
+    if (!health) {
+      return '';
+    }
+
+    const statusIcon = {
+      healthy: 'check-circle',
+      degraded: 'alert-triangle',
+      unhealthy: 'x-circle',
+      starting: 'loader'
+    };
+
+    const statusClass = {
+      healthy: 'success',
+      degraded: 'warning',
+      unhealthy: 'error',
+      starting: 'info'
+    };
+
+    const formatUptime = (seconds) => {
+      if (seconds < 60) return `${seconds}s`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+      return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
+    };
+
+    let html = `
+      <div class="settings-section health-section">
+        <h3>System Health</h3>
+        <div class="health-overview">
+          <div class="health-status ${statusClass[health.status] || 'info'}">
+            <i data-lucide="${statusIcon[health.status] || 'help-circle'}"></i>
+            <span class="status-text">${health.status?.toUpperCase() || 'UNKNOWN'}</span>
+            <span class="uptime">Uptime: ${formatUptime(health.uptime || 0)}</span>
+          </div>
+        </div>
+        <div class="health-checks">
+    `;
+
+    // 各チェック項目を表示
+    if (health.checks) {
+      for (const [name, check] of Object.entries(health.checks)) {
+        const checkStatus = check.status || 'unknown';
+        const checkIcon = statusIcon[checkStatus] || 'help-circle';
+        const checkClass = statusClass[checkStatus] || 'info';
+
+        html += `
+          <div class="health-check-item ${checkClass}">
+            <i data-lucide="${checkIcon}"></i>
+            <span class="check-name">${escapeHtml(name)}</span>
+            <span class="check-message">${escapeHtml(check.message || '')}</span>
+          </div>
+        `;
+      }
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
 
     return html;
   }
@@ -441,6 +600,266 @@ export class SettingsCore {
       </div>
     `;
   }
+
+  /**
+   * Organizations HTMLレンダリング
+   * @private
+   * @param {Array} organizations - 法人一覧
+   * @param {Object} dependencies - 依存関係マッピング
+   * @returns {string} HTML文字列
+   */
+  _renderOrganizationsHTML(organizations, dependencies) {
+    if (!organizations || organizations.length === 0) {
+      return `
+        <div class="config-empty">
+          <i data-lucide="building-2"></i>
+          <p>No organizations configured</p>
+          <p class="config-empty-hint">Add organizations to config.yml to manage multiple legal entities</p>
+        </div>
+      `;
+    }
+
+    let html = '<div class="organizations-grid">';
+
+    for (const org of organizations) {
+      const projectCount = org.projects?.length || 0;
+
+      html += `
+        <div class="org-card">
+          <div class="org-card-header">
+            <div class="org-icon">
+              <i data-lucide="building-2"></i>
+            </div>
+            <div class="org-info">
+              <h4 class="org-name">${escapeHtml(org.name || org.id)}</h4>
+              <span class="org-id mono">${escapeHtml(org.id)}</span>
+            </div>
+          </div>
+          <div class="org-card-body">
+            <div class="org-stat">
+              <i data-lucide="user"></i>
+              <span>CEO: ${escapeHtml(org.ceo || '-')}</span>
+            </div>
+            <div class="org-stat">
+              <i data-lucide="folder"></i>
+              <span>${projectCount} project${projectCount !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+          ${projectCount > 0 ? `
+            <div class="org-projects">
+              ${org.projects.slice(0, 5).map(p => `
+                <span class="badge badge-project">${escapeHtml(p)}</span>
+              `).join('')}
+              ${org.projects.length > 5 ? `<span class="org-projects-more">+${org.projects.length - 5}</span>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    html += '</div>';
+
+    // Dependencies Section
+    if (dependencies && Object.keys(dependencies).length > 0) {
+      html += this._renderDependenciesSection(dependencies);
+    }
+
+    return html;
+  }
+
+  /**
+   * Dependencies セクションをレンダリング
+   * @private
+   * @param {Object} dependencies - 依存関係マッピング
+   * @returns {string} HTML文字列
+   */
+  _renderDependenciesSection(dependencies) {
+    let html = `
+      <div class="settings-section dependencies-section">
+        <h3>Project Dependencies</h3>
+        <div class="dependencies-list">
+    `;
+
+    for (const [projectId, config] of Object.entries(dependencies)) {
+      const deps = config.depends_on || [];
+      html += `
+        <div class="dependency-item">
+          <span class="badge badge-project">${escapeHtml(projectId)}</span>
+          <i data-lucide="arrow-right"></i>
+          ${deps.length > 0
+            ? deps.map(d => `<span class="badge badge-dependency">${escapeHtml(d)}</span>`).join('')
+            : '<span class="no-deps">No dependencies</span>'
+          }
+        </div>
+      `;
+    }
+
+    html += '</div></div>';
+    return html;
+  }
+
+  /**
+   * Integrations HTMLレンダリング
+   * @private
+   * @param {Object} integrations - 連携設定
+   * @returns {string} HTML文字列
+   */
+  _renderIntegrationsHTML(integrations) {
+    if (!integrations) {
+      return '<div class="config-empty">Failed to load integrations data</div>';
+    }
+
+    const { slack, github, nocodb, health } = integrations;
+
+    let html = '<div class="integrations-grid">';
+
+    // Slack Integration
+    const slackConnected = slack && (slack.workspaces || slack.channels);
+    html += `
+      <div class="integration-card ${slackConnected ? 'connected' : 'disconnected'}">
+        <div class="integration-header">
+          <i data-lucide="hash"></i>
+          <h4>Slack</h4>
+          <span class="integration-status ${slackConnected ? 'success' : 'warning'}">
+            ${slackConnected ? 'Connected' : 'Not Configured'}
+          </span>
+        </div>
+        ${slackConnected ? `
+          <div class="integration-stats">
+            <div class="integration-stat">
+              <span class="stat-value">${slack.workspaces ? Object.keys(slack.workspaces).length : 0}</span>
+              <span class="stat-label">Workspaces</span>
+            </div>
+            <div class="integration-stat">
+              <span class="stat-value">${slack.channels?.length || 0}</span>
+              <span class="stat-label">Channels</span>
+            </div>
+            <div class="integration-stat">
+              <span class="stat-value">${slack.members?.length || 0}</span>
+              <span class="stat-label">Members</span>
+            </div>
+          </div>
+        ` : `
+          <p class="integration-hint">Configure Slack integration in _codex/common/meta/slack/</p>
+        `}
+      </div>
+    `;
+
+    // GitHub Integration
+    const githubCount = github?.length || 0;
+    html += `
+      <div class="integration-card ${githubCount > 0 ? 'connected' : 'disconnected'}">
+        <div class="integration-header">
+          <i data-lucide="github"></i>
+          <h4>GitHub</h4>
+          <span class="integration-status ${githubCount > 0 ? 'success' : 'warning'}">
+            ${githubCount > 0 ? 'Connected' : 'Not Configured'}
+          </span>
+        </div>
+        ${githubCount > 0 ? `
+          <div class="integration-stats">
+            <div class="integration-stat">
+              <span class="stat-value">${githubCount}</span>
+              <span class="stat-label">Repositories</span>
+            </div>
+          </div>
+        ` : `
+          <p class="integration-hint">Add GitHub repos in config.yml projects section</p>
+        `}
+      </div>
+    `;
+
+    // NocoDB Integration
+    const nocodbCount = nocodb?.length || 0;
+    html += `
+      <div class="integration-card ${nocodbCount > 0 ? 'connected' : 'disconnected'}">
+        <div class="integration-header">
+          <i data-lucide="table-2"></i>
+          <h4>NocoDB</h4>
+          <span class="integration-status ${nocodbCount > 0 ? 'success' : 'warning'}">
+            ${nocodbCount > 0 ? 'Connected' : 'Not Configured'}
+          </span>
+        </div>
+        ${nocodbCount > 0 ? `
+          <div class="integration-stats">
+            <div class="integration-stat">
+              <span class="stat-value">${nocodbCount}</span>
+              <span class="stat-label">Bases</span>
+            </div>
+          </div>
+        ` : `
+          <p class="integration-hint">Add NocoDB bases in config.yml projects section</p>
+        `}
+      </div>
+    `;
+
+    html += '</div>';
+
+    return html;
+  }
+
+  /**
+   * Notifications HTMLレンダリング
+   * @private
+   * @param {Object} notifications - 通知設定
+   * @returns {string} HTML文字列
+   */
+  _renderNotificationsHTML(notifications) {
+    if (!notifications) {
+      return '<div class="config-empty">Failed to load notifications settings</div>';
+    }
+
+    const { channels, dnd } = notifications;
+
+    let html = `
+      <div class="notifications-settings">
+        <div class="settings-section">
+          <h3>Notification Channels</h3>
+          <div class="notification-channels">
+    `;
+
+    // Channels
+    const channelConfig = channels || { slack: true, web: true, email: false };
+    const channelIcons = { slack: 'hash', web: 'bell', email: 'mail' };
+
+    for (const [channel, enabled] of Object.entries(channelConfig)) {
+      html += `
+        <div class="notification-channel ${enabled ? 'enabled' : 'disabled'}">
+          <i data-lucide="${channelIcons[channel] || 'message-square'}"></i>
+          <span class="channel-name">${escapeHtml(channel.charAt(0).toUpperCase() + channel.slice(1))}</span>
+          <span class="channel-status">${enabled ? 'Enabled' : 'Disabled'}</span>
+        </div>
+      `;
+    }
+
+    html += '</div></div>';
+
+    // DND Settings
+    const dndConfig = dnd || { enabled: false, start: 22, end: 9 };
+    html += `
+      <div class="settings-section">
+        <h3>Do Not Disturb</h3>
+        <div class="dnd-settings ${dndConfig.enabled ? 'enabled' : 'disabled'}">
+          <div class="dnd-status">
+            <i data-lucide="${dndConfig.enabled ? 'moon' : 'sun'}"></i>
+            <span>${dndConfig.enabled ? 'DND is enabled' : 'DND is disabled'}</span>
+          </div>
+          ${dndConfig.enabled ? `
+            <div class="dnd-schedule">
+              <span class="dnd-time">
+                <i data-lucide="clock"></i>
+                ${String(dndConfig.start).padStart(2, '0')}:00 - ${String(dndConfig.end).padStart(2, '0')}:00
+              </span>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    html += '</div>';
+
+    return html;
+  }
 }
 
 /**
@@ -467,6 +886,38 @@ export class CoreApiClient {
     const response = await fetch('/api/config/unified');
     if (!response.ok) {
       throw new Error('Failed to fetch unified view');
+    }
+    return response.json();
+  }
+
+  async getHealth() {
+    const response = await fetch('/api/health');
+    if (!response.ok) {
+      throw new Error('Failed to fetch health');
+    }
+    return response.json();
+  }
+
+  async getOrganizations() {
+    const response = await fetch('/api/config/organizations');
+    if (!response.ok) {
+      throw new Error('Failed to fetch organizations');
+    }
+    return response.json();
+  }
+
+  async getDependencies() {
+    const response = await fetch('/api/config/dependencies');
+    if (!response.ok) {
+      throw new Error('Failed to fetch dependencies');
+    }
+    return response.json();
+  }
+
+  async getNotifications() {
+    const response = await fetch('/api/config/notifications');
+    if (!response.ok) {
+      throw new Error('Failed to fetch notifications');
     }
     return response.json();
   }
