@@ -225,7 +225,8 @@
             if (Math.abs(touchAccum) < touchThreshold) return;
 
             const steps = Math.min(3, Math.max(1, Math.round(Math.abs(touchAccum) / touchThreshold)));
-            const direction = touchAccum > 0 ? 'down' : 'up';
+            // Touch: finger down should reveal older content (scroll up in tmux copy-mode)
+            const direction = touchAccum > 0 ? 'up' : 'down';
             touchAccum = 0;
             postScroll(direction, steps);
         }, { passive: false, capture: true });
