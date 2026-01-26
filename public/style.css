@@ -3408,7 +3408,8 @@ body.resizing iframe {
     display: none;
     height: 100%;
     overflow-y: auto;
-    padding: 2.5rem 3.5rem;
+    padding: 2rem 3rem;
+    /* Reduced top vertical padding */
     opacity: 0;
     transform: translateY(10px);
     transition: opacity 0.3s ease, transform 0.3s ease;
@@ -3429,16 +3430,23 @@ body.resizing iframe {
 .settings-panel.active {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    /* align-items: center;  <- Removed to fix spacing/layout issues */
+    align-items: stretch;
+    /* Ensure full width usage */
+    justify-content: flex-start;
+    /* Start from top */
     opacity: 1;
     transform: translateY(0);
     animation: slideInUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Ensure content is centered and has max width */
+/* Ensure content has max width but aligns properly */
 .settings-panel>* {
     width: 100%;
-    max-width: 900px;
+    max-width: 1000px;
+    /* Increased max-width slightly */
+    margin: 0 auto;
+    /* Center the content block itself */
     flex-shrink: 0;
 }
 
