@@ -74,13 +74,43 @@ export class WorktreeService {
                 }
             }
 
-            // NOTE: シンボリックリンク方式を廃止
+            // Create symlink for .claude directory (Claude Code configuration)
+            // .claude is shared across all projects and managed in brainbase-workspace root
+            // Path: worktreesDir/../.. = /Users/ksato/workspace (brainbase-workspace root)
+            const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
+            const sourceClaudePath = path.join(workspaceRoot, '.claude');
+            const targetClaudePath = path.join(worktreePath, '.claude');
+            try {
+                await fs.access(sourceClaudePath);
+                // Check if .claude already exists in worktree (from git checkout)
+                try {
+                    await fs.access(targetClaudePath);
+                    console.log(`.claude already exists at ${targetClaudePath}, skipping symlink`);
+                } catch {
+                    await fs.symlink(sourceClaudePath, targetClaudePath);
+                    console.log(`Created .claude symlink at ${targetClaudePath}`);
+                }
+            } catch (claudeErr) {
+                // .claude doesn't exist or symlink failed - not critical but log warning
+                if (claudeErr.code === 'ENOENT') {
+                    console.log(`Note: .claude directory not found at ${sourceClaudePath}`);
+                } else {
+                    console.log(`Note: Could not create .claude symlink: ${claudeErr.message}`);
+                }
+            }
+
+            // NOTE: シンボリックリンク方式を廃止（_codex, _tasks等）
             // 以前は _codex, _tasks 等を正本へのシンボリックリンクにしていたが、
             // 新方式では各worktreeが独立したコピーを持ち、PRでマージする運用に変更
             // これにより：
             // - セッション間で変更が混ざらない
             // - 変更が全てブランチにコミットされる
             // - PRでマージに一本化できる
+            //
+            // ただし .claude ディレクトリは例外：
+            // - Claude Code の Skills/Rules/Commands 設定
+            // - 全プロジェクトで共通の設定を使用
+            // - brainbase-workspace でGit管理
 
             console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
             return { worktreePath, branchName, repoPath };
