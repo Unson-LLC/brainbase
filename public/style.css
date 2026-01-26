@@ -1526,6 +1526,69 @@ body::after {
     background: var(--text-tertiary);
 }
 
+/* === Panel Resize Handles (Left/Right) === */
+.panel-resize-handle {
+    width: 6px;
+    background: transparent;
+    cursor: ew-resize;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    transition: background-color 0.15s ease;
+}
+
+.panel-resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 40px;
+    background: var(--border-color);
+    border-radius: 2px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle.dragging {
+    background: var(--bg-tertiary);
+}
+
+.panel-resize-handle:hover::after,
+.panel-resize-handle.dragging::after {
+    opacity: 1;
+    background: var(--text-tertiary);
+}
+
+.panel-resize-handle-left {
+    border-right: 1px solid var(--border-color);
+}
+
+.panel-resize-handle-right {
+    border-left: 1px solid var(--border-color);
+}
+
+/* リサイズ中の最適化 */
+body.resizing {
+    cursor: ew-resize !important;
+    user-select: none !important;
+}
+
+body.resizing * {
+    transition: none !important;
+}
+
+body.resizing .sidebar,
+body.resizing .context-sidebar {
+    contain: layout style;
+}
+
+body.resizing iframe {
+    pointer-events: none;
+}
+
 .timeline {
     position: relative;
     padding-left: 20px;

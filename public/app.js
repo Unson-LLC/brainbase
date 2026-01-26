@@ -41,6 +41,7 @@ import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
+import { initPanelResize } from './modules/ui/panel-resize.js';
 
 // Modals
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
@@ -1809,6 +1810,9 @@ class App {
 
         // 3.8. Initialize UI plugins
         await this.initPlugins();
+
+        // 3.9. Initialize panel resize
+        this.cleanupPanelResize = initPanelResize();
 
         // 4. Setup event listeners
         await this.setupEventListeners();
