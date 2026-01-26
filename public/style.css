@@ -3261,7 +3261,7 @@ body.resizing iframe {
 }
 
 /* Settings Tabs */
-/* Settings Layout Redesign (Sidebar Style) - Premium Glass */
+/* Settings Layout Redesign (Sidebar Style) - Premium Glass fixes */
 .settings-body {
     display: flex;
     flex-direction: row;
@@ -3269,8 +3269,10 @@ body.resizing iframe {
     padding: 0 !important;
     /* Override modal-body padding */
     overflow: hidden;
-    background: transparent;
-    /* Changed to transparent for glass effect */
+    background: rgba(15, 23, 42, 0.85);
+    /* Darker, slight transparent */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 /* Settings Sidebar (Vertical Tabs) */
@@ -3280,15 +3282,15 @@ body.resizing iframe {
     width: 260px;
     flex-shrink: 0;
     padding: 1.5rem 1rem;
-    background: rgba(15, 23, 42, 0.6);
-    /* Semi-transparent */
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(15, 23, 42, 0.5);
+    /* Slightly lighter than body */
     border-right: 1px solid rgba(255, 255, 255, 0.08);
-    /* Subtle border */
     border-bottom: none;
     gap: 6px;
     overflow-y: auto;
+    /* Ensure z-index is correct */
+    position: relative;
+    z-index: 2;
 }
 
 .settings-tab {
@@ -3380,10 +3382,12 @@ body.resizing iframe {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: rgba(15, 23, 42, 0.4);
-    /* More transparent */
-    backdrop-filter: blur(10px);
+    background: transparent;
+    /* Body handles the background now */
     position: relative;
+    min-width: 0;
+    /* Prevent flex overflow */
+    z-index: 1;
 }
 
 .settings-content::after {
@@ -3481,16 +3485,89 @@ body.resizing iframe {
 
 .settings-form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.25rem;
-    margin-bottom: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* Force Premium Styles on Inputs within Settings */
+.settings-view input.form-input,
+.settings-view select.form-input,
+.settings-view textarea.form-input,
+.settings-form-grid input,
+.settings-form-grid textarea,
+.settings-form-grid select {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: var(--text-primary) !important;
+    border-radius: 8px !important;
+    padding: 10px 14px !important;
+    font-size: 0.95rem !important;
+    transition: all 0.2s ease !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.settings-view input.form-input:focus,
+.settings-form-grid input:focus,
+.settings-form-grid textarea:focus,
+.settings-form-grid select:focus {
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .form-actions {
     display: flex;
-    gap: 0.75rem;
-    align-items: flex-end;
-    margin-top: 1rem;
+    gap: 1rem;
+    align-items: center;
+    margin-top: 2rem;
+    justify-content: flex-end;
+    /* Right align actions */
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Button overrides for settings */
+.settings-view .btn-primary,
+.settings-view .btn-secondary,
+.settings-view .btn-danger {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: all 0.2s;
+}
+
+.settings-view .btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
+    border: none;
+}
+
+.settings-view .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px rgba(59, 130, 246, 0.3);
+}
+
+.settings-view .btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.settings-view .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .table-actions {
