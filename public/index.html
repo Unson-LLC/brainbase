@@ -24,7 +24,7 @@
         <!-- Left Navigation (Session List) -->
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3 id="app-version" class="app-version">v--</h3>
+                <h3 id="app-version" class="app-version">v0.1.102</h3>
             </div>
 
             <!-- View Toggle -->
@@ -212,6 +212,20 @@
                             </div>
                         </div>
 
+                        <!-- 8-Week Trends Heatmap (Story 4: 構造的な問題を見抜く) -->
+                        <div id="trends-heatmap-container" style="margin-bottom: 32px;">
+                            <h4 style="color: var(--text-primary); font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                                <span>8週間の健全性推移</span>
+                                <span style="font-size: 12px; font-weight: 400; color: var(--text-secondary);">(Story 4: 構造的な問題を見抜く)</span>
+                            </h4>
+                            <div id="heatmap-table-container">
+                                <!-- 8-week heatmap table will be injected via JS -->
+                                <div class="heatmap-loading" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                                    <div style="margin-bottom: 8px;">データ読み込み中...</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Overall Metrics Trend -->
                         <div id="overall-metrics-trend"
                             style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px;">
@@ -271,13 +285,70 @@
                         </div>
                     </section>
 
-                    <!-- Section 5: Mana Quality Dashboard (Story 6: AI PMの動作品質を検証する) -->
+                    <!-- Section 5: Mana Quality Dashboard (Week 7-8) -->
                     <section id="mana-quality" aria-label="Mana Quality Dashboard" role="region"
                         style="margin-top: 32px; margin-bottom: 40px;">
                         <!-- Section 5 content injected via renderSection5() -->
                     </section>
 
-                    <!-- Section 6: 削除済み（System Resources - ストーリー紐付きなし） -->
+                    <!-- Section 6: システムリソース (Phase 2) -->
+                    <section class="system-resources-section" id="system-resources-section"
+                        aria-labelledby="system-section-heading" role="region" style="
+                        margin-top: 32px;
+                        margin-bottom: 40px;
+                        background: rgba(255, 255, 255, 0.05);
+                        backdrop-filter: blur(30px);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        border-radius: 12px;
+                        padding: 20px;
+                        transition: all 0.3s ease;
+                    ">
+                        <!-- Accordion Header -->
+                        <div class="section-header" id="system-section-header" style="
+                            margin-bottom: 0;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            cursor: pointer;
+                            user-select: none;
+                        ">
+                            <div class="dashboard-section-header" style="margin-bottom: 0;">
+                                <h2 id="system-section-heading" class="section-header-title">
+                                    System Resources
+                                </h2>
+                            </div>
+                            <!-- Chevron Icon -->
+                            <svg id="system-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                style="
+                                color: var(--text-secondary);
+                                transition: transform 0.3s ease;
+                            ">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+
+                        <!-- Collapsible Content (デフォルトで非表示) -->
+                        <div id="system-content" class="system-content" style="
+                            max-height: 0;
+                            overflow: hidden;
+                            transition: max-height 0.3s ease;
+                        ">
+                            <div style="padding-top: 16px;">
+                                <div class="system-grid">
+                                    <!-- System gauges injected via JS -->
+                                </div>
+
+                                <!-- System Health Status -->
+                                <div class="system-health-section" style="margin-top: 20px;">
+                                    <h4
+                                        style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; font-weight: 600;">
+                                        System Health</h4>
+                                    <div id="system-health-status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
 
                     <!-- Section 7: Trend Graphs (Phase 3) -->
                     <section class="trend-graphs-section" aria-labelledby="trend-graphs-heading" role="region"
@@ -432,13 +503,15 @@
             <div class="timeline-section" id="timeline-section" data-slot="sidebar:schedule">
                 <div class="section-header">
                     <h3><i data-lucide="calendar"></i> タイムライン</h3>
-                    <button id="add-schedule-btn" class="icon-btn" title="予定を追加" aria-label="予定を追加">
-                        <i data-lucide="plus"></i>
-                    </button>
                 </div>
                 <div id="timeline-list">
                     <div class="loading">読み込み中...</div>
                 </div>
+            </div>
+
+            <!-- Timeline Resize Handle -->
+            <div class="timeline-resize-handle" id="timeline-resize-handle" title="ドラッグで高さを変更">
+                <div class="resize-grip"></div>
             </div>
 
             <!-- Next Tasks Section: 残りのタスク -->
@@ -478,11 +551,6 @@
                                 <option value="low">🔵 低</option>
                             </select>
                         </div>
-                        <div class="filter-group">
-                            <button id="add-local-task-btn" class="icon-btn" title="ローカルタスク追加" aria-label="ローカルタスクを追加">
-                                <i data-lucide="plus"></i>
-                            </button>
-                        </div>
                     </div>
                     <div id="next-tasks-list">
                         <div class="loading">読み込み中...</div>
@@ -504,7 +572,6 @@
                             <label for="nocodb-assignee-filter" class="sr-only">担当者フィルター</label>
                             <select id="nocodb-assignee-filter" aria-label="担当者でフィルタ">
                                 <option value="">全担当者</option>
-                                <option value="__self__">自分だけ</option>
                                 <option value="__unassigned__">未割当</option>
                             </select>
                         </div>
@@ -513,11 +580,6 @@
                             <select id="nocodb-project-filter" class="priority-filter" aria-label="プロジェクトでフィルタ">
                                 <option value="">全プロジェクト</option>
                             </select>
-                        </div>
-                        <div class="filter-group">
-                            <button id="add-nocodb-task-btn" class="icon-btn" title="プロジェクトタスク追加" aria-label="プロジェクトタスクを追加">
-                                <i data-lucide="plus"></i>
-                            </button>
                         </div>
                         <button id="nocodb-sync-btn" class="icon-btn" title="同期">
                             <i data-lucide="refresh-cw"></i>
@@ -579,53 +641,6 @@
         </div>
     </div>
 
-    <!-- Add Task Modal -->
-    <div id="add-task-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="add-task-modal-title">タスク追加</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>タスク名</label>
-                    <input type="text" id="add-task-title" class="form-input" placeholder="例: 仕様書レビュー">
-                </div>
-                <div class="form-group">
-                    <label>担当者</label>
-                    <input type="text" id="add-task-assignee" class="form-input" placeholder="担当者名">
-                </div>
-                <div class="form-group">
-                    <label>プロジェクト</label>
-                    <select id="add-task-project" class="form-input">
-                        <option value="general">general</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>優先度</label>
-                    <select id="add-task-priority" class="form-input">
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>期限</label>
-                    <input type="date" id="add-task-due" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label>説明</label>
-                    <textarea id="add-task-description" class="form-input" rows="3" placeholder="補足や背景"></textarea>
-                </div>
-                <div id="add-task-error" class="form-error" style="display: none;"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary close-modal-btn">キャンセル</button>
-                <button id="save-add-task-btn" class="btn-primary">追加</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Edit Task Modal -->
     <div id="edit-task-modal" class="modal">
         <div class="modal-content">
@@ -663,10 +678,6 @@
                 <div class="form-group">
                     <label>Due Date</label>
                     <input type="date" id="edit-task-due" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="edit-task-description" class="form-input" rows="3" placeholder="Details or context"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -980,20 +991,12 @@
     <div id="sessions-bottom-sheet" class="bottom-sheet">
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-header">
-            <h3 id="mobile-app-version" class="mobile-version-display">v--</h3>
+            <h3 id="mobile-app-version" class="mobile-version-display">v0.1.102</h3>
             <button class="add-session-btn-icon" id="mobile-add-session-btn" title="New Session">
                 <i data-lucide="plus"></i>
             </button>
             <button class="bottom-sheet-close" id="close-sessions-sheet">
                 <i data-lucide="x"></i>
-            </button>
-        </div>
-        <div class="session-view-toggle mobile-session-view-toggle" aria-label="Session view mode">
-            <button class="session-view-btn" data-view="project" title="プロジェクト表示">
-                <i data-lucide="folder"></i>
-            </button>
-            <button class="session-view-btn" data-view="timeline" title="時系列表示">
-                <i data-lucide="clock"></i>
             </button>
         </div>
         <div class="archive-toggle-container" style="padding: 0.5rem 1rem;">

@@ -1480,8 +1480,9 @@ body::after {
 /* === Timeline Section === */
 .timeline-section {
     flex: 0 0 auto;
-    max-height: 35%;
-    border-bottom: 1px solid var(--border-color);
+    height: 35%;
+    min-height: 100px;
+    max-height: 70%;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -1491,6 +1492,38 @@ body::after {
     padding: 0 1rem 1rem;
     overflow-y: auto;
     flex: 1;
+}
+
+/* === Timeline Resize Handle === */
+.timeline-resize-handle {
+    height: 8px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    cursor: ns-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease;
+    flex-shrink: 0;
+}
+
+.timeline-resize-handle:hover,
+.timeline-resize-handle.dragging {
+    background: var(--bg-tertiary);
+}
+
+.resize-grip {
+    width: 40px;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    transition: background-color 0.15s ease;
+}
+
+.timeline-resize-handle:hover .resize-grip,
+.timeline-resize-handle.dragging .resize-grip {
+    background: var(--text-tertiary);
 }
 
 .timeline {
@@ -3392,458 +3425,6 @@ body::after {
     font-size: 0.8rem;
     color: var(--text-secondary);
     margin-bottom: 1rem;
-}
-
-/* =========================================
-   Health Section Styles
-   ========================================= */
-
-.health-section {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.health-overview {
-    margin-bottom: 1rem;
-}
-
-.health-status {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    font-weight: 500;
-}
-
-.health-status.success {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--success-color);
-}
-
-.health-status.warning {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--warning-color);
-}
-
-.health-status.error {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--error-color);
-}
-
-.health-status.info {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--accent-color);
-}
-
-.health-status i {
-    width: 20px;
-    height: 20px;
-}
-
-.health-status .status-text {
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.health-status .uptime {
-    margin-left: auto;
-    font-size: 0.85rem;
-    font-weight: 400;
-    opacity: 0.8;
-}
-
-.health-checks {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.health-check-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-}
-
-.health-check-item.success {
-    background: rgba(16, 185, 129, 0.05);
-}
-
-.health-check-item.warning {
-    background: rgba(245, 158, 11, 0.05);
-}
-
-.health-check-item.error {
-    background: rgba(239, 68, 68, 0.05);
-}
-
-.health-check-item.info {
-    background: rgba(59, 130, 246, 0.05);
-}
-
-.health-check-item i {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-}
-
-.health-check-item.success i {
-    color: var(--success-color);
-}
-
-.health-check-item.warning i {
-    color: var(--warning-color);
-}
-
-.health-check-item.error i {
-    color: var(--error-color);
-}
-
-.health-check-item.info i {
-    color: var(--accent-color);
-}
-
-.health-check-item .check-name {
-    font-weight: 500;
-    text-transform: capitalize;
-    min-width: 120px;
-}
-
-.health-check-item .check-message {
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-}
-
-/* =========================================
-   Organizations Panel Styles
-   ========================================= */
-
-.organizations-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.org-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem;
-}
-
-.org-card-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-}
-
-.org-icon {
-    width: 40px;
-    height: 40px;
-    background: rgba(59, 130, 246, 0.1);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent-color);
-}
-
-.org-icon i {
-    width: 20px;
-    height: 20px;
-}
-
-.org-info {
-    flex: 1;
-}
-
-.org-name {
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0;
-}
-
-.org-id {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-}
-
-.org-card-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-}
-
-.org-stat {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-.org-stat i {
-    width: 14px;
-    height: 14px;
-}
-
-.org-projects {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.org-projects-more {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    padding: 0.2rem 0.5rem;
-}
-
-/* Dependencies Section */
-.dependencies-section {
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.dependencies-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.dependency-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem;
-    background: var(--bg-secondary);
-    border-radius: 6px;
-}
-
-.dependency-item i {
-    width: 16px;
-    height: 16px;
-    color: var(--text-secondary);
-}
-
-.badge-dependency {
-    background: rgba(139, 92, 246, 0.15);
-    color: #a78bfa;
-}
-
-.no-deps {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-style: italic;
-}
-
-/* =========================================
-   Integrations Panel Styles
-   ========================================= */
-
-.integrations-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
-}
-
-.integration-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem;
-}
-
-.integration-card.connected {
-    border-color: rgba(16, 185, 129, 0.3);
-}
-
-.integration-card.disconnected {
-    border-color: rgba(245, 158, 11, 0.3);
-}
-
-.integration-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.integration-header i {
-    width: 24px;
-    height: 24px;
-    color: var(--accent-color);
-}
-
-.integration-header h4 {
-    flex: 1;
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0;
-}
-
-.integration-status {
-    font-size: 0.75rem;
-    font-weight: 500;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-}
-
-.integration-status.success {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--success-color);
-}
-
-.integration-status.warning {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--warning-color);
-}
-
-.integration-stats {
-    display: flex;
-    gap: 1rem;
-}
-
-.integration-stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.integration-stat .stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.integration-stat .stat-label {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-}
-
-.integration-hint {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin: 0;
-}
-
-/* =========================================
-   Notifications Panel Styles
-   ========================================= */
-
-.notifications-settings {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.notification-channels {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.notification-channel {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-}
-
-.notification-channel.enabled {
-    border-color: rgba(16, 185, 129, 0.3);
-}
-
-.notification-channel.disabled {
-    opacity: 0.6;
-}
-
-.notification-channel i {
-    width: 20px;
-    height: 20px;
-    color: var(--accent-color);
-}
-
-.notification-channel .channel-name {
-    flex: 1;
-    font-weight: 500;
-}
-
-.notification-channel .channel-status {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-}
-
-.notification-channel.enabled .channel-status {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--success-color);
-}
-
-.notification-channel.disabled .channel-status {
-    background: rgba(107, 114, 128, 0.1);
-    color: var(--text-secondary);
-}
-
-.dnd-settings {
-    padding: 1rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-}
-
-.dnd-settings.enabled {
-    border-color: rgba(139, 92, 246, 0.3);
-}
-
-.dnd-status {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-weight: 500;
-}
-
-.dnd-status i {
-    width: 20px;
-    height: 20px;
-}
-
-.dnd-settings.enabled .dnd-status i {
-    color: #a78bfa;
-}
-
-.dnd-schedule {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.dnd-time {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-}
-
-.dnd-time i {
-    width: 16px;
-    height: 16px;
 }
 
 /* =========================================
@@ -5984,4 +5565,176 @@ flex-wrap: wrap;
 .progress-fill {
     height: 100%;
     transition: width 0.3s ease;
+}
+
+/* ===========================================
+   Story 4: 構造的な問題を見抜く - Heatmap Styles
+   =========================================== */
+
+/* Trends Heatmap Container */
+.trends-heatmap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.heatmap-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 4px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.heatmap-table th {
+    font-weight: 500;
+}
+
+.heatmap-table thead th {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.heatmap-table tbody td {
+    padding: 4px;
+}
+
+/* Heatmap Cell */
+.heatmap-cell {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    font-size: 14px;
+    transition: transform 0.2s ease;
+}
+
+.heatmap-cell:hover {
+    transform: scale(1.1);
+}
+
+.heatmap-cell.healthy {
+    background: rgba(53, 166, 112, 0.2);
+    border: 1px solid rgba(53, 166, 112, 0.3);
+}
+
+.heatmap-cell.warning {
+    background: rgba(255, 155, 38, 0.2);
+    border: 1px solid rgba(255, 155, 38, 0.3);
+}
+
+.heatmap-cell.critical {
+    background: rgba(238, 79, 39, 0.2);
+    border: 1px solid rgba(238, 79, 39, 0.3);
+}
+
+.heatmap-cell.no-data {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+/* Chronic Stall Alerts */
+.chronic-stall-alerts {
+    margin-top: 16px;
+}
+
+.chronic-stall-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: rgba(238, 79, 39, 0.1);
+    border-radius: 6px;
+}
+
+.chronic-alerts-badge {
+    background: rgba(238, 79, 39, 0.2);
+    color: #ee4f27;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.chronic-stall-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chronic-alert-item {
+    background: rgba(238, 79, 39, 0.08);
+    border: 1px solid rgba(238, 79, 39, 0.2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    transition: background 0.2s ease;
+}
+
+.chronic-alert-item:hover {
+    background: rgba(238, 79, 39, 0.12);
+}
+
+/* Chronic Alerts Box */
+.chronic-alerts-box {
+    margin-top: 16px;
+    background: rgba(238, 79, 39, 0.1);
+    border: 1px solid rgba(238, 79, 39, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.chronic-alert-chip {
+    background: rgba(238, 79, 39, 0.15);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    transition: background 0.2s ease;
+}
+
+.chronic-alert-chip:hover {
+    background: rgba(238, 79, 39, 0.2);
+}
+
+/* Action Correlation Placeholder */
+.action-correlation-placeholder {
+    margin-top: 16px;
+    background: rgba(107, 33, 239, 0.05);
+    border: 1px dashed rgba(107, 33, 239, 0.2);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+/* Trend Indicators */
+.trend-up {
+    color: #35a670;
+}
+
+.trend-down {
+    color: #ee4f27;
+}
+
+.trend-stable {
+    color: #ff9b26;
+}
+
+/* Responsive Heatmap */
+@media (max-width: 768px) {
+    .heatmap-table {
+        font-size: 11px;
+    }
+
+    .heatmap-cell {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+    }
+
+    .chronic-stall-list {
+        flex-direction: column;
+    }
 }

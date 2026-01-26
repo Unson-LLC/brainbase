@@ -40,9 +40,9 @@ import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
+import { initTimelineResize } from './modules/ui/timeline-resize.js';
 
 // Modals
-import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
@@ -197,7 +197,7 @@ class TerminalReconnectManager {
 /**
  * Application initialization
  */
-export class App {
+class App {
     constructor() {
         this.container = new DIContainer();
         this.views = {};
@@ -434,7 +434,11 @@ export class App {
                             this.views.timelineView.mount(timelineContainer);
                         }
 
+                        // Initialize timeline resize functionality
+                        const cleanupResize = initTimelineResize();
+
                         return () => {
+                            cleanupResize?.();
                             this.views.timelineView?.unmount?.();
                             delete this.views.timelineView;
                         };
@@ -476,13 +480,6 @@ export class App {
      * Initialize modals
      */
     initModals() {
-        // Task add modal (supports both local and NocoDB tasks)
-        this.modals.taskAddModal = new TaskAddModal({
-            taskService: this.taskService,
-            nocodbTaskService: this.nocodbTaskService
-        });
-        this.modals.taskAddModal.mount();
-
         // Task edit modal (supports both local and NocoDB tasks)
         this.modals.taskEditModal = new TaskEditModal({
             taskService: this.taskService,
@@ -758,14 +755,6 @@ export class App {
             this.openCreateSessionModal(project);
         });
 
-        // Worktree fallback: warn user when session falls back to main workspace
-        const unsubWorktreeFallback = eventBus.on(EVENTS.SESSION_WORKTREE_FALLBACK, (event) => {
-            const { project, reason } = event.detail || {};
-            const projectLabel = project ? `「${project}」` : 'このプロジェクト';
-            showInfo(`Worktree作成に失敗したため、${projectLabel}は本体フォルダで開始しました。`);
-            console.warn('[Session] Worktree fallback:', reason || 'unknown');
-        });
-
         // Rename session: open rename modal
         const unsub5 = eventBus.on(EVENTS.RENAME_SESSION, (event) => {
             const { session } = event.detail;
@@ -814,7 +803,7 @@ export class App {
             }
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -912,21 +901,6 @@ export class App {
             };
         }
 
-        // Add task buttons (local / NocoDB)
-        const addLocalTaskBtn = document.getElementById('add-local-task-btn');
-        if (addLocalTaskBtn) {
-            addLocalTaskBtn.onclick = () => {
-                this.modals.taskAddModal?.open({ mode: 'local' });
-            };
-        }
-
-        const addNocodbTaskBtn = document.getElementById('add-nocodb-task-btn');
-        if (addNocodbTaskBtn) {
-            addNocodbTaskBtn.onclick = () => {
-                this.modals.taskAddModal?.open({ mode: 'nocodb' });
-            };
-        }
-
         // Focus button (footer)
         const focusBtn = document.getElementById('focus-btn');
         if (focusBtn) {
@@ -965,8 +939,7 @@ export class App {
         }
 
         try {
-            const manaModulePath = '/extensions/mana-integration/index.js';
-            const { ManaSettingsPlugin } = await import(/* @vite-ignore */ manaModulePath);
+            const { ManaSettingsPlugin } = await import('/extensions/mana-integration/index.js');
             const manaPlugin = new ManaSettingsPlugin({
                 pluginRegistry: registry,
                 store: appStore,
@@ -1247,13 +1220,8 @@ export class App {
         const mobileSessionList = document.getElementById('mobile-session-list');
         const mobileTasksContent = document.getElementById('mobile-tasks-content');
 
-        // Close Sessions bottom sheet
-        const closeSessionsSheet = () => {
-            sessionsSheetOverlay?.classList.remove('active');
-            sessionsBottomSheet?.classList.remove('active');
-        };
-
-        const renderMobileSessionList = () => {
+        // Open Sessions bottom sheet
+        const openSessionsSheet = () => {
             const sessionList = document.getElementById('session-list');
             const sessionListContent = sessionList?.innerHTML || '';
 
@@ -1287,30 +1255,17 @@ export class App {
                     console.error('Error attaching handlers:', error);
                 }
             }
-        };
-
-        // Open Sessions bottom sheet
-        const openSessionsSheet = () => {
-            renderMobileSessionList();
 
             sessionsSheetOverlay?.classList.add('active');
             sessionsBottomSheet?.classList.add('active');
             lucide.createIcons();
         };
 
-        const refreshMobileSessionListIfOpen = () => {
-            if (sessionsBottomSheet?.classList.contains('active')) {
-                requestAnimationFrame(() => {
-                    renderMobileSessionList();
-                });
-            }
+        // Close Sessions bottom sheet
+        const closeSessionsSheet = () => {
+            sessionsSheetOverlay?.classList.remove('active');
+            sessionsBottomSheet?.classList.remove('active');
         };
-
-        const unsubscribeMobileSessionView = appStore.subscribeToSelector(
-            state => state.ui?.sessionListView,
-            () => refreshMobileSessionListIfOpen()
-        );
-        this.unsubscribers.push(unsubscribeMobileSessionView);
 
         // Open Tasks bottom sheet
         const openTasksSheet = () => {
@@ -1343,8 +1298,6 @@ export class App {
             await openSettings();
         });
         mobileAddSessionBtn?.addEventListener('click', () => {
-            // Close sheet so the modal is immediately visible
-            closeSessionsSheet();
             eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
         });
         // Desktop New Session button
@@ -1848,9 +1801,6 @@ export class App {
         // 2. Initialize views
         this.initViews();
 
-        // 2.5. Update app version display
-        await this.updateAppVersionDisplay();
-
         // 3. Initialize modals
         this.initModals();
 
@@ -1865,9 +1815,6 @@ export class App {
 
         // 4.5. Register active port for hook routing
         await this.registerActivePort();
-
-        // 4.6. Update app version display (include runtime info)
-        await this.updateAppVersionDisplay();
 
         // 5. Load initial data
         await this.loadInitialData();
@@ -1917,44 +1864,6 @@ export class App {
             await fetch('/api/active-port', { cache: 'no-store' });
         } catch (error) {
             console.warn('Failed to register active port:', error);
-        }
-    }
-
-    /**
-     * Update app version display from server
-     */
-    async updateAppVersionDisplay() {
-        const versionElements = [
-            document.getElementById('app-version'),
-            document.getElementById('mobile-app-version')
-        ].filter(Boolean);
-
-        if (versionElements.length === 0) return;
-
-        try {
-            const { version, runtime } = await httpClient.get('/api/version');
-            if (!version) return;
-
-            const gitSha = runtime?.git?.sha ? String(runtime.git.sha) : null;
-            const branch = runtime?.git?.branch ? String(runtime.git.branch) : null;
-            const cwd = runtime?.cwd ? String(runtime.cwd) : null;
-            const pid = Number.isFinite(runtime?.pid) ? String(runtime.pid) : null;
-
-            const display = gitSha ? `${version} (${gitSha})` : version;
-            const details = [
-                branch ? `branch: ${branch}` : null,
-                cwd ? `cwd: ${cwd}` : null,
-                pid ? `pid: ${pid}` : null
-            ].filter(Boolean).join(' | ');
-
-            versionElements.forEach((element) => {
-                element.textContent = display;
-                if (details) {
-                    element.title = details;
-                }
-            });
-        } catch (error) {
-            console.warn('Failed to load app version:', error?.message || error);
         }
     }
 
@@ -2301,21 +2210,15 @@ export class App {
     }
 }
 
-export const createApp = () => new App();
+// Initialize and start application
+const app = new App();
 
-const shouldAutoStart = !(typeof window !== 'undefined' && window.__BRAINBASE_TEST__ === true);
-
-if (shouldAutoStart) {
-    // Initialize and start application
-    const app = createApp();
-
-    // Start when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => app.start());
-    } else {
-        app.start();
-    }
-
-    // Expose for debugging
-    window.brainbaseApp = app;
+// Start when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => app.start());
+} else {
+    app.start();
 }
+
+// Expose for debugging
+window.brainbaseApp = app;
