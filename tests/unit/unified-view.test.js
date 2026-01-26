@@ -172,11 +172,11 @@ describe('Unified View UI', () => {
           <div id="settings-modal" class="modal">
             <div class="modal-body settings-body">
               <div class="settings-tabs">
-                <button class="settings-tab" data-tab="unified">Overview</button>
-                <button class="settings-tab active" data-tab="slack">Slack</button>
+                <button class="settings-tab" data-tab="overview">Overview</button>
+                <button class="settings-tab active" data-tab="integrations">Integrations</button>
               </div>
               <div class="settings-content">
-                <div class="settings-panel" id="unified-panel">
+                <div class="settings-panel" id="overview-panel">
                   <div id="unified-view"></div>
                 </div>
               </div>
@@ -195,13 +195,13 @@ describe('Unified View UI', () => {
   });
 
   it('should have Overview tab button', () => {
-    const overviewTab = document.querySelector('[data-tab="unified"]');
+    const overviewTab = document.querySelector('[data-tab="overview"]');
     expect(overviewTab).not.toBeNull();
     expect(overviewTab.textContent).toBe('Overview');
   });
 
   it('should have unified-panel', () => {
-    const unifiedPanel = document.getElementById('unified-panel');
+    const unifiedPanel = document.getElementById('overview-panel');
     expect(unifiedPanel).not.toBeNull();
   });
 

@@ -6,10 +6,11 @@ import { logger } from '../utils/logger.js';
  */
 export class NocoDBService {
     constructor() {
-        this.baseUrl = process.env.NOCODB_BASE_URL || 'https://noco.unson.jp';
-        this.apiToken = process.env.NOCODB_API_TOKEN;
+        this.baseUrl = process.env.NOCODB_URL || 'https://noco.unson.jp';
+        this.apiToken = process.env.NOCODB_TOKEN;
         this.timeout = 15000; // 15秒
         this.maxRetries = 3;  // 最大リトライ回数
+        this._tableIdCache = new Map(); // baseId:tableName -> tableId キャッシュ
     }
 
     /**
@@ -74,14 +75,21 @@ export class NocoDBService {
     }
 
     /**
-     * NocoDBからレコード取得（v1 API使用）
-     * @param {string} projectId - NocoDB Project ID
+     * NocoDBからレコード取得（v2 API使用）
+     * @param {string} baseId - NocoDB Base ID
      * @param {string} tableName - テーブル名
      * @returns {Promise<Array>} レコード一覧
      */
-    async _fetchRecords(projectId, tableName) {
-        // NocoDB v1 API: /api/v1/db/data/noco/{projectId}/{tableName}
-        const url = `${this.baseUrl}/api/v1/db/data/noco/${projectId}/${encodeURIComponent(tableName)}`;
+    async _fetchRecords(baseId, tableName) {
+        // テーブル名からtableIdを取得
+        const tableId = await this._getTableId(baseId, tableName);
+        if (!tableId) {
+            logger.warn(`Table not found: ${tableName} in base ${baseId}`);
+            return [];
+        }
+
+        // NocoDB v2 API: /api/v2/tables/{tableId}/records
+        const url = `${this.baseUrl}/api/v2/tables/${tableId}/records`;
 
         const response = await this._fetchWithRetry(url, {
             headers: {
@@ -95,6 +103,48 @@ export class NocoDBService {
 
         const data = await response.json();
         return data.list || [];
+    }
+
+    /**
+     * テーブル名からtableIdを取得（キャッシュ付き）
+     * @param {string} baseId - NocoDB Base ID
+     * @param {string} tableName - テーブル名
+     * @returns {Promise<string|null>} tableId
+     */
+    async _getTableId(baseId, tableName) {
+        const cacheKey = `${baseId}:${tableName}`;
+
+        // キャッシュにあればそれを返す
+        if (this._tableIdCache.has(cacheKey)) {
+            return this._tableIdCache.get(cacheKey);
+        }
+
+        try {
+            // v2 API: テーブル一覧取得
+            const url = `${this.baseUrl}/api/v2/meta/bases/${baseId}/tables`;
+            const response = await this._fetchWithRetry(url, {
+                headers: {
+                    'xc-token': this.apiToken
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`NocoDB API failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const tables = data.list || [];
+
+            // 全テーブルをキャッシュ
+            for (const table of tables) {
+                this._tableIdCache.set(`${baseId}:${table.title}`, table.id);
+            }
+
+            return this._tableIdCache.get(cacheKey) || null;
+        } catch (error) {
+            logger.error(`Failed to get table ID for ${tableName} in base ${baseId}`, { error });
+            return null;
+        }
     }
 
     /**
@@ -210,7 +260,7 @@ export class NocoDBService {
                         alerts.push({
                             type: 'blocker',
                             project: projectId,
-                            task: task.タスク名 || 'Untitled',
+                            task: task.タイトル || task.タスク名 || 'Untitled',
                             owner: task.担当者 || 'Unassigned',
                             days_blocked: daysBlocked,
                             severity: 'critical'
@@ -226,7 +276,7 @@ export class NocoDBService {
                             alerts.push({
                                 type: 'overdue',
                                 project: projectId,
-                                task: task.タスク名 || 'Untitled',
+                                task: task.タイトル || task.タスク名 || 'Untitled',
                                 owner: task.担当者 || 'Unassigned',
                                 days_overdue: daysOverdue,
                                 deadline: task.期限,

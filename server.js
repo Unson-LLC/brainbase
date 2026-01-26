@@ -27,6 +27,7 @@ import { WorktreeService } from './server/services/worktree-service.js';
 import { createTaskRouter } from './server/routes/tasks.js';
 import { createStateRouter } from './server/routes/state.js';
 import { createConfigRouter } from './server/routes/config.js';
+import { ConfigService } from './server/services/config-service.js';
 import { createInboxRouter } from './server/routes/inbox.js';
 import { createScheduleRouter } from './server/routes/schedule.js';
 import { createMiscRouter } from './server/routes/misc.js';
@@ -175,6 +176,7 @@ const taskParser = new TaskParser(TASKS_FILE);
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
+const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
@@ -391,7 +393,7 @@ app.get('/health/ready', (req, res) => {
 
 app.use('/api/tasks', createTaskRouter(taskParser));
 app.use('/api/state', createStateRouter(stateStore, sessionManager, TEST_MODE));
-app.use('/api/config', createConfigRouter(configParser));
+app.use('/api/config', createConfigRouter(configParser, configService));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));

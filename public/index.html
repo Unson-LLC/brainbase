@@ -170,13 +170,7 @@
                         </div>
                     </section>
 
-                    <!-- Section 3: プロジェクトカードグリッド -->
-                    <section id="section-3-projects" class="project-cards-grid" aria-label="Project Health Grid"
-                        role="region">
-                        <!-- 12プロジェクトカード will be injected via JS -->
-                    </section>
-
-                    <!-- Section 4: Trend Analysis -->
+                    <!-- Section 4: Trend Analysis (Story 4: 構造的な問題を見抜く) -->
                     <section id="section-4-trends" class="trend-analysis-section" aria-labelledby="section-4-heading"
                         role="region" style="margin-top: 48px;">
                         <div class="section-header"
@@ -187,39 +181,24 @@
                                 </h2>
                             </div>
                             <p style="color: var(--text-tertiary); font-size: 13px; margin: 0;">
-                                プロジェクト成熟度とHealth Scoreの推移 <span style="opacity: 0.7;">(過去4週間)</span>
+                                循環状態の推移と構造的問題の検出 <span style="opacity: 0.7;">(過去8週間)</span>
                             </p>
                         </div>
 
-                        <!-- Project Health Trends（上位3プロジェクト） -->
+                        <!-- Project Health Trends（トレンドカード：改善/悪化/安定） -->
                         <div id="project-trends-container" style="margin-bottom: 32px;">
-                            <!-- Top 3 project trend cards will be injected via JS -->
+                            <!-- Project trend cards will be injected via JS -->
                             <div class="project-trends-grid"
-                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
-                                <!-- Project Trend Card Template:
-                                <div class="project-trend-card" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(30px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                        <h4 style="color: var(--text-primary); font-size: 16px; font-weight: 600;">Project Name</h4>
-                                        <span class="trend-badge" style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">改善中</span>
-                                    </div>
-                                    <div class="maturity-heatmap" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px;">
-                                        CPF/PSF/SPF/PMF cells
-                                    </div>
-                                    <div class="health-score-trend" style="display: flex; align-items: center; gap: 8px;">
-                                        <span style="color: var(--text-secondary); font-size: 13px;">Health Score:</span>
-                                        <span style="color: var(--text-primary); font-size: 16px; font-weight: 600;">87</span>
-                                        <span class="trend-arrow" style="color: var(--accent-green);">↑ +5</span>
-                                    </div>
-                                </div>
-                                -->
+                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+                                <!-- シンプルなトレンドカード（成熟度フェーズなし） -->
                             </div>
                         </div>
 
-                        <!-- 8-Week Trends Heatmap (Story 4: 構造的な問題を見抜く) -->
+                        <!-- 8-Week Health Heatmap (Story 4 AC: 過去4〜8週の循環状態推移が時系列で見える) -->
                         <div id="trends-heatmap-container" style="margin-bottom: 32px;">
                             <h4 style="color: var(--text-primary); font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
                                 <span>8週間の健全性推移</span>
-                                <span style="font-size: 12px; font-weight: 400; color: var(--text-secondary);">(Story 4: 構造的な問題を見抜く)</span>
+                                <span style="font-size: 12px; font-weight: 400; color: var(--text-secondary);">(循環状態ヒートマップ)</span>
                             </h4>
                             <div id="heatmap-table-container">
                                 <!-- 8-week heatmap table will be injected via JS -->
@@ -227,64 +206,30 @@
                                     <div style="margin-bottom: 8px;">データ読み込み中...</div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Overall Metrics Trend -->
-                        <div id="overall-metrics-trend"
-                            style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px;">
-                            <h4
-                                style="color: var(--text-primary); font-size: 15px; font-weight: 600; margin-bottom: 16px;">
-                                全体メトリクストレンド（週次）
-                            </h4>
-                            <div class="metrics-trend-grid"
-                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
-                                <!-- Metric Trend Item Template:
-                                <div class="metric-trend-item">
-                                    <div style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">タスク完了率</div>
-                                    <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
-                                        <span style="color: var(--text-primary); font-size: 24px; font-weight: 600;">78%</span>
-                                        <span style="color: var(--accent-green); font-size: 14px;">↑ +3%</span>
-                                    </div>
-                                    <div class="mini-chart" style="height: 40px; background: rgba(255, 255, 255, 0.05); border-radius: 4px;">
-                                        Sparkline chart
-                                    </div>
+                            <!-- Heatmap Legend -->
+                            <div class="heatmap-legend" style="display: flex; gap: 16px; justify-content: center; margin-top: 16px; font-size: 12px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 16px; height: 16px; background: #22c55e; border-radius: 3px;"></div>
+                                    <span style="color: var(--text-secondary);">健全 (80+)</span>
                                 </div>
-                                -->
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 16px; height: 16px; background: #f59e0b; border-radius: 3px;"></div>
+                                    <span style="color: var(--text-secondary);">注意 (60-79)</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 16px; height: 16px; background: #ef4444; border-radius: 3px;"></div>
+                                    <span style="color: var(--text-secondary);">危険 (&lt;60)</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 16px; height: 16px; background: rgba(255,255,255,0.1); border-radius: 3px; border: 1px dashed rgba(255,255,255,0.3);"></div>
+                                    <span style="color: var(--text-secondary);">データなし</span>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Validation Stage Distribution (CPF/PSF/SPF/PMF) -->
-                        <div id="validation-stage-distribution"
-                            style="margin-top: 24px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px;">
-                            <h4
-                                style="color: var(--text-primary); font-size: 15px; font-weight: 600; margin-bottom: 16px;">
-                                バリデーション段階分布の推移
-                            </h4>
-                            <div id="validation-chart-container" style="height: 200px;">
-                                <!-- Stacked area chart will be injected via JS -->
-                            </div>
-                            <div class="stage-legend"
-                                style="display: flex; gap: 16px; justify-content: center; margin-top: 16px; font-size: 13px;">
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <div style="width: 12px; height: 12px; background: #35a670; border-radius: 2px;">
-                                    </div>
-                                    <span style="color: var(--text-secondary);">CPF</span>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <div style="width: 12px; height: 12px; background: #ff9b26; border-radius: 2px;">
-                                    </div>
-                                    <span style="color: var(--text-secondary);">PSF</span>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <div style="width: 12px; height: 12px; background: #6b21ef; border-radius: 2px;">
-                                    </div>
-                                    <span style="color: var(--text-secondary);">SPF</span>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <div style="width: 12px; height: 12px; background: #05f; border-radius: 2px;"></div>
-                                    <span style="color: var(--text-secondary);">PMF</span>
-                                </div>
-                            </div>
+                        <!-- Chronic Stagnation Alerts (Story 4 AC: 慢性的な止まり(2週以上継続)がアラート対象) -->
+                        <div id="chronic-alerts-container" style="margin-bottom: 32px;">
+                            <!-- Chronic stagnation alerts will be injected via JS -->
                         </div>
                     </section>
 
@@ -292,124 +237,6 @@
                     <section id="mana-quality" aria-label="Mana Quality Dashboard" role="region"
                         style="margin-top: 32px; margin-bottom: 40px;">
                         <!-- Section 5 content injected via renderSection5() -->
-                    </section>
-
-                    <!-- Section 6: システムリソース (Phase 2) -->
-                    <section class="system-resources-section" id="system-resources-section"
-                        aria-labelledby="system-section-heading" role="region" style="
-                        margin-top: 32px;
-                        margin-bottom: 40px;
-                        background: rgba(255, 255, 255, 0.05);
-                        backdrop-filter: blur(30px);
-                        border: 1px solid rgba(255, 255, 255, 0.1);
-                        border-radius: 12px;
-                        padding: 20px;
-                        transition: all 0.3s ease;
-                    ">
-                        <!-- Accordion Header -->
-                        <div class="section-header" id="system-section-header" style="
-                            margin-bottom: 0;
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: center;
-                            cursor: pointer;
-                            user-select: none;
-                        ">
-                            <div class="dashboard-section-header" style="margin-bottom: 0;">
-                                <h2 id="system-section-heading" class="section-header-title">
-                                    System Resources
-                                </h2>
-                            </div>
-                            <!-- Chevron Icon -->
-                            <svg id="system-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                style="
-                                color: var(--text-secondary);
-                                transition: transform 0.3s ease;
-                            ">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </div>
-
-                        <!-- Collapsible Content (デフォルトで非表示) -->
-                        <div id="system-content" class="system-content" style="
-                            max-height: 0;
-                            overflow: hidden;
-                            transition: max-height 0.3s ease;
-                        ">
-                            <div style="padding-top: 16px;">
-                                <div class="system-grid">
-                                    <!-- System gauges injected via JS -->
-                                </div>
-
-                                <!-- System Health Status -->
-                                <div class="system-health-section" style="margin-top: 20px;">
-                                    <h4
-                                        style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; font-weight: 600;">
-                                        System Health</h4>
-                                    <div id="system-health-status"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Section 7: Trend Graphs (Phase 3) -->
-                    <section class="trend-graphs-section" aria-labelledby="trend-graphs-heading" role="region"
-                        style="margin-top: 32px; margin-bottom: 40px;">
-                        <div class="dashboard-section-header">
-                            <h2 id="trend-graphs-heading" class="section-header-title">
-                                Overall Trends
-                            </h2>
-                        </div>
-                        <div class="trend-grid">
-                            <div class="trend-wrapper">
-                                <h4
-                                    style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
-                                    Overall Completion</h4>
-                                <div class="trend-card" id="trend-completion"></div>
-                            </div>
-                            <div class="trend-wrapper">
-                                <h4
-                                    style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
-                                    Overdue Tasks</h4>
-                                <div class="trend-card" id="trend-overdue"></div>
-                            </div>
-                            <div class="trend-wrapper">
-                                <h4
-                                    style="color:var(--text-primary); font-size:0.9rem; margin-bottom:12px; font-weight:600;">
-                                    Mana Success Rate</h4>
-                                <div class="trend-card" id="trend-mana"></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- Section 7: Mana Dashboard (Phase 4) -->
-                    <section class="mana-dashboard-section" aria-labelledby="mana-dashboard-heading" role="region">
-                        <div class="section-header">
-                            <h2 id="mana-dashboard-heading"><i data-lucide="bot"></i> Mana Dashboard</h2>
-                            <p class="section-description">Slack AI PMエージェントのワークフロー実行状況と品質メトリクス</p>
-                        </div>
-
-                        <!-- Mana Hero Status -->
-                        <div class="mana-hero" id="mana-hero">
-                            <div class="loading">読み込み中...</div>
-                        </div>
-
-                        <!-- Mana Quality Metrics (4 Gauges) -->
-                        <div class="mana-quality-section">
-                            <h3 class="subsection-title">品質メトリクス</h3>
-                            <div class="mana-quality-grid" id="mana-quality-grid">
-                                <div class="loading">読み込み中...</div>
-                            </div>
-                        </div>
-
-                        <!-- Mana Workflow Status -->
-                        <div class="mana-workflows-section">
-                            <h3 class="subsection-title">ワークフロー実行状況</h3>
-                            <div class="mana-workflows-grid" id="mana-workflows-grid">
-                                <div class="loading">読み込み中...</div>
-                            </div>
-                        </div>
                     </section>
 
                     <!-- Section 7: Actionable Insights (Phase 3) -->
@@ -831,110 +658,8 @@
                 </div>
             </div>
             <div class="modal-body settings-body">
-                <!-- Integrity Summary -->
-                <div class="integrity-summary" id="integrity-summary">
-                    <div class="loading">Loading...</div>
-                </div>
-
-                <!-- Settings Tabs -->
-                <div class="settings-tabs">
-                    <button class="settings-tab active" data-tab="unified">
-                        <i data-lucide="layout-grid"></i> Overview
-                    </button>
-                    <button class="settings-tab" data-tab="slack">
-                        <i data-lucide="hash"></i> Slack
-                    </button>
-                    <button class="settings-tab" data-tab="projects">
-                        <i data-lucide="folder-git-2"></i> Projects
-                    </button>
-                    <button class="settings-tab" data-tab="github">
-                        <i data-lucide="github"></i> GitHub
-                    </button>
-                    <button class="settings-tab" data-tab="nocodb">
-                        <i data-lucide="table-2"></i> NocoDB
-                    </button>
-                </div>
-
-                <!-- Tab Content -->
-                <div class="settings-content">
-                    <!-- Unified Overview Tab -->
-                    <div class="settings-panel active" id="unified-panel">
-                        <div class="settings-section">
-                            <h3>Unified Configuration Overview</h3>
-                            <p class="settings-section-desc">Workspace → Project → Slack/GitHub/Airtable の統合マッピング</p>
-                            <div id="unified-view" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Slack Tab -->
-                    <div class="settings-panel" id="slack-panel">
-                        <div class="settings-section">
-                            <h3>Workspaces</h3>
-                            <div id="workspaces-list" class="config-list">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h3>Channel Mappings</h3>
-                            <div class="filter-bar">
-                                <input type="text" id="channel-filter" placeholder="Search channels..."
-                                    class="form-input">
-                                <select id="workspace-filter" class="form-input">
-                                    <option value="">All Workspaces</option>
-                                </select>
-                            </div>
-                            <div id="channels-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-
-                        <div class="settings-section">
-                            <h3>Member Mappings</h3>
-                            <div class="filter-bar">
-                                <input type="text" id="member-filter" placeholder="Search members..."
-                                    class="form-input">
-                            </div>
-                            <div id="members-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Projects Tab -->
-                    <div class="settings-panel" id="projects-panel">
-                        <div class="settings-section">
-                            <h3>Project Mappings</h3>
-                            <div id="projects-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- GitHub Tab -->
-                    <div class="settings-panel" id="github-panel">
-                        <div class="settings-section">
-                            <h3>GitHub Repository Mappings</h3>
-                            <p class="settings-section-desc">プロジェクトとGitHubリポジトリの対応関係（正本: config.yml）</p>
-                            <div id="github-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- NocoDB Tab -->
-                    <div class="settings-panel" id="nocodb-panel">
-                        <div class="settings-section">
-                            <h3>NocoDB Base Mappings</h3>
-                            <p class="settings-section-desc">プロジェクトとNocoDBベースの対応関係（正本: config.yml）</p>
-                            <div id="nocodb-list" class="config-table-container">
-                                <div class="loading">Loading...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <div class="settings-tabs"></div>
+                <div class="settings-content"></div>
             </div>
         </div>
     </div>

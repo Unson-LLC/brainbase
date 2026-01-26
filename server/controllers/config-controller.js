@@ -3,8 +3,9 @@
  * 設定管理のHTTPリクエスト処理
  */
 export class ConfigController {
-    constructor(configParser) {
+    constructor(configParser, configService) {
         this.configParser = configParser;
+        this.configService = configService;
     }
 
     /**
@@ -85,6 +86,59 @@ export class ConfigController {
         } catch (error) {
             console.error('Failed to get projects:', error);
             res.status(500).json({ error: 'Failed to get projects' });
+        }
+    };
+
+    /**
+     * POST /api/config/projects
+     * PUT /api/config/projects/:projectId
+     * プロジェクトを作成・更新
+     */
+    upsertProject = async (req, res) => {
+        try {
+            if (!this.configService) {
+                throw new Error('Config service unavailable');
+            }
+
+            const payload = req.body || {};
+            const projectId = req.params.projectId || payload.id;
+            const glob = Array.isArray(payload.glob_include)
+                ? payload.glob_include
+                : String(payload.glob_include || '')
+                    .split(/\r?\n|,/)
+                    .map(entry => entry.trim())
+                    .filter(Boolean);
+
+            await this.configService.upsertProject({
+                id: projectId,
+                emoji: payload.emoji,
+                local_path: payload.local_path,
+                glob_include: glob,
+                archived: payload.archived
+            });
+
+            res.json({ ok: true });
+        } catch (error) {
+            console.error('Failed to upsert project:', error);
+            res.status(400).json({ error: error.message || 'Failed to upsert project' });
+        }
+    };
+
+    /**
+     * DELETE /api/config/projects/:projectId
+     * プロジェクトを削除
+     */
+    deleteProject = async (req, res) => {
+        try {
+            if (!this.configService) {
+                throw new Error('Config service unavailable');
+            }
+
+            await this.configService.deleteProject(req.params.projectId);
+            res.json({ ok: true });
+        } catch (error) {
+            console.error('Failed to delete project:', error);
+            res.status(400).json({ error: error.message || 'Failed to delete project' });
         }
     };
 
@@ -217,6 +271,154 @@ export class ConfigController {
         } catch (error) {
             console.error('Failed to get notifications:', error);
             res.status(500).json({ error: 'Failed to get notifications' });
+        }
+    };
+
+    /**
+     * POST /api/config/organizations
+     * PUT /api/config/organizations/:orgId
+     * Organizationsを作成・更新
+     */
+    upsertOrganization = async (req, res) => {
+        try {
+            if (!this.configService) {
+                throw new Error('Config service unavailable');
+            }
+
+            const payload = req.body || {};
+            const orgId = req.params.orgId || payload.id;
+            const projects = Array.isArray(payload.projects)
+                ? payload.projects
+                : String(payload.projects || '')
+                    .split(',')
+                    .map(p => p.trim())
+                    .filter(Boolean);
+
+            const organization = await this.configService.upsertOrganization({
+                id: orgId,
+                name: payload.name,
+                ceo: payload.ceo,
+                projects
+            });
+
+            res.json({ ok: true, organization });
+        } catch (error) {
+            console.error('Failed to upsert organization:', error);
+            res.status(400).json({ error: error.message || 'Failed to upsert organization' });
+        }
+    };
+
+    /**
+     * DELETE /api/config/organizations/:orgId
+     * Organizationを削除
+     */
+    deleteOrganization = async (req, res) => {
+        try {
+            if (!this.configService) {
+                throw new Error('Config service unavailable');
+            }
+
+            await this.configService.deleteOrganization(req.params.orgId);
+            res.json({ ok: true });
+        } catch (error) {
+            console.error('Failed to delete organization:', error);
+            res.status(400).json({ error: error.message || 'Failed to delete organization' });
+        }
+    };
+
+    /**
+     * PUT /api/config/notifications
+     * Notificationsを更新
+     */
+    updateNotifications = async (req, res) => {
+        try {
+            if (!this.configService) {
+                throw new Error('Config service unavailable');
+            }
+
+            const payload = req.body || {};
+            const notifications = await this.configService.updateNotifications({
+                channels: payload.channels,
+                dnd: payload.dnd
+            });
+
+            res.json({ ok: true, notifications });
+        } catch (error) {
+            console.error('Failed to update notifications:', error);
+            res.status(400).json({ error: error.message || 'Failed to update notifications' });
+        }
+    };
+
+    /**
+     * POST /api/config/github
+     * PUT /api/config/github/:projectId
+     * GitHubマッピングを作成・更新
+     */
+    upsertGitHub = async (req, res) => {
+        try {
+            const payload = req.body || {};
+            const projectId = req.params.projectId || payload.project_id;
+            const mapping = await this.configService.upsertGitHubMapping({
+                project_id: projectId,
+                owner: payload.owner,
+                repo: payload.repo,
+                branch: payload.branch
+            });
+            res.json({ ok: true, github: mapping });
+        } catch (error) {
+            console.error('Failed to upsert GitHub mapping:', error);
+            res.status(400).json({ error: error.message || 'Failed to upsert GitHub mapping' });
+        }
+    };
+
+    /**
+     * DELETE /api/config/github/:projectId
+     * GitHubマッピングを削除
+     */
+    deleteGitHub = async (req, res) => {
+        try {
+            await this.configService.deleteGitHubMapping(req.params.projectId);
+            res.json({ ok: true });
+        } catch (error) {
+            console.error('Failed to delete GitHub mapping:', error);
+            res.status(400).json({ error: error.message || 'Failed to delete GitHub mapping' });
+        }
+    };
+
+    /**
+     * POST /api/config/nocodb
+     * PUT /api/config/nocodb/:projectId
+     * NocoDBマッピングを作成・更新
+     */
+    upsertNocoDB = async (req, res) => {
+        try {
+            const payload = req.body || {};
+            const projectId = req.params.projectId || payload.project_id;
+            const mapping = await this.configService.upsertNocoDBMapping({
+                project_id: projectId,
+                base_id: payload.base_id,
+                nocodb_project_id: payload.nocodb_project_id,
+                base_name: payload.base_name,
+                url: payload.url
+            });
+            res.json({ ok: true, nocodb: mapping });
+        } catch (error) {
+            console.error('Failed to upsert NocoDB mapping:', error);
+            res.status(400).json({ error: error.message || 'Failed to upsert NocoDB mapping' });
+        }
+    };
+
+    /**
+     * DELETE /api/config/nocodb/:projectId
+     * NocoDBマッピングを削除
+     */
+    deleteNocoDB = async (req, res) => {
+        try {
+            await this.configService.deleteNocoDBMapping(req.params.projectId);
+            res.json({ ok: true });
+        } catch (error) {
+            console.error('Failed to delete NocoDB mapping:', error);
+            res.status(400).json({ error: error.message || 'Failed to delete NocoDB mapping' });
         }
     };
 }

@@ -7,6 +7,7 @@
 
 import { eventBus } from '../core/event-bus.js';
 import { appStore } from '../core/store.js';
+import { fetchPreferences, updatePreferences } from '../state-api.js';
 import { escapeHtml } from '../ui-helpers.js';
 
 export class SettingsCore {
@@ -15,6 +16,7 @@ export class SettingsCore {
     this.ui = ui;
     this.apiClient = apiClient;
     this.currentTab = 'overview';  // デフォルトタブ
+    this.pendingIntegrationSubTab = null;
   }
 
   /**
@@ -109,6 +111,7 @@ export class SettingsCore {
         render: async (container) => {
           const projects = appStore.getState().settingsProjects;
           container.innerHTML = this._renderProjectsHTML(projects);
+          this._setupProjectsCrud(container, projects?.projects || []);
         }
       }
     });
@@ -120,18 +123,13 @@ export class SettingsCore {
       order: 5,
       lifecycle: {
         load: async () => {
-          const [organizations, dependencies] = await Promise.all([
-            this.apiClient.getOrganizations(),
-            this.apiClient.getDependencies()
-          ]);
-          appStore.setState({
-            settingsOrganizations: organizations,
-            settingsDependencies: dependencies
-          });
+          const organizations = await this.apiClient.getOrganizations();
+          appStore.setState({ settingsOrganizations: organizations });
         },
         render: async (container) => {
-          const { settingsOrganizations, settingsDependencies } = appStore.getState();
-          container.innerHTML = this._renderOrganizationsHTML(settingsOrganizations, settingsDependencies);
+          const { settingsOrganizations } = appStore.getState();
+          container.innerHTML = this._renderOrganizationsHTML(settingsOrganizations || []);
+          this._setupOrganizationsCrud(container, settingsOrganizations || []);
 
           // Lucide icons再初期化
           if (typeof lucide !== 'undefined') {
@@ -149,9 +147,10 @@ export class SettingsCore {
       lifecycle: {
         load: async () => {
           // 同期ステータスはConfigとHealthから取得
-          const [config, health] = await Promise.all([
+          const [config, health, preferences] = await Promise.all([
             this.apiClient.getConfig(),
-            this.apiClient.getHealth().catch(() => null)
+            this.apiClient.getHealth().catch(() => null),
+            fetchPreferences()
           ]);
           appStore.setState({
             settingsIntegrations: {
@@ -159,12 +158,47 @@ export class SettingsCore {
               github: config.github,
               nocodb: config.nocodb,
               health: health
-            }
+            },
+            settingsIntegrationProjects: config.projects?.projects || [],
+            preferences
           });
         },
         render: async (container) => {
-          const integrations = appStore.getState().settingsIntegrations;
-          container.innerHTML = this._renderIntegrationsHTML(integrations);
+          const { settingsIntegrations, preferences, settingsIntegrationProjects } = appStore.getState();
+          container.innerHTML = this._renderIntegrationsHTML(settingsIntegrations, preferences, settingsIntegrationProjects);
+
+          this._setupIntegrationNav(container, this.pendingIntegrationSubTab);
+          this.pendingIntegrationSubTab = null;
+
+          // Slack details (filters + tables)
+          this._renderSlackDetails(settingsIntegrations?.slack, container);
+
+          // GitHub / NocoDB CRUD
+          this._setupGitHubCrud(container, settingsIntegrations?.github || [], settingsIntegrationProjects || []);
+          this._setupNocoDBCrud(container, settingsIntegrations?.nocodb || [], settingsIntegrationProjects || []);
+
+          const saveBtn = container.querySelector('#nocodb-self-assignee-save');
+          const input = container.querySelector('#nocodb-self-assignee');
+          const status = container.querySelector('#nocodb-self-assignee-status');
+
+          if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+              const value = input?.value?.trim() || '';
+              saveBtn.disabled = true;
+              if (status) status.textContent = '保存中...';
+
+              try {
+                const nextPreferences = await updatePreferences({ user: { assignee: value } });
+                appStore.setState({ preferences: nextPreferences });
+                if (status) status.textContent = '保存しました';
+              } catch (error) {
+                console.error('Failed to update preferences:', error);
+                if (status) status.textContent = '保存に失敗しました';
+              } finally {
+                saveBtn.disabled = false;
+              }
+            });
+          }
 
           // Lucide icons再初期化
           if (typeof lucide !== 'undefined') {
@@ -187,6 +221,7 @@ export class SettingsCore {
         render: async (container) => {
           const notifications = appStore.getState().settingsNotifications;
           container.innerHTML = this._renderNotificationsHTML(notifications);
+          this._setupNotificationsCrud(container, notifications);
 
           // Lucide icons再初期化
           if (typeof lucide !== 'undefined') {
@@ -275,6 +310,24 @@ export class SettingsCore {
     eventBus.on('settings:plugin-load-error', ({ pluginId, error }) => {
       console.error(`Plugin ${pluginId} failed to load:`, error);
       // TODO: エラー表示（Toast通知など）
+    });
+
+    eventBus.on('settings:open-tab', async (event) => {
+      const tabId = event.detail?.tabId;
+      const subTab = event.detail?.subTab;
+      if (tabId) {
+        this.currentTab = tabId;
+      }
+      if (tabId === 'integrations' && subTab) {
+        this.pendingIntegrationSubTab = subTab;
+      }
+
+      if (!this.ui.isOpen()) {
+        await this.ui.openModal();
+        return;
+      }
+
+      await this._switchTab(this.currentTab);
     });
   }
 
@@ -568,37 +621,212 @@ export class SettingsCore {
    */
   _renderProjectsHTML(projectsData) {
     const allProjects = projectsData?.projects || [];
-    const root = projectsData?.root || '';
+    const projects = allProjects;
 
-    // アーカイブされたプロジェクトを除外
-    const projects = allProjects.filter(p => !p.archived);
-
-    if (projects.length === 0) {
-      return '<div class="config-empty">No projects found</div>';
-    }
+    const rows = projects.map(p => `
+      <tr>
+        <td><span class="badge badge-project">${p.emoji ? escapeHtml(p.emoji) + ' ' : ''}${escapeHtml(p.id || '')}</span></td>
+        <td class="mono">${escapeHtml(p.local?.path || '-')}</td>
+        <td class="mono">${escapeHtml((p.local?.glob_include || []).slice(0, 3).join(', '))}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
+        <td>${p.archived ? '<span class="status-missing">Archived</span>' : 'Active'}</td>
+        <td class="table-actions">
+          <button class="btn-secondary btn-sm" data-project-edit="${escapeHtml(p.id || '')}">編集</button>
+          <button class="btn-danger btn-sm" data-project-delete="${escapeHtml(p.id || '')}">削除</button>
+        </td>
+      </tr>
+    `).join('');
 
     return `
-      <div class="config-table-container">
-        <table class="config-table">
-          <thead>
-            <tr>
-              <th>Project ID</th>
-              <th>Local Path</th>
-              <th>Included Globs</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${projects.map(p => `
-              <tr>
-                <td><span class="badge badge-project">${p.emoji ? escapeHtml(p.emoji) + ' ' : ''}${escapeHtml(p.id || '')}</span></td>
-                <td class="mono">${escapeHtml(p.local?.path || '-')}</td>
-                <td class="mono">${escapeHtml((p.local?.glob_include || []).slice(0, 3).join(', '))}${(p.local?.glob_include || []).length > 3 ? '...' : ''}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3>Project Editor</h3>
+          <button class="btn-secondary btn-sm" id="project-reset-btn">クリア</button>
+        </div>
+        <p class="settings-section-desc">プロジェクトの基本情報とローカルパスを管理します</p>
+        <div class="settings-form-grid">
+          <div class="form-group">
+            <label for="project-id-input">Project ID</label>
+            <input id="project-id-input" class="form-input" placeholder="salestailor" />
+          </div>
+          <div class="form-group">
+            <label for="project-emoji-input">Emoji</label>
+            <input id="project-emoji-input" class="form-input" placeholder="🧵" />
+          </div>
+          <div class="form-group">
+            <label for="project-path-input">Local Path</label>
+            <input id="project-path-input" class="form-input" placeholder="${escapeHtml('${PROJECTS_ROOT:-/path/to/projects}')}/salestailor" />
+          </div>
+          <div class="form-group">
+            <label for="project-glob-input">Glob Include (1行1パス)</label>
+            <textarea id="project-glob-input" class="form-input" rows="4" placeholder="app/**/*
+docs/**/*"></textarea>
+          </div>
+          <label class="checkbox-label">
+            <input type="checkbox" id="project-archived-input" />
+            Archived
+          </label>
+          <div class="form-actions">
+            <button class="btn-primary btn-sm" id="project-save-btn">保存</button>
+            <button class="btn-danger btn-sm" id="project-delete-btn">削除</button>
+          </div>
+          <p class="settings-section-desc" id="project-status"></p>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Projects</h3>
+        ${rows
+          ? `<div class="config-table-container">
+              <table class="config-table">
+                <thead>
+                  <tr>
+                    <th>Project ID</th>
+                    <th>Local Path</th>
+                    <th>Included Globs</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows}
+                </tbody>
+              </table>
+            </div>`
+          : '<div class="config-empty">No projects found</div>'
+        }
       </div>
     `;
+  }
+
+  async _refreshProjectsPanel() {
+    const config = await this.apiClient.getConfig();
+    appStore.setState({ settingsProjects: config.projects });
+
+    const container = document.getElementById('projects-panel');
+    if (container) {
+      await this.pluginRegistry.renderPanel('projects', container);
+    }
+  }
+
+  _setupProjectsCrud(container, projects = []) {
+    const idInput = container.querySelector('#project-id-input');
+    const emojiInput = container.querySelector('#project-emoji-input');
+    const pathInput = container.querySelector('#project-path-input');
+    const globInput = container.querySelector('#project-glob-input');
+    const archivedInput = container.querySelector('#project-archived-input');
+    const saveBtn = container.querySelector('#project-save-btn');
+    const deleteBtn = container.querySelector('#project-delete-btn');
+    const resetBtn = container.querySelector('#project-reset-btn');
+    const status = container.querySelector('#project-status');
+
+    if (!idInput || !saveBtn || !deleteBtn) return;
+
+    const projectById = new Map((projects || []).map(p => [p.id, p]));
+
+    const clearForm = () => {
+      idInput.value = '';
+      if (emojiInput) emojiInput.value = '';
+      if (pathInput) pathInput.value = '';
+      if (globInput) globInput.value = '';
+      if (archivedInput) archivedInput.checked = false;
+      if (status) status.textContent = '';
+    };
+
+    const fillForm = (projectId) => {
+      const project = projectById.get(projectId);
+      if (!project) {
+        if (emojiInput) emojiInput.value = '';
+        if (pathInput) pathInput.value = '';
+        if (globInput) globInput.value = '';
+        if (archivedInput) archivedInput.checked = false;
+        return;
+      }
+      if (emojiInput) emojiInput.value = project.emoji || '';
+      if (pathInput) pathInput.value = project.local?.path || '';
+      if (globInput) globInput.value = (project.local?.glob_include || []).join('\n');
+      if (archivedInput) archivedInput.checked = Boolean(project.archived);
+    };
+
+    resetBtn?.addEventListener('click', () => clearForm());
+
+    container.querySelectorAll('[data-project-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const projectId = btn.dataset.projectEdit;
+        if (!projectId) return;
+        idInput.value = projectId;
+        fillForm(projectId);
+        if (status) {
+          status.textContent = `編集対象を読み込みました: ${projectId}`;
+        }
+        idInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        idInput.focus();
+      });
+    });
+
+    container.querySelectorAll('[data-project-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const projectId = btn.dataset.projectDelete;
+        if (!projectId) return;
+        if (status) status.textContent = '削除中...';
+        try {
+          await this.apiClient.deleteProject(projectId);
+          await this._refreshProjectsPanel();
+        } catch (error) {
+          if (status) status.textContent = '削除に失敗しました';
+        }
+      });
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const projectId = idInput.value.trim();
+      const emoji = emojiInput?.value?.trim() || '';
+      const localPath = pathInput?.value?.trim() || '';
+      const glob = (globInput?.value || '')
+        .split(/\r?\n|,/)
+        .map(entry => entry.trim())
+        .filter(Boolean);
+      const archived = Boolean(archivedInput?.checked);
+
+      if (!projectId || !localPath) {
+        if (status) status.textContent = 'Project ID / Local Path は必須です';
+        return;
+      }
+
+      saveBtn.disabled = true;
+      deleteBtn.disabled = true;
+      if (status) status.textContent = '保存中...';
+
+      try {
+        await this.apiClient.upsertProject({
+          id: projectId,
+          emoji,
+          local_path: localPath,
+          glob_include: glob,
+          archived
+        });
+        await this._refreshProjectsPanel();
+      } catch (error) {
+        if (status) status.textContent = '保存に失敗しました';
+      } finally {
+        saveBtn.disabled = false;
+        deleteBtn.disabled = false;
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const projectId = idInput.value.trim();
+      if (!projectId) {
+        if (status) status.textContent = 'Project ID を入力してください';
+        return;
+      }
+      if (status) status.textContent = '削除中...';
+      try {
+        await this.apiClient.deleteProject(projectId);
+        await this._refreshProjectsPanel();
+      } catch (error) {
+        if (status) status.textContent = '削除に失敗しました';
+      }
+    });
   }
 
   /**
@@ -608,63 +836,210 @@ export class SettingsCore {
    * @param {Object} dependencies - 依存関係マッピング
    * @returns {string} HTML文字列
    */
-  _renderOrganizationsHTML(organizations, dependencies) {
-    if (!organizations || organizations.length === 0) {
+  _renderOrganizationsHTML(organizations = []) {
+    const rows = (organizations || []).map(org => {
+      const projects = org.projects || [];
+      const projectBadges = projects.slice(0, 4).map(p => `
+        <span class="badge badge-project">${escapeHtml(p)}</span>
+      `).join('');
+      const more = projects.length > 4 ? `<span class="org-projects-more">+${projects.length - 4}</span>` : '';
+      const projectsCell = projects.length > 0 ? `${projectBadges}${more}` : '<span class="status-missing">-</span>';
+
       return `
-        <div class="config-empty">
-          <i data-lucide="building-2"></i>
-          <p>No organizations configured</p>
-          <p class="config-empty-hint">Add organizations to config.yml to manage multiple legal entities</p>
-        </div>
+        <tr>
+          <td><span class="badge badge-project">${escapeHtml(org.id || '')}</span></td>
+          <td>${escapeHtml(org.name || org.id || '')}</td>
+          <td>${escapeHtml(org.ceo || '-')}</td>
+          <td>${projectsCell}</td>
+          <td class="table-actions">
+            <button class="btn-secondary btn-sm" data-org-edit="${escapeHtml(org.id || '')}">編集</button>
+            <button class="btn-danger btn-sm" data-org-delete="${escapeHtml(org.id || '')}">削除</button>
+          </td>
+        </tr>
       `;
-    }
+    }).join('');
 
-    let html = '<div class="organizations-grid">';
+    return `
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3>Organization Editor</h3>
+          <button class="btn-secondary btn-sm" id="org-reset-btn">クリア</button>
+        </div>
+        <p class="settings-section-desc">法人情報とプロジェクト紐づけを管理します</p>
+        <div class="settings-form-grid">
+          <div class="form-group">
+            <label for="org-id-input">Organization ID</label>
+            <input id="org-id-input" class="form-input" placeholder="salestailor" />
+          </div>
+          <div class="form-group">
+            <label for="org-name-input">Name</label>
+            <input id="org-name-input" class="form-input" placeholder="SalesTailor Inc." />
+          </div>
+          <div class="form-group">
+            <label for="org-ceo-input">CEO</label>
+            <input id="org-ceo-input" class="form-input" placeholder="hori_shiori" />
+          </div>
+          <div class="form-group">
+            <label for="org-projects-input">Projects (comma separated)</label>
+            <input id="org-projects-input" class="form-input" placeholder="salestailor, salestailor-app" />
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary btn-sm" id="org-save-btn">保存</button>
+            <button class="btn-danger btn-sm" id="org-delete-btn">削除</button>
+          </div>
+          <p class="settings-section-desc" id="org-status"></p>
+        </div>
+      </div>
 
-    for (const org of organizations) {
-      const projectCount = org.projects?.length || 0;
-
-      html += `
-        <div class="org-card">
-          <div class="org-card-header">
-            <div class="org-icon">
+      <div class="settings-section">
+        <h3>Organizations</h3>
+        ${rows
+          ? `<div class="config-table-container">
+              <table class="config-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>CEO</th>
+                    <th>Projects</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows}
+                </tbody>
+              </table>
+            </div>`
+          : `
+            <div class="config-empty">
               <i data-lucide="building-2"></i>
+              <p>No organizations configured</p>
+              <p class="config-empty-hint">Add organizations to manage legal entities</p>
             </div>
-            <div class="org-info">
-              <h4 class="org-name">${escapeHtml(org.name || org.id)}</h4>
-              <span class="org-id mono">${escapeHtml(org.id)}</span>
-            </div>
-          </div>
-          <div class="org-card-body">
-            <div class="org-stat">
-              <i data-lucide="user"></i>
-              <span>CEO: ${escapeHtml(org.ceo || '-')}</span>
-            </div>
-            <div class="org-stat">
-              <i data-lucide="folder"></i>
-              <span>${projectCount} project${projectCount !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-          ${projectCount > 0 ? `
-            <div class="org-projects">
-              ${org.projects.slice(0, 5).map(p => `
-                <span class="badge badge-project">${escapeHtml(p)}</span>
-              `).join('')}
-              ${org.projects.length > 5 ? `<span class="org-projects-more">+${org.projects.length - 5}</span>` : ''}
-            </div>
-          ` : ''}
-        </div>
-      `;
+          `
+        }
+      </div>
+    `;
+  }
+
+  async _refreshOrganizationsPanel() {
+    const organizations = await this.apiClient.getOrganizations();
+    appStore.setState({ settingsOrganizations: organizations });
+
+    const container = document.getElementById('organizations-panel');
+    if (container) {
+      await this.pluginRegistry.renderPanel('organizations', container);
     }
+  }
 
-    html += '</div>';
+  _setupOrganizationsCrud(container, organizations = []) {
+    const idInput = container.querySelector('#org-id-input');
+    const nameInput = container.querySelector('#org-name-input');
+    const ceoInput = container.querySelector('#org-ceo-input');
+    const projectsInput = container.querySelector('#org-projects-input');
+    const saveBtn = container.querySelector('#org-save-btn');
+    const deleteBtn = container.querySelector('#org-delete-btn');
+    const resetBtn = container.querySelector('#org-reset-btn');
+    const status = container.querySelector('#org-status');
 
-    // Dependencies Section
-    if (dependencies && Object.keys(dependencies).length > 0) {
-      html += this._renderDependenciesSection(dependencies);
-    }
+    if (!idInput || !saveBtn || !deleteBtn) return;
 
-    return html;
+    const orgById = new Map((organizations || []).map(org => [org.id, org]));
+
+    const clearForm = () => {
+      idInput.value = '';
+      if (nameInput) nameInput.value = '';
+      if (ceoInput) ceoInput.value = '';
+      if (projectsInput) projectsInput.value = '';
+      if (status) status.textContent = '';
+    };
+
+    const fillForm = (orgId) => {
+      const org = orgById.get(orgId);
+      if (!org) {
+        if (nameInput) nameInput.value = '';
+        if (ceoInput) ceoInput.value = '';
+        if (projectsInput) projectsInput.value = '';
+        return;
+      }
+      if (nameInput) nameInput.value = org.name || org.id || '';
+      if (ceoInput) ceoInput.value = org.ceo || '';
+      if (projectsInput) projectsInput.value = (org.projects || []).join(', ');
+    };
+
+    resetBtn?.addEventListener('click', () => clearForm());
+
+    container.querySelectorAll('[data-org-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const orgId = btn.dataset.orgEdit;
+        if (!orgId) return;
+        idInput.value = orgId;
+        fillForm(orgId);
+      });
+    });
+
+    container.querySelectorAll('[data-org-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const orgId = btn.dataset.orgDelete;
+        if (!orgId) return;
+        if (status) status.textContent = '削除中...';
+        try {
+          await this.apiClient.deleteOrganization(orgId);
+          await this._refreshOrganizationsPanel();
+        } catch (error) {
+          if (status) status.textContent = '削除に失敗しました';
+        }
+      });
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const orgId = idInput.value.trim();
+      const name = nameInput?.value?.trim() || '';
+      const ceo = ceoInput?.value?.trim() || '';
+      const projects = (projectsInput?.value || '')
+        .split(',')
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      if (!orgId) {
+        if (status) status.textContent = 'Organization ID は必須です';
+        return;
+      }
+
+      saveBtn.disabled = true;
+      deleteBtn.disabled = true;
+      if (status) status.textContent = '保存中...';
+
+      try {
+        await this.apiClient.upsertOrganization({
+          id: orgId,
+          name,
+          ceo,
+          projects
+        });
+        await this._refreshOrganizationsPanel();
+      } catch (error) {
+        if (status) status.textContent = '保存に失敗しました';
+      } finally {
+        saveBtn.disabled = false;
+        deleteBtn.disabled = false;
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const orgId = idInput.value.trim();
+      if (!orgId) {
+        if (status) status.textContent = 'Organization ID を入力してください';
+        return;
+      }
+      if (status) status.textContent = '削除中...';
+      try {
+        await this.apiClient.deleteOrganization(orgId);
+        await this._refreshOrganizationsPanel();
+      } catch (error) {
+        if (status) status.textContent = '削除に失敗しました';
+      }
+    });
   }
 
   /**
@@ -704,98 +1079,742 @@ export class SettingsCore {
    * @param {Object} integrations - 連携設定
    * @returns {string} HTML文字列
    */
-  _renderIntegrationsHTML(integrations) {
+  _renderIntegrationsHTML(integrations, preferences = {}, projects = []) {
     if (!integrations) {
       return '<div class="config-empty">Failed to load integrations data</div>';
     }
 
     const { slack, github, nocodb, health } = integrations;
-
-    let html = '<div class="integrations-grid">';
-
-    // Slack Integration
     const slackConnected = slack && (slack.workspaces || slack.channels);
-    html += `
-      <div class="integration-card ${slackConnected ? 'connected' : 'disconnected'}">
-        <div class="integration-header">
-          <i data-lucide="hash"></i>
-          <h4>Slack</h4>
-          <span class="integration-status ${slackConnected ? 'success' : 'warning'}">
-            ${slackConnected ? 'Connected' : 'Not Configured'}
-          </span>
-        </div>
-        ${slackConnected ? `
-          <div class="integration-stats">
-            <div class="integration-stat">
-              <span class="stat-value">${slack.workspaces ? Object.keys(slack.workspaces).length : 0}</span>
-              <span class="stat-label">Workspaces</span>
-            </div>
-            <div class="integration-stat">
-              <span class="stat-value">${slack.channels?.length || 0}</span>
-              <span class="stat-label">Channels</span>
-            </div>
-            <div class="integration-stat">
-              <span class="stat-value">${slack.members?.length || 0}</span>
-              <span class="stat-label">Members</span>
-            </div>
-          </div>
-        ` : `
-          <p class="integration-hint">Configure Slack integration in _codex/common/meta/slack/</p>
-        `}
-      </div>
-    `;
-
-    // GitHub Integration
+    const slackWorkspaceCount = slack?.workspaces ? Object.keys(slack.workspaces).length : 0;
+    const slackChannelCount = slack?.channels?.length || 0;
+    const slackMemberCount = slack?.members?.length || 0;
     const githubCount = github?.length || 0;
-    html += `
-      <div class="integration-card ${githubCount > 0 ? 'connected' : 'disconnected'}">
-        <div class="integration-header">
-          <i data-lucide="github"></i>
-          <h4>GitHub</h4>
-          <span class="integration-status ${githubCount > 0 ? 'success' : 'warning'}">
-            ${githubCount > 0 ? 'Connected' : 'Not Configured'}
-          </span>
-        </div>
-        ${githubCount > 0 ? `
-          <div class="integration-stats">
-            <div class="integration-stat">
-              <span class="stat-value">${githubCount}</span>
-              <span class="stat-label">Repositories</span>
-            </div>
-          </div>
-        ` : `
-          <p class="integration-hint">Add GitHub repos in config.yml projects section</p>
-        `}
-      </div>
-    `;
-
-    // NocoDB Integration
     const nocodbCount = nocodb?.length || 0;
-    html += `
-      <div class="integration-card ${nocodbCount > 0 ? 'connected' : 'disconnected'}">
-        <div class="integration-header">
-          <i data-lucide="table-2"></i>
-          <h4>NocoDB</h4>
-          <span class="integration-status ${nocodbCount > 0 ? 'success' : 'warning'}">
-            ${nocodbCount > 0 ? 'Connected' : 'Not Configured'}
-          </span>
-        </div>
-        ${nocodbCount > 0 ? `
-          <div class="integration-stats">
-            <div class="integration-stat">
-              <span class="stat-value">${nocodbCount}</span>
-              <span class="stat-label">Bases</span>
-            </div>
+
+    const assignee = preferences.user?.assignee || '';
+    const escapedAssignee = escapeHtml(assignee);
+    const mappingHtml = this._renderNocoDBMappings(nocodb);
+    const projectOptions = (projects || []).map(p => `
+      <option value="${escapeHtml(p.id || '')}">${escapeHtml(p.id || '')}</option>
+    `).join('');
+
+    const navItem = (key, label, icon, connected, metaHtml) => `
+      <button class="integration-nav-item ${connected ? 'connected' : 'disconnected'}" data-integration="${key}">
+        <div class="integration-nav-main">
+          <i data-lucide="${icon}"></i>
+          <div class="integration-nav-text">
+            <span class="integration-nav-title">${label}</span>
+            <span class="integration-nav-status ${connected ? 'success' : 'warning'}">
+              ${connected ? 'Connected' : 'Not Configured'}
+            </span>
           </div>
-        ` : `
-          <p class="integration-hint">Add NocoDB bases in config.yml projects section</p>
-        `}
-      </div>
+        </div>
+        <div class="integration-nav-meta">
+          ${metaHtml}
+        </div>
+      </button>
     `;
 
-    html += '</div>';
+    return `
+      <div class="integrations-layout">
+        <aside class="integrations-sidebar">
+          <div class="integrations-sidebar-title">Integrations</div>
+          ${navItem(
+            'slack',
+            'Slack',
+            'hash',
+            !!slackConnected,
+            `<span>${slackWorkspaceCount} WS</span><span>${slackChannelCount} CH</span><span>${slackMemberCount} MB</span>`
+          )}
+          ${navItem(
+            'github',
+            'GitHub',
+            'github',
+            githubCount > 0,
+            `<span>${githubCount} Repos</span>`
+          )}
+          ${navItem(
+            'nocodb',
+            'NocoDB',
+            'table-2',
+            nocodbCount > 0,
+            `<span>${nocodbCount} Bases</span>`
+          )}
+        </aside>
 
-    return html;
+        <div class="integrations-main">
+          <div class="integration-panel active" data-integration-panel="slack">
+            <div class="settings-section">
+              <h3>Sync Policy</h3>
+              <p class="settings-section-desc">Slackの設定は同期専用です（GUIからの編集はできません）</p>
+            </div>
+            <div class="settings-section">
+              <h3>Slack Workspaces</h3>
+              <div id="slack-workspaces-list" class="config-list"></div>
+            </div>
+
+            <div class="settings-section">
+              <h3>Channel Mappings</h3>
+              <div class="filter-bar">
+                <input type="text" id="slack-channel-filter" placeholder="Search channels..." class="form-input">
+                <select id="slack-workspace-filter" class="form-input">
+                  <option value="">All Workspaces</option>
+                </select>
+              </div>
+              <div id="slack-channels-list" class="config-table-container"></div>
+            </div>
+
+            <div class="settings-section">
+              <h3>Member Mappings</h3>
+              <div class="filter-bar">
+                <input type="text" id="slack-member-filter" placeholder="Search members..." class="form-input">
+              </div>
+              <div id="slack-members-list" class="config-table-container"></div>
+            </div>
+          </div>
+
+          <div class="integration-panel" data-integration-panel="github">
+            ${this._renderGitHubSection(github, projects)}
+          </div>
+
+          <div class="integration-panel" data-integration-panel="nocodb">
+            <div class="settings-section">
+              <h3>自分の担当者名</h3>
+              <p class="settings-section-desc">「自分だけ」フィルタとプロジェクトタスク追加の既定値に使用します</p>
+              <div class="form-group">
+                <label for="nocodb-self-assignee">担当者名</label>
+                <input
+                  type="text"
+                  id="nocodb-self-assignee"
+                  class="form-input"
+                  placeholder="例: ksato"
+                  value="${escapedAssignee}">
+              </div>
+              <button id="nocodb-self-assignee-save" class="btn-secondary btn-sm">保存</button>
+              <p id="nocodb-self-assignee-status" class="settings-section-desc"></p>
+            </div>
+
+            <div class="settings-section">
+              <div class="settings-section-header">
+                <h3>NocoDB Mapping Editor</h3>
+                <button class="btn-secondary btn-sm" id="nocodb-reset-btn">クリア</button>
+              </div>
+              <div class="settings-form-grid">
+                <div class="form-group">
+                  <label for="nocodb-project-select">Project</label>
+                  <select id="nocodb-project-select" class="form-input">
+                    <option value="">選択...</option>
+                    ${projectOptions}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="nocodb-base-name-input">Base Name</label>
+                  <input id="nocodb-base-name-input" class="form-input" placeholder="SalesTailor" />
+                </div>
+                <div class="form-group">
+                  <label for="nocodb-project-id-input">NocoDB Project ID</label>
+                  <input id="nocodb-project-id-input" class="form-input" placeholder="pqoxxxxxxxxxxxxx" />
+                </div>
+                <div class="form-group">
+                  <label for="nocodb-base-id-input">Legacy Base ID</label>
+                  <input id="nocodb-base-id-input" class="form-input" placeholder="appxxxxxxxxxxxxxx" />
+                </div>
+                <div class="form-group">
+                  <label for="nocodb-url-input">URL</label>
+                  <input id="nocodb-url-input" class="form-input" placeholder="https://noco.unson.jp/..." />
+                </div>
+                <div class="form-actions">
+                  <button class="btn-primary btn-sm" id="nocodb-save-btn">保存</button>
+                  <button class="btn-danger btn-sm" id="nocodb-delete-btn">削除</button>
+                </div>
+                <p class="settings-section-desc" id="nocodb-status"></p>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>NocoDB Base Mappings</h3>
+              <p class="settings-section-desc">プロジェクトとNocoDBベースの対応関係（正本: config.yml）</p>
+              ${mappingHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _setupIntegrationNav(container, initialTab = null) {
+    const items = Array.from(container.querySelectorAll('.integration-nav-item'));
+    const panels = Array.from(container.querySelectorAll('.integration-panel'));
+    if (items.length === 0 || panels.length === 0) return;
+
+    const activate = (key) => {
+      items.forEach(item => {
+        item.classList.toggle('active', item.dataset.integration === key);
+      });
+      panels.forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.integrationPanel === key);
+      });
+    };
+
+    const defaultKey = initialTab || items[0].dataset.integration;
+    activate(defaultKey);
+
+    items.forEach(item => {
+      item.addEventListener('click', () => {
+        activate(item.dataset.integration);
+      });
+    });
+  }
+
+  _renderGitHubSection(github, projects = []) {
+    const projectOptions = (projects || []).map(p => `
+      <option value="${escapeHtml(p.id || '')}">${escapeHtml(p.id || '')}</option>
+    `).join('');
+
+    const rows = (github || []).map(g => `
+      <tr>
+        <td><span class="badge badge-project">${escapeHtml(g.project_id || '')}</span></td>
+        <td class="mono">${escapeHtml(g.owner || '')}</td>
+        <td class="mono">${escapeHtml(g.repo || '')}</td>
+        <td><span class="badge badge-type">${escapeHtml(g.branch || '')}</span></td>
+        <td>${g.url ? `<a href="${escapeHtml(g.url)}" target="_blank" class="config-link">${escapeHtml(g.url)}</a>` : '-'}</td>
+        <td class="table-actions">
+          <button class="btn-secondary btn-sm" data-github-edit="${escapeHtml(g.project_id || '')}">編集</button>
+          <button class="btn-danger btn-sm" data-github-delete="${escapeHtml(g.project_id || '')}">削除</button>
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3>GitHub Repository Mappings</h3>
+          <button class="btn-secondary btn-sm" id="github-reset-btn">クリア</button>
+        </div>
+        <p class="settings-section-desc">プロジェクトとGitHubリポジトリの対応関係（正本: config.yml）</p>
+        <div class="settings-form-grid">
+          <div class="form-group">
+            <label for="github-project-select">Project</label>
+            <select id="github-project-select" class="form-input">
+              <option value="">選択...</option>
+              ${projectOptions}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="github-owner-input">Owner</label>
+            <input id="github-owner-input" class="form-input" placeholder="Unson-LLC" />
+          </div>
+          <div class="form-group">
+            <label for="github-repo-input">Repository</label>
+            <input id="github-repo-input" class="form-input" placeholder="brainbase" />
+          </div>
+          <div class="form-group">
+            <label for="github-branch-input">Branch</label>
+            <input id="github-branch-input" class="form-input" placeholder="main" />
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary btn-sm" id="github-save-btn">保存</button>
+            <button class="btn-danger btn-sm" id="github-delete-btn">削除</button>
+          </div>
+          <p class="settings-section-desc" id="github-status"></p>
+        </div>
+        ${rows
+          ? `<div id="github-list" class="config-table-container">
+              <table class="config-table">
+                <thead>
+                  <tr>
+                    <th>Project ID</th>
+                    <th>Owner</th>
+                    <th>Repository</th>
+                    <th>Branch</th>
+                    <th>URL</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows}
+                </tbody>
+              </table>
+            </div>`
+          : '<div class="config-empty">No GitHub mappings found</div>'
+        }
+      </div>
+    `;
+  }
+
+  _renderNocoDBMappings(nocodb) {
+    if (!nocodb || nocodb.length === 0) {
+      return '<div class="config-empty">No NocoDB mappings found</div>';
+    }
+
+    return `
+      <div id="nocodb-list" class="config-table-container">
+        <table class="config-table">
+          <thead>
+            <tr>
+              <th>Project ID</th>
+              <th>Base Name</th>
+              <th>NocoDB Project ID</th>
+              <th>Legacy Base ID</th>
+              <th>URL</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${nocodb.map(n => `
+              <tr>
+                <td><span class="badge badge-project">${escapeHtml(n.project_id || '')}</span></td>
+                <td>${escapeHtml(n.base_name || '')}</td>
+                <td class="mono">${escapeHtml(n.nocodb_project_id || '')}</td>
+                <td class="mono">${escapeHtml(n.legacy_base_id || '')}</td>
+                <td>
+                  ${n.url
+                    ? `<a href="${escapeHtml(n.url)}" target="_blank" class="config-link">${escapeHtml(n.url)}</a>`
+                    : '-'
+                  }
+                </td>
+                <td class="table-actions">
+                  <button class="btn-secondary btn-sm" data-nocodb-edit="${escapeHtml(n.project_id || '')}">編集</button>
+                  <button class="btn-danger btn-sm" data-nocodb-delete="${escapeHtml(n.project_id || '')}">削除</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async _refreshIntegrationsPanel(activeSubTab = null) {
+    const [config, health, preferences] = await Promise.all([
+      this.apiClient.getConfig(),
+      this.apiClient.getHealth().catch(() => null),
+      fetchPreferences()
+    ]);
+
+    appStore.setState({
+      settingsIntegrations: {
+        slack: config.slack,
+        github: config.github,
+        nocodb: config.nocodb,
+        health
+      },
+      settingsIntegrationProjects: config.projects?.projects || [],
+      preferences
+    });
+
+    if (activeSubTab) {
+      this.pendingIntegrationSubTab = activeSubTab;
+    }
+
+    const container = document.getElementById('integrations-panel');
+    if (container) {
+      await this.pluginRegistry.renderPanel('integrations', container);
+    }
+  }
+
+  _setupGitHubCrud(container, github = [], projects = []) {
+    const projectSelect = container.querySelector('#github-project-select');
+    const ownerInput = container.querySelector('#github-owner-input');
+    const repoInput = container.querySelector('#github-repo-input');
+    const branchInput = container.querySelector('#github-branch-input');
+    const saveBtn = container.querySelector('#github-save-btn');
+    const deleteBtn = container.querySelector('#github-delete-btn');
+    const resetBtn = container.querySelector('#github-reset-btn');
+    const status = container.querySelector('#github-status');
+
+    if (!projectSelect || !saveBtn || !deleteBtn) return;
+
+    const mappingByProject = new Map((github || []).map(g => [g.project_id, g]));
+
+    const clearForm = () => {
+      projectSelect.value = '';
+      if (ownerInput) ownerInput.value = '';
+      if (repoInput) repoInput.value = '';
+      if (branchInput) branchInput.value = '';
+      if (status) status.textContent = '';
+    };
+
+    const fillForm = (projectId) => {
+      const mapping = mappingByProject.get(projectId);
+      if (!mapping) {
+        if (ownerInput) ownerInput.value = '';
+        if (repoInput) repoInput.value = '';
+        if (branchInput) branchInput.value = '';
+        return;
+      }
+      if (ownerInput) ownerInput.value = mapping.owner || '';
+      if (repoInput) repoInput.value = mapping.repo || '';
+      if (branchInput) branchInput.value = mapping.branch || 'main';
+    };
+
+    projectSelect.addEventListener('change', (e) => {
+      fillForm(e.target.value);
+    });
+
+    resetBtn?.addEventListener('click', () => clearForm());
+
+    container.querySelectorAll('[data-github-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const projectId = btn.dataset.githubEdit;
+        if (!projectId) return;
+        projectSelect.value = projectId;
+        fillForm(projectId);
+      });
+    });
+
+    container.querySelectorAll('[data-github-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const projectId = btn.dataset.githubDelete;
+        if (!projectId) return;
+        if (status) status.textContent = '削除中...';
+        try {
+          await this.apiClient.deleteGitHubMapping(projectId);
+          await eventBus.emit('settings:config-updated', { section: 'github', projectId });
+          await this._refreshIntegrationsPanel('github');
+        } catch (error) {
+          if (status) status.textContent = '削除に失敗しました';
+        }
+      });
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const projectId = projectSelect.value;
+      const owner = ownerInput?.value?.trim() || '';
+      const repo = repoInput?.value?.trim() || '';
+      const branch = branchInput?.value?.trim() || '';
+
+      if (!projectId || !owner || !repo) {
+        if (status) status.textContent = 'Project / Owner / Repository は必須です';
+        return;
+      }
+
+      saveBtn.disabled = true;
+      deleteBtn.disabled = true;
+      if (status) status.textContent = '保存中...';
+
+      try {
+        await this.apiClient.upsertGitHubMapping({
+          project_id: projectId,
+          owner,
+          repo,
+          branch: branch || 'main'
+        });
+        await eventBus.emit('settings:config-updated', { section: 'github', projectId });
+        await this._refreshIntegrationsPanel('github');
+      } catch (error) {
+        if (status) status.textContent = '保存に失敗しました';
+      } finally {
+        saveBtn.disabled = false;
+        deleteBtn.disabled = false;
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const projectId = projectSelect.value;
+      if (!projectId) {
+        if (status) status.textContent = 'Project を選択してください';
+        return;
+      }
+      if (status) status.textContent = '削除中...';
+      try {
+        await this.apiClient.deleteGitHubMapping(projectId);
+        await eventBus.emit('settings:config-updated', { section: 'github', projectId });
+        await this._refreshIntegrationsPanel('github');
+      } catch (error) {
+        if (status) status.textContent = '削除に失敗しました';
+      }
+    });
+  }
+
+  _setupNocoDBCrud(container, nocodb = [], projects = []) {
+    const projectSelect = container.querySelector('#nocodb-project-select');
+    const baseNameInput = container.querySelector('#nocodb-base-name-input');
+    const baseIdInput = container.querySelector('#nocodb-base-id-input');
+    const projectIdInput = container.querySelector('#nocodb-project-id-input');
+    const urlInput = container.querySelector('#nocodb-url-input');
+    const saveBtn = container.querySelector('#nocodb-save-btn');
+    const deleteBtn = container.querySelector('#nocodb-delete-btn');
+    const resetBtn = container.querySelector('#nocodb-reset-btn');
+    const status = container.querySelector('#nocodb-status');
+
+    if (!projectSelect || !saveBtn || !deleteBtn) return;
+
+    const mappingByProject = new Map((nocodb || []).map(n => [n.project_id, n]));
+
+    const clearForm = () => {
+      projectSelect.value = '';
+      if (baseNameInput) baseNameInput.value = '';
+      if (baseIdInput) baseIdInput.value = '';
+      if (projectIdInput) projectIdInput.value = '';
+      if (urlInput) urlInput.value = '';
+      if (status) status.textContent = '';
+    };
+
+    const fillForm = (projectId) => {
+      const mapping = mappingByProject.get(projectId);
+      if (!mapping) {
+        if (baseNameInput) baseNameInput.value = '';
+        if (baseIdInput) baseIdInput.value = '';
+        if (projectIdInput) projectIdInput.value = '';
+        if (urlInput) urlInput.value = '';
+        return;
+      }
+      if (baseNameInput) baseNameInput.value = mapping.base_name || '';
+      if (baseIdInput) baseIdInput.value = mapping.legacy_base_id || '';
+      if (projectIdInput) projectIdInput.value = mapping.nocodb_project_id || '';
+      if (urlInput) urlInput.value = mapping.url || '';
+    };
+
+    projectSelect.addEventListener('change', (e) => {
+      fillForm(e.target.value);
+    });
+
+    resetBtn?.addEventListener('click', () => clearForm());
+
+    container.querySelectorAll('[data-nocodb-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const projectId = btn.dataset.nocodbEdit;
+        if (!projectId) return;
+        projectSelect.value = projectId;
+        fillForm(projectId);
+      });
+    });
+
+    container.querySelectorAll('[data-nocodb-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const projectId = btn.dataset.nocodbDelete;
+        if (!projectId) return;
+        if (status) status.textContent = '削除中...';
+        try {
+          await this.apiClient.deleteNocoDBMapping(projectId);
+          await eventBus.emit('settings:config-updated', { section: 'nocodb', projectId });
+          await this._refreshIntegrationsPanel('nocodb');
+        } catch (error) {
+          if (status) status.textContent = '削除に失敗しました';
+        }
+      });
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const projectId = projectSelect.value;
+      const baseName = baseNameInput?.value?.trim() || '';
+      const nocodbProjectId = projectIdInput?.value?.trim() || '';
+      const legacyBaseId = baseIdInput?.value?.trim() || '';
+      const url = urlInput?.value?.trim() || '';
+
+      if (!projectId || !nocodbProjectId) {
+        if (status) status.textContent = 'Project / NocoDB Project ID は必須です';
+        return;
+      }
+
+      saveBtn.disabled = true;
+      deleteBtn.disabled = true;
+      if (status) status.textContent = '保存中...';
+
+      try {
+        await this.apiClient.upsertNocoDBMapping({
+          project_id: projectId,
+          base_id: legacyBaseId,
+          nocodb_project_id: nocodbProjectId,
+          base_name: baseName,
+          url
+        });
+        await eventBus.emit('settings:config-updated', { section: 'nocodb', projectId });
+        await this._refreshIntegrationsPanel('nocodb');
+      } catch (error) {
+        if (status) status.textContent = '保存に失敗しました';
+      } finally {
+        saveBtn.disabled = false;
+        deleteBtn.disabled = false;
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const projectId = projectSelect.value;
+      if (!projectId) {
+        if (status) status.textContent = 'Project を選択してください';
+        return;
+      }
+      if (status) status.textContent = '削除中...';
+      try {
+        await this.apiClient.deleteNocoDBMapping(projectId);
+        await eventBus.emit('settings:config-updated', { section: 'nocodb', projectId });
+        await this._refreshIntegrationsPanel('nocodb');
+      } catch (error) {
+        if (status) status.textContent = '削除に失敗しました';
+      }
+    });
+  }
+
+  _renderSlackDetails(slackConfig, container) {
+    const workspacesContainer = container.querySelector('#slack-workspaces-list');
+    const channelsContainer = container.querySelector('#slack-channels-list');
+    const membersContainer = container.querySelector('#slack-members-list');
+    const channelFilter = container.querySelector('#slack-channel-filter');
+    const workspaceFilter = container.querySelector('#slack-workspace-filter');
+    const memberFilter = container.querySelector('#slack-member-filter');
+
+    if (!slackConfig) {
+      workspacesContainer.innerHTML = '<div class="config-empty">Slack configuration not found</div>';
+      channelsContainer.innerHTML = '<div class="config-empty">Slack configuration not found</div>';
+      membersContainer.innerHTML = '<div class="config-empty">Slack configuration not found</div>';
+      return;
+    }
+
+    this._renderSlackWorkspaces(slackConfig, workspacesContainer, workspaceFilter);
+    this._renderSlackChannels(slackConfig, channelsContainer, '', workspaceFilter?.value || '');
+    this._renderSlackMembers(slackConfig, membersContainer, '');
+
+    if (channelFilter) {
+      channelFilter.addEventListener('input', (e) => {
+        const workspaceVal = workspaceFilter?.value || '';
+        this._renderSlackChannels(slackConfig, channelsContainer, e.target.value, workspaceVal);
+      });
+    }
+
+    if (workspaceFilter) {
+      workspaceFilter.addEventListener('change', (e) => {
+        const channelVal = channelFilter?.value || '';
+        this._renderSlackChannels(slackConfig, channelsContainer, channelVal, e.target.value);
+      });
+    }
+
+    if (memberFilter) {
+      memberFilter.addEventListener('input', (e) => {
+        this._renderSlackMembers(slackConfig, membersContainer, e.target.value);
+      });
+    }
+  }
+
+  _renderSlackWorkspaces(slackConfig, container, workspaceFilter) {
+    const workspaces = slackConfig?.workspaces || {};
+    const channels = slackConfig?.channels || [];
+
+    if (Object.keys(workspaces).length === 0) {
+      container.innerHTML = '<div class="config-empty">No workspaces found</div>';
+      return;
+    }
+
+    const channelCounts = {};
+    channels.forEach(ch => {
+      channelCounts[ch.workspace] = (channelCounts[ch.workspace] || 0) + 1;
+    });
+
+    container.innerHTML = Object.entries(workspaces).map(([key, ws]) => `
+      <div class="config-card">
+        <div class="config-card-header">
+          <h4>${escapeHtml(ws.name || key)}</h4>
+          ${ws.default ? '<span class="badge badge-type">Default</span>' : ''}
+        </div>
+        <div class="config-card-id">${escapeHtml(ws.id || '')}</div>
+        <div class="config-card-stats">
+          <div class="config-card-stat">
+            <i data-lucide="hash"></i>
+            <span>${channelCounts[key] || 0} channels</span>
+          </div>
+          <div class="config-card-stat">
+            <i data-lucide="folder"></i>
+            <span>${(ws.projects || []).length} projects</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    if (workspaceFilter) {
+      workspaceFilter.innerHTML = '<option value="">All Workspaces</option>' +
+        Object.entries(workspaces).map(([key, ws]) =>
+          `<option value="${escapeHtml(key)}">${escapeHtml(ws.name || key)}</option>`
+        ).join('');
+    }
+  }
+
+  _renderSlackChannels(slackConfig, container, filter = '', workspaceFilter = '') {
+    let channels = slackConfig?.channels || [];
+
+    if (channels.length === 0) {
+      container.innerHTML = '<div class="config-empty">No channels found</div>';
+      return;
+    }
+
+    if (filter) {
+      const lowerFilter = filter.toLowerCase();
+      channels = channels.filter(ch =>
+        ch.channel_name?.toLowerCase().includes(lowerFilter) ||
+        ch.project_id?.toLowerCase().includes(lowerFilter)
+      );
+    }
+    if (workspaceFilter) {
+      channels = channels.filter(ch => ch.workspace === workspaceFilter);
+    }
+
+    container.innerHTML = `
+      <table class="config-table">
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Workspace</th>
+            <th>Project</th>
+            <th>Type</th>
+            <th>ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${channels.map(ch => `
+            <tr>
+              <td>#${escapeHtml(ch.channel_name || '')}</td>
+              <td><span class="badge badge-workspace">${escapeHtml(ch.workspace || '')}</span></td>
+              <td><span class="badge badge-project">${escapeHtml(ch.project_id || '')}</span></td>
+              <td><span class="badge badge-type">${escapeHtml(ch.type || '-')}</span></td>
+              <td class="mono">${escapeHtml(ch.channel_id || '')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  _renderSlackMembers(slackConfig, container, filter = '') {
+    let members = slackConfig?.members || [];
+
+    if (members.length === 0) {
+      container.innerHTML = '<div class="config-empty">No members found</div>';
+      return;
+    }
+
+    if (filter) {
+      const lowerFilter = filter.toLowerCase();
+      members = members.filter(m =>
+        m.slack_name?.toLowerCase().includes(lowerFilter) ||
+        m.brainbase_name?.toLowerCase().includes(lowerFilter)
+      );
+    }
+
+    container.innerHTML = `
+      <table class="config-table">
+        <thead>
+          <tr>
+            <th>Slack Name</th>
+            <th>Brainbase Name</th>
+            <th>Workspace</th>
+            <th>Slack ID</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${members.map(m => `
+            <tr>
+              <td>@${escapeHtml(m.slack_name || '')}</td>
+              <td>${escapeHtml(m.brainbase_name || '')}</td>
+              <td><span class="badge badge-workspace">${escapeHtml(m.workspace || '')}</span></td>
+              <td class="mono">${escapeHtml(m.slack_id || '')}</td>
+              <td class="mono">${escapeHtml(m.note || '-')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
   }
 
   /**
@@ -810,55 +1829,118 @@ export class SettingsCore {
     }
 
     const { channels, dnd } = notifications;
+    const channelConfig = channels || { slack: true, web: true, email: false };
+    const dndConfig = dnd || { enabled: false, start: 22, end: 9 };
 
-    let html = `
+    const hourOptions = (selected) => Array.from({ length: 24 }, (_, i) => `
+      <option value="${i}" ${Number(selected) === i ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>
+    `).join('');
+
+    return `
       <div class="notifications-settings">
         <div class="settings-section">
-          <h3>Notification Channels</h3>
-          <div class="notification-channels">
-    `;
-
-    // Channels
-    const channelConfig = channels || { slack: true, web: true, email: false };
-    const channelIcons = { slack: 'hash', web: 'bell', email: 'mail' };
-
-    for (const [channel, enabled] of Object.entries(channelConfig)) {
-      html += `
-        <div class="notification-channel ${enabled ? 'enabled' : 'disabled'}">
-          <i data-lucide="${channelIcons[channel] || 'message-square'}"></i>
-          <span class="channel-name">${escapeHtml(channel.charAt(0).toUpperCase() + channel.slice(1))}</span>
-          <span class="channel-status">${enabled ? 'Enabled' : 'Disabled'}</span>
-        </div>
-      `;
-    }
-
-    html += '</div></div>';
-
-    // DND Settings
-    const dndConfig = dnd || { enabled: false, start: 22, end: 9 };
-    html += `
-      <div class="settings-section">
-        <h3>Do Not Disturb</h3>
-        <div class="dnd-settings ${dndConfig.enabled ? 'enabled' : 'disabled'}">
-          <div class="dnd-status">
-            <i data-lucide="${dndConfig.enabled ? 'moon' : 'sun'}"></i>
-            <span>${dndConfig.enabled ? 'DND is enabled' : 'DND is disabled'}</span>
+          <div class="settings-section-header">
+            <h3>Notification Channels</h3>
+            <button class="btn-primary btn-sm" id="notifications-save-btn">保存</button>
           </div>
-          ${dndConfig.enabled ? `
-            <div class="dnd-schedule">
-              <span class="dnd-time">
-                <i data-lucide="clock"></i>
-                ${String(dndConfig.start).padStart(2, '0')}:00 - ${String(dndConfig.end).padStart(2, '0')}:00
-              </span>
+          <div class="settings-form-grid">
+            <label class="checkbox-label">
+              <input type="checkbox" id="notify-slack" ${channelConfig.slack ? 'checked' : ''} />
+              Slack
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="notify-web" ${channelConfig.web ? 'checked' : ''} />
+              Web
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="notify-email" ${channelConfig.email ? 'checked' : ''} />
+              Email
+            </label>
+          </div>
+          <p class="settings-section-desc" id="notifications-status"></p>
+        </div>
+
+        <div class="settings-section">
+          <h3>Do Not Disturb</h3>
+          <label class="checkbox-label">
+            <input type="checkbox" id="dnd-enabled" ${dndConfig.enabled ? 'checked' : ''} />
+            DNDを有効にする
+          </label>
+          <div class="settings-form-grid">
+            <div class="form-group">
+              <label for="dnd-start">Start</label>
+              <select id="dnd-start" class="form-input" ${dndConfig.enabled ? '' : 'disabled'}>
+                ${hourOptions(dndConfig.start)}
+              </select>
             </div>
-          ` : ''}
+            <div class="form-group">
+              <label for="dnd-end">End</label>
+              <select id="dnd-end" class="form-input" ${dndConfig.enabled ? '' : 'disabled'}>
+                ${hourOptions(dndConfig.end)}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
     `;
+  }
 
-    html += '</div>';
+  async _refreshNotificationsPanel() {
+    const notifications = await this.apiClient.getNotifications();
+    appStore.setState({ settingsNotifications: notifications });
 
-    return html;
+    const container = document.getElementById('notifications-panel');
+    if (container) {
+      await this.pluginRegistry.renderPanel('notifications', container);
+    }
+  }
+
+  _setupNotificationsCrud(container, notifications = {}) {
+    const saveBtn = container.querySelector('#notifications-save-btn');
+    const slackInput = container.querySelector('#notify-slack');
+    const webInput = container.querySelector('#notify-web');
+    const emailInput = container.querySelector('#notify-email');
+    const dndEnabled = container.querySelector('#dnd-enabled');
+    const dndStart = container.querySelector('#dnd-start');
+    const dndEnd = container.querySelector('#dnd-end');
+    const status = container.querySelector('#notifications-status');
+
+    if (!saveBtn) return;
+
+    const toggleDndInputs = () => {
+      const enabled = Boolean(dndEnabled?.checked);
+      if (dndStart) dndStart.disabled = !enabled;
+      if (dndEnd) dndEnd.disabled = !enabled;
+    };
+
+    dndEnabled?.addEventListener('change', toggleDndInputs);
+
+    saveBtn.addEventListener('click', async () => {
+      const payload = {
+        channels: {
+          slack: Boolean(slackInput?.checked),
+          web: Boolean(webInput?.checked),
+          email: Boolean(emailInput?.checked)
+        },
+        dnd: {
+          enabled: Boolean(dndEnabled?.checked),
+          start: dndStart ? Number(dndStart.value) : 0,
+          end: dndEnd ? Number(dndEnd.value) : 0
+        }
+      };
+
+      saveBtn.disabled = true;
+      if (status) status.textContent = '保存中...';
+
+      try {
+        await this.apiClient.updateNotifications(payload);
+        await this._refreshNotificationsPanel();
+      } catch (error) {
+        if (status) status.textContent = '保存に失敗しました';
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
   }
 }
 
@@ -918,6 +2000,115 @@ export class CoreApiClient {
     const response = await fetch('/api/config/notifications');
     if (!response.ok) {
       throw new Error('Failed to fetch notifications');
+    }
+    return response.json();
+  }
+
+  async upsertProject(payload) {
+    const response = await fetch('/api/config/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to update project');
+    }
+    return response.json();
+  }
+
+  async deleteProject(projectId) {
+    const response = await fetch(`/api/config/projects/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to delete project');
+    }
+    return response.json();
+  }
+
+  async upsertOrganization(payload) {
+    const response = await fetch('/api/config/organizations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to update organization');
+    }
+    return response.json();
+  }
+
+  async deleteOrganization(orgId) {
+    const response = await fetch(`/api/config/organizations/${encodeURIComponent(orgId)}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to delete organization');
+    }
+    return response.json();
+  }
+
+  async updateNotifications(payload) {
+    const response = await fetch('/api/config/notifications', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to update notifications');
+    }
+    return response.json();
+  }
+
+  async upsertGitHubMapping(payload) {
+    const response = await fetch('/api/config/github', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to update GitHub mapping');
+    }
+    return response.json();
+  }
+
+  async deleteGitHubMapping(projectId) {
+    const response = await fetch(`/api/config/github/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to delete GitHub mapping');
+    }
+    return response.json();
+  }
+
+  async upsertNocoDBMapping(payload) {
+    const response = await fetch('/api/config/nocodb', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to update NocoDB mapping');
+    }
+    return response.json();
+  }
+
+  async deleteNocoDBMapping(projectId) {
+    const response = await fetch(`/api/config/nocodb/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || 'Failed to delete NocoDB mapping');
     }
     return response.json();
   }

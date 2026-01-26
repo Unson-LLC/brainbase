@@ -84,7 +84,7 @@ test.describe('Settings View', () => {
         await expect(page.locator('#settings-view')).toBeVisible();
 
         // Verify settings header
-        await expect(page.locator('#settings-view .settings-header h2')).toContainText('Settings');
+        await expect(page.locator('#settings-view .settings-header h3')).toContainText('Settings');
 
         // Close settings
         await page.click('#close-settings-btn');
@@ -96,21 +96,21 @@ test.describe('Settings View', () => {
         await page.click('#settings-btn');
 
         // Verify tabs exist
-        const slackTab = page.locator('.settings-tab[data-tab="slack"]');
-        const projectsTab = page.locator('.settings-tab[data-tab="projects"]');
+        const overviewTab = page.locator('.settings-tab[data-tab="overview"]');
+        const integrationsTab = page.locator('.settings-tab[data-tab="integrations"]');
 
-        await expect(slackTab).toBeVisible();
-        await expect(projectsTab).toBeVisible();
+        await expect(overviewTab).toBeVisible();
+        await expect(integrationsTab).toBeVisible();
 
-        // Slack tab should be active by default
-        await expect(slackTab).toHaveClass(/active/);
-        await expect(page.locator('#slack-panel')).toHaveClass(/active/);
+        // Overview tab should be active by default
+        await expect(overviewTab).toHaveClass(/active/);
+        await expect(page.locator('#overview-panel')).toHaveClass(/active/);
 
-        // Click projects tab
-        await projectsTab.click();
-        await expect(projectsTab).toHaveClass(/active/);
-        await expect(slackTab).not.toHaveClass(/active/);
-        await expect(page.locator('#projects-panel')).toHaveClass(/active/);
+        // Click integrations tab
+        await integrationsTab.click();
+        await expect(integrationsTab).toHaveClass(/active/);
+        await expect(overviewTab).not.toHaveClass(/active/);
+        await expect(page.locator('#integrations-panel')).toHaveClass(/active/);
     });
 
     test('should display integrity summary', async ({ page }) => {
@@ -118,10 +118,7 @@ test.describe('Settings View', () => {
         await page.click('#settings-btn');
 
         // Wait for integrity data to load
-        const integritySummary = page.locator('#integrity-summary');
-        await expect(integritySummary).toBeVisible();
-
-        // Should eventually show stats (not loading)
-        await expect(integritySummary.locator('.loading')).not.toBeVisible({ timeout: 5000 });
+        const integrityStats = page.locator('#overview-panel .integrity-stats');
+        await expect(integrityStats).toBeVisible();
     });
 });

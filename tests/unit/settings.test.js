@@ -4,13 +4,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 
-describe('Settings Module - NocoDB Tab', () => {
+describe('Settings Module - Integrations (NocoDB)', () => {
   let dom;
   let document;
   let window;
 
   beforeEach(() => {
-    // Create DOM with settings structure including new NocoDB tab
+    // Create DOM with settings structure including Integrations tab
     dom = new JSDOM(`
       <!DOCTYPE html>
       <html>
@@ -24,16 +24,10 @@ describe('Settings Module - NocoDB Tab', () => {
               <div class="modal-body settings-body">
                 <div class="integrity-summary" id="integrity-summary"></div>
                 <div class="settings-tabs">
-                  <button class="settings-tab active" data-tab="slack">Slack</button>
-                  <button class="settings-tab" data-tab="projects">Projects</button>
-                  <button class="settings-tab" data-tab="github">GitHub</button>
-                  <button class="settings-tab" data-tab="nocodb">NocoDB</button>
+                  <button class="settings-tab active" data-tab="integrations">Integrations</button>
                 </div>
                 <div class="settings-content">
-                  <div class="settings-panel active" id="slack-panel"></div>
-                  <div class="settings-panel" id="projects-panel"></div>
-                  <div class="settings-panel" id="github-panel"></div>
-                  <div class="settings-panel" id="nocodb-panel">
+                  <div class="settings-panel active" id="integrations-panel">
                     <div class="settings-section">
                       <h3>NocoDB Base Mappings</h3>
                       <div id="nocodb-list" class="config-table-container">
@@ -61,16 +55,16 @@ describe('Settings Module - NocoDB Tab', () => {
     delete global.window;
   });
 
-  describe('NocoDB Tab Structure', () => {
-    it('should have NocoDB tab button', () => {
-      const nocodbTab = document.querySelector('[data-tab="nocodb"]');
-      expect(nocodbTab).not.toBeNull();
-      expect(nocodbTab.textContent).toContain('NocoDB');
+  describe('Integrations Structure', () => {
+    it('should have Integrations tab button', () => {
+      const integrationsTab = document.querySelector('[data-tab="integrations"]');
+      expect(integrationsTab).not.toBeNull();
+      expect(integrationsTab.textContent).toContain('Integrations');
     });
 
-    it('should have NocoDB panel', () => {
-      const nocodbPanel = document.getElementById('nocodb-panel');
-      expect(nocodbPanel).not.toBeNull();
+    it('should have Integrations panel', () => {
+      const integrationsPanel = document.getElementById('integrations-panel');
+      expect(integrationsPanel).not.toBeNull();
     });
 
     it('should have nocodb-list container', () => {

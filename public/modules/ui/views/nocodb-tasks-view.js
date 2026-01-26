@@ -308,7 +308,7 @@ export class NocoDBTasksView {
         this.container.innerHTML = `
             <div class="empty-state">
                 <i data-lucide="user"></i>
-                <p>「自分だけ」フィルタを使うには、Settings → NocoDB で担当者名を設定してください</p>
+                <p>「自分だけ」フィルタを使うには、Settings → Integrations で担当者名を設定してください</p>
                 <button class="btn-secondary btn-sm" id="open-nocodb-self-settings">設定を開く</button>
             </div>
         `;
@@ -316,7 +316,7 @@ export class NocoDBTasksView {
         const openBtn = this.container.querySelector('#open-nocodb-self-settings');
         if (openBtn) {
             openBtn.addEventListener('click', () => {
-                document.getElementById('settings-btn')?.click();
+                eventBus.emit('settings:open-tab', { tabId: 'integrations', subTab: 'nocodb' });
             });
         }
 
