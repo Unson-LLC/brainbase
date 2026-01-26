@@ -1,0 +1,8 @@
+
+# Ignore dashboard plugin files to prevent "Agent Lodings" (Agent Loading) hang
+public/modules/dashboard-controller.js
+public/modules/ui/views/dashboard-view.js
+
+# Ignore mana integration files
+public/modules/domain/mana/
+public/modules/domain/brainbase/

@@ -3261,74 +3261,214 @@ body.resizing iframe {
 }
 
 /* Settings Tabs */
+/* Settings Layout Redesign (Sidebar Style) - Premium Glass */
+.settings-body {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    padding: 0 !important;
+    /* Override modal-body padding */
+    overflow: hidden;
+    background: transparent;
+    /* Changed to transparent for glass effect */
+}
+
+/* Settings Sidebar (Vertical Tabs) */
 .settings-tabs {
     display: flex;
-    gap: 0;
-    padding: 0 1.5rem;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
+    flex-direction: column;
+    width: 260px;
+    flex-shrink: 0;
+    padding: 1.5rem 1rem;
+    background: rgba(15, 23, 42, 0.6);
+    /* Semi-transparent */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    /* Subtle border */
+    border-bottom: none;
+    gap: 6px;
+    overflow-y: auto;
 }
 
 .settings-tab {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.25rem;
+    gap: 0.85rem;
+    padding: 0.85rem 1.25rem;
+    width: 100%;
     background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    /* Softer corners */
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.15s ease;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    text-align: left;
+    margin-bottom: 4px;
+    position: relative;
+    overflow: hidden;
+}
+
+.settings-tab::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0) 100%);
+    transform: translateX(-100%);
+    transition: transform 0.5s ease;
+    pointer-events: none;
 }
 
 .settings-tab:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
+    transform: translateX(2px);
+}
+
+.settings-tab:hover::before {
+    transform: translateX(100%);
 }
 
 .settings-tab.active {
-    color: var(--accent-color);
-    border-bottom-color: var(--accent-color);
+    background: rgba(59, 130, 246, 0.12);
+    /* Subtle blue tint */
+    color: #60a5fa;
+    /* Brighter blue for active text */
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.1), inset 0 0 0 1px rgba(59, 130, 246, 0.1);
+    font-weight: 600;
+}
+
+.settings-tab.active::after {
+    content: '';
+    position: absolute;
+    right: 12px;
+    width: 6px;
+    height: 6px;
+    background: #60a5fa;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #60a5fa;
 }
 
 .settings-tab i {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
+    opacity: 0.6;
+    transition: all 0.3s ease;
 }
 
-/* Settings Content */
+.settings-tab.active i {
+    opacity: 1;
+    transform: scale(1.1);
+    color: #60a5fa;
+    filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.5));
+}
+
+.settings-tab:hover i {
+    opacity: 0.9;
+}
+
+/* Settings Content Area */
 .settings-content {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: rgba(15, 23, 42, 0.4);
+    /* More transparent */
+    backdrop-filter: blur(10px);
+    position: relative;
+}
+
+.settings-content::after {
+    /* Subtle unified background glow */
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 80%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: -1;
 }
 
 .settings-panel {
     display: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: 2.5rem 3.5rem;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+@keyframes slideInUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .settings-panel.active {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    overflow-y: auto;
-    padding: 1.5rem;
+    align-items: center;
+    opacity: 1;
+    transform: translateY(0);
+    animation: slideInUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Ensure content is centered and has max width */
+.settings-panel>* {
+    width: 100%;
+    max-width: 900px;
+    flex-shrink: 0;
+}
+
+/* Inner container for max-width readability (legacy) */
+.settings-panel-content-wrapper {
+    max-width: 900px;
+    margin: 0 auto;
 }
 
 .settings-section {
-    margin-bottom: 2rem;
+    margin-bottom: 3.5rem;
+    position: relative;
 }
 
 .settings-section h3 {
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 1rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    /* More subtle */
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.settings-section h3 i {
+    width: 24px;
+    height: 24px;
+    color: var(--accent-color);
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.4));
 }
 
 .settings-section-header {
@@ -3336,25 +3476,26 @@ body.resizing iframe {
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
 }
 
 .settings-form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1rem;
 }
 
 .form-actions {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.75rem;
     align-items: flex-end;
+    margin-top: 1rem;
 }
 
 .table-actions {
     display: flex;
-    gap: 0.4rem;
+    gap: 0.5rem;
 }
 
 /* Filter Bar */
@@ -3369,90 +3510,112 @@ body.resizing iframe {
     max-width: 300px;
 }
 
-/* Config List (Workspaces) */
+/* Config List (Workspaces/Cards) Redesign */
 .config-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
 }
 
 .config-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem;
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.config-card:hover {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
 }
 
 .config-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .config-card-header h4 {
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 1.1rem;
+    font-weight: 700;
     margin: 0;
+    color: var(--text-primary);
 }
 
 .config-card-id {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--text-secondary);
     font-family: var(--font-mono);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
 .config-card-stats {
     display: flex;
-    gap: 1rem;
-    font-size: 0.8rem;
+    gap: 1.5rem;
+    font-size: 0.9rem;
     color: var(--text-secondary);
 }
 
 .config-card-stat {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.5rem;
 }
 
-/* Config Table */
+.config-card-stat i {
+    color: var(--accent-color);
+}
+
+/* Config Table - Premium Style */
 .config-table-container {
     flex: 1;
     overflow-x: auto;
     overflow-y: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
     touch-action: manipulation;
-    /* Disable pinch-zoom in scrollable area */
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
 }
 
 .config-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
 }
 
 .config-table th,
 .config-table td {
-    padding: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
     text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .config-table th {
-    background: var(--bg-secondary);
+    background: rgba(30, 41, 59, 0.8);
     font-weight: 600;
     color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     position: sticky;
     top: 0;
     z-index: 10;
+    backdrop-filter: blur(8px);
 }
 
 .config-table tr:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .config-table tr:last-child td {
@@ -3461,8 +3624,9 @@ body.resizing iframe {
 
 .config-table .mono {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--text-secondary);
+    font-size: 0.85rem;
+    color: #a5b4fc;
+    /* Slight purple tint for improved readability */
 }
 
 .config-table .badge {
@@ -6079,5 +6243,40 @@ flex-wrap: wrap;
 
     .chronic-stall-list {
         flex-direction: column;
+    }
+}
+
+/* Mobile Settings Override */
+@media (max-width: 768px) {
+    .settings-body {
+        flex-direction: column;
+    }
+
+    .settings-tabs {
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        padding: 8px;
+        overflow-x: auto;
+        flex-shrink: 0;
+    }
+
+    .settings-tab {
+        width: auto;
+        margin-bottom: 0;
+        white-space: nowrap;
+        padding: 8px 12px;
+        flex-shrink: 0;
+    }
+
+    .settings-panel {
+        padding: 1rem;
+    }
+
+    .settings-panel.active {
+        align-items: stretch;
+        /* Full width on mobile */
     }
 }

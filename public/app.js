@@ -262,6 +262,7 @@ class App {
     _registerUIPlugins() {
         if (!this.pluginManager) return;
 
+
         this.pluginManager.registerPlugin({
             id: 'bb-dashboard',
             layer: 'business',
@@ -309,6 +310,7 @@ class App {
                 }
             }
         });
+
 
         this.pluginManager.registerPlugin({
             id: 'bb-tasks',
@@ -377,7 +379,7 @@ class App {
             },
             slots: {
                 'sidebar:project-tasks-tab': {
-                    mount: () => {}
+                    mount: () => { }
                 },
                 'sidebar:project-tasks-panel': {
                     mount: () => {
@@ -448,11 +450,13 @@ class App {
             }
         });
 
-        this.pluginManager.registerPlugin({
-            id: 'bb-mana',
-            layer: 'business',
-            slots: {}
-        });
+        /*
+                this.pluginManager.registerPlugin({
+                    id: 'bb-mana',
+                    layer: 'business',
+                    slots: {}
+                });
+        */
     }
 
     /**
