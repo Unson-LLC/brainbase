@@ -542,28 +542,28 @@ export class SettingsCore {
               <td><span class="badge badge-project">${proj.emoji ? escapeHtml(proj.emoji) + ' ' : ''}${escapeHtml(proj.id || '')}</span></td>
               <td>
                 ${proj.channels && proj.channels.length > 0
-                  ? proj.channels.slice(0, 3).map(ch =>
-                      `<span class="channel-tag" title="${escapeHtml(ch.type || '')}">#${escapeHtml(ch.name || '')}</span>`
-                    ).join(' ')
-                  : '<span class="status-missing">-</span>'
-                }
+              ? proj.channels.slice(0, 3).map(ch =>
+                `<span class="channel-tag" title="${escapeHtml(ch.type || '')}">#${escapeHtml(ch.name || '')}</span>`
+              ).join(' ')
+              : '<span class="status-missing">-</span>'
+            }
                 ${proj.channels && proj.channels.length > 3 ? `<span class="channel-count">+${proj.channels.length - 3}</span>` : ''}
               </td>
               <td class="${!hasGithub ? 'missing' : ''}">
                 ${hasGithub
-                  ? `<a href="${escapeHtml(proj.github.url || '')}" target="_blank" class="config-link">${escapeHtml(proj.github.owner || '')}/${escapeHtml(proj.github.repo || '')}</a>
+              ? `<a href="${escapeHtml(proj.github.url || '')}" target="_blank" class="config-link">${escapeHtml(proj.github.owner || '')}/${escapeHtml(proj.github.repo || '')}</a>
                      ${proj.github.paths && proj.github.paths.length > 0
-                       ? `<span class="paths-hint">[${proj.github.paths.slice(0, 2).map(p => escapeHtml(p)).join(', ')}${proj.github.paths.length > 2 ? '...' : ''}]</span>`
-                       : ''
-                     }`
-                  : '<span class="status-missing">❌ 未設定</span>'
-                }
+                ? `<span class="paths-hint">[${proj.github.paths.slice(0, 2).map(p => escapeHtml(p)).join(', ')}${proj.github.paths.length > 2 ? '...' : ''}]</span>`
+                : ''
+              }`
+              : '<span class="status-missing">❌ 未設定</span>'
+            }
               </td>
               <td class="${!hasNocodb ? 'missing' : ''}">
                 ${hasNocodb
-                  ? `<a href="${escapeHtml(proj.nocodb.url || '')}" target="_blank" class="config-link">${escapeHtml(proj.nocodb.base_name || '')}</a>`
-                  : '<span class="status-missing">❌ 未設定</span>'
-                }
+              ? `<a href="${escapeHtml(proj.nocodb.url || '')}" target="_blank" class="config-link">${escapeHtml(proj.nocodb.base_name || '')}</a>`
+              : '<span class="status-missing">❌ 未設定</span>'
+            }
               </td>
             </tr>
           `;
@@ -585,8 +585,8 @@ export class SettingsCore {
             <h4>Unassigned Projects</h4>
             <ul>
               ${orphanedProjects.map(p =>
-                `<li><span class="badge badge-project">${escapeHtml(p.id || '')}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, NocoDB: ${p.hasNocodb ? '✅' : '❌'}, Channels: ${p.channelCount || 0})</li>`
-              ).join('')}
+          `<li><span class="badge badge-project">${escapeHtml(p.id || '')}</span> (GitHub: ${p.hasGithub ? '✅' : '❌'}, NocoDB: ${p.hasNocodb ? '✅' : '❌'}, Channels: ${p.channelCount || 0})</li>`
+        ).join('')}
             </ul>
           </div>
         `;
@@ -598,8 +598,8 @@ export class SettingsCore {
             <h4>Unmapped Channels</h4>
             <ul>
               ${orphanedChannels.map(ch =>
-                `<li>#${escapeHtml(ch.name || '')} (${escapeHtml(ch.workspace || '')}) → ${escapeHtml(ch.project_id || 'no project')}</li>`
-              ).join('')}
+          `<li>#${escapeHtml(ch.name || '')} (${escapeHtml(ch.workspace || '')}) → ${escapeHtml(ch.project_id || 'no project')}</li>`
+        ).join('')}
             </ul>
           </div>
         `;
@@ -643,40 +643,42 @@ export class SettingsCore {
           <button class="btn-secondary btn-sm" id="project-reset-btn">クリア</button>
         </div>
         <p class="settings-section-desc">プロジェクトの基本情報とローカルパスを管理します</p>
-        <div class="settings-form-grid">
-          <div class="form-group">
-            <label for="project-id-input">Project ID</label>
-            <input id="project-id-input" class="form-input" placeholder="salestailor" />
-          </div>
-          <div class="form-group">
-            <label for="project-emoji-input">Emoji</label>
-            <input id="project-emoji-input" class="form-input" placeholder="🧵" />
-          </div>
-          <div class="form-group">
-            <label for="project-path-input">Local Path</label>
-            <input id="project-path-input" class="form-input" placeholder="${escapeHtml('${PROJECTS_ROOT:-/path/to/projects}')}/salestailor" />
-          </div>
-          <div class="form-group">
-            <label for="project-glob-input">Glob Include (1行1パス)</label>
-            <textarea id="project-glob-input" class="form-input" rows="4" placeholder="app/**/*
+        <div class="settings-form-card">
+          <div class="settings-form-grid">
+            <div class="form-group">
+              <label for="project-id-input">Project ID</label>
+              <input id="project-id-input" class="form-input" placeholder="salestailor" />
+            </div>
+            <div class="form-group">
+              <label for="project-emoji-input">Emoji</label>
+              <input id="project-emoji-input" class="form-input" placeholder="🧵" />
+            </div>
+            <div class="form-group">
+              <label for="project-path-input">Local Path</label>
+              <input id="project-path-input" class="form-input" placeholder="${escapeHtml('${PROJECTS_ROOT:-/path/to/projects}')}/salestailor" />
+            </div>
+            <div class="form-group">
+              <label for="project-glob-input">Glob Include (1行1パス)</label>
+              <textarea id="project-glob-input" class="form-input" rows="4" placeholder="app/**/*
 docs/**/*"></textarea>
+            </div>
+            <label class="checkbox-label">
+              <input type="checkbox" id="project-archived-input" />
+              Archived
+            </label>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="project-save-btn">保存</button>
+              <button class="btn-danger btn-sm" id="project-delete-btn">削除</button>
+            </div>
+            <p class="settings-section-desc" id="project-status"></p>
           </div>
-          <label class="checkbox-label">
-            <input type="checkbox" id="project-archived-input" />
-            Archived
-          </label>
-          <div class="form-actions">
-            <button class="btn-primary btn-sm" id="project-save-btn">保存</button>
-            <button class="btn-danger btn-sm" id="project-delete-btn">削除</button>
-          </div>
-          <p class="settings-section-desc" id="project-status"></p>
         </div>
       </div>
 
       <div class="settings-section">
         <h3>Projects</h3>
         ${rows
-          ? `<div class="config-table-container">
+        ? `<div class="config-table-container">
               <table class="config-table">
                 <thead>
                   <tr>
@@ -692,8 +694,8 @@ docs/**/*"></textarea>
                 </tbody>
               </table>
             </div>`
-          : '<div class="config-empty">No projects found</div>'
-        }
+        : '<div class="config-empty">No projects found</div>'
+      }
       </div>
     `;
   }
@@ -894,7 +896,7 @@ docs/**/*"></textarea>
       <div class="settings-section">
         <h3>Organizations</h3>
         ${rows
-          ? `<div class="config-table-container">
+        ? `<div class="config-table-container">
               <table class="config-table">
                 <thead>
                   <tr>
@@ -910,14 +912,14 @@ docs/**/*"></textarea>
                 </tbody>
               </table>
             </div>`
-          : `
+        : `
             <div class="config-empty">
               <i data-lucide="building-2"></i>
               <p>No organizations configured</p>
               <p class="config-empty-hint">Add organizations to manage legal entities</p>
             </div>
           `
-        }
+      }
       </div>
     `;
   }
@@ -1062,9 +1064,9 @@ docs/**/*"></textarea>
           <span class="badge badge-project">${escapeHtml(projectId)}</span>
           <i data-lucide="arrow-right"></i>
           ${deps.length > 0
-            ? deps.map(d => `<span class="badge badge-dependency">${escapeHtml(d)}</span>`).join('')
-            : '<span class="no-deps">No dependencies</span>'
-          }
+          ? deps.map(d => `<span class="badge badge-dependency">${escapeHtml(d)}</span>`).join('')
+          : '<span class="no-deps">No dependencies</span>'
+        }
         </div>
       `;
     }
@@ -1121,26 +1123,26 @@ docs/**/*"></textarea>
         <aside class="integrations-sidebar">
           <div class="integrations-sidebar-title">Integrations</div>
           ${navItem(
-            'slack',
-            'Slack',
-            'hash',
-            !!slackConnected,
-            `<span>${slackWorkspaceCount} WS</span><span>${slackChannelCount} CH</span><span>${slackMemberCount} MB</span>`
-          )}
+      'slack',
+      'Slack',
+      'hash',
+      !!slackConnected,
+      `<span>${slackWorkspaceCount} WS</span><span>${slackChannelCount} CH</span><span>${slackMemberCount} MB</span>`
+    )}
           ${navItem(
-            'github',
-            'GitHub',
-            'github',
-            githubCount > 0,
-            `<span>${githubCount} Repos</span>`
-          )}
+      'github',
+      'GitHub',
+      'github',
+      githubCount > 0,
+      `<span>${githubCount} Repos</span>`
+    )}
           ${navItem(
-            'nocodb',
-            'NocoDB',
-            'table-2',
-            nocodbCount > 0,
-            `<span>${nocodbCount} Bases</span>`
-          )}
+      'nocodb',
+      'NocoDB',
+      'table-2',
+      nocodbCount > 0,
+      `<span>${nocodbCount} Bases</span>`
+    )}
         </aside>
 
         <div class="integrations-main">
@@ -1320,7 +1322,7 @@ docs/**/*"></textarea>
           <p class="settings-section-desc" id="github-status"></p>
         </div>
         ${rows
-          ? `<div id="github-list" class="config-table-container">
+        ? `<div id="github-list" class="config-table-container">
               <table class="config-table">
                 <thead>
                   <tr>
@@ -1337,8 +1339,8 @@ docs/**/*"></textarea>
                 </tbody>
               </table>
             </div>`
-          : '<div class="config-empty">No GitHub mappings found</div>'
-        }
+        : '<div class="config-empty">No GitHub mappings found</div>'
+      }
       </div>
     `;
   }
@@ -1370,9 +1372,9 @@ docs/**/*"></textarea>
                 <td class="mono">${escapeHtml(n.legacy_base_id || '')}</td>
                 <td>
                   ${n.url
-                    ? `<a href="${escapeHtml(n.url)}" target="_blank" class="config-link">${escapeHtml(n.url)}</a>`
-                    : '-'
-                  }
+        ? `<a href="${escapeHtml(n.url)}" target="_blank" class="config-link">${escapeHtml(n.url)}</a>`
+        : '-'
+      }
                 </td>
                 <td class="table-actions">
                   <button class="btn-secondary btn-sm" data-nocodb-edit="${escapeHtml(n.project_id || '')}">編集</button>
