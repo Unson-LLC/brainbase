@@ -44,6 +44,7 @@ import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
 
 // Modals
+import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
 import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
@@ -485,6 +486,13 @@ class App {
      * Initialize modals
      */
     initModals() {
+        // Task add modal (supports both local and NocoDB tasks)
+        this.modals.taskAddModal = new TaskAddModal({
+            taskService: this.taskService,
+            nocodbTaskService: this.nocodbTaskService
+        });
+        this.modals.taskAddModal.mount();
+
         // Task edit modal (supports both local and NocoDB tasks)
         this.modals.taskEditModal = new TaskEditModal({
             taskService: this.taskService,
@@ -903,6 +911,21 @@ class App {
                 if (this.settingsCore && this.settingsCore.ui) {
                     await this.settingsCore.ui.openModal();
                 }
+            };
+        }
+
+        // Add task buttons (local / NocoDB)
+        const addLocalTaskBtn = document.getElementById('add-local-task-btn');
+        if (addLocalTaskBtn) {
+            addLocalTaskBtn.onclick = () => {
+                this.modals.taskAddModal?.open({ mode: 'local' });
+            };
+        }
+
+        const addNocodbTaskBtn = document.getElementById('add-nocodb-task-btn');
+        if (addNocodbTaskBtn) {
+            addNocodbTaskBtn.onclick = () => {
+                this.modals.taskAddModal?.open({ mode: 'nocodb' });
             };
         }
 

@@ -375,6 +375,11 @@
                                 <option value="low">🔵 低</option>
                             </select>
                         </div>
+                        <div class="filter-group">
+                            <button id="add-local-task-btn" class="icon-btn" title="ローカルタスク追加" aria-label="ローカルタスクを追加">
+                                <i data-lucide="plus"></i>
+                            </button>
+                        </div>
                     </div>
                     <div id="next-tasks-list">
                         <div class="loading">読み込み中...</div>
@@ -404,6 +409,11 @@
                             <select id="nocodb-project-filter" class="priority-filter" aria-label="プロジェクトでフィルタ">
                                 <option value="">全プロジェクト</option>
                             </select>
+                        </div>
+                        <div class="filter-group">
+                            <button id="add-nocodb-task-btn" class="icon-btn" title="プロジェクトタスク追加" aria-label="プロジェクトタスクを追加">
+                                <i data-lucide="plus"></i>
+                            </button>
                         </div>
                         <button id="nocodb-sync-btn" class="icon-btn" title="同期">
                             <i data-lucide="refresh-cw"></i>
@@ -461,6 +471,53 @@
             <div class="modal-footer">
                 <button id="paste-cancel-btn" class="btn-secondary">キャンセル</button>
                 <button id="paste-confirm-btn" class="btn-primary">貼り付け</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div id="add-task-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="add-task-modal-title">タスク追加</h3>
+                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>タスク名</label>
+                    <input type="text" id="add-task-title" class="form-input" placeholder="例: 仕様書レビュー">
+                </div>
+                <div class="form-group">
+                    <label>担当者</label>
+                    <input type="text" id="add-task-assignee" class="form-input" placeholder="担当者名">
+                </div>
+                <div class="form-group">
+                    <label>プロジェクト</label>
+                    <select id="add-task-project" class="form-input">
+                        <option value="general">general</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>優先度</label>
+                    <select id="add-task-priority" class="form-input">
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>期限</label>
+                    <input type="date" id="add-task-due" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>説明</label>
+                    <textarea id="add-task-description" class="form-input" rows="3" placeholder="補足や背景"></textarea>
+                </div>
+                <div id="add-task-error" class="form-error" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn">キャンセル</button>
+                <button id="save-add-task-btn" class="btn-primary">追加</button>
             </div>
         </div>
     </div>
