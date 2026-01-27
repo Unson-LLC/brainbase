@@ -3262,9 +3262,10 @@ body.resizing iframe {
 
 /* Settings Tabs */
 /* Settings Layout Redesign (Sidebar Style) - Premium Glass fixes */
+/* Using !important to force row layout against any modal-fullscreen overrides */
 .settings-body {
     display: flex;
-    flex-direction: row;
+    flex-direction: row !important;
     /* FORCE ROW LAYOUT */
     height: 100%;
     padding: 0 !important;
@@ -6335,7 +6336,8 @@ flex-wrap: wrap;
 /* Mobile Settings Override */
 @media (max-width: 768px) {
     .settings-body {
-        flex-direction: column;
+        flex-direction: column !important;
+        /* Only strictly column on mobile */
     }
 
     .settings-tabs {
