@@ -2565,21 +2565,18 @@ body.resizing iframe {
 
 /* Task Cards */
 .task-card {
-    background: rgba(30, 41, 59, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     padding: 10px;
     margin-bottom: 8px;
-    transition: all 0.2s ease;
+    transition: transform 0.1s, border-color 0.1s;
     will-change: transform;
-    backdrop-filter: blur(10px);
 }
 
 .task-card:hover {
-    background: rgba(30, 41, 59, 0.8);
-    border-color: rgba(59, 130, 246, 0.4);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
 }
 
 .task-card.high {
@@ -2795,13 +2792,12 @@ body.resizing iframe {
 }
 
 .modal-content {
-    background: rgba(15, 23, 42, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(20px);
-    border-radius: 12px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
     width: 400px;
     max-width: 90%;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
 }
 
 .modal-header {
@@ -2846,20 +2842,17 @@ body.resizing iframe {
 
 .form-input {
     width: 100%;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
+    padding: 8px;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
     color: var(--text-primary);
     font-size: 0.9rem;
-    transition: all 0.2s;
 }
 
 .form-input:focus {
     outline: none;
     border-color: var(--accent-color);
-    background: rgba(0, 0, 0, 0.4);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .modal-footer {
