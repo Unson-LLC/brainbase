@@ -6445,11 +6445,205 @@ flex-wrap: wrap;
     }
 }
 
-/* Mobile Settings Override */
+/* Integration Hub Grid Layout */
+.integrations-container {
+    position: relative;
+    width: 100%;
+    min-height: 400px;
+}
+
+.integrations-view {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.integrations-view.active {
+    display: block;
+}
+
+.integrations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.integration-card {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.integration-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.integration-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.integration-card:hover::before {
+    opacity: 1;
+}
+
+.integration-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.integration-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.integration-icon-wrapper i {
+    width: 24px;
+    height: 24px;
+    color: var(--text-primary);
+}
+
+.integration-card[data-integration-card="slack"] .integration-icon-wrapper i {
+    color: #E01E5A;
+}
+
+.integration-card[data-integration-card="github"] .integration-icon-wrapper i {
+    color: #ffffff;
+}
+
+.integration-card[data-integration-card="nocodb"] .integration-icon-wrapper i {
+    color: #FBBF24;
+}
+
+.integration-status-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.integration-status-badge.success {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.integration-status-badge.neutral {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.integration-card-body h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.integration-card-body p {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.integration-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.integration-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 0.75rem;
+}
+
+.integration-meta span {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+/* Detail View Styles */
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.back-to-integrations {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.back-to-integrations:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.detail-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.detail-header h2 i {
+    color: var(--accent-color);
+}
+
+/* Mobile Responsive */
 @media (max-width: 768px) {
     .settings-body {
         flex-direction: column !important;
-        /* Only strictly column on mobile */
     }
 
     .settings-tabs {
@@ -6477,6 +6671,9 @@ flex-wrap: wrap;
 
     .settings-panel.active {
         align-items: stretch;
-        /* Full width on mobile */
+    }
+
+    .integrations-grid {
+        grid-template-columns: 1fr;
     }
 }
