@@ -864,32 +864,33 @@ docs/**/*"></textarea>
     return `
       <div class="settings-section">
         <div class="settings-section-header">
-          <h3>Organization Editor</h3>
+          <h3>Add Organization</h3>
           <button class="btn-secondary btn-sm" id="org-reset-btn">クリア</button>
         </div>
-        <p class="settings-section-desc">法人情報とプロジェクト紐づけを管理します</p>
-        <div class="settings-form-grid">
-          <div class="form-group">
-            <label for="org-id-input">Organization ID</label>
-            <input id="org-id-input" class="form-input" placeholder="salestailor" />
+        <div class="settings-form-card">
+          <div class="settings-form-grid">
+            <div class="form-group">
+              <label for="org-id-input">Organization ID</label>
+              <input id="org-id-input" class="form-input" placeholder="unson" />
+            </div>
+            <div class="form-group">
+              <label for="org-name-input">Display Name</label>
+              <input id="org-name-input" class="form-input" placeholder="Unson LLC" />
+            </div>
+            <div class="form-group">
+              <label for="org-domain-input">Domain</label>
+              <input id="org-domain-input" class="form-input" placeholder="unson.ai" />
+            </div>
+            <div class="form-group">
+              <label for="org-desc-input">Description</label>
+              <textarea id="org-desc-input" class="form-input" rows="3" placeholder="AI Research Lab"></textarea>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="org-save-btn">保存</button>
+              <button class="btn-danger btn-sm" id="org-delete-btn">削除</button>
+            </div>
+            <p class="settings-section-desc" id="org-status"></p>
           </div>
-          <div class="form-group">
-            <label for="org-name-input">Name</label>
-            <input id="org-name-input" class="form-input" placeholder="SalesTailor Inc." />
-          </div>
-          <div class="form-group">
-            <label for="org-ceo-input">CEO</label>
-            <input id="org-ceo-input" class="form-input" placeholder="hori_shiori" />
-          </div>
-          <div class="form-group">
-            <label for="org-projects-input">Projects (comma separated)</label>
-            <input id="org-projects-input" class="form-input" placeholder="salestailor, salestailor-app" />
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary btn-sm" id="org-save-btn">保存</button>
-            <button class="btn-danger btn-sm" id="org-delete-btn">削除</button>
-          </div>
-          <p class="settings-section-desc" id="org-status"></p>
         </div>
       </div>
 
@@ -1271,7 +1272,7 @@ docs/**/*"></textarea>
 
   _renderGitHubSection(github, projects = []) {
     const projectOptions = (projects || []).map(p => `
-      <option value="${escapeHtml(p.id || '')}">${escapeHtml(p.id || '')}</option>
+      <option value="${escapeHtml(p.id)}">${escapeHtml(p.emoji || '')} ${escapeHtml(p.id)}</option>
     `).join('');
 
     const rows = (github || []).map(g => `
@@ -1291,37 +1292,38 @@ docs/**/*"></textarea>
     return `
       <div class="settings-section">
         <div class="settings-section-header">
-          <h3>GitHub Repository Mappings</h3>
+          <h3>GitHub Config</h3>
           <button class="btn-secondary btn-sm" id="github-reset-btn">クリア</button>
         </div>
-        <p class="settings-section-desc">プロジェクトとGitHubリポジトリの対応関係（正本: config.yml）</p>
-        <div class="settings-form-grid">
-          <div class="form-group">
-            <label for="github-project-select">Project</label>
-            <select id="github-project-select" class="form-input">
-              <option value="">選択...</option>
-              ${projectOptions}
-            </select>
+        <div class="settings-form-card">
+          <div class="settings-form-grid">
+            <div class="form-group">
+              <label for="github-project-select">Linking Project</label>
+              <select id="github-project-select" class="form-input">
+                <option value="">(Select Project)</option>
+                ${projects.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.emoji || '')} ${escapeHtml(p.id)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="github-owner-input">Owner (Org/User)</label>
+              <input id="github-owner-input" class="form-input" placeholder="Unson-LLC" />
+            </div>
+            <div class="form-group">
+              <label for="github-repo-input">Repository</label>
+              <input id="github-repo-input" class="form-input" placeholder="brainbase" />
+            </div>
+            <div class="form-group">
+              <label for="github-paths-input">Watched Paths (Comma separated)</label>
+              <input id="github-paths-input" class="form-input" placeholder="docs/, src/" />
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary btn-sm" id="github-save-btn">保存</button>
+              <button class="btn-danger btn-sm" id="github-delete-btn">削除</button>
+            </div>
+            <p class="settings-section-desc" id="github-status"></p>
           </div>
-          <div class="form-group">
-            <label for="github-owner-input">Owner</label>
-            <input id="github-owner-input" class="form-input" placeholder="Unson-LLC" />
-          </div>
-          <div class="form-group">
-            <label for="github-repo-input">Repository</label>
-            <input id="github-repo-input" class="form-input" placeholder="brainbase" />
-          </div>
-          <div class="form-group">
-            <label for="github-branch-input">Branch</label>
-            <input id="github-branch-input" class="form-input" placeholder="main" />
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary btn-sm" id="github-save-btn">保存</button>
-            <button class="btn-danger btn-sm" id="github-delete-btn">削除</button>
-          </div>
-          <p class="settings-section-desc" id="github-status"></p>
         </div>
-        ${rows
+      </div>  ${rows
         ? `<div id="github-list" class="config-table-container">
               <table class="config-table">
                 <thead>
