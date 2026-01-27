@@ -1102,86 +1102,118 @@ docs/**/*"></textarea>
       <option value="${escapeHtml(p.id || '')}">${escapeHtml(p.id || '')}</option>
     `).join('');
 
-    const navItem = (key, label, icon, connected, metaHtml) => `
-      <button class="integration-nav-item ${connected ? 'connected' : 'disconnected'}" data-integration="${key}">
-        <div class="integration-nav-main">
-          <i data-lucide="${icon}"></i>
-          <div class="integration-nav-text">
-            <span class="integration-nav-title">${label}</span>
-            <span class="integration-nav-status ${connected ? 'success' : 'warning'}">
-              ${connected ? 'Connected' : 'Not Configured'}
-            </span>
+    const integrationCard = (key, label, icon, connected, metaHtml, description) => `
+      <div class="integration-card ${connected ? 'connected' : ''}" data-integration-card="${key}">
+        <div class="integration-card-header">
+          <div class="integration-icon-wrapper">
+            <i data-lucide="${icon}"></i>
+          </div>
+          <div class="integration-status-badge ${connected ? 'success' : 'neutral'}">
+            ${connected ? 'Connected' : 'Not Connected'}
           </div>
         </div>
-        <div class="integration-nav-meta">
-          ${metaHtml}
+        <div class="integration-card-body">
+          <h3>${label}</h3>
+          <p>${description}</p>
         </div>
-      </button>
+        <div class="integration-card-footer">
+          <div class="integration-meta">
+            ${metaHtml}
+          </div>
+          <button class="btn-secondary btn-sm">Configure</button>
+        </div>
+      </div>
     `;
 
     return `
-      <div class="integrations-layout">
-        <aside class="integrations-sidebar">
-          <div class="integrations-sidebar-title">Integrations</div>
-          ${navItem(
+      <div class="integrations-container">
+        <!-- Level 1: Integrations Overview (Grid) -->
+        <div id="integrations-overview" class="integrations-view active">
+          <div class="settings-section">
+            <div class="settings-section-header">
+              <h3>Available Integrations</h3>
+            </div>
+            <p class="settings-section-desc">連携サービスを選択して設定を行います</p>
+            
+            <div class="integrations-grid">
+              ${integrationCard(
       'slack',
       'Slack',
       'hash',
       !!slackConnected,
-      `<span>${slackWorkspaceCount} WS</span><span>${slackChannelCount} CH</span><span>${slackMemberCount} MB</span>`
+      `<span>${slackWorkspaceCount} Workspaces</span>`,
+      'チームコミュニケーションと連携し、通知やスレッドの同期を行います。'
     )}
-          ${navItem(
+              ${integrationCard(
       'github',
       'GitHub',
       'github',
       githubCount > 0,
-      `<span>${githubCount} Repos</span>`
+      `<span>${githubCount} Repositories</span>`,
+      'リポジトリのIssueやPRをプロジェクトとリンクし、開発状況を可視化します。'
     )}
-          ${navItem(
+              ${integrationCard(
       'nocodb',
       'NocoDB',
       'table-2',
       nocodbCount > 0,
-      `<span>${nocodbCount} Bases</span>`
+      `<span>${nocodbCount} Databases</span>`,
+      'ノーコードデータベースと同期し、タスクや顧客情報を管理します。'
     )}
-        </aside>
-
-        <div class="integrations-main">
-          <div class="integration-panel active" data-integration-panel="slack">
-            <div class="settings-section">
-              <h3>Sync Policy</h3>
-              <p class="settings-section-desc">Slackの設定は同期専用です（GUIからの編集はできません）</p>
-            </div>
-            <div class="settings-section">
-              <h3>Slack Workspaces</h3>
-              <div id="slack-workspaces-list" class="config-list"></div>
-            </div>
-
-            <div class="settings-section">
-              <h3>Channel Mappings</h3>
-              <div class="filter-bar">
-                <input type="text" id="slack-channel-filter" placeholder="Search channels..." class="form-input">
-                <select id="slack-workspace-filter" class="form-input">
-                  <option value="">All Workspaces</option>
-                </select>
-              </div>
-              <div id="slack-channels-list" class="config-table-container"></div>
-            </div>
-
-            <div class="settings-section">
-              <h3>Member Mappings</h3>
-              <div class="filter-bar">
-                <input type="text" id="slack-member-filter" placeholder="Search members..." class="form-input">
-              </div>
-              <div id="slack-members-list" class="config-table-container"></div>
             </div>
           </div>
+        </div>
 
-          <div class="integration-panel" data-integration-panel="github">
-            ${this._renderGitHubSection(github, projects)}
+        <!-- Level 2: Detail Views -->
+        <div id="integration-detail-slack" class="integrations-view detail-view">
+          <div class="detail-header">
+            <button class="btn-text back-to-integrations"><i data-lucide="arrow-left"></i> Back</button>
+            <h2><i data-lucide="hash"></i> Slack Integration</h2>
+          </div>
+          
+          <div class="settings-section">
+            <h3>Sync Policy</h3>
+            <p class="settings-section-desc">Slackの設定は同期専用です（GUIからの編集はできません）</p>
+          </div>
+          <div class="settings-section">
+            <h3>Slack Workspaces</h3>
+            <div id="slack-workspaces-list" class="config-list"></div>
           </div>
 
-          <div class="integration-panel" data-integration-panel="nocodb">
+          <div class="settings-section">
+            <h3>Channel Mappings</h3>
+            <div class="filter-bar">
+              <input type="text" id="slack-channel-filter" placeholder="Search channels..." class="form-input">
+              <select id="slack-workspace-filter" class="form-input">
+                <option value="">All Workspaces</option>
+              </select>
+            </div>
+            <div id="slack-channels-list" class="config-table-container"></div>
+          </div>
+
+          <div class="settings-section">
+            <h3>Member Mappings</h3>
+            <div class="filter-bar">
+              <input type="text" id="slack-member-filter" placeholder="Search members..." class="form-input">
+            </div>
+            <div id="slack-members-list" class="config-table-container"></div>
+          </div>
+        </div>
+
+        <div id="integration-detail-github" class="integrations-view detail-view">
+          <div class="detail-header">
+            <button class="btn-text back-to-integrations"><i data-lucide="arrow-left"></i> Back</button>
+            <h2><i data-lucide="github"></i> GitHub Integration</h2>
+          </div>
+          ${this._renderGitHubSection(github, projects)}
+        </div>
+
+        <div id="integration-detail-nocodb" class="integrations-view detail-view">
+          <div class="detail-header">
+            <button class="btn-text back-to-integrations"><i data-lucide="arrow-left"></i> Back</button>
+            <h2><i data-lucide="table-2"></i> NocoDB Integration</h2>
+          </div>
+          
           <div class="settings-section">
             <div class="settings-section-header">
               <h3>自分の担当者名</h3>
@@ -1243,7 +1275,7 @@ docs/**/*"></textarea>
                 <p class="settings-section-desc" id="nocodb-status"></p>
               </div>
             </div>
-
+  
             <div class="settings-section">
               <h3>NocoDB Base Mappings</h3>
               <p class="settings-section-desc">プロジェクトとNocoDBベースの対応関係（正本: config.yml）</p>
@@ -1256,27 +1288,43 @@ docs/**/*"></textarea>
   }
 
   _setupIntegrationNav(container, initialTab = null) {
-    const items = Array.from(container.querySelectorAll('.integration-nav-item'));
-    const panels = Array.from(container.querySelectorAll('.integration-panel'));
-    if (items.length === 0 || panels.length === 0) return;
+    const overview = container.querySelector('#integrations-overview');
+    const cards = container.querySelectorAll('.integration-card');
+    const detailViews = container.querySelectorAll('.integrations-view.detail-view');
+    const backButtons = container.querySelectorAll('.back-to-integrations');
 
-    const activate = (key) => {
-      items.forEach(item => {
-        item.classList.toggle('active', item.dataset.integration === key);
-      });
-      panels.forEach(panel => {
-        panel.classList.toggle('active', panel.dataset.integrationPanel === key);
-      });
+    // Show Detail View
+    const showDetail = (key) => {
+      overview.classList.remove('active');
+      detailViews.forEach(view => view.classList.remove('active'));
+      const target = container.querySelector(`#integration-detail-${key}`);
+      if (target) {
+        target.classList.add('active');
+        // Smooth scroll to top
+        container.closest('.settings-content')?.scrollTo(0, 0);
+      }
     };
 
-    const defaultKey = initialTab || items[0].dataset.integration;
-    activate(defaultKey);
-
-    items.forEach(item => {
-      item.addEventListener('click', () => {
-        activate(item.dataset.integration);
+    // Card Clicks
+    cards.forEach(card => {
+      card.addEventListener('click', () => {
+        const key = card.dataset.integrationCard;
+        if (key) showDetail(key);
       });
     });
+
+    // Back Buttons
+    backButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        detailViews.forEach(view => view.classList.remove('active'));
+        overview.classList.add('active');
+      });
+    });
+
+    // Initial Routing
+    if (initialTab) {
+      showDetail(initialTab);
+    }
   }
 
   _renderGitHubSection(github, projects = []) {
