@@ -57,8 +57,30 @@ export class WorktreeService {
                 throw new Error(`Not a git repository: ${repoPath}. Please ensure the directory is initialized as a git repository or configure the project properly in config.yml.`);
             }
 
-            // Create worktree with new branch
-            await this.execPromise(`git -C "${repoPath}" worktree add "${worktreePath}" -b "${branchName}"`);
+            // Check if worktree already exists
+            try {
+                await fs.access(worktreePath);
+                console.log(`[worktree] Worktree already exists at ${worktreePath}, reusing`);
+                return { worktreePath, branchName, repoPath };
+            } catch {
+                // Worktree doesn't exist, continue to create
+            }
+
+            // Check if branch already exists
+            let branchExists = false;
+            try {
+                await this.execPromise(`git -C "${repoPath}" rev-parse --verify "${branchName}"`);
+                branchExists = true;
+            } catch {
+                // Branch doesn't exist
+            }
+
+            // Create worktree with or without new branch
+            if (branchExists) {
+                await this.execPromise(`git -C "${repoPath}" worktree add "${worktreePath}" "${branchName}"`);
+            } else {
+                await this.execPromise(`git -C "${repoPath}" worktree add "${worktreePath}" -b "${branchName}"`);
+            }
 
             // Create symlink for .env if it exists in the source repo
             const sourceEnvPath = path.join(repoPath, '.env');

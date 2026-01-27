@@ -185,7 +185,10 @@ export class SessionController {
             if (session.worktree) {
                 const worktreeResult = await this.worktreeService.create(id, session.worktree.repo);
                 if (!worktreeResult) {
-                    return res.status(500).json({ error: 'Failed to restore worktree' });
+                    return res.status(500).json({
+                        error: 'Failed to restore worktree',
+                        detail: 'worktreeService.create returned null'
+                    });
                 }
             }
 
