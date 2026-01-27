@@ -3265,6 +3265,7 @@ body.resizing iframe {
 .settings-body {
     display: flex;
     flex-direction: row;
+    /* FORCE ROW LAYOUT */
     height: 100%;
     padding: 0 !important;
     /* Override modal-body padding */
