@@ -351,11 +351,16 @@ export class SettingsCore {
     let html = this._renderHealthSection(health);
 
     html += `
-      <div class="integrity-stats">
-        <div class="stat-item success">
-          <span class="label">Projects</span>
-          <span class="count">${stats.projects || 0}</span>
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3><i data-lucide="shield-check"></i> Integrity Status</h3>
         </div>
+      <div class="settings-form-card">
+        <div class="integrity-stats">
+          <div class="stat-item success">
+            <span class="label">Projects</span>
+            <span class="count">${stats.projects || 0}</span>
+          </div>
     `;
 
     // Mana統計を表示（Mana拡張がロードされている場合のみ）
@@ -410,6 +415,9 @@ export class SettingsCore {
       `;
     }
 
+    html += '</div>'; // Close settings-form-card
+    html += '</div>'; // Close settings-section
+
     // Unified View（統合マッピング表）
     if (unified) {
       html += this._renderUnifiedView(unified);
@@ -451,8 +459,11 @@ export class SettingsCore {
     };
 
     let html = `
-      <div class="settings-section health-section">
-        <h3>System Health</h3>
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3><i data-lucide="activity"></i> System Health</h3>
+        </div>
+      <div class="settings-form-card health-section">
         <div class="health-overview">
           <div class="health-status ${statusClass[health.status] || 'info'}">
             <i data-lucide="${statusIcon[health.status] || 'help-circle'}"></i>
@@ -483,6 +494,7 @@ export class SettingsCore {
     html += `
         </div>
       </div>
+      </div>
     `;
 
     return html;
@@ -501,12 +513,18 @@ export class SettingsCore {
       return '<div class="config-empty">No workspaces found</div>';
     }
 
-    let html = '<div class="settings-section"><h3>Unified Configuration Overview</h3><p class="settings-section-desc">Workspace → Project → Slack/GitHub/NocoDB の統合マッピング</p>';
+    let html = `
+      <div class="settings-section">
+        <div class="settings-section-header">
+          <h3><i data-lucide="layers"></i> Unified Configuration Overview</h3>
+        </div>
+      <p class="settings-section-desc" style="margin-bottom: 1.5rem; padding-left: 0.5rem; color: var(--text-secondary);">Workspace → Project → Slack/GitHub/NocoDB の統合マッピング</p>
+    `;
 
     // Workspace毎にプロジェクト一覧を表示
     for (const ws of workspaces) {
       html += `
-        <div class="unified-workspace" data-workspace="${escapeHtml(ws.key || '')}">
+        <div class="settings-form-card unified-workspace" data-workspace="${escapeHtml(ws.key || '')}">
           <h3 class="workspace-header">
             <span class="workspace-name">${escapeHtml(ws.name || '')}</span>
             <span class="workspace-id mono">${escapeHtml(ws.id || '-')}</span>
@@ -577,7 +595,12 @@ export class SettingsCore {
 
     // Orphaned Items（孤立したプロジェクト・チャンネル）
     if ((orphanedProjects && orphanedProjects.length > 0) || (orphanedChannels && orphanedChannels.length > 0)) {
-      html += '<div class="unified-orphans"><h3 class="orphans-header">⚠️ Orphaned Items</h3>';
+      html += `
+        <div class="settings-section-header" style="margin-top: 2rem;">
+            <h3><i data-lucide="alert-triangle" style="color: var(--warning-color);"></i> Orphaned Items</h3>
+        </div>
+        <div class="settings-form-card unified-orphans">
+      `;
 
       if (orphanedProjects && orphanedProjects.length > 0) {
         html += `
@@ -608,7 +631,7 @@ export class SettingsCore {
       html += '</div>';
     }
 
-    html += '</div>';
+    html += '</div>'; // Close settings-section
 
     return html;
   }

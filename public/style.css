@@ -4347,12 +4347,93 @@ body.resizing iframe {
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.75rem 1rem;
-    background: var(--bg-secondary);
-    border-radius: 8px 8px 0 0;
-    border: 1px solid var(--border-color);
+    padding: 0 0 1.5rem 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 1.5rem;
+    border-radius: 0;
+}
+
+/* Integrity Stats */
+.integrity-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.stat-item:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.stat-item .label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.stat-item .count {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stat-item.success .count {
+    color: var(--success-color);
+}
+
+.stat-item.warning .count {
+    color: var(--warning-color);
+}
+
+.stat-item.error .count {
+    color: var(--danger-color);
+}
+
+/* Integrity Issues */
+.integrity-issues {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.issue-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.9rem;
+}
+
+.issue-item:last-child {
     border-bottom: none;
-    margin: 0;
+}
+
+.issue-item.error i {
+    color: var(--danger-color);
+}
+
+.issue-item.warning i {
+    color: var(--warning-color);
 }
 
 .workspace-name {
