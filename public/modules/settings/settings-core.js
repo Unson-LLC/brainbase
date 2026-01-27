@@ -1182,27 +1182,36 @@ docs/**/*"></textarea>
           </div>
 
           <div class="integration-panel" data-integration-panel="nocodb">
-            <div class="settings-section">
+          <div class="settings-section">
+            <div class="settings-section-header">
               <h3>自分の担当者名</h3>
-              <p class="settings-section-desc">「自分だけ」フィルタとプロジェクトタスク追加の既定値に使用します</p>
-              <div class="form-group">
-                <label for="nocodb-self-assignee">担当者名</label>
-                <input
-                  type="text"
-                  id="nocodb-self-assignee"
-                  class="form-input"
-                  placeholder="例: ksato"
-                  value="${escapedAssignee}">
-              </div>
-              <button id="nocodb-self-assignee-save" class="btn-secondary btn-sm">保存</button>
-              <p id="nocodb-self-assignee-status" class="settings-section-desc"></p>
             </div>
-
-            <div class="settings-section">
-              <div class="settings-section-header">
-                <h3>NocoDB Mapping Editor</h3>
-                <button class="btn-secondary btn-sm" id="nocodb-reset-btn">クリア</button>
+            <p class="settings-section-desc">「自分だけ」フィルタとプロジェクトタスク追加の既定値に使用します</p>
+            <div class="settings-form-card">
+              <div class="settings-form-grid">
+                <div class="form-group">
+                  <label for="nocodb-self-assignee">担当者名</label>
+                  <input
+                    type="text"
+                    id="nocodb-self-assignee"
+                    class="form-input"
+                    placeholder="例: ksato"
+                    value="${escapedAssignee}">
+                </div>
+                <div class="form-actions">
+                  <button id="nocodb-self-assignee-save" class="btn-primary btn-sm">保存</button>
+                </div>
+                <p id="nocodb-self-assignee-status" class="settings-section-desc"></p>
               </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <div class="settings-section-header">
+              <h3>NocoDB Mapping Editor</h3>
+              <button class="btn-secondary btn-sm" id="nocodb-reset-btn">クリア</button>
+            </div>
+            <div class="settings-form-card">
               <div class="settings-form-grid">
                 <div class="form-group">
                   <label for="nocodb-project-select">Project</label>
@@ -1847,41 +1856,47 @@ docs/**/*"></textarea>
             <h3>Notification Channels</h3>
             <button class="btn-primary btn-sm" id="notifications-save-btn">保存</button>
           </div>
-          <div class="settings-form-grid">
-            <label class="checkbox-label">
-              <input type="checkbox" id="notify-slack" ${channelConfig.slack ? 'checked' : ''} />
-              Slack
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="notify-web" ${channelConfig.web ? 'checked' : ''} />
-              Web
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="notify-email" ${channelConfig.email ? 'checked' : ''} />
-              Email
-            </label>
+          <div class="settings-form-card">
+            <div class="settings-form-grid">
+              <label class="checkbox-label">
+                <input type="checkbox" id="notify-slack" ${channelConfig.slack ? 'checked' : ''} />
+                Slack
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="notify-web" ${channelConfig.web ? 'checked' : ''} />
+                Web
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="notify-email" ${channelConfig.email ? 'checked' : ''} />
+                Email
+              </label>
+            </div>
+            <p class="settings-section-desc" id="notifications-status"></p>
           </div>
-          <p class="settings-section-desc" id="notifications-status"></p>
         </div>
 
         <div class="settings-section">
-          <h3>Do Not Disturb</h3>
-          <label class="checkbox-label">
-            <input type="checkbox" id="dnd-enabled" ${dndConfig.enabled ? 'checked' : ''} />
-            DNDを有効にする
-          </label>
-          <div class="settings-form-grid">
-            <div class="form-group">
-              <label for="dnd-start">Start</label>
-              <select id="dnd-start" class="form-input" ${dndConfig.enabled ? '' : 'disabled'}>
-                ${hourOptions(dndConfig.start)}
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="dnd-end">End</label>
-              <select id="dnd-end" class="form-input" ${dndConfig.enabled ? '' : 'disabled'}>
-                ${hourOptions(dndConfig.end)}
-              </select>
+          <div class="settings-section-header">
+            <h3>Do Not Disturb</h3>
+          </div>
+          <div class="settings-form-card">
+            <label class="checkbox-label">
+              <input type="checkbox" id="dnd-enabled" ${dndConfig.enabled ? 'checked' : ''} />
+              DNDを有効にする
+            </label>
+            <div class="settings-form-grid">
+              <div class="form-group">
+                <label for="dnd-start">Start</label>
+                <select id="dnd-start" class="form-input" ${dndConfig.enabled ? '' : 'disabled'}>
+                  ${hourOptions(dndConfig.start)}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="dnd-end">End</label>
+                <select id="dnd-end" class="form-input" ${dndConfig.enabled ? '' : 'disabled'}>
+                  ${hourOptions(dndConfig.end)}
+                </select>
+              </div>
             </div>
           </div>
         </div>
