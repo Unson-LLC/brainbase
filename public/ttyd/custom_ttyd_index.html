@@ -31,8 +31,40 @@
         post('TERMINAL_INTERACT');
     }
 
-    document.addEventListener('pointerdown', notifyInteract, true);
-    document.addEventListener('touchstart', notifyInteract, { passive: true, capture: true });
+    function getTerminalSelection() {
+        try {
+            if (window.term && typeof window.term.getSelection === 'function') {
+                return window.term.getSelection().trim();
+            }
+            const selection = window.getSelection();
+            return selection ? selection.toString().trim() : '';
+        } catch (error) {
+            return '';
+        }
+    }
+
+    let pointerDownSelection = '';
+    let pointerDownAt = 0;
+
+    document.addEventListener('pointerdown', () => {
+        pointerDownSelection = getTerminalSelection();
+        pointerDownAt = Date.now();
+    }, true);
+
+    document.addEventListener('pointerup', () => {
+        const selection = getTerminalSelection();
+        const now = Date.now();
+        if (selection) return;
+        if (pointerDownSelection) return;
+        if (now - pointerDownAt > 1000) return;
+        notifyInteract();
+    }, true);
+
+    document.addEventListener('touchend', () => {
+        const selection = getTerminalSelection();
+        if (selection) return;
+        notifyInteract();
+    }, { passive: true, capture: true });
 
     function resetTurnState() {
         turnPending = false;
