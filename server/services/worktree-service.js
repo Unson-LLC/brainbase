@@ -210,13 +210,29 @@ export class WorktreeService {
             // Calculate commits ahead
             let ahead = 0;
             let behind = 0;
+            let effectiveStartCommit = startCommit;
 
-            if (startCommit && headCommit.trim()) {
+            // For existing sessions without startCommit, try to find branch creation point from reflog
+            if (!effectiveStartCommit && headCommit.trim()) {
+                try {
+                    const { stdout: reflogStart } = await this.execPromise(
+                        `git -C "${repoPath}" reflog show ${branchName} --format='%H' 2>/dev/null | tail -1`
+                    );
+                    if (reflogStart.trim()) {
+                        effectiveStartCommit = reflogStart.trim();
+                        console.log(`[worktree] Found branch start from reflog: ${effectiveStartCommit.substring(0, 8)}`);
+                    }
+                } catch {
+                    // Reflog not available, will use legacy method
+                }
+            }
+
+            if (effectiveStartCommit && headCommit.trim()) {
                 // New method: Use startCommit to calculate accurate diff
                 // This avoids including develop->main diff for sessions created from develop
                 try {
                     const { stdout: aheadCount } = await this.execPromise(
-                        `git -C "${worktreePath}" rev-list --count ${startCommit}..HEAD 2>/dev/null || echo "0"`
+                        `git -C "${worktreePath}" rev-list --count ${effectiveStartCommit}..HEAD 2>/dev/null || echo "0"`
                     );
                     ahead = parseInt(aheadCount.trim()) || 0;
                 } catch {
