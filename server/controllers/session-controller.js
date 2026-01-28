@@ -54,6 +54,8 @@ export class SessionController {
      */
     start = async (req, res) => {
         const { sessionId, initialCommand, cwd, engine = 'claude', userId = 'ksato' } = req.body;
+        console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
+        console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
@@ -135,7 +137,11 @@ export class SessionController {
 
         // Check if worktree needs merge
         if (session.worktree && !skipMergeCheck) {
-            const status = await this.worktreeService.getStatus(id, session.worktree.repo);
+            const status = await this.worktreeService.getStatus(
+                id,
+                session.worktree.repo,
+                session.worktree.startCommit || null
+            );
             if (status.needsMerge) {
                 return res.json({
                     needsConfirmation: true,
@@ -361,7 +367,8 @@ export class SessionController {
                 worktree: {
                     repo: repoPath,
                     path: worktreePath,
-                    branch: branchName
+                    branch: branchName,
+                    startCommit: worktreeResult.startCommit
                 },
                 initialCommand,
                 engine,
@@ -407,7 +414,11 @@ export class SessionController {
         }
 
         try {
-            const status = await this.worktreeService.getStatus(id, session.worktree.repo);
+            const status = await this.worktreeService.getStatus(
+                id,
+                session.worktree.repo,
+                session.worktree.startCommit || null
+            );
             res.json(status);
         } catch (error) {
             console.error('Failed to get worktree status:', error);

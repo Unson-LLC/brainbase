@@ -61,7 +61,11 @@ export class WorktreeService {
             try {
                 await fs.access(worktreePath);
                 console.log(`[worktree] Worktree already exists at ${worktreePath}, reusing`);
-                return { worktreePath, branchName, repoPath };
+                // Get current HEAD as startCommit for existing worktree
+                const { stdout: startCommit } = await this.execPromise(
+                    `git -C "${worktreePath}" rev-parse HEAD`
+                );
+                return { worktreePath, branchName, repoPath, startCommit: startCommit.trim() };
             } catch {
                 // Worktree doesn't exist, continue to create
             }
@@ -134,8 +138,13 @@ export class WorktreeService {
             // - 全プロジェクトで共通の設定を使用
             // - brainbase-workspace でGit管理
 
+            // Get current HEAD as startCommit for new worktree
+            const { stdout: startCommit } = await this.execPromise(
+                `git -C "${worktreePath}" rev-parse HEAD`
+            );
+
             console.log(`Created worktree at ${worktreePath} with branch ${branchName}`);
-            return { worktreePath, branchName, repoPath };
+            return { worktreePath, branchName, repoPath, startCommit: startCommit.trim() };
         } catch (err) {
             console.error(`Failed to create worktree for ${sessionId}:`, err.message);
             // If worktree creation fails (e.g., not a git repo), return null
@@ -174,9 +183,10 @@ export class WorktreeService {
      * worktreeの未マージ状態を取得
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
+     * @param {string|null} startCommit - セッション開始時のコミットハッシュ（後方互換性のためオプション）
      * @returns {Promise<Object>} worktree状態情報
      */
-    async getStatus(sessionId, repoPath) {
+    async getStatus(sessionId, repoPath, startCommit = null) {
         const repoName = path.basename(repoPath);
         const worktreePath = path.join(this.worktreesDir, `${sessionId}-${repoName}`);
         const branchName = `session/${sessionId}`;
@@ -197,10 +207,24 @@ export class WorktreeService {
                 `git -C "${worktreePath}" rev-parse HEAD 2>/dev/null || echo ""`
             );
 
-            // Check if session branch commit is an ancestor of main (already merged)
+            // Calculate commits ahead
             let ahead = 0;
             let behind = 0;
-            if (mainCommit.trim() && headCommit.trim()) {
+
+            if (startCommit && headCommit.trim()) {
+                // New method: Use startCommit to calculate accurate diff
+                // This avoids including develop->main diff for sessions created from develop
+                try {
+                    const { stdout: aheadCount } = await this.execPromise(
+                        `git -C "${worktreePath}" rev-list --count ${startCommit}..HEAD 2>/dev/null || echo "0"`
+                    );
+                    ahead = parseInt(aheadCount.trim()) || 0;
+                } catch {
+                    // Fallback to legacy method if startCommit calculation fails
+                    ahead = 0;
+                }
+            } else if (mainCommit.trim() && headCommit.trim()) {
+                // Legacy method: Compare with origin/main for backward compatibility
                 // Check if HEAD is ancestor of main (meaning it's been merged)
                 const { stdout: mergeBase } = await this.execPromise(
                     `git -C "${repoPath}" merge-base ${mainCommit.trim()} ${headCommit.trim()} 2>/dev/null || echo ""`
