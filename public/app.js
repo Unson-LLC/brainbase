@@ -292,8 +292,12 @@ export class App {
                     manageVisibility: false,
                     mount: async ({ container }) => {
                         const dashboardBtn = document.getElementById('nav-dashboard-btn');
+                        const mobileDashboardBtn = document.getElementById('mobile-dashboard-btn');
                         if (dashboardBtn) {
                             dashboardBtn.style.display = '';
+                        }
+                        if (mobileDashboardBtn) {
+                            mobileDashboardBtn.style.display = '';
                         }
 
                         const { cleanup, showConsole, showDashboard } = setupViewNavigation({
@@ -312,6 +316,9 @@ export class App {
                             }
                             if (dashboardBtn) {
                                 dashboardBtn.style.display = 'none';
+                            }
+                            if (mobileDashboardBtn) {
+                                mobileDashboardBtn.style.display = 'none';
                             }
                             if (this.dashboardController?.destroy) {
                                 this.dashboardController.destroy();
@@ -1243,6 +1250,7 @@ export class App {
     setupMobileNavigation() {
         const mobileSessionsBtn = document.getElementById('mobile-sessions-btn');
         const mobileTasksBtn = document.getElementById('mobile-tasks-btn');
+        const mobileDashboardBtn = document.getElementById('mobile-dashboard-btn');
         const mobileSettingsBtn = document.getElementById('mobile-settings-btn');
         const sessionsSheetOverlay = document.getElementById('sessions-sheet-overlay');
         const tasksSheetOverlay = document.getElementById('tasks-sheet-overlay');
@@ -1386,6 +1394,25 @@ export class App {
             openSessionsSheet();
         });
         mobileTasksBtn?.addEventListener('click', openTasksSheet);
+        mobileDashboardBtn?.addEventListener('click', () => {
+            closeSessionsSheet();
+            closeTasksSheet();
+            closeSettingsPanel();
+
+            const dashboardBtn = document.getElementById('nav-dashboard-btn');
+            const isDashboardActive = dashboardBtn?.classList.contains('active');
+            if (isDashboardActive) {
+                this.showConsole?.();
+                return;
+            }
+
+            if (typeof this.showDashboard === 'function') {
+                this.showDashboard();
+                return;
+            }
+
+            dashboardBtn?.click();
+        });
         mobileSettingsBtn?.addEventListener('click', async () => {
             await openSettingsPanel();
         });
