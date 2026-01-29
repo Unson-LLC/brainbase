@@ -24,7 +24,7 @@
         <!-- Left Navigation (Session List) -->
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3 id="app-version" class="app-version">v0.1.102</h3>
+                <h3 id="app-version" class="app-version">v--</h3>
             </div>
 
             <!-- View Toggle -->
@@ -312,21 +312,13 @@
 
         <!-- Right Sidebar (Context: Today's Page) -->
         <aside class="context-sidebar" id="context-sidebar">
-
-            <!-- Focus Section: 最重要タスク1つ -->
-            <div class="focus-section" id="focus-section" data-slot="sidebar:today">
-                <div class="section-header">
-                    <h3><i data-lucide="target"></i> 今日のフォーカス</h3>
-                </div>
-                <div id="focus-task">
-                    <div class="loading">読み込み中...</div>
-                </div>
-            </div>
-
             <!-- Timeline Section: 予定+タスク統合 -->
             <div class="timeline-section" id="timeline-section" data-slot="sidebar:schedule">
                 <div class="section-header">
                     <h3><i data-lucide="calendar"></i> タイムライン</h3>
+                    <button id="add-schedule-btn" class="icon-btn" title="予定を追加" aria-label="予定を追加">
+                        <i data-lucide="plus"></i>
+                    </button>
                 </div>
                 <div id="timeline-list">
                     <div class="loading">読み込み中...</div>
@@ -401,6 +393,7 @@
                             <label for="nocodb-assignee-filter" class="sr-only">担当者フィルター</label>
                             <select id="nocodb-assignee-filter" aria-label="担当者でフィルタ">
                                 <option value="">全担当者</option>
+                                <option value="__self__">自分だけ</option>
                                 <option value="__unassigned__">未割当</option>
                             </select>
                         </div>
@@ -559,6 +552,10 @@
                 <div class="form-group">
                     <label>Due Date</label>
                     <input type="date" id="edit-task-due" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="edit-task-description" class="form-input" rows="3" placeholder="Details or context"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -770,12 +767,20 @@
     <div id="sessions-bottom-sheet" class="bottom-sheet">
         <div class="bottom-sheet-handle"></div>
         <div class="bottom-sheet-header">
-            <h3 id="mobile-app-version" class="mobile-version-display">v0.1.102</h3>
+            <h3 id="mobile-app-version" class="mobile-version-display">v--</h3>
             <button class="add-session-btn-icon" id="mobile-add-session-btn" title="New Session">
                 <i data-lucide="plus"></i>
             </button>
             <button class="bottom-sheet-close" id="close-sessions-sheet">
                 <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="session-view-toggle mobile-session-view-toggle" aria-label="Session view mode">
+            <button class="session-view-btn" data-view="project" title="プロジェクト表示">
+                <i data-lucide="folder"></i>
+            </button>
+            <button class="session-view-btn" data-view="timeline" title="時系列表示">
+                <i data-lucide="clock"></i>
             </button>
         </div>
         <div class="archive-toggle-container" style="padding: 0.5rem 1rem;">

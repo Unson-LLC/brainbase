@@ -18,7 +18,7 @@ import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { showConfirm } from './modules/confirm-modal.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
-import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachMenuToggleHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
+import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 
 // Services
@@ -29,7 +29,6 @@ import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
 
 // Views
-import { TaskView } from './modules/ui/views/task-view.js';
 import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
@@ -62,6 +61,7 @@ class TerminalReconnectManager {
         this.currentSessionId = null;
         this.terminalFrame = null;
         this.isReconnecting = false;
+        this.lastConnectTime = null; // 最後のWebSocket接続成功時刻
     }
 
     init(terminalFrame) {
@@ -112,6 +112,12 @@ class TerminalReconnectManager {
         // 正常切断（code 1000）は無視（セッション切り替え等）
         if (code === 1000) return;
 
+        // 最近接続成功した場合は無視（race condition防止）
+        if (this.lastConnectTime && Date.now() - this.lastConnectTime < 3000) {
+            console.log('[reconnect] Ignoring disconnect within 3s of connect');
+            return;
+        }
+
         // 自動再接続トリガー
         if (!this.isReconnecting) {
             showInfo('ターミナル接続が切断されました。再接続中...');
@@ -131,6 +137,9 @@ class TerminalReconnectManager {
     handleTtydConnect(sessionId) {
         // 現在のセッションの場合のみ処理
         if (sessionId !== this.currentSessionId) return;
+
+        // 接続成功時刻を記録（disconnect race condition防止用）
+        this.lastConnectTime = Date.now();
 
         if (this.retryCount > 0 || this.isReconnecting) {
             showInfo('ターミナル接続が復旧しました');
@@ -185,7 +194,10 @@ class TerminalReconnectManager {
         } catch (error) {
             console.error('Reconnect failed:', error);
             this.isReconnecting = false;
-            this.handleDisconnect();
+            // 無限ループ防止: catchでは再試行せず、ユーザーにリロードを促す
+            if (this.retryCount >= this.maxRetries) {
+                showError('ターミナル接続に失敗しました。ページをリロードしてください。');
+            }
         }
     }
 
@@ -199,7 +211,7 @@ class TerminalReconnectManager {
 /**
  * Application initialization
  */
-class App {
+export class App {
     constructor() {
         this.container = new DIContainer();
         this.views = {};
@@ -317,21 +329,6 @@ class App {
             id: 'bb-tasks',
             layer: 'core',
             slots: {
-                'sidebar:today': {
-                    mount: ({ container }) => {
-                        const taskContainer = document.getElementById('focus-task');
-                        if (taskContainer) {
-                            this.views.taskView = new TaskView({ taskService: this.taskService });
-                            this.views.taskView.mount(taskContainer);
-                        }
-
-                        return () => {
-                            this.views.taskView?.unmount?.();
-                            delete this.views.taskView;
-                            container.style.display = 'none';
-                        };
-                    }
-                },
                 'sidebar:next-tasks': {
                     mount: ({ container }) => {
                         const nextTasksContainer = document.getElementById('next-tasks-list');
@@ -768,6 +765,14 @@ class App {
             this.openCreateSessionModal(project);
         });
 
+        // Worktree fallback: warn user when session falls back to main workspace
+        const unsubWorktreeFallback = eventBus.on(EVENTS.SESSION_WORKTREE_FALLBACK, (event) => {
+            const { project, reason } = event.detail || {};
+            const projectLabel = project ? `「${project}」` : 'このプロジェクト';
+            showInfo(`Worktree作成に失敗したため、${projectLabel}は本体フォルダで開始しました。`);
+            console.warn('[Session] Worktree fallback:', reason || 'unknown');
+        });
+
         // Rename session: open rename modal
         const unsub5 = eventBus.on(EVENTS.RENAME_SESSION, (event) => {
             const { session } = event.detail;
@@ -816,7 +821,7 @@ class App {
             }
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -1247,9 +1252,21 @@ class App {
         const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn');
         const mobileSessionList = document.getElementById('mobile-session-list');
         const mobileTasksContent = document.getElementById('mobile-tasks-content');
+        const settingsUI = this.settingsCore?.ui;
 
-        // Open Sessions bottom sheet
-        const openSessionsSheet = () => {
+        // Close Sessions bottom sheet
+        const closeSessionsSheet = () => {
+            sessionsSheetOverlay?.classList.remove('active');
+            sessionsBottomSheet?.classList.remove('active');
+        };
+
+        const closeSettingsPanel = () => {
+            if (settingsUI?.isOpen?.()) {
+                settingsUI.closeModal();
+            }
+        };
+
+        const renderMobileSessionList = () => {
             const sessionList = document.getElementById('session-list');
             const sessionListContent = sessionList?.innerHTML || '';
 
@@ -1274,33 +1291,76 @@ class App {
                     attachSectionHeaderHandlers(mobileSessionList);
                     attachGroupHeaderHandlers(mobileSessionList);
 
-                    // 3点メニューハンドラ
-                    attachMenuToggleHandlers(mobileSessionList);
-
                     // セッションアクションハンドラ（リネーム、削除、アーカイブ等）
-                    this.sessionView.attachActionHandlersToContainer(mobileSessionList);
+                    this.views.sessionView?.attachActionHandlersToContainer(mobileSessionList);
                 } catch (error) {
                     console.error('Error attaching handlers:', error);
                 }
             }
+        };
 
+        // Open Sessions bottom sheet
+        const openSessionsSheet = () => {
+            closeTasksSheet();
+            closeSettingsPanel();
+            renderMobileSessionList();
             sessionsSheetOverlay?.classList.add('active');
             sessionsBottomSheet?.classList.add('active');
             lucide.createIcons();
         };
 
-        // Close Sessions bottom sheet
-        const closeSessionsSheet = () => {
-            sessionsSheetOverlay?.classList.remove('active');
-            sessionsBottomSheet?.classList.remove('active');
+        const refreshMobileSessionListIfOpen = () => {
+            if (sessionsBottomSheet?.classList.contains('active')) {
+                requestAnimationFrame(() => {
+                    renderMobileSessionList();
+                });
+            }
+        };
+
+        const unsubscribeMobileSessionView = appStore.subscribeToSelector(
+            state => state.ui?.sessionListView,
+            () => refreshMobileSessionListIfOpen()
+        );
+        this.unsubscribers.push(unsubscribeMobileSessionView);
+
+        const renderMobileTasksContent = ({ activeTab } = {}) => {
+            const contextSidebar = document.getElementById('context-sidebar');
+            if (!mobileTasksContent || !contextSidebar) return;
+
+            mobileTasksContent.innerHTML = contextSidebar.innerHTML;
+
+            if (activeTab) {
+                const tabButtons = mobileTasksContent.querySelectorAll('.task-tab');
+                tabButtons.forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === activeTab);
+                });
+
+                const tabContents = mobileTasksContent.querySelectorAll('.task-tab-content');
+                tabContents.forEach(content => {
+                    content.classList.toggle('active', content.id === `${activeTab}-tasks-panel`);
+                });
+            }
+
+            setupTaskTabs({
+                root: mobileTasksContent,
+                eventBus,
+                events: EVENTS,
+                onTabActivated: async (tab) => {
+                    await this.views.nocodbTasksView?.onTabActivated?.();
+                    if (tab === 'nocodb') {
+                        renderMobileTasksContent({ activeTab: tab });
+                    }
+                }
+            });
+
+            lucide.createIcons();
         };
 
         // Open Tasks bottom sheet
         const openTasksSheet = () => {
-            const contextSidebar = document.getElementById('context-sidebar');
-            if (mobileTasksContent && contextSidebar) {
-                mobileTasksContent.innerHTML = contextSidebar.innerHTML;
-            }
+            closeSessionsSheet();
+            closeSettingsPanel();
+            renderMobileTasksContent();
             tasksSheetOverlay?.classList.add('active');
             tasksBottomSheet?.classList.add('active');
             lucide.createIcons();
@@ -1312,20 +1372,24 @@ class App {
             tasksBottomSheet?.classList.remove('active');
         };
 
+        const openSettingsPanel = async () => {
+            closeSessionsSheet();
+            closeTasksSheet();
+            if (settingsUI?.openModal) {
+                await settingsUI.openModal();
+            }
+        };
+
         // Event listeners for mobile navigation
         mobileSessionsBtn?.addEventListener('click', () => {
-            // トグル動作：開いていれば閉じる、閉じていれば開く
-            if (sessionsBottomSheet?.classList.contains('active')) {
-                closeSessionsSheet();
-            } else {
-                openSessionsSheet();
-            }
+            openSessionsSheet();
         });
         mobileTasksBtn?.addEventListener('click', openTasksSheet);
         mobileSettingsBtn?.addEventListener('click', async () => {
-            await openSettings();
+            await openSettingsPanel();
         });
         mobileAddSessionBtn?.addEventListener('click', () => {
+            closeSessionsSheet();
             eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
         });
         // Desktop New Session button
@@ -1394,6 +1458,16 @@ class App {
 
         // Mobile FAB (Speed Dial) functionality
         this.setupMobileFAB();
+    }
+
+    /**
+     * Close mobile sessions bottom sheet (if open)
+     */
+    closeMobileSessionsSheet() {
+        const sessionsSheetOverlay = document.getElementById('sessions-sheet-overlay');
+        const sessionsBottomSheet = document.getElementById('sessions-bottom-sheet');
+        sessionsSheetOverlay?.classList.remove('active');
+        sessionsBottomSheet?.classList.remove('active');
     }
 
     /**
@@ -1829,6 +1903,9 @@ class App {
         // 2. Initialize views
         this.initViews();
 
+        // 2.5. Update app version display
+        await this.updateAppVersionDisplay();
+
         // 3. Initialize modals
         this.initModals();
 
@@ -1846,6 +1923,9 @@ class App {
 
         // 4.5. Register active port for hook routing
         await this.registerActivePort();
+
+        // 4.6. Update app version display (include runtime info)
+        await this.updateAppVersionDisplay();
 
         // 5. Load initial data
         await this.loadInitialData();
@@ -1895,6 +1975,44 @@ class App {
             await fetch('/api/active-port', { cache: 'no-store' });
         } catch (error) {
             console.warn('Failed to register active port:', error);
+        }
+    }
+
+    /**
+     * Update app version display from server
+     */
+    async updateAppVersionDisplay() {
+        const versionElements = [
+            document.getElementById('app-version'),
+            document.getElementById('mobile-app-version')
+        ].filter(Boolean);
+
+        if (versionElements.length === 0) return;
+
+        try {
+            const { version, runtime } = await httpClient.get('/api/version');
+            if (!version) return;
+
+            const gitSha = runtime?.git?.sha ? String(runtime.git.sha) : null;
+            const branch = runtime?.git?.branch ? String(runtime.git.branch) : null;
+            const cwd = runtime?.cwd ? String(runtime.cwd) : null;
+            const pid = Number.isFinite(runtime?.pid) ? String(runtime.pid) : null;
+
+            const display = gitSha ? `${version} (${gitSha})` : version;
+            const details = [
+                branch ? `branch: ${branch}` : null,
+                cwd ? `cwd: ${cwd}` : null,
+                pid ? `pid: ${pid}` : null
+            ].filter(Boolean).join(' | ');
+
+            versionElements.forEach((element) => {
+                element.textContent = display;
+                if (details) {
+                    element.title = details;
+                }
+            });
+        } catch (error) {
+            console.warn('Failed to load app version:', error?.message || error);
         }
     }
 
@@ -1997,6 +2115,7 @@ class App {
 
             // Close modal
             modal.classList.remove('active');
+            this.closeMobileSessionsSheet();
 
             // Create session
             await this.createSession(selectedProject, name, initialCommand, useWorktree, engine);
@@ -2045,6 +2164,8 @@ class App {
                 appStore.setState({ currentSessionId: result.sessionId });
                 eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: result.sessionId });
             }
+
+            this.closeMobileSessionsSheet();
 
             // If worktree session, handle proxy path for terminal
             if (result.proxyPath) {
@@ -2241,15 +2362,21 @@ class App {
     }
 }
 
-// Initialize and start application
-const app = new App();
+export const createApp = () => new App();
 
-// Start when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => app.start());
-} else {
-    app.start();
+const shouldAutoStart = !(typeof window !== 'undefined' && window.__BRAINBASE_TEST__ === true);
+
+if (shouldAutoStart) {
+    // Initialize and start application
+    const app = createApp();
+
+    // Start when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => app.start());
+    } else {
+        app.start();
+    }
+
+    // Expose for debugging
+    window.brainbaseApp = app;
 }
-
-// Expose for debugging
-window.brainbaseApp = app;

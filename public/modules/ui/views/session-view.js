@@ -627,6 +627,23 @@ export class SessionView {
     }
 
     /**
+     * Attach action handlers to an existing container (e.g. mobile cloned list)
+     * @param {HTMLElement} container
+     * @param {Object} options
+     */
+    attachActionHandlersToContainer(container, options = { enableDrag: false }) {
+        if (!container) return;
+        const sessions = appStore.getState().sessions || [];
+        container.querySelectorAll('.session-child-row').forEach(row => {
+            const sessionId = row.dataset.id;
+            if (!sessionId) return;
+            const session = sessions.find(s => s.id === sessionId);
+            if (!session) return;
+            this._attachSessionActionHandlers(row, session, options);
+        });
+    }
+
+    /**
      * クリーンアップ
      */
     unmount() {

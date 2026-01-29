@@ -92,6 +92,55 @@ console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 
 // Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
+
+async function resolveGitInfo(repoDir) {
+    const info = {
+        sha: process.env.BRAINBASE_GIT_SHA || process.env.GIT_SHA || null,
+        branch: null,
+        dirty: null,
+        error: null
+    };
+
+    try {
+        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse --short HEAD`);
+        const sha = stdout.trim();
+        if (sha) info.sha = sha;
+    } catch (error) {
+        info.error = error?.message || String(error);
+    }
+
+    try {
+        const { stdout } = await execPromise(`git -C "${repoDir}" rev-parse --abbrev-ref HEAD`);
+        const branch = stdout.trim();
+        info.branch = branch || null;
+    } catch {
+        info.branch = info.branch || null;
+    }
+
+    try {
+        const { stdout } = await execPromise(`git -C "${repoDir}" status --porcelain`);
+        info.dirty = stdout.trim().length > 0;
+    } catch {
+        info.dirty = info.dirty ?? null;
+    }
+
+    return info;
+}
+
+async function buildRuntimeInfo({ repoDir, port, defaultPort }) {
+    return {
+        cwd: process.cwd(),
+        dirname: repoDir,
+        pid: process.pid,
+        node: process.version,
+        execArgv: process.execArgv,
+        isWorktree,
+        port,
+        defaultPort,
+        git: await resolveGitInfo(repoDir),
+        startedAt: new Date().toISOString()
+    };
+}
 const DEFAULT_PORT = isWorktree ? 3001 : 3000;
 const VAR_DIR = process.env.BRAINBASE_VAR_DIR || (
     isWorktree
@@ -119,6 +168,11 @@ if (TEST_MODE) {
 
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
+const RUNTIME_INFO = await buildRuntimeInfo({
+    repoDir: __dirname,
+    port: PORT,
+    defaultPort: DEFAULT_PORT
+});
 const PORT_FILE_FALLBACK = path.join(VAR_DIR, '.brainbase-port');
 const HOME_PORT_FILE = process.env.HOME
     ? path.join(process.env.HOME, '.brainbase', 'active-port')
@@ -314,26 +368,39 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // Proxy Middleware for ttyd consoles
-// Route: /console/:sessionId -> http://localhost:PORT/console/:sessionId
+// Route: /console/:sessionId -> http://localhost:PORT/...
+// On Windows, ttyd doesn't support base-path, so we strip /console/SESSION_ID prefix
+// On other platforms, ttyd uses base-path and expects the full path
+const isWindows = process.platform === 'win32';
 const ttydProxy = createProxyMiddleware({
     ws: true, // Enable WebSocket proxying
     changeOrigin: true,
     pathRewrite: function (path, req) {
-        // Handle both full path (Upgrade) and stripped path (Express)
-        // If it starts with /console, leave it (ttyd expects /console/SESSION_ID...)
-        if (path.startsWith('/console')) {
-            return path;
+        if (isWindows) {
+            // Windows: Strip /console/SESSION_ID prefix since ttyd doesn't use base-path
+            // /console/SESSION_ID/ws -> /ws
+            // /console/SESSION_ID/ -> /
+            const match = path.match(/^\/console\/[^/]+(\/.*)?$/);
+            if (match) {
+                return match[1] || '/';
+            }
+            return '/';
+        } else {
+            // Non-Windows: Keep full path (ttyd expects /console/SESSION_ID...)
+            if (path.startsWith('/console')) {
+                return path;
+            }
+            return '/console' + path;
         }
-        // Otherwise prepend /console
-        return '/console' + path;
     },
     router: function (req) {
         // Handle both full path (Upgrade) and stripped path (Express)
         const url = req.url;
+        const originalUrl = req.originalUrl || url;
         const activeSessions = sessionManager.getActiveSessions();
 
         // 1. Try full path match: /console/SESSION_ID/...
-        let match = url.match(/^\/console\/([^/]+)/);
+        let match = originalUrl.match(/^\/console\/([^/]+)/);
         if (match) {
             const sessionId = match[1];
             if (activeSessions.has(sessionId)) {
@@ -350,7 +417,10 @@ const ttydProxy = createProxyMiddleware({
             }
         }
 
-        return null; // 404 if session not found
+        console.error(`[Proxy] No session found for ${url}`);
+        // Return a dummy URL that will fail - http-proxy-middleware requires a valid target
+        // The onError handler will catch this and return 404
+        return 'http://127.0.0.1:1'; // Invalid port that will fail
     },
     onProxyReqWs: (proxyReq, req, socket, options, head) => {
         // Rewrite Origin to match the target (ttyd)
@@ -400,7 +470,7 @@ app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, st
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
-app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR));
+app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO));
 
 // ========================================
 // All API routes are now handled by routers:
