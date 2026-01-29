@@ -51,6 +51,53 @@ export class MiscController {
     };
 
     /**
+     * worktreeパスからプロジェクトリポジトリのパスを解決
+     * worktreeパターン: .worktrees/session-{id}-{project-id}/
+     * config.ymlのprojects[].local.pathを参照
+     */
+    _resolveProjectPath(cwdPath) {
+        if (!cwdPath) return null;
+
+        // worktreeパスからproject IDを抽出
+        const worktreeMatch = cwdPath.match(/\.worktrees\/session-\d+-(.+?)(?:\/|$)/);
+        if (!worktreeMatch) return null;
+
+        const projectId = worktreeMatch[1];
+        logger.debug('Extracted project ID from worktree', { projectId });
+
+        // config.ymlからプロジェクトのlocal.pathを取得
+        try {
+            const workspaceBase = this.workspaceRoot.replace(/\/shared\/.*$/, '/shared');
+            const configPath = path.join(workspaceBase, 'config.yml');
+            if (!fs.existsSync(configPath)) return null;
+
+            const configContent = fs.readFileSync(configPath, 'utf-8');
+            // YAML全パースは避け、シンプルにproject IDのブロックからpathを抽出
+            const projectRegex = new RegExp(
+                `- id: ${projectId}[\\s\\S]*?path:\\s*(.+?)\\n`,
+                'm'
+            );
+            const match = configContent.match(projectRegex);
+            if (!match) return null;
+
+            let projectPath = match[1].trim();
+            // 環境変数展開
+            projectPath = projectPath.replace(
+                /\$\{(\w+):-([^}]+)\}/g,
+                (_, envVar, fallback) => process.env[envVar] || fallback
+            );
+
+            if (fs.existsSync(projectPath)) {
+                return projectPath;
+            }
+        } catch (error) {
+            logger.error('Error resolving project path', { error });
+        }
+
+        return null;
+    }
+
+    /**
      * POST /api/open-file
      * ファイルを開く/表示する
      *
@@ -141,25 +188,38 @@ export class MiscController {
                 });
             }
 
-            // ファイルが存在しない場合、プロジェクトディレクトリ内を検索
+            // ファイルが存在しない場合、フォールバック検索
             if (!fs.existsSync(normalizedPath) && !path.isAbsolute(targetPath) && !isHomeDirPath) {
                 logger.debug('File not found, searching in project directories');
 
-                try {
-                    const subdirs = fs.readdirSync(this.workspaceRoot, { withFileTypes: true })
-                        .filter(dirent => dirent.isDirectory())
-                        .map(dirent => dirent.name);
-
-                    for (const subdir of subdirs) {
-                        const candidatePath = path.join(this.workspaceRoot, subdir, expandedPath);
-                        if (fs.existsSync(candidatePath)) {
-                            logger.debug('Found file in project directory');
-                            normalizedPath = path.resolve(candidatePath);
-                            break;
-                        }
+                // 1) cwdがworktreeの場合、project IDからプロジェクトリポジトリを検索
+                const projectPath = this._resolveProjectPath(cwd || resolveBase);
+                if (projectPath) {
+                    const candidatePath = path.join(projectPath, expandedPath);
+                    if (fs.existsSync(candidatePath)) {
+                        logger.debug('Found file in project repository', { projectPath });
+                        normalizedPath = path.resolve(candidatePath);
                     }
-                } catch (searchError) {
-                    logger.error('Error searching project directories', { error: searchError });
+                }
+
+                // 2) まだ見つからなければ、workspaceRootのサブディレクトリを検索
+                if (!fs.existsSync(normalizedPath)) {
+                    try {
+                        const subdirs = fs.readdirSync(this.workspaceRoot, { withFileTypes: true })
+                            .filter(dirent => dirent.isDirectory())
+                            .map(dirent => dirent.name);
+
+                        for (const subdir of subdirs) {
+                            const candidatePath = path.join(this.workspaceRoot, subdir, expandedPath);
+                            if (fs.existsSync(candidatePath)) {
+                                logger.debug('Found file in workspace subdirectory');
+                                normalizedPath = path.resolve(candidatePath);
+                                break;
+                            }
+                        }
+                    } catch (searchError) {
+                        logger.error('Error searching project directories', { error: searchError });
+                    }
                 }
             }
 
@@ -190,10 +250,10 @@ export class MiscController {
 
             execFile(execProgram, execArgs, (error) => {
                 if (error) {
-                    logger.error('Error opening file', { error, mode });
+                    logger.error('Error opening file', { error, mode, path: normalizedPath });
                     return res.status(500).json({
                         success: false,
-                        error: 'Failed to open file'
+                        error: `Failed to open file: ${error.message}`
                     });
                 }
                 res.json({ success: true, path: normalizedPath });
