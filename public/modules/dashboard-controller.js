@@ -10,6 +10,7 @@ export class DashboardController {
         this.criticalAlerts = null;
         this.healthRefreshInterval = null;
         this.dataRefreshInterval = null;
+        this.manaHistoryModalReady = false;
         // テストモード: URLに?test=trueがあれば有効
         this.testMode = new URLSearchParams(window.location.search).get('test') === 'true';
         if (this.testMode) console.log('🧪 Dashboard Test Mode Enabled');
@@ -645,7 +646,7 @@ export class DashboardController {
                         : 'Critical';
 
                 return `
-                    <div class="mana-workflow-card" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; transition: all 0.3s ease;">
+                    <div class="mana-workflow-card" data-workflow-id="${w.workflow_id}" role="button" tabindex="0" aria-label="${this._getWorkflowName(w.workflow_id)} details" style="background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 24px; transition: all 0.3s ease; cursor: pointer;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                             <h4 style="font-size: 18px; font-weight: 600; color: white;">${this._getWorkflowName(w.workflow_id)}</h4>
                             <span class="badge badge-${severity.toLowerCase()}">${severity}</span>
@@ -686,6 +687,9 @@ export class DashboardController {
                     ${workflowStatusHTML}
                 </div>
             `;
+
+            this._bindManaWorkflowCards(manaSection);
+            this._setupManaHistoryModal();
         } catch (error) {
             console.error('Failed to render Section 5:', error);
             manaSection.innerHTML = `
@@ -719,6 +723,121 @@ export class DashboardController {
 
     _getProgressColor(rate) {
         return rate >= 80 ? '#35a670' : rate >= 60 ? '#ff9b26' : '#ee4f27';
+    }
+
+    _bindManaWorkflowCards(container) {
+        const cards = container.querySelectorAll('.mana-workflow-card');
+        cards.forEach(card => {
+            const handler = () => {
+                const workflowId = card.dataset.workflowId;
+                if (workflowId) this.openManaMessageHistory(workflowId);
+            };
+            card.addEventListener('click', handler);
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handler();
+                }
+            });
+        });
+    }
+
+    _setupManaHistoryModal() {
+        if (this.manaHistoryModalReady) return;
+        const modal = document.getElementById('mana-history-modal');
+        if (!modal) return;
+        const closeBtns = modal.querySelectorAll('.close-modal-btn');
+        closeBtns.forEach(btn => btn.addEventListener('click', () => modal.classList.remove('active')));
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('active')) {
+                modal.classList.remove('active');
+            }
+        });
+        this.manaHistoryModalReady = true;
+    }
+
+    async openManaMessageHistory(workflowId) {
+        const modal = document.getElementById('mana-history-modal');
+        const titleEl = document.getElementById('mana-history-title');
+        const metaEl = document.getElementById('mana-history-meta');
+        const listEl = document.getElementById('mana-history-list');
+
+        if (!modal || !listEl || !titleEl || !metaEl) return;
+
+        titleEl.textContent = `${this._getWorkflowName(workflowId)}: メッセージ履歴`;
+        metaEl.textContent = 'Loading...';
+        listEl.innerHTML = '';
+        modal.classList.add('active');
+
+        try {
+            const result = await this.brainbaseService.getManaMessageHistory(workflowId, 30);
+            const items = result.items || [];
+            metaEl.textContent = `表示件数: ${items.length}`;
+
+            if (items.length === 0) {
+                listEl.innerHTML = '<div class="mana-history-empty">履歴が見つかりませんでした。</div>';
+                return;
+            }
+
+            listEl.innerHTML = items.map(item => {
+                const sentAt = this._formatDate(item.sent_at);
+                const target = `${item.target_type || 'target'}: ${item.target_id || '-'}`;
+                const status = item.status || 'unknown';
+                const badgeClass = this._getManaHistoryBadgeClass(status);
+                const text = this._escapeHtml(item.text || item.excerpt || '');
+                const error = item.error ? `<div class="mana-history-error">${this._escapeHtml(item.error)}</div>` : '';
+                const meta = [
+                    item.project_id ? `project: ${this._escapeHtml(item.project_id)}` : null,
+                    item.channel_id ? `channel: ${this._escapeHtml(item.channel_id)}` : null,
+                    item.workspace ? `workspace: ${this._escapeHtml(item.workspace)}` : null
+                ].filter(Boolean).join(' · ');
+
+                return `
+                    <div class="mana-history-item">
+                        <div class="mana-history-item-header">
+                            <div class="mana-history-target">${this._escapeHtml(target)}</div>
+                            <div class="mana-history-meta-right">
+                                <span class="badge ${badgeClass}">${this._escapeHtml(status)}</span>
+                                <span class="mana-history-time">${this._escapeHtml(sentAt)}</span>
+                            </div>
+                        </div>
+                        ${meta ? `<div class="mana-history-submeta">${meta}</div>` : ''}
+                        <div class="mana-history-text">${text || '<span class="mana-history-empty-text">No message text</span>'}</div>
+                        ${error}
+                    </div>
+                `;
+            }).join('');
+        } catch (error) {
+            metaEl.textContent = 'Failed to load message history';
+            listEl.innerHTML = `<div class="mana-history-error">${this._escapeHtml(error.message || 'Unknown error')}</div>`;
+        }
+    }
+
+    _getManaHistoryBadgeClass(status) {
+        if (!status) return 'badge-warning';
+        if (status === 'success' || status === 'ok') return 'badge-healthy';
+        if (status === 'failed' || status === 'error') return 'badge-critical';
+        return 'badge-warning';
+    }
+
+    _formatDate(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    }
+
+    _escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     /**
