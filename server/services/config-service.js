@@ -235,8 +235,8 @@ export class ConfigService {
     async updateNotifications({ channels = {}, dnd = {} }) {
         const { data } = await this._loadConfig();
         const current = data.notifications || {
-            channels: { slack: true, web: true, email: false },
-            dnd: { enabled: false, start: 22, end: 9 }
+            channels: {},
+            dnd: {}
         };
 
         const nextChannels = {
@@ -251,10 +251,10 @@ export class ConfigService {
 
         const normalizedStart = Number.isFinite(Number(nextDnd.start))
             ? Number(nextDnd.start)
-            : (Number(current.dnd?.start) || 22);
+            : (Number.isFinite(Number(current.dnd?.start)) ? Number(current.dnd.start) : null);
         const normalizedEnd = Number.isFinite(Number(nextDnd.end))
             ? Number(nextDnd.end)
-            : (Number(current.dnd?.end) || 9);
+            : (Number.isFinite(Number(current.dnd?.end)) ? Number(current.dnd.end) : null);
 
         data.notifications = {
             channels: nextChannels,
