@@ -10,6 +10,21 @@ else
 fi
 INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
+INITIAL_CMD_FILE=""
+
+create_initial_cmd_file() {
+    if [ -z "$INITIAL_CMD" ]; then
+        return 0
+    fi
+
+    # Write the initial command to a temp file to avoid tmux send-keys truncation
+    if command -v mktemp >/dev/null 2>&1; then
+        INITIAL_CMD_FILE="$(mktemp "/tmp/brainbase-initial-${SESSION_NAME}-XXXXXX.txt" 2>/dev/null || mktemp -t "brainbase-initial-${SESSION_NAME}")"
+    else
+        INITIAL_CMD_FILE="/tmp/brainbase-initial-${SESSION_NAME}.txt"
+    fi
+    printf '%s' "$INITIAL_CMD" > "$INITIAL_CMD_FILE"
+}
 
 escape_initial_cmd() {
     local input="$1"
@@ -136,6 +151,16 @@ if command -v tmux >/dev/null 2>&1; then
     tmux set-environment -g PATH "$PATH" 2>/dev/null || true
 fi
 
+# nvm fails if npm_config_prefix is set; clear it before tmux/session creation
+unset npm_config_prefix NPM_CONFIG_PREFIX
+if command -v tmux >/dev/null 2>&1; then
+    tmux set-environment -g -u npm_config_prefix 2>/dev/null || true
+    tmux set-environment -g -u NPM_CONFIG_PREFIX 2>/dev/null || true
+fi
+
+# Prepare initial command file (if provided)
+create_initial_cmd_file
+
 # Resolve repo root (this script lives in scripts/ directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
@@ -170,13 +195,13 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
 
         # Launch Codex with initial command as CLI argument (passed as prompt)
         if [ -n "$INITIAL_CMD" ]; then
-            INITIAL_CMD_ESCAPED=$(escape_initial_cmd "$INITIAL_CMD")
-            printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s %s" \
+            printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" %s "$(cat %q; rm -f %q)"' \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
                 "$CODEX_WRAPPER" \
                 "$CODEX_NOTIFY_ARG" \
-                "$INITIAL_CMD_ESCAPED"
+                "$INITIAL_CMD_FILE" \
+                "$INITIAL_CMD_FILE"
             tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
         else
             printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s" \
@@ -197,12 +222,12 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
         LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
         if [ -n "$INITIAL_CMD" ]; then
-            INITIAL_CMD_ESCAPED=$(escape_initial_cmd "$INITIAL_CMD")
-            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions %s" \
+            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions "$(cat %q; rm -f %q)"' \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
                 "$CLAUDE_BIN" \
-                "$INITIAL_CMD_ESCAPED"
+                "$INITIAL_CMD_FILE" \
+                "$INITIAL_CMD_FILE"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         else
             printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions" \
