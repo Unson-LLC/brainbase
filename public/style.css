@@ -1132,7 +1132,7 @@ body::after {
 /* === Inbox (Notification) - matches .settings-link style === */
 .inbox-trigger-container {
     position: relative;
-    padding: 0 0.5rem;
+    padding: 0;
 }
 
 .inbox-trigger {
@@ -1179,7 +1179,7 @@ body::after {
 .inbox-dropdown {
     position: absolute;
     bottom: 100%;
-    left: 0.5rem;
+    left: 0;
     width: 320px;
     max-height: 400px;
     background: var(--bg-secondary);
