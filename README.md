@@ -417,7 +417,7 @@ cp state.sample.json var/state.json
 cp -r _tasks-sample data/_tasks
 cp -r _schedules-sample data/_schedules
 cp -r _inbox-sample data/_inbox
-cp config.yml data/config.yml
+cp config.sample.yml data/config.yml
 ```
 
 その他のトラブルは [Issues](https://github.com/Unson-LLC/brainbase/issues) で報告してください。

@@ -6,17 +6,29 @@ const confirmMessage = document.getElementById('confirm-modal-message');
 const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 
+const hasConfirmModal = Boolean(
+    confirmModal
+    && confirmTitle
+    && confirmMessage
+    && confirmOkBtn
+    && confirmCancelBtn
+);
+
 let resolvePromise = null;
 
 // Setup event listeners
-confirmModal.querySelector('.close-modal-btn').addEventListener('click', () => closeConfirm(false));
-confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
-confirmOkBtn.addEventListener('click', () => closeConfirm(true));
-confirmModal.addEventListener('click', (e) => {
-    if (e.target === confirmModal) closeConfirm(false);
-});
+if (hasConfirmModal) {
+    const closeBtn = confirmModal.querySelector('.close-modal-btn');
+    closeBtn?.addEventListener('click', () => closeConfirm(false));
+    confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
+    confirmOkBtn.addEventListener('click', () => closeConfirm(true));
+    confirmModal.addEventListener('click', (e) => {
+        if (e.target === confirmModal) closeConfirm(false);
+    });
+}
 
 function closeConfirm(result) {
+    if (!confirmModal) return;
     confirmModal.classList.remove('active');
     if (resolvePromise) {
         resolvePromise(result);
@@ -35,6 +47,13 @@ function closeConfirm(result) {
  * @returns {Promise<boolean>} - Resolves to true if confirmed, false otherwise
  */
 export function showConfirm(message, options = {}) {
+    if (!hasConfirmModal) {
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+            return Promise.resolve(window.confirm(message));
+        }
+        console.warn('Confirm modal not found. Skipping confirmation dialog.');
+        return Promise.resolve(false);
+    }
     const {
         title = '確認',
         okText = 'OK',

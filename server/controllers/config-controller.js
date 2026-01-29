@@ -23,7 +23,8 @@ export class ConfigController {
                 slack: config.slack || null,
                 github: config.github || null,
                 nocodb: config.nocodb || null,
-                airtable: config.airtable || null  // 後方互換性
+                airtable: config.airtable || null,  // 後方互換性
+                plugins: config.plugins || { enabled: [], disabled: [] }
             };
 
             res.json(sanitized);

@@ -151,6 +151,7 @@ export class PluginManager {
         const requirementCheck = this._checkRequirements(plugin);
         if (!requirementCheck.ok) {
             this._recordFailedPlugin(pluginId, requirementCheck);
+            this._hidePluginSlots(plugin);
             if (this.eventBus?.emit) {
                 await this.eventBus.emit(EVENTS.PLUGIN_REQUIREMENTS_FAILED, {
                     pluginId,

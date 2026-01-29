@@ -86,6 +86,10 @@ describe('NocoDBService', () => {
         service.baseUrl = 'https://noco.test.jp';
         service.apiToken = 'test-token';
         service.timeout = 10000;
+        // テーブルID取得は固定値でスタブ（v2 API）
+        service._getTableId = vi.fn(async (_baseId, tableName) => {
+            return tableName === 'マイルストーン' ? 'tbl_milestones' : 'tbl_tasks';
+        });
     });
 
     // ==================== 1. getProjectStats() ====================
@@ -120,11 +124,18 @@ describe('NocoDBService', () => {
             // マイルストーン統計の検証
             expect(stats.averageProgress).toBe(63); // (75 + 50) / 2 = 62.5 → 63
 
-            // fetch APIの呼び出し検証
+            // fetch APIの呼び出し検証（v2 API）
             expect(fetchMock).toHaveBeenCalledTimes(2);
             expect(fetchMock).toHaveBeenNthCalledWith(
                 1,
-                'https://noco.test.jp/api/v1/db/data/noco/test-project/%E3%82%BF%E3%82%B9%E3%82%AF',
+                'https://noco.test.jp/api/v2/tables/tbl_tasks/records',
+                expect.objectContaining({
+                    headers: { 'xc-token': 'test-token' }
+                })
+            );
+            expect(fetchMock).toHaveBeenNthCalledWith(
+                2,
+                'https://noco.test.jp/api/v2/tables/tbl_milestones/records',
                 expect.objectContaining({
                     headers: { 'xc-token': 'test-token' }
                 })
@@ -135,10 +146,9 @@ describe('NocoDBService', () => {
 
         it('存在しないproject_idでデフォルト統計を返す', async () => {
             // モック設定: API エラー
-            fetchMock.mockResolvedValueOnce({
-                ok: false,
-                status: 404
-            });
+            fetchMock
+                .mockResolvedValueOnce({ ok: false, status: 404 })
+                .mockResolvedValueOnce({ ok: false, status: 404 });
 
             const stats = await service.getProjectStats('non-existent');
 

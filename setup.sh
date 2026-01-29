@@ -52,7 +52,20 @@ fi
 # Create config.yml in data dir if missing
 if [ ! -f "$DATA_DIR/config.yml" ]; then
     echo "⚙️  Creating config.yml..."
-    cp "$REPO_ROOT/config.yml" "$DATA_DIR/config.yml"
+    if [ -f "$REPO_ROOT/config.yml" ]; then
+        cp "$REPO_ROOT/config.yml" "$DATA_DIR/config.yml"
+    elif [ -f "$REPO_ROOT/config.sample.yml" ]; then
+        cp "$REPO_ROOT/config.sample.yml" "$DATA_DIR/config.yml"
+    else
+        cat > "$DATA_DIR/config.yml" <<'EOF'
+projects_root: ${PROJECTS_ROOT:-/path/to/projects}
+projects: []
+plugins:
+  enabled:
+    - bb-inbox
+  disabled: []
+EOF
+    fi
     echo "   ✅ config.yml created"
 fi
 

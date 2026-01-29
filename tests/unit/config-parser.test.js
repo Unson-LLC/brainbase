@@ -135,7 +135,7 @@ projects:
   });
 
   describe('checkIntegrity - airtable validation', () => {
-    it('should report projects with local path but no airtable mapping as info', async () => {
+    it('should not report missing airtable mappings (Airtable validation disabled)', async () => {
       const mockConfig = `
 root: /path/to/workspace
 projects:
@@ -163,12 +163,11 @@ projects:
 
       const result = await parser.checkIntegrity();
 
-      // Should have info about missing airtable for tech-knight
+      // Airtable validation is disabled, so no missing_airtable issues should be reported
       const airtableIssue = result.issues.find(
         i => i.type === 'missing_airtable' && i.message.includes('tech-knight')
       );
-      expect(airtableIssue).toBeDefined();
-      expect(airtableIssue.severity).toBe('info');
+      expect(airtableIssue).toBeUndefined();
     });
 
     it('should include airtable count in stats', async () => {
@@ -241,6 +240,7 @@ projects:
         project_id: 'brainbase',
         base_id: 'p1234567890',
         legacy_base_id: 'p1234567890',
+        nocodb_project_id: '',
         base_name: 'brainbase-prod',
         url: 'https://nocodb.example.com/dashboard/#/nc/p1234567890'
       });
@@ -248,6 +248,7 @@ projects:
         project_id: 'another-project',
         base_id: 'p9876543210',
         legacy_base_id: 'p9876543210',
+        nocodb_project_id: '',
         base_name: 'another-prod',
         url: 'https://nocodb.example.com/dashboard/#/nc/p9876543210'
       });
