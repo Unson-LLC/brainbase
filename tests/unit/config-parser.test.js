@@ -508,7 +508,7 @@ notifications:
       });
     });
 
-    it('notifications設定が存在しない_デフォルト値が返される', async () => {
+    it('notifications設定が存在しない_空設定が返される', async () => {
       const mockConfig = `
 root: /path/to/workspace
 projects: []
@@ -518,19 +518,19 @@ projects: []
       const result = await parser.getNotifications();
 
       expect(result).toEqual({
-        channels: { slack: true, web: true, email: false },
-        dnd: { enabled: false, start: 22, end: 9 }
+        channels: {},
+        dnd: {}
       });
     });
 
-    it('ファイル読み込みエラー_デフォルト値が返される', async () => {
+    it('ファイル読み込みエラー_空設定が返される', async () => {
       fs.readFile.mockRejectedValue(new Error('File not found'));
 
       const result = await parser.getNotifications();
 
       expect(result).toEqual({
-        channels: { slack: true, web: true, email: false },
-        dnd: { enabled: false, start: 22, end: 9 }
+        channels: {},
+        dnd: {}
       });
     });
   });

@@ -1931,12 +1931,17 @@ docs/**/*"></textarea>
     }
 
     const { channels, dnd } = notifications;
-    const channelConfig = channels || { slack: true, web: true, email: false };
-    const dndConfig = dnd || { enabled: false, start: 22, end: 9 };
+    const channelConfig = channels || {};
+    const dndConfig = dnd || {};
 
-    const hourOptions = (selected) => Array.from({ length: 24 }, (_, i) => `
-      <option value="${i}" ${Number(selected) === i ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>
-    `).join('');
+    const hourOptions = (selected) => {
+      const numeric = Number.isFinite(Number(selected)) ? Number(selected) : null;
+      const placeholder = `<option value="" ${numeric === null ? 'selected' : ''}>--</option>`;
+      const hours = Array.from({ length: 24 }, (_, i) => `
+        <option value="${i}" ${numeric === i ? 'selected' : ''}>${String(i).padStart(2, '0')}:00</option>
+      `).join('');
+      return `${placeholder}${hours}`;
+    };
 
     return `
       <div class="notifications-settings">
@@ -2024,6 +2029,8 @@ docs/**/*"></textarea>
     dndEnabled?.addEventListener('change', toggleDndInputs);
 
     saveBtn.addEventListener('click', async () => {
+      const startValue = dndStart?.value ?? '';
+      const endValue = dndEnd?.value ?? '';
       const payload = {
         channels: {
           slack: Boolean(slackInput?.checked),
@@ -2032,8 +2039,8 @@ docs/**/*"></textarea>
         },
         dnd: {
           enabled: Boolean(dndEnabled?.checked),
-          start: dndStart ? Number(dndStart.value) : 0,
-          end: dndEnd ? Number(dndEnd.value) : 0
+          start: startValue === '' ? null : Number(startValue),
+          end: endValue === '' ? null : Number(endValue)
         }
       };
 
