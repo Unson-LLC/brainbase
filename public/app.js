@@ -972,7 +972,8 @@ export class App {
         }
 
         try {
-            const { ManaSettingsPlugin } = await import('/extensions/mana-integration/index.js');
+            const extensionPath = globalThis.__BRAINBASE_MANA_EXTENSION_PATH__ || '/extensions/mana-integration/index.js';
+            const { ManaSettingsPlugin } = await import(/* @vite-ignore */ extensionPath);
             const manaPlugin = new ManaSettingsPlugin({
                 pluginRegistry: registry,
                 store: appStore,

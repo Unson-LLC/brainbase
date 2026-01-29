@@ -267,7 +267,25 @@ export class SettingsCore {
     // 各タブに対応するパネルコンテナを生成
     tabs.forEach(tab => {
       const panel = document.createElement('div');
-      panel.id = `${tab.id}-panel`;
+      switch (tab.id) {
+        case 'overview':
+          panel.id = 'overview-panel';
+          break;
+        case 'projects':
+          panel.id = 'projects-panel';
+          break;
+        case 'organizations':
+          panel.id = 'organizations-panel';
+          break;
+        case 'integrations':
+          panel.id = 'integrations-panel';
+          break;
+        case 'notifications':
+          panel.id = 'notifications-panel';
+          break;
+        default:
+          panel.id = `${tab.id}-panel`;
+      }
       panel.className = 'settings-panel';
       if (tab.id === this.currentTab) {
         panel.classList.add('active');
@@ -901,12 +919,12 @@ docs/**/*"></textarea>
               <input id="org-name-input" class="form-input" placeholder="Unson LLC" />
             </div>
             <div class="form-group">
-              <label for="org-domain-input">Domain</label>
-              <input id="org-domain-input" class="form-input" placeholder="unson.ai" />
+              <label for="org-ceo-input">CEO</label>
+              <input id="org-ceo-input" class="form-input" placeholder="CEO Name" />
             </div>
             <div class="form-group">
-              <label for="org-desc-input">Description</label>
-              <textarea id="org-desc-input" class="form-input" rows="3" placeholder="AI Research Lab"></textarea>
+              <label for="org-projects-input">Projects (Comma separated)</label>
+              <input id="org-projects-input" class="form-input" placeholder="brainbase, zeims" />
             </div>
             <div class="form-actions">
               <button class="btn-primary btn-sm" id="org-save-btn">保存</button>
@@ -1393,8 +1411,8 @@ docs/**/*"></textarea>
               <input id="github-repo-input" class="form-input" placeholder="brainbase" />
             </div>
             <div class="form-group">
-              <label for="github-paths-input">Watched Paths (Comma separated)</label>
-              <input id="github-paths-input" class="form-input" placeholder="docs/, src/" />
+              <label for="github-branch-input">Branch</label>
+              <input id="github-branch-input" class="form-input" placeholder="main" />
             </div>
             <div class="form-actions">
               <button class="btn-primary btn-sm" id="github-save-btn">保存</button>

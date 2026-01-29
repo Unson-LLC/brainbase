@@ -1,0 +1,10 @@
+# OSS starter config (copy to data/config.yml)
+# Set PROJECTS_ROOT if you keep project repos elsewhere.
+projects_root: ${PROJECTS_ROOT:-/path/to/projects}
+
+projects: []
+
+plugins:
+  enabled:
+    - bb-inbox
+  disabled: []

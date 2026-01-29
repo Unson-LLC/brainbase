@@ -22,6 +22,15 @@ const mockGetStrategicOverview = vi.fn();
 const mockGetWorkflowStats = vi.fn();
 const mockGetTrends = vi.fn();
 
+// gh CLI execSync/exec モック
+const mockExecSync = vi.hoisted(() => vi.fn());
+const mockExec = vi.hoisted(() => vi.fn());
+vi.mock('child_process', () => ({
+  exec: mockExec,
+  execSync: mockExecSync,
+  default: { exec: mockExec, execSync: mockExecSync }
+}));
+
 // NocoDBServiceをモジュールレベルでモック
 vi.mock('../../../server/services/nocodb-service.js', () => {
   return {
@@ -171,18 +180,12 @@ describe('GET /api/brainbase/strategic-overview', () => {
 
 describe('GET /api/brainbase/mana-workflow-stats', () => {
   it('200: workflow_id指定時に該当ワークフローの統計を返す', async () => {
-    // モック設定
-    const mockStats = {
-      workflow_id: 'm1',
-      stats: {
-        total_executions: 21,
-        total_success: 18,
-        total_failure: 3,
-        success_rate: 86,
-      },
-    };
-
-    mockGetWorkflowStats.mockResolvedValue(mockStats);
+    // gh CLIのモックデータ（21件: success 18, failure 3）
+    const runs = [
+      ...Array.from({ length: 18 }, () => ({ conclusion: 'success', status: 'completed' })),
+      ...Array.from({ length: 3 }, () => ({ conclusion: 'failure', status: 'completed' })),
+    ];
+    mockExecSync.mockReturnValue(JSON.stringify(runs));
 
     // リクエスト実行
     const res = await request(app).get('/api/brainbase/mana-workflow-stats?workflow_id=m1');
@@ -194,27 +197,10 @@ describe('GET /api/brainbase/mana-workflow-stats', () => {
     expect(res.body.stats.success_rate).toBe(86);
   });
 
-  it('200: workflow_id未指定時に全ワークフローの統計を返す', async () => {
-    // モック設定
-    const mockStats = {
-      workflow_id: null,
-      stats: {
-        total_executions: 50,
-        total_success: 45,
-        total_failure: 5,
-        success_rate: 90,
-      },
-    };
-
-    mockGetWorkflowStats.mockResolvedValue(mockStats);
-
-    // リクエスト実行
+  it('400: workflow_id未指定時はバリデーションエラー', async () => {
     const res = await request(app).get('/api/brainbase/mana-workflow-stats');
-
-    // 検証
-    expect(res.status).toBe(200);
-    expect(res.body.workflow_id).toBeNull();
-    expect(res.body.stats.total_executions).toBe(50);
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('error');
   });
 
   it('400: 不正なworkflow_idでバリデーションエラー', async () => {
