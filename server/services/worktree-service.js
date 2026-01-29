@@ -211,9 +211,11 @@ export class WorktreeService {
             let ahead = 0;
             let behind = 0;
             let effectiveStartCommit = startCommit;
+            const mainCommitTrimmed = mainCommit.trim();
+            const headCommitTrimmed = headCommit.trim();
 
             // For existing sessions without startCommit, try to find branch creation point from reflog
-            if (!effectiveStartCommit && headCommit.trim()) {
+            if (!effectiveStartCommit && headCommitTrimmed) {
                 try {
                     const { stdout: reflogStart } = await this.execPromise(
                         `git -C "${repoPath}" reflog show ${branchName} --format='%H' 2>/dev/null | tail -1`
@@ -227,14 +229,35 @@ export class WorktreeService {
                 }
             }
 
-            if (effectiveStartCommit && headCommit.trim()) {
+            // Check if HEAD is already merged into main
+            let headMergedIntoMain = false;
+            if (mainCommitTrimmed && headCommitTrimmed) {
+                try {
+                    const { stdout: mergeBase } = await this.execPromise(
+                        `git -C "${repoPath}" merge-base ${mainCommitTrimmed} ${headCommitTrimmed} 2>/dev/null || echo ""`
+                    );
+                    headMergedIntoMain = mergeBase.trim() === headCommitTrimmed;
+                } catch {
+                    headMergedIntoMain = false;
+                }
+            }
+
+            if (effectiveStartCommit && headCommitTrimmed) {
                 // New method: Use startCommit to calculate accurate diff
                 // This avoids including develop->main diff for sessions created from develop
                 try {
-                    const { stdout: aheadCount } = await this.execPromise(
-                        `git -C "${worktreePath}" rev-list --count ${effectiveStartCommit}..HEAD 2>/dev/null || echo "0"`
-                    );
-                    ahead = parseInt(aheadCount.trim()) || 0;
+                    if (mainCommitTrimmed) {
+                        // Count only commits not reachable from main
+                        const { stdout: aheadCount } = await this.execPromise(
+                            `git -C "${worktreePath}" rev-list --count ${effectiveStartCommit}..HEAD --not ${mainCommitTrimmed} 2>/dev/null || echo "0"`
+                        );
+                        ahead = parseInt(aheadCount.trim()) || 0;
+                    } else {
+                        const { stdout: aheadCount } = await this.execPromise(
+                            `git -C "${worktreePath}" rev-list --count ${effectiveStartCommit}..HEAD 2>/dev/null || echo "0"`
+                        );
+                        ahead = parseInt(aheadCount.trim()) || 0;
+                    }
                 } catch {
                     // Fallback to legacy method if startCommit calculation fails
                     ahead = 0;
@@ -255,6 +278,10 @@ export class WorktreeService {
                     );
                     ahead = parseInt(aheadCount.trim()) || 0;
                 }
+            }
+
+            if (headMergedIntoMain) {
+                ahead = 0;
             }
 
             // Check for uncommitted changes
