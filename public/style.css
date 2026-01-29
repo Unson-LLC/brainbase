@@ -1155,9 +1155,13 @@ body::after {
     color: var(--text-primary);
 }
 
-.inbox-trigger i {
+.inbox-trigger svg {
     width: 18px;
     height: 18px;
+    flex: 0 0 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .inbox-badge {
@@ -3301,9 +3305,13 @@ body.resizing iframe {
     color: var(--accent-color);
 }
 
-.archive-toggle-btn i {
+.archive-toggle-btn svg {
     width: 18px;
     height: 18px;
+    flex: 0 0 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Sidebar Footer with Settings Link */
@@ -3343,9 +3351,13 @@ body.resizing iframe {
     color: white;
 }
 
-.settings-link i {
+.settings-link svg {
     width: 18px;
     height: 18px;
+    flex: 0 0 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Settings View Container (now in modal) */
