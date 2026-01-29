@@ -470,7 +470,7 @@ app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, st
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
-app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO));
+app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================
 // All API routes are now handled by routers:

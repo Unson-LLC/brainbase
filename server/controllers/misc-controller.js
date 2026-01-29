@@ -9,12 +9,14 @@ import fs from 'fs';
 import { logger } from '../utils/logger.js';
 
 export class MiscController {
-    constructor(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo = null) {
+    constructor(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo = null, paths = {}) {
         this.appVersion = appVersion;
         this.uploadMiddleware = uploadMiddleware;
         this.workspaceRoot = workspaceRoot;
         this.uploadsDir = uploadsDir;
         this.runtimeInfo = runtimeInfo;
+        this.brainbaseRoot = paths.brainbaseRoot || null;
+        this.projectsRoot = paths.projectsRoot || null;
     }
 
     /**
@@ -56,7 +58,7 @@ export class MiscController {
      * config.ymlのprojects[].local.pathを参照
      */
     _resolveProjectPath(cwdPath) {
-        if (!cwdPath) return null;
+        if (!cwdPath || !this.brainbaseRoot) return null;
 
         // worktreeパスからproject IDを抽出
         const worktreeMatch = cwdPath.match(/\.worktrees\/session-\d+-(.+?)(?:\/|$)/);
@@ -65,14 +67,20 @@ export class MiscController {
         const projectId = worktreeMatch[1];
         logger.debug('Extracted project ID from worktree', { projectId });
 
-        // config.ymlからプロジェクトのlocal.pathを取得
+        // projectsRootから直接パスを構築（最速パス）
+        if (this.projectsRoot) {
+            const directPath = path.join(this.projectsRoot, projectId);
+            if (fs.existsSync(directPath)) {
+                return directPath;
+            }
+        }
+
+        // config.ymlからプロジェクトのlocal.pathを取得（フォールバック）
         try {
-            const workspaceBase = this.workspaceRoot.replace(/\/shared\/.*$/, '/shared');
-            const configPath = path.join(workspaceBase, 'config.yml');
+            const configPath = path.join(this.brainbaseRoot, 'config.yml');
             if (!fs.existsSync(configPath)) return null;
 
             const configContent = fs.readFileSync(configPath, 'utf-8');
-            // YAML全パースは避け、シンプルにproject IDのブロックからpathを抽出
             const projectRegex = new RegExp(
                 `- id: ${projectId}[\\s\\S]*?path:\\s*(.+?)\\n`,
                 'm'
