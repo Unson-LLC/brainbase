@@ -1,5 +1,8 @@
 import express from 'express';
 import { execSync } from 'child_process';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { fromIni } from '@aws-sdk/credential-providers';
 import { GitHubService } from '../services/github-service.js';
 import { SystemService } from '../services/system-service.js';
 import { StorageService } from '../services/storage-service.js';
@@ -41,6 +44,23 @@ export function createBrainbaseRouter(options = {}) {
     const systemService = new SystemService();
     const storageService = new StorageService();
     const nocodbService = new NocoDBService();
+    const manaHistoryConfig = {
+        tableName: process.env.MANA_MESSAGE_HISTORY_TABLE || process.env.MESSAGE_HISTORY_TABLE_NAME || 'mana-message-history',
+        region: process.env.MANA_AWS_REGION || process.env.AWS_REGION || 'us-east-1',
+        profile: process.env.MANA_AWS_PROFILE || process.env.AWS_PROFILE || null
+    };
+    let manaHistoryClient = null;
+
+    const getManaHistoryClient = () => {
+        if (manaHistoryClient) return manaHistoryClient;
+        const clientConfig = { region: manaHistoryConfig.region };
+        if (manaHistoryConfig.profile) {
+            clientConfig.credentials = fromIni({ profile: manaHistoryConfig.profile });
+        }
+        const dynamoClient = new DynamoDBClient(clientConfig);
+        manaHistoryClient = DynamoDBDocumentClient.from(dynamoClient);
+        return manaHistoryClient;
+    };
 
     /**
      * GET /api/brainbase
@@ -657,6 +677,93 @@ export function createBrainbaseRouter(options = {}) {
         } catch (error) {
             logger.error('Failed to get Mana workflow stats', { error, workflow_id: req.query.workflow_id });
             res.status(500).json({ error: 'Failed to get Mana workflow stats' });
+        }
+    });
+
+    /**
+     * GET /api/brainbase/mana-message-history
+     * Manaメッセージ送信履歴を取得（DynamoDB）
+     * @query {string} workflow_id - ワークフローID（例: m1, m2）
+     * @query {number} limit - 取得件数（デフォルト: 20, 最大: 200）
+     * @query {string} target_id - 送信先ID（任意）
+     * @query {string} status - statusフィルタ（任意）
+     */
+    router.get('/mana-message-history', cacheMiddleware(30), async (req, res) => {
+        try {
+            const workflowId = req.query.workflow_id || req.query.workflowId;
+            if (!workflowId || typeof workflowId !== 'string') {
+                return res.status(400).json({
+                    error: 'Invalid workflow_id',
+                    message: 'workflow_id is required'
+                });
+            }
+
+            const limitRaw = parseInt(req.query.limit, 10);
+            const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 20;
+            const targetId = req.query.target_id || req.query.targetId || null;
+            const status = req.query.status || null;
+
+            const client = getManaHistoryClient();
+
+            const expressionValues = { ':pk': workflowId };
+            const expressionNames = {};
+            const filters = [];
+
+            if (targetId) {
+                expressionValues[':target_id'] = targetId;
+                filters.push('target_id = :target_id');
+            }
+            if (status) {
+                expressionValues[':status'] = status;
+                expressionNames['#status'] = 'status';
+                filters.push('#status = :status');
+            }
+
+            const queryInput = {
+                TableName: manaHistoryConfig.tableName,
+                KeyConditionExpression: 'pk = :pk',
+                ExpressionAttributeValues: expressionValues,
+                ScanIndexForward: false,
+                Limit: limit
+            };
+
+            if (filters.length > 0) {
+                queryInput.FilterExpression = filters.join(' AND ');
+                if (Object.keys(expressionNames).length > 0) {
+                    queryInput.ExpressionAttributeNames = expressionNames;
+                }
+            }
+
+            const result = await client.send(new QueryCommand(queryInput));
+            const items = (result.Items || []).map((item) => ({
+                workflow_id: item.mx_id || item.pk,
+                sent_at: item.sent_at,
+                target_type: item.target_type,
+                target_id: item.target_id,
+                status: item.status,
+                text: item.text,
+                excerpt: item.excerpt,
+                error: item.error,
+                project_id: item.project_id,
+                message_ts: item.message_ts,
+                channel_id: item.channel_id,
+                thread_ts: item.thread_ts,
+                workspace: item.workspace,
+                run_id: item.run_id,
+                task_ids: item.task_ids
+            }));
+
+            res.json({
+                workflow_id: workflowId,
+                count: items.length,
+                items
+            });
+        } catch (error) {
+            logger.error('Failed to fetch mana message history', { error });
+            res.status(500).json({
+                error: 'Failed to fetch mana message history',
+                message: error?.message || 'Unknown error'
+            });
         }
     });
 

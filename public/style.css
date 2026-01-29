@@ -2863,6 +2863,77 @@ body.resizing iframe {
     gap: 8px;
 }
 
+#mana-history-modal .modal-body {
+    padding: 16px;
+}
+
+.mana-history-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.mana-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 60vh;
+    overflow: auto;
+}
+
+.mana-history-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.mana-history-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.mana-history-target {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.mana-history-meta-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mana-history-time {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.mana-history-submeta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.mana-history-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+}
+
+.mana-history-empty,
+.mana-history-empty-text,
+.mana-history-error {
+    font-size: 12px;
+    color: var(--accent-orange);
+}
+
 /* Focus Engine Modal */
 .engine-select-grid {
     display: grid;
