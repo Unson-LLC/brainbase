@@ -1,6 +1,6 @@
-// Load environment variables from .env file
-import 'dotenv/config';
-
+// Load environment variables from shared + local .env files
+import dotenv from 'dotenv';
+import os from 'os';
 import express from 'express';
 import { spawn, exec } from 'child_process';
 import path from 'path';
@@ -11,6 +11,18 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { readFileSync, existsSync } from 'fs';
+
+const envPaths = [
+    process.env.BRAINBASE_ENV_PATH,
+    path.join(os.homedir(), 'workspace', '.env'),
+    path.join(process.cwd(), '.env')
+].filter(Boolean);
+
+for (const envPath of envPaths) {
+    if (existsSync(envPath)) {
+        dotenv.config({ path: envPath, override: false });
+    }
+}
 
 // Import our modules
 import { TaskParser } from './lib/task-parser.js';
