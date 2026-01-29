@@ -11,6 +11,8 @@ export class DashboardController {
         this.healthRefreshInterval = null;
         this.dataRefreshInterval = null;
         this.manaHistoryModalReady = false;
+        this.slackMembersLoaded = false;
+        this.slackIdMap = new Map();
         // テストモード: URLに?test=trueがあれば有効
         this.testMode = new URLSearchParams(window.location.search).get('test') === 'true';
         if (this.testMode) console.log('🧪 Dashboard Test Mode Enabled');
@@ -759,6 +761,35 @@ export class DashboardController {
         this.manaHistoryModalReady = true;
     }
 
+    async _ensureSlackMembers() {
+        if (this.slackMembersLoaded) return;
+        try {
+            const response = await fetch('/api/config/slack/members');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const members = await response.json();
+            if (Array.isArray(members)) {
+                members.forEach((member) => {
+                    const slackId = member.slack_id;
+                    const name = member.brainbase_name || member.slack_name || null;
+                    if (slackId && name) {
+                        this.slackIdMap.set(slackId, name);
+                    }
+                });
+            }
+            this.slackMembersLoaded = true;
+        } catch (error) {
+            console.warn('Failed to load slack members:', error);
+            this.slackMembersLoaded = false;
+        }
+    }
+
+    _resolveSlackMemberName(slackId) {
+        if (!slackId) return null;
+        return this.slackIdMap.get(slackId) || null;
+    }
+
     async openManaMessageHistory(workflowId) {
         const modal = document.getElementById('mana-history-modal');
         const titleEl = document.getElementById('mana-history-title');
@@ -773,6 +804,7 @@ export class DashboardController {
         modal.classList.add('active');
 
         try {
+            await this._ensureSlackMembers();
             const result = await this.brainbaseService.getManaMessageHistory(workflowId, 30);
             const items = result.items || [];
             metaEl.textContent = `表示件数: ${items.length}`;
@@ -784,7 +816,10 @@ export class DashboardController {
 
             listEl.innerHTML = items.map(item => {
                 const sentAt = this._formatDate(item.sent_at);
-                const target = `${item.target_type || 'target'}: ${item.target_id || '-'}`;
+                const isUserTarget = item.target_type === 'user';
+                const resolvedName = isUserTarget ? this._resolveSlackMemberName(item.target_id) : null;
+                const targetValue = resolvedName || item.target_id || '-';
+                const target = `${item.target_type || 'target'}: ${targetValue}`;
                 const status = item.status || 'unknown';
                 const badgeClass = this._getManaHistoryBadgeClass(status);
                 const text = this._escapeHtml(item.text || item.excerpt || '');
@@ -792,7 +827,8 @@ export class DashboardController {
                 const meta = [
                     item.project_id ? `project: ${this._escapeHtml(item.project_id)}` : null,
                     item.channel_id ? `channel: ${this._escapeHtml(item.channel_id)}` : null,
-                    item.workspace ? `workspace: ${this._escapeHtml(item.workspace)}` : null
+                    item.workspace ? `workspace: ${this._escapeHtml(item.workspace)}` : null,
+                    resolvedName && item.target_id ? `id: ${this._escapeHtml(item.target_id)}` : null
                 ].filter(Boolean).join(' · ');
 
                 return `
