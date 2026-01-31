@@ -165,6 +165,8 @@ create_initial_cmd_file
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
 CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
+CODEX_APP_REPL="$SCRIPT_DIR/codex-app-repl.mjs"
+USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-1}"
 CODEX_NOTIFY_ARG=""
 if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
@@ -193,23 +195,44 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
         LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
 
-        # Launch Codex with initial command as CLI argument (passed as prompt)
-        if [ -n "$INITIAL_CMD" ]; then
-            printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" %s "$(cat %q; rm -f %q)"' \
-                "$LOCALE_EXPORT" \
-                "$SESSION_NAME" \
-                "$CODEX_WRAPPER" \
-                "$CODEX_NOTIFY_ARG" \
-                "$INITIAL_CMD_FILE" \
-                "$INITIAL_CMD_FILE"
-            tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+        if [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
+            # Launch Codex app-server REPL (accurate turn lifecycle)
+            if [ -n "$INITIAL_CMD" ]; then
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && node "%s" --session-id %q --initial "$(cat %q; rm -f %q)"' \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_APP_REPL" \
+                    "$SESSION_NAME" \
+                    "$INITIAL_CMD_FILE" \
+                    "$INITIAL_CMD_FILE"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            else
+                printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && node \"%s\" --session-id %q" \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_APP_REPL" \
+                    "$SESSION_NAME"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            fi
         else
-            printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s" \
-                "$LOCALE_EXPORT" \
-                "$SESSION_NAME" \
-                "$CODEX_WRAPPER" \
-                "$CODEX_NOTIFY_ARG"
-            tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            # Launch Codex CLI with notify hook (fallback)
+            if [ -n "$INITIAL_CMD" ]; then
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" %s "$(cat %q; rm -f %q)"' \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_WRAPPER" \
+                    "$CODEX_NOTIFY_ARG" \
+                    "$INITIAL_CMD_FILE" \
+                    "$INITIAL_CMD_FILE"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            else
+                printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s" \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_WRAPPER" \
+                    "$CODEX_NOTIFY_ARG"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            fi
         fi
     else
         # Launch Claude Code with initial command as CLI argument (passed as prompt)
