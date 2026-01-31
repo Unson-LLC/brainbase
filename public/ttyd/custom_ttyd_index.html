@@ -51,18 +51,27 @@
         pointerDownAt = Date.now();
     }, true);
 
+    function wasTouchScroll() {
+        return !!window.__bbTouchDidScroll;
+    }
+
     document.addEventListener('pointerup', () => {
         const selection = getTerminalSelection();
         const now = Date.now();
         if (selection) return;
         if (pointerDownSelection) return;
         if (now - pointerDownAt > 1000) return;
+        if (wasTouchScroll()) return;
         notifyInteract();
     }, true);
 
     document.addEventListener('touchend', () => {
         const selection = getTerminalSelection();
         if (selection) return;
+        if (wasTouchScroll()) {
+            window.__bbTouchDidScroll = false;
+            return;
+        }
         notifyInteract();
     }, { passive: true, capture: true });
 
@@ -209,12 +218,21 @@
         return false;
     }
 
+    function isTerminalTarget(target) {
+        if (!target) return false;
+        if (typeof target.closest === 'function') {
+            return !!target.closest('.xterm, #terminal-container');
+        }
+        return true;
+    }
+
     document.addEventListener('wheel', function(e) {
         const term = window.term;
         if (!term) return;
 
         // Only intercept in alternate buffer (tmux full-screen), otherwise allow xterm scrollback
         if (!isAlternateBuffer(term)) return;
+        if (!isTerminalTarget(e.target)) return;
 
         // Prevent page scroll / default behavior and block xterm wheel handling
         e.preventDefault();
@@ -225,18 +243,20 @@
         const steps = Math.min(3, Math.max(1, Math.round(Math.abs(delta) / 80)));
         const direction = delta > 0 ? 'down' : 'up';
         postScroll(direction, steps);
-    }, { passive: false });
+    }, { passive: false, capture: true });
 
     const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     if (isTouchDevice) {
         let touchY = 0;
         let touchAccum = 0;
         const touchThreshold = 24;
+        window.__bbTouchDidScroll = false;
 
         document.addEventListener('touchstart', function(e) {
             if (!e.touches || e.touches.length !== 1) return;
             touchY = e.touches[0].clientY;
             touchAccum = 0;
+            window.__bbTouchDidScroll = false;
         }, { passive: true, capture: true });
 
         document.addEventListener('touchmove', function(e) {
@@ -260,11 +280,13 @@
             // Touch: finger down should reveal older content (scroll up in tmux copy-mode)
             const direction = touchAccum > 0 ? 'up' : 'down';
             touchAccum = 0;
+            window.__bbTouchDidScroll = true;
             postScroll(direction, steps);
         }, { passive: false, capture: true });
 
         document.addEventListener('touchend', function() {
             touchAccum = 0;
+            // Keep scroll flag for touchend consumer; it will reset after handling.
         }, { passive: true, capture: true });
     }
 })();
