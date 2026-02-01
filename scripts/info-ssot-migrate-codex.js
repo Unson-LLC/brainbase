@@ -15,6 +15,8 @@ const opts = {
   baseUrl: process.env.INFO_SSOT_BASE_URL || 'http://localhost:55123'
 };
 
+const CSRF_SESSION_ID = process.env.INFO_SSOT_CSRF_SESSION || 'codex-migration';
+
 for (const arg of args) {
   if (arg.startsWith('--only=')) opts.only = arg.split('=')[1];
   if (arg.startsWith('--project=')) opts.project = arg.split('=')[1];
@@ -36,6 +38,8 @@ const detectBrainbaseRoot = () => {
 const BRAINBASE_ROOT = detectBrainbaseRoot();
 const CODEX_ROOT = path.join(BRAINBASE_ROOT, '_codex');
 
+let cachedCsrfToken = null;
+
 const fetchJson = async (url, options) => {
   const res = await fetch(url, options);
   const text = await res.text();
@@ -45,21 +49,55 @@ const fetchJson = async (url, options) => {
   return text ? JSON.parse(text) : {};
 };
 
+const fetchCsrfToken = async () => {
+  const data = await fetchJson(`${opts.baseUrl}/api/csrf-token`, {
+    method: 'GET',
+    headers: {
+      'x-session-id': CSRF_SESSION_ID
+    }
+  });
+  if (!data?.token) {
+    throw new Error('Failed to fetch CSRF token');
+  }
+  return data.token;
+};
+
 const postInfo = async (pathName, projectCode, payload) => {
   if (opts.dryRun) {
     console.log('[dry-run]', pathName, projectCode, payload.title || payload.roleCode || payload.personName);
     return null;
   }
-  return fetchJson(`${opts.baseUrl}${pathName}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-brainbase-role': ROLE_HEADER,
-      'x-brainbase-projects': projectCode,
-      'x-brainbase-clearance': CLEARANCE_HEADER
-    },
-    body: JSON.stringify(payload)
-  });
+  if (!cachedCsrfToken) {
+    cachedCsrfToken = await fetchCsrfToken();
+  }
+  const headers = {
+    'content-type': 'application/json',
+    'x-brainbase-role': ROLE_HEADER,
+    'x-brainbase-projects': projectCode,
+    'x-brainbase-clearance': CLEARANCE_HEADER,
+    'x-session-id': CSRF_SESSION_ID,
+    'x-csrf-token': cachedCsrfToken
+  };
+
+  try {
+    return await fetchJson(`${opts.baseUrl}${pathName}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    const message = String(error?.message || '');
+    if (message.includes('CSRF token')) {
+      cachedCsrfToken = await fetchCsrfToken();
+      headers['x-csrf-token'] = cachedCsrfToken;
+      return fetchJson(`${opts.baseUrl}${pathName}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+    }
+    throw error;
+  }
 };
 
 const extractSection = (body, heading) => {
