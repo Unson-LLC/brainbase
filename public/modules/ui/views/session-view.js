@@ -447,13 +447,18 @@ export class SessionView {
                         return;
                     }
 
+                    let updateError = null;
                     if (session.worktree) {
                         const status = await this.sessionService.getWorktreeStatus(session.id);
                         if (status?.localMainStale) {
                             const behindCount = status.localMainBehind || 0;
+                            const aheadCount = status.localMainAhead || 0;
                             const mainBranch = status.mainBranch || 'main';
+                            const aheadWarning = aheadCount > 0
+                                ? `\nローカル${mainBranch}に${aheadCount}コミットの独自変更があります（自動更新は失敗します）`
+                                : '';
                             const confirmed = await showConfirm(
-                                `ローカル${mainBranch}が${behindCount}コミット遅れています。最新化しますか？`,
+                                `ローカル${mainBranch}が${behindCount}コミット遅れています。最新化しますか？${aheadWarning}`,
                                 { title: 'main更新', okText: '更新する', cancelText: 'スキップ', danger: false }
                             );
                             if (confirmed) {
@@ -464,11 +469,14 @@ export class SessionView {
                                     } else if (updateResult?.success) {
                                         showInfo(`ローカル${mainBranch}は最新です`);
                                     } else {
-                                        showError(updateResult?.error || 'ローカルmainの更新に失敗しました');
+                                        updateError = updateResult?.error || 'ローカルmainの更新に失敗しました';
+                                        showError(updateError);
                                     }
                                 } catch (err) {
                                     console.error('Failed to update local main:', err);
-                                    showError('ローカルmainの更新に失敗しました');
+                                    const raw = err?.message || 'ローカルmainの更新に失敗しました';
+                                    updateError = raw.replace(/^Network Error:\s*/, '');
+                                    showError(updateError);
                                 }
                             }
                         }
@@ -478,6 +486,15 @@ export class SessionView {
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
                         const details = [];
+                        if (updateError) {
+                            details.push(`main更新失敗: ${updateError}`);
+                        }
+                        if (status.localMainAhead > 0) {
+                            details.push(`ローカルmainが${status.localMainAhead}コミット進んでいます`);
+                        }
+                        if (status.localMainBehind > 0) {
+                            details.push(`ローカルmainが${status.localMainBehind}コミット遅れています`);
+                        }
                         if (status.commitsAhead > 0) {
                             details.push(`mainより${status.commitsAhead}コミット進んでいます`);
                         }
