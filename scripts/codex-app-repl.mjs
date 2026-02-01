@@ -148,6 +148,24 @@ function extractText(payload) {
 }
 
 function handleNotification(method, params) {
+  if (method === 'codex/event/task_complete') {
+    inTurn = false;
+    activeTurnId = null;
+    reportActivity('done');
+    process.stdout.write('\n');
+    stdinReader.prompt();
+    return;
+  }
+
+  if (method === 'error' || method === 'codex/event/error') {
+    inTurn = false;
+    activeTurnId = null;
+    reportActivity('done');
+    process.stdout.write('\n');
+    stdinReader.prompt();
+    return;
+  }
+
   if (method === 'turn/started') {
     activeTurnId = params?.turn?.id || params?.turnId || activeTurnId;
     inTurn = true;
@@ -220,7 +238,7 @@ serverReader.on('line', (line) => {
       send({ id: message.id, result: { decision: 'accept' } });
       return;
     }
-    send({ id: message.id, result: {} });
+    handleNotification(message.method, message.params || {});
     return;
   }
 
