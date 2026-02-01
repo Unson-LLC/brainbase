@@ -55,7 +55,9 @@
     "js-yaml": "^4.1.1",
     "marked": "^17.0.1",
     "multer": "^2.0.2",
-    "node-cache": "^5.1.2"
+    "node-cache": "^5.1.2",
+    "pg": "^8.18.0",
+    "ulid": "^2.4.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

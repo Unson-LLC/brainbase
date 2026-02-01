@@ -34,6 +34,7 @@ import { InboxParser } from './lib/inbox-parser.js';
 // Import services
 import { SessionManager } from './server/services/session-manager.js';
 import { WorktreeService } from './server/services/worktree-service.js';
+import { InfoSSOTService } from './server/services/info-ssot-service.js';
 
 // Import routers
 import { createTaskRouter } from './server/routes/tasks.js';
@@ -47,6 +48,7 @@ import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
 import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
+import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -244,6 +246,7 @@ const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
 const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
+const infoSSOTService = new InfoSSOTService();
 
 // Middleware
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
@@ -481,6 +484,7 @@ app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
+app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
