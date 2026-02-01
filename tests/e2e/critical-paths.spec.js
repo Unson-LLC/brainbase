@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const BASE_URL = process.env.BRAINBASE_BASE_URL
+  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+
 test.describe('Critical User Flows', () => {
     test.beforeEach(async ({ page }) => {
         // コンソールエラーをキャプチャ
@@ -9,7 +13,7 @@ test.describe('Critical User Flows', () => {
             }
         });
 
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
     });
 
