@@ -3,8 +3,10 @@
 
 resolve_brainbase_port() {
   if [ -n "$BRAINBASE_PORT" ]; then
-    echo "$BRAINBASE_PORT"
-    return
+    if curl -s --max-time 0.3 "http://localhost:$BRAINBASE_PORT/api/version" >/dev/null 2>&1; then
+      echo "$BRAINBASE_PORT"
+      return
+    fi
   fi
 
   local port_file="${BRAINBASE_PORT_FILE:-$HOME/.brainbase/active-port}"
