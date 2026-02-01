@@ -102,7 +102,7 @@ const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(path.dirname(BRAINB
 console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
 console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 
-// Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
+// Worktree検知: .worktrees配下で実行されている場合は別ポートをデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
 
 async function resolveGitInfo(repoDir) {
@@ -153,7 +153,7 @@ async function buildRuntimeInfo({ repoDir, port, defaultPort }) {
         startedAt: new Date().toISOString()
     };
 }
-const DEFAULT_PORT = isWorktree ? 3001 : 3000;
+const DEFAULT_PORT = isWorktree ? 31014 : 31013;
 const VAR_DIR = process.env.BRAINBASE_VAR_DIR || (
     isWorktree
         ? path.join(PROJECTS_ROOT, 'brainbase', 'var')

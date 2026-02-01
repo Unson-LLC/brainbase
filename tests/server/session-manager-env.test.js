@@ -35,7 +35,7 @@ describe('SessionManager env', () => {
       execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {},
-      uiPort: 3000
+      uiPort: 31013
     });
 
     manager.findFreePort = vi.fn().mockResolvedValue(40000);
@@ -67,6 +67,6 @@ describe('SessionManager env', () => {
     vi.useRealTimers();
 
     const [, , spawnOptions] = spawnMock.mock.calls[0];
-    expect(spawnOptions.env.BRAINBASE_PORT).toBe('3000');
+    expect(spawnOptions.env.BRAINBASE_PORT).toBe('31013');
   });
 });

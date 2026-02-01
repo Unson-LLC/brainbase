@@ -27,14 +27,14 @@ resolve_brainbase_port() {
     fi
   fi
 
-  for port in 3001 3000; do
+  for port in 31014 31013; do
     if curl -s --max-time 0.3 "http://localhost:$port/api/version" >/dev/null 2>&1; then
       echo "$port"
       return
     fi
   done
 
-  echo "${BRAINBASE_FALLBACK_PORT:-3000}"
+  echo "${BRAINBASE_FALLBACK_PORT:-31013}"
 }
 
 event_type=""

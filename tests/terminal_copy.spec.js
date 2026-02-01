@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const BASE_URL = process.env.BRAINBASE_BASE_URL
+  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+
 test.describe('Terminal Copy Functionality', () => {
   test.use({
       permissions: ['clipboard-read', 'clipboard-write']
@@ -12,7 +16,7 @@ test.describe('Terminal Copy Functionality', () => {
     const sessionName = 'CopyTest ' + Date.now();
     let nextName = sessionName;
     
-    await page.goto('http://localhost:3000');
+    await page.goto(BASE_URL);
     
     page.on('dialog', async dialog => {
         if (dialog.message().includes('Enter session name')) {
@@ -40,7 +44,7 @@ test.describe('Terminal Copy Functionality', () => {
     const uniqueText = `UNIQUE_COPY_TARGET_${Date.now()}`;
     await page.waitForTimeout(2000); 
 
-    await page.request.post(`http://localhost:3000/api/sessions/${sessionId}/input`, {
+    await page.request.post(`${BASE_URL}/api/sessions/${sessionId}/input`, {
         data: { input: `echo "${uniqueText}"\n` }
     });
 

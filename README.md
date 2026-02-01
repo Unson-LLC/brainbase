@@ -120,7 +120,7 @@ npm install -g @anthropic-ai/claude-code
 
 5. **アクセス**
 
-   **デスクトップ**: http://localhost:3000
+   **デスクトップ**: http://localhost:31013
 
    **モバイル**（3つの方法から選択）:
 
@@ -131,7 +131,7 @@ npm install -g @anthropic-ai/claude-code
    ifconfig | grep "inet "  # macOS/Linux
 
    # スマホのブラウザでアクセス
-   # 例: http://192.168.1.10:3000
+   # 例: http://192.168.1.10:31013
    ```
 
    ### 方法2: Quick Tunnels（一時的なテスト用）
@@ -141,7 +141,7 @@ npm install -g @anthropic-ai/claude-code
    brew install cloudflared
 
    # Quick Tunnel起動
-   cloudflared tunnel --url http://localhost:3000
+   cloudflared tunnel --url http://localhost:31013
    # → 表示されたURLにスマホからアクセス
    ```
 
@@ -165,7 +165,7 @@ export BRAINBASE_ROOT=/path/to/your/data
 # ランタイム用ディレクトリ（デフォルト: ./var）
 export BRAINBASE_VAR_DIR=/path/to/your/var
 
-# カスタムポート（デフォルト: 3000、worktree内では3001）
+# カスタムポート（デフォルト: 31013、worktree内では31014）
 export PORT=4000
 
 # サーバー起動
@@ -392,10 +392,10 @@ claude-code --version
 
 ### Q3: モバイルからアクセスできない
 
-**A**: ファイアウォール設定を確認し、ポート3000が開放されているか確認してください。
+**A**: ファイアウォール設定を確認し、ポート31013が開放されているか確認してください。
 ```bash
 # macOS
-sudo lsof -i :3000
+sudo lsof -i :31013
 
 # ローカルIPアドレス確認
 ifconfig | grep "inet "
