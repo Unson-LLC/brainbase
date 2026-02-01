@@ -41,6 +41,7 @@ import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
+import { MobileInputController } from './modules/ui/mobile-input-controller.js';
 
 // Modals
 import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
@@ -224,6 +225,7 @@ export class App {
         this.settingsCore = null; // Settings Plugin Architecture
         this.reconnectManager = null; // Terminal Reconnect Manager
         this.pluginManager = null;
+        this.mobileInputController = null;
     }
 
     /**
@@ -992,6 +994,17 @@ export class App {
             console.log('Mana Settings Extension not available (OSS mode)');
             // エラーは握りつぶす（OSS版では正常動作）
         }
+    }
+
+    /**
+     * Initialize mobile input UI controller
+     */
+    initMobileInput() {
+        this.mobileInputController = new MobileInputController({
+            httpClient,
+            isMobile: () => this.isMobile()
+        });
+        this.mobileInputController.init();
     }
 
     /**
@@ -1992,6 +2005,9 @@ export class App {
         // 12. Setup mobile keyboard handling
         initMobileKeyboard();
 
+        // 13. Setup mobile input UI (Dock/Composer)
+        this.initMobileInput();
+
         console.log('brainbase-ui started successfully');
     }
 
@@ -2385,6 +2401,9 @@ export class App {
         Object.values(this.modals).forEach(modal => {
             if (modal.unmount) modal.unmount();
         });
+
+        // Cleanup mobile input controller
+        this.mobileInputController?.destroy();
 
         console.log('brainbase-ui destroyed');
     }

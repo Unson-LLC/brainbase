@@ -228,6 +228,10 @@ export const EVENTS = {
     INBOX_TOGGLED: 'inbox:toggled',
     MODAL_OPENED: 'modal:opened',
     MODAL_CLOSED: 'modal:closed',
+    MOBILE_INPUT_OPENED: 'mobile-input:opened',
+    MOBILE_INPUT_CLOSED: 'mobile-input:closed',
+    MOBILE_INPUT_SENT: 'mobile-input:sent',
+    MOBILE_INPUT_DRAFT_SAVED: 'mobile-input:draft-saved',
 
     // Recovery関連 (Auto-Claude RecoveryManager pattern)
     RECOVERY_HINTS_LOADED: 'recovery:hints-loaded',
