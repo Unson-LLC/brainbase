@@ -102,7 +102,7 @@ export class WorktreeService {
 
             // Create symlink for .claude directory (Claude Code configuration)
             // .claude is shared across all projects and managed in brainbase-workspace root
-            // Path: worktreesDir/../.. = /Users/ksato/workspace (brainbase-workspace root)
+            // Path: worktreesDir/../.. = workspace root (brainbase-workspace)
             const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
             const sourceClaudePath = path.join(workspaceRoot, '.claude');
             const targetClaudePath = path.join(worktreePath, '.claude');

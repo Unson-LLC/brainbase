@@ -1,5 +1,6 @@
 import express from 'express';
 import { execSync } from 'child_process';
+import path from 'path';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { fromIni } from '@aws-sdk/credential-providers';
@@ -38,7 +39,10 @@ export const ACTION_STATUS = {
  */
 export function createBrainbaseRouter(options = {}) {
     const router = express.Router();
-    const { taskParser, worktreeService, configParser } = options;
+    const { taskParser, worktreeService, configParser, projectsRoot } = options;
+    const resolvedProjectsRoot = projectsRoot || process.env.PROJECTS_ROOT || null;
+    const manaRepoPath = process.env.MANA_REPO_PATH
+        || (resolvedProjectsRoot ? path.join(resolvedProjectsRoot, 'mana') : null);
 
     const githubService = new GitHubService();
     const systemService = new SystemService();
@@ -635,11 +639,14 @@ export function createBrainbaseRouter(options = {}) {
             let runs = [];
             try {
                 // manaリポジトリで実行（GitHub Actionsがある場所）
-                const output = execSync(ghCommand, {
-                    cwd: '/Users/ksato/workspace/projects/mana',
+                const execOptions = {
                     encoding: 'utf-8',
                     timeout: 10000
-                });
+                };
+                if (manaRepoPath) {
+                    execOptions.cwd = manaRepoPath;
+                }
+                const output = execSync(ghCommand, execOptions);
                 runs = JSON.parse(output);
             } catch (ghError) {
                 logger.warn('gh CLI failed, returning empty stats', { error: ghError.message, workflow_id });
