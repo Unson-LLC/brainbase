@@ -32,6 +32,8 @@ export class MobileInputController {
         this.unsubscribeSession = null;
         this.viewport = null;
         this.viewportHandler = null;
+        this.viewportBaseline = 0;
+        this.viewportWidth = 0;
     }
 
     init() {
@@ -181,7 +183,16 @@ export class MobileInputController {
         this.viewport = window.visualViewport;
 
         const update = () => {
-            const offset = calcKeyboardOffset(window.innerHeight, this.viewport.height, this.viewport.offsetTop);
+            const viewportWidth = this.viewport.width || 0;
+            if (!this.viewportBaseline || viewportWidth !== this.viewportWidth) {
+                this.viewportBaseline = this.viewport.height;
+                this.viewportWidth = viewportWidth;
+            } else if (this.viewport.height > this.viewportBaseline) {
+                this.viewportBaseline = this.viewport.height;
+            }
+
+            const baseline = this.viewportBaseline || this.viewport.height;
+            const offset = calcKeyboardOffset(baseline, this.viewport.height, this.viewport.offsetTop);
             document.body.style.setProperty('--keyboard-offset', `${offset}px`);
             document.body.classList.toggle('keyboard-open', offset > 0);
         };
@@ -228,6 +239,13 @@ export class MobileInputController {
 
     setActiveInput(inputEl) {
         this.activeInput = inputEl;
+        if (this.viewport) {
+            const viewportWidth = this.viewport.width || 0;
+            if (!this.viewportBaseline || viewportWidth !== this.viewportWidth || this.viewport.height > this.viewportBaseline) {
+                this.viewportBaseline = this.viewport.height;
+                this.viewportWidth = viewportWidth;
+            }
+        }
     }
 
     getActiveInput() {
