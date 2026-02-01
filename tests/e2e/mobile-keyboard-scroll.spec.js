@@ -1,5 +1,9 @@
 import { test, expect, devices } from '@playwright/test';
 
+const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const BASE_URL = process.env.BRAINBASE_BASE_URL
+  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+
 // iPhone 12 Proでテスト（トップレベルで設定）
 test.use(devices['iPhone 12 Pro']);
 
@@ -92,7 +96,7 @@ test.describe('Mobile keyboard auto-scroll', () => {
     });
 
     test('should initialize mobile keyboard handler', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // mobile-keyboard.jsが読み込まれているか確認
@@ -117,7 +121,7 @@ test.describe('Mobile keyboard auto-scroll', () => {
     });
 
     test('should detect keyboard show via Visual Viewport resize', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(1000); // 初期化完了を待つ
 
@@ -159,7 +163,7 @@ test.describe('Mobile keyboard auto-scroll', () => {
     });
 
     test('should send postMessage to iframe when keyboard appears', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // Select a session to load terminal iframe
@@ -188,7 +192,7 @@ test.describe('Mobile keyboard auto-scroll', () => {
 
     test('should scroll iframe to bottom when receiving postMessage', async ({ page }) => {
         test.setTimeout(60000); // Extended timeout for terminal initialization
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // Select a session to load terminal iframe
@@ -247,7 +251,7 @@ test.describe('Mobile keyboard auto-scroll', () => {
 
     test('should auto-scroll when keyboard appears (full integration)', async ({ page }) => {
         test.setTimeout(60000); // Extended timeout for terminal initialization
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // Select a session to load terminal iframe

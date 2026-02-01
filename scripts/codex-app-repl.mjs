@@ -113,7 +113,7 @@ function resolveBrainbasePort() {
     // ignore
   }
 
-  resolvedPort = '3000';
+  resolvedPort = '31013';
   return resolvedPort;
 }
 

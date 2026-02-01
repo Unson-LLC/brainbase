@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const BASE_URL = process.env.BRAINBASE_BASE_URL
+  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+
 test.describe('Dashboard Layout', () => {
     test('should display 3-pane layout correctly', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
 
         // Verify Page Title
         await expect(page).toHaveTitle('brainbase UI');
@@ -14,7 +18,7 @@ test.describe('Dashboard Layout', () => {
     });
 
     test('should display session list in left sidebar', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
 
         const sidebar = page.locator('#sidebar');
 
@@ -30,7 +34,7 @@ test.describe('Dashboard Layout', () => {
     });
 
     test('should display console area in main content', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
 
         const mainContent = page.locator('.main-content');
 
@@ -44,7 +48,7 @@ test.describe('Dashboard Layout', () => {
     });
 
     test('should display context sections in right sidebar', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
 
         const contextSidebar = page.locator('#context-sidebar');
 
@@ -62,7 +66,7 @@ test.describe('Dashboard Layout', () => {
     });
 
     test('footer exists but is hidden for clean console view', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
 
         const footer = page.locator('.app-footer');
 
@@ -74,7 +78,7 @@ test.describe('Dashboard Layout', () => {
 
 test.describe('Settings View', () => {
     test('should open and close settings view', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
 
         // Settings view should be hidden initially
         await expect(page.locator('#settings-view')).not.toBeVisible();
@@ -92,7 +96,7 @@ test.describe('Settings View', () => {
     });
 
     test('should display settings tabs', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
         await page.click('#settings-btn');
 
         // Verify tabs exist
@@ -114,7 +118,7 @@ test.describe('Settings View', () => {
     });
 
     test('should display integrity summary', async ({ page }) => {
-        await page.goto('http://localhost:3000');
+        await page.goto(BASE_URL);
         await page.click('#settings-btn');
 
         // Wait for integrity data to load

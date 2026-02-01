@@ -27,7 +27,7 @@ export class SessionManager {
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
         this.hookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp }
-        // ポート範囲を40000番台に設定（開発サーバー3000番台との競合回避）
+        // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
         // 起動準備完了フラグ
@@ -192,7 +192,7 @@ export class SessionManager {
             console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
 
             // Update nextPort to avoid port conflicts with restored sessions
-            // 既存セッションが3000番台でも、新規セッションは40000番台から開始
+            // 既存セッションがUIポート帯でも、新規セッションは40000番台から開始
             if (this.activeSessions.size > 0) {
                 const maxPort = Math.max(
                     40000,
@@ -305,7 +305,7 @@ export class SessionManager {
      */
     getSessionStatus() {
         const status = {};
-        const HEARTBEAT_TIMEOUT = 10 * 60 * 1000; // 10分
+        const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
 
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
