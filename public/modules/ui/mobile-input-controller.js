@@ -49,6 +49,7 @@ export class MobileInputController {
         this.updatePinsUI();
         this.restoreDrafts();
         this.updateSendAvailability();
+        this.setDockExpanded(false);
     }
 
     cacheElements() {
@@ -56,6 +57,7 @@ export class MobileInputController {
             dock: document.getElementById('mobile-input-dock'),
             dockInput: document.getElementById('mobile-dock-input'),
             dockSend: document.getElementById('mobile-dock-send'),
+            dockMore: document.getElementById('mobile-dock-more'),
             dockExpand: document.getElementById('mobile-dock-expand'),
             dockPaste: document.getElementById('mobile-dock-paste'),
             dockClipboard: document.getElementById('mobile-dock-clipboard'),
@@ -84,7 +86,7 @@ export class MobileInputController {
     }
 
     bindDock() {
-        const { dockInput, dockSend, dockExpand, dockClipboard, dockSnippets, dockSnippetAdd, dockSelectToggle, dockPaste } = this.elements;
+        const { dockInput, dockSend, dockMore, dockExpand, dockClipboard, dockSnippets, dockSnippetAdd, dockSelectToggle, dockPaste } = this.elements;
         dockInput?.addEventListener('focus', () => {
             this.setActiveInput(dockInput);
         });
@@ -94,6 +96,7 @@ export class MobileInputController {
         });
 
         dockSend?.addEventListener('click', () => this.handleSend('dock'));
+        dockMore?.addEventListener('click', () => this.toggleDockExpanded());
         dockExpand?.addEventListener('click', () => this.openComposer());
         dockPaste?.addEventListener('click', () => this.pasteFromClipboard());
         dockClipboard?.addEventListener('click', () => this.openClipboardSheet());
@@ -220,6 +223,7 @@ export class MobileInputController {
 
         composer.classList.add('active');
         document.body.classList.add('mobile-composer-open');
+        this.setDockExpanded(false);
 
         if (!composerInput.value && dockInput?.value) {
             composerInput.value = dockInput.value;
@@ -248,6 +252,20 @@ export class MobileInputController {
         document.body.classList.remove('mobile-composer-open');
         eventBus.emit(EVENTS.MOBILE_INPUT_CLOSED, { mode: 'composer' });
         this.updateStoreState({ composerOpen: false, mode: 'dock' });
+    }
+
+    toggleDockExpanded() {
+        const isExpanded = this.elements.dock?.classList.contains('expanded');
+        this.setDockExpanded(!isExpanded);
+    }
+
+    setDockExpanded(expanded) {
+        const { dock, dockMore } = this.elements;
+        if (!dock || !dockMore) return;
+        dock.classList.toggle('expanded', expanded);
+        dock.classList.toggle('compact', !expanded);
+        document.body.classList.toggle('mobile-input-expanded', expanded);
+        dockMore.textContent = expanded ? 'Less' : 'More';
     }
 
     async handleSend(mode) {
