@@ -479,7 +479,12 @@ app.use('/api/config', createConfigRouter(configParser, configService));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
-app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
+app.use('/api/brainbase', createBrainbaseRouter({
+    taskParser,
+    worktreeService,
+    configParser,
+    projectsRoot: PROJECTS_ROOT
+}));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
