@@ -5021,6 +5021,7 @@ body.resizing iframe {
     /* 紺色(#0f172a)からターミナルと同じ黒に変更し、隙間を視覚的に消す */
     body {
         background-color: #000000;
+        --mobile-input-offset: 120px;
     }
 
     /* Mobile Input Dock */
@@ -5035,6 +5036,15 @@ body.resizing iframe {
         padding: 8px 12px 12px;
         z-index: 1002;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .mobile-input-dock.compact .mobile-input-cursor,
+    .mobile-input-dock.compact .mobile-input-shortcuts {
+        display: none;
+    }
+
+    body.mobile-input-expanded {
+        --mobile-input-offset: 220px;
     }
 
     body.mobile-composer-open .mobile-input-dock {
@@ -5490,7 +5500,7 @@ body.resizing iframe {
         flex: 1;
         overflow: visible;
         touch-action: manipulation;
-        padding-bottom: 160px;
+        padding-bottom: calc(var(--mobile-input-offset) + env(safe-area-inset-bottom, 0));
     }
 
     /* Terminal iframe - full width, fill parent */
