@@ -34,6 +34,7 @@ export class MobileInputController {
         this.viewportHandler = null;
         this.viewportBaseline = 0;
         this.viewportWidth = 0;
+        this.keyboardDebug = null;
     }
 
     init() {
@@ -51,6 +52,7 @@ export class MobileInputController {
         this.bindNetworkStatus();
         this.bindSessionChanges();
         this.bindViewportResize();
+        this.bindKeyboardDebug();
 
         this.updatePinsUI();
         this.restoreDrafts();
@@ -192,15 +194,56 @@ export class MobileInputController {
             }
 
             const baseline = this.viewportBaseline || this.viewport.height;
-            const offset = calcKeyboardOffset(baseline, this.viewport.height, this.viewport.offsetTop);
+            const heightDelta = Math.max(0, baseline - this.viewport.height);
+            const rawOffset = calcKeyboardOffset(baseline, this.viewport.height, this.viewport.offsetTop);
+            const offset = rawOffset > 0 ? rawOffset : heightDelta;
+            const keyboardOpen = offset > 0 && this.isInputFocused();
             document.body.style.setProperty('--keyboard-offset', `${offset}px`);
-            document.body.classList.toggle('keyboard-open', offset > 0);
+            document.body.classList.toggle('keyboard-open', keyboardOpen);
+            this.updateKeyboardDebug({ baseline, heightDelta, rawOffset, offset, keyboardOpen });
         };
 
         this.viewportHandler = update;
         update();
         this.viewport.addEventListener('resize', update);
         this.viewport.addEventListener('scroll', update);
+    }
+
+    bindKeyboardDebug() {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('kbdDebug') && localStorage.getItem('bb_keyboard_debug') !== '1') return;
+
+        const panel = document.createElement('div');
+        panel.className = 'keyboard-debug-panel';
+        panel.style.position = 'fixed';
+        panel.style.top = '8px';
+        panel.style.right = '8px';
+        panel.style.zIndex = '2005';
+        panel.style.padding = '6px 8px';
+        panel.style.borderRadius = '8px';
+        panel.style.background = 'rgba(0, 0, 0, 0.75)';
+        panel.style.color = '#a7f3d0';
+        panel.style.fontSize = '10px';
+        panel.style.fontFamily = 'monospace';
+        panel.style.pointerEvents = 'none';
+        panel.textContent = 'keyboard debug';
+        document.body.appendChild(panel);
+        this.keyboardDebug = panel;
+    }
+
+    updateKeyboardDebug(data) {
+        if (!this.keyboardDebug || !this.viewport) return;
+        const lines = [
+            `inner=${window.innerHeight}`,
+            `vvH=${Math.round(this.viewport.height)}`,
+            `vvTop=${Math.round(this.viewport.offsetTop || 0)}`,
+            `base=${Math.round(data.baseline || 0)}`,
+            `delta=${Math.round(data.heightDelta || 0)}`,
+            `raw=${Math.round(data.rawOffset || 0)}`,
+            `off=${Math.round(data.offset || 0)}`,
+            `open=${data.keyboardOpen ? '1' : '0'}`
+        ];
+        this.keyboardDebug.textContent = lines.join(' ');
     }
 
     bindSessionChanges() {
@@ -246,6 +289,11 @@ export class MobileInputController {
                 this.viewportWidth = viewportWidth;
             }
         }
+    }
+
+    isInputFocused() {
+        const active = document.activeElement;
+        return active === this.elements.dockInput || active === this.elements.composerInput;
     }
 
     getActiveInput() {
@@ -888,6 +936,10 @@ export class MobileInputController {
         if (this.viewport && this.viewportHandler) {
             this.viewport.removeEventListener('resize', this.viewportHandler);
             this.viewport.removeEventListener('scroll', this.viewportHandler);
+        }
+        if (this.keyboardDebug) {
+            this.keyboardDebug.remove();
+            this.keyboardDebug = null;
         }
     }
 }
