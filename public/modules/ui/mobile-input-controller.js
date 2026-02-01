@@ -4,6 +4,7 @@ import { showError, showInfo, showSuccess } from '../toast.js';
 import {
     DEFAULT_HISTORY_LIMIT,
     DEFAULT_PIN_SLOTS,
+    calcKeyboardOffset,
     findWordBoundaryLeft,
     findWordBoundaryRight,
     normalizeHistory,
@@ -29,6 +30,8 @@ export class MobileInputController {
         this.draftTimers = {};
         this.isOnline = true;
         this.unsubscribeSession = null;
+        this.viewport = null;
+        this.viewportHandler = null;
     }
 
     init() {
@@ -45,6 +48,7 @@ export class MobileInputController {
         this.bindSheets();
         this.bindNetworkStatus();
         this.bindSessionChanges();
+        this.bindViewportResize();
 
         this.updatePinsUI();
         this.restoreDrafts();
@@ -170,6 +174,22 @@ export class MobileInputController {
             this.isOnline = false;
             this.updateNetworkState();
         });
+    }
+
+    bindViewportResize() {
+        if (!window.visualViewport) return;
+        this.viewport = window.visualViewport;
+
+        const update = () => {
+            const offset = calcKeyboardOffset(window.innerHeight, this.viewport.height, this.viewport.offsetTop);
+            document.body.style.setProperty('--keyboard-offset', `${offset}px`);
+            document.body.classList.toggle('keyboard-open', offset > 0);
+        };
+
+        this.viewportHandler = update;
+        update();
+        this.viewport.addEventListener('resize', update);
+        this.viewport.addEventListener('scroll', update);
     }
 
     bindSessionChanges() {
@@ -846,6 +866,10 @@ export class MobileInputController {
         if (this.unsubscribeSession) {
             this.unsubscribeSession();
             this.unsubscribeSession = null;
+        }
+        if (this.viewport && this.viewportHandler) {
+            this.viewport.removeEventListener('resize', this.viewportHandler);
+            this.viewport.removeEventListener('scroll', this.viewportHandler);
         }
     }
 }

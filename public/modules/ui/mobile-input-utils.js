@@ -46,3 +46,9 @@ export function findWordBoundaryRight(text, index) {
     }
     return i;
 }
+
+export function calcKeyboardOffset(innerHeight, viewportHeight, viewportOffsetTop = 0) {
+    if (typeof innerHeight !== 'number' || typeof viewportHeight !== 'number') return 0;
+    const offsetTop = typeof viewportOffsetTop === 'number' ? viewportOffsetTop : 0;
+    return Math.max(0, innerHeight - viewportHeight - offsetTop);
+}
