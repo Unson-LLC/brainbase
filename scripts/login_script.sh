@@ -166,7 +166,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
 CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
 CODEX_APP_REPL="$SCRIPT_DIR/codex-app-repl.mjs"
-USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-1}"
+# Default to Codex CLI; opt-in to app-server REPL via env var.
+USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-0}"
 CODEX_NOTIFY_ARG=""
 if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
