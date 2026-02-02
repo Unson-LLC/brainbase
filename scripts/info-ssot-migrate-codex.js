@@ -24,6 +24,7 @@ for (const arg of args) {
 
 const ROLE_HEADER = 'ceo';
 const CLEARANCE_HEADER = 'internal,restricted,finance,hr,contract';
+const ACCESS_TOKEN = process.env.INFO_SSOT_ACCESS_TOKEN || '';
 
 const detectBrainbaseRoot = () => {
   if (process.env.BRAINBASE_ROOT) return process.env.BRAINBASE_ROOT;
@@ -78,6 +79,9 @@ const postInfo = async (pathName, projectCode, payload) => {
     'x-session-id': CSRF_SESSION_ID,
     'x-csrf-token': cachedCsrfToken
   };
+  if (ACCESS_TOKEN) {
+    headers.Authorization = `Bearer ${ACCESS_TOKEN}`;
+  }
 
   try {
     return await fetchJson(`${opts.baseUrl}${pathName}`, {

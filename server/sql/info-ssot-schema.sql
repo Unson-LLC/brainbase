@@ -13,6 +13,31 @@ CREATE TABLE IF NOT EXISTS people (
   status text NOT NULL DEFAULT 'active'
 );
 
+CREATE TABLE IF NOT EXISTS auth_grants (
+  id text PRIMARY KEY,
+  person_id text REFERENCES people(id),
+  person_name text NOT NULL,
+  slack_user_id text NOT NULL,
+  slack_workspace_id text NOT NULL,
+  role text NOT NULL,
+  project_codes text[] NOT NULL DEFAULT ARRAY[]::text[],
+  clearance text[] NOT NULL DEFAULT ARRAY[]::text[],
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  UNIQUE (slack_user_id, slack_workspace_id)
+);
+
+CREATE TABLE IF NOT EXISTS auth_audit_logs (
+  id text PRIMARY KEY,
+  person_id text REFERENCES people(id),
+  slack_user_id text,
+  slack_workspace_id text,
+  event_type text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS events (
   id text PRIMARY KEY,
   project_id text NOT NULL REFERENCES projects(id),
@@ -92,6 +117,9 @@ CREATE INDEX IF NOT EXISTS idx_decisions_project_id ON decisions(project_id);
 CREATE INDEX IF NOT EXISTS idx_raci_project_id ON raci_assignments(project_id);
 CREATE INDEX IF NOT EXISTS idx_graph_entities_project_id ON graph_entities(project_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_project_id ON graph_edges(project_id);
+CREATE INDEX IF NOT EXISTS idx_auth_grants_person_id ON auth_grants(person_id);
+CREATE INDEX IF NOT EXISTS idx_auth_grants_slack ON auth_grants(slack_user_id, slack_workspace_id);
+CREATE INDEX IF NOT EXISTS idx_auth_audit_person_id ON auth_audit_logs(person_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_from_id ON graph_edges(from_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_to_id ON graph_edges(to_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_rel_type ON graph_edges(rel_type);

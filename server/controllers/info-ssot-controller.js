@@ -8,6 +8,9 @@ function parseCsv(value) {
 }
 
 function buildAccessContext(req) {
+    if (req.access) {
+        return req.access;
+    }
     const role = (req.get('x-brainbase-role') || req.get('x-role') || '').toLowerCase();
     const projectHeader = req.get('x-brainbase-projects') || req.get('x-projects') || '';
     const clearanceHeader = req.get('x-brainbase-clearance') || req.get('x-clearance') || '';

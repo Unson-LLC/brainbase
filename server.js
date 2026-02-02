@@ -35,6 +35,7 @@ import { InboxParser } from './lib/inbox-parser.js';
 import { SessionManager } from './server/services/session-manager.js';
 import { WorktreeService } from './server/services/worktree-service.js';
 import { InfoSSOTService } from './server/services/info-ssot-service.js';
+import { AuthService } from './server/services/auth-service.js';
 
 // Import routers
 import { createTaskRouter } from './server/routes/tasks.js';
@@ -49,9 +50,11 @@ import { createBrainbaseRouter } from './server/routes/brainbase.js';
 import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
+import { createAuthRouter } from './server/routes/auth.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
+import { requireAuth } from './server/middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -247,6 +250,7 @@ const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, P
 const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 const infoSSOTService = new InfoSSOTService();
+const authService = new AuthService();
 
 // Middleware
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
@@ -484,7 +488,8 @@ app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
 app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
-app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
+app.use('/api/auth', createAuthRouter(authService));
+app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
