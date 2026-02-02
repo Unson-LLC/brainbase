@@ -489,14 +489,15 @@ export class SessionView {
                         if (updateError) {
                             details.push(`main更新失敗: ${updateError}`);
                         }
+                        const mainBranchLabel = status.mainBranch || 'main';
                         if (status.localMainAhead > 0) {
-                            details.push(`ローカルmainが${status.localMainAhead}コミット進んでいます`);
+                            details.push(`ローカル${mainBranchLabel}が${status.localMainAhead}コミット進んでいます`);
                         }
                         if (status.localMainBehind > 0) {
-                            details.push(`ローカルmainが${status.localMainBehind}コミット遅れています`);
+                            details.push(`ローカル${mainBranchLabel}が${status.localMainBehind}コミット遅れています`);
                         }
                         if (status.commitsAhead > 0) {
-                            details.push(`mainより${status.commitsAhead}コミット進んでいます`);
+                            details.push(`このセッションのワークツリーに${status.commitsAhead}コミットの未マージ変更があります`);
                         }
                         if (status.hasUncommittedChanges) {
                             details.push('未コミット変更があります');

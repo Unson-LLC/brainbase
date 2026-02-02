@@ -243,21 +243,13 @@ export class WorktreeService {
             }
 
             if (effectiveStartCommit && headCommitTrimmed) {
-                // New method: Use startCommit to calculate accurate diff
-                // This avoids including develop->main diff for sessions created from develop
+                // New method: Count commits since session startCommit
+                // Purpose: detect unmerged changes made in this worktree only
                 try {
-                    if (mainCommitTrimmed) {
-                        // Count only commits not reachable from main
-                        const { stdout: aheadCount } = await this.execPromise(
-                            `git -C "${worktreePath}" rev-list --count ${effectiveStartCommit}..HEAD --not ${mainCommitTrimmed} 2>/dev/null || echo "0"`
-                        );
-                        ahead = parseInt(aheadCount.trim()) || 0;
-                    } else {
-                        const { stdout: aheadCount } = await this.execPromise(
-                            `git -C "${worktreePath}" rev-list --count ${effectiveStartCommit}..HEAD 2>/dev/null || echo "0"`
-                        );
-                        ahead = parseInt(aheadCount.trim()) || 0;
-                    }
+                    const { stdout: aheadCount } = await this.execPromise(
+                        `git -C "${worktreePath}" rev-list --count ${effectiveStartCommit}..HEAD 2>/dev/null || echo "0"`
+                    );
+                    ahead = parseInt(aheadCount.trim()) || 0;
                 } catch {
                     // Fallback to legacy method if startCommit calculation fails
                     ahead = 0;
