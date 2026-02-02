@@ -129,12 +129,12 @@ describe('session-manager', () => {
         id: 'test-session',
         name: 'Test',
         path: '/path',
-        initialCommand: '/task 123',
+        initialCommand: 'Task ID: 123',
         taskId: 'TASK-123',
         worktree: { path: '/worktree' }
       });
 
-      expect(result.initialCommand).toBe('/task 123');
+      expect(result.initialCommand).toBe('Task ID: 123');
       expect(result.taskId).toBe('TASK-123');
       expect(result.worktree).toEqual({ path: '/worktree' });
     });
