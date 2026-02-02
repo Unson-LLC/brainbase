@@ -707,7 +707,18 @@ export class App {
                 console.log('Creating session for task:', task.id, 'project:', project);
 
                 // タスクコンテキストを構築（議事録から登録されたタスクの場合）
-                let initialCommand = `/task ${task.id}`;
+                const taskTitle = task.title || task.name || 'Untitled';
+                const deadline = task.deadline || task.due;
+                const taskLines = [
+                    '以下のタスクを対応してください。',
+                    `ID: ${task.id}`,
+                    `プロジェクト: ${project}`,
+                    `タイトル: ${taskTitle}`,
+                    deadline ? `期限: ${deadline}` : '',
+                    task.assignee ? `担当者: ${task.assignee}` : '',
+                    task.description ? `説明: ${task.description}` : ''
+                ].filter(Boolean);
+                let initialCommand = taskLines.join('\n');
                 if (task.context || task.meetingTitle) {
                     const contextParts = [];
                     if (task.context) {
