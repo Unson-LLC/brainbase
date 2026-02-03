@@ -19,8 +19,9 @@ iOS/Android の Safari/Chrome でキーボード表示時に Dock がキーボ�
 3. フォーカス直後の遅延リサイズ対策として 280ms 後に再同期
 4. blur で `inputFocused = false` に戻し、タイマーをクリア
 5. VisualViewport 変化が 0 のときは、Dock の「見えている底」とのギャップをオフセットとして使用する
-6. VisualViewport の offsetTop/offsetLeft を `--vv-top` / `--vv-left` に反映し、固定UIが表示領域に追従する
-7. Mobile Dock が存在する場合はターミナルスライドを無効化し、二重補正を避ける
+6. Dock が「上に浮いている」場合は、見えているギャップ分だけオフセットを減算して密着させる
+7. VisualViewport の offsetTop/offsetLeft を `--vv-top` / `--vv-left` に反映し、固定UIが表示領域に追従する
+8. Mobile Dock が存在する場合はターミナルスライドを無効化し、二重補正を避ける
 
 ## Acceptance Criteria
 - iOS Safari (縦, アドレスバー表示) で Dock がキーボード直上に密着する
