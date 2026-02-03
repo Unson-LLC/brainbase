@@ -200,9 +200,17 @@ const main = async () => {
     projectCodeMap.set('zeims', projectCodeMap.get('zeims') || 'zeims');
 
     const projectCodes = [...projectRecords.keys()].join(',');
-    await client.query(`SELECT set_config('app.role', 'ceo', true)`);
-    await client.query(`SELECT set_config('app.project_codes', $1, true)`, [projectCodes]);
-    await client.query(`SELECT set_config('app.clearance', 'internal,restricted,finance,hr,contract', true)`);
+    await client.query(`SELECT set_config('app.role', 'ceo', false)`);
+    await client.query(`SELECT set_config('app.project_codes', $1, false)`, [projectCodes]);
+    await client.query(`SELECT set_config('app.clearance', 'internal,restricted,finance,hr,contract', false)`);
+
+    const rlsSettings = await client.query(
+      `SELECT current_setting('app.role', true) AS role,
+              current_setting('app.project_codes', true) AS projects,
+              current_setting('app.clearance', true) AS clearance`
+    );
+    const settingsRow = rlsSettings.rows[0] || {};
+    console.log(`[rls] role=${settingsRow.role || '-'} projects=${settingsRow.projects || '-'} clearance=${settingsRow.clearance || '-'}`);
 
     if (!dryRun) {
       for (const project of projectRecords.values()) {
