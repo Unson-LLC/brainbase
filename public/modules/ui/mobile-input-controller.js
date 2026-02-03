@@ -233,6 +233,13 @@ export class MobileInputController {
 
     updateKeyboardDebug(data) {
         if (!this.keyboardDebug || !this.viewport) return;
+        const dockRect = this.elements.dock?.getBoundingClientRect();
+        const consoleRect = document.querySelector('.console-area')?.getBoundingClientRect();
+        const mainRect = document.querySelector('.main-content')?.getBoundingClientRect();
+        const bodyStyles = window.getComputedStyle(document.body);
+        const mobileOffset = bodyStyles.getPropertyValue('--mobile-input-offset').trim();
+        const keyboardOffset = bodyStyles.getPropertyValue('--keyboard-offset').trim();
+        const dockGap = dockRect ? Math.round(window.innerHeight - dockRect.bottom) : 0;
         const lines = [
             `inner=${window.innerHeight}`,
             `vvH=${Math.round(this.viewport.height)}`,
@@ -241,7 +248,13 @@ export class MobileInputController {
             `delta=${Math.round(data.heightDelta || 0)}`,
             `raw=${Math.round(data.rawOffset || 0)}`,
             `off=${Math.round(data.offset || 0)}`,
-            `open=${data.keyboardOpen ? '1' : '0'}`
+            `open=${data.keyboardOpen ? '1' : '0'}`,
+            `dockGap=${dockGap}`,
+            `dockH=${dockRect ? Math.round(dockRect.height) : 0}`,
+            `consoleH=${consoleRect ? Math.round(consoleRect.height) : 0}`,
+            `mainH=${mainRect ? Math.round(mainRect.height) : 0}`,
+            `mobOff=${mobileOffset || '0'}`,
+            `keyOff=${keyboardOffset || '0'}`
         ];
         this.keyboardDebug.textContent = lines.join(' ');
     }
