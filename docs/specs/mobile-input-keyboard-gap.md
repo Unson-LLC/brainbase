@@ -18,11 +18,13 @@ iOS/Android の Safari/Chrome でキーボード表示時に Dock がキーボ�
 2. `syncKeyboardState()` を即時呼び出し、`body.keyboard-open` を付与
 3. フォーカス直後の遅延リサイズ対策として 280ms 後に再同期
 4. blur で `inputFocused = false` に戻し、タイマーをクリア
+5. VisualViewport 変化が 0 のときは、Dock の「見えている底」とのギャップをオフセットとして使用する
 
 ## Acceptance Criteria
 - iOS Safari (縦, アドレスバー表示) で Dock がキーボード直上に密着する
 - Android Chrome でも同様に余白が出ない
 - VisualViewport が更新されない端末でも keyboard-open が維持される
+- VisualViewport が変化しない端末でも Dock がキーボード直上に密着する
 - blur 後は keyboard-open が解除され、下部ナビが復帰する
 
 ## Test Plan

@@ -35,6 +35,7 @@ export class MobileInputController {
         this.viewportBaseline = 0;
         this.viewportWidth = 0;
         this.keyboardDebug = null;
+        this.keyboardDebugDock = null;
         this.keyboardDebugMode = false;
         this.lastKeyboardData = null;
         this.lastKeyboardOffset = 0;
@@ -217,14 +218,21 @@ export class MobileInputController {
             const baseline = this.viewportBaseline || this.viewport.height;
             const heightDelta = Math.max(0, baseline - this.viewport.height);
             const rawOffset = calcKeyboardOffset(baseline, this.viewport.height, this.viewport.offsetTop);
-            const offset = rawOffset > 0 ? rawOffset : heightDelta;
+            const dockRect = this.elements.dock?.getBoundingClientRect();
+            const visualHeight = this.viewport.height || window.innerHeight;
+            const dockGap = dockRect ? Math.max(0, Math.round(visualHeight - dockRect.bottom)) : 0;
+            let offset = rawOffset > 0 ? rawOffset : heightDelta;
             const focusOpen = this.isInputFocused();
-            const keyboardOpen = offset > 0 ? true : focusOpen;
+            let keyboardOpen = offset > 0 ? true : focusOpen;
+            if (focusOpen && offset === 0 && dockGap > 0) {
+                offset = dockGap;
+                keyboardOpen = true;
+            }
             document.body.style.setProperty('--keyboard-offset', `${offset}px`);
             document.documentElement.style.setProperty('--vvh', `${Math.round(this.viewport.height)}px`);
             document.body.classList.toggle('keyboard-open', keyboardOpen);
             this.lastKeyboardOffset = offset;
-            this.lastKeyboardData = { baseline, heightDelta, rawOffset, offset, keyboardOpen };
+            this.lastKeyboardData = { baseline, heightDelta, rawOffset, offset, keyboardOpen, dockGap, visualHeight };
             this.updateKeyboardDebug(this.lastKeyboardData);
         };
 
@@ -255,6 +263,14 @@ export class MobileInputController {
         panel.textContent = 'keyboard debug';
         document.body.appendChild(panel);
         this.keyboardDebug = panel;
+
+        if (this.elements.dock) {
+            const dockPanel = document.createElement('div');
+            dockPanel.className = 'keyboard-debug-dock';
+            dockPanel.textContent = 'keyboard debug';
+            this.elements.dock.prepend(dockPanel);
+            this.keyboardDebugDock = dockPanel;
+        }
     }
 
     updateKeyboardDebug(data) {
@@ -265,12 +281,16 @@ export class MobileInputController {
         const bodyStyles = window.getComputedStyle(document.body);
         const mobileOffset = bodyStyles.getPropertyValue('--mobile-input-offset').trim();
         const keyboardOffset = bodyStyles.getPropertyValue('--keyboard-offset').trim();
-        const dockGap = dockRect ? Math.round(window.innerHeight - dockRect.bottom) : 0;
+        const visualHeight = data.visualHeight || this.viewport.height || window.innerHeight;
+        const dockGap = typeof data.dockGap === 'number'
+            ? data.dockGap
+            : (dockRect ? Math.max(0, Math.round(visualHeight - dockRect.bottom)) : 0);
         const focused = this.isInputFocused();
         const lines = [
             `inner=${window.innerHeight}`,
             `vvH=${Math.round(this.viewport.height)}`,
             `vvTop=${Math.round(this.viewport.offsetTop || 0)}`,
+            `vvB=${Math.round(visualHeight)}`,
             `base=${Math.round(data.baseline || 0)}`,
             `delta=${Math.round(data.heightDelta || 0)}`,
             `raw=${Math.round(data.rawOffset || 0)}`,
@@ -285,8 +305,8 @@ export class MobileInputController {
             `keyOff=${keyboardOffset || '0'}`
         ];
         this.keyboardDebug.textContent = lines.join(' ');
-        if (this.keyboardDebugMode && this.elements.dock) {
-            this.elements.dock.dataset.kbdDebug = lines.join(' ');
+        if (this.keyboardDebugDock) {
+            this.keyboardDebugDock.textContent = lines.join(' ');
         }
     }
 

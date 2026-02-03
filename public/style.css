@@ -5036,14 +5036,13 @@ body.resizing iframe {
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
     }
 
-    .mobile-input-dock[data-kbd-debug]::before {
-        content: attr(data-kbd-debug);
-        display: block;
+    .keyboard-debug-dock {
         font-size: 10px;
         color: #a7f3d0;
         letter-spacing: 0.02em;
         padding: 0 4px 6px;
         opacity: 0.85;
+        font-family: monospace;
     }
 
     .mobile-input-dock.compact .mobile-input-cursor,
