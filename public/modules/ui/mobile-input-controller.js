@@ -38,6 +38,8 @@ export class MobileInputController {
         this.keyboardDebugMode = false;
         this.lastKeyboardData = null;
         this.lastKeyboardOffset = 0;
+        this.inputFocused = false;
+        this.keyboardSyncTimer = null;
     }
 
     init() {
@@ -99,11 +101,15 @@ export class MobileInputController {
     bindDock() {
         const { dockInput, dockSend, dockMore, dockExpand, dockClipboard, dockSnippets, dockSnippetAdd, dockSelectToggle, dockPaste } = this.elements;
         dockInput?.addEventListener('focus', () => {
+            this.inputFocused = true;
             this.setActiveInput(dockInput);
             this.syncKeyboardState();
+            this.scheduleKeyboardSync();
         });
         dockInput?.addEventListener('blur', () => {
+            this.inputFocused = false;
             this.syncKeyboardState();
+            this.clearKeyboardSync();
         });
         dockInput?.addEventListener('input', () => {
             this.autoResize(dockInput);
@@ -141,11 +147,15 @@ export class MobileInputController {
         } = this.elements;
 
         composerInput?.addEventListener('focus', () => {
+            this.inputFocused = true;
             this.setActiveInput(composerInput);
             this.syncKeyboardState();
+            this.scheduleKeyboardSync();
         });
         composerInput?.addEventListener('blur', () => {
+            this.inputFocused = false;
             this.syncKeyboardState();
+            this.clearKeyboardSync();
         });
         composerInput?.addEventListener('input', () => {
             this.autoResize(composerInput);
@@ -343,7 +353,21 @@ export class MobileInputController {
     isInputFocused() {
         const active = document.activeElement;
         const terminalFrame = document.getElementById('terminal-frame');
-        return active === this.elements.dockInput || active === this.elements.composerInput || active === terminalFrame;
+        return this.inputFocused || active === this.elements.dockInput || active === this.elements.composerInput || active === terminalFrame;
+    }
+
+    scheduleKeyboardSync() {
+        this.clearKeyboardSync();
+        this.keyboardSyncTimer = window.setTimeout(() => {
+            this.syncKeyboardState();
+        }, 280);
+    }
+
+    clearKeyboardSync() {
+        if (this.keyboardSyncTimer) {
+            window.clearTimeout(this.keyboardSyncTimer);
+            this.keyboardSyncTimer = null;
+        }
     }
 
     getActiveInput() {
