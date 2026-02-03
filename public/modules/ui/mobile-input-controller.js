@@ -200,6 +200,7 @@ export class MobileInputController {
             const offset = rawOffset > 0 ? rawOffset : heightDelta;
             const keyboardOpen = offset > 0 && this.isInputFocused();
             document.body.style.setProperty('--keyboard-offset', `${offset}px`);
+            document.documentElement.style.setProperty('--vvh', `${Math.round(this.viewport.height)}px`);
             document.body.classList.toggle('keyboard-open', keyboardOpen);
             this.updateKeyboardDebug({ baseline, heightDelta, rawOffset, offset, keyboardOpen });
         };

@@ -47,9 +47,8 @@ body {
     font-family: var(--font-sans);
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    height: 100vh;
-    /* fallback */
-    height: 100dvh;
+    --vvh: 100dvh;
+    height: var(--vvh, 100dvh);
     overflow: hidden;
     font-size: 0.9rem;
     /* Standard text size */
@@ -86,9 +85,7 @@ body::after {
    ========================================= */
 .app-container {
     display: flex;
-    height: 100vh;
-    /* fallback */
-    height: 100dvh;
+    height: var(--vvh, 100dvh);
     width: 100vw;
     overflow: hidden;
 }
