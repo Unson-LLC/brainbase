@@ -375,12 +375,16 @@ export class MobileInputController {
             return;
         }
 
-        const payload = rawValue.endsWith('\n') ? rawValue : rawValue + '\n';
+        const payload = rawValue.endsWith('\n') ? rawValue.slice(0, -1) : rawValue;
 
         try {
             await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
                 input: payload,
                 type: 'text'
+            });
+            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
+                input: 'Enter',
+                type: 'key'
             });
 
             inputEl.value = '';
