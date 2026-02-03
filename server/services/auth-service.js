@@ -22,7 +22,11 @@ export class AuthService {
         this.slackClientId = process.env.SLACK_CLIENT_ID || '';
         this.slackClientSecret = process.env.SLACK_CLIENT_SECRET || '';
         this.slackRedirectUri = process.env.SLACK_REDIRECT_URI || '';
-        this.slackScopes = process.env.SLACK_AUTH_SCOPES || DEFAULT_SCOPES;
+        this.slackScopes = process.env.SLACK_AUTH_SCOPES;
+        if (this.slackScopes === undefined || this.slackScopes === null) {
+            this.slackScopes = DEFAULT_SCOPES;
+        }
+        this.slackUserScopes = process.env.SLACK_AUTH_USER_SCOPES || '';
         this.slackMode = (process.env.SLACK_AUTH_MODE || 'oidc').toLowerCase();
 
         this.authorizeUrl = process.env.SLACK_AUTH_AUTHORIZE_URL
@@ -76,7 +80,12 @@ export class AuthService {
         url.searchParams.set('client_id', this.slackClientId);
         url.searchParams.set('redirect_uri', this.slackRedirectUri);
         url.searchParams.set('state', state);
-        url.searchParams.set('scope', this.slackScopes);
+        if (this.slackScopes !== undefined && this.slackScopes !== null) {
+            url.searchParams.set('scope', this.slackScopes);
+        }
+        if (this.slackMode === 'oauth' && this.slackUserScopes) {
+            url.searchParams.set('user_scope', this.slackUserScopes);
+        }
         url.searchParams.set('response_type', 'code');
         return url.toString();
     }
