@@ -342,7 +342,8 @@ export class MobileInputController {
 
     isInputFocused() {
         const active = document.activeElement;
-        return active === this.elements.dockInput || active === this.elements.composerInput;
+        const terminalFrame = document.getElementById('terminal-frame');
+        return active === this.elements.dockInput || active === this.elements.composerInput || active === terminalFrame;
     }
 
     getActiveInput() {
