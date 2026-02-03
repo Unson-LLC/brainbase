@@ -5509,7 +5509,7 @@ body.resizing iframe {
         flex: 1;
         overflow: visible;
         touch-action: manipulation;
-        padding-bottom: calc(var(--mobile-input-offset) + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
+        padding-bottom: calc(var(--mobile-input-offset) + env(safe-area-inset-bottom, 0));
     }
 
     /* Terminal iframe - full width, fill parent */
