@@ -230,6 +230,8 @@ export class MobileInputController {
             }
             document.body.style.setProperty('--keyboard-offset', `${offset}px`);
             document.documentElement.style.setProperty('--vvh', `${Math.round(this.viewport.height)}px`);
+            document.documentElement.style.setProperty('--vv-top', `${Math.round(this.viewport.offsetTop || 0)}px`);
+            document.documentElement.style.setProperty('--vv-left', `${Math.round(this.viewport.offsetLeft || 0)}px`);
             document.body.classList.toggle('keyboard-open', keyboardOpen);
             this.lastKeyboardOffset = offset;
             this.lastKeyboardData = { baseline, heightDelta, rawOffset, offset, keyboardOpen, dockGap, visualHeight };

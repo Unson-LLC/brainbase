@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MobileInputController } from '../../../public/modules/ui/mobile-input-controller.js';
 
 describe('MobileInputController focus tracking', () => {
@@ -40,5 +40,48 @@ describe('MobileInputController focus tracking', () => {
         controller.inputFocused = true;
 
         expect(controller.isInputFocused()).toBe(true);
+    });
+});
+
+describe('MobileInputController visual viewport sync', () => {
+    let controller;
+    let originalViewport;
+
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div id="mobile-input-dock"></div>
+            <textarea id="mobile-dock-input"></textarea>
+        `;
+
+        controller = new MobileInputController({
+            httpClient: {},
+            isMobile: () => true
+        });
+        controller.cacheElements();
+
+        originalViewport = window.visualViewport;
+        window.visualViewport = {
+            width: 360,
+            height: 600,
+            offsetTop: 24,
+            offsetLeft: 0,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn()
+        };
+    });
+
+    afterEach(() => {
+        window.visualViewport = originalViewport;
+        document.documentElement.style.removeProperty('--vvh');
+        document.documentElement.style.removeProperty('--vv-top');
+        document.documentElement.style.removeProperty('--vv-left');
+    });
+
+    it('syncs --vvh/--vv-top/--vv-left from visualViewport', () => {
+        controller.bindViewportResize();
+
+        expect(document.documentElement.style.getPropertyValue('--vvh')).toBe('600px');
+        expect(document.documentElement.style.getPropertyValue('--vv-top')).toBe('24px');
+        expect(document.documentElement.style.getPropertyValue('--vv-left')).toBe('0px');
     });
 });
