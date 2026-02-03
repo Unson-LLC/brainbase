@@ -35,6 +35,7 @@ export class MobileInputController {
         this.viewportBaseline = 0;
         this.viewportWidth = 0;
         this.keyboardDebug = null;
+        this.keyboardDebugMode = false;
     }
 
     init() {
@@ -212,6 +213,7 @@ export class MobileInputController {
     bindKeyboardDebug() {
         const params = new URLSearchParams(window.location.search);
         if (!params.has('kbdDebug') && localStorage.getItem('bb_keyboard_debug') !== '1') return;
+        this.keyboardDebugMode = true;
 
         const panel = document.createElement('div');
         panel.className = 'keyboard-debug-panel';
@@ -257,6 +259,9 @@ export class MobileInputController {
             `keyOff=${keyboardOffset || '0'}`
         ];
         this.keyboardDebug.textContent = lines.join(' ');
+        if (this.keyboardDebugMode && this.elements.dock) {
+            this.elements.dock.dataset.kbdDebug = lines.join(' ');
+        }
     }
 
     bindSessionChanges() {
