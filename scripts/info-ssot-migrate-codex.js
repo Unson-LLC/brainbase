@@ -184,23 +184,6 @@ const main = async () => {
       }
       projectRecords.set(code, { id: projectId, name, code, path: project.path });
 
-      if (!dryRun) {
-        await client.query(
-          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-           ON CONFLICT (id)
-           DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
-          [
-            projectId,
-            'project',
-            projectId,
-            JSON.stringify({ code, name }),
-            'member',
-            'internal'
-          ]
-        );
-      }
-
       console.log(`[project] ${code} (${projectId})`);
     }
 
@@ -220,6 +203,25 @@ const main = async () => {
     await client.query(`SELECT set_config('app.role', 'ceo', true)`);
     await client.query(`SELECT set_config('app.project_codes', $1, true)`, [projectCodes]);
     await client.query(`SELECT set_config('app.clearance', 'internal,restricted,finance,hr,contract', true)`);
+
+    if (!dryRun) {
+      for (const project of projectRecords.values()) {
+        await client.query(
+          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+           ON CONFLICT (id)
+           DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+          [
+            project.id,
+            'project',
+            project.id,
+            JSON.stringify({ code: project.code, name: project.name }),
+            'member',
+            'internal'
+          ]
+        );
+      }
+    }
 
     const peopleEntries = await fs.readdir(peopleRoot, { withFileTypes: true });
     const peopleMap = new Map();
