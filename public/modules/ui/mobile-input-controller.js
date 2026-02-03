@@ -220,10 +220,13 @@ export class MobileInputController {
             const rawOffset = calcKeyboardOffset(baseline, this.viewport.height, this.viewport.offsetTop);
             const dockRect = this.elements.dock?.getBoundingClientRect();
             const visualHeight = this.viewport.height || window.innerHeight;
-            const dockGap = dockRect ? Math.max(0, Math.round(visualHeight - dockRect.bottom)) : 0;
+            const dockGap = dockRect ? Math.round(visualHeight - dockRect.bottom) : 0;
             let offset = rawOffset > 0 ? rawOffset : heightDelta;
             const focusOpen = this.isInputFocused();
             let keyboardOpen = offset > 0 ? true : focusOpen;
+            if (focusOpen && offset > 0 && dockGap > 0) {
+                offset = Math.max(0, offset - dockGap);
+            }
             if (focusOpen && offset === 0 && dockGap > 0) {
                 offset = dockGap;
                 keyboardOpen = true;
@@ -286,7 +289,7 @@ export class MobileInputController {
         const visualHeight = data.visualHeight || this.viewport.height || window.innerHeight;
         const dockGap = typeof data.dockGap === 'number'
             ? data.dockGap
-            : (dockRect ? Math.max(0, Math.round(visualHeight - dockRect.bottom)) : 0);
+            : (dockRect ? Math.round(visualHeight - dockRect.bottom) : 0);
         const focused = this.isInputFocused();
         const lines = [
             `inner=${window.innerHeight}`,
