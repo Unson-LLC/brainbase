@@ -5070,6 +5070,10 @@ body.resizing iframe {
         bottom: calc(env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
     }
 
+    body.keyboard-open .console-area {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
     .mobile-input-row {
         display: flex;
         align-items: center;
