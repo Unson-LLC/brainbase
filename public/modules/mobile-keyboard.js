@@ -25,8 +25,11 @@ export function initMobileKeyboard() {
         return;
     }
 
-    // ターミナルスライド機能を初期化
-    setupTerminalSlide();
+    // Mobile input dock handles keyboard positioning; skip terminal slide to avoid double shift
+    const hasMobileDock = Boolean(document.getElementById('mobile-input-dock'));
+    if (!hasMobileDock) {
+        setupTerminalSlide();
+    }
 }
 
 /**
