@@ -283,25 +283,26 @@ const main = async () => {
       const projectCodesList = [...person.projects]
         .map((proj) => normalizeProjectCode(proj, projectCodeMap))
         .filter(Boolean);
+      const personPayload = JSON.stringify({
+        name: person.name,
+        aliases: [...person.aliases],
+        projects: projectCodesList,
+        orgs: [...person.orgs],
+        sources: [...person.sources],
+        source_ids: [...person.rawIds]
+      });
 
       if (!dryRun) {
         await client.query(
           `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
            VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
            ON CONFLICT (id)
-           DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+           DO NOTHING`,
           [
             personId,
             'person',
             null,
-            JSON.stringify({
-              name: person.name,
-              aliases: [...person.aliases],
-              projects: projectCodesList,
-              orgs: [...person.orgs],
-              sources: [...person.sources],
-              source_ids: [...person.rawIds]
-            }),
+            personPayload,
             'member',
             'internal'
           ]
@@ -329,6 +330,16 @@ const main = async () => {
             ]
           );
         }
+      }
+
+      if (!dryRun && projectCodesList.length > 0) {
+        await client.query(
+          `UPDATE graph_entities
+             SET payload = $2,
+                 updated_at = NOW()
+           WHERE id = $1`,
+          [personId, personPayload]
+        );
       }
 
       console.log(`[person] ${person.name} (${personId}) projects=${projectCodesList.join(',') || '-'}`);
