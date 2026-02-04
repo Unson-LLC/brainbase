@@ -224,13 +224,17 @@ export class MobileInputController {
             let offset = rawOffset > 0 ? rawOffset : heightDelta;
             const focusOpen = this.isInputFocused();
             let keyboardOpen = offset > 0 ? true : focusOpen;
-            if (focusOpen && offset > 0 && dockGap > 0) {
-                offset = Math.max(0, offset - dockGap);
+            if (focusOpen && offset > 0) {
+                // dockGapが負（Dockがviewport外）の時も補正
+                // dockGapには safe-area-inset-bottom も含まれるので、それを引く
+                offset = Math.max(0, offset + dockGap);
             }
-            if (focusOpen && offset === 0 && dockGap > 0) {
-                offset = dockGap;
-                keyboardOpen = true;
-            }
+            // FIXME: この処理が逆効果になっている可能性
+            // offset=0の時にdockGapを足すと、Dockがさらに上に浮いてしまう
+            // if (focusOpen && offset === 0 && dockGap > 0) {
+            //     offset = dockGap;
+            //     keyboardOpen = true;
+            // }
             document.body.style.setProperty('--keyboard-offset', `${offset}px`);
             document.documentElement.style.setProperty('--vvh', `${Math.round(this.viewport.height)}px`);
             document.documentElement.style.setProperty('--vv-top', `${Math.round(this.viewport.offsetTop || 0)}px`);
