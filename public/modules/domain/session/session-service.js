@@ -389,10 +389,17 @@ export class SessionService {
 
     /**
      * セッションをアンアーカイブ（復元）
+     * restore APIを呼び出し、ttydを再起動してセッションのengineで復元する
      * @param {string} sessionId - 復元するセッションのID
+     * @returns {Promise<Object>}
      */
     async unarchiveSession(sessionId) {
-        await this.updateSession(sessionId, { intendedState: 'active' });
+        const result = await this.httpClient.post(
+            `/api/sessions/${sessionId}/restore`
+        );
+
+        await this.loadSessions();
+        return result;
     }
 
     /**

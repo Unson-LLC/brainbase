@@ -173,7 +173,7 @@ export class SessionController {
      */
     restore = async (req, res) => {
         const { id } = req.params;
-        const { engine = 'claude' } = req.body;
+        const { engine: requestEngine } = req.body;
 
         const state = this.stateStore.get();
         const session = state.sessions?.find(s => s.id === id);
@@ -185,6 +185,9 @@ export class SessionController {
         if (session.intendedState !== 'archived') {
             return res.status(400).json({ error: 'Session is not archived' });
         }
+
+        // リクエストで指定されたengine > セッションに保存されたengine > デフォルトclaude
+        const engine = requestEngine || session.engine || 'claude';
 
         try {
             // Restore worktree if it existed
