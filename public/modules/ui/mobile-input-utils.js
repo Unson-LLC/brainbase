@@ -49,6 +49,7 @@ export function findWordBoundaryRight(text, index) {
 
 export function calcKeyboardOffset(innerHeight, viewportHeight, viewportOffsetTop = 0) {
     if (typeof innerHeight !== 'number' || typeof viewportHeight !== 'number') return 0;
-    const offsetTop = typeof viewportOffsetTop === 'number' ? viewportOffsetTop : 0;
-    return Math.max(0, innerHeight - viewportHeight - offsetTop);
+    // Keyboard height is simply the difference between inner height and viewport height
+    // offsetTop is viewport scroll position and should NOT be subtracted from keyboard offset
+    return Math.max(0, innerHeight - viewportHeight);
 }

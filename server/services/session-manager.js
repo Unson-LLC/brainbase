@@ -542,10 +542,17 @@ export class SessionManager {
 
         // Check if already running
         if (this.activeSessions.has(sessionId)) {
-            return {
-                port: this.activeSessions.get(sessionId).port,
-                proxyPath: `/console/${sessionId}`
-            };
+            const existing = this.activeSessions.get(sessionId);
+            const pid = existing.process?.pid || existing.pid;
+            if (pid && this._isProcessRunning(pid)) {
+                return {
+                    port: existing.port,
+                    proxyPath: `/console/${sessionId}`
+                };
+            }
+            // Process is dead but entry remains in map — clean up and proceed to new launch
+            console.warn(`[startTtyd] Stale entry for ${sessionId}: pid ${pid} is dead. Cleaning up and relaunching.`);
+            this.activeSessions.delete(sessionId);
         }
 
         // Allocate new port
@@ -723,14 +730,16 @@ export class SessionManager {
     /**
      * ttydプロセスを停止
      * @param {string} sessionId - セッションID
+     * @param {Object} [options] - オプション
+     * @param {boolean} [options.preserveTmux=false] - trueの場合、tmuxセッションを残してttydのみ再起動（PTYリーク修復用）
      * @returns {Promise<boolean>} 停止成功時true
      */
-    async stopTtyd(sessionId) {
+    async stopTtyd(sessionId, { preserveTmux = false } = {}) {
         if (this.activeSessions.has(sessionId)) {
             const sessionData = this.activeSessions.get(sessionId);
             // PIDを取得（新規起動時はprocess.pid、復旧時はpid直接）
             const pid = sessionData.process?.pid || sessionData.pid;
-            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid})`);
+            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
 
             if (pid) {
                 try {
@@ -752,8 +761,12 @@ export class SessionManager {
                 }
             }
 
-            // Cleanup TMUX session and MCP processes
-            await this.cleanupSessionResources(sessionId);
+            // Cleanup TMUX session and MCP processes (skip if preserveTmux)
+            if (!preserveTmux) {
+                await this.cleanupSessionResources(sessionId);
+            } else {
+                console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
+            }
 
             // ttydProcess情報をクリア
             await this._clearTtydProcessInfo(sessionId);

@@ -96,11 +96,13 @@ export class SessionController {
     /**
      * POST /api/sessions/:id/stop
      * ttydプロセスを停止（アーカイブせず）
+     * Body: { preserveTmux?: boolean } - trueならtmuxを残してttydのみ停止（PTYリーク修復用）
      */
     stop = async (req, res) => {
         const { id } = req.params;
+        const { preserveTmux = false } = req.body || {};
 
-        const stopped = await this.sessionManager.stopTtyd(id);
+        const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
 
         if (stopped) {
             // Update intendedState to 'stopped'
