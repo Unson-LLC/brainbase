@@ -42,10 +42,18 @@ export class EventBus extends EventTarget {
      * @private
      */
     _createEventMeta(causationId) {
-        const eventId = `evt_${crypto.randomUUID().slice(0, 8)}`;
+        // Fallback for browsers without crypto.randomUUID (e.g., Safari < 15.4)
+        const getRandomId = () => {
+            if (crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
+            // Fallback: generate random hex string
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        };
+        const eventId = `evt_${getRandomId().slice(0, 8)}`;
         return {
             eventId,
-            correlationId: this._currentCorrelationId || `corr_${crypto.randomUUID().slice(0, 8)}`,
+            correlationId: this._currentCorrelationId || `corr_${getRandomId().slice(0, 8)}`,
             causationId: causationId || this._lastEventId,
             timestamp: Date.now()
         };
