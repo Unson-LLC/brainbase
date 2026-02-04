@@ -2,6 +2,7 @@
 import dotenv from 'dotenv';
 import os from 'os';
 import express from 'express';
+import cors from 'cors';
 import { spawn, exec } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
@@ -246,6 +247,9 @@ const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 
 // Middleware
+// Enable CORS for local network access (e.g., mobile devices via IP address)
+app.use(cors());
+
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
 app.use(express.json({ limit: '1mb' }));
 
