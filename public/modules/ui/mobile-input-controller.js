@@ -226,9 +226,9 @@ export class MobileInputController {
             const focusOpen = this.isInputFocused();
             let keyboardOpen = offset > 0 ? true : focusOpen;
             if (focusOpen && offset > 0) {
-                // dockGapが負（Dockがviewport外）の時も補正
-                // dockGapには safe-area-inset-bottom も含まれるので、それを引く
-                offset = Math.max(0, offset + dockGap);
+                // dockGap > 0: Dock is above visualViewport bottom -> reduce offset
+                // dockGap < 0: Dock is below visualViewport bottom -> increase offset
+                offset = Math.max(0, offset - dockGap);
             }
             // FIXME: この処理が逆効果になっている可能性
             // offset=0の時にdockGapを足すと、Dockがさらに上に浮いてしまう
