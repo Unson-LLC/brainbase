@@ -55,4 +55,13 @@ if [ -n "$BRAINBASE_SESSION_ID" ] && command -v curl >/dev/null 2>&1; then
     --max-time 1 >/dev/null 2>&1 || true &
 fi
 
+# Clean up codex temporary update directories (prevents ENOTEMPTY errors)
+if [ -n "$NVM_DIR" ] && [ -d "$NVM_DIR/versions/node" ]; then
+  for node_version in "$NVM_DIR/versions/node"/v*/lib/node_modules/@openai; do
+    if [ -d "$node_version" ]; then
+      rm -rf "$node_version"/.codex-* 2>/dev/null || true
+    fi
+  done
+fi
+
 exec codex "$@"
