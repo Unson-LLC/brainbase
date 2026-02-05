@@ -77,7 +77,10 @@ export class MobileInputController {
             dockClipboard: document.getElementById('mobile-dock-clipboard'),
             dockSnippets: document.getElementById('mobile-dock-snippets'),
             dockSnippetAdd: document.getElementById('mobile-dock-snippet-add'),
-            dockSelectToggle: document.getElementById('mobile-dock-select-toggle'),
+            dockUploadImage: document.getElementById('mobile-dock-upload-image'),
+            dockCopyTerminal: document.getElementById('mobile-dock-copy-terminal'),
+            dockClear: document.getElementById('mobile-dock-clear'),
+            dockEscape: document.getElementById('mobile-dock-escape'),
             dockClipButtons: Array.from(document.querySelectorAll('[data-clip-slot="dock"]')),
             composer: document.getElementById('mobile-composer'),
             composerInput: document.getElementById('mobile-composer-input'),
@@ -100,12 +103,13 @@ export class MobileInputController {
     }
 
     bindDock() {
-        const { dockInput, dockSend, dockMore, dockExpand, dockClipboard, dockSnippets, dockSnippetAdd, dockSelectToggle, dockPaste } = this.elements;
+        const { dockInput, dockSend, dockMore, dockExpand, dockClipboard, dockSnippets, dockSnippetAdd, dockPaste, dockUploadImage, dockCopyTerminal, dockClear, dockEscape } = this.elements;
         dockInput?.addEventListener('focus', () => {
             this.inputFocused = true;
             this.setActiveInput(dockInput);
             this.syncKeyboardState();
             this.scheduleKeyboardSync();
+            this.scrollInputIntoView(dockInput);
         });
         dockInput?.addEventListener('blur', () => {
             this.inputFocused = false;
@@ -117,14 +121,41 @@ export class MobileInputController {
             this.scheduleDraftSave('dock', dockInput);
         });
 
-        dockSend?.addEventListener('click', () => this.handleSend('dock'));
-        dockMore?.addEventListener('click', () => this.toggleDockExpanded());
+        dockSend?.addEventListener('click', () => {
+            this.handleSend('dock');
+            // Send 後は入力欄がクリアされるので refocus 不要
+        });
+        dockMore?.addEventListener('click', () => {
+            this.toggleDockExpanded();
+            this.refocusInput(dockInput);
+        });
         dockExpand?.addEventListener('click', () => this.openComposer());
-        dockPaste?.addEventListener('click', () => this.pasteFromClipboard());
+        dockPaste?.addEventListener('click', () => {
+            this.pasteFromClipboard();
+            this.refocusInput(dockInput);
+        });
         dockClipboard?.addEventListener('click', () => this.openClipboardSheet());
         dockSnippets?.addEventListener('click', () => this.openSnippetSheet());
-        dockSnippetAdd?.addEventListener('click', () => this.addSnippetFromSelection());
-        dockSelectToggle?.addEventListener('click', () => this.toggleSelectionMode(dockSelectToggle));
+        dockSnippetAdd?.addEventListener('click', () => {
+            this.addSnippetFromSelection();
+            this.refocusInput(dockInput);
+        });
+        dockUploadImage?.addEventListener('click', () => {
+            this.handleUploadImage();
+            this.refocusInput(dockInput);
+        });
+        dockCopyTerminal?.addEventListener('click', () => {
+            this.handleCopyTerminal();
+            // モーダルが開くので refocus 不要
+        });
+        dockClear?.addEventListener('click', () => {
+            this.handleClear();
+            this.refocusInput(dockInput);
+        });
+        dockEscape?.addEventListener('click', () => {
+            this.handleEscape();
+            this.refocusInput(dockInput);
+        });
 
         this.elements.dockClipButtons.forEach((button, index) => {
             button.addEventListener('click', () => this.handleClipSlot(index));
@@ -220,11 +251,13 @@ export class MobileInputController {
             const rawOffset = calcKeyboardOffset(baseline, this.viewport.height, this.viewport.offsetTop);
             const dockRect = this.elements.dock?.getBoundingClientRect();
             const visualHeight = this.viewport.height || window.innerHeight;
-            // DOMRect is in viewport coordinates (not affected by visualViewport.offsetTop on iOS Safari)
-            const dockGap = dockRect ? Math.round(visualHeight - dockRect.bottom) : 0;
+            // getBoundingClientRect() returns document coordinates, so adjust for visualViewport.offsetTop
+            const dockGap = dockRect ? Math.round(visualHeight - (dockRect.bottom - this.viewport.offsetTop)) : 0;
             let offset = rawOffset > 0 ? rawOffset : heightDelta;
             const focusOpen = this.isInputFocused();
-            let keyboardOpen = offset > 0 ? true : focusOpen;
+            // 安定化: offset が大きい場合は確実にキーボードが表示されている
+            // offset が小さくてもフォーカスがあればキーボード表示中と判断
+            let keyboardOpen = offset > 20 || (offset > 0 && focusOpen) || focusOpen;
             if (focusOpen && offset > 0) {
                 // dockGap > 0: Dock is above visualViewport bottom -> reduce offset
                 // dockGap < 0: Dock is below visualViewport bottom -> increase offset
@@ -294,7 +327,7 @@ export class MobileInputController {
         const visualHeight = data.visualHeight || this.viewport.height || window.innerHeight;
         const dockGap = typeof data.dockGap === 'number'
             ? data.dockGap
-            : (dockRect ? Math.round(visualHeight - dockRect.bottom) : 0);
+            : (dockRect ? Math.round(visualHeight - (dockRect.bottom - this.viewport.offsetTop)) : 0);
         const focused = this.isInputFocused();
         const lines = [
             `inner=${window.innerHeight}`,
@@ -353,7 +386,13 @@ export class MobileInputController {
         buttons.forEach(button => {
             button.addEventListener('click', () => {
                 const action = button.getAttribute('data-mobile-cursor');
-                this.moveCursor(inputEl, action);
+                if (action === 'enter') {
+                    this.sendEnterKey();
+                    this.refocusInput(inputEl);
+                } else {
+                    this.moveCursor(inputEl, action);
+                    this.refocusInput(inputEl);
+                }
             });
         });
     }
@@ -496,6 +535,12 @@ export class MobileInputController {
             this.saveDraftNow(mode);
             eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode, sessionId });
             showSuccess('送信したよ');
+
+            // 送信後も入力欄にフォーカスを維持（連続入力のため）
+            setTimeout(() => {
+                inputEl.focus();
+                this.scrollInputIntoView(inputEl);
+            }, 100);
         } catch (error) {
             console.error('Failed to send mobile input:', error);
             showError('送信に失敗したよ');
@@ -544,6 +589,10 @@ export class MobileInputController {
                 return Math.max(0, index - 1);
             case 'right':
                 return Math.min(text.length, index + 1);
+            case 'up':
+                return this.findLineUp(text, index);
+            case 'down':
+                return this.findLineDown(text, index);
             case 'word-left':
                 return findWordBoundaryLeft(text, index);
             case 'word-right':
@@ -565,6 +614,45 @@ export class MobileInputController {
     findLineEnd(text, index) {
         const nextBreak = text.indexOf('\n', index);
         return nextBreak === -1 ? text.length : nextBreak;
+    }
+
+    findLineUp(text, index) {
+        // Find current line start
+        const currentLineStart = this.findLineStart(text, index);
+        const columnOffset = index - currentLineStart;
+
+        // If already on first line, stay at start
+        if (currentLineStart === 0) {
+            return 0;
+        }
+
+        // Find previous line start
+        const prevLineStart = this.findLineStart(text, currentLineStart - 1);
+        const prevLineEnd = currentLineStart - 1; // \n position
+        const prevLineLength = prevLineEnd - prevLineStart;
+
+        // Move to same column on previous line, or line end if shorter
+        return prevLineStart + Math.min(columnOffset, prevLineLength);
+    }
+
+    findLineDown(text, index) {
+        // Find current line start and end
+        const currentLineStart = this.findLineStart(text, index);
+        const currentLineEnd = this.findLineEnd(text, index);
+        const columnOffset = index - currentLineStart;
+
+        // If already on last line, stay at end
+        if (currentLineEnd === text.length) {
+            return text.length;
+        }
+
+        // Find next line start and end
+        const nextLineStart = currentLineEnd + 1; // after \n
+        const nextLineEnd = this.findLineEnd(text, nextLineStart);
+        const nextLineLength = nextLineEnd - nextLineStart;
+
+        // Move to same column on next line, or line end if shorter
+        return nextLineStart + Math.min(columnOffset, nextLineLength);
     }
 
     toggleSelectionMode(buttonEl) {
@@ -1034,6 +1122,123 @@ export class MobileInputController {
                 }
             }
         });
+    }
+
+    async sendEnterKey() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            showInfo('セッションを選択してね');
+            return;
+        }
+
+        try {
+            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
+                input: 'Enter',
+                type: 'key'
+            });
+        } catch (error) {
+            console.error('Failed to send Enter key:', error);
+            showError('Enterキーの送信に失敗したよ');
+        }
+    }
+
+    handleUploadImage() {
+        const imageFileInput = document.getElementById('image-file-input');
+        imageFileInput?.click();
+    }
+
+    async handleCopyTerminal() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            showInfo('セッションを選択してね');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/sessions/${sessionId}/content?lines=500`);
+            if (!res.ok) throw new Error('Failed to fetch content');
+
+            const { content } = await res.json();
+
+            const copyTerminalModal = document.getElementById('copy-terminal-modal');
+            const terminalContentDisplay = document.getElementById('terminal-content-display');
+
+            if (terminalContentDisplay && copyTerminalModal) {
+                terminalContentDisplay.textContent = content;
+                copyTerminalModal.classList.add('active');
+                if (window.lucide) window.lucide.createIcons();
+
+                // Scroll to bottom
+                setTimeout(() => {
+                    terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
+                }, 50);
+            }
+        } catch (error) {
+            console.error('Failed to get terminal content:', error);
+            showError('ターミナル内容の取得に失敗したよ');
+        }
+    }
+
+    async handleClear() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            showInfo('セッションを選択してね');
+            return;
+        }
+
+        try {
+            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
+                input: 'C-l',
+                type: 'key'
+            });
+        } catch (error) {
+            console.error('Failed to send Clear:', error);
+            showError('クリアコマンドの送信に失敗したよ');
+        }
+    }
+
+    async handleEscape() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            showInfo('セッションを選択してね');
+            return;
+        }
+
+        try {
+            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
+                input: 'Escape',
+                type: 'key'
+            });
+        } catch (error) {
+            console.error('Failed to send Escape:', error);
+            showError('Escapeキーの送信に失敗したよ');
+        }
+    }
+
+    scrollInputIntoView(inputEl) {
+        if (!inputEl) return;
+
+        // iOS Safari では focus() だけでは自動スクロールしないため、明示的に scrollIntoView を呼ぶ
+        // behavior: "smooth" でスムーズにスクロール
+        // block: "end" で画面の最下部に配置
+        setTimeout(() => {
+            inputEl.scrollIntoView({
+                behavior: "smooth",
+                block: "end",
+                inline: "nearest"
+            });
+        }, 100);
+    }
+
+    refocusInput(inputEl) {
+        if (!inputEl) return;
+
+        // iOS Safari でボタンタップ後に入力欄にフォーカスを戻す
+        // setTimeout を使うことでボタンのクリックイベントが完了してからフォーカスを当てる
+        setTimeout(() => {
+            inputEl.focus();
+            this.scrollInputIntoView(inputEl);
+        }, 150);
     }
 
     destroy() {

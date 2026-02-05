@@ -89,6 +89,11 @@
                         </div>
                     </div>
                 </div>
+                <button id="auth-btn" class="settings-link auth-link">
+                    <i data-lucide="log-in"></i>
+                    <span id="auth-btn-text">ログイン</span>
+                    <span id="auth-status-badge" class="auth-status-badge neutral">未ログイン</span>
+                </button>
                 <button id="settings-btn" class="settings-link">
                     <i data-lucide="settings"></i>
                     <span>Settings</span>
@@ -770,15 +775,15 @@
 
     <!-- Mobile Input Dock -->
     <div id="mobile-input-dock" class="mobile-input-dock compact">
+        <!-- Cursor controls: Up, Down, Left, Right, Enter -->
         <div class="mobile-input-row mobile-input-cursor">
-            <button class="mobile-input-btn" data-mobile-cursor="line-start" title="行頭">|&lt;</button>
-            <button class="mobile-input-btn" data-mobile-cursor="word-left" title="単語左">W&lt;</button>
-            <button class="mobile-input-btn" data-mobile-cursor="left" title="左">&lt;</button>
-            <button class="mobile-input-btn" data-mobile-cursor="right" title="右">&gt;</button>
-            <button class="mobile-input-btn" data-mobile-cursor="word-right" title="単語右">W&gt;</button>
-            <button class="mobile-input-btn" data-mobile-cursor="line-end" title="行末">&gt;|</button>
-            <button class="mobile-input-toggle" id="mobile-dock-select-toggle" title="選択モード">Sel</button>
+            <button class="mobile-input-btn" data-mobile-cursor="up" title="上">↑</button>
+            <button class="mobile-input-btn" data-mobile-cursor="down" title="下">↓</button>
+            <button class="mobile-input-btn" data-mobile-cursor="left" title="左">←</button>
+            <button class="mobile-input-btn" data-mobile-cursor="right" title="右">→</button>
+            <button class="mobile-input-btn" data-mobile-cursor="enter" title="Enter">⏎</button>
         </div>
+        <!-- Input area with Send/More -->
         <div class="mobile-input-row mobile-input-main">
             <textarea id="mobile-dock-input" rows="1" placeholder="ここに入力..." aria-label="モバイル入力"></textarea>
             <div class="mobile-input-main-actions">
@@ -786,15 +791,20 @@
                 <button class="mobile-input-secondary" id="mobile-dock-more">More</button>
             </div>
         </div>
-        <div class="mobile-input-row mobile-input-shortcuts">
-            <button class="mobile-input-clip" data-clip-slot="dock">Clip1</button>
-            <button class="mobile-input-clip" data-clip-slot="dock">Clip2</button>
-            <button class="mobile-input-clip" data-clip-slot="dock">Clip3</button>
-            <button class="mobile-input-secondary" id="mobile-dock-paste">Paste</button>
-            <button class="mobile-input-secondary" id="mobile-dock-clipboard">Clips</button>
-            <button class="mobile-input-secondary" id="mobile-dock-snippets">Snips</button>
-            <button class="mobile-input-secondary" id="mobile-dock-expand">Edit</button>
-            <button class="mobile-input-secondary" id="mobile-dock-snippet-add">Snip+</button>
+        <!-- Actions: Image upload, Copy terminal, Clear, Escape (expanded mode only) -->
+        <div class="mobile-input-row mobile-input-actions">
+            <button class="mobile-input-btn" id="mobile-dock-upload-image" title="画像アップロード">
+                <i data-lucide="image-plus"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-copy-terminal" title="ターミナル内容をコピー">
+                <i data-lucide="copy"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-clear" title="画面クリア (Ctrl+L)">
+                <i data-lucide="eraser"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-escape" title="Escapeキーを送信">
+                <i data-lucide="x-octagon"></i>
+            </button>
         </div>
     </div>
 
