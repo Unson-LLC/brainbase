@@ -8,7 +8,9 @@ export function createAuthRouter(authService) {
 
     router.get('/slack/start', controller.slackStart);
     router.get('/slack/callback', controller.slackCallback);
+    router.post('/refresh', controller.refresh);
     router.post('/logout', requireAuth(authService), controller.logout);
+    router.get('/verify', requireAuth(authService), controller.verify);
 
     return router;
 }

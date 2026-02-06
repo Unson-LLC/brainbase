@@ -1,6 +1,9 @@
 export function requireAuth(authService) {
     return (req, res, next) => {
         try {
+            if (req.method === 'OPTIONS') {
+                return next();
+            }
             const header = req.headers.authorization || '';
             const token = header.startsWith('Bearer ') ? header.slice(7) : null;
             if (!token) {

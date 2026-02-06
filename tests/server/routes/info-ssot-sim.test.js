@@ -6,6 +6,7 @@ import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 
 const DATABASE_URL = process.env.INFO_SSOT_DATABASE_URL || 'postgres://localhost/brainbase_ssot';
 process.env.INFO_SSOT_DATABASE_URL = DATABASE_URL;
+process.env.ALLOW_INSECURE_SSOT_HEADERS = 'true';
 
 const buildHeaders = ({ role = 'gm', projects, clearance = 'internal' } = {}) => ({
     'x-brainbase-role': role,

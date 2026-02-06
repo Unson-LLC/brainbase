@@ -2,6 +2,7 @@
 import dotenv from 'dotenv';
 import os from 'os';
 import express from 'express';
+import cors from 'cors';
 import { spawn, exec } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
@@ -49,8 +50,8 @@ import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
 import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
-import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createAuthRouter } from './server/routes/auth.js';
+import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -107,7 +108,7 @@ const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(path.dirname(BRAINB
 console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
 console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
 
-// Worktree検知: .worktrees配下で実行されている場合はport 3001をデフォルトに
+// Worktree検知: .worktrees配下で実行されている場合は別ポートをデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
 
 async function resolveGitInfo(repoDir) {
@@ -158,7 +159,7 @@ async function buildRuntimeInfo({ repoDir, port, defaultPort }) {
         startedAt: new Date().toISOString()
     };
 }
-const DEFAULT_PORT = isWorktree ? 3001 : 3000;
+const DEFAULT_PORT = isWorktree ? 31014 : 31013;
 const VAR_DIR = process.env.BRAINBASE_VAR_DIR || (
     isWorktree
         ? path.join(PROJECTS_ROOT, 'brainbase', 'var')
@@ -253,6 +254,14 @@ const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
 
 // Middleware
+// Enable CORS for remote auth/api access (local UI -> bb.unson.jp)
+app.use(cors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'X-Session-Id'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+}));
+
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
 app.use(express.json({ limit: '1mb' }));
 
@@ -265,7 +274,7 @@ app.use((req, res, next) => {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",  // Google Fonts CSS
         "font-src 'self' https://fonts.gstatic.com",  // Google Fonts files
         "img-src 'self' data:",
-        "connect-src 'self' ws: wss: https://unpkg.com",  // unpkg.com for source maps
+        "connect-src 'self' ws: wss: https://unpkg.com https://bb.unson.jp",  // allow remote API
         "frame-ancestors 'self'"
     ].join('; '));
     // Prevent MIME type sniffing
@@ -486,11 +495,16 @@ app.use('/api/config', createConfigRouter(configParser, configService));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
 app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
-app.use('/api/brainbase', createBrainbaseRouter({ taskParser, worktreeService, configParser }));
+app.use('/api/brainbase', createBrainbaseRouter({
+    taskParser,
+    worktreeService,
+    configParser,
+    projectsRoot: PROJECTS_ROOT
+}));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
+app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
-app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================

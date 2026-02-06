@@ -3360,6 +3360,32 @@ body.resizing iframe {
     justify-content: center;
 }
 
+.auth-link {
+    position: relative;
+}
+
+.auth-status-badge {
+    margin-left: auto;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.auth-status-badge.success {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.auth-status-badge.warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+}
+
 /* Settings View Container (now in modal) */
 .settings-view {
     display: flex;
@@ -4019,6 +4045,7 @@ body.resizing iframe {
     color: var(--text-secondary);
     margin-bottom: 1rem;
 }
+
 
 /* =========================================
    Organizations Panel Styles

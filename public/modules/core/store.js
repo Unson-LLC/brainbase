@@ -191,6 +191,14 @@ export const appStore = new Store({
             assignee: ''
         }
     },
+    auth: {
+        status: 'anonymous',
+        token: null,
+        access: null,
+        exp: null,
+        iat: null,
+        expiresAt: null
+    },
     ui: {
         inboxOpen: false,
         draggedSessionId: null,

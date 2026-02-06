@@ -7,9 +7,25 @@ function parseCsv(value) {
     return value.split(',').map(v => v.trim()).filter(Boolean);
 }
 
+function allowHeaderAccess() {
+    if (process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
+        return true;
+    }
+    if (process.env.BRAINBASE_TEST_MODE === 'true') {
+        return true;
+    }
+    if (process.env.NODE_ENV === 'test') {
+        return true;
+    }
+    return false;
+}
+
 function buildAccessContext(req) {
     if (req.access) {
         return req.access;
+    }
+    if (!allowHeaderAccess()) {
+        throw new Error('Slack OAuth token required');
     }
     const role = (req.get('x-brainbase-role') || req.get('x-role') || '').toLowerCase();
     const projectHeader = req.get('x-brainbase-projects') || req.get('x-projects') || '';
@@ -38,6 +54,9 @@ function assertAccessContext(access) {
 
 function resolveErrorStatus(error) {
     const message = String(error?.message || '');
+    if (message.includes('Slack OAuth token required')) {
+        return 401;
+    }
     if (message.includes('Access denied')) {
         return 403;
     }

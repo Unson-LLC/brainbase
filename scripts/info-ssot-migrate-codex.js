@@ -71,6 +71,95 @@ const extractTitle = (body, fallback) => {
   return fallback;
 };
 
+const parseTableLine = (line) => line
+  .trim()
+  .replace(/^\|/, '')
+  .replace(/\|$/, '')
+  .split('|')
+  .map((cell) => cell.trim());
+
+const isSeparatorRow = (line) => /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line.trim());
+
+const parseMarkdownTables = (content) => {
+  const lines = content.split(/\r?\n/);
+  const tables = [];
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    if (!lines[i].trim().startsWith('|')) continue;
+    if (!isSeparatorRow(lines[i + 1] || '')) continue;
+    const headers = parseTableLine(lines[i]);
+    const rows = [];
+    let cursor = i + 2;
+    while (cursor < lines.length && lines[cursor].trim().startsWith('|')) {
+      const row = parseTableLine(lines[cursor]);
+      if (row.length === headers.length) rows.push(row);
+      cursor += 1;
+    }
+    tables.push({ headers, rows });
+    i = cursor - 1;
+  }
+  return tables;
+};
+
+const splitStorySections = (content) => {
+  const regex = /^####\s+([A-Z]\d-\d{3}):\s*(.+)$/gm;
+  const sections = [];
+  let match;
+  let cursor = 0;
+  let current = null;
+  while ((match = regex.exec(content)) !== null) {
+    if (current) {
+      current.body = content.slice(cursor, match.index).trim();
+      sections.push(current);
+    }
+    current = { storyId: match[1], title: match[2].trim(), body: '' };
+    cursor = regex.lastIndex;
+  }
+  if (current) {
+    current.body = content.slice(cursor).trim();
+    sections.push(current);
+  }
+  return sections;
+};
+
+const extractBeatMapBlock = (body) => {
+  if (!body) return null;
+  const regex = /```(?:beat_map|yaml\s+beat_map|yml\s+beat_map)\s*\n([\s\S]*?)\n```/i;
+  const match = body.match(regex);
+  if (!match) return null;
+  const raw = match[1].trim();
+  if (!raw) return null;
+  try {
+    const parsed = yaml.load(raw);
+    return { raw, parsed };
+  } catch (error) {
+    return { raw, parsed: null, error: true };
+  }
+};
+
+const parseCsvLine = (line) => {
+  const out = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      out.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  out.push(current);
+  return out;
+};
+
 const classifyDoc = (relPath) => {
   const lower = relPath.toLowerCase();
   const base = path.basename(lower);
@@ -145,6 +234,41 @@ const pickProjectCode = (data, projectCodeMap) => {
   return null;
 };
 
+const extractProjectCodesFromText = (text, projectCodeMap) => {
+  if (!text) return [];
+  const tokens = String(text)
+    .split(/[,\s/]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const codes = tokens
+    .map((token) => normalizeProjectCode(token, projectCodeMap))
+    .filter(Boolean);
+  return [...new Set(codes)];
+};
+
+const inferProjectCodeFromPath = (relPath, projectCodeMap) => {
+  const lower = relPath.toLowerCase();
+  for (const [token, code] of projectCodeMap.entries()) {
+    if (lower.includes(token)) return code;
+  }
+  return null;
+};
+
+const extractProjectCodesFromRefs = (refs, projectCodeMap) => {
+  if (!Array.isArray(refs)) return [];
+  const codes = new Set();
+  for (const ref of refs) {
+    if (!ref) continue;
+    extractProjectCodesFromText(ref, projectCodeMap).forEach((code) => codes.add(code));
+    const match = String(ref).match(/projects\/([a-z0-9_-]+)/i);
+    if (match) {
+      const code = normalizeProjectCode(match[1], projectCodeMap);
+      if (code) codes.add(code);
+    }
+  }
+  return [...codes];
+};
+
 const pool = new Pool({ connectionString: dbUrl });
 
 const main = async () => {
@@ -211,6 +335,11 @@ const main = async () => {
     );
     const settingsRow = rlsSettings.rows[0] || {};
     console.log(`[rls] role=${settingsRow.role || '-'} projects=${settingsRow.projects || '-'} clearance=${settingsRow.clearance || '-'}`);
+
+    const globalProject = projectRecords.get(GLOBAL_PROJECT_CODE) || projectRecords.values().next().value;
+    if (!globalProject) {
+      throw new Error(`Global project not found: ${GLOBAL_PROJECT_CODE}`);
+    }
 
     if (!dryRun) {
       for (const project of projectRecords.values()) {
@@ -390,6 +519,59 @@ const main = async () => {
       // orgs folder may not exist in older structures
     }
 
+    const upsertGraphEntity = async ({
+      id,
+      entityType,
+      projectId,
+      payload,
+      roleMin,
+      sensitivity
+    }) => {
+      if (dryRun) return;
+      await client.query(
+        `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+         ON CONFLICT (id)
+         DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+        [id, entityType, projectId, JSON.stringify(payload || {}), roleMin, sensitivity]
+      );
+    };
+
+    const upsertGraphEdge = async ({
+      fromId,
+      toId,
+      relType,
+      projectId,
+      roleMin,
+      sensitivity
+    }) => {
+      if (dryRun) return;
+      await client.query(
+        `INSERT INTO graph_edges (id, from_id, to_id, rel_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+         ON CONFLICT (from_id, to_id, rel_type)
+         DO UPDATE SET updated_at = NOW()`,
+        [`edg_${ulid()}`, fromId, toId, relType, projectId, JSON.stringify({}), roleMin, sensitivity]
+      );
+    };
+
+    const ensureProject = (code) => {
+      if (!code) return globalProject;
+      return projectRecords.get(code) || globalProject;
+    };
+
+    const upsertBelongsToProject = async (fromId, project, roleMin, sensitivity) => {
+      if (!project) return;
+      await upsertGraphEdge({
+        fromId,
+        toId: project.id,
+        relType: 'belongs_to_project',
+        projectId: project.id,
+        roleMin,
+        sensitivity
+      });
+    };
+
     const upsertDocument = async (doc, project, rootLabel) => {
       const { relPath, title, classification } = doc;
       const docId = hashId('doc', relPath);
@@ -453,14 +635,517 @@ const main = async () => {
       return count;
     };
 
+    const ingestApps = async () => {
+      const appsPath = path.join(CODEX_ROOT, 'common', 'meta', 'apps.md');
+      try {
+        const content = await fs.readFile(appsPath, 'utf-8');
+        const tables = parseMarkdownTables(content);
+        const table = tables.find((t) => t.headers.some((h) => h.includes('app_id')));
+        if (!table) return;
+        const headerIndex = new Map(table.headers.map((h, idx) => [h, idx]));
+        for (const row of table.rows) {
+          const name = row[headerIndex.get('アプリ名')] || row[0];
+          const appIdRaw = row[headerIndex.get('app_id')] || normalizeToken(name);
+          if (!name || !appIdRaw) continue;
+          const projectText = row[headerIndex.get('所属プロジェクト')] || '';
+          const orgText = row[headerIndex.get('所属組織')] || '';
+          const status = row[headerIndex.get('ステータス')] || '';
+          const summary = row[headerIndex.get('概要')] || '';
+          const appId = `app_${normalizeToken(appIdRaw) || hashId('app', name).slice(4)}`;
+          const projectCodes = extractProjectCodesFromText(projectText, projectCodeMap);
+          const projects = projectCodes.length ? projectCodes.map((code) => ensureProject(code)) : [globalProject];
+          await upsertGraphEntity({
+            id: appId,
+            entityType: 'app',
+            projectId: projects[0]?.id || null,
+            payload: {
+              name,
+              app_id: appIdRaw,
+              projects: projectCodes,
+              orgs: orgText ? orgText.split('/').map((item) => item.trim()).filter(Boolean) : [],
+              status,
+              summary,
+              source: path.relative(CODEX_ROOT, appsPath)
+            },
+            roleMin: 'member',
+            sensitivity: 'internal'
+          });
+          for (const project of projects) {
+            await upsertBelongsToProject(appId, project, 'member', 'internal');
+          }
+        }
+      } catch (error) {
+        // apps.md may not exist
+      }
+    };
+
+    const ingestBrands = async () => {
+      const brandRoot = path.join(CODEX_ROOT, 'brand');
+      try {
+        const entries = await fs.readdir(brandRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          const filePath = path.join(brandRoot, entry.name);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const { data, body } = parseFrontmatter(content);
+          const title = extractTitle(body, entry.name);
+          const slug = path.basename(entry.name, '.md');
+          const brandIdRaw = String(data.brand_id || slug).trim();
+          const brandId = `brd_${normalizeToken(brandIdRaw) || hashId('brand', filePath).slice(4)}`;
+
+          const projectCodes = new Set();
+          const picked = pickProjectCode(data, projectCodeMap);
+          if (picked) projectCodes.add(picked);
+          if (Array.isArray(data.projects)) {
+            data.projects
+              .map((proj) => normalizeProjectCode(proj, projectCodeMap))
+              .filter(Boolean)
+              .forEach((code) => projectCodes.add(code));
+          }
+          extractProjectCodesFromText(slug.replace(/[_-]/g, ' '), projectCodeMap)
+            .forEach((code) => projectCodes.add(code));
+
+          const projects = projectCodes.size
+            ? [...projectCodes].map((code) => ensureProject(code))
+            : [globalProject];
+
+          await upsertGraphEntity({
+            id: brandId,
+            entityType: 'brand',
+            projectId: projects[0]?.id || null,
+            payload: {
+              title,
+              brand_id: data.brand_id || null,
+              projects: [...projectCodes],
+              source: path.relative(CODEX_ROOT, filePath)
+            },
+            roleMin: 'member',
+            sensitivity: 'internal'
+          });
+
+          for (const project of projects) {
+            await upsertBelongsToProject(brandId, project, 'member', 'internal');
+          }
+        }
+      } catch (error) {
+        // brand folder may not exist
+      }
+    };
+
+    const ingestCustomers = async () => {
+      const customersRoot = path.join(CODEX_ROOT, 'common', 'meta', 'customers');
+      try {
+        const entries = await fs.readdir(customersRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          const filePath = path.join(customersRoot, entry.name);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const { data } = parseFrontmatter(content);
+          const name = String(data.name || '').trim();
+          if (!name) continue;
+          const rawId = String(data.customer_id || normalizeToken(name) || entry.name).trim();
+          const customerId = `cus_${normalizeToken(rawId) || hashId('customer', filePath).slice(4)}`;
+          const projectCodes = Array.isArray(data.projects)
+            ? data.projects.map((proj) => normalizeProjectCode(proj, projectCodeMap)).filter(Boolean)
+            : [];
+          const projects = projectCodes.length ? projectCodes.map((code) => ensureProject(code)) : [globalProject];
+          await upsertGraphEntity({
+            id: customerId,
+            entityType: 'customer',
+            projectId: projects[0]?.id || null,
+            payload: {
+              name,
+              customer_id: data.customer_id || null,
+              status: data.status || null,
+              updated: data.updated || null,
+              projects: projectCodes,
+              source: path.relative(CODEX_ROOT, filePath)
+            },
+            roleMin: 'member',
+            sensitivity: 'internal'
+          });
+          for (const project of projects) {
+            await upsertBelongsToProject(customerId, project, 'member', 'internal');
+          }
+        }
+      } catch (error) {
+        // customers folder may not exist
+      }
+    };
+
+    const ingestPartners = async () => {
+      const partnersRoot = path.join(CODEX_ROOT, 'common', 'meta', 'partners');
+      try {
+        const entries = await fs.readdir(partnersRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          const filePath = path.join(partnersRoot, entry.name);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const { data, body } = parseFrontmatter(content);
+          if (data && data.name) {
+            const rawId = String(data.partner_id || normalizeToken(data.name) || entry.name).trim();
+            const partnerId = `par_${normalizeToken(rawId) || hashId('partner', filePath).slice(4)}`;
+            const projectCodes = Array.isArray(data.projects)
+              ? data.projects.map((proj) => normalizeProjectCode(proj, projectCodeMap)).filter(Boolean)
+              : [];
+            const projects = projectCodes.length ? projectCodes.map((code) => ensureProject(code)) : [globalProject];
+            await upsertGraphEntity({
+              id: partnerId,
+              entityType: 'partner',
+              projectId: projects[0]?.id || null,
+              payload: {
+                name: data.name,
+                partner_id: data.partner_id || null,
+                category: data.category || null,
+                status: data.status || null,
+                updated: data.updated || null,
+                projects: projectCodes,
+                source: path.relative(CODEX_ROOT, filePath)
+              },
+              roleMin: 'member',
+              sensitivity: 'internal'
+            });
+            for (const project of projects) {
+              await upsertBelongsToProject(partnerId, project, 'member', 'internal');
+            }
+            continue;
+          }
+          const tables = parseMarkdownTables(body || content);
+          for (const table of tables) {
+            if (!table.headers.some((h) => h.includes('事務所名') || h.includes('パートナー') || h.includes('担当者'))) continue;
+            const headerIndex = new Map(table.headers.map((h, idx) => [h, idx]));
+            for (const row of table.rows) {
+              const name = row[headerIndex.get('事務所名')] || row[headerIndex.get('会社名')] || row[1];
+              if (!name) continue;
+              const partnerId = `par_${hashId('partner', `${entry.name}:${name}`).slice(4)}`;
+              const projectCode = inferProjectCodeFromPath(path.relative(CODEX_ROOT, filePath), projectCodeMap) || 'zeims';
+              const project = ensureProject(projectCode);
+              await upsertGraphEntity({
+                id: partnerId,
+                entityType: 'partner',
+                projectId: project?.id || null,
+                payload: {
+                  name,
+                  contact: row[headerIndex.get('担当者')] || null,
+                  location: row[headerIndex.get('所在地')] || null,
+                  url: row[headerIndex.get('HP')] || null,
+                  status: row[headerIndex.get('アンケート')] || null,
+                  source: path.relative(CODEX_ROOT, filePath)
+                },
+                roleMin: 'member',
+                sensitivity: 'internal'
+              });
+              await upsertBelongsToProject(partnerId, project, 'member', 'internal');
+            }
+          }
+        }
+      } catch (error) {
+        // partners folder may not exist
+      }
+    };
+
+    const ingestContacts = async () => {
+      const contactsRoot = path.join(CODEX_ROOT, 'common', 'meta', 'contacts', 'data');
+      const seen = new Set();
+      try {
+        const entries = await fs.readdir(contactsRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith('.csv')) continue;
+          const filePath = path.join(contactsRoot, entry.name);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const lines = content.split(/\r?\n/).filter(Boolean);
+          let headers = null;
+          let headerIndex = null;
+          for (const line of lines) {
+            const row = parseCsvLine(line.replace(/^\uFEFF/, ''));
+            if (row.includes('氏名')) {
+              headers = row;
+              headerIndex = new Map(headers.map((h, idx) => [h, idx]));
+              continue;
+            }
+            if (!headerIndex) continue;
+            if (!row.some((cell) => cell && cell.trim())) continue;
+            const name = row[headerIndex.get('氏名')] || '';
+            const company = row[headerIndex.get('会社名')] || '';
+            if (!name && !company) continue;
+            const email = row[headerIndex.get('e-mail')] || '';
+            const key = normalizeToken(`${name}|${company}|${email}`);
+            if (key && seen.has(key)) continue;
+            if (key) seen.add(key);
+            const contactId = `con_${hashId('contact', `${entry.name}:${name}:${company}:${email}`).slice(4)}`;
+            await upsertGraphEntity({
+              id: contactId,
+              entityType: 'contact',
+              projectId: globalProject.id,
+              payload: {
+                name,
+                company,
+                department: row[headerIndex.get('部署名')] || null,
+                role: row[headerIndex.get('役職')] || null,
+                email,
+                phone: row[headerIndex.get('携帯電話')] || row[headerIndex.get('TEL直通')] || row[headerIndex.get('TEL会社')] || null,
+                url: row[headerIndex.get('URL')] || null,
+                exchanged_at: row[headerIndex.get('名刺交換日')] || null,
+                source: path.relative(CODEX_ROOT, filePath)
+              },
+              roleMin: 'gm',
+              sensitivity: 'restricted'
+            });
+            await upsertBelongsToProject(contactId, globalProject, 'gm', 'restricted');
+          }
+        }
+      } catch (error) {
+        // contacts folder may not exist
+      }
+    };
+
+    const ingestContracts = async () => {
+      const contractsPath = path.join(CODEX_ROOT, 'common', 'meta', 'contracts', 'index.md');
+      try {
+        const content = await fs.readFile(contractsPath, 'utf-8');
+        const tables = parseMarkdownTables(content);
+        for (const table of tables) {
+          if (!table.headers.some((h) => h.includes('contract_id'))) continue;
+          const headerIndex = new Map(table.headers.map((h, idx) => [h, idx]));
+          for (const row of table.rows) {
+            const contractIdRaw = row[headerIndex.get('contract_id')] || row[0];
+            if (!contractIdRaw) continue;
+            const contractId = `ctr_${normalizeToken(contractIdRaw) || hashId('contract', `${contractsPath}:${contractIdRaw}`).slice(4)}`;
+            const projectText = row[headerIndex.get('プロジェクト')] || '';
+            const projectCodes = extractProjectCodesFromText(projectText, projectCodeMap);
+            const projects = projectCodes.length ? projectCodes.map((code) => ensureProject(code)) : [globalProject];
+            await upsertGraphEntity({
+              id: contractId,
+              entityType: 'contract',
+              projectId: projects[0]?.id || null,
+              payload: {
+                contract_id: contractIdRaw,
+                contract_type: row[headerIndex.get('契約種別')] || null,
+                counterparty: row[headerIndex.get('相手方')] || null,
+                org: row[headerIndex.get('当社法人')] || null,
+                project: projectText || null,
+                price: row[headerIndex.get('月額/単価')] || null,
+                billing_cycle: row[headerIndex.get('入金サイクル')] || row[headerIndex.get('支払サイクル')] || null,
+                duration: row[headerIndex.get('契約期間')] || null,
+                status: row[headerIndex.get('ステータス')] || null,
+                notes: row[headerIndex.get('備考')] || null,
+                source: path.relative(CODEX_ROOT, contractsPath)
+              },
+              roleMin: 'ceo',
+              sensitivity: 'contract'
+            });
+            for (const project of projects) {
+              await upsertBelongsToProject(contractId, project, 'ceo', 'contract');
+            }
+          }
+        }
+      } catch (error) {
+        // contracts file may not exist
+      }
+    };
+
+    const ingestFinancials = async () => {
+      const financialsRoot = path.join(CODEX_ROOT, 'common', 'meta', 'financials');
+      try {
+        const entries = await fs.readdir(financialsRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          const filePath = path.join(financialsRoot, entry.name);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const { data, body } = parseFrontmatter(content);
+          const title = extractTitle(body, entry.name);
+          const financeId = `fin_${hashId('finance', filePath).slice(4)}`;
+          await upsertGraphEntity({
+            id: financeId,
+            entityType: 'finance',
+            projectId: globalProject.id,
+            payload: {
+              title,
+              source: path.relative(CODEX_ROOT, filePath),
+              meta: data || {}
+            },
+            roleMin: 'ceo',
+            sensitivity: 'finance'
+          });
+          await upsertBelongsToProject(financeId, globalProject, 'ceo', 'finance');
+        }
+      } catch (error) {
+        // financials folder may not exist
+      }
+    };
+
+    const ingestCapital = async () => {
+      const capitalFiles = [
+        path.join(CODEX_ROOT, 'common', 'meta', 'capital.md'),
+        path.join(CODEX_ROOT, 'common', 'meta', 'capital_assessment.md')
+      ];
+      for (const filePath of capitalFiles) {
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const { data, body } = parseFrontmatter(content);
+          const title = extractTitle(body, path.basename(filePath));
+          const capitalId = `cap_${hashId('capital', filePath).slice(4)}`;
+          await upsertGraphEntity({
+            id: capitalId,
+            entityType: 'capital',
+            projectId: globalProject.id,
+            payload: {
+              title,
+              source: path.relative(CODEX_ROOT, filePath),
+              meta: data || {}
+            },
+            roleMin: 'ceo',
+            sensitivity: 'finance'
+          });
+          await upsertBelongsToProject(capitalId, globalProject, 'ceo', 'finance');
+        } catch (error) {
+          // capital file may not exist
+        }
+      }
+    };
+
+    const ingestStories = async () => {
+      const storiesPath = path.join(CODEX_ROOT, 'common', '00_stories.md');
+      const storyIdMap = new Map();
+      try {
+        const content = await fs.readFile(storiesPath, 'utf-8');
+        const sections = splitStorySections(content);
+        for (const section of sections) {
+          const storyId = section.storyId;
+          const title = section.title.trim();
+          const entityId = `story_${normalizeToken(storyId) || hashId('story', storyId).slice(4)}`;
+          const beatMap = extractBeatMapBlock(section.body || '');
+          const payload = {
+            story_id: storyId,
+            title,
+            source: path.relative(CODEX_ROOT, storiesPath)
+          };
+          if (beatMap) {
+            payload.beat_map_raw = beatMap.raw;
+            if (beatMap.parsed) {
+              payload.beat_map = beatMap.parsed;
+            } else {
+              payload.beat_map_parse_error = true;
+            }
+          }
+          await upsertGraphEntity({
+            id: entityId,
+            entityType: 'story',
+            projectId: globalProject.id,
+            payload,
+            roleMin: 'member',
+            sensitivity: 'internal'
+          });
+          await upsertBelongsToProject(entityId, globalProject, 'member', 'internal');
+          storyIdMap.set(storyId, entityId);
+        }
+      } catch (error) {
+        // stories file may not exist
+      }
+      return storyIdMap;
+    };
+
+    const ingestFrames = async () => {
+      for (const project of projectRecords.values()) {
+        const frameId = `frm_${normalizeToken(project.code) || hashId('frame', project.code).slice(4)}`;
+        await upsertGraphEntity({
+          id: frameId,
+          entityType: 'frame',
+          projectId: project.id,
+          payload: {
+            code: project.code,
+            name: project.name,
+            source: 'project'
+          },
+          roleMin: 'member',
+          sensitivity: 'internal'
+        });
+        await upsertBelongsToProject(frameId, project, 'member', 'internal');
+      }
+    };
+
+    const ingestRunLedger = async (storyIdMap) => {
+      const ledgerRoot = path.join(CODEX_ROOT, 'common', 'ops', 'run_ledger');
+      const ledgerPath = path.join(ledgerRoot, 'ledger.jsonl');
+      let content = '';
+      try {
+        content = await fs.readFile(ledgerPath, 'utf-8');
+      } catch (error) {
+        return;
+      }
+      const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+      for (const line of lines) {
+        let record = null;
+        try {
+          record = JSON.parse(line);
+        } catch (error) {
+          continue;
+        }
+        const runId = String(record.run_id || record.runId || '').trim();
+        const eventId = `evt_${normalizeToken(runId) || hashId('event', line).slice(4)}`;
+        const refs = []
+          .concat(record.input_refs || [])
+          .concat(record.output_refs || [])
+          .filter(Boolean);
+        const projectCodes = extractProjectCodesFromRefs(refs, projectCodeMap);
+        const project = projectCodes.length ? ensureProject(projectCodes[0]) : globalProject;
+        const payload = {
+          run_id: runId || null,
+          pipeline: record.pipeline || null,
+          phase: record.phase || null,
+          status: record.status || null,
+          input_refs: record.input_refs || [],
+          output_refs: record.output_refs || [],
+          story_id: record.story_id || record.storyId || null,
+          started_at: record.started_at || record.startedAt || null,
+          finished_at: record.finished_at || record.finishedAt || null,
+          reviewer: record.reviewer || null,
+          decision: record.decision || null,
+          reason: record.reason || null,
+          score: record.score || null,
+          model: record.model || null,
+          run_group: record.run_group || record.runGroup || null,
+          project_codes: projectCodes,
+          source: path.relative(CODEX_ROOT, ledgerPath)
+        };
+        await upsertGraphEntity({
+          id: eventId,
+          entityType: 'event',
+          projectId: project.id,
+          payload,
+          roleMin: 'member',
+          sensitivity: 'internal'
+        });
+        await upsertBelongsToProject(eventId, project, 'member', 'internal');
+        const storyId = payload.story_id;
+        if (storyId && storyIdMap && storyIdMap.has(storyId)) {
+          await upsertGraphEdge({
+            fromId: eventId,
+            toId: storyIdMap.get(storyId),
+            relType: 'references',
+            projectId: project.id,
+            roleMin: 'member',
+            sensitivity: 'internal'
+          });
+        }
+      }
+    };
+
+    await ingestApps();
+    await ingestBrands();
+    await ingestCustomers();
+    await ingestPartners();
+    await ingestContacts();
+    await ingestContracts();
+    await ingestFinancials();
+    await ingestCapital();
+    const storyIdMap = await ingestStories();
+    await ingestFrames();
+    await ingestRunLedger(storyIdMap);
+
     for (const project of projectRecords.values()) {
       const count = await ingestDocs(project.path, { projectFallback: project, rootLabel: `projects/${project.code}` });
       console.log(`[docs] ${project.code} files=${count}`);
-    }
-
-    const globalProject = projectRecords.get(GLOBAL_PROJECT_CODE) || projectRecords.values().next().value;
-    if (!globalProject) {
-      throw new Error(`Global project not found: ${GLOBAL_PROJECT_CODE}`);
     }
 
     const sharedRoots = [

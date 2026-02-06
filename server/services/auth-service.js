@@ -18,6 +18,9 @@ export class AuthService {
         this.databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
         this.pool = this.databaseUrl ? new Pool({ connectionString: this.databaseUrl }) : null;
         this.jwtSecret = process.env.BRAINBASE_JWT_SECRET || '';
+        this.refreshSecret = process.env.BRAINBASE_REFRESH_SECRET || this.jwtSecret || '';
+        this.refreshTtlSeconds = Number(process.env.BRAINBASE_REFRESH_TTL_SECONDS || 60 * 60 * 24 * 30);
+        this.stateSecret = process.env.BRAINBASE_AUTH_STATE_SECRET || this.jwtSecret || '';
 
         this.slackClientId = process.env.SLACK_CLIENT_ID || '';
         this.slackClientSecret = process.env.SLACK_CLIENT_SECRET || '';
@@ -60,19 +63,97 @@ export class AuthService {
         return `${prefix}_${ulid()}`;
     }
 
-    createState() {
+    createState({ origin } = {}) {
+        if (this.stateSecret) {
+            return this.createSignedState({ origin });
+        }
         const state = crypto.randomBytes(16).toString('hex');
-        this.stateStore.set(state, Date.now());
+        this.stateStore.set(state, {
+            createdAt: Date.now(),
+            origin: typeof origin === 'string' ? origin : null
+        });
         return state;
     }
 
     consumeState(state) {
-        const createdAt = this.stateStore.get(state);
-        this.stateStore.delete(state);
-        if (!createdAt) {
-            return false;
+        if (this.stateSecret) {
+            return this.consumeSignedState(state);
         }
-        return Date.now() - createdAt < this.stateTtlMs;
+        const record = this.stateStore.get(state);
+        this.stateStore.delete(state);
+        if (!record || !record.createdAt) {
+            return { ok: false, origin: null };
+        }
+        const ok = Date.now() - record.createdAt < this.stateTtlMs;
+        return { ok, origin: record.origin || null };
+    }
+
+    createSignedState({ origin } = {}) {
+        const ts = Date.now();
+        const nonce = crypto.randomBytes(16).toString('hex');
+        const originValue = typeof origin === 'string' && origin.length > 0
+            ? Buffer.from(origin, 'utf8').toString('base64url')
+            : '';
+        const payload = originValue ? `${ts}.${nonce}.${originValue}` : `${ts}.${nonce}`;
+        const signature = crypto
+            .createHmac('sha256', this.stateSecret)
+            .update(payload)
+            .digest('hex');
+        return `${payload}.${signature}`;
+    }
+
+    consumeSignedState(state) {
+        if (typeof state !== 'string') return { ok: false, origin: null };
+        const parts = state.split('.');
+        if (parts.length !== 3 && parts.length !== 4) {
+            return { ok: false, origin: null };
+        }
+
+        const [tsRaw, nonce, originEncoded, signature] = parts.length === 4
+            ? parts
+            : [parts[0], parts[1], '', parts[2]];
+
+        if (!tsRaw || !nonce || !signature) {
+            return { ok: false, origin: null };
+        }
+
+        const payload = originEncoded
+            ? `${tsRaw}.${nonce}.${originEncoded}`
+            : `${tsRaw}.${nonce}`;
+
+        const expected = crypto
+            .createHmac('sha256', this.stateSecret)
+            .update(payload)
+            .digest('hex');
+        try {
+            const sigBuf = Buffer.from(signature, 'hex');
+            const expBuf = Buffer.from(expected, 'hex');
+            if (sigBuf.length !== expBuf.length) {
+                return { ok: false, origin: null };
+            }
+            if (!crypto.timingSafeEqual(sigBuf, expBuf)) {
+                return { ok: false, origin: null };
+            }
+        } catch {
+            return { ok: false, origin: null };
+        }
+        const ts = Number(tsRaw);
+        if (!Number.isFinite(ts)) return { ok: false, origin: null };
+        const ageMs = Math.abs(Date.now() - ts);
+        if (ageMs >= this.stateTtlMs) {
+            return { ok: false, origin: null };
+        }
+
+        let origin = null;
+        if (originEncoded) {
+            try {
+                origin = Buffer.from(originEncoded, 'base64url').toString('utf8');
+            } catch {
+                origin = null;
+            }
+        }
+
+        return { ok: true, origin };
     }
 
     buildAuthorizeUrl(state) {
@@ -250,8 +331,80 @@ export class AuthService {
         );
     }
 
+    issueRefreshToken(payload) {
+        const now = Math.floor(Date.now() / 1000);
+        const exp = now + this.refreshTtlSeconds;
+        return jwt.sign(
+            { ...payload, typ: 'refresh', iat: now, exp },
+            this.refreshSecret
+        );
+    }
+
     verifyToken(token) {
         return jwt.verify(token, this.jwtSecret);
+    }
+
+    verifyRefreshToken(token) {
+        return jwt.verify(token, this.refreshSecret);
+    }
+
+    async refreshSession(refreshToken) {
+        if (!refreshToken) {
+            throw new Error('Refresh token is required');
+        }
+        const payload = this.verifyRefreshToken(refreshToken);
+        if (!payload || payload.typ !== 'refresh') {
+            throw new Error('Invalid refresh token');
+        }
+        const slackUserId = payload.slackUserId || payload.slack_user_id || payload.sub || null;
+        const slackWorkspaceId = payload.slackWorkspaceId || payload.slack_workspace_id || payload.team_id || null;
+        if (!slackUserId || !slackWorkspaceId) {
+            throw new Error('Refresh token missing Slack identity');
+        }
+        const grant = await this.findGrant({ slackUserId, slackWorkspaceId });
+        if (!grant) {
+            await this.createAuditLog({
+                slackUserId,
+                slackWorkspaceId,
+                eventType: 'AUTH_DENY',
+                metadata: { reason: 'grant_not_found' }
+            });
+            throw new Error('Access is not granted');
+        }
+        const personId = await this.ensurePerson({
+            personId: grant.person_id,
+            personName: grant.person_name
+        });
+        const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
+        const token = this.issueToken({
+            role: access.role,
+            projectCodes: access.projectCodes,
+            clearance: access.clearance,
+            personId,
+            slackUserId,
+            slackWorkspaceId
+        });
+        const nextRefreshToken = this.issueRefreshToken({
+            slackUserId,
+            slackWorkspaceId
+        });
+        await this.createAuditLog({
+            personId,
+            slackUserId,
+            slackWorkspaceId,
+            eventType: 'AUTH_REFRESH',
+            metadata: { role: access.role, project_codes: access.projectCodes }
+        });
+        return {
+            token,
+            refresh_token: nextRefreshToken,
+            access: {
+                role: access.role,
+                projectCodes: access.projectCodes,
+                clearance: access.clearance,
+                personId
+            }
+        };
     }
 
     async createAuditLog({ personId, slackUserId, slackWorkspaceId, eventType, metadata }) {
