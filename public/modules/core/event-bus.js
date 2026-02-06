@@ -42,10 +42,18 @@ export class EventBus extends EventTarget {
      * @private
      */
     _createEventMeta(causationId) {
-        const eventId = `evt_${crypto.randomUUID().slice(0, 8)}`;
+        // Fallback for browsers without crypto.randomUUID (e.g., Safari < 15.4)
+        const getRandomId = () => {
+            if (crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
+            // Fallback: generate random hex string
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        };
+        const eventId = `evt_${getRandomId().slice(0, 8)}`;
         return {
             eventId,
-            correlationId: this._currentCorrelationId || `corr_${crypto.randomUUID().slice(0, 8)}`,
+            correlationId: this._currentCorrelationId || `corr_${getRandomId().slice(0, 8)}`,
             causationId: causationId || this._lastEventId,
             timestamp: Date.now()
         };
@@ -228,6 +236,10 @@ export const EVENTS = {
     INBOX_TOGGLED: 'inbox:toggled',
     MODAL_OPENED: 'modal:opened',
     MODAL_CLOSED: 'modal:closed',
+    MOBILE_INPUT_OPENED: 'mobile-input:opened',
+    MOBILE_INPUT_CLOSED: 'mobile-input:closed',
+    MOBILE_INPUT_SENT: 'mobile-input:sent',
+    MOBILE_INPUT_DRAFT_SAVED: 'mobile-input:draft-saved',
 
     // Recovery関連 (Auto-Claude RecoveryManager pattern)
     RECOVERY_HINTS_LOADED: 'recovery:hints-loaded',

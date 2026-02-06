@@ -4,8 +4,10 @@
 
 resolve_brainbase_port() {
   if [ -n "$BRAINBASE_PORT" ]; then
-    echo "$BRAINBASE_PORT"
-    return
+    if curl -s --max-time 0.3 "http://localhost:$BRAINBASE_PORT/api/version" >/dev/null 2>&1; then
+      echo "$BRAINBASE_PORT"
+      return
+    fi
   fi
 
   local port_file="${BRAINBASE_PORT_FILE:-$HOME/.brainbase/active-port}"
@@ -28,14 +30,14 @@ resolve_brainbase_port() {
     fi
   fi
 
-  for port in 3001 3000; do
+  for port in 31014 31013; do
     if curl -s --max-time 0.3 "http://localhost:$port/api/version" >/dev/null 2>&1; then
       echo "$port"
       return
     fi
   done
 
-  echo "${BRAINBASE_FALLBACK_PORT:-3000}"
+  echo "${BRAINBASE_FALLBACK_PORT:-31013}"
 }
 
 # If missing, derive session id from tmux session name
@@ -51,6 +53,15 @@ if [ -n "$BRAINBASE_SESSION_ID" ] && command -v curl >/dev/null 2>&1; then
     -H "Content-Type: application/json" \
     -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT}" \
     --max-time 1 >/dev/null 2>&1 || true &
+fi
+
+# Clean up codex temporary update directories (prevents ENOTEMPTY errors)
+if [ -n "$NVM_DIR" ] && [ -d "$NVM_DIR/versions/node" ]; then
+  for node_version in "$NVM_DIR/versions/node"/v*/lib/node_modules/@openai; do
+    if [ -d "$node_version" ]; then
+      rm -rf "$node_version"/.codex-* 2>/dev/null || true
+    fi
+  done
 fi
 
 exec codex "$@"

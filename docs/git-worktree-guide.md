@@ -153,8 +153,8 @@ cd .worktrees/session-${TIMESTAMP}-brainbase
 # 依存関係インストール
 npm install
 
-# 開発サーバー起動（PM2）
-pm2 start server/index.js --name brainbase-dev-${TIMESTAMP} --port 40000
+# 開発サーバー起動（worktreeは手動起動）
+PORT=31014 npm run dev  # 他worktreeと被る場合は31015以降
 
 # 開発実施
 # ファイル編集、テスト、デバッグ等
@@ -327,28 +327,25 @@ cd .worktrees/session-XXXXXXX-brainbase
 git stash pop  # または手動で復元
 ```
 
-### 4.5 PM2開発サーバーが起動しない
+### 4.5 開発サーバーが起動しない（ポート競合）
 
 **症状**:
 ```bash
-pm2 start server/index.js --name brainbase-dev-40000 --port 40000
-# error: listen EADDRINUSE: address already in use :::40000
+npm run dev
+# error: listen EADDRINUSE: address already in use :::31014
 ```
 
 **原因**:
-- ポート40000が既に使用されている
-- 以前のPM2プロセスが残っている
+- 指定ポートが既に使用されている
+- 他のworktreeや起動中プロセスと競合している
 
 **対処**:
 ```bash
-# 1. PM2プロセス一覧確認
-pm2 list
+# 1. 使用中ポート確認
+lsof -nP -iTCP:31014 -sTCP:LISTEN
 
-# 2. 不要なプロセスを停止
-pm2 delete brainbase-dev-40000
-
-# 3. 再起動
-pm2 start server/index.js --name brainbase-dev-40000 -- --port 40000
+# 2. 別ポートで再起動
+PORT=31015 npm run dev
 ```
 
 ---

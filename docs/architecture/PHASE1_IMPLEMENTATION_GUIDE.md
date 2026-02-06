@@ -737,7 +737,7 @@ npm run test tests/core/http-client.test.js
 npm run dev
 
 # ブラウザで開く
-# http://localhost:3001/test-infrastructure.html
+# http://localhost:31013/test-infrastructure.html
 ```
 
 **期待される出力**:

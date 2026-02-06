@@ -61,15 +61,18 @@ export async function mergeSession(sessionId) {
 
 /**
  * セッションを復元（ttydを再起動）
+ * engineを省略した場合、サーバー側でセッションに保存されたengineを使用
  * @param {string} sessionId
- * @param {string} engine - 'claude' or 'codex'
+ * @param {string} [engine] - 'claude' or 'codex'（省略時はセッションのengineを使用）
  * @returns {Promise<Object>}
  */
-export async function restoreSessionAPI(sessionId, engine = 'claude') {
+export async function restoreSessionAPI(sessionId, engine) {
+  const body = {};
+  if (engine) body.engine = engine;
   const res = await fetch(`/api/sessions/${sessionId}/restore`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ engine })
+    body: JSON.stringify(body)
   });
   return await res.json();
 }

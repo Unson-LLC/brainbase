@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const BASE_URL = process.env.BRAINBASE_BASE_URL
+  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+
 test.describe('brainbase-ui smoke test', () => {
     test.beforeEach(async ({ page }) => {
         // コンソールエラーをキャプチャ
@@ -16,12 +20,12 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should load page without errors', async ({ page }) => {
-        const response = await page.goto('http://localhost:3001');
+        const response = await page.goto(BASE_URL);
         expect(response.status()).toBe(200);
     });
 
     test('should initialize brainbase app', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
 
         // app.jsが起動していることを確認
         const appStarted = await page.evaluate(() => {
@@ -42,7 +46,7 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should display main UI elements', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // セッションリスト
@@ -74,7 +78,7 @@ test.describe('brainbase-ui smoke test', () => {
             errors.push(error.message);
         });
 
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(2000);
 
@@ -88,7 +92,7 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should open and close TaskEditModal', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // モーダルが初期状態で非表示
@@ -106,7 +110,7 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should verify modal elements exist', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // 3つのモーダルがDOM上に存在することを確認
@@ -121,7 +125,7 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should verify app structure', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // window.brainbaseAppの構造を確認
@@ -142,7 +146,7 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should open archive modal when clicking archive button', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // アーカイブボタンをクリック
@@ -155,7 +159,7 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should open settings modal when clicking settings button', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
 
         // 設定ボタンをクリック
@@ -172,7 +176,7 @@ test.describe('brainbase-ui smoke test', () => {
     });
 
     test('should display inbox button even with no notifications', async ({ page }) => {
-        await page.goto('http://localhost:3001');
+        await page.goto(BASE_URL);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(1000); // Wait for inbox to load
 

@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const BASE_URL = process.env.BRAINBASE_BASE_URL
+  || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+
 test.describe('Session Indicator', () => {
   // Integration test - requires ttyd, Claude Code, and proper session lifecycle
   // Skip for now: flaky due to timing dependencies on session state polling
@@ -13,7 +17,7 @@ test.describe('Session Indicator', () => {
     let nextName = sessionName;
 
     // 1. Open the app
-    await page.goto('http://localhost:3000');
+    await page.goto(BASE_URL);
     
     // 2. Create a new session
     await page.reload();
@@ -44,7 +48,7 @@ test.describe('Session Indicator', () => {
     await page.waitForTimeout(5000); 
 
     console.log('Sending Ctrl+C to exit Claude...');
-    await page.request.post(`http://localhost:3000/api/sessions/${sessionId}/input`, {
+    await page.request.post(`${BASE_URL}/api/sessions/${sessionId}/input`, {
         data: { input: '\x03' } // Ctrl+C
     });
     
@@ -52,7 +56,7 @@ test.describe('Session Indicator', () => {
 
     // 4. Send sleep 15
     console.log('Sending sleep 15 command...');
-    await page.request.post(`http://localhost:3000/api/sessions/${sessionId}/input`, {
+    await page.request.post(`${BASE_URL}/api/sessions/${sessionId}/input`, {
         data: { input: 'sleep 15\n' }
     });
 

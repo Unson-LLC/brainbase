@@ -47,13 +47,15 @@ body {
     font-family: var(--font-sans);
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    height: 100vh;
-    /* fallback */
-    height: 100dvh;
+    --vvh: 100dvh;
+    --vv-top: 0px;
+    --vv-left: 0px;
+    height: var(--vvh, 100dvh);
     overflow: hidden;
     font-size: 0.9rem;
     /* Standard text size */
     position: relative;
+    --keyboard-offset: 0px;
 }
 
 body::before {
@@ -85,9 +87,7 @@ body::after {
    ========================================= */
 .app-container {
     display: flex;
-    height: 100vh;
-    /* fallback */
-    height: 100dvh;
+    height: var(--vvh, 100dvh);
     width: 100vw;
     overflow: hidden;
 }
@@ -4825,6 +4825,14 @@ body.resizing iframe {
    16. Mobile Responsive (≤768px)
    ========================================= */
 
+/* Hide mobile-only input UI by default */
+.mobile-input-dock,
+.mobile-composer,
+.mobile-input-sheet-overlay,
+.mobile-input-sheet {
+    display: none;
+}
+
 /* Bottom Navigation Bar (Mobile Only) */
 .mobile-bottom-nav {
     display: none;
@@ -4836,8 +4844,8 @@ body.resizing iframe {
     min-height: 56px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
-    z-index: 1003;
-    /* bottom-sheet (1002) より高く設定 */
+    z-index: 1001;
+    /* FIX BUG-001: mobile-input-dock (1002) より低く設定し、Dockのボタンがタップ可能になるようにする */
     padding: 0 16px;
     /* BUG-002: Safe Area Inset分のpaddingを追加（home indicator領域をカバー） */
     padding-bottom: env(safe-area-inset-bottom, 0);
@@ -5040,6 +5048,318 @@ body.resizing iframe {
     /* 紺色(#0f172a)からターミナルと同じ黒に変更し、隙間を視覚的に消す */
     body {
         background-color: #000000;
+        --mobile-input-offset: 120px;
+    }
+
+    /* Mobile Input Dock */
+    .mobile-input-dock {
+        display: block;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: calc(56px + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+        padding: 8px 12px 12px;
+        z-index: 1002;
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .mobile-input-dock,
+    .mobile-bottom-nav,
+    .mobile-fab-container,
+    .keyboard-debug-panel {
+        transform: translate3d(var(--vv-left, 0px), var(--vv-top, 0px), 0);
+    }
+
+    .keyboard-debug-dock {
+        font-size: 10px;
+        color: #a7f3d0;
+        letter-spacing: 0.02em;
+        padding: 0 4px 6px;
+        opacity: 0.85;
+        font-family: monospace;
+    }
+
+    .mobile-input-dock.compact .mobile-input-cursor,
+    .mobile-input-dock.compact .mobile-input-actions {
+        display: none;
+    }
+
+    body.mobile-input-expanded {
+        --mobile-input-offset: 220px;
+    }
+
+    body.mobile-composer-open .mobile-input-dock {
+        display: none;
+    }
+
+    body.keyboard-open .mobile-bottom-nav {
+        display: none;
+    }
+
+    body.keyboard-open .mobile-input-dock {
+        bottom: calc(env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
+    }
+
+    body.keyboard-open .console-area {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        /* iOS Safari でキーボード表示時もスクロール可能にする */
+        -webkit-overflow-scrolling: touch;
+        overflow-y: scroll;
+        touch-action: pan-y;
+        /* スクロール領域を確保（キーボード分の余白を追加） */
+        max-height: calc(100vh - var(--keyboard-offset, 0px) - var(--mobile-input-offset, 120px));
+    }
+
+    .mobile-input-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+    }
+
+    .mobile-input-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .mobile-input-btn,
+    .mobile-input-primary,
+    .mobile-input-secondary,
+    .mobile-input-toggle,
+    .mobile-input-clip {
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        min-height: 36px;
+        min-width: 44px;
+        touch-action: manipulation;
+    }
+
+    .mobile-input-primary {
+        background: var(--accent-color);
+        color: #fff;
+        border-color: transparent;
+    }
+
+    .mobile-input-secondary {
+        background: var(--bg-secondary);
+    }
+
+    .mobile-input-toggle.active {
+        background: #1f2937;
+        border-color: var(--accent-color);
+        color: #fff;
+    }
+
+    .mobile-input-clip.filled {
+        border-color: var(--accent-color);
+        color: var(--accent-color);
+    }
+
+    .mobile-input-main {
+        align-items: stretch;
+    }
+
+    #mobile-dock-input {
+        flex: 1;
+        min-height: 40px;
+        max-height: 160px;
+        resize: none;
+        border-radius: 12px;
+        padding: 8px 10px;
+        background: #0b1220;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 14px;
+        line-height: 1.4;
+    }
+
+    .mobile-input-main-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    /* Mobile Composer */
+    .mobile-composer {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 1006;
+        padding: 12px;
+    }
+
+    .mobile-composer.active {
+        display: flex;
+    }
+
+    .mobile-composer-panel {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        background: var(--bg-primary);
+        border-radius: 16px;
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .mobile-composer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .mobile-composer-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .mobile-composer-title {
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .mobile-composer-network {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    .mobile-composer-network.offline {
+        color: #f97316;
+    }
+
+    #mobile-composer-input {
+        flex: 1;
+        width: 100%;
+        border-radius: 12px;
+        padding: 12px;
+        resize: none;
+        background: #0b1220;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .mobile-composer-toolbar,
+    .mobile-composer-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .mobile-composer-cursor,
+    .mobile-composer-quick {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    body.mobile-composer-open .mobile-fab-container,
+    body.mobile-composer-open .mobile-bottom-nav {
+        display: none;
+    }
+
+    /* Mobile Input Sheets */
+    .mobile-input-sheet-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 1005;
+    }
+
+    .mobile-input-sheet-overlay.active {
+        display: block;
+    }
+
+    .mobile-input-sheet {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--bg-secondary);
+        border-radius: 16px 16px 0 0;
+        max-height: 60vh;
+        transform: translateY(100%);
+        transition: transform 0.2s ease;
+        z-index: 1006;
+        padding: 12px 12px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .mobile-input-sheet.active {
+        transform: translateY(0);
+    }
+
+    .mobile-input-sheet-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .mobile-input-sheet-body {
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .mobile-input-row-main {
+        flex: 1;
+        text-align: left;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .mobile-input-row-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .mobile-input-pin,
+    .mobile-input-delete,
+    .mobile-input-action,
+    .mobile-input-sheet-close {
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-radius: 10px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    .mobile-input-action {
+        width: 100%;
+        text-align: left;
+        padding: 10px 12px;
+    }
+
+    .mobile-input-empty {
+        color: var(--text-secondary);
+        font-size: 13px;
+        padding: 12px;
+        text-align: center;
     }
 
     .mobile-fab-container {
@@ -5239,8 +5559,11 @@ body.resizing iframe {
         width: 100vw;
         /* BUG-002: height: 100dvhを削除し、flexで親を埋める */
         flex: 1;
-        overflow: visible;
-        touch-action: manipulation;
+        overflow: auto;
+        /* iOS Safari でスムーズなスクロールを有効化 */
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+        padding-bottom: calc(var(--mobile-input-offset) + env(safe-area-inset-bottom, 0));
     }
 
     /* Terminal iframe - full width, fill parent */

@@ -158,7 +158,7 @@ sudo cloudflared service install <画面に表示されたトークン>
    - **Path**: 空欄
    - **Service**:
      - Type: `HTTP`
-     - URL: `localhost:3000`
+     - URL: `localhost:31013`
 
 3. **"Save tunnel" をクリック**
 
@@ -257,7 +257,7 @@ sudo cloudflared service install <画面に表示されたトークン>
 1. **Brainbaseが起動しているか**
    ```bash
    # ローカルで確認
-   curl http://localhost:3000
+   curl http://localhost:31013
    ```
 
 2. **cloudflaredが動作しているか**
@@ -269,7 +269,7 @@ sudo cloudflared service install <画面に表示されたトークン>
 3. **Public hostname設定が正しいか**
    - Cloudflare Zero Trust → Networks → Tunnels
    - Tunnelの "Configure" をクリック
-   - Service URLが `localhost:3000` になっているか確認
+   - Service URLが `localhost:31013` になっているか確認
 
 ### Q2: 認証画面が表示されない
 

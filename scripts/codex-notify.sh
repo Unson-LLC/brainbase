@@ -3,8 +3,10 @@
 
 resolve_brainbase_port() {
   if [ -n "$BRAINBASE_PORT" ]; then
-    echo "$BRAINBASE_PORT"
-    return
+    if curl -s --max-time 0.3 "http://localhost:$BRAINBASE_PORT/api/version" >/dev/null 2>&1; then
+      echo "$BRAINBASE_PORT"
+      return
+    fi
   fi
 
   local port_file="${BRAINBASE_PORT_FILE:-$HOME/.brainbase/active-port}"
@@ -27,14 +29,14 @@ resolve_brainbase_port() {
     fi
   fi
 
-  for port in 3001 3000; do
+  for port in 31014 31013; do
     if curl -s --max-time 0.3 "http://localhost:$port/api/version" >/dev/null 2>&1; then
       echo "$port"
       return
     fi
   done
 
-  echo "${BRAINBASE_FALLBACK_PORT:-3000}"
+  echo "${BRAINBASE_FALLBACK_PORT:-31013}"
 }
 
 event_type=""

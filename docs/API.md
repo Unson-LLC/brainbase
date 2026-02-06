@@ -847,11 +847,12 @@ healthScore = (completionRate * 0.3)
 **A**: サーバーを再起動するか、以下のコマンドを実行：
 
 ```bash
-# サーバー再起動
-npm run dev
+# サーバー再起動（launchd）
+launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
+launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
 
-# またはPM2の場合
-pm2 restart brainbase
+# 開発中は手動再起動
+npm run dev
 ```
 
 ### Q5: APIドキュメントの最新版はどこ？

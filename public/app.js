@@ -42,6 +42,7 @@ import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
+import { MobileInputController } from './modules/ui/mobile-input-controller.js';
 
 // Modals
 import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
@@ -226,6 +227,7 @@ export class App {
         this.reconnectManager = null; // Terminal Reconnect Manager
         this.pluginManager = null;
         this.authManager = null;
+        this.mobileInputController = null;
     }
 
     /**
@@ -721,7 +723,18 @@ export class App {
                 console.log('Creating session for task:', task.id, 'project:', project);
 
                 // タスクコンテキストを構築（議事録から登録されたタスクの場合）
-                let initialCommand = `/task ${task.id}`;
+                const taskTitle = task.title || task.name || 'Untitled';
+                const deadline = task.deadline || task.due;
+                const taskLines = [
+                    '以下のタスクを対応してください。',
+                    `ID: ${task.id}`,
+                    `プロジェクト: ${project}`,
+                    `タイトル: ${taskTitle}`,
+                    deadline ? `期限: ${deadline}` : '',
+                    task.assignee ? `担当者: ${task.assignee}` : '',
+                    task.description ? `説明: ${task.description}` : ''
+                ].filter(Boolean);
+                let initialCommand = taskLines.join('\n');
                 if (task.context || task.meetingTitle) {
                     const contextParts = [];
                     if (task.context) {
@@ -1109,6 +1122,17 @@ export class App {
             console.log('Mana Settings Extension not available (OSS mode)');
             // エラーは握りつぶす（OSS版では正常動作）
         }
+    }
+
+    /**
+     * Initialize mobile input UI controller
+     */
+    initMobileInput() {
+        this.mobileInputController = new MobileInputController({
+            httpClient,
+            isMobile: () => this.isMobile()
+        });
+        this.mobileInputController.init();
     }
 
     /**
@@ -2112,6 +2136,9 @@ export class App {
         // 12. Setup mobile keyboard handling
         initMobileKeyboard();
 
+        // 13. Setup mobile input UI (Dock/Composer)
+        this.initMobileInput();
+
         console.log('brainbase-ui started successfully');
     }
 
@@ -2505,6 +2532,9 @@ export class App {
         Object.values(this.modals).forEach(modal => {
             if (modal.unmount) modal.unmount();
         });
+
+        // Cleanup mobile input controller
+        this.mobileInputController?.destroy();
 
         console.log('brainbase-ui destroyed');
     }

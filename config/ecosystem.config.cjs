@@ -24,7 +24,7 @@ module.exports = {
       script: './server.js',
       env: {
         NODE_ENV: 'development',
-        PORT: 3000,
+        PORT: 31013,
         BRAINBASE_ROOT: envConfig.BRAINBASE_ROOT,
         PROJECTS_ROOT: envConfig.PROJECTS_ROOT,
         NOCODB_BASE_URL: envConfig.NOCODB_BASE_URL,

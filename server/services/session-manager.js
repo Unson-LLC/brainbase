@@ -27,7 +27,7 @@ export class SessionManager {
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
         this.hookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp }
-        // ポート範囲を40000番台に設定（開発サーバー3000番台との競合回避）
+        // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
         // 起動準備完了フラグ
@@ -192,7 +192,7 @@ export class SessionManager {
             console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
 
             // Update nextPort to avoid port conflicts with restored sessions
-            // 既存セッションが3000番台でも、新規セッションは40000番台から開始
+            // 既存セッションがUIポート帯でも、新規セッションは40000番台から開始
             if (this.activeSessions.size > 0) {
                 const maxPort = Math.max(
                     40000,
@@ -305,7 +305,7 @@ export class SessionManager {
      */
     getSessionStatus() {
         const status = {};
-        const HEARTBEAT_TIMEOUT = 10 * 60 * 1000; // 10分
+        const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
 
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
@@ -542,10 +542,17 @@ export class SessionManager {
 
         // Check if already running
         if (this.activeSessions.has(sessionId)) {
-            return {
-                port: this.activeSessions.get(sessionId).port,
-                proxyPath: `/console/${sessionId}`
-            };
+            const existing = this.activeSessions.get(sessionId);
+            const pid = existing.process?.pid || existing.pid;
+            if (pid && this._isProcessRunning(pid)) {
+                return {
+                    port: existing.port,
+                    proxyPath: `/console/${sessionId}`
+                };
+            }
+            // Process is dead but entry remains in map — clean up and proceed to new launch
+            console.warn(`[startTtyd] Stale entry for ${sessionId}: pid ${pid} is dead. Cleaning up and relaunching.`);
+            this.activeSessions.delete(sessionId);
         }
 
         // Allocate new port
@@ -723,14 +730,16 @@ export class SessionManager {
     /**
      * ttydプロセスを停止
      * @param {string} sessionId - セッションID
+     * @param {Object} [options] - オプション
+     * @param {boolean} [options.preserveTmux=false] - trueの場合、tmuxセッションを残してttydのみ再起動（PTYリーク修復用）
      * @returns {Promise<boolean>} 停止成功時true
      */
-    async stopTtyd(sessionId) {
+    async stopTtyd(sessionId, { preserveTmux = false } = {}) {
         if (this.activeSessions.has(sessionId)) {
             const sessionData = this.activeSessions.get(sessionId);
             // PIDを取得（新規起動時はprocess.pid、復旧時はpid直接）
             const pid = sessionData.process?.pid || sessionData.pid;
-            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid})`);
+            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
 
             if (pid) {
                 try {
@@ -752,8 +761,12 @@ export class SessionManager {
                 }
             }
 
-            // Cleanup TMUX session and MCP processes
-            await this.cleanupSessionResources(sessionId);
+            // Cleanup TMUX session and MCP processes (skip if preserveTmux)
+            if (!preserveTmux) {
+                await this.cleanupSessionResources(sessionId);
+            } else {
+                console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
+            }
 
             // ttydProcess情報をクリア
             await this._clearTtydProcessInfo(sessionId);

@@ -203,7 +203,13 @@ export const appStore = new Store({
         inboxOpen: false,
         draggedSessionId: null,
         draggedSessionProject: null,
-        sessionListView: 'timeline'
+        sessionListView: 'timeline',
+        mobileInput: {
+            mode: 'dock',
+            composerOpen: false,
+            selectionMode: false,
+            online: true
+        }
     },
     // Auto-Claude RecoveryManager pattern
     recovery: {

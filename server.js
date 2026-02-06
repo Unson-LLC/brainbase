@@ -254,7 +254,7 @@ const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
 
 // Middleware
-// Enable CORS for remote auth/api access (local UI -> bb.unson.jp)
+// Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
 app.use(cors({
     origin: true,
     credentials: true,

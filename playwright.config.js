@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const DEFAULT_PORT = process.cwd().includes('.worktrees') ? 31014 : 31013;
+const BASE_URL = process.env.BRAINBASE_BASE_URL
+    || `http://localhost:${process.env.BRAINBASE_PORT || process.env.PORT || DEFAULT_PORT}`;
+
 export default defineConfig({
     testDir: './tests/e2e',
     outputDir: 'var/test-results',
@@ -12,7 +16,7 @@ export default defineConfig({
         ['list']
     ],
     use: {
-        baseURL: 'http://localhost:3001',
+        baseURL: BASE_URL,
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',
@@ -25,7 +29,7 @@ export default defineConfig({
     ],
     webServer: {
         command: 'npm run test:server',
-        url: 'http://localhost:3001',
+        url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,
     },

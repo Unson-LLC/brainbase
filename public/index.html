@@ -618,7 +618,7 @@
                 </div>
                 <div class="form-group">
                     <label for="session-command-input">初期コマンド（省略可）</label>
-                    <input type="text" id="session-command-input" class="form-input" placeholder="例: /task 123">
+                    <input type="text" id="session-command-input" class="form-input" placeholder="例: Task ID: 123">
                 </div>
                 <div class="form-group">
                     <label>AI Engine</label>
@@ -771,6 +771,103 @@
             <i data-lucide="corner-down-left"></i>
             <span class="key-label">Enter</span>
         </button>
+    </div>
+
+    <!-- Mobile Input Dock -->
+    <div id="mobile-input-dock" class="mobile-input-dock compact">
+        <!-- Cursor controls: Up, Down, Left, Right, Enter -->
+        <div class="mobile-input-row mobile-input-cursor">
+            <button class="mobile-input-btn" data-mobile-cursor="up" title="上">↑</button>
+            <button class="mobile-input-btn" data-mobile-cursor="down" title="下">↓</button>
+            <button class="mobile-input-btn" data-mobile-cursor="left" title="左">←</button>
+            <button class="mobile-input-btn" data-mobile-cursor="right" title="右">→</button>
+            <button class="mobile-input-btn" data-mobile-cursor="enter" title="Enter">⏎</button>
+        </div>
+        <!-- Input area with Send/More -->
+        <div class="mobile-input-row mobile-input-main">
+            <textarea id="mobile-dock-input" rows="1" placeholder="ここに入力..." aria-label="モバイル入力"></textarea>
+            <div class="mobile-input-main-actions">
+                <button class="mobile-input-primary" id="mobile-dock-send">Send</button>
+                <button class="mobile-input-secondary" id="mobile-dock-more">More</button>
+            </div>
+        </div>
+        <!-- Actions: Image upload, Copy terminal, Clear, Escape (expanded mode only) -->
+        <div class="mobile-input-row mobile-input-actions">
+            <button class="mobile-input-btn" id="mobile-dock-upload-image" title="画像アップロード">
+                <i data-lucide="image-plus"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-copy-terminal" title="ターミナル内容をコピー">
+                <i data-lucide="copy"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-clear" title="画面クリア (Ctrl+L)">
+                <i data-lucide="eraser"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-escape" title="Escapeキーを送信">
+                <i data-lucide="x-octagon"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile Composer -->
+    <div id="mobile-composer" class="mobile-composer">
+        <div class="mobile-composer-panel">
+            <div class="mobile-composer-header">
+                <button class="mobile-input-secondary" id="mobile-composer-back">Back</button>
+                <div class="mobile-composer-meta">
+                    <span class="mobile-composer-title">Composer</span>
+                    <span id="mobile-composer-network" class="mobile-composer-network">Online</span>
+                </div>
+                <button class="mobile-input-primary" id="mobile-composer-send">Send</button>
+            </div>
+            <textarea id="mobile-composer-input" rows="6" placeholder="長文をここで編集..." aria-label="モバイル編集"></textarea>
+            <div class="mobile-composer-toolbar">
+                <button class="mobile-input-btn" data-mobile-format="h1">H1</button>
+                <button class="mobile-input-btn" data-mobile-format="list">List</button>
+                <button class="mobile-input-btn" data-mobile-format="code">Code</button>
+                <button class="mobile-input-btn" data-mobile-format="quote">Quote</button>
+                <button class="mobile-input-toggle" id="mobile-composer-select-toggle">Sel</button>
+            </div>
+            <div class="mobile-composer-actions">
+                <div class="mobile-composer-cursor">
+                    <button class="mobile-input-btn" data-mobile-cursor="line-start">|&lt;</button>
+                    <button class="mobile-input-btn" data-mobile-cursor="word-left">W&lt;</button>
+                    <button class="mobile-input-btn" data-mobile-cursor="left">&lt;</button>
+                    <button class="mobile-input-btn" data-mobile-cursor="right">&gt;</button>
+                    <button class="mobile-input-btn" data-mobile-cursor="word-right">W&gt;</button>
+                    <button class="mobile-input-btn" data-mobile-cursor="line-end">&gt;|</button>
+                </div>
+                <div class="mobile-composer-quick">
+                    <button class="mobile-input-secondary" id="mobile-composer-paste">Paste</button>
+                    <button class="mobile-input-secondary" id="mobile-composer-clipboard">Clips</button>
+                    <button class="mobile-input-secondary" id="mobile-composer-snippets">Snips</button>
+                    <button class="mobile-input-secondary" id="mobile-composer-actions">Actions</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Input Sheets -->
+    <div id="mobile-input-sheet-overlay" class="mobile-input-sheet-overlay"></div>
+    <div id="mobile-clipboard-sheet" class="mobile-input-sheet">
+        <div class="mobile-input-sheet-header">
+            <h3>Clipboard</h3>
+            <button class="mobile-input-sheet-close">Close</button>
+        </div>
+        <div id="mobile-clipboard-list" class="mobile-input-sheet-body"></div>
+    </div>
+    <div id="mobile-snippet-sheet" class="mobile-input-sheet">
+        <div class="mobile-input-sheet-header">
+            <h3>Snippets</h3>
+            <button class="mobile-input-sheet-close">Close</button>
+        </div>
+        <div id="mobile-snippet-list" class="mobile-input-sheet-body"></div>
+    </div>
+    <div id="mobile-action-sheet" class="mobile-input-sheet">
+        <div class="mobile-input-sheet-header">
+            <h3>Actions</h3>
+            <button class="mobile-input-sheet-close">Close</button>
+        </div>
+        <div id="mobile-action-list" class="mobile-input-sheet-body"></div>
     </div>
 
     <!-- Mobile Bottom Navigation (hidden on desktop) -->

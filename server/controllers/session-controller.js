@@ -96,11 +96,13 @@ export class SessionController {
     /**
      * POST /api/sessions/:id/stop
      * ttydプロセスを停止（アーカイブせず）
+     * Body: { preserveTmux?: boolean } - trueならtmuxを残してttydのみ停止（PTYリーク修復用）
      */
     stop = async (req, res) => {
         const { id } = req.params;
+        const { preserveTmux = false } = req.body || {};
 
-        const stopped = await this.sessionManager.stopTtyd(id);
+        const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
 
         if (stopped) {
             // Update intendedState to 'stopped'
@@ -173,7 +175,7 @@ export class SessionController {
      */
     restore = async (req, res) => {
         const { id } = req.params;
-        const { engine = 'claude' } = req.body;
+        const { engine: requestEngine } = req.body;
 
         const state = this.stateStore.get();
         const session = state.sessions?.find(s => s.id === id);
@@ -185,6 +187,9 @@ export class SessionController {
         if (session.intendedState !== 'archived') {
             return res.status(400).json({ error: 'Session is not archived' });
         }
+
+        // リクエストで指定されたengine > セッションに保存されたengine > デフォルトclaude
+        const engine = requestEngine || session.engine || 'claude';
 
         try {
             // Restore worktree if it existed
