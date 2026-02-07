@@ -506,6 +506,10 @@ export class MobileInputController {
         const inputEl = mode === 'composer' ? this.elements.composerInput : this.elements.dockInput;
         if (!inputEl) return;
 
+        // iOS Safariのユーザージェスチャーコンテキスト内で確実にfocusする
+        // async処理後のsetTimeout()ではコンテキストが切れてfocus()が効かないため
+        inputEl.focus();
+
         const rawValue = inputEl.value;
         if (!rawValue || rawValue.trim().length === 0) {
             showInfo('入力が空だよ');
