@@ -121,6 +121,13 @@ export class MobileInputController {
             this.scheduleDraftSave('dock', dockInput);
         });
 
+        // iOS Safari: ボタンタップ時にinputからフォーカスが外れてキーボードが閉じるのを防ぐ
+        dockSend?.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // フォーカスが外れるのを防ぐ
+        });
+        dockSend?.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // フォーカスが外れるのを防ぐ
+        });
         dockSend?.addEventListener('click', () => {
             this.handleSend('dock');
             // Early return（セッション未選択等）の場合は入力欄が残るのでrefocus必要
@@ -195,6 +202,13 @@ export class MobileInputController {
             this.scheduleDraftSave('composer', composerInput);
         });
 
+        // iOS Safari: ボタンタップ時にinputからフォーカスが外れてキーボードが閉じるのを防ぐ
+        composerSend?.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // フォーカスが外れるのを防ぐ
+        });
+        composerSend?.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // フォーカスが外れるのを防ぐ
+        });
         composerSend?.addEventListener('click', () => {
             this.handleSend('composer');
             // Early return（セッション未選択等）の場合は入力欄が残るのでrefocus必要
