@@ -987,6 +987,25 @@ export class SessionManager {
     }
 
     /**
+     * tmux select-pane
+     * @param {string} sessionId - セッションID
+     * @param {string} direction - U/D/L/R
+     */
+    async selectPane(sessionId, direction) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const validDirections = ['U', 'D', 'L', 'R'];
+        if (!validDirections.includes(direction)) {
+            throw new Error('Invalid direction. Must be U, D, L, or R');
+        }
+
+        const target = sessionId.replace(/"/g, '\\"');
+        await this.execPromise(`tmux select-pane -t "${target}" -${direction}`);
+    }
+
+    /**
      * tmux copy-mode exit
      * @param {string} sessionId - セッションID
      */
@@ -1012,16 +1031,23 @@ export class SessionManager {
             throw new Error('Input required');
         }
 
+        // DEBUG: ログ出力
+        console.log(`[session-manager] sendInput: sessionId="${sessionId}", type="${type}", input="${input}"`);
+
         if (type === 'key') {
             if (!this.ALLOWED_KEYS.includes(input)) {
                 throw new Error('Key not allowed');
             }
-            await this.execPromise(`tmux send-keys -t "${sessionId}" ${input}`);
+            const cmd = `tmux send-keys -t "${sessionId}" ${input}`;
+            console.log(`[session-manager] Executing: ${cmd}`);
+            await this.execPromise(cmd);
         } else if (type === 'text') {
             // Use -l for literal text (don't interpret special keys)
             // Escape double quotes in input
             const escaped = input.replace(/"/g, '\\"');
-            await this.execPromise(`tmux send-keys -t "${sessionId}" -l "${escaped}"`);
+            const cmd = `tmux send-keys -t "${sessionId}" -l "${escaped}"`;
+            console.log(`[session-manager] Executing: ${cmd}`);
+            await this.execPromise(cmd);
         } else {
             throw new Error('Type must be key or text');
         }
