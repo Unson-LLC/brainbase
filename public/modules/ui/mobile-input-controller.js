@@ -123,7 +123,8 @@ export class MobileInputController {
 
         dockSend?.addEventListener('click', () => {
             this.handleSend('dock');
-            // Send 後は入力欄がクリアされるので refocus 不要
+            // Early return（セッション未選択等）の場合は入力欄が残るのでrefocus必要
+            this.refocusInput(dockInput);
         });
         dockMore?.addEventListener('click', () => {
             this.toggleDockExpanded();
@@ -194,7 +195,11 @@ export class MobileInputController {
             this.scheduleDraftSave('composer', composerInput);
         });
 
-        composerSend?.addEventListener('click', () => this.handleSend('composer'));
+        composerSend?.addEventListener('click', () => {
+            this.handleSend('composer');
+            // Early return（セッション未選択等）の場合は入力欄が残るのでrefocus必要
+            this.refocusInput(composerInput);
+        });
         composerBack?.addEventListener('click', () => this.closeComposer(true));
         composerPaste?.addEventListener('click', () => this.pasteFromClipboard());
         composerClipboard?.addEventListener('click', () => this.openClipboardSheet());
