@@ -28,9 +28,7 @@ module.exports = {
         BRAINBASE_ROOT: envConfig.BRAINBASE_ROOT,
         PROJECTS_ROOT: envConfig.PROJECTS_ROOT,
         NOCODB_BASE_URL: envConfig.NOCODB_BASE_URL,
-        NOCODB_API_TOKEN: envConfig.NOCODB_API_TOKEN,
-        ZEP_API_KEY: envConfig.ZEP_API_KEY,
-        ZEP_MCP_SERVER_PATH: envConfig.ZEP_MCP_SERVER_PATH
+        NOCODB_API_TOKEN: envConfig.NOCODB_API_TOKEN
       }
     }
   ]

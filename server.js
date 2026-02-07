@@ -35,6 +35,8 @@ import { InboxParser } from './lib/inbox-parser.js';
 // Import services
 import { SessionManager } from './server/services/session-manager.js';
 import { WorktreeService } from './server/services/worktree-service.js';
+import { InfoSSOTService } from './server/services/info-ssot-service.js';
+import { AuthService } from './server/services/auth-service.js';
 
 // Import routers
 import { createTaskRouter } from './server/routes/tasks.js';
@@ -48,9 +50,12 @@ import { createSessionRouter } from './server/routes/sessions.js';
 import { createBrainbaseRouter } from './server/routes/brainbase.js';
 import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
+import { createAuthRouter } from './server/routes/auth.js';
+import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
+import { requireAuth } from './server/middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -245,10 +250,17 @@ const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
 const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
+const infoSSOTService = new InfoSSOTService();
+const authService = new AuthService();
 
 // Middleware
-// Enable CORS for local network access (e.g., mobile devices via IP address)
-app.use(cors());
+// Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
+app.use(cors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'X-Session-Id'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+}));
 
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
 app.use(express.json({ limit: '1mb' }));
@@ -262,7 +274,7 @@ app.use((req, res, next) => {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",  // Google Fonts CSS
         "font-src 'self' https://fonts.gstatic.com",  // Google Fonts files
         "img-src 'self' data:",
-        "connect-src 'self' ws: wss: https://unpkg.com",  // unpkg.com for source maps
+        "connect-src 'self' ws: wss: https://unpkg.com https://bb.unson.jp",  // allow remote API
         "frame-ancestors 'self'"
     ].join('; '));
     // Prevent MIME type sniffing
@@ -491,6 +503,8 @@ app.use('/api/brainbase', createBrainbaseRouter({
 }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
+app.use('/api/auth', createAuthRouter(authService));
+app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================

@@ -10,13 +10,15 @@ export class HttpClient {
      * @param {Object} config.headers - デフォルトヘッダー
      */
     constructor(config = {}) {
-        this.baseURL = config.baseURL || '';
+        this.baseURL = (config.baseURL || '').replace(/\/+$/, '');
         this.defaultHeaders = {
             'Content-Type': 'application/json',
             ...config.headers
         };
         this._csrfToken = null;
         this._csrfTokenPromise = null;
+        this._authToken = config.authToken || null;
+        this._onUnauthorized = config.onUnauthorized || null;
     }
 
     /**
@@ -37,7 +39,10 @@ export class HttpClient {
         // トークンを取得
         this._csrfTokenPromise = (async () => {
             try {
-                const response = await fetch('/api/csrf-token');
+                const tokenUrl = this.baseURL
+                    ? `${this.baseURL}/api/csrf-token`
+                    : '/api/csrf-token';
+                const response = await fetch(tokenUrl);
                 if (response.ok) {
                     const data = await response.json();
                     this._csrfToken = data.token;
@@ -55,10 +60,42 @@ export class HttpClient {
     }
 
     /**
+     * ベースURLを更新
+     * @param {string} baseURL - ベースURL
+     */
+    setBaseURL(baseURL) {
+        this.baseURL = typeof baseURL === 'string' ? baseURL.replace(/\/+$/, '') : '';
+        this.clearCsrfToken();
+    }
+
+    /**
      * CSRFトークンをクリア（トークン更新が必要な場合）
      */
     clearCsrfToken() {
         this._csrfToken = null;
+    }
+
+    /**
+     * 認証トークンを設定
+     * @param {string} token - Bearer token
+     */
+    setAuthToken(token) {
+        this._authToken = token;
+    }
+
+    /**
+     * 認証トークンをクリア
+     */
+    clearAuthToken() {
+        this._authToken = null;
+    }
+
+    /**
+     * 401時のハンドラーを設定
+     * @param {Function} handler - callback
+     */
+    setUnauthorizedHandler(handler) {
+        this._onUnauthorized = handler;
     }
 
     /**
@@ -76,6 +113,10 @@ export class HttpClient {
             ...options.headers
         };
 
+        if (!headers.Authorization && !headers.authorization && this._authToken) {
+            headers.Authorization = `Bearer ${this._authToken}`;
+        }
+
         // CSRFトークンを付与（POST/PUT/DELETEリクエスト）
         if (['POST', 'PUT', 'DELETE'].includes(method.toUpperCase())) {
             const csrfToken = await this._getCsrfToken();
@@ -91,6 +132,14 @@ export class HttpClient {
             });
 
             if (!response.ok) {
+                if (response.status === 401 && typeof this._onUnauthorized === 'function') {
+                    try {
+                        this._onUnauthorized();
+                    } catch (error) {
+                        // ignore handler errors
+                    }
+                }
+
                 // Handle CSRF token expiration: 403 with CSRF error message
                 if (response.status === 403) {
                     try {
@@ -194,4 +243,22 @@ export class HttpClient {
 /**
  * グローバルHTTPクライアントインスタンス
  */
-export const httpClient = new HttpClient();
+function resolveDefaultBaseURL() {
+    if (typeof window === 'undefined') return '';
+    if (Object.prototype.hasOwnProperty.call(window, '__BRAINBASE_API_BASE_URL')) {
+        const explicit = window.__BRAINBASE_API_BASE_URL;
+        if (typeof explicit === 'string') {
+            return explicit.replace(/\/+$/, '');
+        }
+    }
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+        const fallback = window.__BRAINBASE_DEFAULT_REMOTE__ || 'https://bb.unson.jp';
+        return typeof fallback === 'string' ? fallback.replace(/\/+$/, '') : '';
+    }
+    return '';
+}
+
+export const httpClient = new HttpClient({
+    baseURL: resolveDefaultBaseURL()
+});

@@ -8,6 +8,7 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
@@ -225,7 +226,22 @@ export class App {
         this.settingsCore = null; // Settings Plugin Architecture
         this.reconnectManager = null; // Terminal Reconnect Manager
         this.pluginManager = null;
+        this.authManager = null;
         this.mobileInputController = null;
+    }
+
+    /**
+     * Initialize authentication manager
+     */
+    async initAuth() {
+        this.authManager = new AuthManager({ httpClient, store: appStore, eventBus });
+
+        httpClient.setUnauthorizedHandler(() => {
+            this.authManager?.clearSession();
+            showError('認証が必要です。Settings > 認証からログインしてください。');
+        });
+
+        await this.authManager.initFromStorage();
     }
 
     /**
@@ -921,6 +937,9 @@ export class App {
         const cleanupSessionViewToggle = setupSessionViewToggle({ store: appStore });
         this.unsubscribers.push(cleanupSessionViewToggle);
 
+        // Auth button (sidebar)
+        this.setupAuthControls();
+
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
         if (toggleArchivedBtn) {
@@ -973,6 +992,100 @@ export class App {
     }
 
     /**
+     * Setup auth controls in sidebar
+     */
+    setupAuthControls() {
+        const authBtn = document.getElementById('auth-btn');
+        if (!authBtn) return;
+
+        authBtn.onclick = async () => {
+            if (!this.authManager) {
+                showError('認証が利用できません');
+                return;
+            }
+            const summary = this.authManager.getSummary();
+            if (summary.status === 'authenticated') {
+                authBtn.disabled = true;
+                try {
+                    await this.authManager.logout();
+                    showSuccess('ログアウトしました');
+                } catch (error) {
+                    showError('ログアウトに失敗しました');
+                } finally {
+                    authBtn.disabled = false;
+                    this.updateAuthButtonUI();
+                }
+                return;
+            }
+
+            showInfo('Slack認証に移動します');
+            const redirectPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+            this.authManager.startSlackLogin({ redirectPath });
+        };
+
+        eventBus.on('auth:changed', () => {
+            this.updateAuthButtonUI();
+        });
+
+        this.updateAuthButtonUI();
+    }
+
+    /**
+     * Update auth button UI
+     */
+    updateAuthButtonUI() {
+        const authBtn = document.getElementById('auth-btn');
+        if (!authBtn) return;
+
+        const icon = authBtn.querySelector('i');
+        const text = document.getElementById('auth-btn-text');
+        const badge = document.getElementById('auth-status-badge');
+
+        const summary = this.authManager?.getSummary?.() || appStore.getState().auth || {};
+        const status = summary.status || 'anonymous';
+
+        let label = 'ログイン';
+        let iconName = 'log-in';
+        let badgeText = '未ログイン';
+        let badgeClass = 'neutral';
+
+        if (status === 'authenticated') {
+            label = 'ログアウト';
+            iconName = 'log-out';
+            badgeText = 'ログイン済み';
+            badgeClass = 'success';
+        } else if (status === 'checking') {
+            label = '確認中';
+            iconName = 'loader';
+            badgeText = '確認中';
+            badgeClass = 'neutral';
+        } else if (status === 'expired') {
+            label = '再ログイン';
+            iconName = 'log-in';
+            badgeText = '期限切れ';
+            badgeClass = 'warning';
+        } else if (status === 'unavailable') {
+            label = 'ログイン';
+            iconName = 'log-in';
+            badgeText = '未設定';
+            badgeClass = 'neutral';
+        }
+
+        authBtn.disabled = status === 'checking';
+        if (text) text.textContent = label;
+        if (icon) icon.setAttribute('data-lucide', iconName);
+        if (badge) {
+            badge.textContent = badgeText;
+            badge.classList.remove('success', 'warning', 'neutral');
+            badge.classList.add(badgeClass);
+        }
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    /**
      * Initialize Settings with conditional Mana extension loading
      * Phase 3: Plugin Architecture - Dynamic extension loading
      */
@@ -982,7 +1095,11 @@ export class App {
         const ui = new SettingsUI();
         const apiClient = new CoreApiClient();
 
-        this.settingsCore = new SettingsCore({ pluginRegistry: registry, ui, apiClient });
+        this.settingsCore = new SettingsCore({
+            pluginRegistry: registry,
+            ui,
+            apiClient
+        });
         await this.settingsCore.init();
 
         // 2. Mana拡張の条件付きロード（OSS版では拡張なし）
@@ -1948,6 +2065,9 @@ export class App {
      */
     async start() {
         console.log('Starting brainbase-ui...');
+
+        // 0. Initialize auth (load token before API calls)
+        await this.initAuth();
 
         // 1. Initialize services
         this.initServices();
