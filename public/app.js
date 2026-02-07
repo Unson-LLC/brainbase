@@ -189,7 +189,12 @@ class TerminalReconnectManager {
             });
 
             if (res?.proxyPath) {
-                this.terminalFrame.src = res.proxyPath;
+                // Only reload iframe if proxyPath actually changed (new ttyd process/port)
+                // Avoids unnecessary PTY allocation when ttyd is still alive
+                const currentSrc = this.terminalFrame.src || '';
+                if (!currentSrc.includes(res.proxyPath)) {
+                    this.terminalFrame.src = res.proxyPath;
+                }
             } else {
                 this.handleDisconnect();
             }

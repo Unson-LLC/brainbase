@@ -382,6 +382,24 @@ function setupKeyHandling() {
             }
         }
 
+        if (event.data && event.data.type === 'TMUX_SELECT_PANE') {
+            const currentSessionId = getSessionId?.();
+            if (currentSessionId) {
+                const direction = event.data.direction;
+                if (['U', 'D', 'L', 'R'].includes(direction)) {
+                    try {
+                        await fetch(`/api/sessions/${currentSessionId}/select_pane`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ direction })
+                        });
+                    } catch (error) {
+                        console.error('Failed to select pane:', error);
+                    }
+                }
+            }
+        }
+
         if (event.data && event.data.type === 'TERMINAL_INTERACT') {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {
