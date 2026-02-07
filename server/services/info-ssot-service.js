@@ -152,6 +152,12 @@ export class InfoSSOTService {
                 return payload.intent || payload.query_type || record.id;
             case 'ai_decision':
                 return payload.summary || record.id;
+            case 'glossary_term':
+                return payload.term || record.id;
+            case 'kpi':
+                return payload.metric_name || record.id;
+            case 'initiative':
+                return payload.title || record.id;
             default:
                 return payload.title || payload.name || record.id;
         }
@@ -173,6 +179,12 @@ export class InfoSSOTService {
                     return `Person: ${payload.name || record.id}`;
                 case 'project':
                     return `Project: ${payload.name || payload.code || record.id}`;
+                case 'glossary_term':
+                    return `Glossary: ${payload.term || record.id} - ${payload.description || ''}`;
+                case 'kpi':
+                    return `KPI: ${payload.metric_name || record.id} (target: ${payload.target_value || 'N/A'}, current: ${payload.current_value || 'N/A'})`;
+                case 'initiative':
+                    return `Initiative: ${payload.title || record.id} (${payload.status || 'planned'})`;
                 default:
                     return `${record.entity_type || 'entity'}: ${payload.title || payload.name || record.id}`;
             }
@@ -248,6 +260,30 @@ export class InfoSSOTService {
             code: node.payload?.code || null,
             name: node.payload?.name || null
         }));
+        const glossaryItems = (byType.glossary_term || []).map(node => ({
+            id: node.id,
+            term: node.payload?.term || null,
+            reading: node.payload?.reading || null,
+            correct_form: node.payload?.correct_form || null,
+            incorrect_forms: node.payload?.incorrect_forms || null,
+            category: node.payload?.category || null,
+            description: node.payload?.description || null
+        }));
+        const kpiItems = (byType.kpi || []).map(node => ({
+            id: node.id,
+            metric_name: node.payload?.metric_name || null,
+            target_value: node.payload?.target_value || null,
+            current_value: node.payload?.current_value || null,
+            unit: node.payload?.unit || null,
+            period: node.payload?.period || null
+        }));
+        const initiativeItems = (byType.initiative || []).map(node => ({
+            id: node.id,
+            title: node.payload?.title || null,
+            status: node.payload?.status || null,
+            start_date: node.payload?.start_date || null,
+            end_date: node.payload?.end_date || null
+        }));
 
         return {
             header: {
@@ -266,7 +302,10 @@ export class InfoSSOTService {
                 { title: 'People', items: personItems },
                 { title: 'AI Decisions', items: aiDecisionItems },
                 { title: 'AI Queries', items: aiQueryItems },
-                { title: 'Projects', items: projectItems }
+                { title: 'Projects', items: projectItems },
+                { title: 'Glossary', items: glossaryItems },
+                { title: 'KPIs', items: kpiItems },
+                { title: 'Initiatives', items: initiativeItems }
             ],
             relations: summaryLines || []
         };
@@ -997,6 +1036,274 @@ export class InfoSSOTService {
                 summary_lines: summaryLines,
                 report
             };
+        });
+    }
+
+    async createGlossaryTerm(access, input) {
+        if (!input.term) {
+            throw new Error('term is required');
+        }
+        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
+        this.assertWriteAccess(access, {
+            projectCode: input.projectCode,
+            roleMin,
+            sensitivity
+        });
+
+        return this.withAccessContext(access, async (client) => {
+            const projectId = await this.ensureProject(client, input);
+            const glossaryTermId = this.generateId('gls');
+            const eventId = this.generateId('evt');
+
+            await client.query(
+                `INSERT INTO events (
+                    id,
+                    project_id,
+                    actor_person_id,
+                    event_type,
+                    payload,
+                    occurred_at,
+                    source,
+                    confidence,
+                    role_min,
+                    sensitivity,
+                    created_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
+                [
+                    eventId,
+                    projectId,
+                    null,
+                    'GLOSSARY_TERM_CREATED',
+                    JSON.stringify({
+                        term: input.term,
+                        reading: input.reading || null,
+                        correct_form: input.correctForm || null,
+                        incorrect_forms: input.incorrectForms || [],
+                        category: input.category || null,
+                        description: input.description || ''
+                    }),
+                    input.occurredAt || new Date().toISOString(),
+                    input.source || 'manual',
+                    input.confidence ?? 1,
+                    roleMin,
+                    sensitivity
+                ]
+            );
+
+            await this.upsertGraphEntity(client, {
+                id: glossaryTermId,
+                entityType: 'glossary_term',
+                projectId,
+                payload: {
+                    term: input.term,
+                    reading: input.reading || null,
+                    correct_form: input.correctForm || null,
+                    incorrect_forms: input.incorrectForms || [],
+                    category: input.category || null,
+                    description: input.description || ''
+                },
+                roleMin,
+                sensitivity
+            });
+
+            await this.upsertGraphEdge(client, {
+                fromId: glossaryTermId,
+                toId: projectId,
+                relType: 'belongs_to_project',
+                projectId,
+                payload: {},
+                roleMin,
+                sensitivity
+            });
+
+            return { glossary_term_id: glossaryTermId, event_id: eventId };
+        });
+    }
+
+    async createKpi(access, input) {
+        if (!input.metricName) {
+            throw new Error('metricName is required');
+        }
+        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
+        this.assertWriteAccess(access, {
+            projectCode: input.projectCode,
+            roleMin,
+            sensitivity
+        });
+
+        return this.withAccessContext(access, async (client) => {
+            const projectId = await this.ensureProject(client, input);
+            const kpiId = this.generateId('kpi');
+            const eventId = this.generateId('evt');
+
+            await client.query(
+                `INSERT INTO events (
+                    id,
+                    project_id,
+                    actor_person_id,
+                    event_type,
+                    payload,
+                    occurred_at,
+                    source,
+                    confidence,
+                    role_min,
+                    sensitivity,
+                    created_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
+                [
+                    eventId,
+                    projectId,
+                    null,
+                    'KPI_CREATED',
+                    JSON.stringify({
+                        metric_name: input.metricName,
+                        current_value: input.currentValue || null,
+                        target_value: input.targetValue || null,
+                        unit: input.unit || null,
+                        period: input.period || null,
+                        description: input.description || ''
+                    }),
+                    input.occurredAt || new Date().toISOString(),
+                    input.source || 'manual',
+                    input.confidence ?? 1,
+                    roleMin,
+                    sensitivity
+                ]
+            );
+
+            await this.upsertGraphEntity(client, {
+                id: kpiId,
+                entityType: 'kpi',
+                projectId,
+                payload: {
+                    metric_name: input.metricName,
+                    current_value: input.currentValue || null,
+                    target_value: input.targetValue || null,
+                    unit: input.unit || null,
+                    period: input.period || null,
+                    description: input.description || ''
+                },
+                roleMin,
+                sensitivity
+            });
+
+            await this.upsertGraphEdge(client, {
+                fromId: kpiId,
+                toId: projectId,
+                relType: 'belongs_to_project',
+                projectId,
+                payload: {},
+                roleMin,
+                sensitivity
+            });
+
+            return { kpi_id: kpiId, event_id: eventId };
+        });
+    }
+
+    async createInitiative(access, input) {
+        if (!input.title) {
+            throw new Error('title is required');
+        }
+        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
+        this.assertWriteAccess(access, {
+            projectCode: input.projectCode,
+            roleMin,
+            sensitivity
+        });
+
+        return this.withAccessContext(access, async (client) => {
+            const projectId = await this.ensureProject(client, input);
+            const ownerPersonId = await this.ensurePerson(client, {
+                personId: input.ownerPersonId,
+                personName: input.ownerPersonName
+            });
+            const initiativeId = this.generateId('ini');
+            const eventId = this.generateId('evt');
+
+            await client.query(
+                `INSERT INTO events (
+                    id,
+                    project_id,
+                    actor_person_id,
+                    event_type,
+                    payload,
+                    occurred_at,
+                    source,
+                    confidence,
+                    role_min,
+                    sensitivity,
+                    created_at
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
+                [
+                    eventId,
+                    projectId,
+                    ownerPersonId,
+                    'INITIATIVE_CREATED',
+                    JSON.stringify({
+                        title: input.title,
+                        description: input.description || '',
+                        status: input.status || 'planned',
+                        start_date: input.startDate || null,
+                        end_date: input.endDate || null
+                    }),
+                    input.occurredAt || new Date().toISOString(),
+                    input.source || 'manual',
+                    input.confidence ?? 1,
+                    roleMin,
+                    sensitivity
+                ]
+            );
+
+            await this.upsertGraphEntity(client, {
+                id: initiativeId,
+                entityType: 'initiative',
+                projectId,
+                payload: {
+                    title: input.title,
+                    description: input.description || '',
+                    status: input.status || 'planned',
+                    start_date: input.startDate || null,
+                    end_date: input.endDate || null
+                },
+                roleMin,
+                sensitivity
+            });
+
+            await this.upsertGraphEdge(client, {
+                fromId: initiativeId,
+                toId: projectId,
+                relType: 'belongs_to_project',
+                projectId,
+                payload: {},
+                roleMin,
+                sensitivity
+            });
+
+            await this.upsertGraphEdge(client, {
+                fromId: initiativeId,
+                toId: ownerPersonId,
+                relType: 'owned_by',
+                projectId,
+                payload: {},
+                roleMin,
+                sensitivity
+            });
+
+            await this.upsertGraphEdge(client, {
+                fromId: ownerPersonId,
+                toId: projectId,
+                relType: 'member_of',
+                projectId,
+                payload: {},
+                roleMin: 'member',
+                sensitivity: 'internal'
+            });
+
+            return { initiative_id: initiativeId, event_id: eventId };
         });
     }
 

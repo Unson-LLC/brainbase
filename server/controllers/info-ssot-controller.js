@@ -202,6 +202,42 @@ export class InfoSSOTController {
         }
     };
 
+    createGlossaryTerm = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createGlossaryTerm(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to create glossary term', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create glossary term' });
+        }
+    };
+
+    createKpi = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createKpi(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to create kpi', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create kpi' });
+        }
+    };
+
+    createInitiative = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createInitiative(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to create initiative', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create initiative' });
+        }
+    };
+
     createAiQuery = async (req, res) => {
         try {
             const access = buildAccessContext(req);

@@ -18,6 +18,9 @@ export function createInfoSSOTRouter(infoSSOTService) {
     router.post('/events', controller.createEvent);
     router.post('/decisions', controller.createDecision);
     router.post('/raci', controller.createRaci);
+    router.post('/glossary', controller.createGlossaryTerm);
+    router.post('/kpi', controller.createKpi);
+    router.post('/initiative', controller.createInitiative);
     router.post('/ai/query', controller.createAiQuery);
     router.post('/ai/decision-log', controller.createAiDecisionLog);
 
