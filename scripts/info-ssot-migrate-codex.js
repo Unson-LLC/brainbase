@@ -283,6 +283,7 @@ const main = async () => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query(`SET LOCAL plan_cache_mode = 'force_custom_plan'`);
 
     for (const project of projectDirs) {
       const projectMd = path.join(project.path, 'project.md');
