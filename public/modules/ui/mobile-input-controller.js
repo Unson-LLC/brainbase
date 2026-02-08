@@ -1,6 +1,4 @@
 import { appStore } from '../core/store.js';
-import { eventBus, EVENTS } from '../core/event-bus.js';
-import { showError, showInfo, showSuccess } from '../toast.js';
 import { MobileInputFocusManager } from './mobile-input-focus-manager.js';
 import { MobileInputDraftManager } from './mobile-input-draft-manager.js';
 import { MobileClipboardManager } from './mobile-clipboard-manager.js';
