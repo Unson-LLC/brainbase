@@ -1,0 +1,76 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Graph API Server - Multi-stage Dockerfile
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 目的: brainbaseのGraph API機能だけをLightsailにデプロイ
+#      UI（index.html等）は除外、API + Device認証ページのみ
+#
+# 構成:
+#   - Stage 1 (builder): 依存関係インストール
+#   - Stage 2 (runtime): 本番実行環境（Alpine、非rootユーザー）
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Stage 1: Builder
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FROM node:20-alpine AS builder
+
+WORKDIR /build
+
+# package.json/package-lock.jsonだけ先にコピー（キャッシュ効率化）
+COPY package*.json ./
+
+# 本番依存関係のみインストール
+RUN npm ci --omit=dev --ignore-scripts
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Stage 2: Runtime
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FROM node:20-alpine
+
+# メタデータ
+LABEL maintainer="keigo@unson.jp"
+LABEL description="brainbase Graph API Server (API + Device Auth only)"
+LABEL version="0.1.0"
+
+# 非rootユーザー作成
+RUN addgroup -g 1001 -S brainbase && \
+    adduser -u 1001 -S brainbase -G brainbase
+
+WORKDIR /app
+
+# Stage 1からnode_modulesをコピー
+COPY --from=builder /build/node_modules ./node_modules
+
+# 必須ファイルのみコピー（API機能＋Device認証ページ）
+COPY package.json ./
+COPY server.js ./
+COPY lib/ ./lib/
+COPY server/ ./server/
+
+# Device認証ページ（public/device.html + public/modules/device/）のみコピー
+# UIは除外（index.html, app.js, modules/ui/, modules/components/ 等）
+COPY public/device.html ./public/device.html
+COPY public/modules/device/ ./public/modules/device/
+
+# 権限設定（非rootユーザーに変更）
+RUN chown -R brainbase:brainbase /app
+
+# 非rootユーザーに切り替え
+USER brainbase
+
+# ポート3000を公開（Nginxリバースプロキシ経由でアクセス）
+EXPOSE 3000
+
+# ヘルスチェック（/health/ready エンドポイント）
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "const http = require('http'); \
+               const options = {host: 'localhost', port: 3000, path: '/health/ready', timeout: 2000}; \
+               http.get(options, (res) => { \
+                 if (res.statusCode === 200) process.exit(0); \
+                 else process.exit(1); \
+               }).on('error', () => process.exit(1));"
+
+# サーバー起動
+CMD ["node", "server.js"]
