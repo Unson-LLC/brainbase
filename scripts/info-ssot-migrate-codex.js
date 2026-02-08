@@ -422,20 +422,25 @@ const main = async () => {
       });
 
       if (!dryRun) {
-        await client.query(
-          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-           ON CONFLICT (id)
-           DO NOTHING`,
-          [
-            personId,
-            'person',
-            null,
-            personPayload,
-            'member',
-            'internal'
-          ]
-        );
+        try {
+          await client.query(
+            `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+             ON CONFLICT (id)
+             DO NOTHING`,
+            [
+              personId,
+              'person',
+              null,
+              personPayload,
+              'member',
+              'internal'
+            ]
+          );
+        } catch (error) {
+          console.error(`[ERROR] Failed to insert person: ${person.name} (${personId})`);
+          throw error;
+        }
       }
 
       for (const code of projectCodesList) {
