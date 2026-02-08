@@ -3,13 +3,11 @@ import { eventBus, EVENTS } from '../core/event-bus.js';
 import { showError, showInfo, showSuccess } from '../toast.js';
 import { MobileInputFocusManager } from './mobile-input-focus-manager.js';
 import { MobileInputDraftManager } from './mobile-input-draft-manager.js';
+import { MobileClipboardManager } from './mobile-clipboard-manager.js';
 import {
-    DEFAULT_HISTORY_LIMIT,
     DEFAULT_PIN_SLOTS,
     findWordBoundaryLeft,
-    findWordBoundaryRight,
-    normalizeHistory,
-    pushHistory
+    findWordBoundaryRight
 } from './mobile-input-utils.js';
 
 const STORAGE_KEYS = {
@@ -25,13 +23,11 @@ export class MobileInputController {
         this.isMobile = isMobile;
         this.elements = {};
         this.selectionMode = false;
-        this.history = [];
-        this.pins = Array.from({ length: DEFAULT_PIN_SLOTS }, () => null);
-        this.snippets = [];
         this.isOnline = true;
         this.unsubscribeSession = null;
         this.focusManager = null;
         this.draftManager = null;
+        this.clipboardManager = null;
     }
 
     init() {
@@ -39,14 +35,12 @@ export class MobileInputController {
         this.cacheElements();
         if (!this.elements.dock || !this.elements.composer) return;
 
-        this.history = normalizeHistory(this.loadJson(STORAGE_KEYS.history, []), DEFAULT_HISTORY_LIMIT);
-        this.pins = this.loadPins();
-        this.snippets = this.loadJson(STORAGE_KEYS.snippets, []);
-
         // マネージャーの初期化
         this.focusManager = new MobileInputFocusManager(this.elements);
         this.focusManager.init();
         this.draftManager = new MobileInputDraftManager(this.elements);
+        this.clipboardManager = new MobileClipboardManager(this.elements);
+        this.clipboardManager.init();
 
         this.bindDock();
         this.bindComposer();
@@ -54,7 +48,7 @@ export class MobileInputController {
         this.bindNetworkStatus();
         this.bindSessionChanges();
 
-        this.updatePinsUI();
+        this.clipboardManager.updatePinsUI();
         this.draftManager.restoreDrafts();
         if (this.elements.dockInput) {
             this.autoResize(this.elements.dockInput);
@@ -140,14 +134,18 @@ export class MobileInputController {
             this.focusManager.refocusInput(dockInput);
         });
         dockExpand?.addEventListener('click', () => this.openComposer());
-        dockPaste?.addEventListener('click', () => {
-            this.pasteFromClipboard();
+        dockPaste?.addEventListener('click', async () => {
+            const result = await this.pasteFromClipboard();
+            if (result) {
+                this.autoResize(result.inputEl);
+                this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
+            }
             this.focusManager.refocusInput(dockInput);
         });
         dockClipboard?.addEventListener('click', () => this.openClipboardSheet());
         dockSnippets?.addEventListener('click', () => this.openSnippetSheet());
         dockSnippetAdd?.addEventListener('click', () => {
-            this.addSnippetFromSelection();
+            this.clipboardManager.addSnippetFromSelection(() => this.getActiveInput());
             this.focusManager.refocusInput(dockInput);
         });
         dockUploadImage?.addEventListener('click', () => {
@@ -168,8 +166,14 @@ export class MobileInputController {
         });
 
         this.elements.dockClipButtons.forEach((button, index) => {
-            button.addEventListener('click', () => this.handleClipSlot(index));
-            this.bindLongPressClear(button, index);
+            button.addEventListener('click', async () => {
+                const result = await this.handleClipSlot(index);
+                if (result) {
+                    this.autoResize(result.inputEl);
+                    this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
+                }
+            });
+            this.clipboardManager.bindLongPressClear(button, index);
         });
 
         this.bindCursorButtons(dockInput, this.elements.dock);
@@ -222,7 +226,13 @@ export class MobileInputController {
             this.focusManager.refocusInput(composerInput);
         });
         composerBack?.addEventListener('click', () => this.closeComposer(true));
-        composerPaste?.addEventListener('click', () => this.pasteFromClipboard());
+        composerPaste?.addEventListener('click', async () => {
+            const result = await this.pasteFromClipboard();
+            if (result) {
+                this.autoResize(result.inputEl);
+                this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
+            }
+        });
         composerClipboard?.addEventListener('click', () => this.openClipboardSheet());
         composerSnippets?.addEventListener('click', () => this.openSnippetSheet());
         composerActions?.addEventListener('click', () => this.openActionSheet());
@@ -597,98 +607,28 @@ export class MobileInputController {
     }
 
     async handleClipSlot(index) {
-        const pinned = this.pins[index];
-        if (pinned) {
-            this.insertTextAtCursor(pinned);
-            return;
-        }
-
-        const clipboard = await this.readClipboardText();
-        if (!clipboard) return;
-
-        this.pins[index] = clipboard;
-        this.savePins();
-        this.updatePinsUI();
-        showSuccess('クリップを保存したよ');
-    }
-
-    bindLongPressClear(button, index) {
-        let timer = null;
-        const clear = () => {
-            if (!this.pins[index]) return;
-            this.pins[index] = null;
-            this.savePins();
-            this.updatePinsUI();
-            showInfo('クリップをクリアしたよ');
-        };
-
-        button.addEventListener('touchstart', () => {
-            timer = setTimeout(clear, 600);
-        });
-        button.addEventListener('touchend', () => {
-            if (timer) {
-                clearTimeout(timer);
-                timer = null;
-            }
-        });
-        button.addEventListener('touchcancel', () => {
-            if (timer) {
-                clearTimeout(timer);
-                timer = null;
-            }
-        });
-    }
-
-    async readClipboardText() {
-        if (!navigator.clipboard || !navigator.clipboard.readText) {
-            showInfo('クリップボード読み取りに対応してないよ');
-            return '';
-        }
-
-        try {
-            const text = await navigator.clipboard.readText();
-            if (!text) {
-                showInfo('クリップボードが空だよ');
-            } else {
-                this.history = pushHistory(this.history, text, DEFAULT_HISTORY_LIMIT);
-                this.saveHistory();
-            }
-            return text;
-        } catch (error) {
-            console.error('Failed to read clipboard:', error);
-            showInfo('クリップボードの読み取りに失敗したよ');
-            return '';
-        }
+        await this.clipboardManager.handleClipSlot(index);
+        // handleClipSlot内でinsertTextAtCursorが呼ばれているが、
+        // その後のautoResizeとscheduleDraftSaveが必要なので、
+        // insertTextAtCursorの戻り値を返す
+        // 実際にはhandleClipSlotの中でinsertTextAtCursorが呼ばれた時の情報を返す必要がある
+        // ここでは簡略化のため、getActiveInput()で現在の入力欄を返す
+        const inputEl = this.getActiveInput();
+        return inputEl ? { inputEl, mode: inputEl === this.elements.composerInput ? 'composer' : 'dock' } : null;
     }
 
     async pasteFromClipboard() {
-        const text = await this.readClipboardText();
-        if (!text) return;
-        this.insertTextAtCursor(text);
+        await this.clipboardManager.pasteFromClipboard();
+        const inputEl = this.getActiveInput();
+        return inputEl ? { inputEl, mode: inputEl === this.elements.composerInput ? 'composer' : 'dock' } : null;
     }
 
     insertTextAtCursor(text) {
-        const inputEl = this.getActiveInput();
-        if (!inputEl) return;
-
-        const start = inputEl.selectionStart ?? inputEl.value.length;
-        const end = inputEl.selectionEnd ?? inputEl.value.length;
-        const value = inputEl.value;
-        inputEl.value = value.slice(0, start) + text + value.slice(end);
-        const nextPos = start + text.length;
-        inputEl.setSelectionRange(nextPos, nextPos);
-        inputEl.focus();
-        this.autoResize(inputEl);
-        this.draftManager.scheduleDraftSave(inputEl === this.elements.composerInput ? 'composer' : 'dock', inputEl);
-    }
-
-    updatePinsUI() {
-        this.elements.dockClipButtons.forEach((button, index) => {
-            const pinned = this.pins[index];
-            button.textContent = pinned ? `Clip${index + 1}` : `Clip${index + 1}`;
-            button.classList.toggle('filled', Boolean(pinned));
-            button.setAttribute('title', pinned ? pinned.slice(0, 120) : '空');
-        });
+        const result = this.clipboardManager.insertTextAtCursor(text, () => this.getActiveInput());
+        if (result) {
+            this.autoResize(result.inputEl);
+            this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
+        }
     }
 
     openClipboardSheet() {
@@ -701,7 +641,7 @@ export class MobileInputController {
         if (!clipboardList) return;
         clipboardList.innerHTML = '';
 
-        if (this.history.length === 0) {
+        if (this.clipboardManager.history.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'mobile-input-empty';
             empty.textContent = '履歴がないよ';
@@ -709,7 +649,7 @@ export class MobileInputController {
             return;
         }
 
-        this.history.forEach((item) => {
+        this.clipboardManager.history.forEach((item) => {
             const row = document.createElement('div');
             row.className = 'mobile-input-row';
 
@@ -730,9 +670,9 @@ export class MobileInputController {
                 pinButton.className = 'mobile-input-pin';
                 pinButton.textContent = `P${i + 1}`;
                 pinButton.addEventListener('click', () => {
-                    this.pins[i] = item;
-                    this.savePins();
-                    this.updatePinsUI();
+                    this.clipboardManager.pins[i] = item;
+                    this.clipboardManager.savePins();
+                    this.clipboardManager.updatePinsUI();
                     showSuccess(`P${i + 1}に保存したよ`);
                 });
                 pinWrap.appendChild(pinButton);
@@ -754,7 +694,7 @@ export class MobileInputController {
         if (!snippetList) return;
         snippetList.innerHTML = '';
 
-        if (!this.snippets.length) {
+        if (!this.clipboardManager.snippets.length) {
             const empty = document.createElement('div');
             empty.className = 'mobile-input-empty';
             empty.textContent = 'スニペットがないよ';
@@ -762,7 +702,7 @@ export class MobileInputController {
             return;
         }
 
-        this.snippets.forEach((snippet) => {
+        this.clipboardManager.snippets.forEach((snippet) => {
             const row = document.createElement('div');
             row.className = 'mobile-input-row';
 
@@ -780,8 +720,8 @@ export class MobileInputController {
             deleteBtn.className = 'mobile-input-delete';
             deleteBtn.textContent = '削除';
             deleteBtn.addEventListener('click', () => {
-                this.snippets = this.snippets.filter(item => item.id !== snippet.id);
-                this.saveSnippets();
+                this.clipboardManager.snippets = this.clipboardManager.snippets.filter(item => item.id !== snippet.id);
+                this.clipboardManager.saveSnippets();
                 this.renderSnippetList();
             });
 
@@ -838,32 +778,6 @@ export class MobileInputController {
         });
     }
 
-    addSnippetFromSelection() {
-        const inputEl = this.getActiveInput();
-        if (!inputEl) return;
-
-        const start = inputEl.selectionStart ?? 0;
-        const end = inputEl.selectionEnd ?? 0;
-        const selection = inputEl.value.slice(start, end).trim();
-        const content = selection || inputEl.value.trim();
-
-        if (!content) {
-            showInfo('スニペットにする文字がないよ');
-            return;
-        }
-
-        const title = content.split('\n')[0].slice(0, 24);
-        const snippet = {
-            id: `snippet_${Date.now()}`,
-            title,
-            content
-        };
-
-        this.snippets = [snippet, ...this.snippets].slice(0, 20);
-        this.saveSnippets();
-        showSuccess('スニペット追加したよ');
-    }
-
     updateNetworkState() {
         this.updateSendAvailability();
         const { composerNetwork } = this.elements;
@@ -884,49 +798,6 @@ export class MobileInputController {
         if (!inputEl) return;
         inputEl.style.height = 'auto';
         inputEl.style.height = `${inputEl.scrollHeight}px`;
-    }
-
-    loadPins() {
-        const stored = this.loadJson(STORAGE_KEYS.pins, []);
-        if (!Array.isArray(stored)) {
-            return Array.from({ length: DEFAULT_PIN_SLOTS }, () => null);
-        }
-        const result = stored.slice(0, DEFAULT_PIN_SLOTS);
-        while (result.length < DEFAULT_PIN_SLOTS) {
-            result.push(null);
-        }
-        return result;
-    }
-
-    savePins() {
-        this.saveJson(STORAGE_KEYS.pins, this.pins);
-    }
-
-    saveHistory() {
-        this.saveJson(STORAGE_KEYS.history, this.history);
-    }
-
-    saveSnippets() {
-        this.saveJson(STORAGE_KEYS.snippets, this.snippets);
-    }
-
-    loadJson(key, fallback) {
-        try {
-            const raw = localStorage.getItem(key);
-            if (!raw) return fallback;
-            return JSON.parse(raw);
-        } catch (error) {
-            console.warn('Failed to load storage:', key, error);
-            return fallback;
-        }
-    }
-
-    saveJson(key, value) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-            console.warn('Failed to save storage:', key, error);
-        }
     }
 
     updateStoreState(partial) {
