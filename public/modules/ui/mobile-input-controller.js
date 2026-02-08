@@ -4,6 +4,7 @@ import { showError, showInfo, showSuccess } from '../toast.js';
 import { MobileInputFocusManager } from './mobile-input-focus-manager.js';
 import { MobileInputDraftManager } from './mobile-input-draft-manager.js';
 import { MobileClipboardManager } from './mobile-clipboard-manager.js';
+import { MobileInputApiClient } from './mobile-input-api-client.js';
 import {
     DEFAULT_PIN_SLOTS,
     findWordBoundaryLeft,
@@ -28,6 +29,7 @@ export class MobileInputController {
         this.focusManager = null;
         this.draftManager = null;
         this.clipboardManager = null;
+        this.apiClient = null;
     }
 
     init() {
@@ -41,6 +43,7 @@ export class MobileInputController {
         this.draftManager = new MobileInputDraftManager(this.elements);
         this.clipboardManager = new MobileClipboardManager(this.elements);
         this.clipboardManager.init();
+        this.apiClient = new MobileInputApiClient(this.httpClient);
 
         this.bindDock();
         this.bindComposer();
@@ -397,14 +400,7 @@ export class MobileInputController {
         console.log('[mobile-input] Payload:', payload);
 
         try {
-            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
-                input: payload,
-                type: 'text'
-            });
-            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
-                input: 'Enter',
-                type: 'key'
-            });
+            await this.apiClient.sendInput(sessionId, payload);
 
             inputEl.value = '';
             this.autoResize(inputEl);
@@ -822,10 +818,7 @@ export class MobileInputController {
         }
 
         try {
-            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
-                input: 'Enter',
-                type: 'key'
-            });
+            await this.apiClient.sendKey(sessionId, 'Enter');
         } catch (error) {
             console.error('Failed to send Enter key:', error);
             showError('Enterキーの送信に失敗したよ');
@@ -845,10 +838,7 @@ export class MobileInputController {
         }
 
         try {
-            const res = await fetch(`/api/sessions/${sessionId}/content?lines=500`);
-            if (!res.ok) throw new Error('Failed to fetch content');
-
-            const { content } = await res.json();
+            const content = await this.apiClient.fetchTerminalContent(sessionId);
 
             const copyTerminalModal = document.getElementById('copy-terminal-modal');
             const terminalContentDisplay = document.getElementById('terminal-content-display');
@@ -877,10 +867,7 @@ export class MobileInputController {
         }
 
         try {
-            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
-                input: 'C-l',
-                type: 'key'
-            });
+            await this.apiClient.sendKey(sessionId, 'C-l');
         } catch (error) {
             console.error('Failed to send Clear:', error);
             showError('クリアコマンドの送信に失敗したよ');
@@ -895,10 +882,7 @@ export class MobileInputController {
         }
 
         try {
-            await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
-                input: 'Escape',
-                type: 'key'
-            });
+            await this.apiClient.sendKey(sessionId, 'Escape');
         } catch (error) {
             console.error('Failed to send Escape:', error);
             showError('Escapeキーの送信に失敗したよ');
