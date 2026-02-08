@@ -445,20 +445,34 @@ const main = async () => {
         }
 
         try {
+          const insertParams = [
+            personId,
+            'person',
+            null,
+            personPayload,
+            'member',
+            'internal'
+          ];
+
+          // Debug: 最初のperson INSERT時のみ値を出力
+          if (!global.insertDebugShown) {
+            console.log(`[DEBUG] INSERT params:`, {
+              id: insertParams[0],
+              entity_type: insertParams[1],
+              project_id: insertParams[2],
+              payload_preview: JSON.stringify(JSON.parse(insertParams[3])).slice(0, 100),
+              role_min: insertParams[4],
+              sensitivity: insertParams[5]
+            });
+            global.insertDebugShown = true;
+          }
 
           await client.query(
             `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
              VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
              ON CONFLICT (id)
              DO NOTHING`,
-            [
-              personId,
-              'person',
-              null,
-              personPayload,
-              'member',
-              'internal'
-            ]
+            insertParams
           );
         } catch (error) {
           console.error(`[ERROR] Failed to insert person: ${person.name} (${personId})`);
