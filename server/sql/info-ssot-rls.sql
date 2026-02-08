@@ -203,6 +203,24 @@ CREATE POLICY info_graph_entities_insert ON graph_entities
     )
   );
 
+DROP POLICY IF EXISTS info_graph_entities_delete ON graph_entities;
+CREATE POLICY info_graph_entities_delete ON graph_entities
+  FOR DELETE
+  USING (
+    app_current_role_rank() >= app_role_rank(role_min)
+    AND sensitivity = ANY(app_clearance())
+    AND (
+      (graph_entities.project_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM projects p
+        WHERE p.id = graph_entities.project_id
+          AND p.code = ANY(app_project_codes())
+      ))
+      OR (
+        graph_entities.entity_type = 'person' AND graph_entities.project_id IS NULL
+      )
+    )
+  );
+
 DROP POLICY IF EXISTS info_graph_entities_update ON graph_entities;
 CREATE POLICY info_graph_entities_update ON graph_entities
   FOR UPDATE
