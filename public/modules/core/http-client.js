@@ -251,11 +251,7 @@ function resolveDefaultBaseURL() {
             return explicit.replace(/\/+$/, '');
         }
     }
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-        const fallback = window.__BRAINBASE_DEFAULT_REMOTE__ || 'https://bb.unson.jp';
-        return typeof fallback === 'string' ? fallback.replace(/\/+$/, '') : '';
-    }
+    // デフォルトは空（same origin）- ローカルでもリモートでも同じサーバーを使用
     return '';
 }
 

@@ -1,14 +1,8 @@
 #!/usr/bin/env node
 import crypto from 'crypto';
-import http from 'http';
-import open from 'open';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-
-const CALLBACK_PORT = 8888;
-const CALLBACK_PATH = '/callback';
-const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 // ANSI color codes
 const colors = {
@@ -27,11 +21,6 @@ function log(message, color = colors.reset) {
 
 function generateCodeVerifier() {
     return crypto.randomBytes(32).toString('base64url');
-}
-
-function generateCodeChallenge(verifier) {
-    const hash = crypto.createHash('sha256').update(verifier).digest();
-    return hash.toString('base64url');
 }
 
 function getTokenFilePath() {
@@ -53,177 +42,112 @@ function saveTokens(tokens) {
     const tokenFilePath = getTokenFilePath();
 
     const data = {
-        access_token: tokens.token,
+        access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
-        expires_in: 3600, // 1 hour in seconds
-        issued_at: Math.floor(Date.now() / 1000) // Unix timestamp
+        expires_in: tokens.expires_in || 3600,
+        issued_at: Math.floor(Date.now() / 1000)
     };
 
     fs.writeFileSync(tokenFilePath, JSON.stringify(data, null, 2), { mode: 0o600 });
     log(`✅ Tokens saved to ${tokenFilePath}`, colors.green);
 }
 
-async function exchangeToken(code, codeVerifier) {
-    const apiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
-    const exchangeUrl = `${apiUrl}/api/auth/token/exchange`;
+async function requestDeviceCode(codeVerifier) {
+    const apiUrl = process.env.BRAINBASE_API_URL || 'https://brain-base.work';
+    const deviceCodeUrl = `${apiUrl}/api/auth/device/code`;
 
-    log(`\n📡 Exchanging code for token...`, colors.cyan);
+    log(`\n📡 Requesting device code from ${apiUrl}...`, colors.cyan);
 
-    const response = await fetch(exchangeUrl, {
+    const response = await fetch(deviceCodeUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            code,
             code_verifier: codeVerifier
         })
     });
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+        throw new Error(`Device code request failed: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
     return data;
 }
 
-async function startCallbackServer(codeVerifier) {
-    return new Promise((resolve, reject) => {
-        let resolved = false;
-        let server;
+async function pollForToken(deviceCode, interval, expiresIn) {
+    const apiUrl = process.env.BRAINBASE_API_URL || 'https://brain-base.work';
+    const tokenUrl = `${apiUrl}/api/auth/device/token`;
 
-        const timeout = setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                server?.close();
-                reject(new Error('Authentication timeout (5 minutes)'));
-            }
-        }, TIMEOUT_MS);
+    const startTime = Date.now();
+    const expiresInMs = expiresIn * 1000;
+    const intervalMs = interval * 1000;
 
-        server = http.createServer(async (req, res) => {
-            if (req.url?.startsWith(CALLBACK_PATH)) {
-                const url = new URL(req.url, `http://localhost:${CALLBACK_PORT}`);
-                const code = url.searchParams.get('code');
-                const state = url.searchParams.get('state');
-                const error = url.searchParams.get('error');
+    let dots = 0;
+    const maxDots = 10;
 
-                if (error) {
-                    res.writeHead(200, { 'Content-Type': 'text/html' });
-                    res.end(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head><title>Authentication Failed</title></head>
-                        <body style="font-family: system-ui; padding: 40px; text-align: center;">
-                            <h1 style="color: #e74c3c;">❌ Authentication Failed</h1>
-                            <p>Error: ${error}</p>
-                            <p>You can close this window.</p>
-                        </body>
-                        </html>
-                    `);
+    while (true) {
+        // Check timeout
+        if (Date.now() - startTime >= expiresInMs) {
+            throw new Error('Device code expired (timeout: 10 minutes)');
+        }
 
-                    if (!resolved) {
-                        resolved = true;
-                        clearTimeout(timeout);
-                        server.close();
-                        reject(new Error(`Authentication error: ${error}`));
-                    }
-                    return;
-                }
-
-                if (!code || !state) {
-                    res.writeHead(400, { 'Content-Type': 'text/html' });
-                    res.end(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head><title>Invalid Request</title></head>
-                        <body style="font-family: system-ui; padding: 40px; text-align: center;">
-                            <h1 style="color: #e74c3c;">❌ Invalid Request</h1>
-                            <p>Missing code or state parameter.</p>
-                            <p>You can close this window.</p>
-                        </body>
-                        </html>
-                    `);
-
-                    if (!resolved) {
-                        resolved = true;
-                        clearTimeout(timeout);
-                        server.close();
-                        reject(new Error('Missing code or state parameter'));
-                    }
-                    return;
-                }
-
-                // Exchange code for token
-                try {
-                    const tokens = await exchangeToken(code, codeVerifier);
-
-                    res.writeHead(200, { 'Content-Type': 'text/html' });
-                    res.end(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head><title>Authentication Successful</title></head>
-                        <body style="font-family: system-ui; padding: 40px; text-align: center; background: #0b1120; color: #e2e8f0;">
-                            <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.2); padding: 32px; border-radius: 16px; max-width: 500px; margin: 0 auto;">
-                                <h1 style="color: #10b981;">✅ Authentication Successful</h1>
-                                <p>Your MCP server is now authenticated!</p>
-                                <p style="color: #94a3b8; font-size: 14px;">You can close this window and return to your terminal.</p>
-                            </div>
-                        </body>
-                        </html>
-                    `);
-
-                    if (!resolved) {
-                        resolved = true;
-                        clearTimeout(timeout);
-                        server.close();
-                        resolve(tokens);
-                    }
-                } catch (error) {
-                    res.writeHead(500, { 'Content-Type': 'text/html' });
-                    res.end(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head><title>Token Exchange Failed</title></head>
-                        <body style="font-family: system-ui; padding: 40px; text-align: center;">
-                            <h1 style="color: #e74c3c;">❌ Token Exchange Failed</h1>
-                            <p>${error.message}</p>
-                            <p>You can close this window.</p>
-                        </body>
-                        </html>
-                    `);
-
-                    if (!resolved) {
-                        resolved = true;
-                        clearTimeout(timeout);
-                        server.close();
-                        reject(error);
-                    }
-                }
-            } else {
-                res.writeHead(404, { 'Content-Type': 'text/plain' });
-                res.end('Not Found');
-            }
+        // Polling request
+        const response = await fetch(tokenUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                device_code: deviceCode
+            })
         });
 
-        server.on('error', (error) => {
-            if (!resolved) {
-                resolved = true;
-                clearTimeout(timeout);
-                reject(error);
-            }
-        });
+        const data = await response.json();
 
-        server.listen(CALLBACK_PORT, 'localhost', () => {
-            log(`\n🌐 Callback server listening on http://localhost:${CALLBACK_PORT}`, colors.blue);
-        });
-    });
+        // Success
+        if (response.ok && data.access_token) {
+            process.stdout.write('\n');
+            return data;
+        }
+
+        // OAuth 2.0 Device Flow error codes (RFC 8628)
+        if (data.error === 'authorization_pending') {
+            // Still waiting for user authorization
+            process.stdout.write('.');
+            dots++;
+            if (dots >= maxDots) {
+                process.stdout.write('\n⏳ Still waiting for authorization...');
+                dots = 0;
+            }
+            await new Promise(resolve => setTimeout(resolve, intervalMs));
+            continue;
+        }
+
+        if (data.error === 'slow_down') {
+            // Server requested slower polling
+            await new Promise(resolve => setTimeout(resolve, intervalMs + 5000));
+            continue;
+        }
+
+        if (data.error === 'expired_token') {
+            throw new Error('Device code expired');
+        }
+
+        if (data.error === 'access_denied') {
+            throw new Error('User denied the authorization request');
+        }
+
+        // Unknown error
+        throw new Error(data.error_description || data.error || 'Unknown error during polling');
+    }
 }
 
 async function main() {
     try {
-        log('\n🔐 Brainbase MCP Setup - OAuth2 PKCE Authentication\n', colors.bright);
+        log('\n🔐 Brainbase MCP Setup - OAuth 2.0 Device Code Flow\n', colors.bright);
 
         // Check if tokens already exist
         const tokenFilePath = getTokenFilePath();
@@ -234,46 +158,43 @@ async function main() {
             await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
-        // Generate PKCE parameters
+        // Generate PKCE code_verifier
         const codeVerifier = generateCodeVerifier();
-        const codeChallenge = generateCodeChallenge(codeVerifier);
-        const state = crypto.randomBytes(16).toString('hex');
+        log('✨ Generated PKCE code_verifier', colors.green);
 
-        log('✨ Generated PKCE parameters', colors.green);
-        log(`   code_verifier:  ${codeVerifier.substring(0, 20)}...`, colors.cyan);
-        log(`   code_challenge: ${codeChallenge.substring(0, 20)}...`, colors.cyan);
+        // Request device code
+        const deviceCodeResponse = await requestDeviceCode(codeVerifier);
+        const {
+            device_code,
+            user_code,
+            verification_uri,
+            verification_uri_complete,
+            expires_in,
+            interval
+        } = deviceCodeResponse;
 
-        // Build authorization URL
-        const apiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
-        const startUrl = new URL(`${apiUrl}/api/auth/slack/start`);
-        startUrl.searchParams.set('code_challenge', codeChallenge);
-        startUrl.searchParams.set('json', 'true');
+        log('✅ Device code received', colors.green);
+        log('');
 
-        log(`\n📡 Fetching authorization URL from ${apiUrl}...`, colors.cyan);
+        // Display user code prominently
+        log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', colors.cyan);
+        log('', colors.bright);
+        log('  1. 以下のURLをブラウザで開いてください:', colors.bright);
+        log(`     ${colors.blue}${verification_uri_complete}${colors.reset}`, colors.bright);
+        log('', colors.bright);
+        log('  2. または、手動でコードを入力してください:', colors.bright);
+        log(`     コード: ${colors.green + colors.bright}${user_code}${colors.reset}`, colors.bright);
+        log(`     URL:    ${colors.blue}${verification_uri}${colors.reset}`, colors.bright);
+        log('', colors.bright);
+        log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', colors.cyan);
+        log('');
 
-        const startResponse = await fetch(startUrl.toString());
-        if (!startResponse.ok) {
-            throw new Error(`Failed to get authorization URL: ${startResponse.status}`);
-        }
+        // Poll for token
+        const expiresInMinutes = Math.floor(expires_in / 60);
+        log(`⏳ 認証を待っています (${expiresInMinutes}分以内に完了してください)`, colors.yellow);
+        process.stdout.write('   ');
 
-        const { url: authorizeUrl } = await startResponse.json();
-
-        // Start callback server
-        const tokensPromise = startCallbackServer(codeVerifier);
-
-        // Wait a bit for server to start
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Open browser
-        log('\n🌐 Opening browser for Slack authentication...', colors.blue);
-        log(`   If the browser doesn't open, visit this URL manually:`, colors.yellow);
-        log(`   ${authorizeUrl}\n`, colors.cyan);
-
-        await open(authorizeUrl);
-
-        // Wait for callback
-        log('⏳ Waiting for authentication (timeout: 5 minutes)...', colors.yellow);
-        const tokens = await tokensPromise;
+        const tokens = await pollForToken(device_code, interval, expires_in);
 
         // Save tokens
         saveTokens(tokens);

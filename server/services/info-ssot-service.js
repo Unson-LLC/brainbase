@@ -959,6 +959,93 @@ export class InfoSSOTService {
         });
     }
 
+    async getContext(access, { projectCode, entityTypes, limit, humanReadable, includeEdges }) {
+        this.assertReady();
+        if (!projectCode) {
+            throw new Error('projectCode is required');
+        }
+
+        const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+        const types = this._parseEntityTypes(entityTypes);
+
+        return this.withAccessContext(access, async (client) => {
+            // 1. 全entityを並列取得
+            const entityPromises = types.map(type =>
+                this.fetchGraphEntities(client, access, {
+                    projectCode,
+                    entityType: type,
+                    limit: safeLimit
+                })
+            );
+            const entityArrays = await Promise.all(entityPromises);
+
+            // 2. entityを種別ごとに整理
+            const entities = this._groupEntitiesByType(entityArrays);
+
+            // 3. エッジ取得（オプション）
+            let edges = [];
+            if (includeEdges) {
+                edges = await this.fetchGraphEdges(client, access, {
+                    projectCode,
+                    limit: safeLimit
+                });
+            }
+
+            // 4. LLM向け整形（オプション）
+            let report = null;
+            if (humanReadable) {
+                const allNodes = Object.values(entities).flat();
+                const summaryLines = includeEdges
+                    ? await this.summarizeEdges(client, edges)
+                    : [];
+                report = this.buildHumanReport({
+                    seedId: null,
+                    projectCode,
+                    nodes: allNodes,
+                    edges,
+                    summaryLines
+                });
+            }
+
+            // 5. メタ情報
+            const meta = {
+                project_code: projectCode,
+                timestamp: new Date().toISOString(),
+                entity_count: this._countEntities(entities)
+            };
+
+            return { entities, edges, report, meta };
+        });
+    }
+
+    _parseEntityTypes(entityTypes) {
+        if (!entityTypes || entityTypes === 'all') {
+            return ['project', 'person', 'org', 'decision', 'raci_assignment',
+                    'glossary_term', 'kpi', 'initiative'];
+        }
+        return entityTypes.split(',').map(t => t.trim()).filter(Boolean);
+    }
+
+    _groupEntitiesByType(entityArrays) {
+        const grouped = {};
+        for (const arr of entityArrays) {
+            for (const entity of arr) {
+                const type = entity.entity_type || 'unknown';
+                if (!grouped[type]) grouped[type] = [];
+                grouped[type].push(entity);
+            }
+        }
+        return grouped;
+    }
+
+    _countEntities(entities) {
+        const counts = {};
+        for (const [type, arr] of Object.entries(entities)) {
+            counts[type] = arr.length;
+        }
+        return counts;
+    }
+
     async expandGraph(access, { projectCode, seedId, depth, limit, humanReadable }) {
         this.assertReady();
         if (!projectCode) {

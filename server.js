@@ -333,6 +333,23 @@ app.get('/app.js', async (req, res) => {
     }
 });
 
+// Device Authorization Flow page (OAuth 2.0 Device Code Flow)
+app.get('/device', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'device.html');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        console.error('Error loading device.html:', error);
+        res.status(500).send('Error loading device authorization page: ' + error.message);
+    }
+});
+
 app.use(express.static('public', {
     index: false,
     setHeaders: (res, path) => {

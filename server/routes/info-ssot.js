@@ -13,6 +13,7 @@ export function createInfoSSOTRouter(infoSSOTService) {
     router.get('/graph/entities', controller.listGraphEntities);
     router.get('/graph/edges', controller.listGraphEdges);
     router.get('/graph/expand', controller.expandGraph);
+    router.get('/context', controller.getContext);
 
     // Write
     router.post('/events', controller.createEvent);
