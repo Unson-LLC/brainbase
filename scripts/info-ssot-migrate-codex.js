@@ -364,7 +364,7 @@ const main = async () => {
     const peopleMap = new Map();
 
     for (const entry of peopleEntries) {
-      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+      if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
       const filePath = path.join(peopleRoot, entry.name);
       const content = await fs.readFile(filePath, 'utf-8');
       const { data, body } = parseFrontmatter(content);
@@ -477,7 +477,7 @@ const main = async () => {
     try {
       const orgEntries = await fs.readdir(orgsRoot, { withFileTypes: true });
       for (const entry of orgEntries) {
-        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+        if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
         const filePath = path.join(orgsRoot, entry.name);
         const content = await fs.readFile(filePath, 'utf-8');
         const { data, body } = parseFrontmatter(content);
@@ -684,7 +684,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(brandRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(brandRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data, body } = parseFrontmatter(content);
@@ -737,7 +737,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(customersRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(customersRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data } = parseFrontmatter(content);
@@ -778,7 +778,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(partnersRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(partnersRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data, body } = parseFrontmatter(content);
@@ -949,7 +949,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(financialsRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(financialsRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data, body } = parseFrontmatter(content);
@@ -1231,7 +1231,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(decisionsRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(decisionsRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data, body } = parseFrontmatter(content);
