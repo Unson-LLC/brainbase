@@ -468,15 +468,10 @@ const main = async () => {
             global.insertDebugShown = true;
           }
 
-          // ON CONFLICTの代わりに、DELETE→INSERTパターンを使用（RLS問題を回避）
-          const deleteResult = await client.query(`DELETE FROM graph_entities WHERE id = $1`, [personId]);
-          if (!global.deleteDebugShown && deleteResult.rowCount > 0) {
-            console.log(`[DEBUG] DELETE succeeded: ${deleteResult.rowCount} row(s) deleted`);
-            global.deleteDebugShown = true;
-          }
           await client.query(
             `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())`,
+             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+             ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
             insertParams
           );
         } catch (error) {
