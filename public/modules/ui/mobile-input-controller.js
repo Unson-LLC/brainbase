@@ -121,16 +121,21 @@ export class MobileInputController {
             this.scheduleDraftSave('dock', dockInput);
         });
 
-        // iOS Safari: ボタンタップ時にinputからフォーカスが外れてキーボードが閉じるのを防ぐ
-        dockSend?.addEventListener('mousedown', (e) => {
-            e.preventDefault(); // フォーカスが外れるのを防ぐ
-        });
+        // iOS Safari: touchstartで処理を実行してclickより早くフォーカスを維持
+        let dockSendTouchHandled = false;
         dockSend?.addEventListener('touchstart', (e) => {
             e.preventDefault(); // フォーカスが外れるのを防ぐ
-        });
-        dockSend?.addEventListener('click', () => {
+            dockSendTouchHandled = true;
             this.handleSend('dock');
-            // Early return（セッション未選択等）の場合は入力欄が残るのでrefocus必要
+            this.refocusInput(dockInput);
+        }, { passive: false });
+        dockSend?.addEventListener('click', () => {
+            // タッチで既に処理済みなら何もしない（重複実行防止）
+            if (dockSendTouchHandled) {
+                dockSendTouchHandled = false;
+                return;
+            }
+            this.handleSend('dock');
             this.refocusInput(dockInput);
         });
         dockMore?.addEventListener('click', () => {
@@ -202,16 +207,21 @@ export class MobileInputController {
             this.scheduleDraftSave('composer', composerInput);
         });
 
-        // iOS Safari: ボタンタップ時にinputからフォーカスが外れてキーボードが閉じるのを防ぐ
-        composerSend?.addEventListener('mousedown', (e) => {
-            e.preventDefault(); // フォーカスが外れるのを防ぐ
-        });
+        // iOS Safari: touchstartで処理を実行してclickより早くフォーカスを維持
+        let composerSendTouchHandled = false;
         composerSend?.addEventListener('touchstart', (e) => {
             e.preventDefault(); // フォーカスが外れるのを防ぐ
-        });
-        composerSend?.addEventListener('click', () => {
+            composerSendTouchHandled = true;
             this.handleSend('composer');
-            // Early return（セッション未選択等）の場合は入力欄が残るのでrefocus必要
+            this.refocusInput(composerInput);
+        }, { passive: false });
+        composerSend?.addEventListener('click', () => {
+            // タッチで既に処理済みなら何もしない（重複実行防止）
+            if (composerSendTouchHandled) {
+                composerSendTouchHandled = false;
+                return;
+            }
+            this.handleSend('composer');
             this.refocusInput(composerInput);
         });
         composerBack?.addEventListener('click', () => this.closeComposer(true));
