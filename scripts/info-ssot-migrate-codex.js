@@ -427,9 +427,9 @@ const main = async () => {
       });
 
       if (!dryRun) {
-        try {
-          // Debug: RLS設定値を再確認（最初のperson INSERT直前のみ）
-          if (personId === 'per_01KGHVCMD2Q2ZTNQMB8C4YWDEN') {
+        // Debug: RLS設定値を再確認（最初のperson INSERT直前のみ）
+        if (!global.rlsDebugShown) {
+          try {
             const debugRls = await client.query(
               `SELECT current_setting('app.role', true) AS role,
                       current_setting('app.project_codes', true) AS projects,
@@ -437,8 +437,14 @@ const main = async () => {
                       app_current_role_rank() AS role_rank,
                       app_clearance() AS clearance_array`
             );
-            console.log(`[DEBUG] RLS settings before person INSERT:`, debugRls.rows[0]);
+            console.log(`[DEBUG] RLS before person INSERT (${person.name}):`, debugRls.rows[0]);
+            global.rlsDebugShown = true;
+          } catch (debugError) {
+            console.error(`[DEBUG ERROR]:`, debugError.message);
           }
+        }
+
+        try {
 
           await client.query(
             `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)

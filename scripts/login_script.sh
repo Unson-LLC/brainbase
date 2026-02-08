@@ -12,6 +12,41 @@ INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
 INITIAL_CMD_FILE=""
 
+# Auto-fix CWD: read worktree path from state.json and cd to it
+# This prevents Claude from starting in the wrong directory when ttyd's CWD is incorrect
+STATE_JSON_PATH=""
+SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
+if [ -f "$STATE_JSON_PATH" ] && command -v python3 >/dev/null 2>&1; then
+    WORKTREE_PATH=$(python3 -c "
+import json, sys
+try:
+    with open('$STATE_JSON_PATH') as f:
+        state = json.load(f)
+    for s in state['sessions']:
+        if s['id'] == '$SESSION_NAME':
+            wt = s.get('worktree', {})
+            p = wt.get('path', '') if isinstance(wt, dict) else ''
+            if not p:
+                p = s.get('path', '')
+            print(p)
+            break
+except Exception:
+    pass
+" 2>/dev/null)
+    if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+        cd "$WORKTREE_PATH"
+    fi
+fi
+
+# Auto-resume: check for saved Claude session ID
+RESUME_SESSION_ID=""
+RESUME_DIR="$HOME/.claude/brainbase-sessions"
+RESUME_FILE="$RESUME_DIR/$SESSION_NAME.resume"
+if [ -f "$RESUME_FILE" ]; then
+    RESUME_SESSION_ID=$(cat "$RESUME_FILE" 2>/dev/null | tr -d '[:space:]')
+fi
+
 create_initial_cmd_file() {
     if [ -z "$INITIAL_CMD" ]; then
         return 0
@@ -245,19 +280,26 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
         LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
+        # Build resume flag if session ID is available
+        CLAUDE_RESUME_FLAG=""
+        if [ -n "$RESUME_SESSION_ID" ]; then
+            CLAUDE_RESUME_FLAG="--resume $RESUME_SESSION_ID"
+        fi
         if [ -n "$INITIAL_CMD" ]; then
-            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions "$(cat %q; rm -f %q)"' \
+            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions %s "$(cat %q; rm -f %q)"' \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
                 "$CLAUDE_BIN" \
+                "$CLAUDE_RESUME_FLAG" \
                 "$INITIAL_CMD_FILE" \
                 "$INITIAL_CMD_FILE"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         else
-            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions" \
+            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions %s" \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
-                "$CLAUDE_BIN"
+                "$CLAUDE_BIN" \
+                "$CLAUDE_RESUME_FLAG"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         fi
     fi

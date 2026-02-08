@@ -53,7 +53,7 @@ function saveTokens(tokens) {
 }
 
 async function requestDeviceCode(codeVerifier) {
-    const apiUrl = process.env.BRAINBASE_API_URL || 'https://brain-base.work';
+    const apiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
     const deviceCodeUrl = `${apiUrl}/api/auth/device/code`;
 
     log(`\n📡 Requesting device code from ${apiUrl}...`, colors.cyan);
@@ -78,7 +78,7 @@ async function requestDeviceCode(codeVerifier) {
 }
 
 async function pollForToken(deviceCode, interval, expiresIn) {
-    const apiUrl = process.env.BRAINBASE_API_URL || 'https://brain-base.work';
+    const apiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
     const tokenUrl = `${apiUrl}/api/auth/device/token`;
 
     const startTime = Date.now();

@@ -311,7 +311,7 @@ export class DeviceAuthController {
 // Handle Slack OAuth callback (postMessage from auth callback page)
 window.addEventListener('message', (event) => {
     // Verify origin
-    const allowedOrigins = ['http://localhost:31013', 'https://bb.unson.jp', 'https://graph.brainbase.work'];
+    const allowedOrigins = ['http://localhost:31013', 'https://bb.unson.jp', 'https://graph.brain-base.work'];
     if (!allowedOrigins.includes(event.origin)) {
         return;
     }

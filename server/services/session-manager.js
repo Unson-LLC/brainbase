@@ -237,16 +237,18 @@ export class SessionManager {
                 }
             }
 
-            // 3. state.json の intendedState === 'active' のセッションIDを取得
-            // BUG FIX: TEST_MODEでrestoreActiveSessions()がスキップされた場合、
-            // activeSessions Mapが空になるため、state.jsonも確認してアクティブセッションを保護する
+            // 3. state.json の intendedState === 'active' または 'paused' のセッションIDを取得
+            // active: 通常のアクティブセッション
+            // paused: 一時停止中だがttyd/tmux/Claudeプロセスが動いている可能性があるセッション
+            // BUG FIX: 'paused'セッションのttydを孤立プロセスとして殺すと、
+            // tmux/Claudeセッションが巻き添えで死ぬ。pausedも保護対象に含める。
             const state = this.stateStore.get();
             const activeSessionIds = new Set(
                 state.sessions
-                    .filter(s => s.intendedState === 'active')
+                    .filter(s => s.intendedState === 'active' || s.intendedState === 'paused')
                     .map(s => s.id)
             );
-            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active session(s) in state.json`);
+            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active/paused session(s) in state.json`);
 
             // 4. 孤立したttydプロセスのみ殺す
             let orphansKilled = 0;
