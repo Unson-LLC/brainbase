@@ -40,46 +40,17 @@ export class MobileInputUIController {
     }
 
     bindDock() {
-        const { dockInput, dockSend, dockMore, dockExpand, dockClipboard, dockSnippets, dockSnippetAdd, dockPaste, dockUploadImage, dockCopyTerminal, dockClear, dockEscape } = this.elements;
-        dockInput?.addEventListener('focus', () => {
-            this.focusManager.inputFocused = true;
-            this.focusManager.setActiveInput(dockInput);
-            this.focusManager.syncKeyboardState();
-            this.focusManager.scheduleKeyboardSync();
-            this.focusManager.scrollInputIntoView(dockInput);
-        });
-        dockInput?.addEventListener('blur', () => {
-            this.focusManager.inputFocused = false;
-            this.focusManager.syncKeyboardState();
-            this.focusManager.clearKeyboardSync();
-        });
-        dockInput?.addEventListener('input', () => {
-            this.autoResize(dockInput);
-            this.draftManager.scheduleDraftSave('dock', dockInput);
-        });
+        const { dockInput, dockSend, dockMore, dockSessions, dockPaste, dockUploadImage, dockCopyTerminal, dockClear, dockEscape, dockShiftTab } = this.elements;
+        this.bindInputEventHandlers(dockInput, 'dock', true);  // scrollIntoView有効
 
-        // iOS Safari: touchstartで処理を実行してclickより早くフォーカスを維持
-        let dockSendTouchHandled = false;
-        dockSend?.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // フォーカスが外れるのを防ぐ
-            dockSendTouchHandled = true;
-            this.handleSend('dock');
-            this.focusManager.refocusInput(dockInput);
-        }, { passive: false });
-        dockSend?.addEventListener('click', () => {
-            // タッチで既に処理済みなら何もしない（重複実行防止）
-            if (dockSendTouchHandled) {
-                dockSendTouchHandled = false;
-                return;
-            }
-            this.handleSend('dock');
-            this.focusManager.refocusInput(dockInput);
-        });
+        this.bindTouchClickHandler(dockSend, 'dock', dockInput);
         dockMore?.addEventListener('click', () => {
             this.toggleDockExpanded();
             this.focusManager.refocusInput(dockInput);
         });
-        dockExpand?.addEventListener('click', () => this.openComposer());
+        dockSessions?.addEventListener('click', () => {
+            this.handleSessionsSheet();
+        });
         dockPaste?.addEventListener('click', async () => {
             const result = await this.pasteFromClipboard();
             if (result) {
@@ -110,6 +81,10 @@ export class MobileInputUIController {
             this.handleEscape();
             this.focusManager.refocusInput(dockInput);
         });
+        dockShiftTab?.addEventListener('click', () => {
+            this.handleShiftTab();
+            this.focusManager.refocusInput(dockInput);
+        });
 
         this.elements.dockClipButtons.forEach((button, index) => {
             button.addEventListener('click', async () => {
@@ -138,39 +113,9 @@ export class MobileInputUIController {
             composerSelectToggle
         } = this.elements;
 
-        composerInput?.addEventListener('focus', () => {
-            this.focusManager.inputFocused = true;
-            this.focusManager.setActiveInput(composerInput);
-            this.focusManager.syncKeyboardState();
-            this.focusManager.scheduleKeyboardSync();
-        });
-        composerInput?.addEventListener('blur', () => {
-            this.focusManager.inputFocused = false;
-            this.focusManager.syncKeyboardState();
-            this.focusManager.clearKeyboardSync();
-        });
-        composerInput?.addEventListener('input', () => {
-            this.autoResize(composerInput);
-            this.draftManager.scheduleDraftSave('composer', composerInput);
-        });
+        this.bindInputEventHandlers(composerInput, 'composer', false);  // scrollIntoView無効
 
-        // iOS Safari: touchstartで処理を実行してclickより早くフォーカスを維持
-        let composerSendTouchHandled = false;
-        composerSend?.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // フォーカスが外れるのを防ぐ
-            composerSendTouchHandled = true;
-            this.handleSend('composer');
-            this.focusManager.refocusInput(composerInput);
-        }, { passive: false });
-        composerSend?.addEventListener('click', () => {
-            // タッチで既に処理済みなら何もしない（重複実行防止）
-            if (composerSendTouchHandled) {
-                composerSendTouchHandled = false;
-                return;
-            }
-            this.handleSend('composer');
-            this.focusManager.refocusInput(composerInput);
-        });
+        this.bindTouchClickHandler(composerSend, 'composer', composerInput);
         composerBack?.addEventListener('click', () => this.closeComposer(true));
         composerPaste?.addEventListener('click', async () => {
             const result = await this.pasteFromClipboard();
@@ -232,6 +177,77 @@ export class MobileInputUIController {
                 const format = button.getAttribute('data-mobile-format');
                 this.applyFormat(format);
             });
+        });
+    }
+
+    /**
+     * iOS Safari対応: touchstart/clickイベントを統一処理
+     *
+     * iOS Safariでは以下の理由で touchstart + click 両方が必要：
+     * - touchstart: ユーザージェスチャーコンテキスト内でフォーカス維持
+     * - click: Android/デスクトップブラウザ対応
+     * - フラグ管理: 二重実行防止（タッチデバイスで両方発火するため）
+     *
+     * @param {HTMLElement} button - 対象ボタン
+     * @param {string} mode - 'dock' または 'composer'
+     * @param {HTMLElement} focusInput - フォーカス戻し対象
+     */
+    bindTouchClickHandler(button, mode, focusInput) {
+        if (!button) return;
+
+        let touchHandled = false;
+
+        button.addEventListener('touchstart', (e) => {
+            e.preventDefault();                    // フォーカスが外れるのを防ぐ
+            touchHandled = true;
+            this.handleSend(mode);
+            this.focusManager.refocusInput(focusInput);
+        }, { passive: false });
+
+        button.addEventListener('click', () => {
+            if (touchHandled) {                    // 重複実行防止
+                touchHandled = false;
+                return;
+            }
+            this.handleSend(mode);
+            this.focusManager.refocusInput(focusInput);
+        });
+    }
+
+    /**
+     * input要素の標準イベントハンドラを統一
+     *
+     * focus/blur/input の3つのイベントを一括バインド:
+     * - focus: キーボード同期開始、アクティブ入力設定
+     * - blur: キーボード同期停止
+     * - input: 自動リサイズ、ドラフト自動保存
+     *
+     * @param {HTMLElement} inputEl - 対象input要素
+     * @param {string} mode - 'dock' または 'composer'
+     * @param {boolean} includeScrollIntoView - focus時に scrollIntoView を呼ぶか
+     */
+    bindInputEventHandlers(inputEl, mode, includeScrollIntoView = false) {
+        if (!inputEl) return;
+
+        inputEl.addEventListener('focus', () => {
+            this.focusManager.inputFocused = true;
+            this.focusManager.setActiveInput(inputEl);
+            this.focusManager.syncKeyboardState();
+            this.focusManager.scheduleKeyboardSync();
+            if (includeScrollIntoView) {
+                this.focusManager.scrollInputIntoView(inputEl);
+            }
+        });
+
+        inputEl.addEventListener('blur', () => {
+            this.focusManager.inputFocused = false;
+            this.focusManager.syncKeyboardState();
+            this.focusManager.clearKeyboardSync();
+        });
+
+        inputEl.addEventListener('input', () => {
+            this.autoResize(inputEl);
+            this.draftManager.scheduleDraftSave(mode, inputEl);
         });
     }
 
@@ -661,6 +677,29 @@ export class MobileInputUIController {
         } catch (error) {
             console.error('Failed to send Escape:', error);
             showError('Escapeキーの送信に失敗したよ');
+        }
+    }
+
+    async handleShiftTab() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            showInfo('セッションを選択してね');
+            return;
+        }
+
+        try {
+            await this.apiClient.sendKey(sessionId, 'S-Tab');
+        } catch (error) {
+            console.error('Failed to send Shift+Tab:', error);
+            showError('Shift+Tabキーの送信に失敗したよ');
+        }
+    }
+
+    handleSessionsSheet() {
+        // bottom navのセッションボタンをトリガーしてセッション一覧を開く
+        const mobileSessionsBtn = document.getElementById('mobile-sessions-btn');
+        if (mobileSessionsBtn) {
+            mobileSessionsBtn.click();
         }
     }
 }

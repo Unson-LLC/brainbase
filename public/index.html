@@ -791,10 +791,16 @@
                 <button class="mobile-input-secondary" id="mobile-dock-more">More</button>
             </div>
         </div>
-        <!-- Actions: Image upload, Copy terminal, Clear, Escape (expanded mode only) -->
+        <!-- Actions: Sessions, Image upload, Paste, Copy terminal, Clear, Escape, Plan mode (expanded mode only) -->
         <div class="mobile-input-row mobile-input-actions">
+            <button class="mobile-input-btn" id="mobile-dock-sessions" title="セッション切り替え">
+                <i data-lucide="layers"></i>
+            </button>
             <button class="mobile-input-btn" id="mobile-dock-upload-image" title="画像アップロード">
                 <i data-lucide="image-plus"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-paste" title="クリップボードからペースト">
+                <i data-lucide="clipboard"></i>
             </button>
             <button class="mobile-input-btn" id="mobile-dock-copy-terminal" title="ターミナル内容をコピー">
                 <i data-lucide="copy"></i>
@@ -804,6 +810,9 @@
             </button>
             <button class="mobile-input-btn" id="mobile-dock-escape" title="Escapeキーを送信">
                 <i data-lucide="x-octagon"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-shift-tab" title="プランモード切り替え (Shift+Tab)">
+                <i data-lucide="panel-left"></i>
             </button>
         </div>
     </div>
@@ -935,62 +944,6 @@
         <div class="bottom-sheet-content" id="mobile-tasks-content">
             <!-- Tasks will be cloned here -->
         </div>
-    </div>
-
-    <!-- Mobile FAB (Floating Action Button) with Speed Dial -->
-    <div id="mobile-fab-container" class="mobile-fab-container">
-        <!-- Overlay to close menu -->
-        <div id="mobile-fab-overlay" class="mobile-fab-overlay"></div>
-
-        <!-- Speed Dial Actions (ordered bottom-to-top by usage frequency) -->
-        <div id="mobile-fab-actions" class="mobile-fab-actions">
-            <!-- Hard reset (top, development use) -->
-            <button class="mobile-fab-action" id="mobile-hard-reset-btn" title="キャッシュクリアして再読込">
-                <i data-lucide="refresh-cw"></i>
-                <span class="fab-action-label">リセット</span>
-            </button>
-            <!-- Least frequent: Copy (top, farthest from FAB) -->
-            <button class="mobile-fab-action" id="mobile-copy-terminal-btn" title="ターミナル内容をコピー">
-                <i data-lucide="copy"></i>
-                <span class="fab-action-label">コピー</span>
-            </button>
-            <!-- Low frequency: Clear -->
-            <button class="mobile-fab-action" id="mobile-send-clear-btn" title="画面クリア (Ctrl+L)">
-                <i data-lucide="eraser"></i>
-                <span class="fab-action-label">クリア</span>
-            </button>
-            <!-- Medium frequency: Escape -->
-            <button class="mobile-fab-action" id="mobile-send-escape-btn" title="Escapeキーを送信">
-                <i data-lucide="x-octagon"></i>
-                <span class="fab-action-label">Escape</span>
-            </button>
-            <!-- Mode toggle: Shift+Tab for plan mode -->
-            <button class="mobile-fab-action" id="mobile-send-shift-tab-btn" title="Shift+Tabを送信（プランモード切り替え）">
-                <i data-lucide="panel-left"></i>
-                <span class="fab-action-label">プラン</span>
-            </button>
-            <!-- Mode toggle: Virtual keyboard visibility -->
-            <button class="mobile-fab-action" id="mobile-toggle-keyboard-btn" title="仮想キーボード表示/非表示">
-                <i data-lucide="keyboard"></i>
-                <span class="fab-action-label">キーボード</span>
-            </button>
-            <!-- High frequency: Image upload -->
-            <button class="mobile-fab-action" id="mobile-upload-image-btn" title="画像を選択してアップロード">
-                <i data-lucide="image-plus"></i>
-                <span class="fab-action-label">画像</span>
-            </button>
-            <!-- Most frequent: Paste (bottom, closest to FAB) -->
-            <button class="mobile-fab-action" id="mobile-paste-btn" title="クリップボードからペースト">
-                <i data-lucide="clipboard"></i>
-                <span class="fab-action-label">ペースト</span>
-            </button>
-        </div>
-
-        <!-- Main FAB Button -->
-        <button id="mobile-fab" class="mobile-fab" title="アクションメニュー">
-            <i data-lucide="wrench" class="fab-icon-default"></i>
-            <i data-lucide="x" class="fab-icon-close"></i>
-        </button>
     </div>
 
     <!-- Health Detail Modal -->
