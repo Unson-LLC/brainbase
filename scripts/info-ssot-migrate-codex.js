@@ -570,13 +570,31 @@ const main = async () => {
       sensitivity
     }) => {
       if (dryRun) return;
-      await client.query(
-        `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-         ON CONFLICT (id)
-         DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
-        [id, entityType, projectId, JSON.stringify(payload || {}), roleMin, sensitivity]
+
+      // 存在チェック（ON CONFLICT回避でRLS generic plan caching問題を解決）
+      const existing = await client.query(
+        'SELECT id FROM graph_entities WHERE id = $1',
+        [id]
       );
+
+      const payloadJson = JSON.stringify(payload || {});
+
+      if (existing.rows.length === 0) {
+        // 新規INSERT（RLS policy: INSERT のみ評価）
+        await client.query(
+          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())`,
+          [id, entityType, projectId, payloadJson, roleMin, sensitivity]
+        );
+      } else {
+        // 既存UPDATE（RLS policy: UPDATE のみ評価）
+        await client.query(
+          `UPDATE graph_entities
+           SET payload = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [payloadJson, id]
+        );
+      }
     };
 
     const upsertGraphEdge = async ({

@@ -2,6 +2,7 @@ import { appStore } from '../core/store.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { showError, showInfo, showSuccess } from '../toast.js';
 import { MobileInputFocusManager } from './mobile-input-focus-manager.js';
+import { MobileInputDraftManager } from './mobile-input-draft-manager.js';
 import {
     DEFAULT_HISTORY_LIMIT,
     DEFAULT_PIN_SLOTS,
@@ -27,10 +28,10 @@ export class MobileInputController {
         this.history = [];
         this.pins = Array.from({ length: DEFAULT_PIN_SLOTS }, () => null);
         this.snippets = [];
-        this.draftTimers = {};
         this.isOnline = true;
         this.unsubscribeSession = null;
         this.focusManager = null;
+        this.draftManager = null;
     }
 
     init() {
@@ -45,6 +46,7 @@ export class MobileInputController {
         // マネージャーの初期化
         this.focusManager = new MobileInputFocusManager(this.elements);
         this.focusManager.init();
+        this.draftManager = new MobileInputDraftManager(this.elements);
 
         this.bindDock();
         this.bindComposer();
@@ -53,7 +55,10 @@ export class MobileInputController {
         this.bindSessionChanges();
 
         this.updatePinsUI();
-        this.restoreDrafts();
+        this.draftManager.restoreDrafts();
+        if (this.elements.dockInput) {
+            this.autoResize(this.elements.dockInput);
+        }
         this.updateSendAvailability();
         this.setDockExpanded(false);
     }
@@ -110,7 +115,7 @@ export class MobileInputController {
         });
         dockInput?.addEventListener('input', () => {
             this.autoResize(dockInput);
-            this.scheduleDraftSave('dock', dockInput);
+            this.draftManager.scheduleDraftSave('dock', dockInput);
         });
 
         // iOS Safari: touchstartで処理を実行してclickより早くフォーカスを維持
@@ -196,7 +201,7 @@ export class MobileInputController {
         });
         composerInput?.addEventListener('input', () => {
             this.autoResize(composerInput);
-            this.scheduleDraftSave('composer', composerInput);
+            this.draftManager.scheduleDraftSave('composer', composerInput);
         });
 
         // iOS Safari: touchstartで処理を実行してclickより早くフォーカスを維持
@@ -259,9 +264,9 @@ export class MobileInputController {
         this.unsubscribeSession = appStore.subscribeToSelector(
             state => state.currentSessionId,
             () => {
-                this.saveDraftNow('dock');
-                this.saveDraftNow('composer');
-                this.restoreDrafts();
+                this.draftManager.saveDraftNow('dock');
+                this.draftManager.saveDraftNow('composer');
+                this.draftManager.restoreDrafts();
                 this.updateSendAvailability();
             }
         );
@@ -327,7 +332,7 @@ export class MobileInputController {
         if (syncToDock && dockInput && composerInput) {
             dockInput.value = composerInput.value;
             this.autoResize(dockInput);
-            this.scheduleDraftSave('dock', dockInput);
+            this.draftManager.scheduleDraftSave('dock', dockInput);
         }
 
         composer.classList.remove('active');
@@ -393,7 +398,7 @@ export class MobileInputController {
 
             inputEl.value = '';
             this.autoResize(inputEl);
-            this.saveDraftNow(mode);
+            this.draftManager.saveDraftNow(mode);
             eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode, sessionId });
             showSuccess('送信したよ');
 
@@ -441,7 +446,7 @@ export class MobileInputController {
         }
 
         inputEl.focus();
-        this.scheduleDraftSave(inputEl === this.elements.composerInput ? 'composer' : 'dock', inputEl);
+        this.draftManager.scheduleDraftSave(inputEl === this.elements.composerInput ? 'composer' : 'dock', inputEl);
     }
 
     resolveCursorPosition(text, index, action) {
@@ -582,7 +587,7 @@ export class MobileInputController {
         inputEl.value = updated;
         inputEl.setSelectionRange(cursorStart, cursorEnd);
         this.autoResize(inputEl);
-        this.scheduleDraftSave('composer', inputEl);
+        this.draftManager.scheduleDraftSave('composer', inputEl);
     }
 
     getLineRange(text, start, end) {
@@ -674,7 +679,7 @@ export class MobileInputController {
         inputEl.setSelectionRange(nextPos, nextPos);
         inputEl.focus();
         this.autoResize(inputEl);
-        this.scheduleDraftSave(inputEl === this.elements.composerInput ? 'composer' : 'dock', inputEl);
+        this.draftManager.scheduleDraftSave(inputEl === this.elements.composerInput ? 'composer' : 'dock', inputEl);
     }
 
     updatePinsUI() {
@@ -879,53 +884,6 @@ export class MobileInputController {
         if (!inputEl) return;
         inputEl.style.height = 'auto';
         inputEl.style.height = `${inputEl.scrollHeight}px`;
-    }
-
-    scheduleDraftSave(mode, inputEl) {
-        if (!inputEl) return;
-        if (this.draftTimers[mode]) {
-            clearTimeout(this.draftTimers[mode]);
-        }
-        this.draftTimers[mode] = setTimeout(() => {
-            this.saveDraft(mode, inputEl);
-        }, 400);
-    }
-
-    saveDraftNow(mode) {
-        const inputEl = mode === 'composer' ? this.elements.composerInput : this.elements.dockInput;
-        if (!inputEl) return;
-        this.saveDraft(mode, inputEl);
-    }
-
-    saveDraft(mode, inputEl) {
-        const sessionId = appStore.getState().currentSessionId || 'general';
-        const payload = {
-            value: inputEl.value,
-            selectionStart: inputEl.selectionStart ?? 0,
-            selectionEnd: inputEl.selectionEnd ?? 0,
-            updatedAt: Date.now()
-        };
-        this.saveJson(`${STORAGE_KEYS.draft}:${sessionId}:${mode}`, payload);
-        eventBus.emit(EVENTS.MOBILE_INPUT_DRAFT_SAVED, { mode, sessionId });
-    }
-
-    restoreDrafts() {
-        const sessionId = appStore.getState().currentSessionId || 'general';
-        this.restoreDraftFor('dock', sessionId, this.elements.dockInput);
-        this.restoreDraftFor('composer', sessionId, this.elements.composerInput);
-        if (this.elements.dockInput) {
-            this.autoResize(this.elements.dockInput);
-        }
-    }
-
-    restoreDraftFor(mode, sessionId, inputEl) {
-        if (!inputEl) return;
-        const draft = this.loadJson(`${STORAGE_KEYS.draft}:${sessionId}:${mode}`, null);
-        if (!draft) return;
-        inputEl.value = draft.value || '';
-        const start = draft.selectionStart ?? 0;
-        const end = draft.selectionEnd ?? start;
-        inputEl.setSelectionRange(start, end);
     }
 
     loadPins() {
