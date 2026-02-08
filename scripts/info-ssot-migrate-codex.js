@@ -470,7 +470,8 @@ const main = async () => {
 
           await client.query(
             `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())`,
+             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+             ON CONFLICT (id) DO NOTHING`,
             insertParams
           );
         } catch (error) {
