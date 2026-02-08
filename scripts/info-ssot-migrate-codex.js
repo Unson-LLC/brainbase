@@ -324,9 +324,9 @@ const main = async () => {
     projectCodeMap.set('zeims', projectCodeMap.get('zeims') || 'zeims');
 
     const projectCodes = [...projectRecords.keys()].join(',');
-    await client.query(`SELECT set_config('app.role', 'ceo', false)`);
-    await client.query(`SELECT set_config('app.project_codes', $1, false)`, [projectCodes]);
-    await client.query(`SELECT set_config('app.clearance', 'internal,restricted,finance,hr,contract', false)`);
+    await client.query(`SELECT set_config('app.role', 'ceo', true)`);
+    await client.query(`SELECT set_config('app.project_codes', $1, true)`, [projectCodes]);
+    await client.query(`SELECT set_config('app.clearance', 'internal,restricted,finance,hr,contract', true)`);
 
     const rlsSettings = await client.query(
       `SELECT current_setting('app.role', true) AS role,
