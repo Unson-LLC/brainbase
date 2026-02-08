@@ -199,7 +199,7 @@ export class DeviceAuthController {
         sessionStorage.setItem('brainbase_user_code', this.userCode);
 
         // Redirect to Slack OAuth
-        const returnUrl = `${window.location.origin}/device?slack_callback=true`;
+        const returnUrl = `/device?slack_callback=true`;
         const authUrl = `/api/auth/slack/start?origin=${encodeURIComponent(returnUrl)}&redirect=${encodeURIComponent(returnUrl)}`;
 
         window.location.href = authUrl;

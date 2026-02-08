@@ -44,7 +44,7 @@ echo "✅ .env.graph-api 確認完了"
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo "🔨 Step 2: Dockerイメージビルド"
-docker build -f Dockerfile.graph-api -t brainbase-graph-api:latest .
+docker build --platform linux/amd64 -f Dockerfile.graph-api -t brainbase-graph-api:latest .
 echo "✅ ビルド完了"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
