@@ -343,20 +343,25 @@ const main = async () => {
 
     if (!dryRun) {
       for (const project of projectRecords.values()) {
-        await client.query(
-          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-           ON CONFLICT (id)
-           DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
-          [
-            project.id,
-            'project',
-            project.id,
-            JSON.stringify({ code: project.code, name: project.name }),
-            'member',
-            'internal'
-          ]
-        );
+        try {
+          await client.query(
+            `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+             ON CONFLICT (id)
+             DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+            [
+              project.id,
+              'project',
+              project.id,
+              JSON.stringify({ code: project.code, name: project.name }),
+              'member',
+              'internal'
+            ]
+          );
+        } catch (error) {
+          console.error(`[ERROR] Failed to insert/update project entity: ${project.code} (${project.id})`);
+          throw error;
+        }
       }
     }
 
