@@ -1659,4 +1659,45 @@ export class InfoSSOTService {
             return { ai_decision_id: aiDecisionId, event_id: eventId };
         });
     }
+
+    /**
+     * Slack IDから人物情報を取得
+     */
+    async getPersonBySlackId(slackUserId, workspaceId) {
+        this.assertReady();
+        const client = await this.pool.connect();
+        try {
+            const sql = `
+                SELECT p.*
+                FROM people p
+                JOIN people_slack ps ON p.id = ps.person_id
+                WHERE ps.slack_user_id = $1 AND ps.workspace_id = $2
+                LIMIT 1
+            `;
+            const result = await client.query(sql, [slackUserId, workspaceId]);
+            return result.rows[0] || null;
+        } finally {
+            client.release();
+        }
+    }
+
+    /**
+     * 人物IDからプロジェクト割り当てを取得
+     */
+    async getProjectAssignments(personId) {
+        this.assertReady();
+        const client = await this.pool.connect();
+        try {
+            const sql = `
+                SELECT DISTINCT project_id, role_code, authority_scope
+                FROM raci_assignments
+                WHERE person_id = $1
+                ORDER BY project_id
+            `;
+            const result = await client.query(sql, [personId]);
+            return result.rows;
+        } finally {
+            client.release();
+        }
+    }
 }

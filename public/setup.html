@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>brainbase セットアップ</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <style>
+        /* Setup Page Styles */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .user-info, .projects, .config-download, .next-steps {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.95);
+        }
+
+        .user-info h2, .projects h2, .config-download h2, .next-steps h2 {
+            color: #60a5fa;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .user-info p {
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+        }
+
+        .user-info strong {
+            color: #e2e8f0;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #1e40af;
+        }
+
+        #project-list {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            color: #94a3b8;
+        }
+
+        #project-list li {
+            margin-bottom: 0.5rem;
+        }
+
+        #project-list strong {
+            color: #e2e8f0;
+        }
+
+        #loading {
+            text-align: center;
+            padding: 3rem;
+            color: #94a3b8;
+        }
+
+        #error {
+            padding: 1.5rem;
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            border-radius: 8px;
+            background: rgba(127, 29, 29, 0.2);
+            color: #fca5a5;
+        }
+
+        .next-steps ol {
+            padding-left: 1.5rem;
+            color: #94a3b8;
+        }
+
+        .next-steps li {
+            margin-bottom: 0.5rem;
+        }
+
+        .next-steps code {
+            background: rgba(100, 116, 139, 0.2);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 brainbase セットアップ</h1>
+
+        <div id="loading">読み込み中...</div>
+        <div id="error" style="display: none;"></div>
+
+        <div id="setup-content" style="display: none;">
+            <section class="user-info">
+                <h2>ユーザー情報</h2>
+                <p><strong>名前:</strong> <span id="user-name"></span></p>
+                <p><strong>Slack ID:</strong> <span id="slack-user-id"></span></p>
+                <p><strong>ワークスペース:</strong> <span id="workspace-id"></span></p>
+            </section>
+
+            <section class="projects">
+                <h2>アクセス可能なプロジェクト</h2>
+                <ul id="project-list"></ul>
+            </section>
+
+            <section class="config-download">
+                <h2>設定ファイル</h2>
+                <p>以下のボタンから <code>config.yml</code> をダウンロードして、<br>
+                   <code>~/workspace/config.yml</code> に配置してください。</p>
+                <button id="download-btn" class="btn btn-primary">config.yml をダウンロード</button>
+            </section>
+
+            <section class="next-steps">
+                <h2>次のステップ</h2>
+                <ol>
+                    <li><code>config.yml</code> をダウンロード</li>
+                    <li><code>~/workspace/config.yml</code> に配置</li>
+                    <li>brainbase MCPを起動</li>
+                    <li>Claude Codeで動作確認</li>
+                </ol>
+            </section>
+        </div>
+    </div>
+
+    <script type="module" src="/modules/setup/setup-controller.js"></script>
+</body>
+</html>

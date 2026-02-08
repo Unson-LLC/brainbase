@@ -52,6 +52,7 @@ import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
+import { createSetupRouter } from './server/routes/setup.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -415,6 +416,23 @@ app.get('/device', async (req, res) => {
     }
 });
 
+// Setup page
+app.get('/setup', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'setup.html');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        console.error('Error loading setup.html:', error);
+        res.status(500).send('Error loading setup page: ' + error.message);
+    }
+});
+
 app.use(express.static('public', {
     index: false,
     setHeaders: (res, path) => {
@@ -587,6 +605,7 @@ app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
+app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================
