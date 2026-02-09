@@ -86,7 +86,9 @@ const parseMarkdownTables = (content) => {
   for (let i = 0; i < lines.length - 1; i += 1) {
     if (!lines[i].trim().startsWith('|')) continue;
     if (!isSeparatorRow(lines[i + 1] || '')) continue;
+    console.log(`[DEBUG parseMarkdownTables] Raw header line (i=${i}): "${lines[i]}"`);
     const headers = parseTableLine(lines[i]);
+    console.log(`[DEBUG parseMarkdownTables] Parsed headers (${headers.length}): [${headers.join(', ')}]`);
     const rows = [];
     let cursor = i + 2;
     while (cursor < lines.length && lines[cursor].trim().startsWith('|')) {
@@ -590,9 +592,9 @@ const main = async () => {
         // 既存UPDATE（RLS policy: UPDATE のみ評価）
         await client.query(
           `UPDATE graph_entities
-           SET payload = $1, updated_at = NOW()
-           WHERE id = $2`,
-          [payloadJson, id]
+           SET project_id = $1, payload = $2, updated_at = NOW()
+           WHERE id = $3`,
+          [projectId, payloadJson, id]
         );
       }
     };
@@ -1196,32 +1198,55 @@ const main = async () => {
       let count = 0;
       try {
         const content = await fs.readFile(glossaryPath, 'utf-8');
+        console.log(`[DEBUG ingestGlossary] Reading glossary.md, content length=${content.length}`);
         const tables = parseMarkdownTables(content);
+        console.log(`[DEBUG ingestGlossary] Found ${tables.length} tables in glossary.md`);
         for (const table of tables) {
           const headerIndex = new Map(table.headers.map((h, idx) => [h, idx]));
           const termIdx = headerIndex.get('正しい表記') ?? 1;
           const patternIdx = headerIndex.get('誤認識パターン') ?? 0;
           const contextIdx = headerIndex.get('備考') ?? 2;
+          const projectIdx = headerIndex.get('プロジェクト');
+          console.log(`[DEBUG] Table headers (${table.headers.length} cols): [${table.headers.join(', ')}], projectIdx=${projectIdx}`);
           for (const row of table.rows) {
+            if (row.length !== table.headers.length) {
+              console.log(`[DEBUG] Row length mismatch! headers=${table.headers.length}, row=${row.length}`);
+            }
             const term = row[termIdx] || '';
             const patterns = row[patternIdx] || '';
             const context = row[contextIdx] || '';
+            const projectCol = projectIdx !== undefined ? (row[projectIdx] || '').trim() : '';
+            console.log(`[DEBUG] term=${term}, projectCol='${projectCol}', row=${JSON.stringify(row)}`);
             if (!term) continue;
+
+            // プロジェクトカラムが空の場合は全プロジェクト共通（project_id=null）
+            // 指定されている場合は、そのプロジェクトに紐づける
+            let targetProject = globalProject;
+            if (projectCol) {
+              const projectCode = normalizeProjectCode(projectCol, projectCodeMap);
+              if (projectCode) {
+                targetProject = projectRecords.get(projectCode) || globalProject;
+              }
+            }
+
             const termId = `gls_${normalizeToken(term) || hashId('glossary', term).slice(4)}`;
             await upsertGraphEntity({
               id: termId,
               entityType: 'glossary_term',
-              projectId: globalProject.id,
+              projectId: projectCol ? targetProject.id : null,  // 空ならnull（全プロジェクト共通）
               payload: {
                 term,
                 definition: patterns,
                 context,
+                project_code: projectCol || null,
                 source: path.relative(CODEX_ROOT, glossaryPath)
               },
               roleMin: 'member',
               sensitivity: 'internal'
             });
-            await upsertBelongsToProject(termId, globalProject, 'member', 'internal');
+            if (projectCol) {
+              await upsertBelongsToProject(termId, targetProject, 'member', 'internal');
+            }
             count++;
           }
         }

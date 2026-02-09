@@ -372,6 +372,20 @@ export class InfoSSOTService {
     async fetchGraphEntities(client, access, { projectCode, entityType, limit }) {
         const roleRank = this.getRoleRank(access.role);
         const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+
+        // デバッグログ追加
+        logger.info('[DEBUG] fetchGraphEntities called', {
+            projectCode,
+            entityType,
+            limit,
+            access: {
+                role: access.role,
+                roleRank,
+                projectCodes: access.projectCodes,
+                clearance: access.clearance
+            }
+        });
+
         const { rows } = await client.query(
             `SELECT ge.*, p.code AS project_code
              FROM graph_entities ge
@@ -379,6 +393,7 @@ export class InfoSSOTService {
              WHERE (
                $1::text IS NULL
                OR p.code = $1
+               OR ge.project_id IS NULL
                OR (
                  ge.entity_type = 'person' AND EXISTS (
                    SELECT 1
@@ -393,6 +408,7 @@ export class InfoSSOTService {
                AND ($2::text IS NULL OR ge.entity_type = $2)
                AND (
                  (ge.project_id IS NOT NULL AND p.code = ANY($3))
+                 OR ge.project_id IS NULL
                  OR (
                    ge.entity_type = 'person' AND EXISTS (
                      SELECT 1
@@ -410,6 +426,9 @@ export class InfoSSOTService {
              LIMIT $6`,
             [projectCode || null, entityType || null, access.projectCodes, access.clearance, roleRank, safeLimit]
         );
+
+        logger.info('[DEBUG] fetchGraphEntities result', { rowCount: rows.length });
+
         return rows;
     }
 
@@ -458,6 +477,7 @@ export class InfoSSOTService {
                )
                AND (
                  (ge.project_id IS NOT NULL AND p.code = ANY($3))
+                 OR ge.project_id IS NULL
                  OR (
                    ge.entity_type = 'person' AND EXISTS (
                      SELECT 1

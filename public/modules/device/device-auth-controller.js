@@ -108,7 +108,7 @@ export class DeviceAuthController {
             let slackUserId = null;
             let slackWorkspaceId = null;
             try {
-                const accessJson = localStorage.getItem('brainbase_access');
+                const accessJson = localStorage.getItem('brainbase.auth.access');
                 if (accessJson) {
                     const access = JSON.parse(accessJson);
                     slackUserId = access.slackUserId;

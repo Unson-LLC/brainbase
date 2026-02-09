@@ -234,7 +234,7 @@ export class AuthController {
             };
 
             if (wantsHtmlResponse(req)) {
-                const redirectTo = resolveRedirectPath(req.query.redirect);
+                const redirectTo = resolveRedirectPath(req.query.redirect || stateResult.origin);
                 const postMessageOrigin = resolvePostMessageOrigin(stateResult.origin);
                 return res.status(200).type('html').send(renderAuthCallbackHtml(
                     responsePayload,
