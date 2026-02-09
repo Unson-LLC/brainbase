@@ -25,12 +25,9 @@ jobs:
 
       - name: Run ops-department team review
         env:
-          REAL_HOME: /Users/ksato
-          HOME: /Users/ksato
-          CLAUDE_CLI_PATH: /Users/ksato/.npm-global/bin/claude
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_DISABLE_TELEMETRY: "1"
-          PATH: /Users/ksato/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+          PATH: ${{ env.HOME }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
         run: node scripts/ops-team-review.cjs
 
       - name: Read refactoring report

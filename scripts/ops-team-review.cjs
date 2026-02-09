@@ -74,7 +74,7 @@ Output format:
 async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
   const { timeout = 300000 } = options;
 
-  const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const homeDir = process.env.HOME || require("os").homedir();
 
   console.log(`[Claude CLI] 実行開始 (HOME=${homeDir})`);
 
