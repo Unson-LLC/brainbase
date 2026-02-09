@@ -17,26 +17,76 @@
 
 ---
 
-## サンプルTeam構成
+## サンプルTeam構成（5つ）
 
-### marketing-department（X投稿作成チーム）
+### 1. marketing（マーケティングチーム）- X投稿作成
 
 **目的**: X投稿を作成するための5人チーム
 
-| メンバー | 役割 | 使用Skills | Model |
-|---------|------|-----------|-------|
-| **team-lead** | チームリーダー（最終判断） | - | Sonnet 4.5 |
-| **customer-research** | ターゲット顧客分析 | customer-centric-marketing-n1 | Opus 4.6 |
-| **tactics-planning** | マーケティング戦術選定 | b2b-marketing-60-tactics-playbook, marketing-failure-patterns | Opus 4.6 |
-| **brand-management** | ブランド一貫性チェック | branding-strategy-guide | Opus 4.6 |
-| **content-creation** | 投稿ドラフト作成 | sns-smart, sns-copy-patterns | Opus 4.6 |
+| メンバー | 役割 | 使用Skills |
+|---------|------|-----------|
+| team-lead | チームリーダー | - |
+| customer-research | ターゲット顧客分析 | customer-centric-marketing-n1 |
+| tactics-planning | マーケティング戦術選定 | b2b-marketing-60-tactics-playbook, marketing-failure-patterns |
+| brand-management | ブランド一貫性チェック | branding-strategy-guide |
+| content-creation | 投稿ドラフト作成 | sns-smart, sns-copy-patterns |
 
-**ワークフロー**:
-1. customer-research → ターゲット分析（N=1、9セグ）
-2. tactics-planning → 戦術選定（60施策、失敗パターン診断）
-3. brand-management → ブランドガイドライン定義
-4. content-creation → 上記3つの成果を統合してドラフト作成
-5. team-lead → 最終レビュー・承認
+---
+
+### 2. ops（運用チーム）- brainbase開発運用
+
+**目的**: brainbase開発運用のための5人チーム
+
+| メンバー | 役割 | 使用Skills |
+|---------|------|-----------|
+| team-lead | チームリーダー | - |
+| architect | アーキテクチャパターン検証 | architecture-patterns, story-arch-spec-code |
+| tdd-engineer | TDDワークフロー実装 | tdd-workflow, test-strategy |
+| security-engineer | セキュリティ検証 | security-patterns |
+| refactoring-specialist | リファクタリング実施 | refactoring-workflow, verify-first-debugging |
+
+---
+
+### 3. dev（開発チーム）- 新機能実装
+
+**目的**: Story-driven approachで新機能を実装する5人チーム
+
+| メンバー | 役割 | 使用Skills |
+|---------|------|-----------|
+| team-lead | チームリーダー | - |
+| story-architect | Story & Architecture定義 | story-arch-spec-code |
+| spec-writer | 詳細仕様作成 | story-arch-spec-code, architecture-patterns |
+| tdd-engineer | TDD実装 | tdd-workflow, test-strategy |
+| code-reviewer | コードレビュー | architecture-patterns, security-patterns, refactoring-workflow |
+
+---
+
+### 4. sales（セールスチーム）- 提案・価格戦略
+
+**目的**: 提案書作成・価格戦略・顧客対応のための5人チーム
+
+| メンバー | 役割 | 使用Skills |
+|---------|------|-----------|
+| team-lead | チームリーダー | - |
+| proposal-writer | 提案書作成 | sales-playbook, kernel-prompt-engineering |
+| pricing-strategist | 価格戦略・契約条件 | jutaku-1oku-shikumi, sales-playbook |
+| customer-relations | 顧客対応・関係構築 | 1on1-mastery, sales-playbook |
+| case-study-writer | 導入事例作成 | sales-playbook, note-article-writing |
+
+---
+
+### 5. hr（人事チーム）- 採用・評価・育成
+
+**目的**: 採用・評価・育成のための6人チーム
+
+| メンバー | 役割 | 使用Skills |
+|---------|------|-----------|
+| team-lead | チームリーダー | - |
+| recruiter | 採用面接・候補者評価 | hiring-retention |
+| performance-reviewer | 評価・フィードバック | performance-review, manager-leverage |
+| 1on1-coach | 1on1ファシリテーション | 1on1-mastery, task-relevant-maturity |
+| retention-specialist | 退職防止・退職面談 | hiring-retention, principles |
+| training-coordinator | 研修・スキル開発 | learning-extraction, knowledge-frontmatter |
 
 ---
 

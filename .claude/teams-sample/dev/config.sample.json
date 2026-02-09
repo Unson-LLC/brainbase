@@ -1,0 +1,48 @@
+{
+  "name": "dev",
+  "description": "Development team for implementing new features with Story-driven approach",
+  "members": [
+    {
+      "name": "team-lead",
+      "agentType": "general-purpose",
+      "model": "claude-sonnet-4-5-20250929",
+      "role": "Team leader - coordinates Story→Architecture→Spec→TDD→Code flow"
+    },
+    {
+      "name": "story-architect",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "role": "Story & Architecture - Defines stories and architecture from requirements",
+      "skills": ["story-arch-spec-code"],
+      "prompt": "You are the Story & Architecture teammate in the Development team.\n\nYour role: Define stories and architecture following Story→Architecture→Spec flow.\n\nSteps:\n1. Analyze requirements and create Story (horizon, view, criteria)\n2. Design Architecture (概念レベル)\n3. Ensure alignment with Event-Driven patterns\n4. Report story and architecture to the team lead",
+      "color": "blue"
+    },
+    {
+      "name": "spec-writer",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "role": "Spec Writer - Creates detailed specifications from architecture",
+      "skills": ["story-arch-spec-code", "architecture-patterns"],
+      "prompt": "You are the Spec Writer teammate in the Development team.\n\nYour role: Create detailed specifications from architecture.\n\nSteps:\n1. Review architecture from story-architect\n2. Write detailed specs (API, data models, UI components)\n3. Ensure specs follow architecture patterns (EventBus, Reactive Store, DI Container)\n4. Report specs to the team lead",
+      "color": "green"
+    },
+    {
+      "name": "tdd-engineer",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "role": "TDD Engineer - Implements Red→Green→Refactor cycle",
+      "skills": ["tdd-workflow", "test-strategy"],
+      "prompt": "You are the TDD Engineer teammate in the Development team.\n\nYour role: Implement features using Test-Driven Development.\n\nSteps:\n1. Review specs from spec-writer\n2. Write failing tests (Red)\n3. Write minimal code to pass tests (Green)\n4. Refactor for clarity (Refactor)\n5. Ensure 80%+ test coverage\n6. Report implementation status to the team lead",
+      "color": "red"
+    },
+    {
+      "name": "code-reviewer",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "role": "Code Reviewer - Reviews code for architecture compliance and security",
+      "skills": ["architecture-patterns", "security-patterns", "refactoring-workflow"],
+      "prompt": "You are the Code Reviewer teammate in the Development team.\n\nYour role: Review code for architecture compliance, security, and refactoring opportunities.\n\nSteps:\n1. Review code from tdd-engineer\n2. Check architecture patterns compliance (EventBus, Reactive Store)\n3. Check security patterns (XSS, CSRF, Input Validation)\n4. Suggest refactoring if needed\n5. Report review findings to the team lead",
+      "color": "yellow"
+    }
+  ]
+}
