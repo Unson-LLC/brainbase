@@ -1,0 +1,382 @@
+---
+name: {skill-name}
+description: {簡潔な説明（1行）}。{workflow特徴: N Phase workflow、自動化内容等}。
+---
+
+# {Skill Name}: {目的の要約}
+
+**バージョン**: 1.0.0
+**最終更新**: {YYYY-MM-DD}
+**Orchestrator**: Yes (N Phase workflow)
+
+---
+
+## Triggers
+
+このSkillは以下の場合に使用します：
+
+- {トリガー条件1}
+- {トリガー条件2}
+- {トリガー条件3}
+
+**例**:
+```
+User: "{ユーザー発話例1}"
+User: "{ユーザー発話例2}"
+```
+
+---
+
+## Orchestration Overview
+
+このOrchestratorは**N Phase workflow**で{目的}を自動化します。
+
+### ワークフロー構成
+
+```
+Phase 1: {Phase 1の目的}
+└── agents/phase1_{action}.md
+    └── Skills: [{skill-1}, {skill-2}]
+    └── Output: {Phase 1の出力}
+
+Phase 2: {Phase 2の目的}
+└── agents/phase2_{action}.md
+    └── Skills: [{skill-1}, {skill-2}]
+    └── Input: {Phase 1の出力}
+    └── Output: {Phase 2の出力}
+
+{...追加Phase...}
+
+Phase N: {Phase Nの目的}
+└── agents/phaseN_{action}.md
+    └── Skills: [{skill-1}, {skill-2}]
+    └── Input: {Phase N-1の出力}
+    └── Output: {最終成果物}
+```
+
+### データフロー
+
+```
+User Input
+    ↓
+Phase 1: {Phase 1の目的}
+    ↓ (markdown見出し構造で受け渡し)
+Phase 2: {Phase 2の目的}
+    ↓
+Phase N: {Phase Nの目的}
+    ↓
+Final Output: {最終成果物}
+```
+
+---
+
+## 使い方
+
+### 基本的な使用方法
+
+```
+User: "{トリガー発話}"
+Claude Code: [このSkillを起動]
+
+→ Phase 1実行 → Phase 2実行 → ... → Phase N実行 → 完了
+```
+
+### 入力パラメータ
+
+| パラメータ | 必須/任意 | 説明 | 例 |
+|-----------|----------|------|-----|
+| {param1} | 必須 | {説明} | `{例}` |
+| {param2} | 任意 | {説明} | `{例}` |
+
+### 出力形式
+
+```markdown
+# {最終成果物のタイトル}
+
+## {セクション1}
+{内容...}
+
+## {セクション2}
+{内容...}
+
+---
+{追加情報}
+```
+
+---
+
+## Phase詳細
+
+### Phase 1: {Phase 1の目的}
+
+**Subagent**: `agents/phase1_{action}.md`
+
+**目的**: {Phase 1の目的を詳述}
+
+**使用Skills**:
+- `{skill-1}`: {Skillの役割}
+- `{skill-2}`: {Skillの役割}
+
+**入力**:
+- {入力1}
+- {入力2}
+
+**出力**:
+```markdown
+## {セクション名}
+{Phase 1の出力形式}
+```
+
+**Success Criteria**:
+- [ ] {条件1}
+- [ ] {条件2}
+- [ ] {条件3}
+
+---
+
+### Phase 2: {Phase 2の目的}
+
+**Subagent**: `agents/phase2_{action}.md`
+
+**目的**: {Phase 2の目的を詳述}
+
+**使用Skills**:
+- `{skill-1}`: {Skillの役割}
+- `{skill-2}`: {Skillの役割}
+
+**入力** (Phase 1から):
+- {Phase 1の出力セクション1}
+- {Phase 1の出力セクション2}
+
+**出力**:
+```markdown
+## {セクション名}
+{Phase 2の出力形式}
+```
+
+**Success Criteria**:
+- [ ] {条件1}
+- [ ] {条件2}
+- [ ] {条件3}
+
+---
+
+{...追加Phase...}
+
+---
+
+## Orchestratorの責任
+
+### やること
+
+1. **Phase順序の管理**
+   - Phase 1 → Phase 2 → ... → Phase Nの順で実行
+   - 前Phaseの完了を確認してから次Phaseを開始
+
+2. **データ受け渡しの検証**
+   - 各PhaseのSuccess Criteriaを確認
+   - markdown見出し構造でデータを引き継ぎ
+   - 不足データがあればユーザーに質問
+
+3. **エラーハンドリング**
+   - Phase実行失敗時のフォールバック
+   - ユーザーへのエラー通知
+   - 必要に応じてPhaseの再実行
+
+### やらないこと
+
+1. **Phase内部のロジックには介入しない**
+   - 各SubagentがPhase内のロジックを担当
+   - Orchestratorは進行管理のみ
+
+2. **ユーザー入力を直接処理しない**
+   - Phase 1 Subagentに委譲
+
+3. **最終出力の整形は行わない**
+   - 最終PhaseのSubagentが整形を担当
+
+---
+
+## Expected Output
+
+### 成功時
+
+```markdown
+# {最終成果物のタイトル}
+
+**作成日**: {YYYY-MM-DD}
+**Phase数**: N
+**実行時間**: {XX分}
+
+## {セクション1}
+{Phase 1-Nの統合結果}
+
+## {セクション2}
+{詳細データ}
+
+---
+
+**Success Criteria達成率**: 100%
+
+✅ Phase 1: {Phase 1の目的} - 完了
+✅ Phase 2: {Phase 2の目的} - 完了
+✅ Phase N: {Phase Nの目的} - 完了
+```
+
+### エラー時
+
+```markdown
+# {Skill Name} 実行エラー
+
+**Phase**: {失敗したPhase番号}
+**エラー内容**: {エラーメッセージ}
+
+## 原因
+{原因の説明}
+
+## 対処方法
+{ユーザーが取るべきアクション}
+
+## ログ
+{デバッグ情報}
+```
+
+---
+
+## Troubleshooting
+
+### Phase 1で失敗する
+
+**症状**: {症状の説明}
+
+**原因**:
+- {原因1}
+- {原因2}
+
+**対処**:
+1. {対処手順1}
+2. {対処手順2}
+
+---
+
+### Phase間のデータ受け渡しが失敗する
+
+**症状**: Phase 2で「Phase 1の出力が見つからない」エラー
+
+**原因**:
+- Phase 1のSuccess Criteriaが未達成
+- markdown見出し構造の不一致
+- 必須フィールドの欠損
+
+**対処**:
+1. Phase 1のSuccess Criteriaを確認
+2. Phase 1の出力形式を確認（markdown見出しが正しいか）
+3. Subagent定義の`Output Format`セクションを見直す
+
+---
+
+### 途中でユーザー入力が必要になる
+
+**症状**: Phase実行中に「不足情報があります」と表示される
+
+**対処**:
+- AskUserQuestion toolで質問が表示されるので回答する
+- 回答後、自動的に次のPhaseに進む
+
+---
+
+## Success Criteria
+
+Orchestrator全体の成功条件：
+
+- [ ] 全Phase（Phase 1〜N）が完了
+- [ ] 各PhaseのSuccess Criteriaが100%達成
+- [ ] 最終出力が期待形式で生成されている
+- [ ] エラーが発生していない（またはハンドリングされている）
+- [ ] {追加条件1}
+- [ ] {追加条件2}
+
+---
+
+## 関連ファイル
+
+### Subagent定義
+```
+.claude/skills/{skill-name}/
+├── SKILL.md                    # このファイル
+└── agents/
+    ├── phase1_{action}.md      # Phase 1 Subagent
+    ├── phase2_{action}.md      # Phase 2 Subagent
+    └── phaseN_{action}.md      # Phase N Subagent
+```
+
+### 参照ファイル（プロジェクト固有）
+```
+{プロジェクトルート}/
+├── _codex/
+│   └── {domain}/
+│       ├── {file1}.md          # Phase 1で参照
+│       └── {file2}.md          # Phase 2で参照
+└── {output_dir}/
+    └── {final_output}.md       # 最終出力先
+```
+
+---
+
+## 参照Skills
+
+このOrchestratorが使用する共通Skills：
+
+- **{skill-1}** (`/Users/ksato/workspace/.claude/skills/{skill-1}/SKILL.md`)
+  - 役割: {役割説明}
+  - 使用Phase: Phase 1, Phase 3
+
+- **{skill-2}** (`/Users/ksato/workspace/.claude/skills/{skill-2}/SKILL.md`)
+  - 役割: {役割説明}
+  - 使用Phase: Phase 2
+
+---
+
+## 開発ガイド
+
+### 新規Phaseの追加方法
+
+1. **Subagent定義を作成**
+   ```bash
+   cp .claude/skills/_templates/subagent.phase.md.template \
+      .claude/skills/{skill-name}/agents/phase{N}_{action}.md
+   ```
+
+2. **SKILL.mdに追記**
+   - `Orchestration Overview`にPhase追加
+   - `Phase詳細`セクションに詳細追加
+
+3. **データフローの更新**
+   - 前Phaseの出力を入力として定義
+   - Success Criteriaを明確化
+
+4. **テスト**
+   - Phase単体でテスト
+   - 全Phase通してテスト
+
+### Subagent定義のベストプラクティス
+
+- **single responsibility**: 1 Phaseで1つの責任のみ
+- **明確な入出力**: markdown見出し構造で明示
+- **Success Criteria**: 具体的かつ検証可能な条件
+- **Skillsの活用**: 思考フレームワークとして参照
+
+---
+
+## バージョン履歴
+
+### v1.0.0 (YYYY-MM-DD)
+- 初版作成
+- Phase 1-N実装
+- {追加機能}
+
+---
+
+**最終更新**: {YYYY-MM-DD}
+**作成者**: {作成者名}
+**ステータス**: Active

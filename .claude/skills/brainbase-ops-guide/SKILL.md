@@ -60,11 +60,11 @@ description: brainbase運用の統合ガイド（7 Skills統合版）。プロ�
 **Good**:
 ```bash
 # プロセス名を正確に指定
-pkill -f "brainbase-ui watch"
+pkill -f "node.*server.js"
 
 # 確認してから実行
-ps aux | grep "brainbase-ui watch"
-pkill -f "brainbase-ui watch"
+ps aux | grep "[n]ode.*server.js"
+pkill -f "node.*server.js"
 ```
 
 **Bad**:
@@ -142,9 +142,43 @@ brainbaseにおける _codex 正本とプロジェクト側参照の整合性を
         ├── 04_architecture.md
         └── 05_roadmap.md
 
-/Users/ksato/workspace/brainbase-ui/_codex/  （シンボリックリンク）
-└── → /Users/ksato/workspace/_codex/projects/brainbase-ui/
+/Users/ksato/workspace/code/brainbase/_codex/  （シンボリックリンク）
+└── → /Users/ksato/workspace/_codex/projects/brainbase/
 ```
+
+### 2.1.1 brainbase設計思想・判断基準の正本
+
+**要点（迷ったらここに戻る）**:
+- 正本は **`_codex/` に一本化**。プロジェクト側は参照のみ（正本が曖昧なら止める）。
+- brainbaseは **全事業を統一OSで運転**し、**「週次30分レビューだけで回る」自律運用** を実現することが目的。
+- **Skills OS = Skills（思考） + Codex（データ）** の統合が設計の核心。両者を**分離**して扱うことでスケールする。
+- **Skills = 再利用可能な思考の型 / Codex = プロジェクト固有データ**。二重管理はスケールの敵。
+- Skillsは **Philosophy / Thinking Framework / Implementation** の3層で設計する。
+
+**正本参照先**:
+- `_codex/common/00_stories.md`（Why / 5原理 / 4大原則）
+- `_codex/projects/brainbase/01_strategy.md`（プロダクト定義・週次30分運用・SSOT方針）
+- `_codex/projects/brainbase/strategy/story-driven-development.md`（循環OSのストーリー・譲れない判断軸）
+- `_codex/common/architecture_map.md`（最上位原則: 立ち位置 / SSOT構造）
+- `_codex/projects/brainbase/skills_concept.md`（Skillsの本質と3層構造 / Skills vs Codex分離）
+
+### 2.1.2 _codex探索の基本戦略
+
+**探索順序（段階的に広げる）**:
+1. 日本語キーワードで直接検索（例: 「振り返り」「抱負」）
+2. 英語キーワードで検索（例: review, retrospective, goals）
+3. ディレクトリ構造から推測（`_codex/common/meta/`, `_codex/projects/`）
+
+**パス不整合時の検証プロセス**:
+- 記載パスが不一致なら、**親ディレクトリ構造**と**必須ファイルの有無**（例: `server.js`）で本体を特定する。
+- **最初に見つかったパス＝正解ではない**前提で検証する。
+
+### 2.1.3 年次振り返り・計画ファイルの場所
+
+- 個人の年次振り返り:  
+  `/Users/ksato/workspace/shared/_codex/common/meta/people/<person>_annual_reflection_<year_range>.md`
+- 2025-2026 BAAO 事業計画:  
+  `/Users/ksato/workspace/shared/_codex/projects/baao/2025-review-and-2026-plan.md`
 
 ### 2.2 整合性チェック項目
 
@@ -158,10 +192,10 @@ brainbaseにおける _codex 正本とプロジェクト側参照の整合性を
 **検証コマンド**:
 ```bash
 # 01-05充足率確認
-ls -la /Users/ksato/workspace/_codex/projects/brainbase-ui/ | grep -E "0[1-5]_"
+ls -la /Users/ksato/workspace/_codex/projects/brainbase/ | grep -E "0[1-5]_"
 
 # リンク切れチェック
-find /Users/ksato/workspace/brainbase-ui/_codex -type l -exec test ! -e {} \; -print
+find /Users/ksato/workspace/code/brainbase/_codex -type l -exec test ! -e {} \; -print
 ```
 
 ### 2.3 リンク切れ修復
@@ -175,14 +209,14 @@ find /Users/ksato/workspace/brainbase-ui/_codex -type l -exec test ! -e {} \; -p
 **修復手順**:
 ```bash
 # 1. 現在のリンクを削除
-rm -rf /Users/ksato/workspace/brainbase-ui/_codex
+rm -rf /Users/ksato/workspace/code/brainbase/_codex
 
 # 2. 正本へのシンボリックリンクを再作成
-ln -s /Users/ksato/workspace/_codex/projects/brainbase-ui \
-      /Users/ksato/workspace/brainbase-ui/_codex
+ln -s /Users/ksato/workspace/_codex/projects/brainbase \
+      /Users/ksato/workspace/code/brainbase/_codex
 
 # 3. 確認
-ls -la /Users/ksato/workspace/brainbase-ui/_codex
+ls -la /Users/ksato/workspace/code/brainbase/_codex
 ```
 
 ---
@@ -299,6 +333,12 @@ cd ~/.worktrees/other-session
 git pull origin main
 ```
 
+### 4.4 Worktreeの複数バージョン混在に注意
+
+- worktree環境では**複数バージョンが並行**しやすい（例: 0.1.x と 1.0.x）。
+- launchd起動前に **`~/Library/LaunchAgents/com.brainbase.ui.plist` の `WorkingDirectory` とバージョン**を必ず確認する。
+- 誤ったバージョンを起動すると**無限リスタートループ**や意図しない挙動の原因になる。
+
 ---
 
 ## § 5. 開発サーバー起動
@@ -312,10 +352,10 @@ worktreeから開発サーバーを起動する際の手順。ポート競合を
 **現在使用中のポート確認**:
 ```bash
 # 正本で起動中のサーバー確認
-lsof -i :3000
+lsof -i :31013
 
 # 結果例
-# node    12345 ksato   25u  IPv4 0x... TCP *:3000 (LISTEN)
+# node    12345 ksato   25u  IPv4 0x... TCP *:31013 (LISTEN)
 ```
 
 ### 5.2 Worktreeで起動
@@ -325,13 +365,13 @@ lsof -i :3000
 # worktreeに移動
 cd ~/.worktrees/session-YYYYMMDD-brainbase
 
-# 開発サーバー起動（自動的に3001等に割り当て）
+# 開発サーバー起動（自動的に31014等に割り当て）
 npm run dev
 
 # 出力例
 # > brainbase-ui@1.0.0 dev
-# > PORT=3001 node server.js
-# Server listening on http://localhost:3001
+# > PORT=31014 node server.js
+# Server listening on http://localhost:31014
 ```
 
 **手動ポート指定**:
@@ -343,16 +383,77 @@ PORT=4000 npm run dev
 ### 5.3 ポート競合回避のベストプラクティス
 
 **Good**:
-- 正本: `PORT=3000`（デフォルト）
-- Worktree 1: `PORT=3001`（自動割り当て）
-- Worktree 2: `PORT=3002`（自動割り当て）
+- 正本: `PORT=31013`（デフォルト）
+- Worktree 1: `PORT=31014`（自動割り当て）
+- Worktree 2: `PORT=31015`（自動割り当て）
 
 **Bad**:
 ```bash
 # 同じポートで起動しようとする
 cd ~/.worktrees/session-1
-PORT=3000 npm run dev  # ❌ エラー: Address already in use
+PORT=31013 npm run dev  # ❌ エラー: Address already in use
 ```
+
+**ルール**:
+- worktreeは **31014以上** を使用（31013は正本・launchd管理用）。
+- `PORT` は環境変数 or `ecosystem.config.js` で明示する。
+
+### 5.4 launchdでbrainbaseを起動（標準フロー）
+
+**原則**: 継続稼働が前提のNext.js開発サーバーは**launchd管理**に統一。
+（他のプロセスマネージャは使わない。併用する場合はlaunchdを停止する）
+
+**起動チェック手順**:
+1. launchdの状態確認
+2. `com.brainbase.ui.plist` の `WorkingDirectory` と `PORT` を確認
+3. launchdを再読み込み
+4. ログ確認
+5. ポートアクセス確認
+
+**コマンド**:
+```bash
+launchctl list | grep brainbase
+launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
+launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
+tail -f ~/Library/Logs/brainbase-ui.log
+```
+
+**実体パス**:
+- brainbase本体: `/Users/ksato/workspace/code/brainbase`
+- launchd設定: `~/Library/LaunchAgents/com.brainbase.ui.plist`
+
+**よく使うlaunchdコマンド**:
+- `launchctl list | grep brainbase`（稼働確認）
+- `launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist`（停止）
+- `launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist`（起動）
+- `tail -f ~/Library/Logs/brainbase-ui.log`（ログ確認）
+
+### 5.5 起動確認とアクセス
+
+**アクセス先**: `http://localhost:31013/`
+
+**起動確認**:
+```bash
+curl -I http://localhost:31013
+lsof -i :31013
+```
+
+**ttydセッション**: 40000番台のポートを使用。起動時の**セッション自動復元**は `SessionManager` が担当。
+
+### 5.6 launchd運用のGotchas
+
+- **watchモードの再起動ループ**: launchd常駐中に `npm run dev` を同一ポートで起動しない。
+- **plistの環境変数差**: 問題時は `com.brainbase.ui.plist` の `EnvironmentVariables` を確認。
+- **BRAINBASE_ROOT必須**: 未設定だとUIが「読み込み中...」で止まる。
+- **WorkingDirectoryの誤り**: 古いパスだと別バージョンで起動するため要注意。
+
+### 5.7 サーバー落下時のトラブルシューティング
+
+1. `tail -f ~/Library/Logs/brainbase-ui.log` でエラー確認
+2. `com.brainbase.ui.plist` の `WorkingDirectory` / `PORT` を確認
+3. `launchctl list | grep brainbase` で稼働確認
+4. いなければ `launchctl load ...` で再起動
+5. 必要なら `launchctl unload ...` → `launchctl load ...` で再読み込み
 
 ---
 
@@ -428,7 +529,7 @@ brainbase-uiのlaunchd自動起動とwatch mode競合のトラブルシューテ
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/node</string>
-        <string>/Users/ksato/workspace/brainbase-ui/server.js</string>
+        <string>/Users/ksato/workspace/code/brainbase/server.js</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -444,12 +545,12 @@ brainbase-uiのlaunchd自動起動とwatch mode競合のトラブルシューテ
 
 **症状**:
 ```
-Error: listen EADDRINUSE: address already in use :::3000
+Error: listen EADDRINUSE: address already in use :::31013
 ```
 
 **原因**:
-- launchdが自動起動: `PORT=3000`
-- 手動でwatch mode起動: `PORT=3000`（デフォルト）
+- launchdが自動起動: `PORT=31013`
+- 手動でwatch mode起動: `PORT=31013`（同じポート指定）
 
 **解決方法**:
 
@@ -467,9 +568,9 @@ launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
 
 **Option 2**: 異なるポートで起動
 ```bash
-# launchd: PORT=3000（自動起動）
-# watch mode: PORT=3001（手動起動）
-PORT=3001 npm run dev
+# launchd: PORT=31013（自動起動）
+# watch mode: PORT=31014（手動起動）
+PORT=31014 npm run dev
 ```
 
 ### 7.3 launchd起動確認
@@ -480,7 +581,7 @@ PORT=3001 npm run dev
 launchctl list | grep brainbase
 
 # ログ確認
-tail -f /tmp/com.brainbase.ui.log
+tail -f ~/Library/Logs/brainbase-ui.log
 ```
 
 **再起動**:
@@ -514,7 +615,7 @@ launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
 
 **プロセスが停止しない**:
 ```bash
-pkill -f "brainbase-ui"  # § 1.1参照
+pkill -f "node.*server.js"  # § 1.1参照
 ```
 
 **環境変数が反映されない**:
@@ -524,14 +625,14 @@ source /Users/ksato/workspace/.env  # § 3.2参照
 
 **ポート競合が発生**:
 ```bash
-lsof -i :3000  # § 5.1参照
-PORT=3001 npm run dev  # § 5.2参照
+lsof -i :31013  # § 5.1参照
+PORT=31014 npm run dev  # § 5.2参照
 ```
 
 **_codexリンク切れ**:
 ```bash
-ln -s /Users/ksato/workspace/_codex/projects/brainbase-ui \
-      /Users/ksato/workspace/brainbase-ui/_codex  # § 2.3参照
+ln -s /Users/ksato/workspace/_codex/projects/brainbase \
+      /Users/ksato/workspace/code/brainbase/_codex  # § 2.3参照
 ```
 
 ---

@@ -1,3 +1,8 @@
+---
+name: add-mcp
+description: MCPサーバー追加の一発成功手順とトラブルシューティング。claude mcp addや起動失敗時の確認に使う。
+---
+
 # MCP Server 追加ガイド（一発成功版）
 
 **Version**: 1.0.0

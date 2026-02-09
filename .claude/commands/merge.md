@@ -1,6 +1,6 @@
 # セッションマージ（PRモード）
 
-session/* ブランチを main へマージします。
+session/* ブランチをデフォルトブランチへマージします。
 
 ---
 
@@ -19,6 +19,13 @@ session/* ブランチを main へマージします。
 ### 1. 前提確認
 
 ```bash
+# デフォルトブランチ取得
+DEFAULT_BRANCH=$(git remote show origin | sed -n 's/.*HEAD branch: //p')
+if [ -z "$DEFAULT_BRANCH" ]; then
+  echo "Error: デフォルトブランチを取得できませんでした"
+  exit 1
+fi
+
 # ブランチ確認
 CURRENT_BRANCH=$(git branch --show-current)
 if [[ ! "$CURRENT_BRANCH" =~ ^session/ ]]; then
@@ -55,7 +62,7 @@ echo "✓ Push完了"
 
 ```bash
 # コミット数取得
-COMMIT_COUNT=$(git rev-list --count main..HEAD)
+COMMIT_COUNT=$(git rev-list --count ${DEFAULT_BRANCH}..HEAD)
 
 # PR Title生成
 if [ "$COMMIT_COUNT" -eq 1 ]; then
@@ -65,10 +72,10 @@ else
 fi
 
 # PR作成
-gh pr create --title "$PR_TITLE" --body "$(cat <<EOF
+gh pr create --base "$DEFAULT_BRANCH" --title "$PR_TITLE" --body "$(cat <<EOF
 ## Summary
 
-$(git log main..HEAD --format="- %s")
+$(git log ${DEFAULT_BRANCH}..HEAD --format="- %s")
 
 ## Test plan
 
@@ -100,8 +107,8 @@ echo "✓ マージ完了"
 
 ```bash
 echo "🔄 ローカル同期中..."
-git checkout main
-git pull origin main
+git checkout "$DEFAULT_BRANCH"
+git pull origin "$DEFAULT_BRANCH"
 git fetch --prune
 echo "✓ ローカル同期完了"
 ```

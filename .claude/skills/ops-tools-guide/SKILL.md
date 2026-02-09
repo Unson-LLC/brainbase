@@ -1,0 +1,2055 @@
+---
+name: ops-tools-guide
+description: 運用・ツール統合ガイド（9 Skills統合版）。Claude Code実践パターン、brainbase運用安全性、バージョン管理、GitHub Actions、worktree開発、環境変数管理、Branch & Worktree運用、CI/CD認証を統合した実践ガイド
+---
+
+**バージョン**: v4.0（11 Skills統合版）
+**実装日**: 2025-12-30（v2.0）、2025-12-30（v3.0）、2025-12-31（v4.0）
+**統合済みSkills**: 11個
+**統合後サイズ**: 約2,050行 ✅ OPTIMAL範囲（1000-3000行）
+
+---
+
+## 統合Skills一覧
+
+| # | 元Skill名 | 行数 | 主要内容 |
+|---|----------|------|---------|
+| 1 | claude-code-patterns | 286行 | Claude Code Hooks設定、プロンプト参照、学習管理 |
+| 2 | brainbase-ops-safety | 304行 | brainbase運用安全性、プロセス管理、デプロイ |
+| 3 | brainbase-ui-launchd-gotchas | 148行 | launchd自動起動トラブルシューティング |
+| 4 | brainbase-ui-version | 139行 | バージョン管理ルール、変更履歴 |
+| 5 | github-actions-management | 53行 | GitHub Actionsワークフロー管理 |
+| 6 | worktree-dev-server | 60行 | worktree開発サーバーポート競合回避 |
+| 7 | env-management | 357行 | 環境変数管理、Slack/Airtable/AWS同期 |
+| 8 | branch-worktree-rules | 320行 | Branch & Worktree運用、シンボリックリンク方式 |
+| 9 | code-cicd-auth | 200行 | CI/CD認証、setup-token、GitHub Actions設定 |
+| 10 | branch-worktree-rules | 320行 | Branch & Worktree運用、シンボリックリンク方式 |
+| 11 | code-cicd-auth | 200行 | CI/CD認証、setup-token、GitHub Actions設定 |
+
+---
+
+## Triggers（このSkillを使うタイミング）
+
+以下の状況で使用：
+
+**Claude Code運用**:
+- Claude Code Hooksを設定するとき
+- @path記法でファイル参照したいとき
+- JSON形式のみで出力させたいとき
+- 学習候補を管理したいとき
+- Hooksが動作しない際のトラブルシューティング
+
+**brainbase運用**:
+- プロセスの強制終了やクリーンアップを行うとき
+- 本番環境でシステムコマンドを実行するとき
+- サービスの再起動やメンテナンスを行うとき
+- brainbase-uiのコードを変更したとき
+- バージョン番号を更新する必要があるとき
+- worktreeで作業を開始するとき
+- コミット先を確認したいとき
+
+**開発ツール**:
+- GitHub Actionsワークフローを作成・変更するとき
+- worktreeから開発サーバーを起動したいとき
+- ポート競合を回避したいとき
+- 環境変数を追加・更新するとき
+- Claude CodeをCI/CD・自動化環境で使いたいとき
+- セルフホストランナーでClaude Codeを自動実行したいとき
+- タスク開始前に該当Skillを確認したいとき
+
+---
+
+# Quick Reference
+
+## 状況別クイックガイド
+
+| 状況 | 参照セクション | キー操作 |
+|------|-------------|---------|
+| Hooksが動作しない | § 1.1 | `cat ~/.config/claude-code/settings.json \| jq '.hooks'` |
+| サーバーが起動しない | § 2.1 | `ps aux \| grep "[n]ode.*server.js"` → `pkill -f "node.*server.js"` |
+| launchd自動起動を停止 | § 2.2, § 3 | `launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist` |
+| バージョン更新 | § 4 | package.json + index.html (2箇所) → commit |
+| GitHub Actions追加 | § 5 | ワークフロー作成 → `scheduled-jobs.md` 更新 |
+| worktreeでサーバー起動 | § 6 | `PORT=31014 npm run dev` |
+| 環境変数追加 | § 7.4 | `.env` 追加 → GitHub Secrets同期 → Lambda同期 |
+| Slackトークン更新 | § 7.2 | `.env` 更新 → GitHub Secrets同期 |
+| worktree作業開始 | § 8 | シンボリックリンク確認 → コミット先分離 |
+| CI/CD認証設定 | § 9 | `claude setup-token` → GitHub Secrets設定 |
+
+---
+
+## Task Start Skill Check（Skill Trigger Index）
+
+タスク開始前に**該当Skillがあるかを必ず確認**する。
+
+- バグ修正: `verify-first-debugging`
+- テスト: `tdd-workflow`
+- リファクタ: `refactoring-workflow`
+- コミット: `git-commit-rules`
+- X投稿: `sns-smart`
+- note記事: `note-smart`
+- 新規プロジェクト: `project-onboarding`
+- 新規事業: `90day-checklist`
+- マーケ戦略: `marketing-strategy-planner`
+
+---
+
+## 思考フレームワーク連携
+
+### § 1（Claude Code）× § 2（brainbase運用安全）
+
+**統合活用パターン**:
+```
+開発タスク → 「Claude Codeで自動化できるか?」
+       ↓
+§ 1 Claude Code Hooks設定（自動化）
+       ↓
+§ 2 brainbase運用安全（プロセス管理）
+       ↓
+§ 4 バージョン管理（変更追跡）
+```
+
+**思考パターン**:
+```
+プロセス強制終了が必要 → 「本番サービスを止めないか?」
+§ 2.1 killall/pkillの使い分け → 特定パターンのみ終了
+
+開発サーバーが起動しない → 「複数インスタンスが動いていないか?」
+§ 2.1 StateStore競合確認 → 既存プロセス停止
+
+環境変数が読み込まれない → 「.envの変数展開が動作しているか?」
+§ 7.8 トラブルシューティング → 直接値をコピー
+```
+
+---
+
+# § 1. Claude Code実践パターン
+
+> **出典**: claude-code-patterns (運用時のgotchaとベストプラクティス)
+
+## 1.0 Memory Check Protocol（3層確認フロー）
+
+回答前に必ず**3層メモリ**を確認する。迷ったら確認する、探さない理由がない限り探す。
+
+1. Brainbase MCP（プロジェクト・人物・組織・RACI）
+2. ZEP MCP（過去の決定事項・コンテキスト）
+3. ローカル_codex（詳細ドキュメント）
+
+## 1.1 Claude Code Hooks設定
+
+### JSON形式は必ず `{"hooks": {...}}` のネスト構造で記述する
+
+**問題**: hooks設定をトップレベルに直接書くと動作しない
+
+```json
+❌ 誤った例
+{
+  "sessionStart": {...},
+  "userPromptSubmit": {...}
+}
+```
+
+```json
+✅ 正しい例
+{
+  "hooks": {
+    "sessionStart": {...},
+    "userPromptSubmit": {...}
+  }
+}
+```
+
+**原因**: Claude Codeの設定パーサーは `hooks` キーの存在を前提としている
+
+**確認方法**:
+```bash
+# 設定ファイルの構造を確認
+cat ~/.config/claude-code/settings.json | jq '.hooks'
+```
+
+**思考パターン**:
+```
+Hooksが動作しない → 「ネスト構造になっているか?」
+設定ファイル確認 → `jq '.hooks'` で確認
+```
+
+---
+
+### Stopトリガーは「エージェントの応答完了時のみ」発火する
+
+**重要**: ユーザーによる中断（Ctrl+C等）では発火しない
+
+```yaml
+hooks:
+  stop:
+    command: "echo 'cleanup after response'"
+```
+
+**発火するケース**:
+- エージェントが応答を完了した直後
+- エラーなく正常終了した時
+
+**発火しないケース**:
+- ユーザーがCtrl+Cで中断した時
+- セッションがクラッシュした時
+- タイムアウトで強制終了した時
+
+**適した用途**:
+- 応答完了後のクリーンアップ
+- セッション統計の記録
+- 完了通知の送信
+
+**不適切な用途**:
+- 必ず実行されるべきクリーンアップ（→ sessionEnd推奨）
+- 中断時の状態保存（→ 別の仕組みが必要）
+
+**思考パターン**:
+```
+応答完了後の処理 → Stopトリガー使用
+中断時も実行が必要 → sessionEndトリガー検討
+```
+
+---
+
+## 1.2 デバッグとトラブルシューティング
+
+### Hooksが動作しない時の確認手順
+
+1. **設定ファイルの構文チェック**
+   ```bash
+   cat ~/.config/claude-code/settings.json | jq .
+   ```
+   エラーが出る場合はJSON構文エラー
+
+2. **hooks キーの存在確認**
+   ```bash
+   cat ~/.config/claude-code/settings.json | jq '.hooks'
+   ```
+   `null` が返る場合は設定形式が誤っている
+
+3. **コマンドの実行権限確認**
+   ```bash
+   # スクリプトを直接実行してみる
+   bash /path/to/hook-script.sh
+   ```
+
+4. **ログの確認**
+   Hooksの実行ログは Claude Code のセッションログに出力される
+
+### よくあるエラーパターン
+
+| エラー症状 | 原因 | 解決策 |
+|-----------|------|--------|
+| Hooksが全く動作しない | `{"hooks": {...}}` 形式になっていない | ネスト構造に修正 |
+| Stopが発火しない | ユーザーが中断している | sessionEndトリガーを検討 |
+| スクリプトがエラーになる | パスが相対パス | 絶対パスに変更 |
+| 環境変数が使えない | シェルの初期化が不完全 | スクリプト内で明示的にsource |
+
+**思考パターン**:
+```
+Hooksが動作しない → 確認手順1-4を順に実行
+エラーパターンに該当 → 対応する解決策を適用
+```
+
+---
+
+## 1.3 実践的なHooks設定例
+
+### セッション開始時の環境チェック
+
+```json
+{
+  "hooks": {
+    "sessionStart": {
+      "command": "~/.config/claude-code/hooks/check-environment.sh",
+      "showOutput": true
+    }
+  }
+}
+```
+
+### 応答完了後の統計記録
+
+```json
+{
+  "hooks": {
+    "stop": {
+      "command": "echo \"Session completed: $(date)\" >> ~/claude-sessions.log",
+      "showOutput": false
+    }
+  }
+}
+```
+
+### 複数のトリガーを組み合わせた構成
+
+```json
+{
+  "hooks": {
+    "sessionStart": {
+      "command": "/path/to/startup-check.sh",
+      "showOutput": true
+    },
+    "userPromptSubmit": {
+      "command": "/path/to/log-prompt.sh",
+      "showOutput": false
+    },
+    "stop": {
+      "command": "/path/to/cleanup.sh",
+      "showOutput": false
+    }
+  }
+}
+```
+
+---
+
+## 1.4 プロンプトパターン
+
+### @path記法による動的ファイル参照
+
+Claude Codeでファイルの内容を直接プロンプトとして読み込む記法：
+
+```
+@/path/to/file
+```
+
+**使用例**:
+```bash
+# カスタムコマンドの内容を直接実行
+claude @/Users/ksato/workspace/.claude/commands/commit.md
+
+# 複数ファイルの組み合わせ
+claude @/path/to/context.md "上記を踏まえて実装してください"
+```
+
+**メリット**:
+- プロンプトの外部ファイル化で管理が容易
+- 長大な指示を再利用可能
+- バージョン管理が可能
+
+**注意点**:
+- ファイルパスは絶対パスを推奨
+- ファイルが存在しない場合はエラー
+
+**思考パターン**:
+```
+長大なプロンプト → @path記法で外部ファイル化
+再利用可能にしたい → ファイルとして保存
+```
+
+---
+
+### JSON形式のみで出力させる方法
+
+説明文やマークダウンを除き、JSONペイロードのみを返させる指示：
+
+```
+以下の内容をJSONのみで出力してください。説明文は不要です。
+
+{...}
+```
+
+**効果**:
+- 機械処理が容易（パースエラーを防ぐ）
+- 後処理の標準化
+- スクリプトでの自動処理に最適
+
+**使用例**:
+```bash
+# 学習候補をJSON形式で抽出
+claude "以下のセッションから学習内容を抽出し、JSONのみで出力してください"
+```
+
+**注意点**:
+- プロンプトで明確に「JSONのみ」と指示する
+- Claude Codeの出力形式制御と組み合わせる
+
+---
+
+## 1.5 学習管理パターン
+
+### JSON構造化による学習の管理
+
+学習内容を以下のJSON形式で構造化：
+
+```json
+{
+  "title": "学習タイトル",
+  "category": "workflow | architecture | gotcha | ...",
+  "content": "学習内容の詳細",
+  "tags": ["tag1", "tag2"],
+  "confidence": 0.95
+}
+```
+
+**メリット**:
+- 機械処理可能な形式
+- 学習の再利用性・検索性向上
+- 集約・分析が容易
+
+**運用フロー**:
+1. セッション終了時に学習内容を抽出
+2. JSON形式で構造化
+3. `.claude/learning/learning_queue/` に保存
+4. `/learn-skills` で確認・適用
+
+### 信頼度スコア（confidence）による品質評価
+
+学習内容の信頼度を0.0〜1.0のスコアで評価：
+
+| 信頼度 | 基準 |
+|--------|------|
+| 0.95〜 | 検証済みのベストプラクティス |
+| 0.8〜0.94 | 実践的な学習内容 |
+| 0.5〜0.79 | 参考情報 |
+| 〜0.49 | 未検証・要確認 |
+
+**使用例**:
+```bash
+# 信頼度0.8以上の学習候補を抽出
+jq '.confidence >= 0.8' learning_queue/*.json
+```
+
+**思考パターン**:
+```
+学習内容の抽出 → JSON構造化 → 信頼度評価
+信頼度0.8以上 → 学習候補として採用
+```
+
+---
+
+## 1.6 Gotchaと教訓
+
+### Web調査の重要性
+
+**事例**: Skillsとカスタムコマンドの作り方について、最初は誤った方法を提案
+
+**教訓**: 実装方法が不確かな場合は必ずWebで確認する
+
+**対策**:
+- 公式ドキュメントを第一に参照
+- 実装例を複数確認
+- コミュニティのベストプラクティスを調査
+
+**思考パターン**:
+```
+実装方法が不確か → Web調査実施
+公式ドキュメント確認 → 実装例複数確認
+```
+
+---
+
+# § 2. brainbase運用安全ガイド
+
+> **出典**: brainbase-ops-safety (本番環境での重大な失敗を防ぐ)
+
+## 2.1 プロセス管理の注意点
+
+### killall/pkillの使い分け - 本番サービス停止のリスク
+
+**問題**: `killall -9 node` や `killall -9 npx` は本番サービスを含む全てのプロセスを停止する
+
+```bash
+❌ 絶対にやってはいけない例
+killall -9 node      # 全てのnodeプロセスを強制終了
+killall -9 npx       # 全てのnpxプロセスを強制終了
+
+→ 本番サービス（brainbase-ui、MCP servers等）が全て停止
+→ 復旧に多大な時間がかかる
+```
+
+```bash
+✅ 正しい例: 特定のプロセスパターンで絞り込む
+# 1. 事前に対象プロセスを確認
+ps aux | grep "claude.*dangerously-skip-permissions"
+
+# 2. 確認後、特定のパターンのみ終了
+pkill -9 -f "claude.*dangerously-skip-permissions"
+
+# 3. 必要に応じて他のパターンも
+pkill -9 -f "mcp-server.*specific-pattern"
+```
+
+**原因**:
+- `killall` はプロセス名のみでマッチする
+- node/npxは多くのサービスで共通して使われている
+- `-9` (SIGKILL) は即座に強制終了するため、復旧処理も実行されない
+
+**ベストプラクティス**:
+1. **必ず `ps aux | grep <pattern>` で対象を事前確認**
+2. **`pkill -f <pattern>` でプロセスのコマンドライン全体でマッチ**
+3. **本番環境では `-9` の前に通常のシグナル (SIGTERM) を試す**
+4. **worktree環境で事前にテストする**
+
+**確認方法**:
+```bash
+# 現在動いているnodeプロセスを確認
+ps aux | grep "[n]ode" | grep -v grep
+
+# 特定のポートでリスニングしているプロセスを確認
+lsof -i :31013
+netstat -an | grep LISTEN
+```
+
+**思考パターン**:
+```
+プロセス終了が必要 → 「本番サービスを止めないか?」
+killall使用検討 → 「特定パターンで絞り込めるか?」
+ps aux で確認 → pkill -f <pattern> 実行
+```
+
+---
+
+### 複数インスタンス起動によるStateStore競合
+
+**問題**: 複数のサーバーインスタンスが同時に動くとstate.jsonの読み書きが競合する
+
+```bash
+❌ 絶対にやってはいけない例
+# 既にnpm run devが動いているのに、別のターミナルで起動
+npm start  # または node server.js
+
+→ 2つのStateStoreインスタンスが同じstate.jsonを操作
+→ セッション履歴が消える、APIが古いデータを返す等の問題
+```
+
+```bash
+✅ 正しい例: 必ず既存プロセスを停止してから起動
+
+# 1. 既存のサーバープロセスを確認
+ps aux | grep "[n]ode.*server.js"
+lsof -i:31013
+
+# 2. 既存プロセスがあれば停止
+pkill -f "node.*server.js"
+pkill -f "npm.*dev"
+pkill -f "npm.*start"
+
+# 3. 正本はlaunchdで再起動（推奨）
+launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
+launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
+
+# watch modeが必要な場合（手動）
+cd /Users/ksato/workspace/code/brainbase
+PORT=31014 npm run dev
+```
+
+**正しい起動方法**:
+- **正本（main）**: `launchd（PORT=31013）`
+- **worktree**: `PORT=31014 npm run dev` （§ 6参照）
+
+**使い分け**:
+- `npm run dev`: ファイル変更を監視して自動再起動（開発用）
+- `npm start`: 単純起動、watcherなし（本番/テスト用）
+
+**確認方法**:
+```bash
+# 動いているサーバーの確認
+ps aux | grep "[n]ode.*server.js"
+lsof -i:31013
+
+# プロセスの起動元ディレクトリを確認（重要！）
+lsof -p <PID> | grep cwd
+# → /Users/ksato/workspace/code/brainbase が正しい
+# → /Users/ksato/workspace/brainbase-ui なら間違い
+
+# APIが正しくセッションを返すか確認
+curl -s http://localhost:31013/api/state | python3 -c "import sys, json; print(f'Sessions: {len(json.load(sys.stdin).get(\"sessions\", []))}')"
+```
+
+**思考パターン**:
+```
+サーバー起動前 → 「既存プロセスが動いていないか?」
+ps aux 確認 → 複数インスタンス検出
+既存プロセス停止 → 新規起動
+```
+
+---
+
+### server.js編集時の注意点 - BRAINBASE_ROOT定義の削除禁止
+
+**問題**: server.js編集時にBRAINBASE_ROOT定義を削除すると全データパスが壊れる
+
+```bash
+❌ 絶対にやってはいけない例
+# BRAINBASE_ROOT定義を削除した状態でserver.jsを編集
+
+→ BRAINBASE_ROOT未定義エラー
+→ パスが古い相対パス（../）にフォールバック
+→ /Users/ksato/_tasks/index.md など存在しないパスを参照
+→ タスク・スケジュール・セッションが全て0件になる
+```
+
+```bash
+✅ 正しい例: BRAINBASE_ROOT定義を必ず維持
+
+// server.js の必須定義（削除禁止）
+const BRAINBASE_ROOT = detectBrainbaseRoot();
+console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
+
+// この定義の後にパス設定
+const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
+const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
+```
+
+**原因**:
+- server.js の部分編集時に BRAINBASE_ROOT 定義部分を含めずに Edit してしまう
+- 結果として定義が削除され、後続のパス設定が全て壊れる
+- タスク・スケジュール・設定ファイルが読めなくなる
+
+**編集後の必須確認**:
+```bash
+# 1. BRAINBASE_ROOT定義が存在するか確認
+grep "BRAINBASE_ROOT" /Users/ksato/workspace/code/brainbase/server.js
+
+# 2. サーバー起動時のログを確認
+tail -f ~/Library/Logs/brainbase-ui.log | grep "Root directory"
+# → [BRAINBASE] Root directory: /Users/ksato/workspace/shared が表示されるべき
+
+# 3. タスク読み込みパスを確認
+tail -f ~/Library/Logs/brainbase-ui.log | grep "Reading tasks from"
+# → Reading tasks from: /Users/ksato/workspace/shared/_tasks/index.md が表示されるべき
+
+# 4. APIが正しくデータを返すか確認
+curl -s http://localhost:31013/api/tasks | python3 -c "import sys, json; print(f'Tasks: {len(json.load(sys.stdin))}')"
+# → Tasks: 121 のように表示されるべき（0件なら失敗）
+```
+
+**重要**: server.js編集時は必ずBRAINBASE_ROOT定義を含めて編集し、編集後は上記4点を確認する
+
+**思考パターン**:
+```
+server.js編集 → 「BRAINBASE_ROOT定義を含めているか?」
+編集完了 → 4点確認（定義存在、ログ、パス、API）
+タスク0件 → BRAINBASE_ROOT定義削除の可能性
+```
+
+---
+
+## 2.2 launchdサービスの自動起動 - 旧ディレクトリからの起動問題
+
+**問題**: launchdサービスが旧ディレクトリからサーバーを自動起動し、複数インスタンス競合を引き起こす
+
+```bash
+❌ 問題のある状態
+# /Users/ksato/Library/LaunchAgents/com.brainbase.ui.plist が存在
+# → システム起動時に npm run dev が自動起動
+# → /Users/ksato/workspace/brainbase-ui から起動（旧ディレクトリ）
+# → 手動起動したサーバーと競合してstate.json破損
+
+# 確認方法
+launchctl list | grep brainbase
+ps aux | grep "[n]ode.*server.js"
+lsof -p <PID> | grep cwd  # 作業ディレクトリ確認
+```
+
+```bash
+✅ 正しい対処方法
+
+# 1. plistを最新化（WorkingDirectory/PORT/BRAINBASE_ROOT）
+#    WorkingDirectory: /Users/ksato/workspace/code/brainbase
+#    PORT: 31013
+#    BRAINBASE_ROOT: /Users/ksato/workspace/shared
+
+# 2. launchdを再読み込み
+launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
+pkill -9 -f "node.*server.js"  # 旧プロセスを全停止
+launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
+
+# 3. watch modeは必要時のみ別ポートで起動
+cd /Users/ksato/workspace/code/brainbase
+PORT=31014 npm run dev
+```
+
+**原因**:
+- リポジトリ移動時にlaunchdサービスの設定が古いまま残る
+- plistのWorkingDirectoryを更新してもlaunchdがキャッシュを使う
+- RunAtLoad=true + KeepAlive=true で常時起動状態になる
+- プロセス親がPID=1（システム起動）なので気づきにくい
+
+**ベストプラクティス**:
+1. **正本（main）はlaunchdで統一運用**（PORT=31013）
+2. **リポジトリ移動時は plist の WorkingDirectory を必ず更新**
+3. **プロセスの親PID と作業ディレクトリを必ず確認**
+   ```bash
+   ps -o pid,ppid,command | grep "[n]ode.*server.js"
+   # PPID=1 なら launchd から起動されている
+
+   lsof -p <PID> | grep cwd
+   # 正しいディレクトリ: /Users/ksato/workspace/code/brainbase
+   # 間違ったディレクトリ: /Users/ksato/workspace/brainbase-ui
+   ```
+4. **watch modeは PORT=31014 で分離運用**
+
+**トラブルシューティング**:
+```bash
+# サーバーが「また死んだ」場合のチェックリスト
+
+# 1. 複数インスタンスが動いていないか？
+ps aux | grep "[n]ode.*server.js" | wc -l
+# → 4つ以上なら複数インスタンス問題
+
+# 2. 旧ディレクトリから起動していないか？
+for pid in $(pgrep -f "node.*server.js"); do
+  echo "PID $pid:"
+  lsof -p $pid | grep cwd
+done
+# → /Users/ksato/workspace/brainbase-ui があれば問題
+
+# 3. launchdサービスが動いていないか？
+launchctl list | grep brainbase
+# → com.brainbase.ui があればOK（launchd運用）
+
+# 4. 全停止して再起動
+launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
+pkill -9 -f "node.*server.js"
+launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
+```
+
+**重要**: brainbaseリポジトリ移動後は、plistのWorkingDirectory/PORT/BRAINBASE_ROOTを更新して再読み込みする
+
+**思考パターン**:
+```
+サーバーが頻繁に死ぬ → 「launchd自動起動が原因か?」
+launchctl list 確認 → com.brainbase.ui 検出
+再読み込み → 正しい設定で起動
+```
+
+---
+
+## 2.3 package.jsonのdevスクリプト - state.json監視除外
+
+**問題**: `node --watch server.js` はカレントディレクトリの全ファイル（state.json含む）を監視する
+
+```bash
+❌ 絶対にやってはいけない例
+"dev": "node --watch server.js"
+
+→ state.json変更時にサーバー再起動
+→ StateStore.init()実行
+→ 既存のstate.jsonが上書きされる
+→ セッション履歴が消える
+```
+
+```bash
+✅ 正しい例: 明示的に監視パスを指定してstate.jsonを除外
+"dev": "node --watch-path=server --watch-path=lib --watch-path=public --watch-path=server.js --watch-path=package.json --watch-preserve-output server.js"
+
+→ state.json変更時に再起動しない
+→ セッションデータが保護される
+```
+
+**原因**:
+- `--watch <file>` は指定ファイルのみ監視
+- `--watch server.js` はカレントディレクトリ全体を監視（Node.jsの仕様）
+- state.jsonはAPI経由で頻繁に更新される
+- 再起動のたびにStateStore.init()が実行される
+
+**確認方法**:
+```bash
+# package.jsonの内容確認
+cat package.json | grep -A 1 '"dev"'
+
+# 正しい設定になっているか確認
+grep "watch-path" package.json
+```
+
+**重要**: このスクリプトは絶対に `"dev": "node --watch server.js"` に戻してはいけない
+
+**思考パターン**:
+```
+devスクリプト編集 → 「state.json監視除外されているか?」
+セッション履歴が消える → devスクリプト確認
+```
+
+---
+
+# § 3. launchd自動起動トラブルシューティング
+
+> **出典**: brainbase-ui-launchd-gotchas (watchモード競合問題)
+
+## 3.1 問題の症状
+
+- server.jsを手動で修正・再起動しても変更が反映されない
+- 日本語フォント等の設定変更が適用されない
+- ポート31013が既に使用中のエラーが出る
+- プロセスをkillしても自動的に再起動される
+
+## 3.2 根本原因
+
+`com.brainbase.ui` というlaunchdサービスがバックグラウンドで動いており、自動的に`npm run dev`（watchモード）を起動し続けている。
+
+**問題点：**
+1. watchモードは`--watch`フラグでファイル変更を監視し、自動再起動する
+2. 手動で起動したプロセスと競合する
+3. watchモードは古いコードやキャッシュを使う場合がある
+4. 複数のnodeプロセスが同じポートを奪い合う
+
+## 3.3 診断方法
+
+### 1. launchdサービスの確認
+
+```bash
+# brainbase関連のlaunchdサービスを検索
+launchctl list | grep brainbase
+
+# 特定サービスの詳細確認
+launchctl list com.brainbase.ui
+```
+
+### 2. 実行中のnodeプロセスを確認
+
+```bash
+# brainbase-ui関連のnodeプロセスを確認
+ps aux | grep "node.*server.js"
+
+# 複数のプロセスが動いている場合は競合の可能性あり
+```
+
+### 3. ポート使用状況の確認
+
+```bash
+# ポート31013を使用しているプロセスを確認
+lsof -i :31013
+```
+
+## 3.4 解決方法
+
+### オプション1: watch modeのために一時停止
+
+```bash
+# サービスを停止（作業中のみ）
+launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
+
+# watch modeで作業（別ポート推奨）
+cd /Users/ksato/workspace/code/brainbase
+PORT=31014 npm run dev
+
+# 作業終了後に再開
+launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
+```
+
+### オプション2: 正しいコマンドに変更
+
+自動起動が必要な場合は、plistファイルを編集してwatchモードを無効化：
+
+```xml
+<!-- 変更前 -->
+<string>npm</string>
+<string>run</string>
+<string>dev</string>  <!-- これがwatchモード -->
+
+<!-- 変更後 -->
+<string>npm</string>
+<string>start</string>  <!-- 通常モード -->
+```
+
+変更後、サービスを再読み込み：
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
+launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
+```
+
+## 3.5 正しい起動方法
+
+### 開発時（watch mode）
+
+```bash
+# watch mode（別ポート）
+cd /Users/ksato/workspace/code/brainbase
+PORT=31014 npm run dev
+```
+
+### 正本（launchd運用）
+
+launchdは**必ず`npm start`を使用**し、watchモードは避ける。
+
+## 3.6 予防策
+
+1. **launchdサービスを作成する前に確認**
+   - 本当に自動起動が必要か？
+   - watchモードではなく通常モードか？
+   - ログ出力先は適切か？
+
+2. **開発時はwatch modeをポート分離**
+   - launchdは維持（PORT=31013）
+   - watch modeは PORT=31014 で起動
+
+3. **定期的にlaunchdサービスを確認**
+   ```bash
+   launchctl list | grep brainbase
+   ```
+
+## 3.7 トラブルシューティングチェックリスト
+
+サーバー設定変更が反映されない場合：
+
+- [ ] `launchctl list | grep brainbase` で自動起動サービスを確認
+- [ ] `ps aux | grep "[n]ode.*server.js"` で複数プロセスがないか確認
+- [ ] launchdサービスを再読み込み
+- [ ] すべてのnodeプロセスをkill: `pkill -9 -f "node.*server.js"`
+- [ ] すべてのttydプロセスをkill: `pkill -9 -f "ttyd"`
+- [ ] launchd再起動: `launchctl unload/load ~/Library/LaunchAgents/com.brainbase.ui.plist`
+- [ ] watch modeの場合: `PORT=31014 npm run dev`
+- [ ] ブラウザのキャッシュをクリア（Cmd+Shift+R）
+
+**教訓:** watchモードは開発時便利だが、手動デバッグ時は競合の原因になる。launchdでの自動起動は慎重に設定すること。
+
+**思考パターン**:
+```
+設定変更が反映されない → launchd状態確認
+launchdサービス検出 → 再読み込み
+watch modeはPORT分離で起動
+```
+
+---
+
+# § 4. バージョン管理ルール
+
+> **出典**: brainbase-ui-version (変更時の必須手順)
+
+## 4.1 バージョン形式
+
+```
+v0.0.0
+```
+
+- **v** プレフィックス必須
+- **セマンティックバージョニング**: MAJOR.MINOR.PATCH
+
+## 4.2 バージョン更新ルール
+
+brainbase-uiのコードを変更した場合、**必ずバージョンを更新する**こと。
+
+### 更新基準
+
+| 変更内容 | バージョン更新 | 例 |
+|---------|--------------|-----|
+| 破壊的変更 | MAJOR | v0.1.0 → v1.0.0 |
+| 新機能追加 | MINOR | v0.1.0 → v0.2.0 |
+| バグ修正・小さな改善 | PATCH | v0.1.0 → v0.1.1 |
+
+### 更新手順
+
+1. **package.json のバージョンを更新**
+   ```json
+   {
+     "version": "0.1.1"
+   }
+   ```
+
+2. **index.html のバージョンを更新（2箇所）**
+   - デスクトップ版: `<h3 id="app-version" class="app-version">v0.1.1</h3>`
+   - モバイル版: `<h3 id="mobile-app-version" class="mobile-version-display">v0.1.1</h3>`
+   - **重要**: HTMLに直接書かれているため、両方を手動で更新すること
+
+3. **サーバーを再起動**
+   ```bash
+   # launchdで再起動（推奨）
+   launchctl unload /Users/ksato/Library/LaunchAgents/com.brainbase.ui.plist
+   launchctl load /Users/ksato/Library/LaunchAgents/com.brainbase.ui.plist
+
+   # watch modeで起動する場合（別ポート）
+   cd /Users/ksato/workspace/code/brainbase
+   PORT=31014 npm run dev
+   ```
+
+4. **コミットメッセージにバージョンを含める**
+   ```
+   feat(ui): 新機能追加 (v0.1.1)
+
+   なぜ:
+   - 変更理由
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+   Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+   ```
+
+5. **UIでバージョン確認**
+   - デスクトップ: 左ナビ最上部に表示
+   - モバイル: セッション一覧のヘッダーに表示
+   - `/api/version` エンドポイントで取得可能
+
+## 4.3 バージョン表示システム
+
+### 実装場所
+
+- **package.json**: バージョン番号の正本
+- **server.js**: `/api/version` エンドポイント
+- **index.html**: `<span id="app-version">` 要素
+- **app.js**: `loadVersion()` 関数
+- **style.css**: `.app-version` スタイル
+
+### 確認方法
+
+```bash
+# ローカルで確認
+curl http://localhost:31013/api/version
+
+# ブラウザで確認
+左ナビの「Sessions v0.1.1」を目視確認
+```
+
+## 4.4 注意事項
+
+- バージョン更新なしでの変更は**禁止**
+- ブラウザキャッシュに注意（スーパーリロード: Cmd+Shift+R）
+- 複数の変更がある場合は、最も大きな変更に合わせてバージョンを決定
+
+**思考パターン**:
+```
+brainbase-ui変更 → 「バージョン更新が必要」
+package.json + index.html(2箇所) 更新
+サーバー再起動 → バージョン確認
+```
+
+---
+
+# § 5. GitHub Actions管理
+
+> **出典**: github-actions-management (ワークフロー管理ルール)
+
+## 5.1 必須アクション
+
+### ワークフロー作成時
+
+1. **管理ドキュメントを更新**: `_codex/common/ops/scheduled-jobs.md`
+   - スケジュール実行の場合: 「スケジュール実行」テーブルに追加
+   - イベントトリガーの場合: 「イベントトリガー実行」テーブルに追加
+   - 必要なSecretsがあれば「必要なSecrets」セクションに追加
+
+2. **ランナー選択基準**:
+   - `ubuntu-latest`（クラウド）: 外部API呼び出しのみで完結するジョブ
+   - `[self-hosted, local]`（セルフホスト）: ローカルファイルアクセスが必要なジョブ
+
+### 記載項目
+
+| 項目 | 内容 |
+|------|------|
+| ジョブ名 | わかりやすい日本語名 |
+| スケジュール | JST表記（例: 毎日 21:00 JST） |
+| 目的 | 何をするか簡潔に |
+| ワークフロー | `.github/workflows/xxx.yml` |
+| ランナー | ubuntu-latest または self-hosted |
+
+## 5.2 例
+
+```markdown
+| mana日次処理 | 毎日 21:00 JST | Airtableスプリントに日次ログ追記 | `.github/workflows/mana-daily.yml` | ubuntu-latest |
+```
+
+**思考パターン**:
+```
+ワークフロー作成 → 「scheduled-jobs.md更新が必要」
+ランナー選択 → 「ローカルファイルアクセス必要？」
+  → Yes: self-hosted
+  → No: ubuntu-latest
+```
+
+---
+
+# § 6. worktree開発サーバー起動
+
+> **出典**: worktree-dev-server (ポート競合回避)
+
+## 6.1 手順
+
+### 1. ポート確認
+```bash
+lsof -i :31013 -i :31014 -i :31015 -i :31016 2>/dev/null | grep LISTEN
+```
+
+使用されていない最小のポートを選択（31014から開始、31013は正本用）
+
+### 2. 依存関係インストール（node_modulesがない場合）
+```bash
+cd [プロジェクトディレクトリ] && npm install
+```
+
+### 3. 開発サーバー起動
+```bash
+PORT=[空きポート] npm run dev
+```
+
+バックグラウンドで起動する場合は `run_in_background: true` を使用
+
+## 6.2 ポート割り当てルール
+
+| ポート | 用途 |
+|--------|------|
+| 31013 | 正本（main）の開発サーバー |
+| 31014〜 | worktree用（競合時は次のポートを使用） |
+
+## 6.3 例
+
+```bash
+# ポート確認
+lsof -i :31014 2>/dev/null | grep LISTEN
+
+# 空いていれば起動
+cd /Users/ksato/workspace/shared/.worktrees/session-xxx-brainbase/code/brainbase && npm install && PORT=31014 npm run dev
+```
+
+## 6.4 注意事項
+
+- worktreeでは必ずポート31013以外を使用
+- node_modulesはworktreeごとに独立（シンボリックリンクではない）
+- 起動後はBashOutputで状態を確認
+
+**思考パターン**:
+```
+worktreeで開発 → 「ポート31013以外を使用」
+lsof で空きポート確認 → PORT=31014 npm run dev
+```
+
+---
+
+# § 7. 環境変数管理
+
+> **出典**: env-management (正本管理と同期手順)
+
+## 7.1 基本方針
+
+**管理場所を用途別に分離** - セキュリティレベルと使用場所に応じて管理場所を明確化
+
+| カテゴリ | 管理場所 | 例 |
+|---------|---------|-----|
+| **ローカル開発専用** | `.env`のみ | `AWS_PROFILE`, `HOME` |
+| **CI/CD専用** | GitHub Secretsのみ | `AWS_ACCESS_KEY_ID`, `ACTIONS_MONITOR_PAT` |
+| **共通（同期必要）** | `.env` + GitHub Secrets | `AIRTABLE_TOKEN`, `SLACK_BOT_TOKEN` |
+| **Lambda専用** | Lambda環境変数のみ | `DEDUP_TABLE_NAME`, `PROJECTS_TABLE_NAME` |
+| **全環境共通** | `.env` + GitHub Secrets + Lambda | `GITHUB_TOKEN`, `GMAIL_CLIENT_ID` |
+
+**原則**:
+- ✅ `.env` = ローカル開発の正本（214行、66変数）
+- ✅ GitHub Secrets = CI/CD用の機密情報（10変数）
+- ✅ Lambda環境変数 = 実行時の設定（20-25変数）
+- ⚠️ 完全な一元管理ではなく、**管理場所の明確化**を重視
+
+### ディレクトリ構成
+
+```
+/Users/ksato/workspace/shared/
+├── .env                          # 🔑 ローカル開発用正本（214行）
+├── .env.bak.YYYYMMDD             # バックアップ
+├── _codex/common/ops/
+│   ├── env-management-plan.md         # 詳細プラン
+│   └── aws-lambda-env-update.md       # Lambda更新標準
+```
+
+**注**: 同期スクリプト（sync-env-to-github.sh等）は未実装。手動同期のチェックリストで運用。
+
+---
+
+## 7.2 命名規則
+
+### マルチワークスペースSlack
+
+```bash
+# ワークスペース別に分離
+SLACK_BOT_TOKEN_UNSON=xoxb-XXX
+SLACK_BOT_TOKEN_SALESTAILOR=xoxb-XXX
+SLACK_BOT_TOKEN_TECHKNIGHT=xoxb-XXX
+
+# 関連変数も同様
+SLACK_SIGNING_SECRET_UNSON=XXX
+SLACK_BOT_ID_UNSON=BXXX
+INBOX_TARGET_USER_ID_UNSON=UXXX
+
+# デフォルト（後方互換性）
+SLACK_BOT_TOKEN=xoxb-XXX  # UNSON
+SLACK_SIGNING_SECRET=XXX  # UNSON
+```
+
+### Airtable（命名統一）
+
+```bash
+# 正式名称（Lambda標準）
+AIRTABLE_TOKEN=patXXX...
+
+# 後方互換性（GitHub Actions、古いスクリプト用）
+AIRTABLE_API_KEY=patXXX...  # 同じ値
+```
+
+**理由**: AirtableのPersonal Access Tokenは1種類のみ。TOKENとAPI_KEYは同じものを指す。
+
+### その他のAPI
+
+```bash
+# Google
+GOOGLE_API_KEY=AIzaSyXXX
+
+# X (Twitter)
+X_CONSUMER_KEY=XXX
+X_CONSUMER_SECRET=XXX
+X_ACCESS_TOKEN=XXX
+X_ACCESS_TOKEN_SECRET=XXX
+
+# Gmail
+GMAIL_CLIENT_ID=XXX
+GMAIL_CLIENT_SECRET=XXX
+GMAIL_REFRESH_TOKEN=XXX
+
+# GitHub
+GITHUB_TOKEN=ghp_XXX
+
+# AWS（ローカル開発）
+AWS_PROFILE=k.sato
+AWS_REGION=us-east-1
+```
+
+---
+
+## 7.3 .env構成（統一版）
+
+214行、66個の環境変数を含む完全版。セクション構成：
+
+```bash
+# ========================================
+# Google APIs
+# ========================================
+GOOGLE_API_KEY=XXX
+
+# ========================================
+# X (Twitter) APIs
+# ========================================
+X_CONSUMER_KEY=XXX
+X_CONSUMER_SECRET=XXX
+...
+
+# ========================================
+# Slack（マルチワークスペース対応）
+# ========================================
+SLACK_BOT_TOKEN_UNSON=XXX
+SLACK_BOT_TOKEN_SALESTAILOR=XXX
+SLACK_BOT_TOKEN_TECHKNIGHT=XXX
+SLACK_BOT_TOKEN=XXX  # デフォルト
+...
+
+# ========================================
+# Airtable
+# ========================================
+AIRTABLE_TOKEN=XXX
+AIRTABLE_API_KEY=XXX  # エイリアス
+...
+
+# ========================================
+# DynamoDB（mana用）
+# ========================================
+DEDUP_TABLE_NAME=mana-processed-events
+PROJECTS_TABLE_NAME=mana-projects
+
+# ========================================
+# その他（Gmail, Jibble, Mistral, n8n, Tavily）
+# ========================================
+...
+```
+
+---
+
+## 7.4 チェックリスト
+
+### 新規環境変数追加時
+
+- [ ] .envに追加（適切なセクションに）
+- [ ] コメントで用途を明記
+- [ ] GitHub Secretsに同期（必要に応じて）
+- [ ] Lambda環境変数に同期（必要に応じて）
+- [ ] 既存コードで参照可能か確認
+
+### .env更新時
+
+- [ ] バックアップ作成（`.env.bak.YYYYMMDD`）
+- [ ] 変更内容を確認
+- [ ] テストスクリプトで動作確認
+- [ ] 派生環境に同期（GitHub Secrets/Lambda）
+
+**思考パターン**:
+```
+環境変数追加 → 「どの環境で使うか?」
+  → ローカルのみ: .envのみ
+  → CI/CD: GitHub Secrets同期
+  → Lambda: Lambda環境変数同期
+  → 全環境: 全て同期
+```
+
+---
+
+## 7.5 環境変数の読み込み方法
+
+### ローカル開発（スクリプト実行時）
+
+**推奨**: 環境変数を直接指定
+```bash
+SLACK_BOT_TOKEN="$(grep '^SLACK_BOT_TOKEN=' .env | head -1 | cut -d'=' -f2)" \
+AIRTABLE_API_KEY="$(grep '^AIRTABLE_API_KEY=' .env | cut -d'=' -f2)" \
+node _codex/common/ops/scripts/mana-m9-weekly-milestone.js
+```
+
+**簡易版**: sourceコマンド（変数展開は使えない）
+```bash
+set -a
+source /Users/ksato/workspace/.env
+set +a
+node script.js
+```
+
+### GitHub Actions
+
+```yaml
+jobs:
+  my-job:
+    runs-on: [self-hosted, local]
+    steps:
+      - name: Load environment variables
+        run: |
+          set -a
+          source /Users/ksato/workspace/.env
+          set +a
+
+      - name: Run script
+        run: node _codex/common/ops/scripts/mana-m1-morning-brief.js
+```
+
+### Lambda（環境変数設定済み）
+
+Lambda関数には既に環境変数が設定されているため、コードから直接参照：
+```javascript
+const token = process.env.SLACK_BOT_TOKEN;
+const airtableKey = process.env.AIRTABLE_TOKEN || process.env.AIRTABLE_API_KEY;
+```
+
+---
+
+## 7.6 GitHub Secretsとの対応関係
+
+### ✅ .envに値がある変数（同期済み: 4/10）
+
+| GitHub Secret | .envでの名前 | 用途 | 管理場所 |
+|--------------|-------------|------|---------|
+| `AIRTABLE_API_KEY` | `AIRTABLE_TOKEN` | Airtable API | 両方 |
+| `SLACK_BOT_TOKEN` | `SLACK_BOT_TOKEN_UNSON` | Slack Bot（UNSON） | 両方 |
+| `X_CLIENT_ID` | `X_CLIENT_ID` | X OAuth 2.0 | 両方 |
+| `X_CLIENT_SECRET` | `X_CLIENT_SECRET` | X OAuth 2.0 | 両方 |
+
+### ❌ GitHub Secretsのみに存在（.envには値なし: 6/10）
+
+| GitHub Secret | .envの状態 | 用途 | 理由 |
+|--------------|-----------|------|------|
+| `ACTIONS_MONITOR_PAT` | コメントのみ | GitHub Actions監視用 | CI/CD専用 |
+| `AWS_ACCESS_KEY_ID` | コメントのみ | Lambda CI/CD用 | セキュリティ |
+| `AWS_SECRET_ACCESS_KEY` | コメントのみ | Lambda CI/CD用 | セキュリティ |
+| `SLACK_CHANNEL_ID` | コメントのみ | Actions通知先 | CI/CD専用 |
+| `X_OAUTH_TOKEN` | コメントのみ | X OAuth 2.0トークン | 動的更新 |
+| `X_TOKEN_KEY` | コメントのみ | X認証用 | 動的更新 |
+
+**方針**:
+- CI/CD専用の変数はGitHub Secretsのみで管理（.envに追加しない）
+- セキュリティ上の理由でローカル.envに含めない変数も存在
+- 動的に更新される変数（OAuth Token等）はGitHub Secretsが正本
+
+---
+
+## 7.7 同期スクリプト（未実装）
+
+### GitHub Secrets 同期
+
+`_codex/common/ops/scripts/sync-env-to-github.sh`:
+```bash
+#!/bin/bash
+# .env → GitHub Secrets 同期
+
+ENV_FILE="/Users/ksato/workspace/.env"
+REPO="Unson-LLC/brainbase"
+
+SYNC_VARS=(
+  "AIRTABLE_TOKEN"
+  "SLACK_BOT_TOKEN_UNSON"
+  "AWS_ACCESS_KEY_ID"
+  "AWS_SECRET_ACCESS_KEY"
+  "GITHUB_TOKEN"
+)
+
+for var in "${SYNC_VARS[@]}"; do
+  value=$(grep "^${var}=" "$ENV_FILE" | cut -d '=' -f2)
+  echo "$value" | gh secret set "$var" --repo "$REPO"
+done
+```
+
+### Lambda 同期
+
+`_codex/common/ops/scripts/sync-env-to-lambda.sh`:
+```bash
+#!/bin/bash
+# .env → Lambda 環境変数同期
+
+LAMBDA_FUNCTION="mana"
+AWS_PROFILE="k.sato"
+
+# バックアップ
+aws lambda get-function-configuration \
+  --function-name "$LAMBDA_FUNCTION" \
+  --profile "$AWS_PROFILE" \
+  --query 'Environment' > /tmp/lambda_env_backup.json
+
+# .envから読み込み、JSON生成してupdate
+# (詳細は_codex/common/ops/aws-lambda-env-update.md参照)
+```
+
+---
+
+## 7.8 トラブルシューティング
+
+### 問題: 環境変数が読み込まれない
+
+**原因**: `source .env`で変数展開（`${VAR}`形式）が動作しない
+
+**解決**: .envファイルのエイリアス変数に直接値をコピー
+```bash
+# ❌ 動作しない
+SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN_UNSON}
+
+# ✅ 動作する
+SLACK_BOT_TOKEN=xoxb-7700200993749-XXX
+```
+
+### 問題: AIRTABLE_API_KEY vs AIRTABLE_TOKEN
+
+**原因**: 同じものを指す2つの変数名が混在
+
+**解決**: 両方に同じ値を設定（後方互換性維持）
+```bash
+AIRTABLE_TOKEN=patXXX...
+AIRTABLE_API_KEY=patXXX...  # 同じ値
+```
+
+manaコードは既に両方に対応：
+```javascript
+// mana/api/airtable-mcp-client.js
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN;
+```
+
+### 問題: マルチワークスペースSlackトークン管理
+
+**解決**: ワークスペース別に分離し、デフォルトを設定
+```bash
+SLACK_BOT_TOKEN_UNSON=xoxb-XXX
+SLACK_BOT_TOKEN_SALESTAILOR=xoxb-XXX
+SLACK_BOT_TOKEN_TECHKNIGHT=xoxb-XXX
+SLACK_BOT_TOKEN=xoxb-XXX  # デフォルト=UNSON
+```
+
+**思考パターン**:
+```
+環境変数エラー → 「変数展開が原因か?」
+直接値をコピー → 動作確認
+
+Airtableエラー → 「AIRTABLE_API_KEY vs AIRTABLE_TOKEN」
+両方に同じ値設定 → 後方互換性確保
+```
+
+---
+
+# Troubleshooting
+
+## 問題1: Hooksが動作しない
+
+**症状**:
+- sessionStartが発火しない
+- stopトリガーが動作しない
+
+**原因**:
+- JSON構造が `{"hooks": {...}}` になっていない
+- コマンドパスが相対パス
+
+**対処**:
+1. `cat ~/.config/claude-code/settings.json | jq '.hooks'` で構造確認
+2. ネスト構造に修正
+3. コマンドパスを絶対パスに変更
+
+---
+
+## 問題2: サーバーが起動しない
+
+**症状**:
+- ポート31013が既に使用中
+- 複数のnodeプロセスが動いている
+
+**原因**:
+- 複数インスタンス起動によるStateStore競合
+- launchd自動起動が動いている
+
+**対処**:
+1. `ps aux | grep "[n]ode.*server.js"` で確認
+2. `pkill -f "node.*server.js"` で全停止
+3. `launchctl list | grep brainbase` で自動起動確認
+4. launchdサービスがあれば再読み込み
+5. `launchctl unload/load ~/Library/LaunchAgents/com.brainbase.ui.plist` で起動
+
+---
+
+## 問題3: セッション履歴が消える
+
+**症状**:
+- state.jsonが空になる
+- セッション一覧が0件
+
+**原因**:
+- devスクリプトがstate.jsonを監視している
+- BRAINBASE_ROOT定義が削除されている
+
+**対処**:
+1. `grep "watch-path" package.json` で監視パス確認
+2. state.json除外されているか確認
+3. `grep "BRAINBASE_ROOT" server.js` で定義確認
+4. 定義が削除されていたら追加
+
+---
+
+## 問題4: 環境変数が読み込まれない
+
+**症状**:
+- SLACK_BOT_TOKEN undefined
+- AIRTABLE_API_KEY undefined
+
+**原因**:
+- 変数展開（${VAR}形式）が動作しない
+- 命名不整合（AIRTABLE_API_KEY vs AIRTABLE_TOKEN）
+
+**対処**:
+1. `.env` で変数展開を直接値にコピー
+2. AIRTABLE_TOKEN と AIRTABLE_API_KEY 両方に同じ値設定
+3. `source .env` でテスト
+
+---
+
+## 問題5: worktreeでサーバーが起動しない
+
+**症状**:
+- ポート競合エラー
+- node_modulesがない
+
+**原因**:
+- ポート31013が正本で使用中
+- worktreeで依存関係未インストール
+
+**対処**:
+1. `lsof -i :3001` で空きポート確認
+2. `npm install` で依存関係インストール
+3. `PORT=31014 npm run dev` で起動
+
+---
+
+# § 8. Branch & Worktree運用
+
+> **出典**: branch-worktree-rules (正本管理とコミット先分離)
+
+## 8.1 基本原則
+
+**ファイルの性質によってコミット先を分離する:**
+
+| ファイル種別 | 性質 | コミット先 |
+|-------------|------|------------|
+| 正本ディレクトリ | 全セッションで共有 | main直接 |
+| プロジェクトコード | ブランチごとに異なりうる | セッションブランチ |
+
+---
+
+## 8.2 正本ディレクトリの定義
+
+以下は「正本」として、全worktreeで共有される：
+
+```
+/Users/ksato/workspace/
+├── _codex/          # ナレッジ正本
+├── _tasks/          # タスク正本
+├── _inbox/          # 受信箱
+├── _schedules/      # スケジュール
+├── _ops/            # 共通スクリプト
+├── .claude/         # Claude設定・Skills
+└── config.yml       # 設定ファイル
+```
+
+**正本の特徴:**
+- 常に最新を全セッションで共有したい
+- ブランチ分岐の対象ではない
+- mainに直接コミットする
+
+---
+
+## 8.3 Worktree構造（シンボリックリンク方式）
+
+worktree作成時、正本ディレクトリはシンボリックリンクで正本パスを参照：
+
+```
+/Users/ksato/workspace/shared/.worktrees/session-xxx-brainbase/
+├── _codex -> /Users/ksato/workspace/shared/_codex      # シンボリックリンク
+├── _tasks -> /Users/ksato/workspace/shared/_tasks      # シンボリックリンク
+├── _inbox -> /Users/ksato/workspace/shared/_inbox      # シンボリックリンク
+├── _schedules -> /Users/ksato/workspace/shared/_schedules
+├── _ops -> /Users/ksato/workspace/shared/_ops
+├── .claude -> /Users/ksato/workspace/shared/.claude
+├── config.yml -> /Users/ksato/workspace/shared/config.yml
+├── CLAUDE.md                                     # 実ファイル（各worktreeに存在）
+├── code/
+│   └── brainbase/                               # 実ファイル（ブランチローカル）
+└── projects/                                    # 実ファイル（ブランチローカル）
+```
+
+**メリット:**
+- どのworktreeからでも同じ正本を編集
+- 正本の変更はmainに自動的に属する
+- パス解決の混乱がない
+
+---
+
+## 8.4 コミットフロー
+
+### 1. プロジェクトコード（セッションブランチ経由）
+
+```
+worktreeで編集 → セッションブランチにコミット → mainにマージ
+```
+
+```bash
+# 現在のブランチを確認
+git branch
+# * session/session-XXXX
+
+# コードの変更をコミット
+git add code/brainbase/
+git commit -m "feat: 機能追加"
+
+# アーカイブ時にmainにマージ
+```
+
+### 2. 正本ファイル（main直接コミット）
+
+```
+worktreeで編集（シンボリックリンク経由）→ mainで直接コミット
+```
+
+```bash
+# 正本ファイルを編集（シンボリックリンク経由で自動的に正本を編集）
+vim _codex/projects/salestailor/project.md
+vim .claude/skills/new-skill/SKILL.md
+
+# mainに直接コミット
+cd /Users/ksato/workspace
+git add _codex/ .claude/
+git commit -m "docs: ナレッジ追加"
+```
+
+---
+
+## 8.5 /merge コマンドの動作
+
+セッション終了時の `/merge` コマンドは以下を実行：
+
+1. **セッションブランチの変更確認**
+   - プロジェクトコードの変更があればセッションブランチにコミット
+
+2. **正本の変更確認**
+   - 正本ディレクトリの変更があればmainに直接コミット
+   - 「正本の変更をmainにコミットしますか？」と確認
+
+3. **マージ実行**
+   - セッションブランチをmainにマージ
+
+---
+
+## 8.6 Worktree作成時のセットアップ
+
+worktree作成時に自動実行：
+
+```bash
+# worktree作成
+git worktree add /Users/ksato/workspace/shared/.worktrees/session-xxx-brainbase -b session/session-xxx
+
+# シンボリックリンク作成
+cd /Users/ksato/workspace/shared/.worktrees/session-xxx-brainbase
+rm -rf _codex _tasks _inbox _schedules _ops .claude config.yml
+ln -s /Users/ksato/workspace/shared/_codex _codex
+ln -s /Users/ksato/workspace/shared/_tasks _tasks
+ln -s /Users/ksato/workspace/shared/_inbox _inbox
+ln -s /Users/ksato/workspace/shared/_schedules _schedules
+ln -s /Users/ksato/workspace/shared/_ops _ops
+ln -s /Users/ksato/workspace/shared/.claude .claude
+ln -s /Users/ksato/workspace/shared/config.yml config.yml
+```
+
+---
+
+## 8.7 ルールまとめ
+
+| 状況 | 編集場所 | コミット先 |
+|-----|---------|------------|
+| Skills追加・更新 | worktree内（シンボリックリンク経由） | main直接 |
+| タスク更新 | worktree内（シンボリックリンク経由） | main直接 |
+| ナレッジ追加 | worktree内（シンボリックリンク経由） | main直接 |
+| プロジェクトコード | worktree内（実ファイル） | セッションブランチ |
+| 設定ファイル変更 | worktree内（シンボリックリンク経由） | main直接 |
+
+---
+
+## 8.8 ファイル配置の判断フロー
+
+新規ファイルを作成する際、**どこに配置すべきか**を判断するフローチャート：
+
+### ステップ1: ファイルの性質を確認
+
+**質問**: このファイルは誰がアクセスするか？
+
+- **佐藤のみ** → `_codex/` へ進む
+- **GM・関係者も** → プロジェクトリポジトリへ進む
+
+---
+
+### ステップ2: _codex/ に置く場合
+
+`_codex/` は**運用ドキュメントの正本**であり、以下に該当する場合のみ使用：
+
+**✅ _codex/ に置くべきもの:**
+- 戦略・方針（01_strategy.md）
+- 体制図・RACI定義
+- KPI定義（数値目標の定義）
+- 意思決定ログ
+- 顧客情報（機密含む）
+- 社内専用の運用ルール
+
+**❌ _codex/ に置かないもの:**
+- GM・メンバーと共有する資料
+- 外部公開する資料（イベント登壇、ブログ記事等）
+- 顧客向け納品物
+- マーケティング資料
+
+---
+
+### ステップ3: プロジェクトリポジトリに置く場合
+
+プロジェクトリポジトリ（例: `baao/`, `salestailor/`）の配置先：
+
+| ディレクトリ | 用途 | 例 |
+|-------------|------|-----|
+| `docs/` | GM・関係者と共有する資料 | イベント資料、提案書テンプレート、FAQ |
+| `app/` | アプリケーションコード | ソースコード、テスト |
+| `meetings/` | 議事録 | 会議メモ、トランスクリプト |
+| `drive/` | 共有ドライブ（シンボリックリンク） | 契約書、納品物、顧客資料 |
+
+**判断基準:**
+
+```
+このファイルは...
+├─ コードか？ → app/
+├─ 会議の記録か？ → meetings/
+├─ GM・関係者と共有するドキュメントか？ → docs/
+└─ ファイルそのものを共有するか？ → drive/
+```
+
+---
+
+## 8.9 よくある間違いと修正方法
+
+### ❌ 間違い1: イベント資料を _codex/ に置く
+
+**間違った配置:**
+```
+_codex/projects/baao/events/2025-12-21_ai-dojo/
+```
+
+**正しい配置:**
+```
+baao/docs/events/2025-12-21_ai-dojo/
+```
+
+**理由:**
+- イベント資料 = 外部公開・GM共有
+- `_codex/` = 佐藤のみアクセスする運用ドキュメント
+
+---
+
+### ❌ 間違い2: KPI実績を _codex/ に置く
+
+**間違った配置:**
+```
+_codex/projects/salestailor/kpi_results.csv
+```
+
+**正しい配置:**
+```
+Airtable（実績トラッキング）
+または salestailor/drive/reports/
+```
+
+**理由:**
+- `_codex/` = KPI**定義**のみ
+- KPI**実績** = Airtableまたは共有ドライブで管理
+
+---
+
+### ❌ 間違い3: コードを _codex/ に置く
+
+**間違った配置:**
+```
+_codex/projects/baao/scripts/export.js
+```
+
+**正しい配置:**
+```
+baao/app/scripts/export.js
+```
+
+**理由:**
+- コード = プロジェクトリポジトリの `app/` に配置
+- `_codex/` = ドキュメントのみ
+
+---
+
+## 8.10 チェックリスト
+
+新規ファイル作成前に以下を確認：
+
+- [ ] このファイルは**佐藤のみ**がアクセスするか？ → YES なら `_codex/`
+- [ ] このファイルは**GM・関係者と共有**するか？ → YES なら `<project>/docs/`
+- [ ] このファイルは**コード**か？ → YES なら `<project>/app/`
+- [ ] このファイルは**会議記録**か？ → YES なら `<project>/meetings/`
+- [ ] このファイルは**共有ドライブで管理**するか？ → YES なら `<project>/drive/`
+
+**迷ったら**: GM・関係者が見る可能性があるなら、`<project>/docs/` に置く
+
+---
+
+## 8.11 よくある質問
+
+### Q: セッションブランチで正本を編集したらどうなる？
+
+A: シンボリックリンク方式では、正本ディレクトリはworktreeにコピーされないため、「セッションブランチで正本を編集」という状況は発生しません。正本の編集は常にmainのファイルを直接編集することになります。
+
+### Q: 正本の変更をセッションブランチでレビューしたい場合は？
+
+A: 正本の変更は即座に反映されるべきナレッジなので、通常はmain直接コミットで問題ありません。レビューが必要な大きな変更の場合は、一時的にシンボリックリンクを解除して実ファイルとして編集し、セッションブランチでコミット→マージの流れも可能です。
+
+### Q: コンフリクトは発生する？
+
+A: 正本ファイルは常にmainに直接コミットされるため、ブランチ間のコンフリクトは発生しません。プロジェクトコードのみがセッションブランチ経由となります。
+
+**思考パターン**:
+```
+新規ファイル作成 → 「佐藤のみアクセス？GM共有？」
+正本ファイル編集 → 「シンボリックリンク経由で自動的にmain」
+プロジェクトコード編集 → 「セッションブランチにコミット」
+```
+
+---
+
+# § 9. CI/CD認証（Claude Code）
+
+> **出典**: code-cicd-auth (setup-token活用)
+
+## 9.1 認証方式の比較
+
+| 方式 | 有効期限 | コスト | 用途 |
+|------|---------|--------|------|
+| `/login`（通常OAuth） | 約2-3時間 | Maxプラン内 | 対話的開発 |
+| `setup-token` | 1年 | Maxプラン内 | CI/CD・自動化 |
+| `ANTHROPIC_API_KEY` | 無期限 | 従量課金 | 大量処理・チーム利用 |
+
+---
+
+## 9.2 setup-token（推奨）
+
+### 生成方法
+
+```bash
+# ターミナルで対話的に実行（1回のみ）
+claude setup-token
+```
+
+出力例：
+```
+✓ Long-lived authentication token created successfully!
+
+Your OAuth token (valid for 1 year):
+sk-ant-oat01-xxxxx...
+
+Store this token securely. You won't be able to see it again.
+Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>
+```
+
+### 特徴
+
+- **1年間有効** - 年1回の再生成で運用可能
+- **Maxプラン範囲内** - 追加の従量課金なし
+- **単一ユーザー向け** - 個人プロジェクト・少人数チーム向け
+
+---
+
+## 9.3 GitHub Actionsでの設定
+
+### Step 1: Secretsに追加
+
+```
+Settings → Secrets and variables → Actions → New repository secret
+
+Name: CLAUDE_CODE_OAUTH_TOKEN
+Value: sk-ant-oat01-xxxxx...（setup-tokenで生成した値）
+```
+
+### Step 2: ワークフロー設定
+
+```yaml
+# .github/workflows/example.yml
+name: Claude Code Job
+on:
+  workflow_dispatch:
+
+jobs:
+  run-claude:
+    runs-on: [self-hosted, local]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Claude Code environment
+        run: |
+          mkdir -p ~/.claude
+          echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
+
+      - name: Build prompt
+        run: |
+          cat > /tmp/prompt.txt << 'EOF'
+          あなたのタスク内容をここに記述
+          複数行のプロンプトも可能
+          EOF
+
+      - name: Run Claude Code
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          cat /tmp/prompt.txt | claude --print > /tmp/result.txt 2>&1
+          cat /tmp/result.txt
+```
+
+### 稼働例
+
+以下のワークフローで実績あり：
+- `.github/workflows/task-triage.yml` - 週次タスク棚卸し
+- `.github/workflows/mana-self-improve.yml` - mana応答品質の自動改善
+
+### Step 3: Onboarding設定（初回のみ）
+
+コンテナ/新環境では `~/.claude.json` が必要：
+
+```bash
+mkdir -p ~/.claude
+echo '{"hasCompletedOnboarding": true}' > ~/.claude.json
+```
+
+---
+
+## 9.4 セルフホストランナーでの利用
+
+### 環境変数設定
+
+```bash
+# .bashrc または .zshrc
+export CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-xxxxx..."
+```
+
+### headlessモードでの実行
+
+```bash
+# シンプルなプロンプト（特殊文字なし）
+claude -p "プロンプト" --print
+
+# 複雑なプロンプト（推奨：stdin経由）
+cat prompt.txt | claude --print
+
+# ツールを制限して実行
+claude -p "コードレビューして" --allowedTools "Read,Glob,Grep" --print
+```
+
+**重要**: シェル特殊文字（`$`, `\``, `"`, 改行等）を含むプロンプトは `claude -p "$PROMPT"` で失敗します。
+必ず **stdinパイプ** (`cat prompt.txt | claude --print`) を使用してください。
+
+---
+
+## 9.5 トークン管理
+
+### 有効期限の確認
+
+Keychainに保存されたトークン情報を確認：
+
+```bash
+# macOS
+security find-generic-password -s "Claude Code-credentials" -w | \
+  python3 -c "import sys,json,datetime; \
+  d=json.loads(sys.stdin.read()); \
+  exp=datetime.datetime.fromtimestamp(d['claudeAiOauth']['expiresAt']/1000); \
+  print(f'有効期限: {exp}')"
+```
+
+### 更新タイミング
+
+- **setup-token**で生成したトークン → 1年後に再生成
+- **通常OAuth**（/login） → 2-3時間で期限切れ（自動更新あり）
+
+### トークン失効時
+
+```bash
+# 新しいトークンを生成
+claude setup-token
+
+# GitHub Secretsを更新
+# Settings → Secrets → CLAUDE_CODE_OAUTH_TOKEN を編集
+```
+
+---
+
+## 9.6 注意事項
+
+### 制限
+
+- **単一ユーザー向け** - Maxプランは個人利用想定
+- **複数人チーム** - APIキー（従量課金）を推奨
+- **大量処理** - レート制限あり、APIキー推奨
+
+### セキュリティ
+
+- トークンは**一度しか表示されない** - 安全に保管
+- GitHub Secretsで管理 - 平文でコミットしない
+- 漏洩時は即座に再生成
+
+### トラブルシューティング
+
+| 問題 | 原因 | 対策 |
+|------|------|------|
+| `OAuth token has expired` | 通常OAuthの期限切れ | `setup-token`で長期トークン生成 |
+| onboarding画面が出る | `~/.claude.json`がない | `hasCompletedOnboarding: true`を設定 |
+| `authentication_error` | トークン無効 | `setup-token`で再生成 |
+
+**思考パターン**:
+```
+CI/CD構築 → 「setup-tokenで1年トークン生成」
+GitHub Secrets設定 → ワークフロー作成
+認証エラー → setup-token再生成
+```
+
+---
+
+# Version History
+
+| バージョン | 日付 | 変更内容 |
+|----------|------|---------|
+| v4.0 | 2025-12-31 | 11 Skills統合版（+ branch-worktree-rules + code-cicd-auth）、§ 8と§ 9追加 |
+| v3.0 | 2025-12-30 | 9 Skills統合版 |
+| v2.0 | 2025-12-30 | 7 Skills統合版作成（claude-code-patterns + brainbase-ops-safety + brainbase-ui-launchd-gotchas + brainbase-ui-version + github-actions-management + worktree-dev-server + env-management） |
+| v1.0 | 2025-12-21 | 各Skill個別に作成 |
+
+---
+
+**最終更新**: 2025-12-31
+**作成者**: Claude Code (Phase 5.3)
+**統合Skills**: 11個（claude-code-patterns 286行 + brainbase-ops-safety 304行 + brainbase-ui-launchd-gotchas 148行 + brainbase-ui-version 139行 + github-actions-management 53行 + worktree-dev-server 60行 + env-management 357行 + branch-worktree-rules 320行 + code-cicd-auth 200行） = 約2,050行 ✅ OPTIMAL

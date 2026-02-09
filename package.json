@@ -1,28 +1,27 @@
 {
-  "name": "brainbase-ui",
-  "version": "0.1.87",
-  "private": false,
+  "name": "brainbase-unson",
+  "version": "1.0.0",
+  "private": true,
   "type": "module",
-  "description": "AI-first project management console for developers",
+  "description": "UNSON members' brainbase distribution with 89 Skills and 20 Commands",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Unson-LLC/brainbase.git"
+    "url": "https://github.com/Unson-LLC/brainbase-unson.git"
   },
-  "license": "MIT",
+  "license": "UNLICENSED",
   "author": "Unson LLC",
   "keywords": [
-    "project-management",
+    "brainbase",
+    "unson",
+    "skills",
+    "commands",
     "ai-pm",
-    "developer-tools",
-    "task-management",
-    "event-driven",
-    "tdd",
-    "claude-code"
+    "private"
   ],
   "bugs": {
-    "url": "https://github.com/Unson-LLC/brainbase/issues"
+    "url": "https://github.com/Unson-LLC/brainbase-unson/issues"
   },
-  "homepage": "https://github.com/Unson-LLC/brainbase#readme",
+  "homepage": "https://github.com/Unson-LLC/brainbase-unson#readme",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -31,6 +30,7 @@
     "predev": "bash scripts/check-worktree.sh",
     "dev": "node --watch-path=server --watch-path=lib --watch-path=public --watch-path=server.js --watch-path=package.json --watch-preserve-output server.js",
     "start": "node server.js",
+    "auth-setup": "node scripts/mcp-setup.mjs",
     "mcp-setup": "node scripts/mcp-setup.mjs",
     "test:server": "BRAINBASE_TEST_MODE=true node server.js",
     "test": "vitest",

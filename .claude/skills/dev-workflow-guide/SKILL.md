@@ -1,6 +1,6 @@
 ---
 name: dev-workflow-guide
-description: 開発ワークフロー統合ガイド（7 Skills統合版）。Git運用・CI/CD管理・Design-to-Code・Claude Code活用・ワークフロー検証・Worktree管理・CI/CD認証を統合。§ 1（Gitコミット）→ § 2（CI/CD）→ § 3（Design-to-Code）→ § 4（Claude Code）→ § 5（ワークフロー検証）→ § 6（Worktree管理）→ § 7（CI/CD認証）の7セクションで、開発プロセス全体を参照可能
+description: "開発ツール/運用統合ガイド（7 Skills統合版）。Git運用・CI/CD管理・Design-to-Code・Claude Code活用・ワークフロー検証・Worktree管理・CI/CD認証を統合。開発フローは story-arch-spec-code を優先し、本Skillは各ツール/運用の参照に限定する。"
 ---
 
 **バージョン**: v3.0（7 Skills統合版）
@@ -21,6 +21,7 @@ description: 開発ワークフロー統合ガイド（7 Skills統合版）。Gi
 - Worktree作成時のシンボリックリンク設定を確認したいとき
 - ファイル配置先（_codex/ vs プロジェクトリポジトリ）を判断したいとき
 - Claude CodeをCI/CD環境で動かしたいとき（setup-token認証）
+- タスク開始前に該当Skillを確認したいとき（Skill Trigger Index）
 
 ---
 
@@ -32,10 +33,11 @@ description: 開発ワークフロー統合ガイド（7 Skills統合版）。Gi
 - ❌ ツール横断の知識が分断
 
 **After（dev-workflow-guide統合）**:
-- ✅ 1ファイル内で開発ワークフロー全体を参照
-- ✅ 5セクション構造で各フェーズを網羅
-- ✅ Git→CI/CD→Design→Claude Code→検証の流れで整理
+- ✅ 1ファイル内で開発ツール/運用を参照
+- ✅ 5セクション構造で各領域を網羅
 - ✅ メンテナンスコスト-70%
+
+**注記**: 開発フロー（Story→Architecture→Spec→TDD→Code）は `story-arch-spec-code` を正本とする。
 
 ---
 
@@ -528,7 +530,7 @@ list_console_messages({ types: ['issue'] })
 
 ```bash
 # UI検証フロー（Claude Codeで実行）
-claude "localhost:3000を開いてスクリーンショット取得"
+claude "localhost:31013を開いてスクリーンショット取得"
 claude "コンソールログを取得してエラーがないか確認"
 claude "パフォーマンストレース実行してLCPを計測"
 ```
@@ -1078,7 +1080,7 @@ ls _codex/projects/
 **基本フロー**:
 ```javascript
 // 1. ページナビゲーション
-navigate_page({ type: 'url', url: 'http://localhost:3000' })
+navigate_page({ type: 'url', url: 'http://localhost:31013' })
 
 // 2. ページ構造確認
 take_snapshot()  // → uid付きで要素を確認
@@ -1134,13 +1136,13 @@ CI/CDでの大規模テスト → Playwright
 **開発中のクイック検証**:
 ```bash
 # スクリーンショット取得
-claude "localhost:3000を開いてスクリーンショット取得"
+claude "localhost:31013を開いてスクリーンショット取得"
 
 # コンソールエラー確認
-claude "localhost:3000を開いてコンソールログのエラーを確認"
+claude "localhost:31013を開いてコンソールログのエラーを確認"
 
 # フォーム送信テスト
-claude "localhost:3000のログインフォームにtest@example.comとpassword123を入力して送信、結果を確認"
+claude "localhost:31013のログインフォームにtest@example.comとpassword123を入力して送信、結果を確認"
 ```
 
 **CI/CDでの軽量E2Eチェック**:
@@ -1150,7 +1152,7 @@ claude "localhost:3000のログインフォームにtest@example.comとpassword1
   run: |
     npm run dev &
     sleep 5
-    echo "localhost:3000を開いてコンソールエラーがないか確認" | claude --print
+    echo "localhost:31013を開いてコンソールエラーがないか確認" | claude --print
 ```
 
 ---
@@ -1194,7 +1196,15 @@ performance_stop_trace()
 
 ## 6.1 基本原則
 
-**ファイルの性質によってコミット先を分離する:**
+**簡素化方針（優先）**:
+- 複雑さはバグの温床。特殊処理より「普通のgitフロー」を優先する。
+- **正本/非正本の区別を持ち込まず**、worktreeはworktreeとして扱う。
+- **コミット先を1つに統一**し、認知負荷とミスを減らす。
+- すべて **セッションブランチ → PRでmainマージ** を基本とする。
+
+### 6.1.1 レガシー運用（シンボリックリンク方式）
+
+**ファイルの性質によってコミット先を分離する（旧方式）:**
 
 | ファイル種別 | 性質 | コミット先 |
 |-------------|------|------------|
@@ -1249,6 +1259,12 @@ worktree作成時、正本ディレクトリはシンボリックリンクで正
 - どのworktreeからでも同じ正本を編集
 - 正本の変更はmainに自動的に属する
 - パス解決の混乱がない
+
+**注意点 / Gotcha:**
+- `create()` 内のシンボリックリンク作成処理は**削除しない**（正本参照に必須）。
+- 削除できるのは **`fixSymlinks()` のエラーリカバリー機能のみ**。
+- シンボリックリンク方式は `git status` が「削除」扱いになる**汚染問題**が発生しやすい。
+  - この地雷は**シンボリックリンク方式の廃止**で解消される。
 
 ---
 
@@ -1342,6 +1358,27 @@ ln -s /Users/ksato/workspace/config.yml config.yml
 | タスク更新 | worktree内（シンボリックリンク経由） | main直接 |
 | ナレッジ追加 | worktree内（シンボリックリンク経由） | main直接 |
 | プロジェクトコード | worktree内（実ファイル） | セッションブランチ |
+
+---
+
+## 6.8 Worktree簡素化の移行方針（PR一本化）
+
+**ドキュメント先行が基本**:
+- 新フローは**ドキュメント改訂のみで即適用**できる。
+- コード削除・クリーンアップは**後日対応でOK**。
+
+**段階的移行（影響最小化）**:
+1. 新規セッションから「PR一本化」フローを適用  
+2. `branch-worktree-rules` / `merge.md` をPRモード一本化に統一  
+3. 既存worktreeは順次クリーンアップ
+
+**リスク許容の判断**:
+- シンボリックリンク廃止後、正本変更の反映は**マージまで遅れる**。
+- **重要変更は即マージ**すれば問題なし（競合はほぼ起きない前提）。
+
+**狙い**:
+- コミット先二重管理の**認知負荷を削減**
+- 特殊処理（汚染検出/複雑マージ）を排除し、**普通のgitフロー**へ統一
 | 設定ファイル変更 | worktree内（シンボリックリンク経由） | main直接 |
 
 ---

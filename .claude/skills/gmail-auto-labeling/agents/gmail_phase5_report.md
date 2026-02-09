@@ -1,0 +1,431 @@
+---
+name: phase5-report
+description: 処理サマリーをMarkdown形式で生成。アカウント別・ラベル別統計、失敗詳細を含む。
+tools: [Read, Write]
+skills: []
+model: claude-haiku-4-5-20251001
+---
+
+# Phase 5: レポート生成
+
+## Purpose
+
+全Phase（1-4）の結果を集約し、Markdown形式の実行レポートを生成。
+
+## Input
+
+- `label_validation.json`: Phase 1の出力
+- `fetched_messages.json`: Phase 2の出力
+- `classification_results.json`: Phase 3の出力
+- `apply_results.json`: Phase 4の出力
+
+## Process
+
+### Step 1: 全Phase結果の読み込み
+
+```bash
+Read: /tmp/gmail-auto-labeling/label_validation.json
+Read: /tmp/gmail-auto-labeling/fetched_messages.json
+Read: /tmp/gmail-auto-labeling/classification_results.json
+Read: /tmp/gmail-auto-labeling/apply_results.json
+```
+
+### Step 2: アカウント別統計の算出
+
+各アカウントについて：
+- 取得メール数（Phase 2）
+- 分類成功数（Phase 3）
+- ラベル適用成功数（Phase 4）
+- ラベル別適用件数
+
+### Step 3: ラベル別・LLM出力統計の算出
+
+全アカウント合計で：
+- 各ラベルIDの適用件数
+- 削除されたラベル（INBOX, UNREAD等）の件数
+- 緊急度別メール数（urgency: 1-5）
+- 返信必要メール数（needsReply: true）
+
+### Step 4: Markdownレポート生成
+
+```bash
+Write: /tmp/gmail-auto-labeling/report.md
+```
+
+## Output Format
+
+```markdown
+# Gmail自動仕分けレポート
+
+実行日時: 2026-01-03 10:45:00
+
+---
+
+## 実行サマリー
+
+- **総メール数**: 285件
+- **成功**: 270件（94.7%）
+- **失敗**: 15件（5.3%）
+- **処理時間**: 約4分30秒
+
+---
+
+## アカウント別詳細
+
+### UNSON (info@unson.jp)
+
+- **取得メール数**: 100件
+- **成功**: 95件
+- **失敗**: 5件
+
+#### 適用ラベル
+| ラベル名 | 件数 |
+|---------|------|
+| dev/github | 30件 |
+| finance/invoice | 20件 |
+| dev/pr | 15件 |
+| spam/promo | 10件 |
+| business/contract | 5件 |
+
+#### LLM分類結果
+| 項目 | 値 |
+|------|-----|
+| 緊急メール（urgency 4-5） | 5件 |
+| 返信必要メール（needsReply: true） | 12件 |
+| 平均緊急度 | 2.3 |
+
+---
+
+### SALESTAILOR (k.sato@sales-tailor.jp)
+
+- **取得メール数**: 85件
+- **成功**: 80件
+- **失敗**: 5件
+
+#### 適用ラベル
+| ラベル名 | 件数 |
+|---------|------|
+| project/crm | 50件 |
+| business/contract | 15件 |
+| dev/vercel | 10件 |
+
+#### LLM分類結果
+| 項目 | 値 |
+|------|-----|
+| 緊急メール（urgency 4-5） | 8件 |
+| 返信必要メール（needsReply: true） | 25件 |
+| 平均緊急度 | 2.8 |
+
+---
+
+### TECHKNIGHT (sin310135@gmail.com)
+
+- **取得メール数**: 100件
+- **成功**: 95件
+- **失敗**: 5件
+
+#### 適用ラベル
+| ラベル名 | 件数 |
+|---------|------|
+| dev/github | 40件 |
+| dev/pr | 20件 |
+| dev/vercel | 15件 |
+| spam/promo | 10件 |
+
+#### LLM分類結果
+| 項目 | 値 |
+|------|-----|
+| 緊急メール（urgency 4-5） | 3件 |
+| 返信必要メール（needsReply: true） | 8件 |
+| 平均緊急度 | 2.1 |
+
+---
+
+## 失敗詳細
+
+| Account | MessageID | Error |
+|---------|----------|-------|
+| unson | xyz789 | Label not found: Label_999 |
+| unson | def012 | Message not found |
+| unson | ghi345 | Label not found: Label_888 |
+| salestailor | abc123 | Label not found: Label_777 |
+| salestailor | jkl456 | Message not found |
+| techknight | mno789 | Label not found: Label_666 |
+
+---
+
+## LLM分類統計（全アカウント合計）
+
+### 緊急度別分布
+| 緊急度 | 件数 | 割合 |
+|--------|------|------|
+| 1（通知のみ） | 120件 | 42.1% |
+| 2（低優先度） | 80件 | 28.1% |
+| 3（中優先度） | 45件 | 15.8% |
+| 4（高優先度） | 12件 | 4.2% |
+| 5（緊急） | 3件 | 1.1% |
+
+### 返信必要性
+- **返信必要メール**: 45件（15.8%）
+- **返信不要メール**: 240件（84.2%）
+
+### LLM判断理由サンプル
+| From | Subject | Reasoning |
+|------|---------|-----------|
+| notifications@github.com | Pull Request #123 opened | GitHub PR通知。開発関連だが緊急性は低い。自動通知なので返信不要。 |
+| sales@partner.com | 【要承認】契約書送付の件 | 契約書確認依頼で明日期限。決裁が必要なため緊急度4。人間の判断が必須。 |
+| newsletter@service.com | 【期間限定】50%OFFキャンペーン | 広告メール。spam/promoに分類。緊急度は最低、返信不要。 |
+
+---
+
+## システムラベル削除統計
+
+| ラベル | 削除件数 |
+|--------|---------|
+| INBOX | 245件 |
+| UNREAD | 180件 |
+
+---
+
+## 次回実行時の改善提案
+
+1. **緊急メール優先**: 緊急度4-5のメール（16件）を優先的に確認
+2. **返信必要メール**: needsReply=trueのメール（45件）に返信
+3. **失敗メール再試行**: 次回実行時に自動的に再試行（15件）
+4. **LLM分類精度改善**: brainbaseコンテキストの活用でさらなる精度向上を検討
+
+---
+
+Generated by: gmail-auto-labeling Orchestrator v1.0.0
+```
+
+## Success Criteria
+
+- [✅] SC-1: Markdownレポート生成成功
+- [✅] SC-2: アカウント別統計正確
+- [✅] SC-3: ラベル別統計正確
+- [✅] SC-4: 失敗詳細テーブル出力
+- [✅] SC-5: 不足ラベル警告含む
+
+## Output to Orchestrator
+
+**成功時**:
+```
+✅ Phase 5完了
+
+レポート生成完了:
+- アカウント別統計: ✅
+- ラベル別統計: ✅
+- 失敗詳細: 15件記録
+- 不足ラベル警告: 含む
+
+Output: /tmp/gmail-auto-labeling/report.md
+
+---
+🎉 Gmail自動仕分け完了！
+
+総メール数: 285件
+成功率: 94.7%
+
+詳細レポート: /tmp/gmail-auto-labeling/report.md
+```
+
+## Implementation Notes
+
+### データ集約ロジック
+
+```javascript
+// 擬似コード
+const stats = {
+  byAccount: {},
+  byLabel: {},
+  byRule: {}
+};
+
+// アカウント別統計
+for (account in fetched_messages) {
+  stats.byAccount[account] = {
+    fetched: fetched_messages[account].length,
+    classified: Object.keys(classification_results[account]).length,
+    success: apply_results.byAccount[account].success,
+    failed: apply_results.byAccount[account].failed
+  };
+}
+
+// ラベル別・LLM統計
+const urgencyDistribution = [0, 0, 0, 0, 0, 0]; // index 0-5 for urgency 0-5
+let replyNeededCount = 0;
+const reasoningSamples = [];
+
+for (account in classification_results) {
+  for (messageId in classification_results[account]) {
+    const result = classification_results[account][messageId];
+
+    // ラベル統計
+    for (labelId of result.addLabelIds) {
+      if (!stats.byLabel[labelId]) {
+        stats.byLabel[labelId] = 0;
+      }
+      stats.byLabel[labelId]++;
+    }
+
+    // 緊急度統計
+    if (result.urgency >= 1 && result.urgency <= 5) {
+      urgencyDistribution[result.urgency]++;
+    }
+
+    // 返信必要性統計
+    if (result.needsReply) {
+      replyNeededCount++;
+    }
+
+    // 判断理由サンプル収集（最大3件）
+    if (reasoningSamples.length < 3 && result.reasoning) {
+      reasoningSamples.push({
+        from: fetched_messages[account][messageId].from,
+        subject: fetched_messages[account][messageId].subject,
+        reasoning: result.reasoning
+      });
+    }
+  }
+}
+```
+
+### Label ID → Label名の逆引き
+
+`label_validation.json`の`existingLabelIds`を逆引き：
+
+```javascript
+// Label ID → Label名マップ作成
+const labelIdToName = {};
+for (account in label_validation) {
+  for (labelName in label_validation[account].existingLabelIds) {
+    const labelId = label_validation[account].existingLabelIds[labelName];
+    labelIdToName[labelId] = labelName;
+  }
+}
+```
+
+### Markdownテーブル生成
+
+```javascript
+// テーブルヘッダー
+let table = "| ラベル名 | 件数 |\n";
+table += "|---------|------|\n";
+
+// データ行
+for (labelId in stats.byLabel) {
+  const labelName = labelIdToName[labelId] || labelId;
+  const count = stats.byLabel[labelId];
+  table += `| ${labelName} | ${count}件 |\n`;
+}
+```
+
+### タイムスタンプ
+
+```javascript
+const now = new Date();
+const timestamp = now.toLocaleString('ja-JP', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit'
+});
+// "2026-01-03 10:45:00"
+```
+
+## Example Execution
+
+### Input
+
+**apply_results.json** (抜粋):
+```json
+{
+  "summary": {
+    "total": 285,
+    "success": 270,
+    "failed": 15,
+    "successRate": 0.947
+  },
+  "byAccount": {
+    "unson": {
+      "success": 95,
+      "failed": 5
+    }
+  },
+  "failedMessages": [
+    {
+      "account": "unson",
+      "messageId": "xyz789",
+      "error": "Label not found: Label_999"
+    }
+  ]
+}
+```
+
+### Process Log
+
+```
+[Phase 5] Starting Report Generation...
+[Phase 5] Loading Phase 1 results (label_validation.json)...
+[Phase 5] Loading Phase 2 results (fetched_messages.json)...
+[Phase 5] Loading Phase 3 results (classification_results.json)...
+[Phase 5] Loading Phase 4 results (apply_results.json)...
+
+[Phase 5] Calculating account statistics...
+[Phase 5] unson: 100 fetched, 95 success, 5 failed
+[Phase 5] salestailor: 85 fetched, 80 success, 5 failed
+[Phase 5] techknight: 100 fetched, 95 success, 5 failed
+
+[Phase 5] Calculating label statistics...
+[Phase 5] dev/github: 70件
+[Phase 5] finance/invoice: 20件
+[Phase 5] dev/pr: 35件
+[Phase 5] spam/promo: 20件
+[Phase 5] dev/vercel: 25件
+[Phase 5] business/contract: 20件
+
+[Phase 5] Calculating LLM statistics...
+[Phase 5] Urgency distribution: 1=120, 2=80, 3=45, 4=12, 5=3
+[Phase 5] Reply needed: 45件
+[Phase 5] Average urgency: 2.1
+[Phase 5] Collecting reasoning samples... 3件
+
+[Phase 5] Generating Markdown report...
+[Phase 5] Writing to /tmp/gmail-auto-labeling/report.md
+[Phase 5] ✅ Complete
+```
+
+### Output
+
+`/tmp/gmail-auto-labeling/report.md` (上記のMarkdown形式)
+
+## Review & Replan Considerations
+
+### Critical条件（Phase 5再実行）
+
+- レポートファイル生成失敗
+- 統計計算エラー（データ不整合）
+
+### None条件（正常終了）
+
+- レポート生成成功
+- 全統計が正確
+- Markdown構文正しい
+
+## Post-Execution Actions
+
+レポート生成後、Orchestratorは以下を実行：
+
+1. **レポートパス通知**: ユーザーにレポートファイルパスを通知
+2. **サマリー表示**: 成功率、総メール数等を端的に表示
+3. **推奨アクション提示**: 不足ラベル作成等の提案
+
+## Future Enhancements
+
+- [ ] HTMLレポート生成（ブラウザで閲覧）
+- [ ] Slackへのレポート送信
+- [ ] 過去レポートとの比較分析
+- [ ] グラフ・チャート生成（ラベル別推移等）
