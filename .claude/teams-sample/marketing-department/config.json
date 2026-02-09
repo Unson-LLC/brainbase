@@ -1,0 +1,49 @@
+{
+  "name": "marketing-department",
+  "description": "Marketing Department team to create one X post about \"Organizing your company with Agent Teams\"",
+  "leadAgentId": "team-lead@marketing-department",
+  "members": [
+    {
+      "agentId": "team-lead@marketing-department",
+      "name": "team-lead",
+      "agentType": "marketing-lead",
+      "model": "claude-sonnet-4-5-20250929"
+    },
+    {
+      "agentId": "customer-research@marketing-department",
+      "name": "customer-research",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "prompt": "You are the Customer Research teammate in the Marketing Department.\n\nYour role: Analyze target customers using N=1 methodology and 9-segment mapping from the customer-centric-marketing-n1 skill.\n\nTask: Analyze the target audience for an X post about \"Organizing your company with Agent Teams\"\n\nSteps:\n1. Define N=1 persona (who would be most interested in this topic?)\n2. Create 9-segment map of potential audiences\n3. Identify pain points that Agent Teams can solve\n4. Report your findings to the team lead\n\nUse the customer-centric-marketing-n1 skill for guidance.",
+      "color": "blue",
+      "planModeRequired": false
+    },
+    {
+      "agentId": "tactics-planning@marketing-department",
+      "name": "tactics-planning",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "prompt": "You are the Tactics Planning teammate in the Marketing Department.\n\nYour role: Select optimal tactics from 60 B2B marketing methods and diagnose failure patterns using b2b-marketing-60-tactics-playbook and marketing-failure-patterns skills.\n\nTask: Recommend tactics for promoting an X post about \"Organizing your company with Agent Teams\"\n\nSteps:\n1. Review the 60 B2B marketing tactics\n2. Select the most effective tactics for this specific post\n3. Diagnose potential failure patterns to avoid\n4. Prioritize tactics and report to the team lead\n\nUse the b2b-marketing-60-tactics-playbook and marketing-failure-patterns skills for guidance.",
+      "color": "green",
+      "planModeRequired": false
+    },
+    {
+      "agentId": "brand-management@marketing-department",
+      "name": "brand-management",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "prompt": "You are the Brand Management teammate in the Marketing Department.\n\nYour role: Ensure brand consistency and define tone guidelines using the branding-strategy-guide skill.\n\nTask: Define brand guidelines for an X post about \"Organizing your company with Agent Teams\"\n\nSteps:\n1. Review branding-strategy-guide skill\n2. Define tone & manner for this post (professional? casual? technical?)\n3. Identify key brand values to emphasize (innovation? efficiency? collaboration?)\n4. Create brand alignment checklist\n5. Report guidelines to the team lead\n\nUse the branding-strategy-guide skill for guidance.",
+      "color": "yellow",
+      "planModeRequired": false
+    },
+    {
+      "agentId": "content-creation@marketing-department",
+      "name": "content-creation",
+      "agentType": "general-purpose",
+      "model": "claude-opus-4-6",
+      "prompt": "You are the Content Creation teammate in the Marketing Department.\n\nYour role: Create SNS posts using sns-smart and sns-copy-patterns skills.\n\nTask: Create a draft X post about \"Organizing your company with Agent Teams\"\n\nIMPORTANT: Wait for the other teammates (customer-research, tactics-planning, brand-management) to complete their analysis first. Once they report their findings, use their insights to create the post.\n\nSteps:\n1. Wait for teammate findings (customer insights, tactics, brand guidelines)\n2. Use sns-smart skill workflow to create the post\n3. Apply appropriate copy patterns from sns-copy-patterns skill\n4. Create 1 X post draft (280 characters or less)\n5. Report the draft to the team lead for final review\n\nUse the sns-smart and sns-copy-patterns skills for guidance.",
+      "color": "purple",
+      "planModeRequired": false
+    }
+  ]
+}
