@@ -150,6 +150,27 @@ Claude Codeで以下のコマンドが利用可能:
 /config          # 設定確認
 ```
 
+### 6個のMCPサーバー
+
+`npm run auth-setup` 実行後、以下のMCPサーバーが利用可能:
+
+| MCP | 用途 |
+|-----|------|
+| **brainbase** | UNSONプロジェクト情報取得、RACI権限管理 |
+| **gog** | Gmail + Google Calendar 統合 |
+| **nocodb** | タスク・マイルストーン管理 |
+| **chrome-devtools** | ブラウザ自動化 |
+| **freee** | 会計連携 |
+| **jibble** | 勤怠管理 |
+
+**MCP呼び出し例**:
+```
+@brainbase get_context project:salestailor
+@gog gmail_search query:"未読"
+@gog calendar_list_events
+@nocodb list_records table:"タスク"
+```
+
 ---
 
 ## トラブルシューティング

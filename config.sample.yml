@@ -40,6 +40,27 @@ plugins:
 
 # MCP settings (auto-configured by auth-setup)
 mcp:
+  # 必須: brainbase Graph API
   brainbase:
     api_url: https://graph.brain-base.work
     token_path: ~/.brainbase/tokens.json
+
+  # Google統合（Gmail + Calendar）
+  gog:
+    enabled: true
+
+  # タスク管理
+  nocodb:
+    enabled: true
+
+  # ブラウザ自動化
+  chrome-devtools:
+    enabled: true
+
+  # 会計連携
+  freee:
+    enabled: true
+
+  # 勤怠管理
+  jibble:
+    enabled: true

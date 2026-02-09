@@ -238,6 +238,31 @@ Claude Code を再起動 → `@brainbase` MCP が利用可能
 
 ---
 
+## 🔌 利用可能なMCP（6個）
+
+`npm run auth-setup` 実行後、以下のMCPサーバーが利用可能になります：
+
+| MCP | 用途 | 主な機能 |
+|-----|------|---------|
+| **brainbase** | Graph API統合（必須） | UNSONプロジェクト情報取得、RACI権限管理、_codex構造へのアクセス |
+| **gog** | Google統合 | Gmail（メール管理・自動仕分け）、Google Calendar（スケジュール統合） |
+| **nocodb** | タスク管理 | タスク・マイルストーン・スプリント・シップ管理 |
+| **chrome-devtools** | ブラウザ自動化 | Chrome DevTools Protocol、ページ操作、スクリーンショット |
+| **freee** | 会計連携 | 取引先・請求書・経費管理 |
+| **jibble** | 勤怠管理 | 勤怠記録・レポート取得 |
+
+### MCP呼び出し例
+
+```
+Claude Codeで:
+@brainbase get_context project:salestailor
+@gog gmail_search query:"未読"
+@gog calendar_list_events
+@nocodb list_records table:"タスク"
+```
+
+---
+
 ## 🔧 トラブルシューティング
 
 ### 認証エラー
