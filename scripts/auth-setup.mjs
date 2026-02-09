@@ -145,6 +145,53 @@ async function pollForToken(deviceCode, interval, expiresIn) {
     }
 }
 
+async function setupConfig(token, apiUrl) {
+    try {
+        log('\n📥 config.yml を自動生成中...', colors.cyan);
+
+        // 1. /api/setup/config を呼び出し
+        const response = await fetch(`${apiUrl}/api/setup/config`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to fetch setup config: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.ok || !data.configYaml) {
+            throw new Error('Invalid response from setup API');
+        }
+
+        // 2. ~/workspace/config.yml に保存
+        const configPath = path.join(os.homedir(), 'workspace', 'config.yml');
+        const configDir = path.dirname(configPath);
+
+        // workspace ディレクトリがない場合は作成
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+
+        fs.writeFileSync(configPath, data.configYaml, 'utf-8');
+
+        log(`✅ config.yml を保存しました: ${configPath}`, colors.green);
+        log(`\n📊 アクセス可能なプロジェクト: ${data.projects.length}件`, colors.cyan);
+        data.projects.forEach(p => {
+            log(`  - ${p.name} (${p.id})`, colors.cyan);
+        });
+
+        return true;
+    } catch (error) {
+        log(`\n❌ config.yml の生成に失敗しました: ${error.message}`, colors.red);
+        log(`   Web UI から手動でダウンロードできます: ${apiUrl}/setup`, colors.yellow);
+        return false;
+    }
+}
+
 async function main() {
     try {
         log('\n🔐 Brainbase MCP Setup - OAuth 2.0 Device Code Flow\n', colors.bright);
@@ -198,6 +245,10 @@ async function main() {
 
         // Save tokens
         saveTokens(tokens);
+
+        // 🆕 config.yml 自動生成・配置
+        const apiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
+        await setupConfig(tokens.access_token, apiUrl);
 
         log('\n✅ Setup complete!', colors.green + colors.bright);
         log('   Your MCP server will now automatically use these tokens.', colors.green);
