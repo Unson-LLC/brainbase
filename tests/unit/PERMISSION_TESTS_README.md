@@ -57,24 +57,24 @@ TEST_PERMISSION_DB_URL=postgresql://user:password@localhost:5432/brainbase_test
 ## 実装完了ファイル（Phase 3）
 
 ### 1. permission-schema.sql ✅
-- **パス**: `/Users/ksato/workspace/code/brainbase/server/sql/permission-schema.sql`
+- **パス**: `$BRAINBASE_ROOT/server/sql/permission-schema.sql`
 - **内容**: organizations, users, user_organizations, permission_audit_logテーブルの定義
 - **ステータス**: 実装完了（2.7KB）
 
 ### 2. import_members_to_db.py ✅
-- **パス**: `/Users/ksato/workspace/code/brainbase/scripts/import_members_to_db.py`
+- **パス**: `$BRAINBASE_ROOT/scripts/import_members_to_db.py`
 - **内容**: members.ymlからDBへのメンバーインポートスクリプト（UPSERT対応）
 - **ステータス**: 実装完了（3.2KB、実行可能）
 
 ### 3. auth-service.js（拡張） ✅
-- **パス**: `/Users/ksato/workspace/code/brainbase/server/services/auth-service.js`
+- **パス**: `$BRAINBASE_ROOT/server/services/auth-service.js`
 - **追加機能**:
   - `findUserBySlackId(slackUserId)` - DBからユーザー検索（`status='active'`のみ）
   - `status='inactive'`ユーザーの自動ブロック
 - **ステータス**: 実装完了（既存メソッドを保持）
 
 ### 4. UserPermissions（拡張） ✅
-- **パス**: `/Users/ksato/workspace/projects/mana/api/user-permissions.js`
+- **パス**: `$MANA_ROOT/api/user-permissions.js`
 - **追加機能**:
   - PostgreSQL統合（`fetchUserInfoFromDB`、`buildPermissionsFromDBUser`）
   - キャッシュ機能（厳密に30分0秒まで有効、30分1秒で期限切れ）
@@ -82,7 +82,7 @@ TEST_PERMISSION_DB_URL=postgresql://user:password@localhost:5432/brainbase_test
 - **ステータス**: 実装完了（既存ロジックを保持、DB優先）
 
 ### 5. permission-filter.js（新規作成） ✅
-- **パス**: `/Users/ksato/workspace/code/brainbase/server/utils/permission-filter.js`
+- **パス**: `$BRAINBASE_ROOT/server/utils/permission-filter.js`
 - **内容**:
   - `checkSecurityLevel()` - SecurityLevel判定
   - `checkProjectAccess()` - ProjectAccess判定
@@ -158,19 +158,19 @@ export INFO_SSOT_DATABASE_URL="postgresql://brainbase:brainbase@localhost:5432/b
 ### 3. スキーマ作成
 
 ```bash
-psql $INFO_SSOT_DATABASE_URL -f /Users/ksato/workspace/code/brainbase/server/sql/permission-schema.sql
+psql $INFO_SSOT_DATABASE_URL -f $BRAINBASE_ROOT/server/sql/permission-schema.sql
 ```
 
 ### 4. 初期データインポート
 
 ```bash
-python3 /Users/ksato/workspace/code/brainbase/scripts/import_members_to_db.py
+python3 $BRAINBASE_ROOT/scripts/import_members_to_db.py
 ```
 
 ### 5. 全テスト実行
 
 ```bash
-cd /Users/ksato/workspace/code/brainbase
+cd $BRAINBASE_ROOT
 npm run test -- tests/unit/permission --run
 ```
 

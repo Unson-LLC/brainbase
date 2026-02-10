@@ -117,11 +117,11 @@ describe('UserPermissions DB Integration Tests', () => {
 
     describe('TC-PERM-001: 正常系 - DBからユーザー権限取得', () => {
         it('DBからユーザー権限とプロジェクト情報を取得できる', async () => {
-            // Given: DBに sato_keigo が access_level=4で登録済み
-            await pool.query(`INSERT INTO people (id, name) VALUES ('sato_keigo', '佐藤圭吾')`);
+            // Given: DBに test_user が access_level=4で登録済み
+            await pool.query(`INSERT INTO people (id, name) VALUES ('test_user', 'テストユーザー')`);
             await pool.query(`
                 INSERT INTO users (slack_user_id, person_id, workspace_id, name, access_level, employment_type, status)
-                VALUES ('U07LNUP582X', 'sato_keigo', 'unson', '佐藤圭吾', 4, 'executive', 'active')
+                VALUES ('U07LNUP582X', 'test_user', 'unson', 'テストユーザー', 4, 'executive', 'active')
             `);
 
             // user_organizationsに projects=['zeims','dialogai',...]で紐付け
@@ -137,7 +137,7 @@ describe('UserPermissions DB Integration Tests', () => {
             // Then: 正しい権限情報が返却される
             expect(permissions).toBeDefined();
             expect(permissions.user.slackUserId).toBe('U07LNUP582X');
-            expect(permissions.user.personId).toBe('sato_keigo');
+            expect(permissions.user.personId).toBe('test_user');
             expect(permissions.user.level).toBe(4);
             expect(permissions.user.employmentType).toBe('executive');
             expect(permissions.organizations).toHaveLength(1);
@@ -153,11 +153,11 @@ describe('UserPermissions DB Integration Tests', () => {
 
     describe('TC-PERM-004: キャッシュ有効（30分以内の再取得）', () => {
         it('15分後に再度呼び出すとDBクエリが実行されず、キャッシュから返却', async () => {
-            // Given: getUserPermissions('sato_keigo')を1回呼び出し済み
-            await pool.query(`INSERT INTO people (id, name) VALUES ('sato_keigo', '佐藤圭吾')`);
+            // Given: getUserPermissions('test_user')を1回呼び出し済み
+            await pool.query(`INSERT INTO people (id, name) VALUES ('test_user', 'テストユーザー')`);
             await pool.query(`
                 INSERT INTO users (slack_user_id, person_id, workspace_id, name, access_level, employment_type, status)
-                VALUES ('U07LNUP582X', 'sato_keigo', 'unson', '佐藤圭吾', 4, 'executive', 'active')
+                VALUES ('U07LNUP582X', 'test_user', 'unson', 'テストユーザー', 4, 'executive', 'active')
             `);
 
             const firstCall = await userPermissions.getUserPermissions('U07LNUP582X');
@@ -182,11 +182,11 @@ describe('UserPermissions DB Integration Tests', () => {
 
     describe('TC-PERM-005: キャッシュ期限切れ（31分後の再取得）', () => {
         it('30分1秒後に再度呼び出すとDBクエリが再実行され、最新のDB状態が反映', async () => {
-            // Given: getUserPermissions('sato_keigo')を1回呼び出し済み
-            await pool.query(`INSERT INTO people (id, name) VALUES ('sato_keigo', '佐藤圭吾')`);
+            // Given: getUserPermissions('test_user')を1回呼び出し済み
+            await pool.query(`INSERT INTO people (id, name) VALUES ('test_user', 'テストユーザー')`);
             await pool.query(`
                 INSERT INTO users (slack_user_id, person_id, workspace_id, name, access_level, employment_type, status)
-                VALUES ('U07LNUP582X', 'sato_keigo', 'unson', '佐藤圭吾', 4, 'executive', 'active')
+                VALUES ('U07LNUP582X', 'test_user', 'unson', 'テストユーザー', 4, 'executive', 'active')
             `);
 
             const firstCall = await userPermissions.getUserPermissions('U07LNUP582X');

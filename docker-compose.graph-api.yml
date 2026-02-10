@@ -39,7 +39,7 @@ services:
       # nginx-proxy用設定
       - VIRTUAL_HOST=graph.brain-base.work
       - LETSENCRYPT_HOST=graph.brain-base.work
-      - LETSENCRYPT_EMAIL=keigo@unson.jp
+      - LETSENCRYPT_EMAIL=noreply@example.com
     expose:
       - "3000"
     networks:
