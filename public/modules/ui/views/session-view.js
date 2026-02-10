@@ -4,7 +4,7 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
-import { showConfirm } from '../../confirm-modal.js';
+import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
 
@@ -503,11 +503,27 @@ export class SessionView {
                             details.push('未コミット変更があります');
                         }
                         const detailText = details.length ? `\n\n${details.join(' / ')}` : '';
-                        const confirmed = await showConfirm(
+                        const result = await showConfirmWithAction(
                             `未マージの変更があります。マージチェックをスキップしてアーカイブしますか？${detailText}`,
-                            { title: 'アーカイブ確認', okText: 'スキップしてアーカイブ', cancelText: 'キャンセル', danger: true }
+                            {
+                                title: 'アーカイブ確認',
+                                okText: 'スキップしてアーカイブ',
+                                cancelText: 'キャンセル',
+                                actionText: '原因を調査',
+                                danger: true
+                            }
                         );
-                        if (!confirmed) {
+
+                        if (result.action === 'action') {
+                            // 診断プロンプトを生成してチャット入力欄に挿入
+                            const prompt = this._generateInvestigationPrompt(status);
+                            if (window.mobileInputController) {
+                                window.mobileInputController.insertTextAtCursor(prompt);
+                            }
+                            return; // モーダルを閉じて調査に移る
+                        }
+
+                        if (result.action !== 'ok') {
                             showInfo('アーカイブをキャンセルしました');
                             return;
                         }
@@ -678,5 +694,37 @@ export class SessionView {
             this.container.innerHTML = '';
             this.container = null;
         }
+    }
+
+    /**
+     * 診断プロンプトを生成
+     * @param {Object} status - { commitsAhead, hasUncommittedChanges, localMainAhead, localMainBehind }
+     * @returns {string} - フォーマット済みプロンプト
+     */
+    _generateInvestigationPrompt(status) {
+        const issues = [];
+
+        if (status.commitsAhead > 0) {
+            issues.push(`- ローカルコミット未プッシュ: ${status.commitsAhead}件`);
+        }
+        if (status.hasUncommittedChanges) {
+            issues.push('- 未コミットの変更あり');
+        }
+        if (status.localMainAhead > 0) {
+            issues.push(`- ローカルmainが${status.localMainAhead}件ahead`);
+        }
+        if (status.localMainBehind > 0) {
+            issues.push(`- ローカルmainが${status.localMainBehind}件behind`);
+        }
+
+        const issueList = issues.length > 0 ? issues.join('\n') : '- 不明な問題';
+
+        return `このセッションをアーカイブしようとしたところ、以下の問題が検出されました：
+
+${issueList}
+
+これらの問題を解決してアーカイブ可能な状態にする方法を教えてください。
+
+セッションID: ${window.location.hash.slice(1) || '不明'}`;
     }
 }
