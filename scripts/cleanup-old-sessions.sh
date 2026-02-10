@@ -82,7 +82,7 @@ echo -e "${YELLOW}孤立したMCPプロセスをチェック中...${NC}"
 ACTIVE_PIDS=$(tmux list-panes -a -F '#{pane_pid}' 2>/dev/null || true)
 
 # MCPプロセスを取得
-MCP_PROCESSES=$(ps aux | grep -E 'gmail/src/index.ts|jibble/src/index.ts|brainbase/src/index.ts|zep-mcp-server/src/index.ts' | grep -v grep || true)
+MCP_PROCESSES=$(ps aux | grep -E 'gmail/src/index.ts|jibble/src/index.ts|brainbase/src/index.ts' | grep -v grep || true)
 
 if [ -z "$MCP_PROCESSES" ]; then
     echo -e "${GREEN}MCPプロセスが見つかりません${NC}"

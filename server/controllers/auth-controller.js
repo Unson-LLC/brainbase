@@ -60,7 +60,18 @@ function wantsHtmlResponse(req) {
 
 function resolveRedirectPath(value) {
     if (typeof value !== 'string') return '/';
+    // 相対パスを許可
     if (value.startsWith('/') && !value.startsWith('//')) return value;
+    // localhostへの絶対URLを許可（Device Code Flow用）
+    try {
+        const url = new URL(value);
+        const origin = normalizeOrigin(url.origin);
+        if (origin && isLocalOrigin(origin)) {
+            return value;
+        }
+    } catch (e) {
+        // Invalid URL
+    }
     return '/';
 }
 
@@ -125,7 +136,8 @@ export class AuthController {
         try {
             this.authService.assertReady();
             const origin = typeof req.query.origin === 'string' ? req.query.origin : '';
-            const state = this.authService.createState({ origin });
+            const codeChallenge = typeof req.query.code_challenge === 'string' ? req.query.code_challenge : '';
+            const state = this.authService.createState({ origin, codeChallenge });
             const url = this.authService.buildAuthorizeUrl(state);
             if (String(req.query.json || '').toLowerCase() === 'true') {
                 return res.json({ url, state });
@@ -149,6 +161,11 @@ export class AuthController {
                 return res.status(400).json({ error: 'Invalid state' });
             }
 
+            // Store code_challenge for PKCE verification (if provided)
+            if (stateResult.codeChallenge) {
+                this.authService.storeCodeChallenge(String(code), stateResult.codeChallenge);
+            }
+
             const tokenPayload = await this.authService.exchangeCode(String(code));
             let userInfo = null;
             if (this.authService.slackMode !== 'oauth') {
@@ -164,29 +181,25 @@ export class AuthController {
                 return res.status(401).json({ error: 'Slack identity could not be resolved' });
             }
 
-            const grant = await this.authService.findGrant({ slackUserId, slackWorkspaceId });
-            if (!grant) {
+            // Phase 1: PostgreSQLベース権限管理
+            const user = await this.authService.findUserBySlackId(slackUserId);
+            if (!user) {
                 await this.authService.createAuditLog({
                     slackUserId,
                     slackWorkspaceId,
                     eventType: 'AUTH_DENY',
-                    metadata: { reason: 'grant_not_found' }
+                    metadata: { reason: 'user_not_found_or_inactive' }
                 });
                 return res.status(403).json({ error: 'Access is not granted' });
             }
 
-            const personId = await this.authService.ensurePerson({
-                personId: grant.person_id,
-                personName: grant.person_name
-            });
-
-            const access = this.authService.buildAccessFromGrant({ ...grant, person_id: personId });
+            // JWT発行（Phase 1仕様）
             const token = this.authService.issueToken({
-                role: access.role,
-                projectCodes: access.projectCodes,
-                clearance: access.clearance,
-                personId,
-                slackUserId,
+                sub: user.person_id,
+                slackUserId: user.slack_user_id,
+                level: user.access_level,
+                employmentType: user.employment_type,
+                tenantId: null, // Phase 1はsingle-tenant
                 slackWorkspaceId
             });
             const refreshToken = this.authService.issueRefreshToken({
@@ -195,26 +208,33 @@ export class AuthController {
             });
 
             await this.authService.createAuditLog({
-                personId,
+                personId: user.person_id,
                 slackUserId,
                 slackWorkspaceId,
                 eventType: 'AUTH_LOGIN',
-                metadata: { role: access.role, project_codes: access.projectCodes }
+                metadata: {
+                    level: user.access_level,
+                    employment_type: user.employment_type,
+                    workspace_id: user.workspace_id
+                }
             });
 
             const responsePayload = {
                 token,
                 refresh_token: refreshToken,
                 access: {
-                    role: access.role,
-                    projectCodes: access.projectCodes,
-                    clearance: access.clearance,
-                    personId
+                    level: user.access_level,
+                    employmentType: user.employment_type,
+                    personId: user.person_id,
+                    slackUserId: user.slack_user_id,
+                    workspaceId: user.workspace_id,
+                    name: user.name,
+                    role: user.role
                 }
             };
 
             if (wantsHtmlResponse(req)) {
-                const redirectTo = resolveRedirectPath(req.query.redirect);
+                const redirectTo = resolveRedirectPath(req.query.redirect || stateResult.origin);
                 const postMessageOrigin = resolvePostMessageOrigin(stateResult.origin);
                 return res.status(200).type('html').send(renderAuthCallbackHtml(
                     responsePayload,
@@ -271,6 +291,216 @@ export class AuthController {
         } catch (error) {
             logger.error('Verify failed', { error });
             return res.status(500).json({ error: error.message || 'Verify failed' });
+        }
+    };
+
+    tokenExchange = async (req, res) => {
+        try {
+            this.authService.assertReady();
+            const { code, code_verifier } = req.body;
+            if (!code || !code_verifier) {
+                return res.status(400).json({ error: 'code and code_verifier are required' });
+            }
+
+            // code_verifier検証（保存されたcode_challengeと照合）
+            const isValid = this.authService.verifyCodeVerifier(String(code), String(code_verifier));
+            if (!isValid) {
+                return res.status(403).json({ error: 'Invalid code or code_verifier' });
+            }
+
+            // Slack OAuth code exchangeでslackUserIdを取得
+            const tokenPayload = await this.authService.exchangeCode(String(code));
+            let userInfo = null;
+            if (this.authService.slackMode !== 'oauth') {
+                const accessToken = tokenPayload.access_token;
+                if (!accessToken) {
+                    return res.status(401).json({ error: 'Slack access token missing' });
+                }
+                userInfo = await this.authService.fetchUserInfo(accessToken);
+            }
+
+            const { slackUserId, slackWorkspaceId } = this.authService.resolveSlackIdentity(tokenPayload, userInfo);
+            if (!slackUserId || !slackWorkspaceId) {
+                return res.status(401).json({ error: 'Slack identity could not be resolved' });
+            }
+
+            // PostgreSQLからユーザー情報取得
+            const user = await this.authService.findUserBySlackId(slackUserId);
+            if (!user) {
+                await this.authService.createAuditLog({
+                    slackUserId,
+                    slackWorkspaceId,
+                    eventType: 'AUTH_DENY',
+                    metadata: { reason: 'user_not_found_or_inactive', source: 'token_exchange' }
+                });
+                return res.status(403).json({ error: 'Access is not granted' });
+            }
+
+            // JWT発行
+            const token = this.authService.issueToken({
+                sub: user.person_id,
+                slackUserId: user.slack_user_id,
+                level: user.access_level,
+                employmentType: user.employment_type,
+                tenantId: null,
+                slackWorkspaceId
+            });
+            const refreshToken = this.authService.issueRefreshToken({
+                slackUserId,
+                slackWorkspaceId
+            });
+
+            await this.authService.createAuditLog({
+                personId: user.person_id,
+                slackUserId,
+                slackWorkspaceId,
+                eventType: 'AUTH_LOGIN',
+                metadata: {
+                    level: user.access_level,
+                    employment_type: user.employment_type,
+                    workspace_id: user.workspace_id,
+                    source: 'token_exchange'
+                }
+            });
+
+            return res.json({
+                token,
+                refresh_token: refreshToken
+            });
+        } catch (error) {
+            logger.error('Token exchange failed', { error });
+            return res.status(500).json({ error: error.message || 'Token exchange failed' });
+        }
+    };
+
+    /**
+     * Device Code Flow: Request device code
+     * POST /api/auth/device/code
+     * Body: { code_verifier }
+     * Response: { device_code, user_code, verification_uri, verification_uri_complete, expires_in, interval }
+     */
+    deviceCodeRequest = async (req, res) => {
+        try {
+            this.authService.assertReady();
+            const { code_verifier } = req.body;
+            if (!code_verifier) {
+                return res.status(400).json({ error: 'code_verifier is required' });
+            }
+
+            const response = this.authService.createDeviceCodeRequest(String(code_verifier));
+            return res.json(response);
+        } catch (error) {
+            logger.error('Device code request failed', { error });
+            return res.status(500).json({ error: error.message || 'Device code request failed' });
+        }
+    };
+
+    /**
+     * Device Code Flow: Verify user code (called by frontend)
+     * POST /api/auth/device/verify-user-code
+     * Body: { user_code }
+     * Response: { ok: true, device_code, status } or { ok: false, error }
+     */
+    verifyUserCodeEndpoint = async (req, res) => {
+        logger.info('🔍 verifyUserCodeEndpoint called', { body: req.body, headers: req.headers });
+        try {
+            const { user_code } = req.body;
+            if (!user_code) {
+                return res.status(400).json({ ok: false, error: 'user_code is required' });
+            }
+
+            const result = this.authService.verifyUserCode(String(user_code));
+            if (!result) {
+                return res.status(404).json({ ok: false, error: 'Invalid or expired user code' });
+            }
+
+            return res.json({ ok: true, device_code: result.deviceCode, status: result.status });
+        } catch (error) {
+            logger.error('Verify user code failed', { error });
+            return res.status(500).json({ ok: false, error: error.message || 'Verify user code failed' });
+        }
+    };
+
+    /**
+     * Device Code Flow: Approve device (after Slack OAuth)
+     * POST /api/auth/device/approve
+     * Body: { device_code, slack_user_id, slack_workspace_id }
+     * Response: { ok: true }
+     */
+    approveDevice = async (req, res) => {
+        try {
+            this.authService.assertReady();
+            const { device_code, slack_user_id, slack_workspace_id } = req.body;
+            if (!device_code || !slack_user_id || !slack_workspace_id) {
+                return res.status(400).json({ error: 'device_code, slack_user_id, and slack_workspace_id are required' });
+            }
+
+            this.authService.approveDeviceCode(String(device_code), String(slack_user_id), String(slack_workspace_id));
+            return res.json({ ok: true });
+        } catch (error) {
+            logger.error('Approve device failed', { error });
+            return res.status(500).json({ error: error.message || 'Approve device failed' });
+        }
+    };
+
+    /**
+     * Device Code Flow: Deny device
+     * POST /api/auth/device/deny
+     * Body: { device_code }
+     * Response: { ok: true }
+     */
+    denyDevice = async (req, res) => {
+        try {
+            const { device_code } = req.body;
+            if (!device_code) {
+                return res.status(400).json({ error: 'device_code is required' });
+            }
+
+            this.authService.denyDeviceCode(String(device_code));
+            return res.json({ ok: true });
+        } catch (error) {
+            logger.error('Deny device failed', { error });
+            return res.status(500).json({ error: error.message || 'Deny device failed' });
+        }
+    };
+
+    /**
+     * Device Code Flow: Poll for token (CLI polling)
+     * POST /api/auth/device/token
+     * Body: { device_code }
+     * Response: { access_token, refresh_token, token_type, expires_in } or { error, error_description }
+     */
+    deviceTokenRequest = async (req, res) => {
+        try {
+            this.authService.assertReady();
+            const { device_code } = req.body;
+            if (!device_code) {
+                return res.status(400).json({ error: 'invalid_request', error_description: 'device_code is required' });
+            }
+
+            const response = await this.authService.pollDeviceToken(String(device_code));
+
+            // OAuth 2.0 Device Flow error codes (RFC 8628)
+            if (response.error === 'authorization_pending') {
+                return res.status(400).json(response);
+            }
+            if (response.error === 'slow_down') {
+                return res.status(400).json(response);
+            }
+            if (response.error === 'expired_token') {
+                return res.status(400).json(response);
+            }
+            if (response.error === 'access_denied') {
+                return res.status(403).json(response);
+            }
+            if (response.error) {
+                return res.status(400).json(response);
+            }
+
+            return res.json(response);
+        } catch (error) {
+            logger.error('Device token request failed', { error });
+            return res.status(500).json({ error: 'server_error', error_description: error.message || 'Device token request failed' });
         }
     };
 }

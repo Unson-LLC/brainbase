@@ -156,6 +156,61 @@ npm install -g @anthropic-ai/claude-code
 
 ✅ **これで完了！** 3分でローカル環境が整います。
 
+---
+
+## 🔐 brainbase MCP セットアップ（Claude Code統合）
+
+brainbase MCPサーバーを使用すると、Claude Codeから直接brainbaseのデータにアクセスできます。
+
+### 前提条件
+- brainbaseサーバーが起動していること（`npm start`）
+- Slack Workspaceへのアクセス権限（認証用）
+
+### セットアップ手順
+
+1. **MCP Server用トークン取得**
+   ```bash
+   cd /path/to/brainbase
+   npm run mcp-setup
+   ```
+
+2. **認証フロー**
+   CLIに表示される8桁のコード（例: `WDJB-MJHT`）を以下のいずれかの方法で使用:
+
+   **方法1: 自動リンクを開く（推奨）**
+   - CLIに表示されたURL（例: `https://bb.unson.jp/device?user_code=WDJB-MJHT`）をブラウザで開く
+   - コードが自動入力されるので、「次へ」→「Slackでログイン」→「許可」をクリック
+
+   **方法2: 手動入力**
+   - https://bb.unson.jp/device にアクセス
+   - 8桁のコードを手動入力
+   - 「Slackでログイン」→「許可」をクリック
+
+3. **認証完了**
+   CLIで「✅ 認証成功！」と表示されたら、トークンが `~/.brainbase/tokens.json` に保存されます。
+
+4. **Claude Code再起動**
+   ```bash
+   # Claude Codeを再起動してMCP設定を反映
+   ```
+
+### トラブルシューティング
+
+| エラー | 原因 | 対処法 |
+|-------|------|--------|
+| `Device code expired` | 認証に10分以上かかった | `npm run mcp-setup` を再実行 |
+| `Invalid or expired user code` | コードの入力ミス | 正しいコード（XXXX-XXXX形式）を確認 |
+| `Access is not granted` | ユーザー権限がない | brainbase管理者に権限付与を依頼 |
+| `Connection refused` | brainbaseサーバーが停止 | `npm start` でサーバーを起動 |
+
+### セキュリティ
+
+- トークンファイル（`~/.brainbase/tokens.json`）は permission 600 で保存され、他のユーザーからは読めません
+- トークンの有効期限は1時間。期限切れ時は自動的にrefresh tokenで再取得されます
+- Device Code Flowは OAuth 2.0 RFC 8628 に準拠した標準的な認証方式です
+
+---
+
 ### 環境変数（任意）
 
 ```bash

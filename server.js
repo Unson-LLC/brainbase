@@ -52,6 +52,7 @@ import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
+import { createSetupRouter } from './server/routes/setup.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -312,7 +313,72 @@ app.get('/', async (req, res) => {
         res.send(content);
     } catch (error) {
         console.error('Error loading index.html:', error);
-        res.status(500).send('Error loading page: ' + error.message);
+        // index.htmlがない場合（API専用デプロイ等）は簡単なHTMLを返す
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(`
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>brainbase Graph API Server</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0b1120 0%, #1e293b 100%);
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 24px;
+            padding: 48px;
+            max-width: 600px;
+            text-align: center;
+        }
+        h1 {
+            color: #60a5fa;
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+        p {
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .status {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 24px 0;
+            color: #4ade80;
+        }
+        a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 brainbase Graph API Server</h1>
+        <div class="status">✓ Server is running</div>
+        <p>Device認証を行う場合は <a href="/device">/device</a> にアクセスしてください</p>
+        <p>APIヘルスチェック: <a href="/health/ready">/health/ready</a></p>
+    </div>
+</body>
+</html>
+        `);
     }
 });
 
@@ -330,6 +396,40 @@ app.get('/app.js', async (req, res) => {
         res.send(content);
     } catch (error) {
         res.status(500).send('Error loading app.js');
+    }
+});
+
+// Device Authorization Flow page (OAuth 2.0 Device Code Flow)
+app.get('/device', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'device.html');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        console.error('Error loading device.html:', error);
+        res.status(500).send('Error loading device authorization page: ' + error.message);
+    }
+});
+
+// Setup page
+app.get('/setup', async (req, res) => {
+    try {
+        const filePath = path.join(__dirname, 'public', 'setup.html');
+        const content = await fs.readFile(filePath, 'utf-8');
+
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(content);
+    } catch (error) {
+        console.error('Error loading setup.html:', error);
+        res.status(500).send('Error loading setup page: ' + error.message);
     }
 });
 
@@ -372,6 +472,7 @@ const sessionManager = new SessionManager({
         if (!TEST_MODE) {
             await sessionManager.restoreActiveSessions();
             await sessionManager.cleanupOrphans();
+            sessionManager.startPtyWatchdog();
         } else {
             console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
         }
@@ -505,6 +606,7 @@ app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
+app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================

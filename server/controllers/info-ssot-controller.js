@@ -143,6 +143,34 @@ export class InfoSSOTController {
         }
     };
 
+    getContext = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+
+            const projectCode = req.query.project || null;
+            const entityTypes = req.query.types || 'all';
+            const limit = req.query.limit || null;
+            const humanReadable = String(req.query.humanReadable || '').toLowerCase() === 'true';
+            const includeEdges = String(req.query.includeEdges || '').toLowerCase() === 'true';
+
+            const result = await this.infoSSOTService.getContext(access, {
+                projectCode,
+                entityTypes,
+                limit,
+                humanReadable,
+                includeEdges
+            });
+
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to get context', { error });
+            res.status(resolveErrorStatus(error)).json({
+                error: error.message || 'Failed to get context'
+            });
+        }
+    };
+
     expandGraph = async (req, res) => {
         try {
             const access = buildAccessContext(req);
@@ -199,6 +227,42 @@ export class InfoSSOTController {
         } catch (error) {
             logger.error('Failed to create raci', { error });
             res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create raci' });
+        }
+    };
+
+    createGlossaryTerm = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createGlossaryTerm(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to create glossary term', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create glossary term' });
+        }
+    };
+
+    createKpi = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createKpi(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to create kpi', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create kpi' });
+        }
+    };
+
+    createInitiative = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createInitiative(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to create initiative', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to create initiative' });
         }
     };
 

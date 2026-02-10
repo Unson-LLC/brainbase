@@ -2,8 +2,6 @@
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
-import { ZepService } from '../services/zep-service.js';
-import { ClaudeLogParser } from '../utils/claude-log-parser.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -14,7 +12,6 @@ export class SessionController {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
-        this.zepService = new ZepService();
     }
 
     // ========================================
@@ -50,7 +47,7 @@ export class SessionController {
 
     /**
      * POST /api/sessions/start
-     * ttydプロセスを起動 + ZEPセッション初期化
+     * ttydプロセスを起動
      */
     start = async (req, res) => {
         const { sessionId, initialCommand, cwd, engine = 'claude', userId = 'ksato' } = req.body;
@@ -65,26 +62,13 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
-            // ttydプロセス起動（既存）
+            // ttydプロセス起動
             const result = await this.sessionManager.startTtyd({
                 sessionId,
                 cwd,
                 initialCommand,
                 engine
             });
-
-            // ZEPセッション初期化（新規）
-            try {
-                const gitBranch = await this.getGitBranch(cwd);
-                await this.zepService.initializeSession(sessionId, userId, {
-                    engine,
-                    cwd,
-                    git_branch: gitBranch
-                });
-            } catch (zepError) {
-                // ZEP初期化失敗時はログのみ出力（セッション起動自体は継続）
-                console.error('[SessionController] ZEP initialization failed:', zepError);
-            }
 
             res.json(result);
         } catch (error) {
@@ -302,6 +286,23 @@ export class SessionController {
         } catch (err) {
             console.error(`Failed to scroll ${id}:`, err.message);
             res.status(500).json({ error: err.message || 'Failed to scroll' });
+        }
+    };
+
+    /**
+     * POST /api/sessions/:id/select_pane
+     * tmux select-pane (U/D/L/R)
+     */
+    selectPane = async (req, res) => {
+        const { id } = req.params;
+        const { direction } = req.body;
+
+        try {
+            await this.sessionManager.selectPane(id, direction);
+            res.json({ success: true });
+        } catch (err) {
+            console.error(`Failed to select pane for ${id}:`, err.message);
+            res.status(500).json({ error: err.message || 'Failed to select pane' });
         }
     };
 
@@ -546,88 +547,6 @@ export class SessionController {
             }
         } catch (error) {
             console.error('Failed to delete worktree:', error);
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    // ========================================
-    // ZEP Integration
-    // ========================================
-
-    /**
-     * POST /api/sessions/save_to_zep
-     * セッション終了時にZEPへ会話履歴を保存
-     */
-    saveToZep = async (req, res) => {
-        const { brainbase_session_id, claude_session_uuid, jsonl_path } = req.body;
-
-        if (!brainbase_session_id || !claude_session_uuid || !jsonl_path) {
-            return res.status(400).json({
-                error: 'brainbase_session_id, claude_session_uuid, and jsonl_path are required'
-            });
-        }
-
-        try {
-            console.log('[SessionController] Saving to ZEP:', {
-                brainbase_session_id,
-                claude_session_uuid,
-                jsonl_path
-            });
-
-            // jsonlファイルから会話履歴を抽出
-            const messages = await ClaudeLogParser.extractMessages(jsonl_path);
-
-            // ZEPセッションを確定（brainbase:session-{timestamp} → brainbase:{CLAUDE_UUID}）
-            const finalSessionId = await this.zepService.finalizeSession(
-                brainbase_session_id,
-                claude_session_uuid,
-                messages
-            );
-
-            res.json({
-                success: true,
-                zep_session_id: finalSessionId,
-                message_count: messages.length
-            });
-        } catch (error) {
-            console.error('[SessionController] Failed to save to ZEP:', error);
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    /**
-     * GET /api/sessions/zep/list
-     * ZEPセッション一覧を取得
-     */
-    listZepSessions = async (req, res) => {
-        const { userId = 'ksato' } = req.query;
-
-        try {
-            const sessions = await this.zepService.listSessions(userId);
-            res.json(sessions);
-        } catch (error) {
-            console.error('[SessionController] Failed to list ZEP sessions:', error);
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    /**
-     * GET /api/sessions/zep/:sessionId/memory
-     * ZEPセッションのメモリを取得
-     */
-    getZepMemory = async (req, res) => {
-        const { sessionId } = req.params;
-        const { limit = 50 } = req.query;
-
-        if (!sessionId) {
-            return res.status(400).json({ error: 'sessionId is required' });
-        }
-
-        try {
-            const memory = await this.zepService.getMemory(sessionId, parseInt(limit));
-            res.json(memory);
-        } catch (error) {
-            console.error('[SessionController] Failed to get ZEP memory:', error);
             res.status(500).json({ error: error.message });
         }
     };

@@ -189,7 +189,12 @@ class TerminalReconnectManager {
             });
 
             if (res?.proxyPath) {
-                this.terminalFrame.src = res.proxyPath;
+                // Only reload iframe if proxyPath actually changed (new ttyd process/port)
+                // Avoids unnecessary PTY allocation when ttyd is still alive
+                const currentSrc = this.terminalFrame.src || '';
+                if (!currentSrc.includes(res.proxyPath)) {
+                    this.terminalFrame.src = res.proxyPath;
+                }
             } else {
                 this.handleDisconnect();
             }
@@ -630,8 +635,6 @@ export class App {
                 }
             };
         }
-
-        // Note: Mobile copy terminal button is handled in setupMobileFAB()
 
         // Close modal buttons
         const closeModalBtns = document.querySelectorAll('.close-modal-btn');
@@ -1624,9 +1627,6 @@ export class App {
                 e.preventDefault();
             }
         }, { passive: false });
-
-        // Mobile FAB (Speed Dial) functionality
-        this.setupMobileFAB();
     }
 
     /**
@@ -1637,288 +1637,6 @@ export class App {
         const sessionsBottomSheet = document.getElementById('sessions-bottom-sheet');
         sessionsSheetOverlay?.classList.remove('active');
         sessionsBottomSheet?.classList.remove('active');
-    }
-
-    /**
-     * Setup mobile FAB (Floating Action Button) handlers
-     */
-    setupMobileFAB() {
-        console.log('[DEBUG] setupMobileFAB called');
-
-        const mobileFab = document.getElementById('mobile-fab');
-        const mobileFabContainer = document.getElementById('mobile-fab-container');
-        const mobileFabOverlay = document.getElementById('mobile-fab-overlay');
-        const mobilePasteBtn = document.getElementById('mobile-paste-btn');
-        const mobileUploadImageBtn = document.getElementById('mobile-upload-image-btn');
-        const mobileSendEscapeBtn = document.getElementById('mobile-send-escape-btn');
-        const mobileSendClearBtn = document.getElementById('mobile-send-clear-btn');
-        const mobileCopyTerminalBtn = document.getElementById('mobile-copy-terminal-btn');
-        const mobileToggleKeyboardBtn = document.getElementById('mobile-toggle-keyboard-btn');
-        const mobileSendShiftTabBtn = document.getElementById('mobile-send-shift-tab-btn');
-        const mobileHardResetBtn = document.getElementById('mobile-hard-reset-btn');
-
-        // Toggle FAB menu
-        mobileFab?.addEventListener('click', () => {
-            console.log('[DEBUG] FAB toggle clicked');
-            mobileFabContainer?.classList.toggle('active');
-        });
-
-        // Close FAB menu when clicking overlay
-        mobileFabOverlay?.addEventListener('click', () => {
-            mobileFabContainer?.classList.remove('active');
-        });
-
-        // Paste button
-        if (mobilePasteBtn) {
-            mobilePasteBtn.onclick = async () => {
-                console.log('[FAB] Paste button clicked');
-
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    // Try to read clipboard items (supports both text and images)
-                    const clipboardItems = await navigator.clipboard.read();
-
-                    for (const item of clipboardItems) {
-                        // Check for image
-                        const imageType = item.types.find(type => type.startsWith('image/'));
-                        if (imageType) {
-                            showInfo('画像を圧縮中...');
-
-                            const blob = await item.getType(imageType);
-
-                            // 圧縮前のサイズ
-                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
-
-                            // 画像を圧縮
-                            const compressedBlob = await compressImage(blob);
-
-                            // 圧縮後のサイズ
-                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
-
-                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
-
-                            // Upload compressed image to server
-                            const formData = new FormData();
-                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
-
-                            const uploadRes = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                            if (!uploadRes.ok) {
-                                showError('画像のアップロードに失敗しました');
-                                return;
-                            }
-
-                            const { path: imagePath } = await uploadRes.json();
-
-                            // Send image path to terminal with Enter key
-                            await fetch(`/api/sessions/${currentSessionId}/input`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
-                            });
-
-                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
-                            return;
-                        }
-
-                        // Check for text
-                        if (item.types.includes('text/plain')) {
-                            const textBlob = await item.getType('text/plain');
-                            const text = await textBlob.text();
-
-                            if (!text) {
-                                showInfo('クリップボードが空です');
-                                return;
-                            }
-
-                            // Paste directly (skip modal on mobile for better UX)
-                            await this.pasteTextToTerminal(currentSessionId, text);
-                            return;
-                        }
-                    }
-
-                    showInfo('クリップボードが空です');
-                } catch (error) {
-                    console.error('Failed to paste:', error);
-                    if (error.name === 'NotAllowedError') {
-                        showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
-                    } else {
-                        showError('ペーストに失敗しました');
-                    }
-                }
-            };
-        }
-
-        // Upload image button
-        if (mobileUploadImageBtn) {
-            mobileUploadImageBtn.onclick = () => {
-                console.log('[FAB] Upload button clicked');
-                const imageFileInput = document.getElementById('image-file-input');
-                imageFileInput?.click();
-            };
-        }
-
-        // Send Escape button
-        if (mobileSendEscapeBtn) {
-            mobileSendEscapeBtn.onclick = async () => {
-                console.log('[FAB] Escape button clicked');
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'Escape',
-                        type: 'key'
-                    });
-                } catch (error) {
-                    console.error('Failed to send Escape:', error);
-                    showError('Escapeキーの送信に失敗しました');
-                }
-            };
-        }
-
-        // Send Clear button
-        if (mobileSendClearBtn) {
-            mobileSendClearBtn.onclick = async () => {
-                console.log('[FAB] Clear button clicked');
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'C-l',
-                        type: 'key'
-                    });
-                } catch (error) {
-                    console.error('Failed to send Clear:', error);
-                    showError('クリアコマンドの送信に失敗しました');
-                }
-            };
-        }
-
-        // Copy terminal content button
-        if (mobileCopyTerminalBtn) {
-            mobileCopyTerminalBtn.onclick = async () => {
-                console.log('[FAB] Copy button clicked');
-
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    const res = await fetch(`/api/sessions/${currentSessionId}/content?lines=500`);
-                    if (!res.ok) throw new Error('Failed to fetch content');
-
-                    const { content } = await res.json();
-
-                    const copyTerminalModal = document.getElementById('copy-terminal-modal');
-                    const terminalContentDisplay = document.getElementById('terminal-content-display');
-
-                    if (terminalContentDisplay && copyTerminalModal) {
-                        terminalContentDisplay.textContent = content;
-                        copyTerminalModal.classList.add('active');
-                        if (window.lucide) window.lucide.createIcons();
-
-                        // Scroll to bottom
-                        setTimeout(() => {
-                            terminalContentDisplay.scrollTop = terminalContentDisplay.scrollHeight;
-                        }, 50);
-                    }
-                } catch (error) {
-                    console.error('Failed to get terminal content:', error);
-                    showError('ターミナル内容の取得に失敗しました');
-                }
-            };
-        }
-
-        // Send Shift+Tab button (for plan mode)
-        if (mobileSendShiftTabBtn) {
-            mobileSendShiftTabBtn.onclick = async () => {
-                console.log('[FAB] Shift+Tab button clicked');
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    // Try BTab format (tmux standard for Shift+Tab)
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'BTab',
-                        type: 'key'
-                    });
-                    showSuccess('Shift+Tabを送信しました');
-                } catch (error) {
-                    console.error('Failed to send Shift+Tab:', error);
-                    showError('Shift+Tabの送信に失敗しました');
-                }
-            };
-        }
-
-        // Toggle mobile keyboard button
-        if (mobileToggleKeyboardBtn) {
-            mobileToggleKeyboardBtn.onclick = () => {
-                console.log('[FAB] Toggle keyboard button clicked');
-                const mobileKeyboard = document.getElementById('mobile-keyboard');
-                if (mobileKeyboard) {
-                    mobileKeyboard.classList.toggle('visible');
-                    console.log('[FAB] Mobile keyboard visibility toggled');
-                }
-            };
-        }
-
-        // Hard reset button
-        if (mobileHardResetBtn) {
-            mobileHardResetBtn.onclick = async () => {
-                console.log('[FAB] Hard reset button clicked');
-
-                // 確認ダイアログ
-                const confirmed = confirm('キャッシュをクリアして再読み込みしますか？');
-                if (!confirmed) {
-                    console.log('[FAB] Hard reset cancelled by user');
-                    return;
-                }
-
-                try {
-                    // Service Workerのキャッシュクリア
-                    if ('serviceWorker' in navigator) {
-                        const registrations = await navigator.serviceWorker.getRegistrations();
-                        await Promise.all(registrations.map(reg => reg.unregister()));
-                        console.log('[FAB] Service workers unregistered');
-                    }
-
-                    // キャッシュストレージのクリア
-                    if ('caches' in window) {
-                        const cacheNames = await caches.keys();
-                        await Promise.all(cacheNames.map(name => caches.delete(name)));
-                        console.log('[FAB] Cache storage cleared');
-                    }
-
-                    // ハードリロード
-                    console.log('[FAB] Reloading page...');
-                    window.location.reload();
-                } catch (error) {
-                    console.error('[FAB] Failed to hard reset:', error);
-                    alert('リセットに失敗しました');
-                }
-            };
-        }
     }
 
     /**

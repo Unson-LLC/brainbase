@@ -35,6 +35,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore)
     // ========================================
     router.post('/:id/input', controller.sendInput);
     router.post('/:id/scroll', controller.scroll);
+    router.post('/:id/select_pane', controller.selectPane);
     router.post('/:id/exit_copy_mode', controller.exitCopyMode);
     router.get('/:id/content', controller.getContent);
     router.get('/:id/output', controller.getOutput);
@@ -47,13 +48,6 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore)
     router.post('/:id/update-local-main', controller.updateLocalMain);
     router.post('/:id/merge', controller.merge);
     router.delete('/:id/worktree', controller.deleteWorktree);
-
-    // ========================================
-    // ZEP Integration
-    // ========================================
-    router.post('/save_to_zep', controller.saveToZep);
-    router.get('/zep/list', controller.listZepSessions);
-    router.get('/zep/:sessionId/memory', controller.getZepMemory);
 
     return router;
 }

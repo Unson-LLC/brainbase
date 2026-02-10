@@ -2,7 +2,7 @@
  * SessionManager
  * セッション管理とttyd/tmuxプロセス管理を担当
  */
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import net from 'net';
 import path from 'path';
@@ -237,16 +237,18 @@ export class SessionManager {
                 }
             }
 
-            // 3. state.json の intendedState === 'active' のセッションIDを取得
-            // BUG FIX: TEST_MODEでrestoreActiveSessions()がスキップされた場合、
-            // activeSessions Mapが空になるため、state.jsonも確認してアクティブセッションを保護する
+            // 3. state.json の intendedState === 'active' または 'paused' のセッションIDを取得
+            // active: 通常のアクティブセッション
+            // paused: 一時停止中だがttyd/tmux/Claudeプロセスが動いている可能性があるセッション
+            // BUG FIX: 'paused'セッションのttydを孤立プロセスとして殺すと、
+            // tmux/Claudeセッションが巻き添えで死ぬ。pausedも保護対象に含める。
             const state = this.stateStore.get();
             const activeSessionIds = new Set(
                 state.sessions
-                    .filter(s => s.intendedState === 'active')
+                    .filter(s => s.intendedState === 'active' || s.intendedState === 'paused')
                     .map(s => s.id)
             );
-            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active session(s) in state.json`);
+            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active/paused session(s) in state.json`);
 
             // 4. 孤立したttydプロセスのみ殺す
             let orphansKilled = 0;
@@ -625,6 +627,8 @@ export class SessionManager {
 
         args.push(
             '-I', customIndexPath, // Custom HTML with keyboard shortcuts and mobile scroll support
+            '-m', '1',                         // Max 1 client: prevent concurrent PTY allocation per session
+            '-t', 'disableReconnect=true',   // Prevent PTY leak: disable ttyd built-in reconnect (brainbase TerminalReconnectManager handles it)
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
@@ -766,6 +770,7 @@ export class SessionManager {
                 await this.cleanupSessionResources(sessionId);
             } else {
                 console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
+                await this._cleanupChildProcesses(sessionId);
             }
 
             // ttydProcess情報をクリア
@@ -777,6 +782,43 @@ export class SessionManager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * tmuxセッション内の子プロセス（claude/MCP等）のみを停止
+     * tmuxセッション自体は残す（preserveTmuxモード用）
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<number>} killしたペイン数
+     */
+    async _cleanupChildProcesses(sessionId) {
+        try {
+            const { stdout } = await this.execPromise(
+                `tmux list-panes -s -t "${sessionId}" -F "#{pane_pid}" 2>/dev/null || echo ""`
+            );
+            if (!stdout.trim()) return 0;
+
+            const panePids = stdout.trim().split('\n').filter(p => p.trim());
+            let killed = 0;
+            for (const pid of panePids) {
+                // 子プロセス（claude, MCP等）のみkill（tmuxのshell自体は残す）
+                try {
+                    await this.execPromise(`pkill -TERM -P ${pid} 2>/dev/null`);
+                    killed++;
+                } catch (_) {}
+            }
+            // SIGTERM後待機 → 残存プロセスをSIGKILL
+            await new Promise(resolve => setTimeout(resolve, 500));
+            for (const pid of panePids) {
+                try {
+                    await this.execPromise(`pkill -9 -P ${pid} 2>/dev/null`);
+                } catch (_) {}
+            }
+            console.log(`[Cleanup] Killed child processes in ${killed} pane(s) (preserveTmux mode)`);
+            return killed;
+        } catch (err) {
+            console.log(`[Cleanup] Error cleaning child processes for ${sessionId}:`, err.message);
+            return 0;
+        }
     }
 
     /**
@@ -792,44 +834,65 @@ export class SessionManager {
 
         console.log(`[Cleanup] Starting cleanup for session ${sessionId}...`);
 
-        let tmuxDeleted = false;
         let processesKilled = 0;
 
-        // 1. TMUXセッション削除
-        try {
-            await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
-            tmuxDeleted = true;
-            console.log(`[Cleanup] ✅ TMUX session deleted: ${sessionId}`);
-        } catch (err) {
-            console.log(`[Cleanup] ⚠️ TMUX session ${sessionId} already deleted or not found`);
-        }
-
-        // 2. TMUXペインのプロセスID取得 → 子プロセス（MCP含む）を強制終了
+        // 1. 先にPID取得（tmuxが生きているうちに）
+        let panePids = [];
         try {
             const { stdout } = await this.execPromise(
                 `tmux list-panes -s -t "${sessionId}" -F "#{pane_pid}" 2>/dev/null || echo ""`
             );
-
             if (stdout.trim()) {
-                const panePids = stdout.trim().split('\n');
-                console.log(`[Cleanup] Found ${panePids.length} pane process(es) for ${sessionId}`);
-
-                for (const pid of panePids) {
-                    // 子プロセス（MCP等）を終了
-                    await this.execPromise(`pkill -TERM -P ${pid} 2>/dev/null`).catch(() => {});
-                    // 親プロセスを終了
-                    await this.execPromise(`kill -TERM ${pid} 2>/dev/null`).catch(() => {});
-                    processesKilled++;
-                }
-                console.log(`[Cleanup] ✅ Killed ${processesKilled} pane processes for ${sessionId}`);
-            } else {
-                console.log(`[Cleanup] ⚠️ No pane processes found for ${sessionId}`);
+                panePids = stdout.trim().split('\n').filter(p => p.trim());
+                console.log(`[Cleanup] Collected ${panePids.length} pane PID(s) for ${sessionId}: ${panePids.join(', ')}`);
             }
         } catch (err) {
-            console.log(`[Cleanup] ⚠️ Error cleaning up pane processes for ${sessionId}:`, err.message);
+            console.log(`[Cleanup] Could not collect pane PIDs for ${sessionId}:`, err.message);
         }
 
-        console.log(`[Cleanup] Completed for ${sessionId} (TMUX: ${tmuxDeleted ? '✅' : '⚠️'}, Processes: ${processesKilled})`);
+        // 2. 子プロセスツリーを全て取得（pgrep -P で再帰的に）
+        const allPids = new Set();
+        for (const pid of panePids) {
+            allPids.add(pid);
+            try {
+                const { stdout } = await this.execPromise(`pgrep -P ${pid} 2>/dev/null`);
+                if (stdout.trim()) {
+                    stdout.trim().split('\n').forEach(p => allPids.add(p.trim()));
+                }
+            } catch (_) {}
+        }
+
+        // 3. TMUXセッション削除
+        try {
+            await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
+            console.log(`[Cleanup] TMUX session deleted: ${sessionId}`);
+        } catch (err) {
+            console.log(`[Cleanup] TMUX session ${sessionId} already deleted or not found`);
+        }
+
+        // 4. 収集したプロセスを全てkill（SIGTERM → 待機 → SIGKILL）
+        if (allPids.size > 0) {
+            console.log(`[Cleanup] Killing ${allPids.size} process(es) for ${sessionId}: ${[...allPids].join(', ')}`);
+            for (const pid of allPids) {
+                try {
+                    await this.execPromise(`kill -TERM ${pid} 2>/dev/null`);
+                } catch (_) {}
+            }
+            // SIGTERM後500ms待機
+            await new Promise(resolve => setTimeout(resolve, 500));
+            // まだ生きてるやつはSIGKILL
+            for (const pid of allPids) {
+                if (this._isProcessRunning(parseInt(pid))) {
+                    try {
+                        await this.execPromise(`kill -9 ${pid} 2>/dev/null`);
+                        console.log(`[Cleanup] Force killed PID ${pid}`);
+                    } catch (_) {}
+                }
+            }
+            processesKilled = allPids.size;
+        }
+
+        console.log(`[Cleanup] Completed for ${sessionId} (Processes killed: ${processesKilled})`);
     }
 
     /**
@@ -957,7 +1020,10 @@ export class SessionManager {
     _isProcessRunning(pid) {
         try {
             process.kill(pid, 0);  // シグナル0 = 存在確認のみ
-            return true;
+            // ゾンビ検出: psコマンドでプロセス状態を確認
+            const status = execSync(`ps -o state= -p ${pid} 2>/dev/null`, { encoding: 'utf-8' }).trim();
+            // 'Z' = zombie, 'Z+' = zombie (foreground)
+            return !status.startsWith('Z');
         } catch (e) {
             return false;
         }
@@ -987,6 +1053,25 @@ export class SessionManager {
     }
 
     /**
+     * tmux select-pane
+     * @param {string} sessionId - セッションID
+     * @param {string} direction - U/D/L/R
+     */
+    async selectPane(sessionId, direction) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const validDirections = ['U', 'D', 'L', 'R'];
+        if (!validDirections.includes(direction)) {
+            throw new Error('Invalid direction. Must be U, D, L, or R');
+        }
+
+        const target = sessionId.replace(/"/g, '\\"');
+        await this.execPromise(`tmux select-pane -t "${target}" -${direction}`);
+    }
+
+    /**
      * tmux copy-mode exit
      * @param {string} sessionId - セッションID
      */
@@ -1012,16 +1097,23 @@ export class SessionManager {
             throw new Error('Input required');
         }
 
+        // DEBUG: ログ出力
+        console.log(`[session-manager] sendInput: sessionId="${sessionId}", type="${type}", input="${input}"`);
+
         if (type === 'key') {
             if (!this.ALLOWED_KEYS.includes(input)) {
                 throw new Error('Key not allowed');
             }
-            await this.execPromise(`tmux send-keys -t "${sessionId}" ${input}`);
+            const cmd = `tmux send-keys -t "${sessionId}" ${input}`;
+            console.log(`[session-manager] Executing: ${cmd}`);
+            await this.execPromise(cmd);
         } else if (type === 'text') {
             // Use -l for literal text (don't interpret special keys)
             // Escape double quotes in input
             const escaped = input.replace(/"/g, '\\"');
-            await this.execPromise(`tmux send-keys -t "${sessionId}" -l "${escaped}"`);
+            const cmd = `tmux send-keys -t "${sessionId}" -l "${escaped}"`;
+            console.log(`[session-manager] Executing: ${cmd}`);
+            await this.execPromise(cmd);
         } else {
             throw new Error('Type must be key or text');
         }
@@ -1054,5 +1146,64 @@ export class SessionManager {
             choices: choices,
             hasChoices: choices.length > 0
         };
+    }
+
+    /**
+     * PTY Watchdog: 定期的にPTY使用状況を監視し、閾値超過時に警告
+     * @param {number} intervalMs - 監視間隔（デフォルト: 600000ms = 10分）
+     */
+    startPtyWatchdog(intervalMs = 600000) {
+        if (this._ptyWatchdogTimer) return;
+        console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
+
+        this._ptyWatchdogTimer = setInterval(async () => {
+            try {
+                // macOS: sysctl kern.tty.ptmx_max でPTY上限取得
+                const { stdout: maxOut } = await this.execPromise('sysctl -n kern.tty.ptmx_max 2>/dev/null || echo 512');
+                const maxPty = parseInt(maxOut.trim()) || 512;
+
+                // 現在のPTY使用数
+                const { stdout: countOut } = await this.execPromise('ls /dev/pty* 2>/dev/null | wc -l');
+                const usedPty = parseInt(countOut.trim()) || 0;
+
+                const usage = (usedPty / maxPty * 100).toFixed(1);
+                const level = usedPty > maxPty * 0.8 ? 'CRITICAL' : usedPty > maxPty * 0.6 ? 'WARNING' : 'OK';
+
+                console.log(`[PTY Watchdog] ${level}: ${usedPty}/${maxPty} PTYs used (${usage}%)`);
+
+                if (level === 'CRITICAL') {
+                    console.error(`[PTY Watchdog] CRITICAL: PTY usage at ${usage}%! Running orphan cleanup...`);
+                    await this.cleanupOrphans();
+                }
+            } catch (err) {
+                console.error('[PTY Watchdog] Error:', err.message);
+            }
+        }, intervalMs);
+    }
+
+    /**
+     * PTY Watchdogを停止
+     */
+    stopPtyWatchdog() {
+        if (this._ptyWatchdogTimer) {
+            clearInterval(this._ptyWatchdogTimer);
+            this._ptyWatchdogTimer = null;
+            console.log('[PTY Watchdog] Stopped');
+        }
+    }
+
+    /**
+     * Graceful shutdown: 全セッションのリソースをクリーンアップ
+     * server.jsのSIGTERM/SIGINTハンドラから呼ばれる
+     */
+    async cleanup() {
+        this.stopPtyWatchdog();
+        console.log('[SessionManager] Starting graceful cleanup...');
+        const sessions = [...this.activeSessions.keys()];
+        for (const sessionId of sessions) {
+            console.log(`[SessionManager] Cleaning up session: ${sessionId}`);
+            await this.cleanupSessionResources(sessionId);
+        }
+        console.log(`[SessionManager] Graceful cleanup complete (${sessions.length} session(s))`);
     }
 }

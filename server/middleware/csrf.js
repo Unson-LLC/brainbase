@@ -78,6 +78,11 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Skip Device Code Flow endpoints (CLI-based, no CSRF token available)
+        if (req.path.startsWith('/api/auth/device/')) {
+            return next();
+        }
+
         const token = req.headers['x-csrf-token'];
         const sessionId = req.headers['x-session-id'] || 'default';
 

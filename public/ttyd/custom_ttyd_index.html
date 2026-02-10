@@ -187,6 +187,18 @@
             window.parent.postMessage({ type: 'TURN_START' }, '*');
         }
     }, true); // Use capture phase
+
+    // Alt+Arrow keys → tmux select-pane (pane switching via brainbase API)
+    document.addEventListener('keydown', function(e) {
+        if (!e.altKey) return;
+        var dirMap = { ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R' };
+        var direction = dirMap[e.key];
+        if (direction) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.parent.postMessage({ type: 'TMUX_SELECT_PANE', direction: direction }, '*');
+        }
+    }, true);
 })();
 </script>
 

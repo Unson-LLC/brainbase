@@ -74,7 +74,7 @@ Output format:
 async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
   const { timeout = 300000 } = options;
 
-  const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const homeDir = process.env.HOME || require("os").homedir();
 
   console.log(`[Claude CLI] 実行開始 (HOME=${homeDir})`);
 
@@ -167,13 +167,13 @@ function saveRefactoringHistory(history) {
  * コードベースをスキャンして領域リストを作成
  */
 function scanCodebase() {
-  const srcDirs = ["src/app", "src/components", "src/lib", "src/services"];
+  const srcDirs = ["public/modules", "server/controllers", "server/services", "lib"];
   const areas = new Set();
 
   srcDirs.forEach((dir) => {
     if (!fs.existsSync(dir)) return;
 
-    const files = execSync(`find ${dir} -name "*.ts" -o -name "*.tsx"`, {
+    const files = execSync(`find ${dir} -name "*.ts" -o -name "*.tsx" -o -name "*.js"`, {
       encoding: "utf-8",
     })
       .trim()
@@ -181,10 +181,10 @@ function scanCodebase() {
       .filter(Boolean);
 
     files.forEach((file) => {
-      // ディレクトリ名を領域として抽出 (例: "src/app/api/auth" → "api/auth")
+      // ディレクトリ名を領域として抽出 (例: "public/modules/auth" → "public/modules/auth")
       const parts = file.split("/");
-      if (parts.length > 2) {
-        const area = parts.slice(1, -1).join("/"); // src/ と ファイル名を除外
+      if (parts.length > 1) {
+        const area = parts.slice(0, -1).join("/"); // ファイル名を除外
         areas.add(area);
       }
     });
@@ -206,8 +206,8 @@ function findUnrefactoredAreas(allAreas, history) {
  */
 function getFilesInArea(area) {
   try {
-    const pattern = `src/${area}/**/*.{ts,tsx}`;
-    const files = execSync(`find src/${area} -name "*.ts" -o -name "*.tsx"`, {
+    const pattern = `${area}/**/*.{ts,tsx,js}`;
+    const files = execSync(`find ${area} -name "*.ts" -o -name "*.tsx" -o -name "*.js"`, {
       encoding: "utf-8",
       maxBuffer: 10 * 1024 * 1024,
     })
@@ -306,152 +306,6 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
 }
 
 /**
- * git diff統計を取得
- */
-function getFileStats(files) {
-  try {
-    const stats = files.map((file) => {
-      const diffStat = execSync(
-        `git diff --cached --numstat -- "${file}" 2>/dev/null || echo "0\t0\t${file}"`,
-        { encoding: "utf-8" }
-      ).trim();
-
-      const [added, deleted, path] = diffStat.split("\t");
-      return {
-        path: file,
-        added: parseInt(added) || 0,
-        deleted: parseInt(deleted) || 0,
-        isNew: !fs.existsSync(file) || execSync(`git ls-files "${file}"`, { encoding: "utf-8" }).trim() === ""
-      };
-    });
-    return stats;
-  } catch (error) {
-    console.warn("git diff統計取得失敗:", error.message);
-    return files.map(f => ({ path: f, added: 0, deleted: 0, isNew: false }));
-  }
-}
-
-/**
- * 新規ファイル一覧を取得
- */
-function getNewFiles(fileStats) {
-  return fileStats.filter(f => f.isNew).map(f => f.path);
-}
-
-/**
- * 合計追加・削除行数を取得
- */
-function getTotalLines(fileStats) {
-  return fileStats.reduce(
-    (acc, f) => ({
-      added: acc.added + f.added,
-      deleted: acc.deleted + f.deleted
-    }),
-    { added: 0, deleted: 0 }
-  );
-}
-
-/**
- * PRタイトルを生成
- */
-function generatePRTitle(metadata) {
-  const { area, newFiles, codeReduction } = metadata;
-
-  // 新規ファイルから主要なコンポーネント名を抽出
-  const mainComponents = newFiles
-    .map(f => path.basename(f, path.extname(f)))
-    .filter(name => name.length > 0)
-    .slice(0, 2)
-    .join(", ");
-
-  const reductionText = codeReduction > 0 ? ` - ${codeReduction}行削減` : "";
-  const componentText = mainComponents ? ` - ${mainComponents}作成` : "";
-
-  return `refactor(${area}): ${metadata.summaryShort}${componentText}${reductionText}`;
-}
-
-/**
- * PRボディを生成
- */
-function generatePRBody(metadata, report) {
-  const { area, fileStats, newFiles, linesAdded, linesDeleted, codeReduction, runNumber, runId, triggerEvent } = metadata;
-
-  const newFilesSection = newFiles.length > 0
-    ? newFiles.map(f => {
-        const stat = fileStats.find(s => s.path === f);
-        return `| \`${f}\` | +${stat?.added || 0} | 新規作成 |`;
-      }).join("\n")
-    : "";
-
-  const modifiedFilesSection = fileStats
-    .filter(f => !f.isNew)
-    .map(f => {
-      const change = f.deleted > f.added ? `-${f.deleted - f.added}` : `+${f.added - f.deleted}`;
-      return `| \`${f.path}\` | -${f.deleted}, +${f.added} | リファクタ |`;
-    })
-    .join("\n");
-
-  return `## 📝 変更サマリー
-
-**リファクタリング領域**: ${area}
-
-${report.split("## Changes Summary")[1]?.split("## Files Modified")[0]?.trim() || metadata.summary}
-
----
-
-## 📊 影響範囲
-
-### 変更ファイル (${fileStats.length}件)
-
-| ファイル | 変更 | 種類 |
-|---------|------|------|
-${newFilesSection}
-${modifiedFilesSection}
-
-### コード削減効果
-**合計: ${codeReduction > 0 ? `約${codeReduction}行削減` : `${Math.abs(codeReduction)}行増加`}** (-${linesDeleted}, +${linesAdded})
-
----
-
-## 🔍 レビューポイント
-
-### ✅ 確認してほしい点
-1. 新規コンポーネントのAPI設計
-   - 適切な責務分割ができているか？
-   - 他の領域でも再利用可能か？
-
-2. コンポーネントの配置場所
-   - 現在の配置で適切か？
-   - グローバル vs プライベートの判断は正しいか？
-
-3. 命名・JSDocの品質
-   - 分かりやすい命名になっているか？
-   - JSDocは十分に具体的か？
-
-### ⚠️ 注意事項
-- **破壊的変更なし**: 既存の機能は全て保持
-- **テスト**: 手動確認が必要（E2Eテスト未実装）
-
----
-
-## 🤖 自動生成情報
-
-<details>
-<summary>自動リファクタリング詳細</summary>
-
-- **ツール**: ops-department Auto Refactoring
-- **Run Number**: ${runNumber}
-- **Run ID**: ${runId}
-- **実行日時**: ${new Date().toISOString()}
-- **トリガー**: ${triggerEvent}
-- **ワークフロー**: [weekly-refactoring.yml](https://github.com/Unson-LLC/salestailor/actions/workflows/weekly-refactoring.yml)
-
-詳細レポート: \`ops-department-refactoring.md\`
-
-</details>`;
-}
-
-/**
  * メイン処理
  */
 async function main() {
@@ -542,41 +396,6 @@ This refactoring was automatically performed by the ops-department refactoring-s
   const reportPath = "ops-department-refactoring.md";
   fs.writeFileSync(reportPath, report);
   console.log(`✅ Report saved to ${reportPath}`);
-
-  // 7. PRメッセージ生成
-  console.log("\n📝 Generating PR message...");
-
-  // git diff統計を取得
-  const fileStats = getFileStats(refactoringResult.files_modified);
-  const newFiles = getNewFiles(fileStats);
-  const totalLines = getTotalLines(fileStats);
-  const codeReduction = totalLines.deleted - totalLines.added;
-
-  // メタデータ準備
-  const prMetadata = {
-    area: refactoringResult.area,
-    summary: refactoringResult.changes_summary,
-    summaryShort: refactoringResult.changes_summary.split(/[。\n]/)[0].substring(0, 60),
-    fileStats,
-    newFiles,
-    linesAdded: totalLines.added,
-    linesDeleted: totalLines.deleted,
-    codeReduction,
-    runNumber: process.env.GITHUB_RUN_NUMBER || "local",
-    runId: process.env.GITHUB_RUN_ID || "unknown",
-    triggerEvent: process.env.GITHUB_EVENT_NAME || "manual"
-  };
-
-  // PRタイトル・ボディ生成
-  const prTitle = generatePRTitle(prMetadata);
-  const prBody = generatePRBody(prMetadata, report);
-
-  // PRメッセージをファイルに出力（GitHub Actionsで使用）
-  fs.writeFileSync("pr-title.txt", prTitle);
-  fs.writeFileSync("pr-body.txt", prBody);
-
-  console.log(`✅ PR Title: ${prTitle}`);
-  console.log(`✅ PR message saved to pr-title.txt, pr-body.txt`);
 
   console.log("\n" + "=".repeat(60));
   console.log("🎉 ops-department Auto Refactoring Complete!");

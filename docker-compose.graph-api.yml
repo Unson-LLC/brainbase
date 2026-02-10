@@ -1,0 +1,61 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Graph API Server - Docker Compose
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 構成:
+#   - graph-api: brainbase Graph APIサーバー（Docker）
+#   - 既存のnginx-proxy + letsencryptを利用
+#
+# デプロイ先: Lightsail (176.34.20.239)
+# ドメイン: graph.brain-base.work
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+services:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Graph API Server
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  graph-api:
+    image: brainbase-graph-api:latest
+    container_name: brainbase-graph-api
+    restart: unless-stopped
+    env_file:
+      - .env.graph-api
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # PostgreSQL接続（Lightsail VPC内部）
+      - INFO_SSOT_DATABASE_URL=${INFO_SSOT_DATABASE_URL}
+      # JWT署名鍵
+      - BRAINBASE_JWT_SECRET=${BRAINBASE_JWT_SECRET}
+      # Slack OAuth設定
+      - SLACK_CLIENT_ID=${SLACK_CLIENT_ID}
+      - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}
+      - SLACK_REDIRECT_URI=${SLACK_REDIRECT_URI}
+      # 公開URL
+      - BRAINBASE_PUBLIC_URL=https://graph.brain-base.work
+      # CORS許可オリジン
+      - BRAINBASE_AUTH_ALLOWED_ORIGINS=https://graph.brain-base.work
+      # nginx-proxy用設定
+      - VIRTUAL_HOST=graph.brain-base.work
+      - LETSENCRYPT_HOST=graph.brain-base.work
+      - LETSENCRYPT_EMAIL=noreply@example.com
+    expose:
+      - "3000"
+    networks:
+      - ubuntu_nocodb-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health/ready', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ubuntu_nocodb-network:
+    external: true
