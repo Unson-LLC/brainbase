@@ -917,6 +917,72 @@ body::after {
     opacity: 1;
 }
 
+/* Terminal input status (focus/connection visibility) */
+.terminal-input-status {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 101;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: rgba(248, 250, 252, 0.92);
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    user-select: none;
+}
+
+.terminal-input-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-color, var(--warning-color));
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+.terminal-input-status.hidden {
+    display: none;
+}
+
+.terminal-input-status.ready {
+    --status-color: var(--success-color);
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.terminal-input-status.needs-focus {
+    --status-color: var(--warning-color);
+    border-color: rgba(245, 158, 11, 0.55);
+    background: rgba(245, 158, 11, 0.12);
+    cursor: pointer;
+}
+
+.terminal-input-status.reconnecting {
+    --status-color: var(--accent-color);
+    border-color: rgba(59, 130, 246, 0.55);
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.terminal-input-status.disconnected {
+    --status-color: var(--danger-color);
+    border-color: rgba(239, 68, 68, 0.55);
+    background: rgba(239, 68, 68, 0.12);
+    cursor: pointer;
+}
+
+.terminal-input-status.blocked {
+    --status-color: var(--warning-color);
+    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.08);
+}
+
 .console-btn {
     background: rgba(30, 41, 59, 0.9);
     border: 1px solid var(--border-color);
