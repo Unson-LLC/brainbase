@@ -19,8 +19,11 @@ export function setupViewNavigation({
         if (dashboardPanel) dashboardPanel.style.display = 'none';
 
         const frame = getById('terminal-frame');
-        if (frame?.contentWindow?.focus) {
-            frame.contentWindow.focus();
+        if (frame) {
+            // Focus iframe + xterm inside ttyd (best-effort, same-origin)
+            frame.focus?.();
+            frame.contentWindow?.focus?.();
+            frame.contentWindow?.postMessage?.({ type: 'bb-terminal-focus' }, window.location.origin);
         }
     };
 
