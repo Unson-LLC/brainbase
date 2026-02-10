@@ -303,6 +303,17 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         fi
     fi
+else
+    # Existing session found - log process state for debugging
+    echo "[login_script] Re-attaching to existing session: $SESSION_NAME"
+    EXISTING_PIDS=$(tmux list-panes -s -t "$SESSION_NAME" -F "#{pane_pid}" 2>/dev/null || echo "")
+    if [ -n "$EXISTING_PIDS" ]; then
+        echo "[login_script] Existing pane PIDs: $EXISTING_PIDS"
+        for PID in $EXISTING_PIDS; do
+            CHILD_COUNT=$(pgrep -P "$PID" 2>/dev/null | wc -l)
+            echo "[login_script] PID $PID has $CHILD_COUNT child process(es)"
+        done
+    fi
 fi
 
 # Ensure BRAINBASE_SESSION_ID is always set even when re-attaching to an existing session

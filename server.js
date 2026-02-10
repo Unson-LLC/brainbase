@@ -472,6 +472,7 @@ const sessionManager = new SessionManager({
         if (!TEST_MODE) {
             await sessionManager.restoreActiveSessions();
             await sessionManager.cleanupOrphans();
+            sessionManager.startPtyWatchdog();
         } else {
             console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
         }
