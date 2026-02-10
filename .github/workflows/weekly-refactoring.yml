@@ -1,0 +1,91 @@
+name: ops-department Auto Refactoring
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # 6時間ごと（0:00, 6:00, 12:00, 18:00 UTC）
+  workflow_dispatch: # 手動実行も可能
+
+jobs:
+  ops-department-review:
+    runs-on: [self-hosted, local]
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 全履歴取得（git diffで比較するため）
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run ops-department team review
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_DISABLE_TELEMETRY: "1"
+          PATH: ${{ env.HOME }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+        run: node scripts/ops-team-review.cjs
+
+      - name: Read refactoring report
+        if: success()
+        id: report
+        run: |
+          if [ -f "ops-department-refactoring.md" ]; then
+            echo "REPORT_CONTENT<<EOF" >> $GITHUB_ENV
+            cat ops-department-refactoring.md >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "REPORT_CONTENT=レポートファイルが見つかりませんでした。" >> $GITHUB_ENV
+          fi
+
+      - name: Create Pull Request
+        if: success()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            refactor: ops-department weekly review
+
+            Automated code review and refactoring by ops-department team:
+            - architect: architecture patterns check
+            - security-engineer: security vulnerabilities check
+            - refactoring-specialist: refactoring suggestions
+            - tdd-engineer: test coverage check
+
+            Co-Authored-By: ops-department <noreply@unson.co.jp>
+          branch: ops-department/weekly-review-${{ github.run_number }}
+          delete-branch: true
+          title: "[ops-department] 自動コードレビュー - Run ${{ github.run_number }}"
+          body: |
+            ## 🤖 ops-department 自動コードレビュー
+
+            このPRは、self-hosted runner上でClaude CLIを使用し、ops-departmentチームが自動作成しました。
+
+            ### チームメンバー
+            - **architect**: アーキテクチャパターン準拠チェック
+            - **security-engineer**: セキュリティ脆弱性チェック
+            - **refactoring-specialist**: リファクタリング提案
+            - **tdd-engineer**: テストカバレッジチェック
+
+            ---
+
+            ## 📊 レビュー結果
+
+            ${{ env.REPORT_CONTENT }}
+
+            ---
+
+            [ops-department 自動リファクタリングワークフロー](https://github.com/Unson-LLC/brainbase/actions/workflows/weekly-refactoring.yml)により生成
+
+            **実行詳細:**
+            - Run Number: ${{ github.run_number }}
+            - Run ID: ${{ github.run_id }}
+            - Triggered: ${{ github.event_name }}
+          labels: |
+            automated
+            refactoring
+            ops-department
