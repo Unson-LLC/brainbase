@@ -2,7 +2,7 @@
 /**
  * ops-department Auto Refactoring Script
  *
- * Self-hosted GitHub ActionsランナーでClaude CLIを使用して
+ * Self-hosted GitHub ActionsランナーでAI CLI（Codex/Claude）を使用して
  * refactoring-specialist が未リファクタリング領域を特定し、
  * 実際にコードを修正してPR作成する。
  *
@@ -16,7 +16,7 @@
  * 4. 履歴を更新してPR作成
  *
  * Usage:
- *   node scripts/ops-team-review.js [--dry-run]
+ *   node scripts/ops-team-review.cjs [--dry-run]
  */
 
 const { spawn, execSync } = require("child_process");
@@ -28,7 +28,7 @@ const HISTORY_FILE = "refactoring-history.json";
 
 // refactoring-specialist 設定
 const REFACTORING_SPECIALIST = {
-  model: "claude-opus-4-6",
+  model: process.env.CODEX_MODEL || process.env.AI_MODEL || "gpt-5-codex",
   role: "Refactoring Specialist - Implements actual code improvements",
   skills: [
     "refactoring-workflow",
@@ -69,18 +69,118 @@ Output format:
 };
 
 /**
- * Claude CLIを使用してテキスト生成
+ * Codex CLIを使用してテキスト生成
+ */
+async function generateWithCodex(systemPrompt, userPrompt, options = {}) {
+  const { timeout = 300000 } = options;
+  const codexPath = process.env.CODEX_CLI_PATH || "codex";
+  const reasoningEffort = process.env.CODEX_REASONING_EFFORT || "high";
+  const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const outputFilePath = path.join(
+    process.cwd(),
+    `.codex-last-message-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`,
+  );
+  const combinedPrompt = `${systemPrompt}\n\nUser Request:\n${userPrompt}`;
+
+  console.log(
+    `[Codex CLI] 実行開始 (HOME=${homeDir}, model=${REFACTORING_SPECIALIST.model})`,
+  );
+
+  return new Promise((resolve, reject) => {
+    const args = [
+      "exec",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--skip-git-repo-check",
+      "-c",
+      `model_reasoning_effort="${reasoningEffort}"`,
+      "--output-last-message",
+      outputFilePath,
+    ];
+    if (REFACTORING_SPECIALIST.model) {
+      args.push("--model", REFACTORING_SPECIALIST.model);
+    }
+    args.push("-");
+
+    const child = spawn(codexPath, args, {
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    child.stdin.write(combinedPrompt);
+    child.stdin.end();
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    const timer = setTimeout(() => {
+      console.error(`[Codex CLI] タイムアウト (${timeout}ms)`);
+      child.kill("SIGTERM");
+      reject(new Error(`Codex CLI timed out after ${timeout}ms`));
+    }, timeout);
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      let lastMessage = "";
+
+      try {
+        if (fs.existsSync(outputFilePath)) {
+          lastMessage = fs.readFileSync(outputFilePath, "utf-8").trim();
+          fs.unlinkSync(outputFilePath);
+        }
+      } catch (readError) {
+        console.warn(
+          `[Codex CLI] 最終メッセージ読み込み失敗: ${readError.message}`,
+        );
+      }
+
+      if (code !== 0) {
+        reject(
+          new Error(
+            `Codex CLI exited with code ${code}: ${stderr || stdout.substring(0, 200)}`,
+          ),
+        );
+        return;
+      }
+
+      resolve(lastMessage || stdout.trim());
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(new Error(`Codex CLI spawn failed: ${error.message}`));
+    });
+  });
+}
+
+/**
+ * Claude CLIを使用してテキスト生成（フォールバック用）
  */
 async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
   const { timeout = 300000 } = options;
-
   const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const rawClaudeCommand = (
+    process.env.CLAUDE_CLI_COMMAND || "npx @anthropic-ai/claude-code"
+  ).trim();
+  const claudeCommandParts = rawClaudeCommand.split(/\s+/).filter(Boolean);
+  const claudeCliCommand = claudeCommandParts[0];
+  const claudeCliArgs = claudeCommandParts.slice(1);
 
   console.log(`[Claude CLI] 実行開始 (HOME=${homeDir})`);
 
   return new Promise((resolve, reject) => {
     const args = [
-      "@anthropic-ai/claude-code",
+      ...claudeCliArgs,
       "--print",
       "--dangerously-skip-permissions",
       "--system-prompt",
@@ -88,7 +188,7 @@ async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
       userPrompt,
     ];
 
-    const child = spawn("npx", args, {
+    const child = spawn(claudeCliCommand, args, {
       env: {
         ...process.env,
         HOME: homeDir,
@@ -136,6 +236,23 @@ async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
       reject(new Error(`Claude CLI spawn failed: ${error.message}`));
     });
   });
+}
+
+/**
+ * AI CLIバックエンドを選択してテキスト生成
+ */
+async function generateWithAI(systemPrompt, userPrompt, options = {}) {
+  const backend = (process.env.AI_CLI_BACKEND || "codex").toLowerCase();
+
+  if (backend === "claude") {
+    return generateWithClaude(systemPrompt, userPrompt, options);
+  }
+
+  if (backend !== "codex") {
+    throw new Error(`Unsupported AI_CLI_BACKEND: ${backend}`);
+  }
+
+  return generateWithCodex(systemPrompt, userPrompt, options);
 }
 
 /**
@@ -284,7 +401,7 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
 }`;
 
   try {
-    const result = await generateWithClaude(
+    const result = await generateWithAI(
       REFACTORING_SPECIALIST.systemPrompt,
       userPrompt,
       { timeout: 600000 }, // 10分タイムアウト
