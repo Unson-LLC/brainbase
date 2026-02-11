@@ -34,6 +34,7 @@
     "mcp-setup": "node scripts/mcp-setup.mjs",
     "mcp:add:brainbase": "node scripts/register-brainbase-mcp.mjs",
     "mcp:get:brainbase": "claude mcp get brainbase",
+    "report:brainbase-setup": "node _ops/check_brainbase_member_setup.mjs --api-url https://graph.brain-base.work",
     "agent-browser:install": "npx -y agent-browser install",
     "agent-browser:help": "npx -y agent-browser --help",
     "test:server": "BRAINBASE_TEST_MODE=true node server.js",

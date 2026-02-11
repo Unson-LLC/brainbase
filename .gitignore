@@ -45,7 +45,11 @@ _schedules/
 _schedules
 _sources/
 _sources
-_ops/
+_ops/*
+!_ops/check_brainbase_member_setup.mjs
+!_ops/reports/
+_ops/reports/*
+!_ops/reports/.gitkeep
 config.yml
 settings/
 .worktrees/

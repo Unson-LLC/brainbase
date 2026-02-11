@@ -84,6 +84,18 @@ npm run mcp:add:brainbase
 npm run mcp:get:brainbase
 ```
 
+### Step 6: 接続レポート出力（運用時）
+
+```bash
+node _ops/check_brainbase_member_setup.mjs --api-url https://graph.brain-base.work
+```
+
+出力先:
+
+```text
+_ops/reports/brainbase-setup-report-<user>-<timestamp>.json
+```
+
 ---
 
 ## 利用可能な機能

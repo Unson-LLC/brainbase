@@ -91,6 +91,18 @@ npm run mcp:add:brainbase
 npm run mcp:get:brainbase
 ```
 
+セットアップレポート提出（任意/運用時）:
+
+```bash
+npm run report:brainbase-setup
+```
+
+出力先:
+
+```text
+_ops/reports/brainbase-setup-report-<user>-<timestamp>.json
+```
+
 ---
 
 ## 📚 利用可能なSkills（90個）
