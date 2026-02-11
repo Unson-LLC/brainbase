@@ -191,6 +191,9 @@ rm ~/.brainbase/tokens.json
 
 # 再度認証
 npm run auth-setup
+
+# 接続先を明示する場合（推奨）
+BRAINBASE_API_URL=https://graph.brain-base.work npm run auth-setup
 ```
 
 ### MCP接続エラー
