@@ -12,7 +12,9 @@ const __dirname = dirname(__filename);
  * 初期インポートテスト（import_members_to_db.py）
  */
 
-describe('Import Members Tests', () => {
+const describeWithPermissionDb = process.env.TEST_PERMISSION_DB_URL ? describe : describe.skip;
+
+describeWithPermissionDb('Import Members Tests', () => {
     let pool;
     let testDbUrl;
 

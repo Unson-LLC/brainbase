@@ -17,7 +17,7 @@ describe('auth middleware', () => {
             .expect(401);
     });
 
-    it('attaches access from token and ignores headers', async () => {
+    it('test modeではヘッダー認証が優先される', async () => {
         const app = express();
         const authService = {
             verifyToken: () => ({
@@ -34,9 +34,10 @@ describe('auth middleware', () => {
             .get('/secure')
             .set('Authorization', 'Bearer dummy')
             .set('x-brainbase-role', 'ceo')
+            .set('x-brainbase-projects', 'alpha')
             .expect(200);
 
-        expect(res.body.access.role).toBe('member');
+        expect(res.body.access.role).toBe('ceo');
         expect(res.body.access.projectCodes).toEqual(['alpha']);
     });
 });

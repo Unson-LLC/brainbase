@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MobileInputController } from '../../../public/modules/ui/mobile-input-controller.js';
+import { MobileInputFocusManager } from '../../../public/modules/ui/mobile-input-focus-manager.js';
 
-describe('MobileInputController focus tracking', () => {
-    let controller;
+describe('MobileInputFocusManager focus tracking', () => {
+    let focusManager;
+    let elements;
+    const originalActiveElement = Object.getOwnPropertyDescriptor(document, 'activeElement');
 
     beforeEach(() => {
         document.body.innerHTML = `
@@ -10,54 +12,64 @@ describe('MobileInputController focus tracking', () => {
             <textarea id="mobile-dock-input"></textarea>
             <div id="mobile-composer"></div>
             <textarea id="mobile-composer-input"></textarea>
+            <iframe id="terminal-frame"></iframe>
         `;
 
-        controller = new MobileInputController({
-            httpClient: {},
-            isMobile: () => true
-        });
-        controller.cacheElements();
-        controller.bindDock();
-        controller.bindComposer();
+        elements = {
+            dock: document.getElementById('mobile-input-dock'),
+            dockInput: document.getElementById('mobile-dock-input'),
+            composer: document.getElementById('mobile-composer'),
+            composerInput: document.getElementById('mobile-composer-input')
+        };
+        focusManager = new MobileInputFocusManager(elements);
     });
 
-    it('sets inputFocused true on focus and false on blur', () => {
-        const dockInput = document.getElementById('mobile-dock-input');
-
-        dockInput.dispatchEvent(new FocusEvent('focus'));
-        expect(controller.inputFocused).toBe(true);
-
-        dockInput.dispatchEvent(new FocusEvent('blur'));
-        expect(controller.inputFocused).toBe(false);
+    afterEach(() => {
+        if (originalActiveElement) {
+            Object.defineProperty(document, 'activeElement', originalActiveElement);
+        }
+        document.body.classList.remove('keyboard-open');
+        document.body.style.removeProperty('--keyboard-offset');
     });
 
-    it('treats inputFocused as focused even if activeElement is not input', () => {
+    it('inputFocusedフラグを参照してフォーカス判定できる', () => {
+        focusManager.inputFocused = true;
+        expect(focusManager.isInputFocused()).toBe(true);
+
+        focusManager.inputFocused = false;
+        expect(focusManager.isInputFocused()).toBe(false);
+    });
+
+    it('activeElementがinputでなくてもinputFocused=trueならtrueを返す', () => {
         Object.defineProperty(document, 'activeElement', {
             configurable: true,
             get: () => document.body
         });
 
-        controller.inputFocused = true;
-
-        expect(controller.isInputFocused()).toBe(true);
+        focusManager.inputFocused = true;
+        expect(focusManager.isInputFocused()).toBe(true);
     });
 });
 
-describe('MobileInputController visual viewport sync', () => {
-    let controller;
+describe('MobileInputFocusManager visual viewport sync', () => {
+    let focusManager;
     let originalViewport;
 
     beforeEach(() => {
         document.body.innerHTML = `
-            <div id="mobile-input-dock"></div>
+            <div id="mobile-input-dock" style="height: 48px;"></div>
             <textarea id="mobile-dock-input"></textarea>
+            <div id="mobile-composer"></div>
+            <textarea id="mobile-composer-input"></textarea>
         `;
 
-        controller = new MobileInputController({
-            httpClient: {},
-            isMobile: () => true
-        });
-        controller.cacheElements();
+        const elements = {
+            dock: document.getElementById('mobile-input-dock'),
+            dockInput: document.getElementById('mobile-dock-input'),
+            composer: document.getElementById('mobile-composer'),
+            composerInput: document.getElementById('mobile-composer-input')
+        };
+        focusManager = new MobileInputFocusManager(elements);
 
         originalViewport = window.visualViewport;
         window.visualViewport = {
@@ -75,10 +87,12 @@ describe('MobileInputController visual viewport sync', () => {
         document.documentElement.style.removeProperty('--vvh');
         document.documentElement.style.removeProperty('--vv-top');
         document.documentElement.style.removeProperty('--vv-left');
+        document.body.style.removeProperty('--keyboard-offset');
+        document.body.classList.remove('keyboard-open');
     });
 
     it('syncs --vvh/--vv-top/--vv-left from visualViewport', () => {
-        controller.bindViewportResize();
+        focusManager.bindViewportResize();
 
         expect(document.documentElement.style.getPropertyValue('--vvh')).toBe('600px');
         expect(document.documentElement.style.getPropertyValue('--vv-top')).toBe('24px');

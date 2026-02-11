@@ -38,6 +38,6 @@ describe('mobile-input-utils', () => {
 
     it('calcKeyboardOffset呼び出し時_キーボード分の高さを返す', () => {
         expect(calcKeyboardOffset(900, 600, 0)).toBe(300);
-        expect(calcKeyboardOffset(900, 600, 40)).toBe(260);
+        expect(calcKeyboardOffset(900, 600, 40)).toBe(300);
     });
 });

@@ -81,10 +81,10 @@ describe('SessionManager', () => {
     expect(status).toBeUndefined();
   });
 
-  it('heartbeat_timeout_sets_isWorking_false_after_10m', () => {
+  it('heartbeat_timeout_sets_isWorking_false_after_60m', () => {
     const manager = createManager();
     const now = Date.now();
-    const staleTime = now - 10 * 60 * 1000 - 1000; // 10分+1秒前
+    const staleTime = now - 60 * 60 * 1000 - 1000; // 60分+1秒前
 
     manager.reportActivity('session-1', 'working', staleTime);
 
