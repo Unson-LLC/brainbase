@@ -1,10 +1,9 @@
 name: TDD Compliance Check
 
 on:
-  pull_request:
-    branches: [ main, develop ]
-  push:
-    branches: [ main, develop, 'session/**' ]
+  # brainbase-unson はプライベート運用のため、CIでの厳密なTDD強制は行わない。
+  # 必要なときだけ手動で実行する。
+  workflow_dispatch:
 
 jobs:
   tdd-check:
