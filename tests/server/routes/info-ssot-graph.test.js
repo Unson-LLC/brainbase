@@ -4,9 +4,13 @@ import express from 'express';
 import { createInfoSSOTRouter } from '../../../server/routes/info-ssot.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 
-const DATABASE_URL = process.env.INFO_SSOT_DATABASE_URL || 'postgres://localhost/brainbase_ssot';
-process.env.INFO_SSOT_DATABASE_URL = DATABASE_URL;
-process.env.ALLOW_INSECURE_SSOT_HEADERS = 'true';
+const DATABASE_URL = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
+const RUN_INFO_SSOT_DB_TESTS = process.env.RUN_INFO_SSOT_DB_TESTS === 'true';
+const describeWithInfoDb = RUN_INFO_SSOT_DB_TESTS && DATABASE_URL ? describe : describe.skip;
+if (DATABASE_URL) {
+    process.env.INFO_SSOT_DATABASE_URL = DATABASE_URL;
+    process.env.ALLOW_INSECURE_SSOT_HEADERS = 'true';
+}
 
 const buildHeaders = (overrides = {}) => ({
     'x-brainbase-role': 'gm',
@@ -15,7 +19,7 @@ const buildHeaders = (overrides = {}) => ({
     ...overrides
 });
 
-describe('Info SSOT Graph API (smoke)', () => {
+describeWithInfoDb('Info SSOT Graph API (smoke)', () => {
     let app;
     let service;
 

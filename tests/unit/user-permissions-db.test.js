@@ -13,7 +13,9 @@ const __dirname = dirname(__filename);
  * UserPermissions権限取得テスト（PostgreSQL統合）
  */
 
-describe('UserPermissions DB Integration Tests', () => {
+const describeWithPermissionDb = process.env.TEST_PERMISSION_DB_URL ? describe : describe.skip;
+
+describeWithPermissionDb('UserPermissions DB Integration Tests', () => {
     let pool;
     let testDbUrl;
     let userPermissions;
