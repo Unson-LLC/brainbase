@@ -625,6 +625,10 @@ export class SessionManager {
             args.push('-w', workingDir);
         }
 
+        const fontFamily = process.platform === 'win32'
+            ? 'Cascadia Code, Consolas, monospace'
+            : (engine === 'codex' ? 'Menlo, Monaco, monospace' : 'Menlo');
+
         args.push(
             '-I', customIndexPath, // Custom HTML with keyboard shortcuts and mobile scroll support
             '-m', '1',                         // Max 1 client: prevent concurrent PTY allocation per session
@@ -632,7 +636,7 @@ export class SessionManager {
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
-            '-t', `fontFamily=${process.platform === 'win32' ? 'Cascadia Code, Consolas, monospace' : 'Menlo'}`, // Platform-specific monospace font
+            '-t', `fontFamily=${fontFamily}`, // Engine/platform-specific monospace font
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             bashPath,
