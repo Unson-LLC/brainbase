@@ -2,7 +2,7 @@
 /**
  * ops-department Auto Refactoring Script
  *
- * Self-hosted GitHub ActionsランナーでClaude CLIを使用して
+ * Self-hosted GitHub ActionsランナーでAI CLI（Codex/Claude）を使用して
  * refactoring-specialist が未リファクタリング領域を特定し、
  * 実際にコードを修正してPR作成する。
  *
@@ -16,7 +16,7 @@
  * 4. 履歴を更新してPR作成
  *
  * Usage:
- *   node scripts/ops-team-review.js [--dry-run]
+ *   node scripts/ops-team-review.cjs [--dry-run]
  */
 
 const { spawn, execSync } = require("child_process");
@@ -28,7 +28,7 @@ const HISTORY_FILE = "refactoring-history.json";
 
 // refactoring-specialist 設定
 const REFACTORING_SPECIALIST = {
-  model: "claude-opus-4-6",
+  model: process.env.CODEX_MODEL || process.env.AI_MODEL || "gpt-5-codex",
   role: "Refactoring Specialist - Implements actual code improvements",
   skills: [
     "refactoring-workflow",
@@ -69,18 +69,118 @@ Output format:
 };
 
 /**
- * Claude CLIを使用してテキスト生成
+ * Codex CLIを使用してテキスト生成
+ */
+async function generateWithCodex(systemPrompt, userPrompt, options = {}) {
+  const { timeout = 300000 } = options;
+  const codexPath = process.env.CODEX_CLI_PATH || "codex";
+  const reasoningEffort = process.env.CODEX_REASONING_EFFORT || "high";
+  const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const outputFilePath = path.join(
+    process.cwd(),
+    `.codex-last-message-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`,
+  );
+  const combinedPrompt = `${systemPrompt}\n\nUser Request:\n${userPrompt}`;
+
+  console.log(
+    `[Codex CLI] 実行開始 (HOME=${homeDir}, model=${REFACTORING_SPECIALIST.model})`,
+  );
+
+  return new Promise((resolve, reject) => {
+    const args = [
+      "exec",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--skip-git-repo-check",
+      "-c",
+      `model_reasoning_effort="${reasoningEffort}"`,
+      "--output-last-message",
+      outputFilePath,
+    ];
+    if (REFACTORING_SPECIALIST.model) {
+      args.push("--model", REFACTORING_SPECIALIST.model);
+    }
+    args.push("-");
+
+    const child = spawn(codexPath, args, {
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    child.stdin.write(combinedPrompt);
+    child.stdin.end();
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    const timer = setTimeout(() => {
+      console.error(`[Codex CLI] タイムアウト (${timeout}ms)`);
+      child.kill("SIGTERM");
+      reject(new Error(`Codex CLI timed out after ${timeout}ms`));
+    }, timeout);
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      let lastMessage = "";
+
+      try {
+        if (fs.existsSync(outputFilePath)) {
+          lastMessage = fs.readFileSync(outputFilePath, "utf-8").trim();
+          fs.unlinkSync(outputFilePath);
+        }
+      } catch (readError) {
+        console.warn(
+          `[Codex CLI] 最終メッセージ読み込み失敗: ${readError.message}`,
+        );
+      }
+
+      if (code !== 0) {
+        reject(
+          new Error(
+            `Codex CLI exited with code ${code}: ${stderr || stdout.substring(0, 200)}`,
+          ),
+        );
+        return;
+      }
+
+      resolve(lastMessage || stdout.trim());
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(new Error(`Codex CLI spawn failed: ${error.message}`));
+    });
+  });
+}
+
+/**
+ * Claude CLIを使用してテキスト生成（フォールバック用）
  */
 async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
   const { timeout = 300000 } = options;
-
   const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const rawClaudeCommand = (
+    process.env.CLAUDE_CLI_COMMAND || "npx @anthropic-ai/claude-code"
+  ).trim();
+  const claudeCommandParts = rawClaudeCommand.split(/\s+/).filter(Boolean);
+  const claudeCliCommand = claudeCommandParts[0];
+  const claudeCliArgs = claudeCommandParts.slice(1);
 
   console.log(`[Claude CLI] 実行開始 (HOME=${homeDir})`);
 
   return new Promise((resolve, reject) => {
     const args = [
-      "@anthropic-ai/claude-code",
+      ...claudeCliArgs,
       "--print",
       "--dangerously-skip-permissions",
       "--system-prompt",
@@ -88,7 +188,7 @@ async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
       userPrompt,
     ];
 
-    const child = spawn("npx", args, {
+    const child = spawn(claudeCliCommand, args, {
       env: {
         ...process.env,
         HOME: homeDir,
@@ -139,6 +239,23 @@ async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
 }
 
 /**
+ * AI CLIバックエンドを選択してテキスト生成
+ */
+async function generateWithAI(systemPrompt, userPrompt, options = {}) {
+  const backend = (process.env.AI_CLI_BACKEND || "codex").toLowerCase();
+
+  if (backend === "claude") {
+    return generateWithClaude(systemPrompt, userPrompt, options);
+  }
+
+  if (backend !== "codex") {
+    throw new Error(`Unsupported AI_CLI_BACKEND: ${backend}`);
+  }
+
+  return generateWithCodex(systemPrompt, userPrompt, options);
+}
+
+/**
  * リファクタリング履歴を読み込み
  */
 function loadRefactoringHistory() {
@@ -167,27 +284,29 @@ function saveRefactoringHistory(history) {
  * コードベースをスキャンして領域リストを作成
  */
 function scanCodebase() {
-  const srcDirs = ["src/app", "src/components", "src/lib", "src/services"];
+  // brainbase本体はTypeScript主体ではないため、git管理されているJS/TSファイルを対象にする。
+  // "find" だと .gitignore のローカル専用ディレクトリまで拾う可能性があるので、
+  // 必ず "git ls-files" で追跡対象のみをスキャンする。
+  const srcDirs = ["public/modules", "server", "lib"];
   const areas = new Set();
 
   srcDirs.forEach((dir) => {
     if (!fs.existsSync(dir)) return;
 
-    const files = execSync(`find ${dir} -name "*.ts" -o -name "*.tsx"`, {
+    const files = execSync(`git ls-files "${dir}"`, {
       encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
     })
       .trim()
       .split("\n")
       .filter(Boolean);
 
-    files.forEach((file) => {
-      // ディレクトリ名を領域として抽出 (例: "src/app/api/auth" → "api/auth")
-      const parts = file.split("/");
-      if (parts.length > 2) {
-        const area = parts.slice(1, -1).join("/"); // src/ と ファイル名を除外
-        areas.add(area);
-      }
-    });
+    files
+      .filter((file) => /\.(cjs|mjs|js|tsx?|jsx?)$/.test(file))
+      .forEach((file) => {
+        const area = path.dirname(file);
+        if (area && area !== ".") areas.add(area);
+      });
   });
 
   return Array.from(areas).sort();
@@ -206,14 +325,15 @@ function findUnrefactoredAreas(allAreas, history) {
  */
 function getFilesInArea(area) {
   try {
-    const pattern = `src/${area}/**/*.{ts,tsx}`;
-    const files = execSync(`find src/${area} -name "*.ts" -o -name "*.tsx"`, {
+    const files = execSync(`git ls-files "${area}"`, {
       encoding: "utf-8",
       maxBuffer: 10 * 1024 * 1024,
     })
       .trim()
       .split("\n")
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((file) => /\.(cjs|mjs|js|tsx?|jsx?)$/.test(file));
+
     return files;
   } catch (error) {
     console.warn(`領域 ${area} のファイル取得失敗:`, error.message);
@@ -281,7 +401,7 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
 }`;
 
   try {
-    const result = await generateWithClaude(
+    const result = await generateWithAI(
       REFACTORING_SPECIALIST.systemPrompt,
       userPrompt,
       { timeout: 600000 }, // 10分タイムアウト
@@ -311,17 +431,28 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
 function getFileStats(files) {
   try {
     const stats = files.map((file) => {
-      const diffStat = execSync(
-        `git diff --cached --numstat -- "${file}" 2>/dev/null || echo "0\t0\t${file}"`,
-        { encoding: "utf-8" }
-      ).trim();
+      let tracked = false;
+      try {
+        execSync(`git ls-files --error-unmatch "${file}" 2>/dev/null`, {
+          stdio: "ignore",
+        });
+        tracked = true;
+      } catch (_error) {
+        tracked = false;
+      }
+
+      const diffCmd = tracked
+        ? `git diff --numstat HEAD -- "${file}" 2>/dev/null || echo "0\t0\t${file}"`
+        : `git diff --numstat --no-index -- /dev/null "${file}" 2>/dev/null || echo "0\t0\t${file}"`;
+
+      const diffStat = execSync(diffCmd, { encoding: "utf-8" }).trim();
 
       const [added, deleted, path] = diffStat.split("\t");
       return {
         path: file,
         added: parseInt(added) || 0,
         deleted: parseInt(deleted) || 0,
-        isNew: !fs.existsSync(file) || execSync(`git ls-files "${file}"`, { encoding: "utf-8" }).trim() === ""
+        isNew: !tracked,
       };
     });
     return stats;
@@ -375,6 +506,7 @@ function generatePRTitle(metadata) {
  */
 function generatePRBody(metadata, report) {
   const { area, fileStats, newFiles, linesAdded, linesDeleted, codeReduction, runNumber, runId, triggerEvent } = metadata;
+  const repoSlug = process.env.GITHUB_REPOSITORY || "Unson-LLC/brainbase";
 
   const newFilesSection = newFiles.length > 0
     ? newFiles.map(f => {
@@ -444,7 +576,7 @@ ${modifiedFilesSection}
 - **Run ID**: ${runId}
 - **実行日時**: ${new Date().toISOString()}
 - **トリガー**: ${triggerEvent}
-- **ワークフロー**: [weekly-refactoring.yml](https://github.com/Unson-LLC/salestailor/actions/workflows/weekly-refactoring.yml)
+- **ワークフロー**: [weekly-refactoring.yml](https://github.com/${repoSlug}/actions/workflows/weekly-refactoring.yml)
 
 詳細レポート: \`ops-department-refactoring.md\`
 
@@ -457,6 +589,17 @@ ${modifiedFilesSection}
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
+  const scanOnly = args.includes("--scan-only");
+
+  if (scanOnly) {
+    const allAreas = scanCodebase();
+    console.log(`✅ Found ${allAreas.length} areas`);
+    console.log(allAreas.slice(0, 50).map((a) => `- ${a}`).join("\n"));
+    if (allAreas.length > 50) {
+      console.log(`... (${allAreas.length - 50} more)`);
+    }
+    return;
+  }
 
   console.log("🤖 ops-department Auto Refactoring Starting...");
   console.log("=".repeat(60));
@@ -495,23 +638,26 @@ async function main() {
     return;
   }
 
-  // 5. 履歴を更新
-  if (!dryRun) {
-    history.areas.push({
-      area: refactoringResult.area,
-      refactored_at: new Date().toISOString(),
-      files_modified: refactoringResult.files_modified,
-      changes_summary: refactoringResult.changes_summary,
-    });
-    history.last_updated = new Date().toISOString();
-    saveRefactoringHistory(history);
-
-    // 履歴ファイルをgit add
-    execSync(`git add ${HISTORY_FILE}`);
-  }
+  // 5. 履歴更新はPRとは分離する（baseブランチへ直接コミットするステップで反映する）
+  // PRに refactoring-history.json を含めると add/add 競合しやすく、マージ時に壊れやすい。
+  const refactoringEntry = {
+    area: refactoringResult.area,
+    refactored_at: new Date().toISOString(),
+    files_modified: refactoringResult.files_modified,
+    changes_summary: refactoringResult.changes_summary,
+    run_number: process.env.GITHUB_RUN_NUMBER || null,
+    run_id: process.env.GITHUB_RUN_ID || null,
+    trigger_event: process.env.GITHUB_EVENT_NAME || null,
+  };
+  fs.writeFileSync(
+    "refactoring-result.json",
+    JSON.stringify(refactoringEntry, null, 2),
+  );
+  console.log("✅ Refactoring result saved to refactoring-result.json");
 
   // 6. レポート生成
   console.log("\n📄 Generating refactoring report...");
+  const projectedRefactoredCount = history.areas.length + 1;
   const report = `# ops-department Auto Refactoring Report
 
 Generated: ${new Date().toISOString()}
@@ -531,7 +677,7 @@ ${refactoringResult.files_modified.map((f) => `- ${f}`).join("\n")}
 ## Progress
 
 - Total areas: ${allAreas.length}
-- Already refactored: ${history.areas.length}
+- Already refactored: ${projectedRefactoredCount}
 - Remaining: ${unrefactoredAreas.length - 1}
 
 ---
