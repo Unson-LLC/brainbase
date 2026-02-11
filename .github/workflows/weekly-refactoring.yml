@@ -7,7 +7,7 @@ on:
 
 jobs:
   ops-department-review:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
@@ -96,7 +96,7 @@ jobs:
 
   # PRマージ状態を定期的に更新
   update-pr-status:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     permissions:
       contents: write
