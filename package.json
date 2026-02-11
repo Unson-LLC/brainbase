@@ -34,6 +34,8 @@
     "mcp-setup": "node scripts/mcp-setup.mjs",
     "mcp:add:brainbase": "node scripts/register-brainbase-mcp.mjs",
     "mcp:get:brainbase": "claude mcp get brainbase",
+    "agent-browser:install": "npx -y agent-browser install",
+    "agent-browser:help": "npx -y agent-browser --help",
     "test:server": "BRAINBASE_TEST_MODE=true node server.js",
     "test": "vitest",
     "test:run": "vitest run",

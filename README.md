@@ -2,7 +2,7 @@
 
 **UNSON members' brainbase distribution**
 
-UNSONメンバー向けのbrainbase配布版。89個のSkills、20個のカスタムコマンド、UNSON統一運用フローを最初から利用可能。
+UNSONメンバー向けのbrainbase配布版。90個のSkills、20個のカスタムコマンド、UNSON統一運用フローを最初から利用可能。
 
 [![Private Repository](https://img.shields.io/badge/repository-private-red.svg)]()
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg)](https://nodejs.org/)
@@ -12,7 +12,7 @@ UNSONメンバー向けのbrainbase配布版。89個のSkills、20個のカス�
 
 ## ✨ 特徴
 
-- **89個のSkills**: 開発・マーケティング・経営・運用の全領域をカバー
+- **90個のSkills**: 開発・マーケティング・経営・運用の全領域をカバー
 - **20個のカスタムコマンド**: `/ohayo`、`/task`、`/sns` など統一運用
 - **3分でセットアップ完了**: clone → auth-setup → 完了
 - **UNSONプロジェクトに即アクセス**: salestailor、zeims等の情報を自動取得
@@ -93,9 +93,9 @@ npm run mcp:get:brainbase
 
 ---
 
-## 📚 利用可能なSkills（89個）
+## 📚 利用可能なSkills（90個）
 
-### 🛠️ 開発・技術（15個）
+### 🛠️ 開発・技術（16個）
 
 | Skill | 1行要約 |
 |-------|---------|
@@ -114,6 +114,7 @@ npm run mcp:get:brainbase
 | pdf-read-python | pdfplumberでPDF読み込み（Read tool不可） |
 | cursor-design-to-code | Cursor Planning→Build活用 |
 | ui-design-resources | shadcn/ui + SaaS/AIデザインパターン |
+| agent-browser | Vercel製ブラウザ自動化CLI（スナップショット参照で操作） |
 
 ### 📱 SNS・マーケティング（22個）
 
@@ -258,6 +259,16 @@ Claude Codeで:
 @gog gmail_search query:"未読"
 @gog calendar_list_events
 @nocodb list_records table:"タスク"
+```
+
+## 🧪 Vercel agent-browser（任意）
+
+Vercel製 `agent-browser` を使うと、CLIベースでブラウザ操作・検証を実行できます。  
+Skillは同梱済み: `.claude/skills/agent-browser/SKILL.md`
+
+```bash
+npm run agent-browser:install
+npm run agent-browser:help
 ```
 
 ---

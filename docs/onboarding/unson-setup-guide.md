@@ -88,7 +88,7 @@ npm run mcp:get:brainbase
 
 ## 利用可能な機能
 
-### 89個のSkills
+### 90個のSkills
 
 Claude Codeで以下のSkillsが利用可能:
 
@@ -96,6 +96,7 @@ Claude Codeで以下のSkillsが利用可能:
 - `verify-first-debugging`: バグ修正時の必須フレームワーク
 - `tdd-workflow`: TDD自動化
 - `git-commit-rules`: コミットルール
+- `agent-browser`: Vercel製ブラウザ自動化CLI Skill
 
 **マーケティング系（22個）**:
 - `sns-smart`: SNS投稿の自動化（6 Phase）
@@ -162,6 +163,16 @@ Brainbase MCP の正本は `brainbase-unson/mcp/brainbase` です。
 @gog gmail_search query:"未読"
 @gog calendar_list_events
 @nocodb list_records table:"タスク"
+```
+
+### Vercel agent-browser（任意）
+
+`agent-browser` はMCPではなくCLIツールです。  
+Skillは同梱済み: `.claude/skills/agent-browser/SKILL.md`
+
+```bash
+npm run agent-browser:install
+npm run agent-browser:help
 ```
 
 ---
@@ -261,7 +272,7 @@ npm run mcp:add:brainbase
 
 | 項目 | brainbase (OSS) | brainbase-unson (UNSON版) |
 |------|-----------------|---------------------------|
-| Skills | 21個（公開のみ） | 89個（公開21 + 非公開68） |
+| Skills | 21個（公開のみ） | 90個（公開21 + 非公開69） |
 | Commands | なし | 20個 |
 | MCP初期設定 | 手動でMCP登録 | `npm run auth-setup` でbrainbase MCP自動登録 |
 | UNSONプロジェクト | なし | 自動取得 |
