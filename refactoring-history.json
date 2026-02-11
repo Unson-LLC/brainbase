@@ -1,0 +1,26 @@
+{
+  "areas": [
+    {
+      "area": "lib",
+      "refactored_at": "2026-02-11T04:28:50.660Z",
+      "files_modified": [
+        "lib/config-parser.js",
+        "lib/calendar-event-converter.js",
+        "lib/kiro-schedule-parser.js",
+        "lib/kiro-task-parser.js",
+        "lib/utils/monotonic-id.js"
+      ],
+      "changes_summary": "ConfigParserでYAML読み込みを共通化＋キャッシュ化して冗長エラーハンドリングをスッキリさせつつデフォルト値も安全に返すよう整えたし、新設のmonotonic-idジェネレータをCalendar/Kiro系に依存注入してID生成をDRY＆テストしやすくしたから超いい感じだよ〜",
+      "run_number": "6",
+      "run_id": "21892656044",
+      "trigger_event": "workflow_dispatch",
+      "pr_number": 4,
+      "pr_branch": "ops-department/weekly-review-6",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/4",
+      "pr_status": "open",
+      "merged_at": null
+    }
+  ],
+  "last_updated": "2026-02-11T04:28:56.707Z",
+  "total_prs_created": 1
+}
