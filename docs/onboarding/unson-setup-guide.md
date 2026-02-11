@@ -150,6 +150,7 @@ Claude Codeで以下のコマンドが利用可能:
 ### 6個のMCPサーバー
 
 `npm run auth-setup` で `brainbase` MCP が user scope に登録されます。その他のMCPは必要に応じて `/add-mcp` で追加してください。
+Brainbase MCP の正本は `brainbase-unson/mcp/brainbase` です。
 
 | MCP | 用途 |
 |-----|------|
