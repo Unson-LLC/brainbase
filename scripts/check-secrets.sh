@@ -1,6 +1,12 @@
 #!/bin/bash
-# OSS公開前の機密情報チェックスクリプト
-# Usage: ./scripts/check-secrets.sh
+# 機密情報チェックスクリプト
+#
+# デフォルト: PRIVATE向け（厳密すぎる項目はwarning扱い）
+# OSS向けの厳密モード: CHECK_SECRETS_STRICT=1
+#
+# Usage:
+#   bash scripts/check-secrets.sh
+#   CHECK_SECRETS_STRICT=1 bash scripts/check-secrets.sh
 
 set -e
 
@@ -8,6 +14,16 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "🔍 OSS Safety Check - Scanning for sensitive information..."
+echo ""
+
+# プライベート運用では人名やローカルパスが入るのは通常運用の範囲。
+# OSS公開に耐えるレベルでチェックしたい場合のみ strict を有効にする。
+STRICT="${CHECK_SECRETS_STRICT:-0}"
+if [ "$STRICT" = "1" ]; then
+    echo "Mode: STRICT (OSS)"
+else
+    echo "Mode: RELAXED (private)"
+fi
 echo ""
 
 # カラー出力
@@ -79,25 +95,35 @@ echo "Critical Checks (MUST FIX before OSS)"
 echo "=========================================="
 echo ""
 
+# strict時のみエラー扱いにするルール
+PERSONAL_SEVERITY="warning"
+EMAIL_SEVERITY="warning"
+PATH_SEVERITY="warning"
+if [ "$STRICT" = "1" ]; then
+    PERSONAL_SEVERITY="error"
+    EMAIL_SEVERITY="error"
+    PATH_SEVERITY="error"
+fi
+
 # 1. 個人名チェック（日本語）
-check_pattern "佐藤|さとう|サトウ" "Personal names (Japanese - Sato)" "error"
-check_pattern "川合|かわい|カワイ" "Personal names (Japanese - Kawai)" "error"
-check_pattern "渡邉|渡辺|わたなべ|ワタナベ" "Personal names (Japanese - Watanabe)" "error"
-check_pattern "星野|ほしの|ホシノ" "Personal names (Japanese - Hoshino)" "error"
+check_pattern "佐藤|さとう|サトウ" "Personal names (Japanese - Sato)" "$PERSONAL_SEVERITY"
+check_pattern "川合|かわい|カワイ" "Personal names (Japanese - Kawai)" "$PERSONAL_SEVERITY"
+check_pattern "渡邉|渡辺|わたなべ|ワタナベ" "Personal names (Japanese - Watanabe)" "$PERSONAL_SEVERITY"
+check_pattern "星野|ほしの|ホシノ" "Personal names (Japanese - Hoshino)" "$PERSONAL_SEVERITY"
 
 # 2. 個人名チェック（英語）
-check_pattern "Keigo|keigo|KEIGO" "Personal names (English - Keigo)" "error"
-check_pattern "Sato|sato(?!r)" "Personal names (English - Sato)" "error"
-check_pattern "Kawai|kawai|KAWAI" "Personal names (English - Kawai)" "error"
-check_pattern "Watanabe|watanabe|WATANABE" "Personal names (English - Watanabe)" "error"
-check_pattern "Hoshino|hoshino|HOSHINO" "Personal names (English - Hoshino)" "error"
+check_pattern "Keigo|keigo|KEIGO" "Personal names (English - Keigo)" "$PERSONAL_SEVERITY"
+check_pattern "Sato|sato(?!r)" "Personal names (English - Sato)" "$PERSONAL_SEVERITY"
+check_pattern "Kawai|kawai|KAWAI" "Personal names (English - Kawai)" "$PERSONAL_SEVERITY"
+check_pattern "Watanabe|watanabe|WATANABE" "Personal names (English - Watanabe)" "$PERSONAL_SEVERITY"
+check_pattern "Hoshino|hoshino|HOSHINO" "Personal names (English - Hoshino)" "$PERSONAL_SEVERITY"
 
 # 3. 個人メールアドレス
-check_pattern "[a-zA-Z0-9._%+-]+@(unson\.co\.jp|gmail\.com|yahoo\.co\.jp)" "Personal email addresses" "error"
+check_pattern "[a-zA-Z0-9._%+-]+@(unson\.co\.jp|gmail\.com|yahoo\.co\.jp)" "Personal email addresses" "$EMAIL_SEVERITY"
 
 # 4. 絶対パス（/Users/ksato/）
-check_pattern "/Users/ksato" "Hardcoded absolute paths (/Users/ksato)" "error"
-check_pattern "/Users/[a-z]+/" "Hardcoded absolute paths (/Users/*/)" "error"
+check_pattern "/Users/ksato" "Hardcoded absolute paths (/Users/ksato)" "$PATH_SEVERITY"
+check_pattern "/Users/[a-z]+/" "Hardcoded absolute paths (/Users/*/)" "$PATH_SEVERITY"
 
 # 5. AWS認証情報
 check_pattern "aws_access_key|aws_secret_key|AWS_ACCESS_KEY|AWS_SECRET_KEY" "AWS credentials" "error"
