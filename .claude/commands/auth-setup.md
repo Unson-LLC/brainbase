@@ -1,6 +1,6 @@
 # brainbase認証セットアップ
 
-brainbaseへの認証を完了し、config.ymlを自動生成するコマンド。
+brainbaseへの認証を完了し、bundled Brainbase MCPを登録するコマンド。
 
 ---
 
@@ -16,10 +16,10 @@ brainbaseへの認証を完了し、config.ymlを自動生成するコマンド�
    - `~/.brainbase/tokens.json` に保存
    - MCP Server が自動的に使用
 
-3. **config.yml 自動生成・配置**
-   - `/api/setup/config` を呼び出し
-   - `~/workspace/config.yml` に自動保存
-   - アクセス可能なプロジェクト一覧を表示
+3. **bundled Brainbase MCP登録**
+   - `claude mcp add -s user` で `brainbase` を再登録
+   - Graph API固定 (`BRAINBASE_ENTITY_SOURCE=graphapi`)
+   - 接続先は `https://graph.brain-base.work`（`BRAINBASE_API_URL` で上書き可能）
 
 ---
 
@@ -46,7 +46,7 @@ npm run auth-setup
 ```
 🔐 Brainbase MCP Setup - OAuth 2.0 Device Code Flow
 
-📡 Requesting device code from http://localhost:31013...
+📡 Requesting device code from https://graph.brain-base.work...
 ✅ Device code received
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -67,20 +67,12 @@ npm run auth-setup
 2. Slack認証を完了
 3. 成功メッセージを確認
 
-### Step 3: トークン保存 + config.yml 生成
+### Step 3: トークン保存 + MCP登録
 
 ```
 ✅ 認証完了
 ✅ Tokens saved to ~/.brainbase/tokens.json
-
-📥 config.yml を自動生成中...
-✅ config.yml を保存しました: /Users/ksato/workspace/config.yml
-
-📊 アクセス可能なプロジェクト: 5件
-  - brainbase (prj_brainbase)
-  - mana (prj_mana)
-  - salestailor (prj_salestailor)
-  ...
+✅ brainbase MCP registered (scope: user)
 
 ✅ Setup complete!
    Your MCP server will now automatically use these tokens.
@@ -91,27 +83,29 @@ npm run auth-setup
 
 ## トラブルシューティング
 
-### エラー: config.yml の生成に失敗
+### エラー: MCP登録に失敗
 
 ```
-❌ config.yml の生成に失敗しました: Failed to fetch
-   Web UI から手動でダウンロードできます: http://localhost:31013/setup
+❌ MCP registration skipped: Failed to register brainbase MCP.
+   Run this manually after setup:
+   npm run mcp:add:brainbase
 ```
 
 **原因**:
-- brainbase サーバーが起動していない
-- ネットワーク接続の問題
-- 認証トークンが無効
+- `claude` CLIがPATHに無い
+- MCP設定が壊れている
+- npm依存が未インストール（`gray-matter`不足）
 
 **対処**:
-1. brainbase サーバーの起動確認
+1. 依存関係をインストール
    ```bash
-   curl http://localhost:31013/api/health
+   npm install
    ```
 
-2. Web UI から手動でダウンロード
-   ```
-   http://localhost:31013/setup
+2. MCPを手動再登録
+   ```bash
+   npm run mcp:add:brainbase
+   npm run mcp:get:brainbase
    ```
 
 ### エラー: Device code expired
@@ -151,8 +145,7 @@ npm run auth-setup
 - **認証フロー**: OAuth 2.0 Device Code Flow (RFC 8628)
 - **PKCE**: Proof Key for Code Exchange (RFC 7636)
 - **トークン保存先**: `~/.brainbase/tokens.json`
-- **config.yml 保存先**: `~/workspace/config.yml`
-- **Web UI**: `http://localhost:31013/setup`
+- **MCP再登録**: `npm run mcp:add:brainbase`
 
 ---
 

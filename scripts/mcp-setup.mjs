@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { registerBrainbaseMcp } from './register-brainbase-mcp.mjs';
 
 const DEFAULT_API_URL = 'https://graph.brain-base.work';
 
@@ -229,6 +230,17 @@ async function main() {
 
         // Save tokens
         saveTokens(tokens);
+
+        // Register bundled brainbase MCP server (Graph API mode only)
+        log('\n🔌 Registering bundled brainbase MCP...', colors.cyan);
+        try {
+            registerBrainbaseMcp({ apiUrl, quiet: true });
+            log('✅ brainbase MCP registered (scope: user)', colors.green);
+        } catch (registrationError) {
+            log(`⚠️  MCP registration skipped: ${registrationError.message}`, colors.yellow);
+            log('   Run this manually after setup:', colors.yellow);
+            log('   npm run mcp:add:brainbase', colors.yellow);
+        }
 
         log('\n✅ Setup complete!', colors.green + colors.bright);
         log('   Your MCP server will now automatically use these tokens.', colors.green);

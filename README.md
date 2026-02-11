@@ -40,7 +40,7 @@ cd brainbase-unson
 npm install
 ```
 
-### Step 3: 認証 + config.yml自動生成
+### Step 3: 認証 + bundled MCP登録
 
 ```bash
 npm run auth-setup
@@ -49,9 +49,8 @@ npm run auth-setup
 **自動実行される処理**:
 1. Device Code Flow でブラウザ認証（Slack OAuth）
 2. トークンを `~/.brainbase/tokens.json` に保存（mode: 0o600）
-3. Graph API から `/api/setup/config` を呼び出し
-4. RACI権限ベースでUNSONプロジェクト一覧を取得
-5. `config.yml` を自動生成・保存
+3. 同梱済み Brainbase MCP を user scope に再登録
+4. `BRAINBASE_ENTITY_SOURCE=graphapi` / `BRAINBASE_GRAPH_API_URL=https://graph.brain-base.work` を自動設定
 
 **出力例**:
 ```
@@ -67,19 +66,10 @@ npm run auth-setup
 
 ✅ 認証完了
 ✅ Tokens saved to ~/.brainbase/tokens.json
-
-📥 config.yml を自動生成中...
-✅ config.yml を保存しました: /Users/YOUR_NAME/brainbase-unson/config.yml
-
-📊 アクセス可能なプロジェクト: 5件
-  - brainbase (prj_brainbase)
-  - mana (prj_mana)
-  - salestailor (prj_salestailor)
-  - zeims (prj_zeims)
-  - unson (prj_unson)
+✅ brainbase MCP registered (scope: user)
 
 ✅ Setup complete!
-   Restart Claude Code to apply MCP changes.
+   Restart Claude Code to apply changes.
 ```
 
 ### Step 4: サーバー起動
@@ -93,6 +83,13 @@ npm start
 ### Step 5: Claude Code で利用
 
 Claude Code を再起動 → `@brainbase` MCP が利用可能
+
+必要に応じて再登録:
+
+```bash
+npm run mcp:add:brainbase
+npm run mcp:get:brainbase
+```
 
 ---
 
@@ -219,7 +216,7 @@ Claude Code を再起動 → `@brainbase` MCP が利用可能
 | `/task` | タスク実行準備（_tasks/index.md確認→タスク選択） |
 | `/commit` | 標準コミット（type(scope): message形式） |
 | `/sns` | SNS投稿（sns-smart Orchestrator統合版） |
-| `/auth-setup` | brainbase認証セットアップ（OAuth + config.yml自動生成） |
+| `/auth-setup` | brainbase認証セットアップ（OAuth + bundled MCP自動登録） |
 | `/add-mcp` | MCP Server追加（一発成功手順） |
 | `/merge` | セッションマージ（PRモード） |
 | `/create-pr` | PR作成 |
@@ -240,16 +237,17 @@ Claude Code を再起動 → `@brainbase` MCP が利用可能
 
 ## 🔌 利用可能なMCP（6個）
 
-`npm run auth-setup` 実行後、以下のMCPサーバーが利用可能になります：
+`npm run auth-setup` で `brainbase` MCP が user scope に登録されます。  
+その他のMCPは必要に応じて `/add-mcp` で追加してください。
 
 | MCP | 用途 | 主な機能 |
 |-----|------|---------|
 | **brainbase** | Graph API統合（必須） | UNSONプロジェクト情報取得、RACI権限管理、_codex構造へのアクセス |
-| **gog** | Google統合 | Gmail（メール管理・自動仕分け）、Google Calendar（スケジュール統合） |
-| **nocodb** | タスク管理 | タスク・マイルストーン・スプリント・シップ管理 |
-| **chrome-devtools** | ブラウザ自動化 | Chrome DevTools Protocol、ページ操作、スクリーンショット |
-| **freee** | 会計連携 | 取引先・請求書・経費管理 |
-| **jibble** | 勤怠管理 | 勤怠記録・レポート取得 |
+| **gog** | Google統合（任意追加） | Gmail（メール管理・自動仕分け）、Google Calendar（スケジュール統合） |
+| **nocodb** | タスク管理（任意追加） | タスク・マイルストーン・スプリント・シップ管理 |
+| **chrome-devtools** | ブラウザ自動化（任意追加） | Chrome DevTools Protocol、ページ操作、スクリーンショット |
+| **freee** | 会計連携（任意追加） | 取引先・請求書・経費管理 |
+| **jibble** | 勤怠管理（任意追加） | 勤怠記録・レポート取得 |
 
 ### MCP呼び出し例
 
@@ -276,9 +274,13 @@ npm run auth-setup
 ### MCP接続エラー
 
 ```bash
+# MCP状態を確認
+npm run mcp:get:brainbase
+
+# brainbase MCPを再登録
+npm run mcp:add:brainbase
+
 # Claude Code を再起動
-# config.yml を確認
-cat config.yml
 ```
 
 ### サーバー起動エラー

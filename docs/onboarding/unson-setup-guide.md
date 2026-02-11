@@ -28,7 +28,7 @@ cd brainbase-unson
 npm install
 ```
 
-### Step 3: 認証 + config.yml自動生成
+### Step 3: 認証 + bundled MCP登録
 
 ```bash
 npm run auth-setup
@@ -37,9 +37,8 @@ npm run auth-setup
 **自動実行される処理**:
 1. Device Code Flow でブラウザ認証（Slack OAuth）
 2. トークンを `~/.brainbase/tokens.json` に保存（mode: 0o600）
-3. Graph API から `/api/setup/config` を呼び出し
-4. RACI権限ベースでUNSONプロジェクト一覧を取得
-5. `config.yml` を自動生成・保存
+3. 同梱済み Brainbase MCP を user scope に再登録
+4. `BRAINBASE_ENTITY_SOURCE=graphapi` / `BRAINBASE_GRAPH_API_URL=https://graph.brain-base.work` を自動設定
 
 **ブラウザで表示される認証画面**:
 1. https://graph.brain-base.work/device?user_code=WXYZ-1234 にアクセス
@@ -52,16 +51,7 @@ npm run auth-setup
 ```
 ✅ 認証完了
 ✅ Tokens saved to ~/.brainbase/tokens.json
-
-📥 config.yml を自動生成中...
-✅ config.yml を保存しました: /Users/YOUR_NAME/brainbase-unson/config.yml
-
-📊 アクセス可能なプロジェクト: 5件
-  - brainbase (prj_brainbase)
-  - mana (prj_mana)
-  - salestailor (prj_salestailor)
-  - zeims (prj_zeims)
-  - unson (prj_unson)
+✅ brainbase MCP registered (scope: user)
 
 ✅ Setup complete!
    Restart Claude Code to apply MCP changes.
@@ -86,6 +76,13 @@ npm start
    @brainbase get_context project:salestailor
    ```
    → SalesTailorプロジェクトの情報が取得できればOK！
+
+必要に応じて再登録:
+
+```bash
+npm run mcp:add:brainbase
+npm run mcp:get:brainbase
+```
 
 ---
 
@@ -152,16 +149,11 @@ Claude Codeで以下のコマンドが利用可能:
 
 ### 6個のMCPサーバー
 
-`npm run auth-setup` 実行後、以下のMCPサーバーが利用可能:
+`npm run auth-setup` で `brainbase` MCP が user scope に登録されます。その他のMCPは必要に応じて `/add-mcp` で追加してください。
 
 | MCP | 用途 |
 |-----|------|
 | **brainbase** | UNSONプロジェクト情報取得、RACI権限管理 |
-| **gog** | Gmail + Google Calendar 統合 |
-| **nocodb** | タスク・マイルストーン管理 |
-| **chrome-devtools** | ブラウザ自動化 |
-| **freee** | 会計連携 |
-| **jibble** | 勤怠管理 |
 
 **MCP呼び出し例**:
 ```
@@ -201,20 +193,16 @@ BRAINBASE_API_URL=https://graph.brain-base.work npm run auth-setup
 **症状**: Claude Codeで `@brainbase` が使えない
 
 **原因**:
-- config.ymlが生成されていない
-- brainbaseサーバーが起動していない
+- brainbase MCPの登録が古い/壊れている
 - Claude Codeが再起動されていない
 
 **対処法**:
 ```bash
-# config.ymlを確認
-cat config.yml
+# MCPの登録状態を確認
+npm run mcp:get:brainbase
 
-# サーバーが起動しているか確認
-lsof -i :31013
-
-# サーバーが停止していれば起動
-npm start
+# MCPを再登録
+npm run mcp:add:brainbase
 
 # Claude Code を再起動
 ```
@@ -239,21 +227,27 @@ kill -9 $(lsof -t -i :31013)
 npm start
 ```
 
-### config.ymlが自動生成されない
+### MCP登録がうまくいかない
 
-**症状**: `npm run auth-setup` でconfig.ymlが生成されない
+**症状**: `npm run auth-setup` 後も `@brainbase` が使えない
 
 **原因**:
-- Graph APIが応答していない
-- RACI権限が設定されていない
+- `claude` CLIがPATHにない
+- 既存の project-scope MCP が優先されている
+- Node依存が未インストール
 
 **対処法**:
 ```bash
-# config.sample.ymlを手動でコピー
-cp config.sample.yml config.yml
+npm install
+npm run mcp:add:brainbase
+npm run mcp:get:brainbase
+```
 
-# プロジェクトIDを手動で設定
-# Graph API: https://graph.brain-base.work/api/projects で確認
+`mcp:get` で `Scope: Project config` が表示される場合は、既存設定を外してください:
+
+```bash
+claude mcp remove -s project brainbase
+npm run mcp:add:brainbase
 ```
 
 ---
@@ -268,7 +262,7 @@ cp config.sample.yml config.yml
 |------|-----------------|---------------------------|
 | Skills | 21個（公開のみ） | 89個（公開21 + 非公開68） |
 | Commands | なし | 20個 |
-| config.yml | 手動設定 | 自動生成 |
+| MCP初期設定 | 手動でMCP登録 | `npm run auth-setup` でbrainbase MCP自動登録 |
 | UNSONプロジェクト | なし | 自動取得 |
 | 公開範囲 | Public | Private |
 
@@ -297,7 +291,7 @@ git push origin main
 
 1. 各自がbrainbase-unsonをclone
 2. 各自が `npm run auth-setup` で認証
-3. 各自のRACIに基づいてアクセス可能なプロジェクトが自動設定される
+3. 各自のRACIに基づいてGraph APIからアクセス可能なプロジェクトのみ取得される
 
 ### Q4: _codexのデータはどう管理する？
 
