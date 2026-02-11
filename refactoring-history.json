@@ -17,10 +17,11 @@
       "pr_number": 4,
       "pr_branch": "ops-department/weekly-review-6",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/4",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     }
   ],
-  "last_updated": "2026-02-11T04:28:56.707Z",
-  "total_prs_created": 1
+  "last_updated": "2026-02-11T12:15:07.027Z",
+  "total_prs_created": 1,
+  "total_prs_merged": 0
 }
