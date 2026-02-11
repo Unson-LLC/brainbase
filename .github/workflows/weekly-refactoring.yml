@@ -28,14 +28,12 @@ jobs:
 
       - name: Run ops-department team review
         env:
-          REAL_HOME: /Users/ksato
-          HOME: /Users/ksato
           AI_CLI_BACKEND: codex
-          CODEX_CLI_PATH: /usr/local/bin/codex
+          CODEX_CLI_PATH: codex
           CODEX_MODEL: gpt-5-codex
           CODEX_REASONING_EFFORT: high
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PATH: /Users/ksato/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+          PATH: ${{ env.PATH }}
         run: node scripts/ops-team-review.cjs
 
       - name: Read PR Title
@@ -74,7 +72,7 @@ jobs:
             - refactoring-specialist: refactoring suggestions
             - tdd-engineer: test coverage check
 
-            Co-Authored-By: ops-department <noreply@unson.co.jp>
+            Co-Authored-By: ops-department <ops-department@users.noreply.github.com>
           base: main
           branch: ops-department/weekly-review-${{ github.run_number }}
           delete-branch: true

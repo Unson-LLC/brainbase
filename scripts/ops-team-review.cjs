@@ -75,7 +75,11 @@ async function generateWithCodex(systemPrompt, userPrompt, options = {}) {
   const { timeout = 300000 } = options;
   const codexPath = process.env.CODEX_CLI_PATH || "codex";
   const reasoningEffort = process.env.CODEX_REASONING_EFFORT || "high";
-  const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const homeDir =
+    process.env.REAL_HOME ||
+    process.env.HOME ||
+    process.env.USERPROFILE ||
+    "/tmp";
   const outputFilePath = path.join(
     process.cwd(),
     `.codex-last-message-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`,
@@ -168,7 +172,11 @@ async function generateWithCodex(systemPrompt, userPrompt, options = {}) {
  */
 async function generateWithClaude(systemPrompt, userPrompt, options = {}) {
   const { timeout = 300000 } = options;
-  const homeDir = process.env.REAL_HOME || process.env.HOME || "/Users/ksato";
+  const homeDir =
+    process.env.REAL_HOME ||
+    process.env.HOME ||
+    process.env.USERPROFILE ||
+    "/tmp";
   const rawClaudeCommand = (
     process.env.CLAUDE_CLI_COMMAND || "npx @anthropic-ai/claude-code"
   ).trim();
