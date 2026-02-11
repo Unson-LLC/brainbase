@@ -28,7 +28,12 @@ export class GraphAPISource {
             throw new Error(`Failed to fetch entities: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
-        this.entities = data.entities;
+        const entities = Array.isArray(data?.entities)
+            ? data.entities
+            : Array.isArray(data?.records)
+                ? data.records
+                : [];
+        this.entities = entities;
         console.error(`[GraphAPISource] Loaded ${this.entities.length} entities from Graph API`);
     }
     /**

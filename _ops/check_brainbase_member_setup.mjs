@@ -79,6 +79,13 @@ async function postRefresh(apiUrl, refreshToken) {
   return { response, data };
 }
 
+function extractAccessToken(refreshPayload) {
+  if (!refreshPayload || typeof refreshPayload !== 'object') {
+    return null;
+  }
+  return refreshPayload.access_token || refreshPayload.token || null;
+}
+
 async function fetchJsonWithAuth(apiUrl, endpoint, accessToken) {
   const url = `${apiUrl}${endpoint}`;
   const response = await fetch(url, {
@@ -117,6 +124,10 @@ function extractEnvValue(text, key) {
   const regex = new RegExp(`${key}=([^\\n\\r]+)`);
   const match = text.match(regex);
   return match ? match[1].trim() : null;
+}
+
+function extractLine(text, keyword) {
+  return (text.split('\n').find((line) => line.includes(keyword)) || '').trim();
 }
 
 async function main() {
@@ -172,18 +183,28 @@ async function main() {
   const graphApiUrl = extractEnvValue(mcpStdout, 'BRAINBASE_GRAPH_API_URL');
   const normalizedGraphApiUrl = graphApiUrl ? normalizeApiUrl(graphApiUrl) : null;
   const mcpConnected = mcpStdout.includes('Status: ✓ Connected');
+  const scopeLine = extractLine(mcpStdout, 'Scope:');
+  const commandLine = extractLine(mcpStdout, 'Command:');
+  const argsLine = extractLine(mcpStdout, 'Args:');
+  const scopeIsUser = scopeLine.includes('User config');
+  const bundledPathMatched = argsLine.includes('/mcp/brainbase/lib/index.js');
   const sourceOk = entitySource === 'graphapi';
   const urlOk = normalizedGraphApiUrl === apiUrl;
 
   report.checks.mcp_brainbase = {
-    ok: mcpGet.ok && mcpConnected && sourceOk && urlOk,
+    ok: mcpGet.ok && mcpConnected && sourceOk && urlOk && scopeIsUser && bundledPathMatched,
     command_ok: mcpGet.ok,
     connected: mcpConnected,
+    scope_is_user: scopeIsUser,
+    bundled_path_matched: bundledPathMatched,
     source: entitySource,
     graph_api_url: graphApiUrl,
-    scope_line: (mcpStdout.split('\n').find((line) => line.includes('Scope:')) || '').trim(),
-    command_line: (mcpStdout.split('\n').find((line) => line.includes('Command:')) || '').trim(),
+    scope_line: scopeLine,
+    command_line: commandLine,
+    args_line: argsLine,
     hints: {
+      expected_scope: 'User config',
+      expected_args_contains: '/mcp/brainbase/lib/index.js',
       expected_source: 'graphapi',
       expected_graph_api_url: apiUrl
     },
@@ -230,9 +251,10 @@ async function main() {
 
     if (tokenExpiresSoon(tokens) && tokens.refresh_token) {
       const refreshed = await postRefresh(apiUrl, tokens.refresh_token);
-      if (refreshed.response.ok && refreshed.data?.access_token) {
+      const refreshedAccessToken = extractAccessToken(refreshed.data);
+      if (refreshed.response.ok && refreshedAccessToken) {
         tokens = {
-          access_token: refreshed.data.access_token,
+          access_token: refreshedAccessToken,
           refresh_token: refreshed.data.refresh_token || tokens.refresh_token,
           expires_in: refreshed.data.expires_in || 3600,
           issued_at: Math.floor(Date.now() / 1000)
@@ -246,9 +268,10 @@ async function main() {
     let setupResult = await fetchJsonWithAuth(apiUrl, '/api/setup/config', tokens.access_token);
     if (setupResult.response.status === 401 && tokens.refresh_token) {
       const refreshed = await postRefresh(apiUrl, tokens.refresh_token);
-      if (refreshed.response.ok && refreshed.data?.access_token) {
+      const refreshedAccessToken = extractAccessToken(refreshed.data);
+      if (refreshed.response.ok && refreshedAccessToken) {
         tokens = {
-          access_token: refreshed.data.access_token,
+          access_token: refreshedAccessToken,
           refresh_token: refreshed.data.refresh_token || tokens.refresh_token,
           expires_in: refreshed.data.expires_in || 3600,
           issued_at: Math.floor(Date.now() / 1000)

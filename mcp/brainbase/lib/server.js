@@ -7,9 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, } from '@modelcontextprotocol/sdk/types.js';
 import { buildIndex, getEntity, getEntitiesByType, searchEntities, getContextForTopic, } from './indexer/index.js';
 import { loadConfig } from './config.js';
-import { FilesystemSource } from './sources/filesystem-source.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
-import { HybridSource } from './sources/hybrid-source.js';
 import { TokenManager } from './auth/token-manager.js';
 // Global index (built once at startup)
 let entityIndex;
@@ -294,39 +292,12 @@ export async function runServer(codexPath) {
     if (config.projectCodes) {
         console.error(`  - Project codes: ${config.projectCodes.join(', ')}`);
     }
-    // Create EntitySource based on mode
-    let source;
-    switch (config.sourceMode) {
-        case 'graphapi': {
-            if (!config.graphApiUrl) {
-                throw new Error('BRAINBASE_GRAPH_API_URL is required for graphapi mode');
-            }
-            const tokenManager = new TokenManager(config.graphApiUrl);
-            source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
-            console.error('[brainbase] Using Graph API source');
-            break;
-        }
-        case 'hybrid': {
-            if (!config.graphApiUrl || !config.codexPath) {
-                throw new Error('Both BRAINBASE_GRAPH_API_URL and CODEX_PATH are required for hybrid mode');
-            }
-            const tokenManager = new TokenManager(config.graphApiUrl);
-            const apiSource = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
-            const fsSource = new FilesystemSource(config.codexPath);
-            source = new HybridSource(apiSource, fsSource);
-            console.error('[brainbase] Using Hybrid source (API-first with FS fallback)');
-            break;
-        }
-        case 'filesystem':
-        default: {
-            if (!config.codexPath) {
-                throw new Error('CODEX_PATH is required for filesystem mode');
-            }
-            source = new FilesystemSource(config.codexPath);
-            console.error('[brainbase] Using Filesystem source');
-            break;
-        }
+    if (!config.graphApiUrl) {
+        throw new Error('BRAINBASE_GRAPH_API_URL is required for graphapi mode');
     }
+    const tokenManager = new TokenManager(config.graphApiUrl);
+    const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
+    console.error('[brainbase] Using Graph API source');
     // Build index from source
     console.error(`[brainbase] Building index...`);
     entityIndex = await buildIndex(source);

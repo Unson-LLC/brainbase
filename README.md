@@ -84,6 +84,13 @@ npm start
 
 Claude Code を再起動 → `@brainbase` MCP が利用可能
 
+既存の`project`設定が残っている場合は、配布版より優先されるため先に削除:
+
+```bash
+claude mcp remove -s project brainbase
+claude mcp remove -s local brainbase
+```
+
 必要に応じて再登録:
 
 ```bash

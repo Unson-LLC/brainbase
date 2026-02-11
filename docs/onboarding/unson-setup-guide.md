@@ -80,6 +80,8 @@ npm start
 必要に応じて再登録:
 
 ```bash
+claude mcp remove -s project brainbase
+claude mcp remove -s local brainbase
 npm run mcp:add:brainbase
 npm run mcp:get:brainbase
 ```

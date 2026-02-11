@@ -457,6 +457,7 @@ export class AuthService {
         });
         return {
             token,
+            access_token: token,
             refresh_token: nextRefreshToken,
             access: {
                 role: access.role,

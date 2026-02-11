@@ -15,7 +15,10 @@ export class TokenManager {
     apiUrl;
     constructor(apiUrl, tokenFilePath) {
         this.tokenFilePath = tokenFilePath || join(homedir(), '.brainbase', 'tokens.json');
-        this.apiUrl = apiUrl || process.env.BRAINBASE_GRAPH_API_URL || 'http://localhost:31013';
+        this.apiUrl = apiUrl
+            || process.env.BRAINBASE_GRAPH_API_URL
+            || process.env.BRAINBASE_API_BASE_URL
+            || 'https://graph.brain-base.work';
     }
     /**
      * Get the current access token
@@ -74,7 +77,7 @@ export class TokenManager {
             throw new Error('No refresh token available. Please re-authenticate.');
         }
         console.error('[TokenManager] Refreshing token...');
-        const response = await fetch(`${this.apiUrl}/auth/refresh`, {
+        const response = await fetch(`${this.apiUrl}/api/auth/refresh`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -87,11 +90,15 @@ export class TokenManager {
             throw new Error(`Token refresh failed: ${response.status} ${response.statusText}`);
         }
         const newTokenData = await response.json();
+        const nextAccessToken = newTokenData.access_token || newTokenData.token;
+        if (!nextAccessToken) {
+            throw new Error('Token refresh response did not include access_token/token');
+        }
         // Update token data
         this.tokenData = {
-            access_token: newTokenData.access_token,
+            access_token: nextAccessToken,
             refresh_token: newTokenData.refresh_token || this.tokenData.refresh_token,
-            expires_in: newTokenData.expires_in,
+            expires_in: newTokenData.expires_in || this.tokenData.expires_in || 3600,
             issued_at: Math.floor(Date.now() / 1000),
         };
         // Save to file
