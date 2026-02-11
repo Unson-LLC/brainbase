@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+const DEFAULT_API_URL = 'https://graph.brain-base.work';
+
 // ANSI color codes
 const colors = {
     reset: '\x1b[0m',
@@ -17,6 +19,22 @@ const colors = {
 
 function log(message, color = colors.reset) {
     console.log(`${color}${message}${colors.reset}`);
+}
+
+function resolveApiUrl() {
+    const value = (process.env.BRAINBASE_API_URL || DEFAULT_API_URL).trim();
+    return value.replace(/\/+$/, '');
+}
+
+function createFetchErrorMessage(error, apiUrl, endpoint) {
+    const detail = error?.message ? ` (${error.message})` : '';
+    return [
+        `Network request failed: ${apiUrl}${endpoint}${detail}`,
+        `Check:`,
+        `1) Internet access is available`,
+        `2) ${apiUrl} is reachable`,
+        `3) If you need a custom endpoint, run with BRAINBASE_API_URL=<url> npm run auth-setup`
+    ].join('\n');
 }
 
 function generateCodeVerifier() {
@@ -52,21 +70,27 @@ function saveTokens(tokens) {
     log(`✅ Tokens saved to ${tokenFilePath}`, colors.green);
 }
 
-async function requestDeviceCode(codeVerifier) {
-    const apiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
-    const deviceCodeUrl = `${apiUrl}/api/auth/device/code`;
+async function requestDeviceCode(codeVerifier, apiUrl) {
+    const endpoint = '/api/auth/device/code';
+    const deviceCodeUrl = `${apiUrl}${endpoint}`;
 
     log(`\n📡 Requesting device code from ${apiUrl}...`, colors.cyan);
 
-    const response = await fetch(deviceCodeUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            code_verifier: codeVerifier
-        })
-    });
+    let response;
+    try {
+        response = await fetch(deviceCodeUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                code_verifier: codeVerifier
+            }),
+            signal: AbortSignal.timeout(15000)
+        });
+    } catch (error) {
+        throw new Error(createFetchErrorMessage(error, apiUrl, endpoint));
+    }
 
     if (!response.ok) {
         const errorText = await response.text();
@@ -77,9 +101,9 @@ async function requestDeviceCode(codeVerifier) {
     return data;
 }
 
-async function pollForToken(deviceCode, interval, expiresIn) {
-    const apiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
-    const tokenUrl = `${apiUrl}/api/auth/device/token`;
+async function pollForToken(deviceCode, interval, expiresIn, apiUrl) {
+    const endpoint = '/api/auth/device/token';
+    const tokenUrl = `${apiUrl}${endpoint}`;
 
     const startTime = Date.now();
     const expiresInMs = expiresIn * 1000;
@@ -95,15 +119,21 @@ async function pollForToken(deviceCode, interval, expiresIn) {
         }
 
         // Polling request
-        const response = await fetch(tokenUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                device_code: deviceCode
-            })
-        });
+        let response;
+        try {
+            response = await fetch(tokenUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    device_code: deviceCode
+                }),
+                signal: AbortSignal.timeout(15000)
+            });
+        } catch (error) {
+            throw new Error(createFetchErrorMessage(error, apiUrl, endpoint));
+        }
 
         const data = await response.json();
 
@@ -148,6 +178,7 @@ async function pollForToken(deviceCode, interval, expiresIn) {
 async function main() {
     try {
         log('\n🔐 Brainbase MCP Setup - OAuth 2.0 Device Code Flow\n', colors.bright);
+        const apiUrl = resolveApiUrl();
 
         // Check if tokens already exist
         const tokenFilePath = getTokenFilePath();
@@ -163,7 +194,7 @@ async function main() {
         log('✨ Generated PKCE code_verifier', colors.green);
 
         // Request device code
-        const deviceCodeResponse = await requestDeviceCode(codeVerifier);
+        const deviceCodeResponse = await requestDeviceCode(codeVerifier, apiUrl);
         const {
             device_code,
             user_code,
@@ -194,7 +225,7 @@ async function main() {
         log(`⏳ 認証を待っています (${expiresInMinutes}分以内に完了してください)`, colors.yellow);
         process.stdout.write('   ');
 
-        const tokens = await pollForToken(device_code, interval, expires_in);
+        const tokens = await pollForToken(device_code, interval, expires_in, apiUrl);
 
         // Save tokens
         saveTokens(tokens);
