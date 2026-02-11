@@ -19,9 +19,30 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/4",
       "pr_status": "closed",
       "merged_at": null
+    },
+    {
+      "area": "public/modules",
+      "refactored_at": "2026-02-11T12:18:44.360Z",
+      "files_modified": [
+        "public/modules/archive-modal-controller.js",
+        "public/modules/archive-modal-renderer.js",
+        "public/modules/auth/auth-manager.js",
+        "public/modules/components/donut-chart.js",
+        "public/modules/components/gauge-chart.js",
+        "public/modules/components/chart-colors.js"
+      ],
+      "changes_summary": "archive-modal系のフィルタリング・表示ロジックを共通ヘルパー化し重複排除。AuthManagerのstorage/httpClient処理をプライベートメソッドへ集約し命名と責務を整理。ドーナツ/ゲージチャートの色ロジックと値正規化を新規chart-colorsモジュールへ抽出してDRY化し、双方で同じ基準を利用可能にした。",
+      "run_number": "7",
+      "run_id": "21904645356",
+      "trigger_event": "schedule",
+      "pr_number": 5,
+      "pr_branch": "ops-department/weekly-review-7",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/5",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-11T12:15:07.027Z",
-  "total_prs_created": 1,
+  "last_updated": "2026-02-11T12:18:51.166Z",
+  "total_prs_created": 2,
   "total_prs_merged": 0
 }
