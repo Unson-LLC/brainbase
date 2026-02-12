@@ -920,7 +920,7 @@ body::after {
 /* Terminal input status (focus/connection visibility) */
 .terminal-input-status {
     position: absolute;
-    bottom: 8px;
+    bottom: 50px;
     left: 8px;
     z-index: 101;
     display: inline-flex;
