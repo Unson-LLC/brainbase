@@ -9,10 +9,14 @@ export class GoalSeekModal {
      * @param {Object} options
      * @param {Object} [options.eventBus] - EventBusインスタンス
      * @param {Function} [options.onCalculate] - 計算開始時のコールバック
+     * @param {Object} [options.goalSeekService] - GoalSeekServiceインスタンス
+     * @param {Object} [options.browserNotificationService] - BrowserNotificationServiceインスタンス
      */
-    constructor({ eventBus: bus = eventBus, onCalculate } = {}) {
+    constructor({ eventBus: bus = eventBus, onCalculate, goalSeekService, browserNotificationService } = {}) {
         this.eventBus = bus;
         this.onCalculate = onCalculate;
+        this.goalSeekService = goalSeekService;
+        this.browserNotificationService = browserNotificationService;
         this.modalElement = null;
         this._unsubscribers = [];
         this._timeoutInterval = null;

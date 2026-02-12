@@ -611,6 +611,8 @@ export class SessionManager {
         const args = [
             '-p', port.toString(),
             '-W',
+            // Exit on disconnect to avoid PTY FD leaks accumulating inside long-lived ttyd processes.
+            '-o',
         ];
 
         // Only use base path on non-Windows platforms
@@ -646,15 +648,14 @@ export class SessionManager {
             engine
         );
 
-        // Options for spawn (detached: サーバー再起動後もttydが継続)
+        // Options for spawn (server-managed)
         const spawnOptions = {
             stdio: ['ignore', 'pipe', 'pipe'],  // stdin無視、stdout/stderrはpipe
             env: {
                 ...process.env,  // Inherit parent process environment
                 LANG: 'en_US.UTF-8',
                 LC_ALL: 'en_US.UTF-8'
-            },
-            detached: true  // 親プロセスから切り離し
+            }
         };
 
         const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
@@ -688,8 +689,6 @@ export class SessionManager {
         console.log(`[ttyd:${sessionId}] CWD: ${spawnOptions.cwd || 'default'}`);
         const ttyd = spawn(ttydPath, args, spawnOptions);
 
-        // 親プロセス終了時に子プロセスを待機しない
-        ttyd.unref();
 
         ttyd.stdout.on('data', (data) => {
             console.log(`[ttyd:${sessionId}] ${data}`);
@@ -703,15 +702,19 @@ export class SessionManager {
             console.error(`Failed to start ttyd for ${sessionId}:`, err);
         });
 
-        ttyd.on('exit', async (code) => {
-            console.log(`ttyd for ${sessionId} exited with code ${code}`);
+        ttyd.on('exit', async (code, signal) => {
+            console.log(`ttyd for ${sessionId} exited with code ${code}${signal ? ` signal ${signal}` : ''}`);
 
-            // クリーンアップ: TMUXセッションとMCPプロセスを削除
-            await this.cleanupSessionResources(sessionId);
+            // If a newer ttyd has been started for this session, ignore stale exits.
+            const activeEntry = this.activeSessions.get(sessionId);
+            const activePid = activeEntry?.process?.pid || activeEntry?.pid;
+            if (activePid && ttyd.pid && activePid !== ttyd.pid) {
+                console.log(`[ttyd:${sessionId}] Ignoring exit for stale pid ${ttyd.pid} (active pid ${activePid})`);
+                return;
+            }
 
-            // ttydProcess情報をクリア
-            await this._clearTtydProcessInfo(sessionId);
-
+            // Preserve tmux on ttyd exit. tmux lifecycle is managed explicitly (archive/delete/TTL).
+            await this._clearTtydProcessInfoIfMatches(sessionId, ttyd.pid);
             this.activeSessions.delete(sessionId);
         });
 
@@ -774,11 +777,14 @@ export class SessionManager {
                 await this.cleanupSessionResources(sessionId);
             } else {
                 console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
-                await this._cleanupChildProcesses(sessionId);
             }
 
-            // ttydProcess情報をクリア
-            await this._clearTtydProcessInfo(sessionId);
+            // ttydProcess情報をクリア (only if it still points to this pid)
+            if (pid) {
+                await this._clearTtydProcessInfoIfMatches(sessionId, pid);
+            } else {
+                await this._clearTtydProcessInfo(sessionId);
+            }
 
             this.activeSessions.delete(sessionId);
             // hookStatusは保持（'done'ステータスを保持するため）
@@ -786,43 +792,6 @@ export class SessionManager {
             return true;
         }
         return false;
-    }
-
-    /**
-     * tmuxセッション内の子プロセス（claude/MCP等）のみを停止
-     * tmuxセッション自体は残す（preserveTmuxモード用）
-     * @param {string} sessionId - セッションID
-     * @returns {Promise<number>} killしたペイン数
-     */
-    async _cleanupChildProcesses(sessionId) {
-        try {
-            const { stdout } = await this.execPromise(
-                `tmux list-panes -s -t "${sessionId}" -F "#{pane_pid}" 2>/dev/null || echo ""`
-            );
-            if (!stdout.trim()) return 0;
-
-            const panePids = stdout.trim().split('\n').filter(p => p.trim());
-            let killed = 0;
-            for (const pid of panePids) {
-                // 子プロセス（claude, MCP等）のみkill（tmuxのshell自体は残す）
-                try {
-                    await this.execPromise(`pkill -TERM -P ${pid} 2>/dev/null`);
-                    killed++;
-                } catch (_) {}
-            }
-            // SIGTERM後待機 → 残存プロセスをSIGKILL
-            await new Promise(resolve => setTimeout(resolve, 500));
-            for (const pid of panePids) {
-                try {
-                    await this.execPromise(`pkill -9 -P ${pid} 2>/dev/null`);
-                } catch (_) {}
-            }
-            console.log(`[Cleanup] Killed child processes in ${killed} pane(s) (preserveTmux mode)`);
-            return killed;
-        } catch (err) {
-            console.log(`[Cleanup] Error cleaning child processes for ${sessionId}:`, err.message);
-            return 0;
-        }
     }
 
     /**
@@ -977,7 +946,14 @@ export class SessionManager {
     async _saveTtydProcessInfo(sessionId, { port, pid, engine }) {
         try {
             const state = this.stateStore.get();
-            const updatedSessions = state.sessions.map(session =>
+            const sessions = state.sessions || [];
+            const hasSession = sessions.some(session => session.id === sessionId);
+            if (!hasSession) {
+                console.warn(`[ttydProcess] Skip save: session ${sessionId} not found in state`);
+                return;
+            }
+
+            const updatedSessions = sessions.map(session =>
                 session.id === sessionId
                     ? {
                         ...session,
@@ -1004,7 +980,8 @@ export class SessionManager {
     async _clearTtydProcessInfo(sessionId) {
         try {
             const state = this.stateStore.get();
-            const updatedSessions = state.sessions.map(session =>
+            const sessions = state.sessions || [];
+            const updatedSessions = sessions.map(session =>
                 session.id === sessionId
                     ? { ...session, ttydProcess: null }
                     : session
@@ -1013,6 +990,45 @@ export class SessionManager {
             console.log(`[ttydProcess] Cleared for ${sessionId}`);
         } catch (err) {
             console.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
+        }
+    }
+
+
+    /**
+     * Phase 3: ttydProcess情報をstate.jsonからクリア（PID一致時のみ）
+     * 重複ttydがいる状態でstaleプロセスがexitしても、正しいPIDを消さないためのガード。
+     * @param {string} sessionId - セッションID
+     * @param {number|undefined|null} pid - ttyd PID
+     * @returns {Promise<boolean>} クリアしたらtrue
+     */
+    async _clearTtydProcessInfoIfMatches(sessionId, pid) {
+        try {
+            const state = this.stateStore.get();
+            const sessions = state.sessions || [];
+
+            let changed = false;
+            const updatedSessions = sessions.map(session => {
+                if (session.id !== sessionId) return session;
+                if (!session.ttydProcess) return session;
+
+                const currentPid = session.ttydProcess?.pid;
+                // If both are valid pids and don't match, don't clear.
+                if (Number.isFinite(currentPid) && Number.isFinite(pid) && currentPid !== pid) {
+                    return session;
+                }
+
+                changed = true;
+                return { ...session, ttydProcess: null };
+            });
+
+            if (!changed) return false;
+
+            await this.stateStore.update({ ...state, sessions: updatedSessions });
+            console.log(`[ttydProcess] Cleared for ${sessionId}${Number.isFinite(pid) ? ` (pid=${pid})` : ''}`);
+            return true;
+        } catch (err) {
+            console.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
+            return false;
         }
     }
 
@@ -1202,12 +1218,12 @@ export class SessionManager {
      */
     async cleanup() {
         this.stopPtyWatchdog();
-        console.log('[SessionManager] Starting graceful cleanup...');
-        const sessions = [...this.activeSessions.keys()];
-        for (const sessionId of sessions) {
-            console.log(`[SessionManager] Cleaning up session: ${sessionId}`);
-            await this.cleanupSessionResources(sessionId);
+        console.log('[SessionManager] Starting graceful cleanup (preserve tmux)...');
+        const sessionIds = [...this.activeSessions.keys()];
+        for (const sessionId of sessionIds) {
+            console.log(`[SessionManager] Stopping ttyd for session: ${sessionId}`);
+            await this.stopTtyd(sessionId, { preserveTmux: true });
         }
-        console.log(`[SessionManager] Graceful cleanup complete (${sessions.length} session(s))`);
+        console.log(`[SessionManager] Graceful cleanup complete (${sessionIds.length} session(s))`);
     }
 }

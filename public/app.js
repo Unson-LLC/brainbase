@@ -28,6 +28,8 @@ import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
+import { GoalSeekService } from './modules/domain/goal-seek/goal-seek-service.js';
+import { BrowserNotificationService } from './modules/domain/browser-notification/browser-notification-service.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -35,6 +37,7 @@ import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
+import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
@@ -50,6 +53,7 @@ import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 import { RenameModal } from './modules/ui/modals/rename-modal.js';
+import { GoalSeekModal } from './modules/ui/modals/goal-seek-modal.js';
 
 /**
  * Terminal Reconnect Manager
@@ -244,11 +248,17 @@ class TerminalReconnectManager {
             const res = await httpClient.post('/api/sessions/start', payload);
 
             if (res?.proxyPath) {
-                // Only reload iframe if proxyPath actually changed (new ttyd process/port)
-                // Avoids unnecessary PTY allocation when ttyd is still alive
+                const nextSrc = res.proxyPath;
                 const currentSrc = this.terminalFrame.src || '';
-                if (!currentSrc.includes(res.proxyPath)) {
-                    this.terminalFrame.src = res.proxyPath;
+
+                // Force reload even if the base path is the same. Proxy routing may have changed (new ttyd port).
+                if (currentSrc.includes(nextSrc)) {
+                    this.terminalFrame.src = 'about:blank';
+                    setTimeout(() => {
+                        this.terminalFrame.src = nextSrc;
+                    }, 50);
+                } else {
+                    this.terminalFrame.src = nextSrc;
                 }
             } else {
                 this.handleDisconnect();
@@ -637,6 +647,11 @@ export class App {
         this.container.register('scheduleService', () => new ScheduleService());
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
+        this.container.register('browserNotificationService', () => new BrowserNotificationService());
+        this.container.register('goalSeekService', () => new GoalSeekService({
+            wsUrl: 'ws://localhost:31013/api/goal-seek/calculate',
+            token: this.authManager?.getToken() || null
+        }));
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -644,6 +659,8 @@ export class App {
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
+        this.browserNotificationService = this.container.get('browserNotificationService');
+        this.goalSeekService = this.container.get('goalSeekService');
     }
 
     /**
@@ -916,6 +933,13 @@ export class App {
         // Rename modal
         this.modals.renameModal = new RenameModal({ sessionService: this.sessionService });
         this.modals.renameModal.mount();
+
+        // Goal seek modal
+        this.modals.goalSeekModal = new GoalSeekModal({
+            goalSeekService: this.goalSeekService,
+            browserNotificationService: this.browserNotificationService
+        });
+        this.modals.goalSeekModal.mount();
     }
 
     /**

@@ -95,16 +95,21 @@ export class SessionController {
         const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
 
         if (stopped) {
-            // Update intendedState to 'stopped'
-            const currentState = this.stateStore.get();
-            const updatedSessions = currentState.sessions.map(session =>
-                session.id === id ? { ...session, intendedState: 'stopped' } : session
-            );
+            // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
+            if (!preserveTmux) {
+                const currentState = this.stateStore.get();
+                const now = new Date().toISOString();
+                const updatedSessions = (currentState.sessions || []).map(session =>
+                    session.id === id
+                        ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
+                        : session
+                );
 
-            await this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
-            });
+                await this.stateStore.update({
+                    ...currentState,
+                    sessions: updatedSessions
+                });
+            }
 
             res.json({ success: true });
         } else {
@@ -361,15 +366,9 @@ export class SessionController {
             // セッション作成時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
-            // Start ttyd session with worktree as cwd
-            const result = await this.sessionManager.startTtyd({
-                sessionId,
-                cwd: worktreePath,
-                initialCommand,
-                engine
-            });
-
-            // Update state to include worktree info
+            // Update state BEFORE starting ttyd.
+            // This allows ttyd start to persist pid/port and login_script.sh to resolve correct CWD.
+            const now = new Date().toISOString();
             const currentState = this.stateStore.get();
             const newSession = {
                 id: sessionId,
@@ -385,13 +384,34 @@ export class SessionController {
                 initialCommand,
                 engine,
                 intendedState: 'active',
-                createdAt: new Date().toISOString()
+                createdAt: now,
+                updatedAt: now
             };
 
             await this.stateStore.update({
                 ...currentState,
-                sessions: [...(currentState.sessions || []), newSession]
+                sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
             });
+
+            let result;
+            try {
+                // Start ttyd session with worktree as cwd
+                result = await this.sessionManager.startTtyd({
+                    sessionId,
+                    cwd: worktreePath,
+                    initialCommand,
+                    engine
+                });
+            } catch (error) {
+                // Roll back state + workspace on failure (best-effort)
+                const rollbackState = this.stateStore.get();
+                await this.stateStore.update({
+                    ...rollbackState,
+                    sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
+                });
+                this.worktreeService.remove(sessionId, repoPath).catch(() => {});
+                throw error;
+            }
 
             res.json({
                 success: true,
