@@ -3,7 +3,7 @@ name: ops-department Auto Refactoring
 on:
   schedule:
     - cron: "0 */6 * * *" # 6時間ごと（0:00, 6:00, 12:00, 18:00 UTC）
-  workflow_dispatch: {} # 手動実行も可能
+  workflow_dispatch:
 
 jobs:
   ops-department-review:
