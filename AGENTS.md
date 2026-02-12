@@ -947,6 +947,10 @@ import追加 → 「正しい順序か?」
 - **Custom Command**: `/merge`
 - **装備Skills**: git-workflow
 
+**Phase 8: Handover** (引き継ぎ)
+- 次セッションが5分で再開できる `HANDOVER.md` を生成して引き継ぐ
+- **Custom Command**: `/handover`
+
 **使用例**:
 ```bash
 # 1. Explore: 既存コード調査
@@ -1299,3 +1303,15 @@ npm run lint:imports
 ### 10.4 テスト
 - 必要性が高い場合のみ最小限実行
 - 未実行の場合は理由を明示
+
+### 10.5 Slash Commands（Custom Commands）
+
+ユーザー入力が `/NAME [ARGS...]` の形式なら、以下を行う:
+
+1. `.claude/commands/NAME.md` が存在するか確認
+2. 存在するならその内容を読み、手順を実行（`$ARGUMENTS` があれば `ARGS...` を渡す）
+3. 存在しないなら `.claude/commands/README.md` を提示して、正しいコマンド名を確認する
+
+#### 必須コマンド: `/handover`
+
+セッション終了前（文脈が切れそう/中断/引き継ぎが必要）には `/handover` を最優先で実行し、プロジェクトルートに `HANDOVER.md` を生成する。

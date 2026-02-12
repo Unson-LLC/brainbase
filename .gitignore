@@ -72,6 +72,13 @@ external/
 .claude/*.json
 .claude/skills-backup-oss/
 
+# 例外: OSSで公開する最小限のコマンド/フック
+!.claude/commands/
+!.claude/commands/*.md
+!.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/auto-handover.sh
+
 # 非公開skills: 個人ノウハウ・ビジネス知識
 .claude/skills/_archived/
 .claude/skills/_templates/
@@ -155,6 +162,8 @@ shared
 # ========================================
 # ローカル専用データ（個人のセッション情報）
 # ========================================
+/HANDOVER.md
+.claude/handover/
 state.json
 state.json.backup.*
 state.json.lock/
