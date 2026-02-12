@@ -13,7 +13,9 @@ const __dirname = dirname(__filename);
  * 認証テスト（auth-service.js）- Permission System拡張
  */
 
-describe('Auth Service Permission Tests', () => {
+const describeWithPermissionDb = process.env.TEST_PERMISSION_DB_URL ? describe : describe.skip;
+
+describeWithPermissionDb('Auth Service Permission Tests', () => {
     let pool;
     let testDbUrl;
     let authService;

@@ -645,21 +645,21 @@ describe('SessionService', () => {
         it('unarchiveSession呼び出し時_intendedStateがactiveに変更される', async () => {
             await sessionService.unarchiveSession('session-1');
 
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: expect.arrayContaining([
-                    expect.objectContaining({ id: 'session-1', intendedState: 'active' })
-                ])
-            }));
+            expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/restore');
         });
 
-        it('unarchiveSession呼び出し時_SESSION_UPDATEDイベントが発火される', async () => {
+        it('unarchiveSession呼び出し時_SESSION_LOADEDイベントが発火される', async () => {
             const listener = vi.fn();
-            eventBus.on(EVENTS.SESSION_UPDATED, listener);
+            eventBus.on(EVENTS.SESSION_LOADED, listener);
 
             await sessionService.unarchiveSession('session-1');
 
             expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail.sessionId).toBe('session-1');
+            expect(listener.mock.calls[0][0].detail.sessions).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ id: 'session-1' })
+                ])
+            );
         });
     });
 

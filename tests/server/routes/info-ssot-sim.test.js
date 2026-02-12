@@ -4,9 +4,13 @@ import request from 'supertest';
 import { createInfoSSOTRouter } from '../../../server/routes/info-ssot.js';
 import { InfoSSOTService } from '../../../server/services/info-ssot-service.js';
 
-const DATABASE_URL = process.env.INFO_SSOT_DATABASE_URL || 'postgres://localhost/brainbase_ssot';
-process.env.INFO_SSOT_DATABASE_URL = DATABASE_URL;
-process.env.ALLOW_INSECURE_SSOT_HEADERS = 'true';
+const DATABASE_URL = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
+const RUN_INFO_SSOT_DB_TESTS = process.env.RUN_INFO_SSOT_DB_TESTS === 'true';
+const describeWithInfoDb = RUN_INFO_SSOT_DB_TESTS && DATABASE_URL ? describe : describe.skip;
+if (DATABASE_URL) {
+    process.env.INFO_SSOT_DATABASE_URL = DATABASE_URL;
+    process.env.ALLOW_INSECURE_SSOT_HEADERS = 'true';
+}
 
 const buildHeaders = ({ role = 'gm', projects, clearance = 'internal' } = {}) => ({
     'x-brainbase-role': role,
@@ -14,7 +18,7 @@ const buildHeaders = ({ role = 'gm', projects, clearance = 'internal' } = {}) =>
     'x-brainbase-clearance': clearance
 });
 
-describe.sequential('Info SSOT story simulations (E1-001 / E1-002)', () => {
+describeWithInfoDb.sequential('Info SSOT story simulations (E1-001 / E1-002)', () => {
     let app;
     let service;
     let runId;
