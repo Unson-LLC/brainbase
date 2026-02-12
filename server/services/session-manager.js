@@ -137,7 +137,7 @@ export class SessionManager {
                         const port = portMatch ? parseInt(portMatch[1], 10) : null;
 
                         // -b /console/SESSION_ID を抽出
-                        const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
+                        const sessionMatch = cmdLine.match(/-b\s+\/console\/([A-Za-z0-9._-]+)/);
                         const sessionId = sessionMatch ? sessionMatch[1] : null;
 
                         if (!sessionId || !port) {
@@ -257,7 +257,7 @@ export class SessionManager {
                 const pid = parseInt(parts[1], 10);
 
                 // 行全体からセッションIDを抽出
-                const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
+                const sessionMatch = line.match(/\/console\/([A-Za-z0-9._-]+)/) || line.match(/\b(session-[A-Za-z0-9._-]+)\b/);
                 const sessionId = sessionMatch ? sessionMatch[1] : null;
 
                 // activePids にあるか、または activeSessionIds にあれば保護
@@ -527,6 +527,40 @@ export class SessionManager {
         };
     }
 
+    _getSessionFromState(sessionId) {
+        if (!sessionId || !this.stateStore || typeof this.stateStore.get !== 'function') {
+            return null;
+        }
+
+        const state = this.stateStore.get();
+        const sessions = Array.isArray(state?.sessions) ? state.sessions : [];
+        return sessions.find(session => session.id === sessionId) || null;
+    }
+
+    _resolveStartOptions({ sessionId, cwd, initialCommand, engine }) {
+        const persistedSession = this._getSessionFromState(sessionId);
+
+        const resolvedCwd = (typeof cwd === 'string' && cwd.trim())
+            ? cwd
+            : persistedSession?.worktree?.path || persistedSession?.path || persistedSession?.cwd || null;
+
+        const resolvedInitialCommand = typeof initialCommand === 'string'
+            ? initialCommand
+            : (typeof persistedSession?.initialCommand === 'string' ? persistedSession.initialCommand : '');
+
+        const requestedEngine = typeof engine === 'string' ? engine.trim() : '';
+        const persistedEngine = typeof persistedSession?.engine === 'string'
+            ? persistedSession.engine
+            : persistedSession?.ttydProcess?.engine;
+        const resolvedEngine = requestedEngine || persistedEngine || 'claude';
+
+        return {
+            cwd: resolvedCwd,
+            initialCommand: resolvedInitialCommand,
+            engine: resolvedEngine
+        };
+    }
+
     /**
      * ttydプロセスを起動
      * @param {Object} options - 起動オプション
@@ -536,9 +570,18 @@ export class SessionManager {
      * @param {string} options.engine - エンジン（'claude' | 'codex'）
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
-    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude' }) {
+    async startTtyd({ sessionId, cwd, initialCommand, engine }) {
+        if (!sessionId) {
+            throw new Error('sessionId is required');
+        }
+
+        const resolved = this._resolveStartOptions({ sessionId, cwd, initialCommand, engine });
+        const resolvedCwd = resolved.cwd;
+        const resolvedInitialCommand = resolved.initialCommand;
+        const resolvedEngine = resolved.engine;
+
         // Validate engine
-        if (!['claude', 'codex'].includes(engine)) {
+        if (!['claude', 'codex'].includes(resolvedEngine)) {
             throw new Error('engine must be "claude" or "codex"');
         }
 
@@ -561,8 +604,8 @@ export class SessionManager {
         const port = await this.findFreePort(this.nextPort);
         this.nextPort = port + 1;
 
-        console.log(`Starting ttyd for session '${sessionId}' on port ${port} with engine '${engine}'...`);
-        if (cwd) console.log(`Working directory: ${cwd}`);
+        console.log(`Starting ttyd for session '${sessionId}' on port ${port} with engine '${resolvedEngine}'...`);
+        if (resolvedCwd) console.log(`Working directory: ${resolvedCwd}`);
 
         // Spawn ttyd with Base Path
         const scriptPath = fs.existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
@@ -621,9 +664,13 @@ export class SessionManager {
         // On Windows, -w (working directory) is required to prevent crash
         // See: https://github.com/tsl0922/ttyd/issues/1292
         if (process.platform === 'win32') {
-            const workingDir = cwd || 'C:/';
+            const workingDir = resolvedCwd || 'C:/';
             args.push('-w', workingDir);
         }
+
+        const fontFamily = process.platform === 'win32'
+            ? 'Cascadia Code, Consolas, monospace'
+            : (resolvedEngine === 'codex' ? 'Menlo, Monaco, monospace' : 'Menlo');
 
         args.push(
             '-I', customIndexPath, // Custom HTML with keyboard shortcuts and mobile scroll support
@@ -632,14 +679,14 @@ export class SessionManager {
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
-            '-t', `fontFamily=${process.platform === 'win32' ? 'Cascadia Code, Consolas, monospace' : 'Menlo'}`, // Platform-specific monospace font
+            '-t', `fontFamily=${fontFamily}`, // Engine/platform-specific monospace font
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             bashPath,
             bashScriptPath,
             sessionId,
-            initialCommand || '',
-            engine
+            resolvedInitialCommand || '',
+            resolvedEngine
         );
 
         // Options for spawn (detached: サーバー再起動後もttydが継続)
@@ -659,8 +706,8 @@ export class SessionManager {
         }
 
         // Set CWD if provided
-        if (cwd) {
-            spawnOptions.cwd = cwd;
+        if (resolvedCwd) {
+            spawnOptions.cwd = resolvedCwd;
         }
 
         const resolveTtydPath = () => {
@@ -715,7 +762,7 @@ export class SessionManager {
         this.activeSessions.set(sessionId, { port, pid: ttyd.pid, process: ttyd });
 
         // state.jsonにttydProcess情報を永続化
-        await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
+        await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine: resolvedEngine });
 
         // Give ttyd a moment to bind to the port and verify it's still running
         await new Promise((resolve, reject) => {
@@ -1193,17 +1240,17 @@ export class SessionManager {
     }
 
     /**
-     * Graceful shutdown: 全セッションのリソースをクリーンアップ
+     * Graceful shutdown: アクティブセッションのTTY接続のみ切断
+     * TMUXセッションは維持して、サーバー再起動後も復元可能にする
      * server.jsのSIGTERM/SIGINTハンドラから呼ばれる
      */
     async cleanup() {
         this.stopPtyWatchdog();
-        console.log('[SessionManager] Starting graceful cleanup...');
-        const sessions = [...this.activeSessions.keys()];
-        for (const sessionId of sessions) {
-            console.log(`[SessionManager] Cleaning up session: ${sessionId}`);
-            await this.cleanupSessionResources(sessionId);
-        }
-        console.log(`[SessionManager] Graceful cleanup complete (${sessions.length} session(s))`);
+        console.log('[SessionManager] Starting graceful cleanup (preserving sessions)...');
+        // TMUXセッションはkillしない（永続化）
+        // activeSessionsのメモリ上のエントリのみクリア
+        const sessionCount = this.activeSessions.size;
+        this.activeSessions.clear();
+        console.log(`[SessionManager] Graceful cleanup complete (${sessionCount} session(s) preserved)`);
     }
 }
