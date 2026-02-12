@@ -5345,6 +5345,8 @@ body.resizing iframe {
         min-height: 36px;
         min-width: 44px;
         touch-action: manipulation;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .mobile-input-primary {
