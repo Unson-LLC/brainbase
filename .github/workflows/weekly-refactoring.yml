@@ -3,11 +3,11 @@ name: ops-department Auto Refactoring
 on:
   schedule:
     - cron: "0 */6 * * *" # 6時間ごと（0:00, 6:00, 12:00, 18:00 UTC）
-  workflow_dispatch: {}
+  workflow_dispatch: # 手動実行も可能
 
 jobs:
   ops-department-review:
-    runs-on: [self-hosted, local]
+    runs-on: self-hosted
     permissions:
       contents: write
       pull-requests: write
@@ -23,17 +23,11 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Verify Codex CLI
-        run: codex --version
-
       - name: Run ops-department team review
         env:
-          AI_CLI_BACKEND: codex
-          CODEX_CLI_PATH: codex
-          CODEX_MODEL: gpt-5-codex
-          CODEX_REASONING_EFFORT: high
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PATH: ${{ env.PATH }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_DISABLE_TELEMETRY: "1"
+          PATH: ${{ env.HOME }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
         run: node scripts/ops-team-review.cjs
 
       - name: Read PR Title
@@ -50,11 +44,11 @@ jobs:
         if: success()
         run: |
           if [ ! -f pr-body.txt ]; then
-            printf '%s\n' \
-              '## 🤖 ops-department 自動コードレビュー' \
-              '' \
-              '詳細なレビュー結果は `ops-department-refactoring.md` を参照してください。' \
-              > pr-body.txt
+            cat > pr-body.txt <<'EOF'
+## 🤖 ops-department 自動コードレビュー
+
+詳細なレビュー結果は `ops-department-refactoring.md` を参照してください。
+EOF
           fi
 
       - name: Create Pull Request
@@ -72,8 +66,7 @@ jobs:
             - refactoring-specialist: refactoring suggestions
             - tdd-engineer: test coverage check
 
-            Co-Authored-By: ops-department <ops-department@users.noreply.github.com>
-          base: main
+            Co-Authored-By: ops-department <noreply@unson.co.jp>
           branch: ops-department/weekly-review-${{ github.run_number }}
           delete-branch: true
           title: ${{ steps.pr-title.outputs.title }}
@@ -83,38 +76,11 @@ jobs:
             refactoring
             ops-department
 
-      - name: Update refactoring history in main
-        if: steps.create-pr.outputs.pull-request-number
-        env:
-          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
-          PR_BRANCH: ${{ steps.create-pr.outputs.pull-request-branch }}
-          TARGET_BRANCH: main
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: node scripts/commit-history-to-develop.cjs
-
-  # PRマージ状態を定期的に更新
-  update-pr-status:
-    runs-on: [self-hosted, local]
-    if: github.event_name == 'schedule'
-    permissions:
-      contents: write
-      pull-requests: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Update PR merge status
-        env:
-          TARGET_BRANCH: main
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/update-pr-status.cjs
+            **実行詳細:**
+            - Run Number: ${{ github.run_number }}
+            - Run ID: ${{ github.run_id }}
+            - Triggered: ${{ github.event_name }}
+          labels: |
+            automated
+            refactoring
+            ops-department
