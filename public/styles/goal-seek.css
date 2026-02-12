@@ -1,0 +1,371 @@
+/**
+ * Goal Seek Styles
+ *
+ * 目標達成逆算計算UI用スタイル
+ * 設計書参照: /tmp/dev-ops/spec.md § 5.1
+ */
+
+/* =========================================
+   CSS Variables for Goal Seek
+   ========================================= */
+:root {
+    --goal-seek-primary: #3b82f6;
+    --goal-seek-secondary: #60a5fa;
+    --goal-seek-bg: rgba(59, 130, 246, 0.1);
+    --goal-seek-text: #f8fafc;
+    --goal-seek-border: rgba(59, 130, 246, 0.3);
+
+    --intervention-bg: rgba(245, 158, 11, 0.15);
+    --intervention-border: rgba(245, 158, 11, 0.4);
+    --intervention-text: #fbbf24;
+}
+
+/* =========================================
+   Goal Seek View Container
+   ========================================= */
+.goal-seek-container {
+    padding: 24px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.goal-seek-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.goal-seek-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.goal-seek-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* =========================================
+   Parameter Input Form
+   ========================================= */
+.goal-seek-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.goal-seek-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.goal-seek-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.goal-seek-input {
+    padding: 10px 14px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.goal-seek-input:focus {
+    outline: none;
+    border-color: var(--goal-seek-primary);
+    box-shadow: 0 0 0 3px var(--goal-seek-bg);
+}
+
+.goal-seek-input::placeholder {
+    color: var(--text-secondary);
+}
+
+/* =========================================
+   Calculate Button
+   ========================================= */
+.goal-seek-button {
+    padding: 12px 24px;
+    background: var(--goal-seek-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.goal-seek-button:hover:not(:disabled) {
+    background: var(--goal-seek-secondary);
+}
+
+.goal-seek-button:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.goal-seek-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.goal-seek-button--cancel {
+    background: var(--danger-color);
+}
+
+.goal-seek-button--cancel:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+/* =========================================
+   Progress Display
+   ========================================= */
+.goal-seek-progress {
+    margin-top: 24px;
+}
+
+.goal-seek-progress-bar-container {
+    height: 8px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.goal-seek-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--goal-seek-primary), var(--goal-seek-secondary));
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.goal-seek-progress-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* =========================================
+   Result Display
+   ========================================= */
+.goal-seek-result {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--goal-seek-bg);
+    border: 1px solid var(--goal-seek-border);
+    border-radius: 12px;
+}
+
+.goal-seek-result-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--goal-seek-text);
+    margin-bottom: 16px;
+}
+
+.goal-seek-result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+}
+
+.goal-seek-result-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.goal-seek-result-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.goal-seek-result-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* =========================================
+   Intervention Modal Styles
+   ========================================= */
+.goal-seek-intervention {
+    padding: 24px;
+    background: var(--intervention-bg);
+    border: 1px solid var(--intervention-border);
+    border-radius: 12px;
+    text-align: center;
+}
+
+.goal-seek-intervention-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+}
+
+.goal-seek-intervention-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--intervention-text);
+    margin-bottom: 8px;
+}
+
+.goal-seek-intervention-reason {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+.goal-seek-intervention-choices {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.goal-seek-intervention-btn {
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid;
+}
+
+.goal-seek-intervention-btn--proceed {
+    background: var(--success-color);
+    color: white;
+    border-color: var(--success-color);
+}
+
+.goal-seek-intervention-btn--proceed:hover {
+    background: #059669;
+}
+
+.goal-seek-intervention-btn--abort {
+    background: transparent;
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.goal-seek-intervention-btn--abort:hover {
+    background: var(--danger-color);
+    color: white;
+}
+
+.goal-seek-intervention-btn--modify {
+    background: transparent;
+    color: var(--goal-seek-primary);
+    border-color: var(--goal-seek-primary);
+}
+
+.goal-seek-intervention-btn--modify:hover {
+    background: var(--goal-seek-primary);
+    color: white;
+}
+
+/* =========================================
+   Timeout Warning
+   ========================================= */
+.goal-seek-timeout {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: var(--danger-color);
+}
+
+.goal-seek-timeout-timer {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* =========================================
+   Status Indicators
+   ========================================= */
+.goal-seek-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.goal-seek-status--idle {
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+}
+
+.goal-seek-status--calculating {
+    background: var(--goal-seek-bg);
+    color: var(--goal-seek-primary);
+}
+
+.goal-seek-status--completed {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-color);
+}
+
+.goal-seek-status--intervention {
+    background: var(--intervention-bg);
+    color: var(--intervention-text);
+}
+
+.goal-seek-status--error {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger-color);
+}
+
+.goal-seek-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.goal-seek-status--calculating .goal-seek-status-dot {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* =========================================
+   Responsive Adjustments
+   ========================================= */
+@media (max-width: 640px) {
+    .goal-seek-container {
+        padding: 16px;
+    }
+
+    .goal-seek-form {
+        grid-template-columns: 1fr;
+    }
+
+    .goal-seek-intervention-choices {
+        flex-direction: column;
+    }
+
+    .goal-seek-intervention-btn {
+        width: 100%;
+    }
+}
