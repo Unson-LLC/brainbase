@@ -50,7 +50,7 @@ export class SessionController {
      * ttydプロセスを起動
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine = 'claude', userId = 'ksato' } = req.body;
+        const { sessionId, initialCommand, cwd, engine } = req.body;
         console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
@@ -62,13 +62,19 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
+            const startOptions = { sessionId };
+            if (typeof cwd === 'string' && cwd.trim()) {
+                startOptions.cwd = cwd;
+            }
+            if (typeof initialCommand === 'string') {
+                startOptions.initialCommand = initialCommand;
+            }
+            if (typeof engine === 'string' && engine.trim()) {
+                startOptions.engine = engine;
+            }
+
             // ttydプロセス起動
-            const result = await this.sessionManager.startTtyd({
-                sessionId,
-                cwd,
-                initialCommand,
-                engine
-            });
+            const result = await this.sessionManager.startTtyd(startOptions);
 
             res.json(result);
         } catch (error) {
@@ -438,6 +444,7 @@ export class SessionController {
      */
     updateLocalMain = async (req, res) => {
         const { id } = req.params;
+        const { autoStash = false } = req.body || {};
 
         // Get session from state
         const state = this.stateStore.get();
@@ -452,10 +459,7 @@ export class SessionController {
         }
 
         try {
-            const result = await this.worktreeService.updateLocalMain(session.worktree.repo);
-            if (!result.success) {
-                return res.status(400).json({ error: result.error || 'Failed to update local main' });
-            }
+            const result = await this.worktreeService.updateLocalMain(session.worktree.repo, { autoStash });
             res.json(result);
         } catch (error) {
             console.error('Failed to update local main:', error);

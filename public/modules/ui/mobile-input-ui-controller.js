@@ -44,14 +44,16 @@ export class MobileInputUIController {
         this.bindInputEventHandlers(dockInput, 'dock', true);  // scrollIntoView有効
 
         this.bindTouchClickHandler(dockSend, 'dock', dockInput);
-        dockMore?.addEventListener('click', () => {
+
+        // iOS Safari対応: touchstart + click で確実にタップ検出
+        this.bindTapHandler(dockMore, () => {
             this.toggleDockExpanded();
             this.focusManager.refocusInput(dockInput);
         });
-        dockSessions?.addEventListener('click', () => {
+        this.bindTapHandler(dockSessions, () => {
             this.handleSessionsSheet();
         });
-        dockPaste?.addEventListener('click', async () => {
+        this.bindTapHandler(dockPaste, async () => {
             const result = await this.pasteFromClipboard();
             if (result) {
                 this.autoResize(result.inputEl);
@@ -59,35 +61,28 @@ export class MobileInputUIController {
             }
             this.focusManager.refocusInput(dockInput);
         });
-        dockClipboard?.addEventListener('click', () => this.sheetManager.openClipboardSheet());
-        dockSnippets?.addEventListener('click', () => this.sheetManager.openSnippetSheet());
-        dockSnippetAdd?.addEventListener('click', () => {
-            this.clipboardManager.addSnippetFromSelection(() => this.getActiveInput());
-            this.focusManager.refocusInput(dockInput);
-        });
-        dockUploadImage?.addEventListener('click', () => {
+        this.bindTapHandler(dockUploadImage, () => {
             this.handleUploadImage();
             this.focusManager.refocusInput(dockInput);
         });
-        dockCopyTerminal?.addEventListener('click', () => {
+        this.bindTapHandler(dockCopyTerminal, () => {
             this.handleCopyTerminal();
-            // モーダルが開くので refocus 不要
         });
-        dockClear?.addEventListener('click', () => {
+        this.bindTapHandler(dockClear, () => {
             this.handleClear();
             this.focusManager.refocusInput(dockInput);
         });
-        dockEscape?.addEventListener('click', () => {
+        this.bindTapHandler(dockEscape, () => {
             this.handleEscape();
             this.focusManager.refocusInput(dockInput);
         });
-        dockShiftTab?.addEventListener('click', () => {
+        this.bindTapHandler(dockShiftTab, () => {
             this.handleShiftTab();
             this.focusManager.refocusInput(dockInput);
         });
 
         this.elements.dockClipButtons.forEach((button, index) => {
-            button.addEventListener('click', async () => {
+            this.bindTapHandler(button, async () => {
                 const result = await this.handleClipSlot(index);
                 if (result) {
                     this.autoResize(result.inputEl);
@@ -98,6 +93,36 @@ export class MobileInputUIController {
         });
 
         this.bindCursorButtons(dockInput, this.elements.dock);
+    }
+
+    /**
+     * iOS Safari対応: touchstart + click で確実にタップ検出
+     * touchstartでpreventDefault()してフォーカス維持、clickで実際の処理
+     */
+    bindTapHandler(element, handler) {
+        if (!element) return;
+
+        let touchHandled = false;
+
+        element.addEventListener('touchstart', (e) => {
+            touchHandled = false;
+        }, { passive: true });
+
+        element.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (!touchHandled) {
+                touchHandled = true;
+                handler();
+            }
+        }, { passive: false });
+
+        element.addEventListener('click', (e) => {
+            if (touchHandled) {
+                touchHandled = false;
+                return;
+            }
+            handler();
+        });
     }
 
     bindComposer() {
@@ -617,12 +642,20 @@ export class MobileInputUIController {
     }
 
     handleUploadImage() {
+        console.log('[mobile-input] handleUploadImage called');
         const imageFileInput = document.getElementById('image-file-input');
-        imageFileInput?.click();
+        if (!imageFileInput) {
+            console.error('[mobile-input] image-file-input not found');
+            showError('画像アップロード要素が見つからない');
+            return;
+        }
+        imageFileInput.click();
     }
 
     async handleCopyTerminal() {
+        console.log('[mobile-input] handleCopyTerminal called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -651,7 +684,9 @@ export class MobileInputUIController {
     }
 
     async handleClear() {
+        console.log('[mobile-input] handleClear called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -659,6 +694,7 @@ export class MobileInputUIController {
 
         try {
             await this.apiClient.sendKey(sessionId, 'C-l');
+            showSuccess('画面クリア送信');
         } catch (error) {
             console.error('Failed to send Clear:', error);
             showError('クリアコマンドの送信に失敗したよ');
@@ -666,7 +702,9 @@ export class MobileInputUIController {
     }
 
     async handleEscape() {
+        console.log('[mobile-input] handleEscape called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -674,6 +712,7 @@ export class MobileInputUIController {
 
         try {
             await this.apiClient.sendKey(sessionId, 'Escape');
+            showSuccess('Escape送信');
         } catch (error) {
             console.error('Failed to send Escape:', error);
             showError('Escapeキーの送信に失敗したよ');
@@ -681,7 +720,9 @@ export class MobileInputUIController {
     }
 
     async handleShiftTab() {
+        console.log('[mobile-input] handleShiftTab called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -689,6 +730,7 @@ export class MobileInputUIController {
 
         try {
             await this.apiClient.sendKey(sessionId, 'S-Tab');
+            showSuccess('Shift+Tab送信');
         } catch (error) {
             console.error('Failed to send Shift+Tab:', error);
             showError('Shift+Tabキーの送信に失敗したよ');
@@ -696,6 +738,7 @@ export class MobileInputUIController {
     }
 
     handleSessionsSheet() {
+        console.log('[mobile-input] handleSessionsSheet called');
         // bottom navのセッションボタンをトリガーしてセッション一覧を開く
         const mobileSessionsBtn = document.getElementById('mobile-sessions-btn');
         if (mobileSessionsBtn) {

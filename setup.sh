@@ -20,6 +20,30 @@ if [ -f "$STATE_FILE" ]; then
     exit 0
 fi
 
+# Check and setup Jujutsu (required for AI-first session management)
+echo "🥋 Checking Jujutsu..."
+if command -v jj &> /dev/null; then
+    echo "   ✅ Jujutsu is installed: $(jj version 2>&1 | head -1)"
+
+    # Initialize Jujutsu in this repo if not already done
+    if [ ! -d "$REPO_ROOT/.jj" ]; then
+        echo "   📦 Initializing Jujutsu in this repository..."
+        cd "$REPO_ROOT"
+        jj git init 2>/dev/null
+        echo "   ✅ Jujutsu initialized"
+    else
+        echo "   ✅ Jujutsu already initialized"
+    fi
+else
+    echo "   ⚠️  Jujutsu (jj) is not installed"
+    echo "   Install with: brew install jj"
+    echo "   Then run: jj git init"
+    echo ""
+    echo "   Note: Jujutsu is required for AI-first session management."
+    echo "   See README.md for details."
+fi
+echo ""
+
 # Ensure local data/runtime dirs exist
 mkdir -p "$DATA_DIR" "$VAR_DIR"
 
@@ -82,6 +106,14 @@ echo "Next steps:"
 echo "1. Start the server: npm start"
 echo "2. Open http://localhost:31013 in your browser"
 echo "3. Explore the sample tasks and sessions"
+echo ""
+echo "🥋 Jujutsu (AI-first VCS):"
+if command -v jj &> /dev/null; then
+    echo "   ✅ Ready! Use 'jj status' to see your workspace"
+else
+    echo "   Install: brew install jj"
+    echo "   Initialize: jj git init"
+fi
 echo ""
 echo "Optional: Set BRAINBASE_ROOT to use a different workspace"
 echo "  export BRAINBASE_ROOT=/path/to/your/workspace"

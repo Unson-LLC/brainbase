@@ -5,6 +5,7 @@ const confirmTitle = document.getElementById('confirm-modal-title');
 const confirmMessage = document.getElementById('confirm-modal-message');
 const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+const confirmActionBtn = document.getElementById('confirm-action-btn');
 
 const hasConfirmModal = Boolean(
     confirmModal
@@ -15,19 +16,21 @@ const hasConfirmModal = Boolean(
 );
 
 let resolvePromise = null;
+let confirmResponseMode = 'boolean';
 
 // Setup event listeners
 if (hasConfirmModal) {
     const closeBtn = confirmModal.querySelector('.close-modal-btn');
-    closeBtn?.addEventListener('click', () => closeConfirm(false));
-    confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
-    confirmOkBtn.addEventListener('click', () => closeConfirm(true));
+    closeBtn?.addEventListener('click', () => closeConfirm(confirmResponseMode === 'action' ? { action: 'cancel' } : false));
+    confirmCancelBtn.addEventListener('click', () => closeConfirm(confirmResponseMode === 'action' ? { action: 'cancel' } : false));
+    confirmOkBtn.addEventListener('click', () => closeConfirm(confirmResponseMode === 'action' ? { action: 'ok' } : true));
     confirmModal.addEventListener('click', (e) => {
-        if (e.target === confirmModal) closeConfirm(false);
+        if (e.target === confirmModal) {
+            closeConfirm(confirmResponseMode === 'action' ? { action: 'cancel' } : false);
+        }
     });
 
     // Action button event listener (for 3-button pattern)
-    const confirmActionBtn = document.getElementById('confirm-action-btn');
     if (confirmActionBtn) {
         confirmActionBtn.addEventListener('click', () => closeConfirm({ action: 'action' }));
     }
@@ -36,18 +39,16 @@ if (hasConfirmModal) {
 function closeConfirm(result) {
     if (!confirmModal) return;
     confirmModal.classList.remove('active');
-    if (resolvePromise) {
-        // If result is boolean (2-button pattern), resolve as-is
-        // If result is object with action (3-button pattern), resolve as-is
-        if (typeof result === 'boolean') {
-            resolvePromise(result);
-        } else if (result && result.action) {
-            resolvePromise(result);
-        } else {
-            // fallback: treat as cancel
-            resolvePromise(typeof result === 'object' ? { action: 'cancel' } : false);
-        }
-        resolvePromise = null;
+    confirmModal.classList.remove('confirm-modal--action');
+    if (confirmActionBtn) {
+        confirmActionBtn.style.display = 'none';
+    }
+
+    const resolver = resolvePromise;
+    resolvePromise = null;
+    confirmResponseMode = 'boolean';
+    if (resolver) {
+        resolver(result);
     }
 }
 
@@ -75,6 +76,8 @@ export function showConfirm(message, options = {}) {
         cancelText = 'キャンセル',
         danger = true
     } = options;
+    confirmResponseMode = 'boolean';
+    confirmModal.classList.remove('confirm-modal--action');
 
     // XSS対策: DOMメソッドで構築
     confirmTitle.innerHTML = '';
@@ -86,6 +89,9 @@ export function showConfirm(message, options = {}) {
     confirmMessage.textContent = message;
     confirmOkBtn.textContent = okText;
     confirmCancelBtn.textContent = cancelText;
+    if (confirmActionBtn) {
+        confirmActionBtn.style.display = 'none';
+    }
 
     // Toggle danger style
     if (danger) {
@@ -134,6 +140,8 @@ export function showConfirmWithAction(message, options = {}) {
         actionText = 'アクション',
         danger = true
     } = options;
+    confirmResponseMode = 'action';
+    confirmModal.classList.add('confirm-modal--action');
 
     // XSS対策: DOMメソッドで構築
     confirmTitle.innerHTML = '';
@@ -147,7 +155,6 @@ export function showConfirmWithAction(message, options = {}) {
     confirmCancelBtn.textContent = cancelText;
 
     // 3つ目のボタンを表示
-    const confirmActionBtn = document.getElementById('confirm-action-btn');
     if (confirmActionBtn) {
         confirmActionBtn.textContent = actionText;
         confirmActionBtn.style.display = 'inline-block';
@@ -168,12 +175,6 @@ export function showConfirmWithAction(message, options = {}) {
     confirmModal.classList.add('active');
 
     return new Promise((resolve) => {
-        resolvePromise = (result) => {
-            // 次回のために action ボタンを非表示に戻す
-            if (confirmActionBtn) {
-                confirmActionBtn.style.display = 'none';
-            }
-            resolve(result);
-        };
+        resolvePromise = resolve;
     });
 }
