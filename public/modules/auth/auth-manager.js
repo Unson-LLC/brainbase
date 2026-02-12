@@ -90,22 +90,10 @@ export class AuthManager {
         this.access = access || null;
         this.refreshToken = refreshToken || null;
 
-        if (persist && typeof window !== 'undefined' && window.localStorage) {
-            if (this.token) {
-                window.localStorage.setItem(this.storageKeys.token, this.token);
-            } else {
-                window.localStorage.removeItem(this.storageKeys.token);
-            }
-            if (this.access) {
-                window.localStorage.setItem(this.storageKeys.access, JSON.stringify(this.access));
-            } else {
-                window.localStorage.removeItem(this.storageKeys.access);
-            }
-            if (this.refreshToken) {
-                window.localStorage.setItem(this.storageKeys.refresh, this.refreshToken);
-            } else {
-                window.localStorage.removeItem(this.storageKeys.refresh);
-            }
+        if (persist) {
+            this._updateStorageValue(this.storageKeys.token, this.token);
+            this._updateStorageValue(this.storageKeys.access, this.access, { json: true });
+            this._updateStorageValue(this.storageKeys.refresh, this.refreshToken);
         }
 
         if (this.httpClient?.setAuthToken && this.token) {
@@ -121,10 +109,10 @@ export class AuthManager {
         this.access = null;
         this.refreshToken = null;
 
-        if (persist && typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.removeItem(this.storageKeys.token);
-            window.localStorage.removeItem(this.storageKeys.access);
-            window.localStorage.removeItem(this.storageKeys.refresh);
+        if (persist) {
+            this._updateStorageValue(this.storageKeys.token, null);
+            this._updateStorageValue(this.storageKeys.access, null);
+            this._updateStorageValue(this.storageKeys.refresh, null);
         }
 
         if (this.httpClient?.clearAuthToken) {
@@ -173,21 +161,15 @@ export class AuthManager {
 
     _ensureCsrfSessionId() {
         if (this.csrfSessionId) return this.csrfSessionId;
-        if (typeof window === 'undefined' || !window.localStorage) {
+        if (!this._canUseStorage()) {
             this.csrfSessionId = 'default';
             return this.csrfSessionId;
         }
 
         let stored = window.localStorage.getItem(this.storageKeys.csrfSession);
         if (!stored) {
-            try {
-                stored = (window.crypto && window.crypto.randomUUID)
-                    ? window.crypto.randomUUID()
-                    : `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-            } catch (error) {
-                stored = `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-            }
-            window.localStorage.setItem(this.storageKeys.csrfSession, stored);
+            stored = this._generateSessionId();
+            this._updateStorageValue(this.storageKeys.csrfSession, stored);
         }
         this.csrfSessionId = stored;
         return stored;
@@ -344,9 +326,7 @@ export class AuthManager {
             this.token = token;
             this.access = access || null;
             this.refreshToken = refreshToken || this.refreshToken || null;
-            if (this.refreshToken && window.localStorage) {
-                window.localStorage.setItem(this.storageKeys.refresh, this.refreshToken);
-            }
+            this._updateStorageValue(this.storageKeys.refresh, this.refreshToken);
             if (this.httpClient?.setAuthToken) {
                 this.httpClient.setAuthToken(token);
             }
@@ -445,5 +425,26 @@ export class AuthManager {
         this._verifying = Boolean(value);
         this._syncStore();
         this._emit('auth:changed');
+    }
+
+    _canUseStorage() {
+        return typeof window !== 'undefined' && Boolean(window.localStorage);
+    }
+
+    _updateStorageValue(key, value, { json = false } = {}) {
+        if (!this._canUseStorage()) return;
+        if (value === null || value === undefined) {
+            window.localStorage.removeItem(key);
+            return;
+        }
+        const payload = json ? JSON.stringify(value) : value;
+        window.localStorage.setItem(key, payload);
+    }
+
+    _generateSessionId() {
+        if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+            return window.crypto.randomUUID();
+        }
+        return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     }
 }

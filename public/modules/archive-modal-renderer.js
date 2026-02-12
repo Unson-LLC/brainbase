@@ -30,8 +30,10 @@ export function renderArchivedSessionItemHTML(session) {
  * @param {Array} sessions - 全セッション配列
  * @returns {string} HTML文字列
  */
+import { getArchivedSessions } from './archive-modal-controller.js';
+
 export function renderArchiveListHTML(sessions) {
-  const archivedSessions = sessions.filter(s => s.intendedState === 'archived');
+  const archivedSessions = getArchivedSessions(sessions);
 
   if (archivedSessions.length === 0) {
     return '<div class="archive-empty">アーカイブ済みセッションなし</div>';

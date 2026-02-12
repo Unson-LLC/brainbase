@@ -1,84 +1,104 @@
+import { clampScoreValue, getScoreColor } from './chart-colors.js';
+
+const DEFAULT_CANVAS_SIZE = { width: 160, height: 150 };
+const CENTER = { x: 80, y: 100 };
+const RADIUS = 70;
+const STROKE_WIDTH = 12;
+const BACKGROUND_STROKE = 'rgba(255, 255, 255, 0.1)';
+
+const drawText = (ctx, text, { x, y, color, font }) => {
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x, y);
+};
+
 export class GaugeChart {
     constructor(container, options = {}) {
         this.container = container;
-        this.value = options.value || 0;
+        this.value = clampScoreValue(options.value || 0);
         this.label = options.label || '';
         this.subtitle = options.subtitle || '';
-        this.color = options.color || this.getColor(this.value);
+        this.color = options.color || getScoreColor(this.value);
+        this.size = options.size || DEFAULT_CANVAS_SIZE;
+        this.radius = options.radius || RADIUS;
+        this.center = {
+            x: options.center?.x ?? CENTER.x,
+            y: options.center?.y ?? CENTER.y
+        };
         this.render();
     }
 
-    getColor(value) {
-        if (value >= 70) return '#35a670'; // 緑
-        if (value >= 50) return '#ff9b26'; // 黄
-        return '#ee4f27'; // 赤
-    }
-
     render() {
-        // Clear container
+        if (!this.container) return;
         this.container.innerHTML = '';
-
-        // Canvas API で半円ゲージを描画
-        const canvas = document.createElement('canvas');
-        // Set display size (css pixels)
-        const width = 160;
-        const height = 150;
-        canvas.style.width = width + "px";
-        canvas.style.height = height + "px";
-
-        // Set actual size in memory (scaled to account for extra pixel density)
-        const scale = window.devicePixelRatio; // Change to 1 on retina screens to see blurry canvas
-        canvas.width = Math.floor(width * scale);
-        canvas.height = Math.floor(height * scale);
-
-        // Normalize coordinate system to use css pixels
-        const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale);
-
-        this.container.appendChild(canvas);
+        const ctx = this._createContext();
+        if (!ctx) return;
         this.drawGauge(ctx);
     }
 
+    _createContext() {
+        const { width, height } = this.size;
+        const canvas = document.createElement('canvas');
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+
+        const scale = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+        canvas.width = Math.floor(width * scale);
+        canvas.height = Math.floor(height * scale);
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            return null;
+        }
+        ctx.scale(scale, scale);
+        this.container.appendChild(canvas);
+        return ctx;
+    }
+
     drawGauge(ctx) {
-        const centerX = 80;
-        const centerY = 100;
-        const radius = 70;
+        const { x: centerX, y: centerY } = this.center;
+        const radius = this.radius;
         const startAngle = Math.PI;
         const endAngle = 2 * Math.PI;
         const valueAngle = startAngle + (endAngle - startAngle) * (this.value / 100);
 
-        // 背景円弧（グレー）
+        ctx.lineWidth = STROKE_WIDTH;
+        ctx.lineCap = 'round';
+
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-        ctx.lineWidth = 12;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineCap = 'round';
+        ctx.strokeStyle = BACKGROUND_STROKE;
         ctx.stroke();
 
-        // 値円弧（色付き）
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius, startAngle, valueAngle);
-        ctx.lineWidth = 12;
         ctx.strokeStyle = this.color;
-        ctx.lineCap = 'round';
         ctx.stroke();
 
-        // 中央テキスト（スコア）
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 32px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(Math.round(this.value).toString(), centerX, centerY - 15);
+        drawText(ctx, Math.round(this.value).toString(), {
+            x: centerX,
+            y: centerY - 15,
+            color: '#ffffff',
+            font: 'bold 32px Inter, sans-serif'
+        });
 
-        // サブタイトル（スコア説明）
         if (this.subtitle) {
-            ctx.fillStyle = '#6f87a0';
-            ctx.font = '10px Inter, sans-serif';
-            ctx.fillText(this.subtitle, centerX, centerY + 5);
+            drawText(ctx, this.subtitle, {
+                x: centerX,
+                y: centerY + 5,
+                color: '#6f87a0',
+                font: '10px Inter, sans-serif'
+            });
         }
 
-        // ラベル（プロジェクト名など）
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 15px Inter, sans-serif';
-        ctx.fillText(this.label, centerX, centerY + 30);
+        if (this.label) {
+            drawText(ctx, this.label, {
+                x: centerX,
+                y: centerY + 30,
+                color: '#ffffff',
+                font: 'bold 15px Inter, sans-serif'
+            });
+        }
     }
 }

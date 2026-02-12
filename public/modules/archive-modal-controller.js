@@ -4,6 +4,14 @@
 
 import { getProjectFromSession } from './project-mapping.js';
 
+const ARCHIVED_STATE = 'archived';
+
+const isArchivedSession = session => session?.intendedState === ARCHIVED_STATE;
+
+export function getArchivedSessions(sessions = []) {
+  return sessions.filter(isArchivedSession);
+}
+
 /**
  * アーカイブ済みセッションをフィルタリング
  * @param {Array} sessions - 全セッション
@@ -12,7 +20,7 @@ import { getProjectFromSession } from './project-mapping.js';
  * @returns {Array}
  */
 export function filterArchivedSessions(sessions, searchTerm, projectFilter) {
-  let archived = sessions.filter(s => s.intendedState === 'archived');
+  let archived = getArchivedSessions(sessions);
 
   // Search filter
   if (searchTerm) {
@@ -53,7 +61,7 @@ export function sortByCreatedDate(sessions) {
  * @returns {Array<string>}
  */
 export function getUniqueProjects(sessions) {
-  const archived = sessions.filter(s => s.intendedState === 'archived');
+  const archived = getArchivedSessions(sessions);
   const projects = archived.map(s => getProjectFromSession(s));
   return [...new Set(projects)].sort();
 }
