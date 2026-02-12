@@ -228,30 +228,29 @@ export class WorktreeService {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
 
-            // Get commits ahead using jj log
-            let ahead = 0;
+            // Get changes not pushed (main..@)
+            let changesNotPushed = 0;
             try {
                 const { stdout: aheadCount } = await this.execPromise(
                     `jj -C "${workspacePath}" log -r "${mainBranchName}..@" -T '"x\n"' --no-pager 2>/dev/null | wc -l`
                 );
-                ahead = parseInt(aheadCount.trim()) || 0;
+                changesNotPushed = parseInt(aheadCount.trim()) || 0;
             } catch {
-                ahead = 0;
+                changesNotPushed = 0;
             }
 
-            // Check for uncommitted changes (Jujutsu: working copy is always a commit)
-            // Check if working copy has changes not in any bookmark
-            let hasUncommittedChanges = false;
+            // Check for working copy changes (Jujutsu: working copy is always a commit)
+            let hasWorkingCopyChanges = false;
             try {
                 const { stdout: statusOutput } = await this.execPromise(
                     `jj -C "${workspacePath}" status --no-pager`
                 );
-                hasUncommittedChanges = statusOutput.trim().length > 0;
+                hasWorkingCopyChanges = statusOutput.trim().length > 0;
             } catch {
-                hasUncommittedChanges = false;
+                hasWorkingCopyChanges = false;
             }
 
-            // Check if bookmark exists and is pushed
+            // Check if bookmark exists and is pushed to remote
             let bookmarkPushed = false;
             try {
                 const { stdout: bookmarkList } = await this.execPromise(
@@ -262,24 +261,35 @@ export class WorktreeService {
                 bookmarkPushed = false;
             }
 
+            // Determine if integration (push) is needed
+            const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges || !bookmarkPushed;
+
             return {
                 exists: true,
                 worktreePath: workspacePath,
-                branchName: `session/${sessionId}`,
                 workspaceName,
                 bookmarkName,
                 mainBranch: mainBranchName,
-                commitsAhead: ahead,
-                hasUncommittedChanges,
-                bookmarkPushed,
-                needsMerge: ahead > 0 || hasUncommittedChanges
+
+                // Jujutsu概念
+                changesNotPushed,        // remoteにないchange数
+                hasWorkingCopyChanges,   // working copyに変更があるか
+                bookmarkPushed,          // bookmarkがremoteにあるか
+                needsIntegration,        // 統合（push）が必要か
+
+                // 後方互換性（非推奨、将来的に削除）
+                commitsAhead: changesNotPushed,
+                hasUncommittedChanges: hasWorkingCopyChanges,
+                branchName: `session/${sessionId}`,
+                needsMerge: needsIntegration
             };
         } catch (err) {
             return {
                 exists: false,
                 worktreePath: workspacePath,
-                branchName: `session/${sessionId}`,
                 workspaceName,
+                bookmarkName,
+                needsIntegration: false,
                 needsMerge: false
             };
         }

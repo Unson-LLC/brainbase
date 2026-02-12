@@ -114,7 +114,7 @@ export class SessionController {
 
     /**
      * POST /api/sessions/:id/archive
-     * セッションをアーカイブ（worktreeマージチェック、ttyd停止、状態更新）
+     * セッションをアーカイブ（workspace統合チェック、ttyd停止、状態更新）
      */
     archive = async (req, res) => {
         const { id } = req.params;
@@ -127,18 +127,18 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        // Check if worktree needs merge
+        // Check if workspace needs integration (Jujutsu: push needed)
         if (session.worktree && !skipMergeCheck) {
             const status = await this.worktreeService.getStatus(
                 id,
                 session.worktree.repo,
                 session.worktree.startCommit || null
             );
-            if (status.needsMerge) {
+            if (status.needsIntegration || status.needsMerge) {
                 return res.json({
                     needsConfirmation: true,
                     status,
-                    message: 'Session has unmerged changes'
+                    message: 'Workspace has changes not pushed to remote'
                 });
             }
         }

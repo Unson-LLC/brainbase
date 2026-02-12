@@ -447,101 +447,30 @@ export class SessionView {
                         return;
                     }
 
-                    let updateError = null;
-                    if (session.worktree) {
-                        const status = await this.sessionService.getWorktreeStatus(session.id);
-                        if (status?.localMainStale) {
-                            const behindCount = status.localMainBehind || 0;
-                            const aheadCount = status.localMainAhead || 0;
-                            const mainBranch = status.mainBranch || 'main';
-                            const aheadWarning = aheadCount > 0
-                                ? `\nローカル${mainBranch}に${aheadCount}コミットの独自変更があります（自動更新は失敗します）`
-                                : '';
-                            const confirmed = await showConfirm(
-                                `ローカル${mainBranch}が${behindCount}コミット遅れています。最新化しますか？${aheadWarning}`,
-                                { title: 'main更新', okText: '更新する', cancelText: 'スキップ', danger: false }
-                            );
-                            if (confirmed) {
-                                try {
-                                    let updateResult = await this.sessionService.updateLocalMain(session.id);
-                                    let skippedByUser = false;
-
-                                    if (!updateResult?.success && updateResult?.errorCode === 'DIRTY_MAIN') {
-                                        const decision = await this._askLocalMainUpdateDecision({
-                                            mainBranch,
-                                            uncommittedChanges: updateResult.uncommittedChanges || []
-                                        });
-                                        if (decision === 'cancel') {
-                                            showInfo('アーカイブをキャンセルしました');
-                                            return;
-                                        }
-                                        if (decision === 'skip') {
-                                            skippedByUser = true;
-                                            updateError = `ローカル${mainBranch}更新をスキップしました`;
-                                            showInfo(`ローカル${mainBranch}の更新をスキップしてアーカイブを続行します`);
-                                        } else if (decision === 'stash') {
-                                            updateResult = await this.sessionService.updateLocalMain(session.id, { autoStash: true });
-                                        }
-                                    }
-
-                                    if (!skippedByUser && updateResult?.success && updateResult.updated !== false) {
-                                        if (updateResult.autoStashed) {
-                                            showSuccess(`ローカル${mainBranch}の変更を一時退避して更新しました`);
-                                        } else {
-                                            showSuccess(`ローカル${mainBranch}を更新しました`);
-                                        }
-                                    } else if (!skippedByUser && updateResult?.success) {
-                                        showInfo(`ローカル${mainBranch}は最新です`);
-                                    } else if (!skippedByUser) {
-                                        updateError = updateResult?.error || 'ローカルmainの更新に失敗しました';
-                                        showError(updateError);
-                                        const continueWithSkip = await showConfirm(
-                                            `ローカル${mainBranch}の更新に失敗しました。\n\n更新をスキップしてアーカイブを続行しますか？`,
-                                            { title: 'main更新失敗', okText: 'スキップして続行', cancelText: 'キャンセル', danger: false }
-                                        );
-                                        if (!continueWithSkip) {
-                                            showInfo('アーカイブをキャンセルしました');
-                                            return;
-                                        }
-                                    }
-                                } catch (err) {
-                                    console.error('Failed to update local main:', err);
-                                    const raw = err?.message || 'ローカルmainの更新に失敗しました';
-                                    updateError = raw.replace(/^Network Error:\s*/, '');
-                                    showError(updateError);
-                                }
-                            }
-                        }
-                    }
-
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
                         const details = [];
-                        if (updateError) {
-                            details.push(`main更新失敗: ${updateError}`);
+
+                        // Jujutsu概念でステータス表示
+                        if (status.changesNotPushed > 0) {
+                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
                         }
-                        const mainBranchLabel = status.mainBranch || 'main';
-                        if (status.localMainAhead > 0) {
-                            details.push(`ローカル${mainBranchLabel}が${status.localMainAhead}コミット進んでいます`);
+                        if (!status.bookmarkPushed && status.bookmarkName) {
+                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
                         }
-                        if (status.localMainBehind > 0) {
-                            details.push(`ローカル${mainBranchLabel}が${status.localMainBehind}コミット遅れています`);
+                        if (status.hasWorkingCopyChanges) {
+                            details.push('working copyに未完了のchangeがあります');
                         }
-                        if (status.commitsAhead > 0) {
-                            details.push(`このセッションのワークツリーに${status.commitsAhead}コミットの未マージ変更があります`);
-                        }
-                        if (status.hasUncommittedChanges) {
-                            details.push('未コミット変更があります');
-                        }
+
                         const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
                         const confirmResult = await showConfirmWithAction(
-                            `未マージの変更があります。マージチェックをスキップしてアーカイブしますか？${detailText}`,
+                            `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
                                 title: 'アーカイブ確認',
-                                okText: 'スキップしてアーカイブ',
+                                okText: 'そのままアーカイブ',
                                 cancelText: 'キャンセル',
-                                actionText: '原因を調査',
+                                actionText: 'pushして統合',
                                 danger: true
                             }
                         );
@@ -550,17 +479,19 @@ export class SessionView {
                             : (confirmResult ? 'ok' : 'cancel');
 
                         if (selectedAction === 'action') {
-                            // 診断プロンプトを生成してチャット入力欄に挿入
-                            const prompt = this._generateInvestigationPrompt(status);
-                            const delivery = await this._deliverInvestigationPrompt(prompt);
-                            if (delivery.mode === 'inserted') {
-                                showInfo('調査プロンプトを入力欄に挿入しました');
-                            } else if (delivery.mode === 'clipboard') {
-                                showInfo('調査プロンプトをクリップボードにコピーしました。対象セッションで貼り付けてください');
-                            } else {
-                                showInfo('調査プロンプトをコンソールに出力しました。コピーして利用してください');
+                            // pushして統合
+                            try {
+                                const mergeResult = await this.sessionService.mergeSession(session.id);
+                                if (mergeResult?.success) {
+                                    showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
+                                } else {
+                                    showError(mergeResult?.error || 'pushに失敗しました');
+                                }
+                            } catch (mergeErr) {
+                                console.error('Failed to push session:', mergeErr);
+                                showError('pushに失敗しました');
                             }
-                            return; // モーダルを閉じて調査に移る
+                            return;
                         }
 
                         if (selectedAction !== 'ok') {
@@ -718,57 +649,6 @@ export class SessionView {
     }
 
     /**
-     * ローカルmain更新失敗時の意思決定を確認
-     * @param {Object} params
-     * @param {string} params.mainBranch
-     * @param {string[]} params.uncommittedChanges
-     * @returns {Promise<'stash'|'skip'|'cancel'>}
-     */
-    async _askLocalMainUpdateDecision({ mainBranch, uncommittedChanges = [] }) {
-        const changesPreview = this._formatUncommittedChangesForModal(uncommittedChanges);
-        const confirmResult = await showConfirmWithAction(
-            `ローカル${mainBranch}に未コミット変更があるため自動更新できません。\n\n` +
-            `現在の変更:\n${changesPreview}\n\n` +
-            'どうしますか？',
-            {
-                title: 'main更新エラー',
-                okText: '更新をスキップしてアーカイブ',
-                cancelText: 'キャンセル',
-                actionText: '退避して更新',
-                danger: false
-            }
-        );
-        const action = typeof confirmResult === 'object' && confirmResult !== null
-            ? confirmResult.action
-            : (confirmResult ? 'ok' : 'cancel');
-
-        if (action === 'action') return 'stash';
-        if (action === 'ok') return 'skip';
-        return 'cancel';
-    }
-
-    /**
-     * 未コミット変更一覧をモーダル表示用に整形
-     * @param {string[]} uncommittedChanges
-     * @returns {string}
-     */
-    _formatUncommittedChangesForModal(uncommittedChanges = []) {
-        if (!Array.isArray(uncommittedChanges) || uncommittedChanges.length === 0) {
-            return '・変更一覧を取得できませんでした';
-        }
-
-        const MAX_LINES = 8;
-        const lines = uncommittedChanges
-            .slice(0, MAX_LINES)
-            .map(line => `・${line}`);
-        const remaining = uncommittedChanges.length - lines.length;
-        if (remaining > 0) {
-            lines.push(`・...他 ${remaining} 件`);
-        }
-        return lines.join('\n');
-    }
-
-    /**
      * 調査プロンプトを利用可能な入力先に配信
      * @param {string} prompt
      * @returns {Promise<{mode: 'inserted'|'clipboard'|'console'}>}
@@ -848,24 +728,21 @@ export class SessionView {
     }
 
     /**
-     * 診断プロンプトを生成
-     * @param {Object} status - { commitsAhead, hasUncommittedChanges, localMainAhead, localMainBehind }
+     * 診断プロンプトを生成（Jujutsu概念）
+     * @param {Object} status - { changesNotPushed, hasWorkingCopyChanges, bookmarkPushed, bookmarkName }
      * @returns {string} - フォーマット済みプロンプト
      */
     _generateInvestigationPrompt(status) {
         const issues = [];
 
-        if (status.commitsAhead > 0) {
-            issues.push(`- ローカルコミット未プッシュ: ${status.commitsAhead}件`);
+        if (status.changesNotPushed > 0) {
+            issues.push(`- remoteにpushされてないchange: ${status.changesNotPushed}件`);
         }
-        if (status.hasUncommittedChanges) {
-            issues.push('- 未コミットの変更あり');
+        if (!status.bookmarkPushed && status.bookmarkName) {
+            issues.push(`- bookmark '${status.bookmarkName}' がremoteにない`);
         }
-        if (status.localMainAhead > 0) {
-            issues.push(`- ローカルmainが${status.localMainAhead}件ahead`);
-        }
-        if (status.localMainBehind > 0) {
-            issues.push(`- ローカルmainが${status.localMainBehind}件behind`);
+        if (status.hasWorkingCopyChanges) {
+            issues.push('- working copyに未完了のchangeあり');
         }
 
         const issueList = issues.length > 0 ? issues.join('\n') : '- 不明な問題';
@@ -875,6 +752,7 @@ export class SessionView {
 ${issueList}
 
 これらの問題を解決してアーカイブ可能な状態にする方法を教えてください。
+Jujutsuコマンド（jj）を使用してください。
 
 セッションID: ${window.location.hash.slice(1) || '不明'}`;
     }
