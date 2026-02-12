@@ -5295,11 +5295,36 @@ body.resizing iframe {
     .mobile-input-dock.expanded .mobile-input-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 6px;
+    }
+
+    /* 3行表示: 1行3個 */
+    .mobile-input-dock.expanded .mobile-input-btn {
+        flex: 1 1 calc(33.33% - 12px);
+        min-width: 0;
     }
 
     body.mobile-input-expanded {
-        --mobile-input-offset: 220px;
+        --mobile-input-offset: 200px;
+    }
+
+    /* Agent Teamsモード: 1行表示 */
+    body.agent-teams-mode .mobile-input-dock.expanded .mobile-input-actions {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 4px;
+    }
+
+    body.agent-teams-mode .mobile-input-dock.expanded .mobile-input-btn {
+        flex: 0 0 auto;
+        min-width: 44px;
+        font-size: 10px;
+        padding: 6px 8px;
+    }
+
+    body.agent-teams-mode .mobile-input-dock.expanded .mobile-input-btn i {
+        width: 16px;
+        height: 16px;
     }
 
     body.mobile-composer-open .mobile-input-dock {
