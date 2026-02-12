@@ -910,6 +910,10 @@ import追加 → 「正しい順序か?」
 - **Custom Command**: `/merge`
 - **装備Skills**: git-workflow
 
+**Phase 8: Handover** (引き継ぎ)
+- 次セッションが5分で再開できる `HANDOVER.md` を生成して引き継ぐ
+- **Custom Command**: `/handover`
+
 **使用例**:
 ```bash
 # 1. Explore: 既存コード調査

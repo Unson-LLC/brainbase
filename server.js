@@ -53,6 +53,7 @@ import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createSetupRouter } from './server/routes/setup.js';
+import { createGoalSeekRouter, attachWebSocketServer } from './server/routes/goal-seek.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -607,6 +608,11 @@ app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
+
+// Goal Seek router with WebSocket support
+const goalSeekRouter = createGoalSeekRouter({ authService, eventBus: null }); // TODO: Add EventBus when available
+app.use('/api/goal-seek', requireAuth(authService), goalSeekRouter);
+
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================
@@ -631,6 +637,9 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', ttydProxy.upgrade);
+
+// Initialize Goal Seek WebSocket server
+attachWebSocketServer(goalSeekRouter, server, '/api/goal-seek/calculate');
 
 // Graceful shutdown
 async function gracefulShutdown(signal) {
