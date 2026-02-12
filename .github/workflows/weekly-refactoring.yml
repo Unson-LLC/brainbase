@@ -3,11 +3,11 @@ name: ops-department Auto Refactoring
 on:
   schedule:
     - cron: "0 */6 * * *" # 6時間ごと（0:00, 6:00, 12:00, 18:00 UTC）
-  workflow_dispatch: # 手動実行も可能
+  workflow_dispatch: {}
 
 jobs:
   ops-department-review:
-    runs-on: self-hosted
+    runs-on: [self-hosted, local]
     permissions:
       contents: write
       pull-requests: write
@@ -23,15 +23,43 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Verify Codex CLI
+        run: codex --version
+
       - name: Run ops-department team review
         env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          CLAUDE_CODE_DISABLE_TELEMETRY: "1"
-          PATH: ${{ env.HOME }}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+          AI_CLI_BACKEND: codex
+          CODEX_CLI_PATH: codex
+          CODEX_MODEL: gpt-5-codex
+          CODEX_REASONING_EFFORT: high
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node scripts/ops-team-review.cjs
 
-      - name: Read PR Title
+      - name: Check actionable changes
         if: success()
+        id: changes
+        run: |
+          set -euo pipefail
+
+          tracked="$(git diff --name-only || true)"
+          untracked="$(git ls-files --others --exclude-standard || true)"
+
+          all_files="$(printf '%s\n%s\n' "${tracked}" "${untracked}" | sed '/^$/d' | sort -u)"
+
+          # Ignore workflow/report artifacts. We still allow committing the report when code changes exist.
+          actionable_files="$(printf '%s\n' "${all_files}" | grep -vE '^(ops-department-refactoring\\.md)$' || true)"
+
+          if [ -n "${actionable_files}" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Actionable changes detected:"
+            printf '%s\n' "${actionable_files}"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  No actionable changes detected. Skipping PR creation."
+          fi
+
+      - name: Read PR Title
+        if: steps.changes.outputs.has_changes == 'true'
         id: pr-title
         run: |
           if [ -f pr-title.txt ]; then
@@ -39,20 +67,31 @@ jobs:
           else
             echo "title=[ops-department] 自動コードレビュー - Run ${{ github.run_number }}" >> $GITHUB_OUTPUT
           fi
+          rm -f pr-title.txt || true
 
       - name: Prepare PR Body
-        if: success()
+        if: steps.changes.outputs.has_changes == 'true'
+        id: pr-body
         run: |
-          if [ ! -f pr-body.txt ]; then
-            cat > pr-body.txt <<'EOF'
-## 🤖 ops-department 自動コードレビュー
+          set -euo pipefail
 
-詳細なレビュー結果は `ops-department-refactoring.md` を参照してください。
-EOF
+          body_path="${RUNNER_TEMP}/ops-department-pr-body-${GITHUB_RUN_ID}.md"
+
+          if [ -f pr-body.txt ]; then
+            cp pr-body.txt "${body_path}"
+          else
+            printf '%s\n' \
+              '## 🤖 ops-department 自動コードレビュー' \
+              '' \
+              '詳細なレビュー結果は `ops-department-refactoring.md` を参照してください。' \
+              > "${body_path}"
           fi
 
+          rm -f pr-body.txt || true
+          echo "path=${body_path}" >> "$GITHUB_OUTPUT"
+
       - name: Create Pull Request
-        if: success()
+        if: steps.changes.outputs.has_changes == 'true'
         id: create-pr
         uses: peter-evans/create-pull-request@v6
         with:
@@ -66,21 +105,49 @@ EOF
             - refactoring-specialist: refactoring suggestions
             - tdd-engineer: test coverage check
 
-            Co-Authored-By: ops-department <noreply@unson.co.jp>
+            Co-Authored-By: ops-department <ops-department@users.noreply.github.com>
+          base: main
           branch: ops-department/weekly-review-${{ github.run_number }}
           delete-branch: true
           title: ${{ steps.pr-title.outputs.title }}
-          body-path: pr-body.txt
+          body-path: ${{ steps.pr-body.outputs.path }}
           labels: |
             automated
             refactoring
             ops-department
 
-            **実行詳細:**
-            - Run Number: ${{ github.run_number }}
-            - Run ID: ${{ github.run_id }}
-            - Triggered: ${{ github.event_name }}
-          labels: |
-            automated
-            refactoring
-            ops-department
+      - name: Update refactoring history in main
+        if: steps.create-pr.outputs.pull-request-number
+        env:
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+          PR_BRANCH: ${{ steps.create-pr.outputs.pull-request-branch }}
+          TARGET_BRANCH: main
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: node scripts/commit-history-to-develop.cjs
+
+  # PRマージ状態を定期的に更新
+  update-pr-status:
+    runs-on: [self-hosted, local]
+    if: github.event_name == 'schedule'
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Update PR merge status
+        env:
+          TARGET_BRANCH: main
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/update-pr-status.cjs

@@ -239,3 +239,11 @@ test-zep-e2e.js
 # ========================================
 HANDOFF_SESSION.md
 HANDOFF*.md
+
+# ========================================
+# ops-department automation artifacts
+# ========================================
+pr-title.txt
+pr-body.txt
+refactoring-result.json
+.codex-last-message-*.txt
