@@ -1,0 +1,22 @@
+{
+  "areas": [
+    {
+      "area": "lib",
+      "refactored_at": "2026-02-12T08:10:47.519Z",
+      "files_modified": [
+        "lib/config-parser.js"
+      ],
+      "changes_summary": "config.ymlの読み込みをキャッシュ付きヘルパーにまとめて、Slack系YAMLも同じルートで読むようにしたから重複コード消えてスッキリだよ〜☆",
+      "run_number": "23",
+      "run_id": "21938485772",
+      "trigger_event": "workflow_dispatch",
+      "pr_number": 164,
+      "pr_branch": "ops-department/weekly-review-23",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/164",
+      "pr_status": "open",
+      "merged_at": null
+    }
+  ],
+  "last_updated": "2026-02-12T08:10:55.275Z",
+  "total_prs_created": 1
+}
