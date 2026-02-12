@@ -61,7 +61,8 @@
     "open": "^11.0.0",
     "pg": "^8.18.0",
     "ulid": "^2.4.0",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

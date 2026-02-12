@@ -546,6 +546,15 @@ body::after {
     height: 12px;
 }
 
+/* SVG Engine Icons - テーマに合わせて白っぽく表示 */
+.engine-svg-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+    vertical-align: middle;
+    filter: brightness(0) saturate(100%) invert(90%);
+}
+
 .engine-icon.engine-codex {
     color: #10a37f;
 }
