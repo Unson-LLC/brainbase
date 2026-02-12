@@ -13,8 +13,8 @@
       "pr_number": 164,
       "pr_branch": "ops-department/weekly-review-23",
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/164",
-      "pr_status": "open",
-      "merged_at": null
+      "pr_status": "merged",
+      "merged_at": "2026-02-12T08:53:35Z"
     },
     {
       "area": "lib",
@@ -33,6 +33,7 @@
       "merged_at": null
     }
   ],
-  "last_updated": "2026-02-12T08:57:06.070Z",
-  "total_prs_created": 2
+  "last_updated": "2026-02-12T12:17:16.472Z",
+  "total_prs_created": 2,
+  "total_prs_merged": 1
 }
