@@ -259,5 +259,25 @@ export const EVENTS = {
     PLUGIN_ENABLED: 'plugin:enabled',
     PLUGIN_DISABLED: 'plugin:disabled',
     PLUGIN_REQUIREMENTS_FAILED: 'plugin:requirements-failed',
-    PLUGIN_SLOT_MISSING: 'plugin:slot-missing'
+    PLUGIN_SLOT_MISSING: 'plugin:slot-missing',
+
+    // Goal Seek関連
+    GOAL_SEEK_STARTED: 'goal-seek:started',
+    GOAL_SEEK_PROGRESS: 'goal-seek:progress',
+    GOAL_SEEK_COMPLETED: 'goal-seek:completed',
+    GOAL_SEEK_FAILED: 'goal-seek:failed',
+    GOAL_SEEK_CANCELLED: 'goal-seek:cancelled',
+    GOAL_SEEK_CONNECTED: 'goal-seek:connected',
+    GOAL_SEEK_DISCONNECTED: 'goal-seek:disconnected',
+    GOAL_SEEK_ERROR: 'goal-seek:error',
+    GOAL_SEEK_INTERVENTION_REQUIRED: 'goal-seek:intervention-required',
+    GOAL_SEEK_INTERVENTION_RESPONDED: 'goal-seek:intervention-responded',
+
+    // Browser Notification関連
+    NOTIFICATION_PERMISSION_CHANGED: 'notification:permission-changed',
+    NOTIFICATION_SENT: 'notification:sent',
+    NOTIFICATION_CLICKED: 'notification:clicked',
+    NOTIFICATION_FALLBACK: 'notification:fallback',
+    NOTIFICATION_REQUEST: 'notification:request',
+    NOTIFICATION_SEND: 'notification:send'
 };
