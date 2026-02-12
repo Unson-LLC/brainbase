@@ -33,7 +33,6 @@ jobs:
           CODEX_MODEL: gpt-5-codex
           CODEX_REASONING_EFFORT: high
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PATH: ${{ env.PATH }}
         run: node scripts/ops-team-review.cjs
 
       - name: Read PR Title
