@@ -2,11 +2,10 @@
 /**
  * Update PR Merge Status in Refactoring History
  *
- * 定期的にPRのマージ状態を確認し、履歴を更新する。
- * マージ済みPRの情報を履歴に反映させることで、進捗を追跡できる。
+ * 定期的にPRのマージ状態を確認し、refactoring-history.json を更新してbaseブランチに反映する。
  *
  * Usage:
- *   node scripts/update-pr-status.cjs
+ *   TARGET_BRANCH=main node scripts/update-pr-status.cjs
  */
 
 const { execSync } = require("child_process");
@@ -14,9 +13,33 @@ const fs = require("fs");
 
 const HISTORY_FILE = "refactoring-history.json";
 
-/**
- * リファクタリング履歴を読み込み
- */
+function ensureGitUserConfig() {
+  try {
+    const name = execSync("git config --get user.name || true", {
+      encoding: "utf-8",
+    }).trim();
+    const email = execSync("git config --get user.email || true", {
+      encoding: "utf-8",
+    }).trim();
+
+    if (!name) execSync('git config user.name "github-actions[bot]"');
+    if (!email)
+      execSync(
+        'git config user.email "github-actions[bot]@users.noreply.github.com"',
+      );
+  } catch (_error) {
+    // Best-effort
+  }
+}
+
+function checkoutOriginBranch(branch) {
+  execSync(`git fetch origin "${branch}"`, { stdio: "inherit" });
+  execSync(`git checkout -B "${branch}" "origin/${branch}"`, {
+    stdio: "inherit",
+  });
+  execSync(`git pull origin "${branch}"`, { stdio: "inherit" });
+}
+
 function loadRefactoringHistory() {
   if (!fs.existsSync(HISTORY_FILE)) {
     console.log(`⚠️  ${HISTORY_FILE} が見つかりません。スキップします。`);
@@ -32,21 +55,15 @@ function loadRefactoringHistory() {
   }
 }
 
-/**
- * 履歴を保存
- */
 function saveRefactoringHistory(history) {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
 }
 
-/**
- * PRステータスを取得
- */
 function getPRStatus(prNumber) {
   try {
     const result = execSync(
       `gh pr view ${prNumber} --json state,mergedAt --jq '.state,.mergedAt'`,
-      { encoding: "utf-8" }
+      { encoding: "utf-8" },
     ).trim();
 
     const [state, mergedAt] = result.split("\n");
@@ -61,28 +78,34 @@ function getPRStatus(prNumber) {
   }
 }
 
-/**
- * メイン処理
- */
 function main() {
   console.log("🔄 Updating PR merge status...");
   console.log("=".repeat(60));
 
-  // 履歴を読み込み
+  const targetBranch = process.env.TARGET_BRANCH || "main";
+
+  // 常にbaseブランチ上で履歴を更新する
+  try {
+    checkoutOriginBranch(targetBranch);
+  } catch (error) {
+    console.error(`❌ ${targetBranch} のチェックアウトに失敗:`, error.message);
+    process.exit(1);
+  }
+
   const history = loadRefactoringHistory();
   if (!history) {
     console.log("✅ No history to update");
     return;
   }
 
+  if (!Array.isArray(history.areas)) history.areas = [];
+
   console.log(`  📖 Loaded history: ${history.areas.length} areas`);
 
   let updatedCount = 0;
   let mergedCount = 0;
 
-  // 各エントリのPRステータスを確認
   for (const area of history.areas) {
-    // PR情報がない、またはすでにマージ済みの場合はスキップ
     if (!area.pr_number || area.pr_status === "merged") {
       continue;
     }
@@ -94,7 +117,6 @@ function main() {
       continue;
     }
 
-    // ステータスが変更されている場合は更新
     if (prStatus.state === "MERGED" && area.pr_status !== "merged") {
       area.pr_status = "merged";
       area.merged_at = prStatus.mergedAt || new Date().toISOString();
@@ -103,32 +125,40 @@ function main() {
       mergedCount++;
     } else if (prStatus.state === "CLOSED" && area.pr_status !== "closed") {
       area.pr_status = "closed";
-      console.log(`    ⚠️  Marked as CLOSED`);
+      console.log("    ⚠️  Marked as CLOSED");
       updatedCount++;
     } else {
       console.log(`    ℹ️  Status unchanged: ${area.pr_status}`);
     }
   }
 
-  // 統計情報を更新
   if (updatedCount > 0) {
     history.total_prs_merged = (history.total_prs_merged || 0) + mergedCount;
     history.last_updated = new Date().toISOString();
 
-    // 履歴を保存
     saveRefactoringHistory(history);
-    console.log(`\n  💾 Saved updated history`);
+    console.log("\n  💾 Saved updated history");
 
-    // developにコミット・プッシュ
-    console.log("\n  📝 Committing to develop...");
+    console.log(`\n  📝 Committing to ${targetBranch}...`);
     try {
+      ensureGitUserConfig();
       execSync(`git add ${HISTORY_FILE}`);
+
+      try {
+        execSync("git diff --cached --quiet", { stdio: "ignore" });
+        console.log("  ℹ️  No changes to commit");
+        return;
+      } catch (_error) {
+        // changes exist
+      }
+
       execSync(
         `git commit -m "chore: update PR status (${updatedCount} updated, ${mergedCount} merged)"`,
-        { encoding: "utf-8" }
+        { encoding: "utf-8" },
       );
-      execSync("git push origin develop");
-      console.log("  ✅ Pushed to develop");
+
+      execSync(`git push origin "${targetBranch}"`, { stdio: "inherit" });
+      console.log(`  ✅ Pushed to ${targetBranch}`);
     } catch (error) {
       console.error("❌ コミット・プッシュ失敗:", error.message);
       process.exit(1);
