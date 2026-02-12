@@ -5292,6 +5292,12 @@ body.resizing iframe {
         display: none;
     }
 
+    .mobile-input-dock.expanded .mobile-input-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
     body.mobile-input-expanded {
         --mobile-input-offset: 220px;
     }
