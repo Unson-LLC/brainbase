@@ -336,8 +336,10 @@ export class WorktreeService {
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<{success: boolean, updated?: boolean, error?: string, mainBranch?: string, localMainCommit?: string, originMainCommit?: string}>}
      */
-    async updateLocalMain(repoPath) {
+    async updateLocalMain(repoPath, options = {}) {
+        const { autoStash = false } = options;
         const mainBranchName = await this._getMainBranchName(repoPath);
+        let autoStashed = false;
 
         try {
             await this.execPromise(`git -C "${repoPath}" fetch origin ${mainBranchName}`);
@@ -381,13 +383,43 @@ export class WorktreeService {
             return { success: false, error: `差分確認失敗: ${err.message}` };
         }
 
-        // Ensure clean working tree
+        // Ensure clean working tree (or stash automatically if requested)
         try {
             const { stdout: statusOutput } = await this.execPromise(
                 `git -C "${repoPath}" status --porcelain`
             );
             if (statusOutput.trim().length > 0) {
-                return { success: false, error: `${mainBranchName}に未コミット変更があります` };
+                const uncommittedChanges = statusOutput
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(Boolean);
+
+                if (!autoStash) {
+                    return {
+                        success: false,
+                        errorCode: 'DIRTY_MAIN',
+                        error: `${mainBranchName}に未コミット変更があります`,
+                        mainBranch: mainBranchName,
+                        uncommittedChanges
+                    };
+                }
+
+                try {
+                    const stashMessage = `brainbase:auto-stash:${mainBranchName}:${new Date().toISOString()}`;
+                    const escapedMessage = stashMessage.replace(/"/g, '\\"');
+                    await this.execPromise(
+                        `git -C "${repoPath}" stash push --include-untracked -m "${escapedMessage}"`
+                    );
+                    autoStashed = true;
+                } catch (stashErr) {
+                    return {
+                        success: false,
+                        errorCode: 'AUTO_STASH_FAILED',
+                        error: `自動退避に失敗しました: ${stashErr.message}`,
+                        mainBranch: mainBranchName,
+                        uncommittedChanges
+                    };
+                }
             }
         } catch (err) {
             return { success: false, error: `status確認失敗: ${err.message}` };
@@ -417,6 +449,7 @@ export class WorktreeService {
                 success: true,
                 updated: true,
                 mainBranch: mainBranchName,
+                autoStashed,
                 localMainCommit: updatedCommit.trim(),
                 originMainCommit
             };

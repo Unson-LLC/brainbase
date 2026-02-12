@@ -64,22 +64,32 @@ if not s:
 s = s.strip()
 
 if not s:
-    print("\t")
+    print("\t\t")
     sys.exit(0)
 try:
     data = json.loads(s)
 except Exception:
-    print("\t")
+    print("\t\t")
     sys.exit(0)
 
-print(f"{data.get('type', '')}\t{data.get('turn-id', '')}")
+print(f"{data.get('type', '')}\t{data.get('turn-id', '')}\t{data.get('thread-id', '')}")
 PY
 )"
 
   event_type="${parsed%%$'\t'*}"
-  turn_id="${parsed#*$'\t'}"
-  if [ "$turn_id" = "$parsed" ]; then
+  rest="${parsed#*$'\t'}"
+  turn_id="${rest%%$'\t'*}"
+  if [ "$turn_id" = "$rest" ]; then
     turn_id=""
+  fi
+  thread_id="${rest#*$'\t'}"
+  if [ "$thread_id" = "$rest" ]; then
+    thread_id=""
+  fi
+
+  # Keep Codex thread id in tmux session env for status-right.
+  if [ -n "$thread_id" ] && [ -n "$BRAINBASE_SESSION_ID" ] && command -v tmux >/dev/null 2>&1; then
+    tmux set-environment -t "$BRAINBASE_SESSION_ID" CODEX_THREAD_ID "$thread_id" >/dev/null 2>&1 || true
   fi
 
   PORT="$(resolve_brainbase_port)"

@@ -226,9 +226,22 @@ class TerminalReconnectManager {
         }
 
         try {
-            const res = await httpClient.post('/api/sessions/start', {
-                sessionId: this.currentSessionId
-            });
+            const payload = { sessionId: this.currentSessionId };
+            const state = appStore.getState();
+            const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
+
+            const sessionCwd = currentSession?.worktree?.path || currentSession?.path;
+            if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
+                payload.cwd = sessionCwd;
+            }
+            if (typeof currentSession?.initialCommand === 'string') {
+                payload.initialCommand = currentSession.initialCommand;
+            }
+            if (typeof currentSession?.engine === 'string' && currentSession.engine.trim()) {
+                payload.engine = currentSession.engine;
+            }
+
+            const res = await httpClient.post('/api/sessions/start', payload);
 
             if (res?.proxyPath) {
                 // Only reload iframe if proxyPath actually changed (new ttyd process/port)
@@ -282,6 +295,9 @@ export class App {
         this.terminalInputStatusEl = null;
         this._terminalInputUxCleanup = [];
         this._terminalLastNavigateAt = 0;
+        // tmux copy-mode (pane_in_mode) blocks input. We can't reliably read it from the iframe,
+        // so we track entry/exit based on TMUX_SCROLL / TERMINAL_INTERACT messages.
+        this._terminalCopyModeSessions = new Set();
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
@@ -349,7 +365,7 @@ export class App {
         const el = this.terminalInputStatusEl;
         if (!el) return;
 
-        const classes = ['ready', 'needs-focus', 'reconnecting', 'disconnected', 'blocked'];
+        const classes = ['ready', 'needs-focus', 'reconnecting', 'disconnected', 'blocked', 'copy-mode'];
         el.classList.remove(...classes);
 
         if (hidden) {
@@ -387,6 +403,7 @@ export class App {
         const frameBlank = !frameSrcAttr || frameSrcAttr === 'about:blank';
         const wsConnected = Boolean(this.reconnectManager?.wsConnected);
         const isReconnecting = Boolean(this.reconnectManager?.isReconnecting);
+        const isCopyMode = this._terminalCopyModeSessions.has(sessionId);
         const retryCount = this.reconnectManager?.retryCount ?? 0;
         const maxRetries = this.reconnectManager?.maxRetries ?? 3;
         const lastCode = this.reconnectManager?.lastDisconnectCode;
@@ -436,6 +453,10 @@ export class App {
             stateClass = 'needs-focus';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;
+        } else if (isCopyMode) {
+            stateClass = 'copy-mode';
+            text = '入力: スクロール中 (クリックで戻る)';
+            title = `session=${sessionId} copy-mode (click to exit)`;
         } else {
             stateClass = 'ready';
             text = '入力: OK';
@@ -481,6 +502,28 @@ export class App {
             this.reconnectManager.onStatusChange = () => this._updateTerminalInputStatus();
         }
 
+        // Track tmux copy-mode (entered by TMUX_SCROLL; exited by TERMINAL_INTERACT).
+        const onTerminalMessage = (event) => {
+            // Only trust same-origin messages coming from the current terminal iframe.
+            if (event.origin !== window.location.origin) return;
+            if (this.terminalFrame?.contentWindow && event.source !== this.terminalFrame.contentWindow) return;
+
+            const type = event.data?.type;
+            if (type !== 'TMUX_SCROLL' && type !== 'TERMINAL_INTERACT') return;
+
+            const sessionId = appStore.getState().currentSessionId;
+            if (!sessionId) return;
+
+            if (type === 'TMUX_SCROLL') {
+                this._terminalCopyModeSessions.add(sessionId);
+            } else if (type === 'TERMINAL_INTERACT') {
+                this._terminalCopyModeSessions.delete(sessionId);
+            }
+            this._updateTerminalInputStatus();
+        };
+        window.addEventListener('message', onTerminalMessage);
+        this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onTerminalMessage));
+
         // Click-to-focus: clicking on the console background (including the menu overlay) should restore focus.
         const onConsoleClick = (e) => {
             if (!this._isConsoleVisible()) return;
@@ -504,10 +547,21 @@ export class App {
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
 
+            const sessionId = appStore.getState().currentSessionId;
+            if (sessionId && this._terminalCopyModeSessions.has(sessionId)) {
+                // Best-effort: exit tmux copy-mode so input works again.
+                fetch(`/api/sessions/${sessionId}/exit_copy_mode`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                }).catch(() => {});
+                this._terminalCopyModeSessions.delete(sessionId);
+            }
+
             if (!this.reconnectManager?.wsConnected && !this.reconnectManager?.isReconnecting) {
                 this.reconnectManager?.handleDisconnect?.();
             }
             this.focusTerminal('status-click');
+            this._updateTerminalInputStatus();
         };
         this.terminalInputStatusEl?.addEventListener('click', onStatusClick);
         this._terminalInputUxCleanup.push(() => this.terminalInputStatusEl?.removeEventListener('click', onStatusClick));

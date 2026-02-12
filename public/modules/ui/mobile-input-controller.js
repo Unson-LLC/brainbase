@@ -118,6 +118,19 @@ export class MobileInputController {
         );
     }
 
+    /**
+     * 外部からテキスト挿入するための公開API
+     * @param {string} text
+     * @returns {boolean} 挿入成功時true
+     */
+    insertTextAtCursor(text) {
+        if (!this.uiController || typeof this.uiController.insertTextAtCursor !== 'function') {
+            return false;
+        }
+        this.uiController.insertTextAtCursor(text);
+        return true;
+    }
+
     destroy() {
         if (this.unsubscribeSession) {
             this.unsubscribeSession();

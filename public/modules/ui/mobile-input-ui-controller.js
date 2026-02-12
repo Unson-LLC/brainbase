@@ -617,12 +617,20 @@ export class MobileInputUIController {
     }
 
     handleUploadImage() {
+        console.log('[mobile-input] handleUploadImage called');
         const imageFileInput = document.getElementById('image-file-input');
-        imageFileInput?.click();
+        if (!imageFileInput) {
+            console.error('[mobile-input] image-file-input not found');
+            showError('画像アップロード要素が見つからない');
+            return;
+        }
+        imageFileInput.click();
     }
 
     async handleCopyTerminal() {
+        console.log('[mobile-input] handleCopyTerminal called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -651,7 +659,9 @@ export class MobileInputUIController {
     }
 
     async handleClear() {
+        console.log('[mobile-input] handleClear called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -659,6 +669,7 @@ export class MobileInputUIController {
 
         try {
             await this.apiClient.sendKey(sessionId, 'C-l');
+            showSuccess('画面クリア送信');
         } catch (error) {
             console.error('Failed to send Clear:', error);
             showError('クリアコマンドの送信に失敗したよ');
@@ -666,7 +677,9 @@ export class MobileInputUIController {
     }
 
     async handleEscape() {
+        console.log('[mobile-input] handleEscape called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -674,6 +687,7 @@ export class MobileInputUIController {
 
         try {
             await this.apiClient.sendKey(sessionId, 'Escape');
+            showSuccess('Escape送信');
         } catch (error) {
             console.error('Failed to send Escape:', error);
             showError('Escapeキーの送信に失敗したよ');
@@ -681,7 +695,9 @@ export class MobileInputUIController {
     }
 
     async handleShiftTab() {
+        console.log('[mobile-input] handleShiftTab called');
         const sessionId = appStore.getState().currentSessionId;
+        console.log('[mobile-input] sessionId:', sessionId);
         if (!sessionId) {
             showInfo('セッションを選択してね');
             return;
@@ -689,6 +705,7 @@ export class MobileInputUIController {
 
         try {
             await this.apiClient.sendKey(sessionId, 'S-Tab');
+            showSuccess('Shift+Tab送信');
         } catch (error) {
             console.error('Failed to send Shift+Tab:', error);
             showError('Shift+Tabキーの送信に失敗したよ');
@@ -696,6 +713,7 @@ export class MobileInputUIController {
     }
 
     handleSessionsSheet() {
+        console.log('[mobile-input] handleSessionsSheet called');
         // bottom navのセッションボタンをトリガーしてセッション一覧を開く
         const mobileSessionsBtn = document.getElementById('mobile-sessions-btn');
         if (mobileSessionsBtn) {

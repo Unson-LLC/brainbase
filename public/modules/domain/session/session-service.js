@@ -358,8 +358,8 @@ export class SessionService {
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object>}
      */
-    async updateLocalMain(sessionId) {
-        return await this.httpClient.post(`/api/sessions/${sessionId}/update-local-main`, {});
+    async updateLocalMain(sessionId, options = {}) {
+        return await this.httpClient.post(`/api/sessions/${sessionId}/update-local-main`, options);
     }
 
     /**

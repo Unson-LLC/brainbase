@@ -463,14 +463,46 @@ export class SessionView {
                             );
                             if (confirmed) {
                                 try {
-                                    const updateResult = await this.sessionService.updateLocalMain(session.id);
-                                    if (updateResult?.success && updateResult.updated !== false) {
-                                        showSuccess(`ローカル${mainBranch}を更新しました`);
-                                    } else if (updateResult?.success) {
+                                    let updateResult = await this.sessionService.updateLocalMain(session.id);
+                                    let skippedByUser = false;
+
+                                    if (!updateResult?.success && updateResult?.errorCode === 'DIRTY_MAIN') {
+                                        const decision = await this._askLocalMainUpdateDecision({
+                                            mainBranch,
+                                            uncommittedChanges: updateResult.uncommittedChanges || []
+                                        });
+                                        if (decision === 'cancel') {
+                                            showInfo('アーカイブをキャンセルしました');
+                                            return;
+                                        }
+                                        if (decision === 'skip') {
+                                            skippedByUser = true;
+                                            updateError = `ローカル${mainBranch}更新をスキップしました`;
+                                            showInfo(`ローカル${mainBranch}の更新をスキップしてアーカイブを続行します`);
+                                        } else if (decision === 'stash') {
+                                            updateResult = await this.sessionService.updateLocalMain(session.id, { autoStash: true });
+                                        }
+                                    }
+
+                                    if (!skippedByUser && updateResult?.success && updateResult.updated !== false) {
+                                        if (updateResult.autoStashed) {
+                                            showSuccess(`ローカル${mainBranch}の変更を一時退避して更新しました`);
+                                        } else {
+                                            showSuccess(`ローカル${mainBranch}を更新しました`);
+                                        }
+                                    } else if (!skippedByUser && updateResult?.success) {
                                         showInfo(`ローカル${mainBranch}は最新です`);
-                                    } else {
+                                    } else if (!skippedByUser) {
                                         updateError = updateResult?.error || 'ローカルmainの更新に失敗しました';
                                         showError(updateError);
+                                        const continueWithSkip = await showConfirm(
+                                            `ローカル${mainBranch}の更新に失敗しました。\n\n更新をスキップしてアーカイブを続行しますか？`,
+                                            { title: 'main更新失敗', okText: 'スキップして続行', cancelText: 'キャンセル', danger: false }
+                                        );
+                                        if (!continueWithSkip) {
+                                            showInfo('アーカイブをキャンセルしました');
+                                            return;
+                                        }
                                     }
                                 } catch (err) {
                                     console.error('Failed to update local main:', err);
@@ -502,8 +534,8 @@ export class SessionView {
                         if (status.hasUncommittedChanges) {
                             details.push('未コミット変更があります');
                         }
-                        const detailText = details.length ? `\n\n${details.join(' / ')}` : '';
-                        const result = await showConfirmWithAction(
+                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
+                        const confirmResult = await showConfirmWithAction(
                             `未マージの変更があります。マージチェックをスキップしてアーカイブしますか？${detailText}`,
                             {
                                 title: 'アーカイブ確認',
@@ -513,17 +545,25 @@ export class SessionView {
                                 danger: true
                             }
                         );
+                        const selectedAction = typeof confirmResult === 'object' && confirmResult !== null
+                            ? confirmResult.action
+                            : (confirmResult ? 'ok' : 'cancel');
 
-                        if (result.action === 'action') {
+                        if (selectedAction === 'action') {
                             // 診断プロンプトを生成してチャット入力欄に挿入
                             const prompt = this._generateInvestigationPrompt(status);
-                            if (window.mobileInputController) {
-                                window.mobileInputController.insertTextAtCursor(prompt);
+                            const delivery = await this._deliverInvestigationPrompt(prompt);
+                            if (delivery.mode === 'inserted') {
+                                showInfo('調査プロンプトを入力欄に挿入しました');
+                            } else if (delivery.mode === 'clipboard') {
+                                showInfo('調査プロンプトをクリップボードにコピーしました。対象セッションで貼り付けてください');
+                            } else {
+                                showInfo('調査プロンプトをコンソールに出力しました。コピーして利用してください');
                             }
                             return; // モーダルを閉じて調査に移る
                         }
 
-                        if (result.action !== 'ok') {
+                        if (selectedAction !== 'ok') {
                             showInfo('アーカイブをキャンセルしました');
                             return;
                         }
@@ -675,6 +715,117 @@ export class SessionView {
             if (!session) return;
             this._attachSessionActionHandlers(row, session, options);
         });
+    }
+
+    /**
+     * ローカルmain更新失敗時の意思決定を確認
+     * @param {Object} params
+     * @param {string} params.mainBranch
+     * @param {string[]} params.uncommittedChanges
+     * @returns {Promise<'stash'|'skip'|'cancel'>}
+     */
+    async _askLocalMainUpdateDecision({ mainBranch, uncommittedChanges = [] }) {
+        const changesPreview = this._formatUncommittedChangesForModal(uncommittedChanges);
+        const confirmResult = await showConfirmWithAction(
+            `ローカル${mainBranch}に未コミット変更があるため自動更新できません。\n\n` +
+            `現在の変更:\n${changesPreview}\n\n` +
+            'どうしますか？',
+            {
+                title: 'main更新エラー',
+                okText: '更新をスキップしてアーカイブ',
+                cancelText: 'キャンセル',
+                actionText: '退避して更新',
+                danger: false
+            }
+        );
+        const action = typeof confirmResult === 'object' && confirmResult !== null
+            ? confirmResult.action
+            : (confirmResult ? 'ok' : 'cancel');
+
+        if (action === 'action') return 'stash';
+        if (action === 'ok') return 'skip';
+        return 'cancel';
+    }
+
+    /**
+     * 未コミット変更一覧をモーダル表示用に整形
+     * @param {string[]} uncommittedChanges
+     * @returns {string}
+     */
+    _formatUncommittedChangesForModal(uncommittedChanges = []) {
+        if (!Array.isArray(uncommittedChanges) || uncommittedChanges.length === 0) {
+            return '・変更一覧を取得できませんでした';
+        }
+
+        const MAX_LINES = 8;
+        const lines = uncommittedChanges
+            .slice(0, MAX_LINES)
+            .map(line => `・${line}`);
+        const remaining = uncommittedChanges.length - lines.length;
+        if (remaining > 0) {
+            lines.push(`・...他 ${remaining} 件`);
+        }
+        return lines.join('\n');
+    }
+
+    /**
+     * 調査プロンプトを利用可能な入力先に配信
+     * @param {string} prompt
+     * @returns {Promise<{mode: 'inserted'|'clipboard'|'console'}>}
+     */
+    async _deliverInvestigationPrompt(prompt) {
+        const controller = window.mobileInputController || window.brainbaseApp?.mobileInputController;
+        if (controller && typeof controller.insertTextAtCursor === 'function') {
+            const inserted = controller.insertTextAtCursor(prompt);
+            if (inserted !== false) {
+                return { mode: 'inserted' };
+            }
+        }
+
+        if (this._insertTextIntoActiveEditable(prompt)) {
+            return { mode: 'inserted' };
+        }
+
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(prompt);
+                return { mode: 'clipboard' };
+            }
+        } catch (error) {
+            console.warn('Failed to copy investigation prompt to clipboard:', error);
+        }
+
+        console.log('[Archive Investigation Prompt]');
+        console.log(prompt);
+        return { mode: 'console' };
+    }
+
+    /**
+     * 現在フォーカス中の入力欄にテキスト挿入
+     * @param {string} text
+     * @returns {boolean}
+     */
+    _insertTextIntoActiveEditable(text) {
+        const active = document.activeElement;
+        const isTextarea = active instanceof HTMLTextAreaElement;
+        const isTextInput = active instanceof HTMLInputElement
+            && ['text', 'search', 'url', 'email', 'tel'].includes((active.type || 'text').toLowerCase());
+
+        if (!isTextarea && !isTextInput) {
+            return false;
+        }
+
+        const inputEl = active;
+        const start = inputEl.selectionStart ?? inputEl.value.length;
+        const end = inputEl.selectionEnd ?? inputEl.value.length;
+        inputEl.value = inputEl.value.slice(0, start) + text + inputEl.value.slice(end);
+        const nextPos = start + text.length;
+        if (typeof inputEl.setSelectionRange === 'function') {
+            inputEl.setSelectionRange(nextPos, nextPos);
+        }
+        inputEl.focus();
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
     }
 
     /**

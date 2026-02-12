@@ -1,12 +1,14 @@
 #!/bin/bash
 
 # Default session name if none provided
-# Use a unique session id unless a valid session-<digits> name is provided
+# Keep existing IDs (including legacy suffix付き形式) to preserve log/resume linkage.
 RAW_SESSION_NAME="$1"
-if [ -z "$RAW_SESSION_NAME" ] || ! [[ "$RAW_SESSION_NAME" =~ ^session-[0-9]+$ ]]; then
+if [ -z "$RAW_SESSION_NAME" ]; then
     SESSION_NAME="session-$(date +%s%3N)"
-else
+elif [[ "$RAW_SESSION_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
     SESSION_NAME="$RAW_SESSION_NAME"
+else
+    SESSION_NAME="session-$(date +%s%3N)"
 fi
 INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
