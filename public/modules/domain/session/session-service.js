@@ -388,6 +388,25 @@ export class SessionService {
     }
 
     /**
+     * セッションを統合（pushしてマージ）
+     * Jujutsu: bookmarkをpushしてPR作成→マージ
+     * @param {string} sessionId - 統合するセッションのID
+     * @returns {Promise<{success?: boolean, error?: string, prUrl?: string}>}
+     */
+    async mergeSession(sessionId) {
+        const result = await this.httpClient.post(
+            `/api/sessions/${sessionId}/merge`
+        );
+
+        if (result.success) {
+            await this.loadSessions();
+            await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+        }
+
+        return result;
+    }
+
+    /**
      * セッションをアンアーカイブ（復元）
      * restore APIを呼び出し、ttydを再起動してセッションのengineで復元する
      * @param {string} sessionId - 復元するセッションのID
