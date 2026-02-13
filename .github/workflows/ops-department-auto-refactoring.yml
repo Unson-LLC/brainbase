@@ -260,12 +260,13 @@ jobs:
         if: always() && steps.create-pr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PROMPT_DISABLED: "1"
         run: |
           set -euo pipefail
 
           pr="${{ steps.create-pr.outputs.pull-request-number }}"
           echo "🔀 Auto-merging PR #${pr} into develop..."
-          gh pr merge "${pr}" --repo "${GITHUB_REPOSITORY}" --merge --delete-branch --yes
+          gh pr merge "${pr}" --repo "${GITHUB_REPOSITORY}" --merge --delete-branch
 
   # PRマージ状態を定期的に更新
   update-pr-status:
