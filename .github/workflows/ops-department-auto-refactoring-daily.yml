@@ -143,11 +143,37 @@ jobs:
         if: steps.size-guard.outputs.allowed == 'true'
         run: npm ci
 
-      - name: Run unit tests
+      - name: Run related unit tests (medium)
         if: steps.size-guard.outputs.allowed == 'true'
         env:
           CI: "true"
-        run: npm run test:run
+        run: |
+          set -euo pipefail
+
+          tracked="$(git diff --name-only || true)"
+          untracked="$(git ls-files --others --exclude-standard || true)"
+          all_files="$(printf '%s\n%s\n' "${tracked}" "${untracked}" | sed '/^$/d' | sort -u)"
+
+          actionable_files="$(printf '%s\n' "${all_files}" | grep -vE '^(ops-department-refactoring\.md)$' || true)"
+          related_targets="$(
+            printf '%s\n' "${actionable_files}" \
+              | sed '/^$/d' \
+              | grep -E '^(public/modules|server|lib)/.*\.(cjs|mjs|js|jsx|ts|tsx)$' \
+              || true
+          )"
+
+          if [ -z "${related_targets}" ]; then
+            echo "ℹ️ No source files for related tests. Skipping unit tests."
+            exit 0
+          fi
+
+          related_count="$(printf '%s\n' "${related_targets}" | sed '/^$/d' | wc -l | tr -d ' ')"
+          echo "🧪 Running related unit tests for ${related_count} changed source file(s)..."
+          printf '%s\n' "${related_targets}" | sed 's/^/  - /'
+
+          # Intentionally unquoted to expand newline-delimited file list as CLI args.
+          # shellcheck disable=SC2086
+          npx vitest related --run --passWithNoTests ${related_targets}
 
       - name: Read PR Title
         if: steps.size-guard.outputs.allowed == 'true'
@@ -204,7 +230,7 @@ jobs:
             Automated code review and refactoring by ops-department team (medium tier).
 
             Co-Authored-By: ops-department <noreply@unson.co.jp>
-          base: main
+          base: develop
           branch: ops-department/auto-refactor-medium-${{ github.run_number }}
           delete-branch: true
           title: ${{ steps.pr-title.outputs.title }}
@@ -217,12 +243,12 @@ jobs:
             ops-department
             medium
 
-      - name: Update refactoring history in main
+      - name: Update refactoring history in develop
         if: steps.create-pr.outputs.pull-request-number
         env:
           PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
           PR_BRANCH: ${{ steps.create-pr.outputs.pull-request-branch }}
-          TARGET_BRANCH: main
+          TARGET_BRANCH: develop
           HUSKY: "0"
           HUSKY_SKIP_HOOKS: "1"
           SKIP_BRANCH_PROTECTION: "1"
