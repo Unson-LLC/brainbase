@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   ops-department-review:
-    runs-on: [self-hosted, local]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
@@ -39,19 +39,19 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
+
       - name: Verify Codex CLI
         run: codex --version
 
       - name: Run ops-department team review
         env:
-          REAL_HOME: /Users/ksato
-          HOME: /Users/ksato
           AI_CLI_BACKEND: codex
-          CODEX_CLI_PATH: /usr/local/bin/codex
+          CODEX_CLI_PATH: codex
           CODEX_MODEL: gpt-5-codex
           CODEX_REASONING_EFFORT: high
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PATH: /Users/ksato/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
         run: node scripts/ops-team-review.cjs
 
       - name: Check actionable changes
@@ -270,7 +270,7 @@ jobs:
 
   # PRマージ状態を定期的に更新
   update-pr-status:
-    runs-on: [self-hosted, local]
+    runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     permissions:
       contents: write
