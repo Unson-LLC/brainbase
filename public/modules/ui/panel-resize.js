@@ -127,41 +127,32 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
         }
     }
 
-    function onMouseDown(e) {
-        e.preventDefault();
+    function beginDrag(startClientX) {
         isDragging = true;
-        startX = e.clientX;
+        startX = startClientX;
         startWidth = panel.offsetWidth;
-
         createOverlay();
         handle.classList.add('dragging');
         document.body.classList.add('resizing');
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
     }
 
-    function onMouseMove(e) {
+    function updateDragPosition(clientX) {
         if (!isDragging) return;
-
-        const deltaX = e.clientX - startX;
+        const deltaX = clientX - startX;
         const newWidth = direction === 'left'
             ? startWidth + deltaX
             : startWidth - deltaX;
-
         const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
         scheduleUpdate(clampedWidth);
     }
 
-    function onMouseUp() {
+    function finishDrag() {
         if (!isDragging) return;
-
         isDragging = false;
         removeOverlay();
         handle.classList.remove('dragging');
         document.body.classList.remove('resizing');
 
-        // 最終値を即時適用
         if (rafId) {
             cancelAnimationFrame(rafId);
             rafId = null;
@@ -171,10 +162,25 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
             pendingWidth = null;
         }
 
-        // 幅を保存
         const currentWidth = panel.offsetWidth;
         localStorage.setItem(storageKey, currentWidth.toString());
+    }
 
+    function onMouseDown(e) {
+        e.preventDefault();
+        beginDrag(e.clientX);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    function onMouseMove(e) {
+        updateDragPosition(e.clientX);
+    }
+
+    function onMouseUp() {
+        const wasDragging = isDragging;
+        finishDrag();
+        if (!wasDragging) return;
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
     }
@@ -182,14 +188,7 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
     // タッチデバイス対応
     function onTouchStart(e) {
         const touch = e.touches[0];
-        isDragging = true;
-        startX = touch.clientX;
-        startWidth = panel.offsetWidth;
-
-        createOverlay();
-        handle.classList.add('dragging');
-        document.body.classList.add('resizing');
-
+        beginDrag(touch.clientX);
         document.addEventListener('touchmove', onTouchMove, { passive: false });
         document.addEventListener('touchend', onTouchEnd);
     }
@@ -197,37 +196,14 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
     function onTouchMove(e) {
         if (!isDragging) return;
         e.preventDefault();
-
         const touch = e.touches[0];
-        const deltaX = touch.clientX - startX;
-        const newWidth = direction === 'left'
-            ? startWidth + deltaX
-            : startWidth - deltaX;
-
-        const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-        scheduleUpdate(clampedWidth);
+        updateDragPosition(touch.clientX);
     }
 
     function onTouchEnd() {
-        if (!isDragging) return;
-
-        isDragging = false;
-        removeOverlay();
-        handle.classList.remove('dragging');
-        document.body.classList.remove('resizing');
-
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-        }
-        if (pendingWidth !== null) {
-            panel.style.width = `${pendingWidth}px`;
-            pendingWidth = null;
-        }
-
-        const currentWidth = panel.offsetWidth;
-        localStorage.setItem(storageKey, currentWidth.toString());
-
+        const wasDragging = isDragging;
+        finishDrag();
+        if (!wasDragging) return;
         document.removeEventListener('touchmove', onTouchMove);
         document.removeEventListener('touchend', onTouchEnd);
     }
