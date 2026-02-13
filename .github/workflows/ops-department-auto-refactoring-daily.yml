@@ -53,11 +53,59 @@ jobs:
           CODEX_REASONING_EFFORT: high
         run: node scripts/ops-team-review.cjs
 
+      - name: Read refactor run status
+        if: always()
+        id: review-status
+        run: |
+          set -euo pipefail
+
+          if [ ! -f ops-team-review-run-status.json ]; then
+            echo "status=unknown" >> "$GITHUB_OUTPUT"
+            echo "reason=missing_status_file" >> "$GITHUB_OUTPUT"
+            echo "⚠️  ops-team-review-run-status.json was not found."
+            exit 0
+          fi
+
+          status="$(node <<'NODE'
+const fs = require("fs");
+try {
+  const data = JSON.parse(fs.readFileSync("ops-team-review-run-status.json", "utf-8"));
+  process.stdout.write(data.status || "unknown");
+} catch (_error) {
+  process.stdout.write("unknown");
+}
+NODE
+)"
+          reason="$(node <<'NODE'
+const fs = require("fs");
+try {
+  const data = JSON.parse(fs.readFileSync("ops-team-review-run-status.json", "utf-8"));
+  process.stdout.write(data.reason || "");
+} catch (_error) {
+  process.stdout.write("status_file_parse_failed");
+}
+NODE
+)"
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "reason=${reason}" >> "$GITHUB_OUTPUT"
+          echo "📌 refactor run status: ${status} (${reason})"
+
+      - name: Fail when review step failed
+        if: steps.review-status.outputs.status == 'failed'
+        run: |
+          echo "::error::ops-team-review reported a fatal error: ${{ steps.review-status.outputs.reason }}"
+          exit 1
+
       - name: Check actionable changes
         if: success()
         id: changes
         run: |
           set -euo pipefail
+
+          if [ "${{ steps.review-status.outputs.status }}" = "failed" ]; then
+            echo "❌ Review failed. Skipping PR creation."
+            exit 1
+          fi
 
           tracked="$(git diff --name-only || true)"
           untracked="$(git ls-files --others --exclude-standard || true)"

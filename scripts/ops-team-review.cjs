@@ -27,6 +27,7 @@ const path = require("path");
 // リファクタリング履歴ファイル
 const HISTORY_FILE = "refactoring-history.json";
 const RESULT_FILE = "refactoring-result.json";
+const RUN_STATUS_FILE = "ops-team-review-run-status.json";
 
 const WORKFLOW_FILE =
   process.env.OPS_REFACTOR_WORKFLOW_FILE ||
@@ -132,6 +133,38 @@ Output format:
   "area": "Component/Module name (e.g., 'Authentication', 'API Handlers', 'UI Components')"
 }`,
 };
+
+function writeRunStatus(status, reason, details = {}) {
+  const payload = {
+    status,
+    reason,
+    details,
+    timestamp: new Date().toISOString(),
+    workflow: WORKFLOW_FILE,
+    runId: process.env.GITHUB_RUN_ID || null,
+    runNumber: process.env.GITHUB_RUN_NUMBER || null,
+    eventName: process.env.GITHUB_EVENT_NAME || null,
+  };
+
+  try {
+    fs.writeFileSync(RUN_STATUS_FILE, JSON.stringify(payload, null, 2));
+  } catch (error) {
+    console.warn("⚠️  Failed to write run status file:", error.message);
+  }
+
+  const outputPath = process.env.GITHUB_OUTPUT;
+  if (!outputPath) return;
+
+  const sanitize = (value) => `${value}`.replace(/\r?\n/g, " ").trim();
+  try {
+    fs.appendFileSync(outputPath, `status=${sanitize(status)}\n`);
+    fs.appendFileSync(outputPath, `reason=${sanitize(reason)}\n`);
+    fs.appendFileSync(outputPath, `ops_review_status=${sanitize(status)}\n`);
+    fs.appendFileSync(outputPath, `ops_review_reason=${sanitize(reason)}\n`);
+  } catch (error) {
+    console.warn("⚠️  Failed to write GitHub step output:", error.message);
+  }
+}
 
 /**
  * Codex CLIを使用してテキスト生成
@@ -1117,6 +1150,9 @@ async function main() {
     if (allAreas.length > 50) {
       console.log(`... (${allAreas.length - 50} more)`);
     }
+    writeRunStatus("success", "scan_only", {
+      areaCount: allAreas.length,
+    });
     return;
   }
 
@@ -1153,6 +1189,7 @@ async function main() {
     console.log(
       "\n🎉 No eligible areas found (all areas are within cooldown or have open PRs).",
     );
+    writeRunStatus("skipped", "no_eligible_areas");
     return;
   }
 
@@ -1161,6 +1198,7 @@ async function main() {
   });
   if (!targetArea) {
     console.log("\n⚠️  Failed to select a target area.");
+    writeRunStatus("skipped", "no_target_area");
     return;
   }
   const files = getFilesInArea(targetArea);
@@ -1193,6 +1231,10 @@ async function main() {
     if (!refactoringResult || !refactoringResult.refactored) {
       console.log("\n❌ No refactoring was performed");
       discardWorkingTreeChanges();
+      writeRunStatus("skipped", "refactor_not_performed", {
+        attempt,
+        area: targetArea,
+      });
       return;
     }
 
@@ -1202,6 +1244,10 @@ async function main() {
         "\nℹ️  No actionable code changes detected. Skipping PR creation.",
       );
       discardWorkingTreeChanges();
+      writeRunStatus("skipped", "no_actionable_changes", {
+        attempt,
+        area: targetArea,
+      });
       return;
     }
 
@@ -1246,6 +1292,10 @@ async function main() {
       `\n❌ Judge threshold not met after ${maxAttempts} attempt(s). Discarding changes.`,
     );
     discardWorkingTreeChanges();
+    writeRunStatus("skipped", "judge_threshold_not_met", {
+      area: targetArea,
+      attemptCount: maxAttempts,
+    });
     return;
   }
 
@@ -1365,9 +1415,17 @@ This refactoring was automatically performed by the ops-department refactoring-s
 
   console.log("\n" + "=".repeat(60));
   console.log("🎉 ops-department Auto Refactoring Complete!");
+  writeRunStatus("success", "refactor_completed", {
+    area: refactoringResult.area,
+    filesModified: changedFiles.length,
+    judgeScore: judge?.score,
+  });
 }
 
 main().catch((error) => {
   console.error("❌ Fatal error:", error);
+  writeRunStatus("failed", "fatal_error", {
+    message: error.message,
+  });
   process.exit(1);
 });
