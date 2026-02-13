@@ -76,13 +76,14 @@ export class MobileClipboardManager {
     }
 
     async readClipboardText() {
-        if (!navigator.clipboard || !navigator.clipboard.readText) {
+        const clipboard = this.getClipboard();
+        if (!clipboard || typeof clipboard.readText !== 'function') {
             showInfo('クリップボード読み取りに対応してないよ');
             return '';
         }
 
         try {
-            const text = await navigator.clipboard.readText();
+            const text = await clipboard.readText();
             if (!text) {
                 showInfo('クリップボードが空だよ');
             } else {
@@ -105,9 +106,10 @@ export class MobileClipboardManager {
         console.log('[clipboard] pasteFromClipboard called');
 
         // まず画像の読み取りを試す
-        if (navigator.clipboard && navigator.clipboard.read) {
+        const clipboard = this.getClipboard();
+        if (clipboard && typeof clipboard.read === 'function') {
             try {
-                const clipboardItems = await navigator.clipboard.read();
+                const clipboardItems = await clipboard.read();
                 for (const item of clipboardItems) {
                     // 画像タイプを探す
                     const imageType = item.types.find(type => type.startsWith('image/'));
@@ -207,9 +209,7 @@ export class MobileClipboardManager {
         const inputEl = getActiveInputFn ? getActiveInputFn() : this.getDefaultActiveInput();
         if (!inputEl) return;
 
-        const start = inputEl.selectionStart ?? 0;
-        const end = inputEl.selectionEnd ?? 0;
-        const selection = inputEl.value.slice(start, end).trim();
+        const selection = this.getTrimmedSelection(inputEl);
         const content = selection || inputEl.value.trim();
 
         if (!content) {
@@ -253,22 +253,55 @@ export class MobileClipboardManager {
         this.saveJson(STORAGE_KEYS.snippets, this.snippets);
     }
 
+    getTrimmedSelection(inputEl) {
+        const start = inputEl.selectionStart ?? 0;
+        const end = inputEl.selectionEnd ?? 0;
+        return inputEl.value.slice(start, end).trim();
+    }
+
     loadJson(key, fallback) {
-        try {
-            const raw = localStorage.getItem(key);
+        return this.withStorageGuard((storage) => {
+            const raw = storage.getItem(key);
             if (!raw) return fallback;
             return JSON.parse(raw);
+        }, fallback, key, 'load');
+    }
+
+    saveJson(key, value) {
+        this.withStorageGuard((storage) => {
+            storage.setItem(key, JSON.stringify(value));
+            return true;
+        }, null, key, 'save');
+    }
+
+    withStorageGuard(operation, fallback, key, action) {
+        const storage = this.getStorage();
+        if (!storage) {
+            return fallback;
+        }
+        try {
+            const result = operation(storage);
+            return result ?? fallback;
         } catch (error) {
-            console.warn('Failed to load storage:', key, error);
+            console.warn(`Failed to ${action} storage:`, key, error);
             return fallback;
         }
     }
 
-    saveJson(key, value) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-            console.warn('Failed to save storage:', key, error);
+    getClipboard() {
+        if (typeof navigator === 'undefined') {
+            return null;
         }
+        return navigator.clipboard || null;
+    }
+
+    getStorage() {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            return window.localStorage;
+        }
+        if (typeof localStorage !== 'undefined') {
+            return localStorage;
+        }
+        return null;
     }
 }

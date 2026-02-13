@@ -17,6 +17,10 @@ const DEFAULTS = {
  * パネルリサイズを初期化
  */
 export function initPanelResize() {
+    if (!isDomAvailable()) {
+        return () => {};
+    }
+
     const cleanupFns = [];
 
     // 左パネルのリサイズ
@@ -82,15 +86,20 @@ function initRightPanelResize() {
  * 水平リサイズのセットアップ
  */
 function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, defaultWidth, direction }) {
+    if (!isDomAvailable()) {
+        return () => {};
+    }
+
     let isDragging = false;
     let startX = 0;
     let startWidth = 0;
     let rafId = null;
     let pendingWidth = null;
     let overlay = null;
+    const storage = getSafeStorage();
 
     // 保存された幅を復元
-    const savedWidth = localStorage.getItem(storageKey);
+    const savedWidth = storage?.getItem(storageKey);
     if (savedWidth) {
         const width = parseInt(savedWidth, 10);
         if (!isNaN(width) && width >= minWidth && width <= maxWidth) {
@@ -127,24 +136,24 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
         }
     }
 
-    function onMouseDown(e) {
-        e.preventDefault();
+    function beginDrag(startClientX, registerListeners) {
         isDragging = true;
-        startX = e.clientX;
+        startX = startClientX;
         startWidth = panel.offsetWidth;
 
         createOverlay();
         handle.classList.add('dragging');
         document.body.classList.add('resizing');
 
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+        if (typeof registerListeners === 'function') {
+            registerListeners();
+        }
     }
 
-    function onMouseMove(e) {
+    function handlePointerMove(clientX) {
         if (!isDragging) return;
 
-        const deltaX = e.clientX - startX;
+        const deltaX = clientX - startX;
         const newWidth = direction === 'left'
             ? startWidth + deltaX
             : startWidth - deltaX;
@@ -153,7 +162,7 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
         scheduleUpdate(clampedWidth);
     }
 
-    function onMouseUp() {
+    function finalizeDrag(cleanup) {
         if (!isDragging) return;
 
         isDragging = false;
@@ -161,7 +170,6 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
         handle.classList.remove('dragging');
         document.body.classList.remove('resizing');
 
-        // 最終値を即時適用
         if (rafId) {
             cancelAnimationFrame(rafId);
             rafId = null;
@@ -171,65 +179,56 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
             pendingWidth = null;
         }
 
-        // 幅を保存
         const currentWidth = panel.offsetWidth;
-        localStorage.setItem(storageKey, currentWidth.toString());
+        if (storage) {
+            storage.setItem(storageKey, currentWidth.toString());
+        }
 
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
+        if (typeof cleanup === 'function') {
+            cleanup();
+        }
+    }
+
+    function onMouseDown(e) {
+        e.preventDefault();
+        beginDrag(e.clientX, () => {
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    }
+
+    function onMouseMove(e) {
+        handlePointerMove(e.clientX);
+    }
+
+    function onMouseUp() {
+        finalizeDrag(() => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        });
     }
 
     // タッチデバイス対応
     function onTouchStart(e) {
         const touch = e.touches[0];
-        isDragging = true;
-        startX = touch.clientX;
-        startWidth = panel.offsetWidth;
-
-        createOverlay();
-        handle.classList.add('dragging');
-        document.body.classList.add('resizing');
-
-        document.addEventListener('touchmove', onTouchMove, { passive: false });
-        document.addEventListener('touchend', onTouchEnd);
+        beginDrag(touch.clientX, () => {
+            document.addEventListener('touchmove', onTouchMove, { passive: false });
+            document.addEventListener('touchend', onTouchEnd);
+        });
     }
 
     function onTouchMove(e) {
         if (!isDragging) return;
         e.preventDefault();
-
         const touch = e.touches[0];
-        const deltaX = touch.clientX - startX;
-        const newWidth = direction === 'left'
-            ? startWidth + deltaX
-            : startWidth - deltaX;
-
-        const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-        scheduleUpdate(clampedWidth);
+        handlePointerMove(touch.clientX);
     }
 
     function onTouchEnd() {
-        if (!isDragging) return;
-
-        isDragging = false;
-        removeOverlay();
-        handle.classList.remove('dragging');
-        document.body.classList.remove('resizing');
-
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-        }
-        if (pendingWidth !== null) {
-            panel.style.width = `${pendingWidth}px`;
-            pendingWidth = null;
-        }
-
-        const currentWidth = panel.offsetWidth;
-        localStorage.setItem(storageKey, currentWidth.toString());
-
-        document.removeEventListener('touchmove', onTouchMove);
-        document.removeEventListener('touchend', onTouchEnd);
+        finalizeDrag(() => {
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+        });
     }
 
     // イベントリスナー登録
@@ -246,4 +245,19 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
         document.removeEventListener('touchend', onTouchEnd);
         if (rafId) cancelAnimationFrame(rafId);
     };
+}
+
+function isDomAvailable() {
+    return typeof window !== 'undefined' && typeof document !== 'undefined';
+}
+
+function getSafeStorage() {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    try {
+        return window.localStorage ?? null;
+    } catch {
+        return null;
+    }
 }
