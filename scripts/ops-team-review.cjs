@@ -134,6 +134,28 @@ Output format:
 }`,
 };
 
+let lastRefactorAttempt = {
+  reason: null,
+  details: {},
+};
+
+function clearRefactorAttemptFailure() {
+  lastRefactorAttempt = { reason: null, details: {} };
+}
+
+function setRefactorAttemptFailure(reason, details = {}) {
+  lastRefactorAttempt = {
+    reason,
+    details,
+  };
+}
+
+function toFailureSummary() {
+  return {
+    ...lastRefactorAttempt,
+  };
+}
+
 function writeRunStatus(status, reason, details = {}) {
   const payload = {
     status,
@@ -262,7 +284,12 @@ async function generateWithCodex(systemPrompt, userPrompt, options = {}) {
       clearTimeout(timer);
       reject(new Error(`Codex CLI spawn failed: ${error.message}`));
     });
-  });
+});
+}
+
+function isTimeoutError(message = "") {
+  const normalized = `${message}`.toLowerCase();
+  return normalized.includes("timed out") || normalized.includes("timeout");
 }
 
 /**
@@ -651,7 +678,10 @@ async function refactorArea(area, files) {
   console.log(`\n🔨 Refactoring area: ${area}`);
   console.log(`  📁 Files: ${files.length}`);
 
+  clearRefactorAttemptFailure();
+
   if (files.length === 0) {
+    setRefactorAttemptFailure("empty_area", { area, fileCount: 0 });
     return null;
   }
 
@@ -737,7 +767,21 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
 
     return refactoringResult;
   } catch (error) {
-    console.error("  ❌ Refactoring failed:", error.message);
+    const message = error?.message || "unknown";
+    if (isTimeoutError(message)) {
+      console.error("  ❌ Refactoring failed (timeout):", message);
+      setRefactorAttemptFailure("codex_timeout", {
+        area,
+        message,
+        timeoutMs: REFACTOR_TIMEOUT_MS,
+      });
+    } else {
+      console.error("  ❌ Refactoring failed:", message);
+      setRefactorAttemptFailure("refactor_area_error", {
+        area,
+        message,
+      });
+    }
     return null;
   }
 }
@@ -956,7 +1000,23 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
     refactoringResult.area = area;
     return refactoringResult;
   } catch (error) {
-    console.error("  ❌ Revision attempt failed:", error.message);
+    const message = error?.message || "unknown";
+    if (isTimeoutError(message)) {
+      console.error("  ❌ Revision attempt failed (timeout):", message);
+      setRefactorAttemptFailure("revision_timeout", {
+        area,
+        attempt,
+        message,
+        timeoutMs: REFACTOR_TIMEOUT_MS,
+      });
+    } else {
+      console.error("  ❌ Revision attempt failed:", message);
+      setRefactorAttemptFailure("revision_error", {
+        area,
+        attempt,
+        message,
+      });
+    }
     return null;
   }
 }
@@ -1234,6 +1294,7 @@ async function main() {
       writeRunStatus("skipped", "refactor_not_performed", {
         attempt,
         area: targetArea,
+        failure: toFailureSummary(),
       });
       return;
     }
@@ -1247,6 +1308,7 @@ async function main() {
       writeRunStatus("skipped", "no_actionable_changes", {
         attempt,
         area: targetArea,
+        failure: toFailureSummary(),
       });
       return;
     }
