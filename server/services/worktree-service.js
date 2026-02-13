@@ -21,7 +21,7 @@ export class WorktreeService {
         this.worktreesDir = worktreesDir;
         this.canonicalRoot = canonicalRoot;
         this.execPromise = execPromise;
-        this.isJujutsuRepo = null;  // キャッシュ
+        this.jujutsuRepoCache = new Map();  // パスごとのキャッシュ
     }
 
     /**
@@ -30,15 +30,15 @@ export class WorktreeService {
      * @returns {Promise<boolean>}
      */
     async _isJujutsuRepo(repoPath) {
-        if (this.isJujutsuRepo !== null) {
-            return this.isJujutsuRepo;
+        if (this.jujutsuRepoCache.has(repoPath)) {
+            return this.jujutsuRepoCache.get(repoPath);
         }
         try {
             await this.execPromise(`jj -R "${repoPath}" version`);
-            this.isJujutsuRepo = true;
+            this.jujutsuRepoCache.set(repoPath, true);
             return true;
         } catch {
-            this.isJujutsuRepo = false;
+            this.jujutsuRepoCache.set(repoPath, false);
             return false;
         }
     }
