@@ -3,7 +3,7 @@ name: ops-department Auto Refactoring (3-hourly)
 on:
   schedule:
     - cron: "0 */3 * * *" # 3時間ごと（0:00, 3:00, 6:00, 9:00, 12:00, 15:00, 18:00, 21:00 UTC）
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 concurrency:
   group: ops-department-auto-refactoring
