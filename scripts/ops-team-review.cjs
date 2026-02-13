@@ -6,25 +6,77 @@
  * refactoring-specialist が未リファクタリング領域を特定し、
  * 実際にコードを修正してPR作成する。
  *
- * 実行タイミング: 6時間ごと (0:00, 6:00, 12:00, 18:00 UTC)
+ * 実行タイミング: 3時間ごと (0:00, 3:00, 6:00, 9:00, 12:00, 15:00, 18:00, 21:00 UTC)
  * 実行環境: GitHub Actions (self-hosted runner)
  *
  * 戦略:
  * 1. リファクタリング履歴を読み込み（refactoring-history.json）
  * 2. コードベースをスキャンして未リファクタリング領域を特定
  * 3. refactoring-specialist が実際にコードを修正
- * 4. 履歴を更新してPR作成
+ * 4. 結果を refactoring-result.json として出力（履歴更新は別スクリプトでbaseへ直接反映）
  *
  * Usage:
- *   node scripts/ops-team-review.cjs [--dry-run]
+ *   node scripts/ops-team-review.cjs [--dry-run] [--scan-only]
  */
 
 const { spawn, execSync } = require("child_process");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
 // リファクタリング履歴ファイル
 const HISTORY_FILE = "refactoring-history.json";
+const RESULT_FILE = "refactoring-result.json";
+
+const WORKFLOW_FILE =
+  process.env.OPS_REFACTOR_WORKFLOW_FILE ||
+  "ops-department-auto-refactoring.yml";
+
+const JUDGE_THRESHOLD = Number.parseInt(
+  process.env.OPS_REFACTOR_JUDGE_THRESHOLD || "80",
+  10,
+);
+const JUDGE_MAX_ATTEMPTS = Number.parseInt(
+  process.env.OPS_REFACTOR_MAX_ATTEMPTS || "3",
+  10,
+);
+const JUDGE_MAX_DIFF_CHARS = Number.parseInt(
+  process.env.OPS_REFACTOR_JUDGE_MAX_DIFF_CHARS || "12000",
+  10,
+);
+
+const REFACTOR_TIMEOUT_MS = Number.parseInt(
+  process.env.OPS_REFACTOR_TIMEOUT_MS || "600000",
+  10,
+);
+
+const HOTSPOT_SINCE_DAYS = Number.parseInt(
+  process.env.OPS_REFACTOR_HOTSPOT_SINCE_DAYS || "30",
+  10,
+);
+
+const COOLDOWN_DAYS = Number.parseInt(
+  process.env.OPS_REFACTOR_COOLDOWN_DAYS || "30",
+  10,
+);
+
+const TARGET_TOP_N = Number.parseInt(
+  process.env.OPS_REFACTOR_TARGET_TOP_N || "20",
+  10,
+);
+
+const REFACTOR_TIER = (process.env.OPS_REFACTOR_TIER || "small").toLowerCase();
+
+const REFACTOR_SOURCE_DIRS = ["public/modules", "server", "lib"];
+
+const MAX_CHANGED_FILES = Number.parseInt(
+  process.env.OPS_REFACTOR_MAX_FILES || "10",
+  10,
+);
+const MAX_CHANGED_LINES = Number.parseInt(
+  process.env.OPS_REFACTOR_MAX_LINES || "400",
+  10,
+);
 
 // refactoring-specialist 設定
 const REFACTORING_SPECIALIST = {
@@ -45,6 +97,19 @@ Skills you have access to:
 - architecture-patterns: EventBus/DI/Reactive/Service準拠チェック
 
 IMPORTANT: You must ACTUALLY MODIFY the code files, not just suggest improvements.
+
+Refactor constraints:
+- Tier: ${REFACTOR_TIER}
+- Keep changes incremental and backward compatible.
+- Do NOT modify workflow files under .github/workflows/ or package-lock.json.
+- Keep PR size small:
+  - Max changed files (guard): ${MAX_CHANGED_FILES}
+  - Max changed lines (guard): ${MAX_CHANGED_LINES}
+- If you must change runtime behavior, clearly explain why and add/update tests.
+
+Tier guidelines:
+- small: touch 1-3 files, prefer local refactors (extract helpers/components, naming, reduce duplication).
+- medium: up to ~10 files within the same area, allowed to extract shared helpers/components inside that area.
 
 Refactoring priorities:
 1. Code duplication (DRY violations)
@@ -263,6 +328,82 @@ async function generateWithAI(systemPrompt, userPrompt, options = {}) {
   return generateWithCodex(systemPrompt, userPrompt, options);
 }
 
+function sha256(text) {
+  return crypto.createHash("sha256").update(text).digest("hex");
+}
+
+function getRepoStateFingerprint() {
+  const status = execSync("git status --porcelain || true", {
+    encoding: "utf-8",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  const diff = execSync("git diff || true", {
+    encoding: "utf-8",
+    maxBuffer: 50 * 1024 * 1024,
+  });
+  return sha256(`${status}\n---\n${diff}`);
+}
+
+function getActionableChangedFiles() {
+  let tracked = "";
+  let untracked = "";
+  try {
+    tracked = execSync("git diff --name-only || true", {
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (_error) {
+    tracked = "";
+  }
+
+  try {
+    untracked = execSync("git ls-files --others --exclude-standard || true", {
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  } catch (_error) {
+    untracked = "";
+  }
+
+  const all = new Set(
+    `${tracked}\n${untracked}`
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+
+  return Array.from(all)
+    .filter((f) => f !== "ops-department-refactoring.md")
+    .sort();
+}
+
+function discardWorkingTreeChanges() {
+  try {
+    execSync("git restore --staged --worktree .", { stdio: "inherit" });
+  } catch (error) {
+    console.warn("⚠️  git restore failed:", error.message);
+  }
+
+  let untracked = [];
+  try {
+    const out = execSync("git ls-files --others --exclude-standard || true", {
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+    }).trim();
+    if (out) untracked = out.split("\n").filter(Boolean);
+  } catch (_error) {
+    untracked = [];
+  }
+
+  for (const p of untracked) {
+    try {
+      fs.rmSync(p, { recursive: true, force: true });
+    } catch (_error) {
+      // ignore
+    }
+  }
+}
+
 /**
  * リファクタリング履歴を読み込み
  */
@@ -281,24 +422,12 @@ function loadRefactoringHistory() {
 }
 
 /**
- * リファクタリング履歴を保存
- */
-function saveRefactoringHistory(history) {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
-  console.log(`✅ 履歴を更新: ${HISTORY_FILE}`);
-}
-
-/**
  * コードベースをスキャンして領域リストを作成
  */
 function scanCodebase() {
-  // brainbase本体はTypeScript主体ではないため、git管理されているJS/TSファイルを対象にする。
-  // "find" だと .gitignore のローカル専用ディレクトリまで拾う可能性があるので、
-  // 必ず "git ls-files" で追跡対象のみをスキャンする。
-  const srcDirs = ["public/modules", "server", "lib"];
   const areas = new Set();
 
-  srcDirs.forEach((dir) => {
+  REFACTOR_SOURCE_DIRS.forEach((dir) => {
     if (!fs.existsSync(dir)) return;
 
     const files = execSync(`git ls-files "${dir}"`, {
@@ -312,8 +441,10 @@ function scanCodebase() {
     files
       .filter((file) => /\.(cjs|mjs|js|tsx?|jsx?)$/.test(file))
       .forEach((file) => {
-        const area = path.dirname(file);
-        if (area && area !== ".") areas.add(area);
+        const rawArea = path.dirname(file);
+        if (!rawArea || rawArea === ".") return;
+
+        if (rawArea) areas.add(rawArea);
       });
   });
 
@@ -321,11 +452,128 @@ function scanCodebase() {
 }
 
 /**
- * 未リファクタリング領域を特定
+ * ファイルパスから "area"（そのままディレクトリ）を正規化
  */
-function findUnrefactoredAreas(allAreas, history) {
-  const refactoredAreas = new Set(history.areas.map((entry) => entry.area));
-  return allAreas.filter((area) => !refactoredAreas.has(area));
+function normalizeAreaFromFilePath(filePath) {
+  const rawArea = path.dirname(filePath);
+  if (!rawArea || rawArea === ".") return "";
+  return rawArea;
+}
+
+/**
+ * ホットスポットスコア（最近変更が多い領域）を計算
+ */
+function computeHotspotScores(params = {}) {
+  const sinceDaysRaw = params.sinceDays ?? HOTSPOT_SINCE_DAYS;
+  const sinceDays = Number.isFinite(sinceDaysRaw) ? sinceDaysRaw : 0;
+  const scores = new Map();
+
+  if (sinceDays <= 0) return scores;
+
+  let logOutput = "";
+  try {
+    logOutput = execSync(
+      `git log --since="${sinceDays} days ago" --name-only --pretty=format: --no-merges`,
+      {
+        encoding: "utf-8",
+        maxBuffer: 50 * 1024 * 1024,
+      },
+    );
+  } catch (_error) {
+    return scores;
+  }
+
+  logOutput
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((file) => {
+      if (!REFACTOR_SOURCE_DIRS.some((dir) => file.startsWith(`${dir}/`))) {
+        return;
+      }
+      if (!/\.(cjs|mjs|js|tsx?|jsx?)$/.test(file)) return;
+
+      const area = normalizeAreaFromFilePath(file);
+      if (!area) return;
+
+      scores.set(area, (scores.get(area) || 0) + 1);
+    });
+
+  return scores;
+}
+
+function getLatestHistoryEntryByArea(history) {
+  const latestByArea = new Map();
+  for (const entry of history?.areas || []) {
+    if (!entry?.area) continue;
+    const existing = latestByArea.get(entry.area);
+    if (!existing) {
+      latestByArea.set(entry.area, entry);
+      continue;
+    }
+
+    const existingTs = Date.parse(existing.refactored_at || "") || 0;
+    const nextTs = Date.parse(entry.refactored_at || "") || 0;
+    if (nextTs >= existingTs) {
+      latestByArea.set(entry.area, entry);
+    }
+  }
+  return latestByArea;
+}
+
+function isAreaEligible(params) {
+  const { entry, cooldownDays } = params;
+
+  if (!entry) return true;
+
+  // Don't create parallel PRs for the same area.
+  if (entry.pr_status === "open") return false;
+
+  // If it was closed (not merged), retry.
+  if (entry.pr_status === "closed") return true;
+
+  const refactoredAt = Date.parse(entry.refactored_at || "");
+  if (!Number.isFinite(refactoredAt)) return true;
+
+  const cooldownMs = Math.max(0, cooldownDays) * 24 * 60 * 60 * 1000;
+  return Date.now() - refactoredAt >= cooldownMs;
+}
+
+/**
+ * 次に対象とする領域を選ぶ（ホットスポット優先 + クールダウン）
+ */
+function findEligibleAreas(allAreas, history, params = {}) {
+  const cooldownDaysRaw = params.cooldownDays ?? COOLDOWN_DAYS;
+  const cooldownDays = Number.isFinite(cooldownDaysRaw) ? cooldownDaysRaw : 0;
+  const latestByArea = getLatestHistoryEntryByArea(history);
+
+  return allAreas.filter((area) =>
+    isAreaEligible({ entry: latestByArea.get(area), cooldownDays }),
+  );
+}
+
+function selectTargetArea(eligibleAreas, hotspotScores, params = {}) {
+  const topNRaw = params.topN ?? TARGET_TOP_N;
+  const topN = Number.isFinite(topNRaw) ? Math.max(1, topNRaw) : 20;
+
+  const scored = eligibleAreas
+    .map((area) => ({ area, score: hotspotScores.get(area) || 0 }))
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        a.area.localeCompare(b.area, "en", { numeric: true }),
+    );
+
+  if (scored.length === 0) return null;
+
+  // If everything is cold, just take the first.
+  const head = scored[0];
+  if (head.score === 0) return head.area;
+
+  const top = scored.slice(0, topN);
+  const maxScore = top[0]?.score ?? 0;
+  const tied = top.filter((row) => row.score === maxScore);
+  return tied[0]?.area || head.area;
 }
 
 /**
@@ -333,13 +581,15 @@ function findUnrefactoredAreas(allAreas, history) {
  */
 function getFilesInArea(area) {
   try {
-    const files = execSync(`git ls-files "${area}"`, {
+    const baseDir = area;
+    const files = execSync(`git ls-files "${baseDir}"`, {
       encoding: "utf-8",
       maxBuffer: 10 * 1024 * 1024,
     })
       .trim()
       .split("\n")
       .filter(Boolean)
+      .filter((file) => path.dirname(file) === baseDir)
       .filter((file) => /\.(cjs|mjs|js|tsx?|jsx?)$/.test(file));
 
     return files;
@@ -372,23 +622,47 @@ async function refactorArea(area, files) {
     return null;
   }
 
-  // ファイル内容を取得（最大5ファイルまで）
-  const filesToRefactor = files.slice(0, 5);
-  const fileContents = filesToRefactor.map((file) => ({
-    path: file,
-    content: getFileContent(file),
+  // Keep scope disciplined by limiting context size based on tier.
+  const tierPromptMaxFiles = REFACTOR_TIER === "medium" ? 10 : 3;
+  const promptMaxFiles = Math.min(
+    Math.max(1, tierPromptMaxFiles),
+    Number.isFinite(MAX_CHANGED_FILES) && MAX_CHANGED_FILES > 0
+      ? MAX_CHANGED_FILES
+      : tierPromptMaxFiles,
+  );
+  const contentCharLimit = REFACTOR_TIER === "medium" ? 12000 : 8000;
+
+  const ranked = files
+    .map((file) => {
+      const content = getFileContent(file);
+      const lines = content ? content.split(/\r\n|\r|\n/).length : 0;
+      return { file, lines, content };
+    })
+    .sort((a, b) => b.lines - a.lines || a.file.localeCompare(b.file, "en"));
+
+  const fileContents = ranked.slice(0, promptMaxFiles).map((f) => ({
+    path: f.file,
+    lines: f.lines,
+    content: f.content.slice(0, contentCharLimit),
   }));
 
   const userPrompt = `以下の領域のコードをリファクタリングしてください:
 
 領域: ${area}
 
+制約:
+- Tier: ${REFACTOR_TIER}
+- PRサイズガード: 変更ファイル数 <= ${MAX_CHANGED_FILES}, 差分行数 <= ${MAX_CHANGED_LINES}
+- package-lock.json と .github/workflows/ 配下は変更しない
+- 既存挙動を壊さない（挙動変更が必要なら理由を明記し、テストを追加/更新する）
+- scopeを広げすぎない（smallは特に1-3ファイル中心）
+
 ファイル:
 ${fileContents
   .map(
     (f) => `
---- ${f.path} ---
-${f.content.substring(0, 10000)}
+--- ${f.path} (approx ${f.lines} lines) ---
+${f.content}
 `,
   )
   .join("\n")}
@@ -412,7 +686,7 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
     const result = await generateWithAI(
       REFACTORING_SPECIALIST.systemPrompt,
       userPrompt,
-      { timeout: 600000 }, // 10分タイムアウト
+      { timeout: REFACTOR_TIMEOUT_MS },
     );
 
     // JSON抽出
@@ -423,12 +697,233 @@ IMPORTANT: Editツールを使って実際にファイルを修正してくだ�
     }
 
     const refactoringResult = JSON.parse(jsonStr.trim());
-    console.log(`  ✅ Refactoring completed`);
+    // Force consistency with the selected area (avoid model drift).
+    refactoringResult.area = area;
+    console.log("  ✅ Refactoring completed");
     console.log(`  📝 ${refactoringResult.changes_summary}`);
 
     return refactoringResult;
   } catch (error) {
-    console.error(`  ❌ Refactoring failed:`, error.message);
+    console.error("  ❌ Refactoring failed:", error.message);
+    return null;
+  }
+}
+
+function extractJsonFromOutput(text) {
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  return (jsonMatch ? jsonMatch[1] : text).trim();
+}
+
+async function judgeRefactorQuality(params) {
+  const { area, attempt, threshold } = params;
+  const changedFiles = getActionableChangedFiles();
+  const fileStats = getFileStats(changedFiles);
+  const newFiles = getNewFiles(fileStats);
+
+  let diffStat = "";
+  let diffPatch = "";
+  try {
+    diffStat = execSync("git diff --stat || true", {
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+    }).trim();
+  } catch (_error) {
+    diffStat = "";
+  }
+
+  try {
+    diffPatch = execSync("git diff --unified=3 || true", {
+      encoding: "utf-8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+  } catch (_error) {
+    diffPatch = "";
+  }
+
+  if (diffPatch.length > JUDGE_MAX_DIFF_CHARS) {
+    diffPatch = `${diffPatch.slice(0, JUDGE_MAX_DIFF_CHARS)}\n\n[TRUNCATED]`;
+  }
+
+  const newFilesBlobs =
+    newFiles.length > 0
+      ? newFiles
+          .map((f) => {
+            const content = getFileContent(f).substring(0, 8000);
+            return `--- ${f} ---\n${content}`;
+          })
+          .join("\n\n")
+      : "(none)";
+
+  const systemPrompt = `You are an LLM-as-a-Judge for automated refactoring PRs.
+
+You must NOT modify files, run commands, or use any tools. You only evaluate the provided diff/context.
+Be strict and prioritize safety (no behavior changes), scope discipline, and code clarity.
+
+Return JSON only in this format:
+{
+  "score": 0-100,
+  "summary": "one-paragraph summary",
+  "must_fix": ["..."],
+  "suggestions": ["..."]
+}`;
+
+  const userPrompt = `Judge the following refactor attempt.
+
+Repo context: TypeScript/Next.js codebase.
+Area: ${area}
+Attempt: ${attempt}
+Passing threshold: ${threshold}
+
+Changed files (${changedFiles.length}):
+${changedFiles.map((f) => `- ${f}`).join("\n") || "(none)"}
+
+Diff stat:
+${diffStat || "(empty)"}
+
+Diff patch (may be truncated):
+${diffPatch || "(empty)"}
+
+New files content (truncated):
+${newFilesBlobs}
+
+Scoring rubric (0-100):
+- Safety & correctness (0-40): behavior preserved, types ok, no risky changes
+- Clarity & maintainability (0-30): naming/structure/DRY improvements
+- Scope discipline (0-20): cohesive changes, no drive-by edits
+- Testing & confidence (0-10): tests updated if needed, or rationale if not
+
+Return JSON only.`;
+
+  const before = getRepoStateFingerprint();
+  const raw = await generateWithAI(systemPrompt, userPrompt, {
+    timeout: 600000,
+  });
+  const after = getRepoStateFingerprint();
+  if (before !== after) {
+    throw new Error("Judge must be read-only (working tree changed).");
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(extractJsonFromOutput(raw));
+  } catch (error) {
+    return {
+      score: 0,
+      pass: false,
+      threshold,
+      summary: `Judge output was not valid JSON: ${error.message}`,
+      must_fix: ["Judge output parse failed"],
+      suggestions: [],
+    };
+  }
+
+  const score = Number(parsed?.score);
+  const normalizedScore = Number.isFinite(score)
+    ? Math.max(0, Math.min(100, score))
+    : 0;
+
+  const mustFix = Array.isArray(parsed?.must_fix)
+    ? parsed.must_fix
+        .map((v) => `${v}`)
+        .filter(Boolean)
+        .slice(0, 20)
+    : [];
+
+  const suggestions = Array.isArray(parsed?.suggestions)
+    ? parsed.suggestions
+        .map((v) => `${v}`)
+        .filter(Boolean)
+        .slice(0, 20)
+    : [];
+
+  const summary = typeof parsed?.summary === "string" ? parsed.summary : "";
+
+  return {
+    score: Math.round(normalizedScore),
+    pass: Math.round(normalizedScore) >= threshold,
+    threshold,
+    summary,
+    must_fix: mustFix,
+    suggestions,
+  };
+}
+
+async function reviseRefactorAttempt(params) {
+  const { area, attempt, threshold, judge, changedFiles } = params;
+  const filesToShow = (changedFiles || []).slice(0, 5);
+  const fileContents = filesToShow.map((file) => ({
+    path: file,
+    content: getFileContent(file),
+  }));
+
+  let diffPatch = "";
+  try {
+    diffPatch = execSync("git diff --unified=3 || true", {
+      encoding: "utf-8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+  } catch (_error) {
+    diffPatch = "";
+  }
+  if (diffPatch.length > JUDGE_MAX_DIFF_CHARS) {
+    diffPatch = `${diffPatch.slice(0, JUDGE_MAX_DIFF_CHARS)}\n\n[TRUNCATED]`;
+  }
+
+  const userPrompt = `前回のリファクタ結果がJudgeで不合格でした。スコアを ${threshold} 以上に引き上げるように修正してください。
+
+領域: ${area}
+Attempt: ${attempt}
+Judge score: ${judge?.score ?? "unknown"}/${threshold}
+Judge summary: ${judge?.summary ?? ""}
+
+Must-fix:
+${(judge?.must_fix || []).map((t) => `- ${t}`).join("\n") || "- (none)"}
+
+Suggestions:
+${(judge?.suggestions || []).map((t) => `- ${t}`).join("\n") || "- (none)"}
+
+現在のdiff (truncated):
+${diffPatch || "(empty)"}
+
+制約:
+- 既存挙動を絶対に壊さない
+- スコープを広げない（無関係ファイルに触らない）
+- 依存追加や lockfile 変更はしない
+- 必要なら変更を戻して良い（安全/可読性優先）
+
+対象ファイル（必要に応じて編集してください。最大5件だけ添付）:
+${fileContents
+  .map(
+    (f) => `
+--- ${f.path} ---
+${f.content.substring(0, 10000)}
+`,
+  )
+  .join("\n")}
+
+IMPORTANT: Editツールを使って実際にファイルを修正してください！
+
+出力形式(JSONのみ):
+{
+  "refactored": true/false,
+  "files_modified": ["path/to/file"],
+  "changes_summary": "変更内容の説明",
+  "area": "${area}"
+}`;
+
+  try {
+    const raw = await generateWithAI(
+      REFACTORING_SPECIALIST.systemPrompt,
+      userPrompt,
+      {
+        timeout: REFACTOR_TIMEOUT_MS,
+      },
+    );
+    const refactoringResult = JSON.parse(extractJsonFromOutput(raw));
+    refactoringResult.area = area;
+    return refactoringResult;
+  } catch (error) {
+    console.error("  ❌ Revision attempt failed:", error.message);
     return null;
   }
 }
@@ -450,12 +945,12 @@ function getFileStats(files) {
       }
 
       const diffCmd = tracked
-        ? `git diff --numstat HEAD -- "${file}" 2>/dev/null || echo "0\t0\t${file}"`
-        : `git diff --numstat --no-index -- /dev/null "${file}" 2>/dev/null || echo "0\t0\t${file}"`;
+        ? `git diff --numstat HEAD -- "${file}" 2>/dev/null || echo "0\\t0\\t${file}"`
+        : `git diff --numstat --no-index -- /dev/null "${file}" 2>/dev/null || echo "0\\t0\\t${file}"`;
 
       const diffStat = execSync(diffCmd, { encoding: "utf-8" }).trim();
 
-      const [added, deleted, path] = diffStat.split("\t");
+      const [added, deleted, filePath] = diffStat.split("\t");
       return {
         path: file,
         added: parseInt(added) || 0,
@@ -466,7 +961,7 @@ function getFileStats(files) {
     return stats;
   } catch (error) {
     console.warn("git diff統計取得失敗:", error.message);
-    return files.map(f => ({ path: f, added: 0, deleted: 0, isNew: false }));
+    return files.map((f) => ({ path: f, added: 0, deleted: 0, isNew: false }));
   }
 }
 
@@ -474,7 +969,7 @@ function getFileStats(files) {
  * 新規ファイル一覧を取得
  */
 function getNewFiles(fileStats) {
-  return fileStats.filter(f => f.isNew).map(f => f.path);
+  return fileStats.filter((f) => f.isNew).map((f) => f.path);
 }
 
 /**
@@ -484,9 +979,9 @@ function getTotalLines(fileStats) {
   return fileStats.reduce(
     (acc, f) => ({
       added: acc.added + f.added,
-      deleted: acc.deleted + f.deleted
+      deleted: acc.deleted + f.deleted,
     }),
-    { added: 0, deleted: 0 }
+    { added: 0, deleted: 0 },
   );
 }
 
@@ -498,8 +993,8 @@ function generatePRTitle(metadata) {
 
   // 新規ファイルから主要なコンポーネント名を抽出
   const mainComponents = newFiles
-    .map(f => path.basename(f, path.extname(f)))
-    .filter(name => name.length > 0)
+    .map((f) => path.basename(f, path.extname(f)))
+    .filter((name) => name.length > 0)
     .slice(0, 2)
     .join(", ");
 
@@ -513,20 +1008,32 @@ function generatePRTitle(metadata) {
  * PRボディを生成
  */
 function generatePRBody(metadata, report) {
-  const { area, fileStats, newFiles, linesAdded, linesDeleted, codeReduction, runNumber, runId, triggerEvent } = metadata;
+  const {
+    area,
+    fileStats,
+    newFiles,
+    linesAdded,
+    linesDeleted,
+    codeReduction,
+    runNumber,
+    runId,
+    triggerEvent,
+  } = metadata;
   const repoSlug = process.env.GITHUB_REPOSITORY || "Unson-LLC/brainbase";
 
-  const newFilesSection = newFiles.length > 0
-    ? newFiles.map(f => {
-        const stat = fileStats.find(s => s.path === f);
-        return `| \`${f}\` | +${stat?.added || 0} | 新規作成 |`;
-      }).join("\n")
-    : "";
+  const newFilesSection =
+    newFiles.length > 0
+      ? newFiles
+          .map((f) => {
+            const stat = fileStats.find((s) => s.path === f);
+            return `| \`${f}\` | +${stat?.added || 0} | 新規作成 |`;
+          })
+          .join("\n")
+      : "";
 
   const modifiedFilesSection = fileStats
-    .filter(f => !f.isNew)
-    .map(f => {
-      const change = f.deleted > f.added ? `-${f.deleted - f.added}` : `+${f.added - f.deleted}`;
+    .filter((f) => !f.isNew)
+    .map((f) => {
       return `| \`${f.path}\` | -${f.deleted}, +${f.added} | リファクタ |`;
     })
     .join("\n");
@@ -534,6 +1041,7 @@ function generatePRBody(metadata, report) {
   return `## 📝 変更サマリー
 
 **リファクタリング領域**: ${area}
+${metadata.judgeScore != null ? `\n**Judge Score**: ${metadata.judgeScore}/100 (threshold ${metadata.judgeThreshold})\n` : ""}
 
 ${report.split("## Changes Summary")[1]?.split("## Files Modified")[0]?.trim() || metadata.summary}
 
@@ -556,21 +1064,19 @@ ${modifiedFilesSection}
 ## 🔍 レビューポイント
 
 ### ✅ 確認してほしい点
-1. 新規コンポーネントのAPI設計
-   - 適切な責務分割ができているか？
-   - 他の領域でも再利用可能か？
+1. 変更内容の妥当性
+   - 副作用や挙動変更が紛れていないか？
 
-2. コンポーネントの配置場所
-   - 現在の配置で適切か？
-   - グローバル vs プライベートの判断は正しいか？
+2. 例外系・境界条件
+   - エラー処理やnull/undefinedの扱いが適切か？
 
-3. 命名・JSDocの品質
+3. 命名・責務の分割
    - 分かりやすい命名になっているか？
-   - JSDocは十分に具体的か？
+   - 責務が過剰に広がっていないか？
 
 ### ⚠️ 注意事項
-- **破壊的変更なし**: 既存の機能は全て保持
-- **テスト**: 手動確認が必要（E2Eテスト未実装）
+- **破壊的変更なし**: 既存の機能は全て保持する前提
+- **テスト**: 追加が必要な場合あり
 
 ---
 
@@ -584,9 +1090,9 @@ ${modifiedFilesSection}
 - **Run ID**: ${runId}
 - **実行日時**: ${new Date().toISOString()}
 - **トリガー**: ${triggerEvent}
-- **ワークフロー**: [weekly-refactoring.yml](https://github.com/${repoSlug}/actions/workflows/weekly-refactoring.yml)
+- **ワークフロー**: [${WORKFLOW_FILE}](https://github.com/${repoSlug}/actions/workflows/${WORKFLOW_FILE})
 
-詳細レポート: \`ops-department-refactoring.md\`
+詳細レポート: このPR本文の「変更サマリー」に含まれます。
 
 </details>`;
 }
@@ -602,7 +1108,12 @@ async function main() {
   if (scanOnly) {
     const allAreas = scanCodebase();
     console.log(`✅ Found ${allAreas.length} areas`);
-    console.log(allAreas.slice(0, 50).map((a) => `- ${a}`).join("\n"));
+    console.log(
+      allAreas
+        .slice(0, 50)
+        .map((a) => `- ${a}`)
+        .join("\n"),
+    );
     if (allAreas.length > 50) {
       console.log(`... (${allAreas.length - 50} more)`);
     }
@@ -617,55 +1128,162 @@ async function main() {
   // 1. 履歴読み込み
   console.log("\n📖 Loading refactoring history...");
   const history = loadRefactoringHistory();
-  console.log(`  ✅ ${history.areas.length} areas already refactored`);
+  console.log(`  ✅ ${history.areas.length} history entries`);
 
   // 2. コードベーススキャン
   console.log("\n🔍 Scanning codebase...");
   const allAreas = scanCodebase();
   console.log(`  ✅ Found ${allAreas.length} total areas`);
 
-  // 3. 未リファクタリング領域を特定
-  const unrefactoredAreas = findUnrefactoredAreas(allAreas, history);
-  console.log(`  ✅ ${unrefactoredAreas.length} areas not yet refactored`);
+  console.log("\n🔥 Computing hotspots...");
+  const hotspotScores = computeHotspotScores({ sinceDays: HOTSPOT_SINCE_DAYS });
+  console.log(
+    `  ✅ Hotspot window: last ${HOTSPOT_SINCE_DAYS} days (tier=${REFACTOR_TIER})`,
+  );
 
-  if (unrefactoredAreas.length === 0) {
-    console.log("\n🎉 All areas have been refactored!");
+  // 3. 対象領域（ホットスポット優先 + クールダウン）を選択
+  const eligibleAreas = findEligibleAreas(allAreas, history, {
+    cooldownDays: COOLDOWN_DAYS,
+  });
+  console.log(
+    `  ✅ ${eligibleAreas.length} eligible areas (cooldown ${COOLDOWN_DAYS} days)`,
+  );
+
+  if (eligibleAreas.length === 0) {
+    console.log(
+      "\n🎉 No eligible areas found (all areas are within cooldown or have open PRs).",
+    );
     return;
   }
 
-  // 4. 最初の未リファクタリング領域をリファクタリング
-  const targetArea = unrefactoredAreas[0];
+  const targetArea = selectTargetArea(eligibleAreas, hotspotScores, {
+    topN: TARGET_TOP_N,
+  });
+  if (!targetArea) {
+    console.log("\n⚠️  Failed to select a target area.");
+    return;
+  }
   const files = getFilesInArea(targetArea);
+  const hotspotScore = hotspotScores.get(targetArea) || 0;
 
-  console.log(`\n🎯 Target area: ${targetArea}`);
+  console.log(
+    `\n🎯 Target area: ${targetArea} (hotspot score: ${hotspotScore}, cooldown: ${COOLDOWN_DAYS}d)`,
+  );
 
-  const refactoringResult = await refactorArea(targetArea, files);
+  const threshold = Math.max(0, Math.min(100, JUDGE_THRESHOLD));
+  const maxAttempts = Math.max(1, JUDGE_MAX_ATTEMPTS);
 
-  if (!refactoringResult || !refactoringResult.refactored) {
-    console.log("\n❌ No refactoring was performed");
+  let refactoringResult = null;
+  let judge = null;
+  let changedFiles = [];
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt === 1) {
+      refactoringResult = await refactorArea(targetArea, files);
+    } else {
+      refactoringResult = await reviseRefactorAttempt({
+        area: targetArea,
+        attempt,
+        threshold,
+        judge,
+        changedFiles,
+      });
+    }
+
+    if (!refactoringResult || !refactoringResult.refactored) {
+      console.log("\n❌ No refactoring was performed");
+      discardWorkingTreeChanges();
+      return;
+    }
+
+    changedFiles = getActionableChangedFiles();
+    if (changedFiles.length === 0) {
+      console.log(
+        "\nℹ️  No actionable code changes detected. Skipping PR creation.",
+      );
+      discardWorkingTreeChanges();
+      return;
+    }
+
+    // Use git as source of truth (model output may drift).
+    refactoringResult.files_modified = changedFiles;
+
+    try {
+      judge = await judgeRefactorQuality({
+        area: targetArea,
+        attempt,
+        threshold,
+      });
+    } catch (error) {
+      console.error("  ❌ Judge failed:", error.message);
+      judge = {
+        score: 0,
+        pass: false,
+        threshold,
+        summary: `Judge failed: ${error.message}`,
+        must_fix: [error.message],
+        suggestions: [],
+      };
+    }
+
+    console.log(
+      `  🧪 Judge score: ${judge.score}/100 (threshold ${threshold})`,
+    );
+
+    if (judge.pass) {
+      break;
+    }
+
+    if (attempt < maxAttempts) {
+      console.log(
+        `\n🔁 Retrying to improve judge score... (${attempt + 1}/${maxAttempts})`,
+      );
+    }
+  }
+
+  if (!judge || !judge.pass) {
+    console.log(
+      `\n❌ Judge threshold not met after ${maxAttempts} attempt(s). Discarding changes.`,
+    );
+    discardWorkingTreeChanges();
     return;
   }
 
   // 5. 履歴更新はPRとは分離する（baseブランチへ直接コミットするステップで反映する）
-  // PRに refactoring-history.json を含めると add/add 競合しやすく、マージ時に壊れやすい。
   const refactoringEntry = {
     area: refactoringResult.area,
     refactored_at: new Date().toISOString(),
     files_modified: refactoringResult.files_modified,
     changes_summary: refactoringResult.changes_summary,
+    tier: REFACTOR_TIER,
+    hotspot_since_days: HOTSPOT_SINCE_DAYS,
+    hotspot_score: hotspotScore,
+    cooldown_days: COOLDOWN_DAYS,
+    refactor_timeout_ms: REFACTOR_TIMEOUT_MS,
+    judge_score: judge.score,
+    judge_threshold: judge.threshold,
+    judge_summary: judge.summary,
+    judge_must_fix: judge.must_fix,
+    judge_suggestions: judge.suggestions,
     run_number: process.env.GITHUB_RUN_NUMBER || null,
     run_id: process.env.GITHUB_RUN_ID || null,
     trigger_event: process.env.GITHUB_EVENT_NAME || null,
   };
-  fs.writeFileSync(
-    "refactoring-result.json",
-    JSON.stringify(refactoringEntry, null, 2),
-  );
-  console.log("✅ Refactoring result saved to refactoring-result.json");
+  fs.writeFileSync(RESULT_FILE, JSON.stringify(refactoringEntry, null, 2));
+  console.log(`✅ Refactoring result saved to ${RESULT_FILE}`);
 
   // 6. レポート生成
   console.log("\n📄 Generating refactoring report...");
-  const projectedRefactoredCount = history.areas.length + 1;
+  const coveredAreas = new Set(
+    (history.areas || [])
+      .filter((entry) => entry && entry.area && entry.pr_status !== "closed")
+      .map((entry) => entry.area),
+  );
+  coveredAreas.add(refactoringResult.area);
+
+  const projectedCoveredCount = coveredAreas.size;
+  const projectedHistoryEntries = (history.areas || []).length + 1;
+  const remainingAreas = Math.max(0, allAreas.length - projectedCoveredCount);
   const report = `# ops-department Auto Refactoring Report
 
 Generated: ${new Date().toISOString()}
@@ -678,6 +1296,13 @@ Generated: ${new Date().toISOString()}
 
 ${refactoringResult.changes_summary}
 
+## Judge
+
+- Score: ${judge.score}/100 (threshold ${judge.threshold})
+- Summary: ${judge.summary || "(none)"}
+- Must-fix:
+${judge.must_fix.length > 0 ? judge.must_fix.map((t) => `  - ${t}`).join("\n") : "  - (none)"}
+
 ## Files Modified
 
 ${refactoringResult.files_modified.map((f) => `- ${f}`).join("\n")}
@@ -685,52 +1310,58 @@ ${refactoringResult.files_modified.map((f) => `- ${f}`).join("\n")}
 ## Progress
 
 - Total areas: ${allAreas.length}
-- Already refactored: ${projectedRefactoredCount}
-- Remaining: ${unrefactoredAreas.length - 1}
+- Covered (unique): ${projectedCoveredCount}
+- Remaining (unique): ${remainingAreas}
+- Total runs (history entries): ${projectedHistoryEntries}
+- Tier: ${REFACTOR_TIER}
+- Hotspot score (last ${HOTSPOT_SINCE_DAYS}d): ${hotspotScore}
 
 ---
 
 This refactoring was automatically performed by the ops-department refactoring-specialist.
 `;
 
-  const reportPath = "ops-department-refactoring.md";
+  const reportFileName = `ops-department-refactoring-${process.env.GITHUB_RUN_ID || Date.now()}.md`;
+  const reportPath = process.env.GITHUB_ACTIONS
+    ? path.join(process.env.RUNNER_TEMP || "/tmp", reportFileName)
+    : "ops-department-refactoring.md";
   fs.writeFileSync(reportPath, report);
-  console.log(`✅ Report saved to ${reportPath}`);
+  console.log(`✅ Report saved to ${reportPath} (not committed to git)`);
 
   // 7. PRメッセージ生成
   console.log("\n📝 Generating PR message...");
 
-  // git diff統計を取得
   const fileStats = getFileStats(refactoringResult.files_modified);
   const newFiles = getNewFiles(fileStats);
   const totalLines = getTotalLines(fileStats);
   const codeReduction = totalLines.deleted - totalLines.added;
 
-  // メタデータ準備
   const prMetadata = {
     area: refactoringResult.area,
     summary: refactoringResult.changes_summary,
-    summaryShort: refactoringResult.changes_summary.split(/[。\n]/)[0].substring(0, 60),
+    summaryShort: refactoringResult.changes_summary
+      .split(/[。\n]/)[0]
+      .substring(0, 60),
     fileStats,
     newFiles,
     linesAdded: totalLines.added,
     linesDeleted: totalLines.deleted,
     codeReduction,
+    judgeScore: judge.score,
+    judgeThreshold: judge.threshold,
     runNumber: process.env.GITHUB_RUN_NUMBER || "local",
     runId: process.env.GITHUB_RUN_ID || "unknown",
-    triggerEvent: process.env.GITHUB_EVENT_NAME || "manual"
+    triggerEvent: process.env.GITHUB_EVENT_NAME || "manual",
   };
 
-  // PRタイトル・ボディ生成
   const prTitle = generatePRTitle(prMetadata);
   const prBody = generatePRBody(prMetadata, report);
 
-  // PRメッセージをファイルに出力（GitHub Actionsで使用）
   fs.writeFileSync("pr-title.txt", prTitle);
   fs.writeFileSync("pr-body.txt", prBody);
 
   console.log(`✅ PR Title: ${prTitle}`);
-  console.log(`✅ PR message saved to pr-title.txt, pr-body.txt`);
+  console.log("✅ PR message saved to pr-title.txt, pr-body.txt");
 
   console.log("\n" + "=".repeat(60));
   console.log("🎉 ops-department Auto Refactoring Complete!");

@@ -1,0 +1,293 @@
+name: ops-department Auto Refactoring (3-hourly)
+
+on:
+  schedule:
+    - cron: "0 */3 * * *" # 3時間ごと（0:00, 3:00, 6:00, 9:00, 12:00, 15:00, 18:00, 21:00 UTC）
+  workflow_dispatch: {}
+
+concurrency:
+  group: ops-department-auto-refactoring
+  cancel-in-progress: false
+
+jobs:
+  ops-department-review:
+    runs-on: [self-hosted, local]
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      OPS_REFACTOR_TIER: small
+      OPS_REFACTOR_WORKFLOW_FILE: ops-department-auto-refactoring.yml
+      OPS_REFACTOR_HOTSPOT_SINCE_DAYS: "30"
+      OPS_REFACTOR_COOLDOWN_DAYS: "30"
+      OPS_REFACTOR_TARGET_TOP_N: "20"
+      OPS_REFACTOR_TIMEOUT_MS: "900000"
+      OPS_REFACTOR_JUDGE_THRESHOLD: "90"
+      OPS_REFACTOR_MAX_ATTEMPTS: "3"
+      OPS_REFACTOR_JUDGE_MAX_DIFF_CHARS: "12000"
+      OPS_REFACTOR_MAX_FILES: "5"
+      OPS_REFACTOR_MAX_LINES: "200"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 全履歴取得（git diffで比較するため）
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify Codex CLI
+        run: codex --version
+
+      - name: Run ops-department team review
+        env:
+          REAL_HOME: /Users/ksato
+          HOME: /Users/ksato
+          AI_CLI_BACKEND: codex
+          CODEX_CLI_PATH: /usr/local/bin/codex
+          CODEX_MODEL: gpt-5-codex
+          CODEX_REASONING_EFFORT: high
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PATH: /Users/ksato/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+        run: node scripts/ops-team-review.cjs
+
+      - name: Check actionable changes
+        if: success()
+        id: changes
+        run: |
+          set -euo pipefail
+
+          tracked="$(git diff --name-only || true)"
+          untracked="$(git ls-files --others --exclude-standard || true)"
+
+          all_files="$(printf '%s\n%s\n' "${tracked}" "${untracked}" | sed '/^$/d' | sort -u)"
+
+          # Ignore the always-generated report (we only create a PR when code changes exist).
+          actionable_files="$(printf '%s\n' "${all_files}" | grep -vE '^(ops-department-refactoring\\.md)$' || true)"
+
+          if [ -n "${actionable_files}" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Actionable changes detected:"
+            printf '%s\n' "${actionable_files}"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  No actionable changes detected. Skipping PR creation."
+          fi
+
+      - name: Guard PR size
+        if: steps.changes.outputs.has_changes == 'true'
+        id: size-guard
+        run: |
+          set -euo pipefail
+
+          max_files="${OPS_REFACTOR_MAX_FILES:-10}"
+          max_lines="${OPS_REFACTOR_MAX_LINES:-400}"
+
+          tracked="$(git diff --name-only || true)"
+          untracked="$(git ls-files --others --exclude-standard || true)"
+          all_files="$(printf '%s\n%s\n' "${tracked}" "${untracked}" | sed '/^$/d' | sort -u)"
+
+          actionable_files="$(printf '%s\n' "${all_files}" | grep -vE '^(ops-department-refactoring\\.md)$' || true)"
+
+          file_count="$(printf '%s\n' "${actionable_files}" | sed '/^$/d' | wc -l | tr -d ' ')"
+
+          if [ "${file_count}" -eq 0 ]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  No actionable files after filtering."
+            exit 0
+          fi
+
+          if [ "${file_count}" -gt "${max_files}" ]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Too many files changed (${file_count} > ${max_files}). Skipping PR creation."
+            exit 0
+          fi
+
+          if printf '%s\n' "${actionable_files}" | grep -qE '^(package-lock\\.json)$'; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Lockfile changed. Skipping PR creation."
+            exit 0
+          fi
+
+          tracked_lines="$(git diff --numstat | awk '{add+=$1; del+=$2} END {print add+del}' || echo 0)"
+          tracked_lines="${tracked_lines:-0}"
+
+          untracked_lines=0
+          while IFS= read -r f; do
+            [ -z "${f}" ] && continue
+            [ "${f}" = "ops-department-refactoring.md" ] && continue
+            if [ -f "${f}" ]; then
+              l="$(wc -l < "${f}" | tr -d ' ')"
+              untracked_lines=$((untracked_lines + l))
+            fi
+          done <<EOF
+          ${untracked}
+          EOF
+
+          total_lines=$((tracked_lines + untracked_lines))
+
+          if [ "${total_lines}" -gt "${max_lines}" ]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Diff too large (${total_lines} lines > ${max_lines}). Skipping PR creation."
+            exit 0
+          fi
+
+          echo "allowed=true" >> "$GITHUB_OUTPUT"
+          echo "✅ Size guard passed (${file_count} files, ${total_lines} lines)."
+
+      - name: Install dependencies
+        if: steps.size-guard.outputs.allowed == 'true'
+        run: npm ci
+
+      - name: Run related unit tests
+        if: steps.size-guard.outputs.allowed == 'true'
+        env:
+          CI: "true"
+        run: |
+          set -euo pipefail
+
+          tracked="$(git diff --name-only || true)"
+          untracked="$(git ls-files --others --exclude-standard || true)"
+          all_files="$(printf '%s\n%s\n' "${tracked}" "${untracked}" | sed '/^$/d' | sort -u)"
+
+          actionable_files="$(printf '%s\n' "${all_files}" | grep -vE '^(ops-department-refactoring\.md)$' || true)"
+
+          mapfile -t related_targets < <(
+            printf '%s\n' "${actionable_files}" \
+              | sed '/^$/d' \
+              | grep -E '^(public/modules|server|lib)/.*\.(cjs|mjs|js|jsx|ts|tsx)$' \
+              || true
+          )
+
+          if [ "${#related_targets[@]}" -eq 0 ]; then
+            echo "ℹ️ No source files for related tests. Skipping unit tests."
+            exit 0
+          fi
+
+          echo "🧪 Running related unit tests for ${#related_targets[@]} changed source file(s)..."
+          printf '  - %s\n' "${related_targets[@]}"
+
+          npx vitest related --run --passWithNoTests "${related_targets[@]}"
+
+      - name: Read PR Title
+        if: steps.size-guard.outputs.allowed == 'true'
+        id: pr-title
+        run: |
+          if [ -f pr-title.txt ]; then
+            echo "title=$(cat pr-title.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "title=[ops-department] 自動コードレビュー - Run ${{ github.run_number }}" >> $GITHUB_OUTPUT
+          fi
+          rm -f pr-title.txt || true
+
+      - name: Prepare PR Body
+        if: steps.size-guard.outputs.allowed == 'true'
+        id: pr-body
+        run: |
+          set -euo pipefail
+
+          body_path="${RUNNER_TEMP}/ops-department-pr-body-${GITHUB_RUN_ID}.md"
+
+          if [ -f pr-body.txt ]; then
+            cp pr-body.txt "${body_path}"
+          else
+            printf '%s\n' \
+              '## 🤖 ops-department 自動コードレビュー' \
+              '' \
+              '詳細なレビュー結果はこのPR本文に含まれます。' \
+              > "${body_path}"
+          fi
+
+          rm -f pr-body.txt || true
+          echo "path=${body_path}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure report file is not included in PR
+        if: steps.size-guard.outputs.allowed == 'true'
+        run: |
+          # Keep the repo report file stable; PRs should focus on code diffs.
+          git checkout -- ops-department-refactoring.md || true
+
+      - name: Create Pull Request
+        if: steps.size-guard.outputs.allowed == 'true'
+        id: create-pr
+        uses: peter-evans/create-pull-request@v6
+        env:
+          # `create-pull-request` performs `git commit` and can trigger husky/lint-staged hooks.
+          # In this automation we already run tests, so we disable hooks to avoid false failures.
+          HUSKY: "0"
+          HUSKY_SKIP_HOOKS: "1"
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            refactor: ops-department auto refactor
+
+            Automated code review and refactoring by ops-department team:
+            - architect: architecture patterns check
+            - security-engineer: security vulnerabilities check
+            - refactoring-specialist: refactoring suggestions
+            - tdd-engineer: test coverage check
+
+            Co-Authored-By: ops-department <noreply@unson.co.jp>
+          base: main
+          branch: ops-department/auto-refactor-${{ github.run_number }}
+          delete-branch: true
+          title: ${{ steps.pr-title.outputs.title }}
+          body-path: ${{ steps.pr-body.outputs.path }}
+          labels: |
+            automated
+            refactoring
+            ops-department
+            small
+
+      - name: Update refactoring history in main
+        if: steps.create-pr.outputs.pull-request-number
+        env:
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+          PR_BRANCH: ${{ steps.create-pr.outputs.pull-request-branch }}
+          TARGET_BRANCH: main
+          # This step commits directly to `main` (history metadata only). Disable local git hooks.
+          HUSKY: "0"
+          HUSKY_SKIP_HOOKS: "1"
+          SKIP_BRANCH_PROTECTION: "1"
+        run: node scripts/commit-history-to-develop.cjs
+
+      - name: Auto-merge small refactor PR
+        if: steps.create-pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          pr="${{ steps.create-pr.outputs.pull-request-number }}"
+          echo "🔀 Auto-merging PR #${pr} into main..."
+          gh pr merge "${pr}" --repo "${GITHUB_REPOSITORY}" --merge --delete-branch --yes
+
+  # PRマージ状態を定期的に更新
+  update-pr-status:
+    runs-on: [self-hosted, local]
+    if: github.event_name == 'schedule'
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Update PR merge status
+        env:
+          TARGET_BRANCH: main
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/update-pr-status.cjs
