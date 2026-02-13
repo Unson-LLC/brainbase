@@ -46,36 +46,30 @@ export class MobileInputUIController {
         this.bindTouchClickHandler(dockSend, 'dock', dockInput);
 
         // iOS Safari対応: touchstart + click で確実にタップ検出
-        this.bindTapHandler(dockMore, () => {
+        this.bindDockTapWithRefocus(dockMore, () => {
             this.toggleDockExpanded();
-            this.focusManager.refocusInput(dockInput);
         });
         this.bindTapHandler(dockSessions, () => {
             this.handleSessionsSheet();
         });
-        this.bindTapHandler(dockPaste, async () => {
+        this.bindDockTapWithRefocus(dockPaste, async () => {
             const result = await this.pasteFromClipboard();
             this.handleClipboardResult(result);
-            this.focusManager.refocusInput(dockInput);
         });
-        this.bindTapHandler(dockUploadImage, () => {
+        this.bindDockTapWithRefocus(dockUploadImage, () => {
             this.handleUploadImage();
-            this.focusManager.refocusInput(dockInput);
         });
         this.bindTapHandler(dockCopyTerminal, () => {
             this.handleCopyTerminal();
         });
-        this.bindTapHandler(dockClear, () => {
+        this.bindDockTapWithRefocus(dockClear, () => {
             this.handleClear();
-            this.focusManager.refocusInput(dockInput);
         });
-        this.bindTapHandler(dockEscape, () => {
+        this.bindDockTapWithRefocus(dockEscape, () => {
             this.handleEscape();
-            this.focusManager.refocusInput(dockInput);
         });
-        this.bindTapHandler(dockShiftTab, () => {
+        this.bindDockTapWithRefocus(dockShiftTab, () => {
             this.handleShiftTab();
-            this.focusManager.refocusInput(dockInput);
         });
 
         this.elements.dockClipButtons.forEach((button, index) => {
@@ -87,6 +81,28 @@ export class MobileInputUIController {
         });
 
         this.bindCursorButtons(dockInput, this.elements.dock);
+    }
+
+    bindDockTapWithRefocus(element, handler) {
+        if (!element) return;
+
+        const refocusDock = () => {
+            const dockInput = this.elements.dockInput;
+            if (!dockInput) return;
+            this.focusManager.refocusInput(dockInput);
+        };
+
+        const safeHandler = typeof handler === 'function' ? handler : null;
+
+        this.bindTapHandler(element, async () => {
+            try {
+                if (safeHandler) {
+                    await safeHandler();
+                }
+            } finally {
+                refocusDock();
+            }
+        });
     }
 
     /**
