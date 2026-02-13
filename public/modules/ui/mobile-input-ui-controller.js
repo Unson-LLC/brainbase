@@ -55,10 +55,7 @@ export class MobileInputUIController {
         });
         this.bindTapHandler(dockPaste, async () => {
             const result = await this.pasteFromClipboard();
-            if (result) {
-                this.autoResize(result.inputEl);
-                this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-            }
+            this.processClipboardResult(result);
             this.focusManager.refocusInput(dockInput);
         });
         this.bindTapHandler(dockUploadImage, () => {
@@ -84,10 +81,7 @@ export class MobileInputUIController {
         this.elements.dockClipButtons.forEach((button, index) => {
             this.bindTapHandler(button, async () => {
                 const result = await this.handleClipSlot(index);
-                if (result) {
-                    this.autoResize(result.inputEl);
-                    this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-                }
+                this.processClipboardResult(result);
             });
             this.clipboardManager.bindLongPressClear(button, index);
         });
@@ -144,10 +138,7 @@ export class MobileInputUIController {
         composerBack?.addEventListener('click', () => this.closeComposer(true));
         composerPaste?.addEventListener('click', async () => {
             const result = await this.pasteFromClipboard();
-            if (result) {
-                this.autoResize(result.inputEl);
-                this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-            }
+            this.processClipboardResult(result);
         });
         composerClipboard?.addEventListener('click', () => this.sheetManager.openClipboardSheet());
         composerSnippets?.addEventListener('click', () => this.sheetManager.openSnippetSheet());
@@ -584,10 +575,13 @@ export class MobileInputUIController {
 
     insertTextAtCursor(text) {
         const result = this.clipboardManager.insertTextAtCursor(text, () => this.getActiveInput());
-        if (result) {
-            this.autoResize(result.inputEl);
-            this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-        }
+        this.processClipboardResult(result);
+    }
+
+    processClipboardResult(result) {
+        if (!result || !result.inputEl) return;
+        this.autoResize(result.inputEl);
+        this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
     }
 
     updateNetworkState() {
