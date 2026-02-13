@@ -366,9 +366,10 @@ export class WorktreeService {
             const prTitle = `Merge session: ${displayName}`;
 
             // Create PR (run from workspace for gh to detect repo)
+            // Use --head to explicitly specify branch (avoids upstream tracking issues)
             console.log(`[merge] Creating PR for ${bookmarkName}`);
             const { stdout: prUrl } = await this.execPromise(
-                `cd "${workspacePath}" && gh pr create --base "${mainBranchName}" --title "${prTitle}" --body "$(cat <<'EOF'
+                `cd "${workspacePath}" && gh pr create --base "${mainBranchName}" --head "${bookmarkName}" --title "${prTitle}" --body "$(cat <<'EOF'
 ## Summary
 
 ${commits || 'No commit messages'}
