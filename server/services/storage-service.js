@@ -21,18 +21,17 @@ export class StorageService {
      */
     async getDirectorySize(dir) {
         try {
-            const { stdout } = await execPromise(`du -sh "${dir}"`);
-            // 出力例: "1.5G    /path/to/dir"
-            const [size, dirPath] = stdout.trim().split(/\s+/);
+            const usage = await this._getDirectoryUsage(dir);
+            const sizeBytes = usage.sizeKB * 1024;
 
             return {
-                path: dirPath || dir,
-                size,
-                sizeBytes: await this.getDirectorySizeInBytes(dir),
+                path: usage.path,
+                size: this.formatBytes(sizeBytes),
+                sizeBytes,
             };
         } catch (error) {
             console.error(`[StorageService] Failed to get directory size for ${dir}:`, error.message);
-            return { error: error.message, size: '0' };
+            return { error: error.message, size: '0', sizeBytes: 0, path: dir };
         }
     }
 
@@ -43,13 +42,31 @@ export class StorageService {
      */
     async getDirectorySizeInBytes(dir) {
         try {
-            const { stdout } = await execPromise(`du -sk "${dir}"`);
-            // 出力例: "1234567    /path/to/dir"
-            const [sizeKB] = stdout.trim().split(/\s+/);
-            return parseInt(sizeKB) * 1024;
+            const usage = await this._getDirectoryUsage(dir);
+            return usage.sizeKB * 1024;
         } catch (error) {
             return 0;
         }
+    }
+
+    /**
+     * du -skのラッパー（KB単位のサイズと正規化パスを返す）
+     * @param {string} dir
+     * @returns {Promise<{sizeKB: number, path: string}>}
+     * @private
+     */
+    async _getDirectoryUsage(dir) {
+        const { stdout } = await execPromise(`du -sk "${dir}"`);
+        // 出力例: "1234567    /path/to/dir"
+        const trimmed = stdout.trim();
+        const [sizePart, ...pathParts] = trimmed.split(/\s+/);
+        const pathPart = pathParts.join(' ') || dir;
+        const parsed = parseInt(sizePart, 10);
+
+        return {
+            sizeKB: Number.isFinite(parsed) ? parsed : 0,
+            path: pathPart,
+        };
     }
 
     /**
