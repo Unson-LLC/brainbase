@@ -66,25 +66,25 @@ jobs:
           fi
 
           status="$(node <<'NODE'
-const fs = require("fs");
-try {
-  const data = JSON.parse(fs.readFileSync("ops-team-review-run-status.json", "utf-8"));
-  process.stdout.write(data.status || "unknown");
-} catch (_error) {
-  process.stdout.write("unknown");
-}
-NODE
-)"
+          const fs = require("fs");
+          try {
+            const data = JSON.parse(fs.readFileSync("ops-team-review-run-status.json", "utf-8"));
+            process.stdout.write(data.status || "unknown");
+          } catch (_error) {
+            process.stdout.write("unknown");
+          }
+          NODE
+          )"
           reason="$(node <<'NODE'
-const fs = require("fs");
-try {
-  const data = JSON.parse(fs.readFileSync("ops-team-review-run-status.json", "utf-8"));
-  process.stdout.write(data.reason || "");
-} catch (_error) {
-  process.stdout.write("status_file_parse_failed");
-}
-NODE
-)"
+          const fs = require("fs");
+          try {
+            const data = JSON.parse(fs.readFileSync("ops-team-review-run-status.json", "utf-8"));
+            process.stdout.write(data.reason || "");
+          } catch (_error) {
+            process.stdout.write("status_file_parse_failed");
+          }
+          NODE
+          )"
           echo "status=${status}" >> "$GITHUB_OUTPUT"
           echo "reason=${reason}" >> "$GITHUB_OUTPUT"
           echo "📌 refactor run status: ${status} (${reason})"
