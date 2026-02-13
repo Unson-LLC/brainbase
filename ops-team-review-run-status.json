@@ -1,0 +1,20 @@
+{
+  "status": "skipped",
+  "reason": "refactor_not_performed",
+  "details": {
+    "attempt": 1,
+    "area": "public/modules/ui",
+    "failure": {
+      "reason": "refactor_area_error",
+      "details": {
+        "area": "public/modules/ui",
+        "message": "Unexpected token 'ヤ', \"ヤバ！`public\"... is not valid JSON"
+      }
+    }
+  },
+  "timestamp": "2026-02-13T05:50:54.249Z",
+  "workflow": "ops-department-auto-refactoring.yml",
+  "runId": "21976110699",
+  "runNumber": "16",
+  "eventName": "workflow_dispatch"
+}
