@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   ops-department-review:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, local]
     permissions:
       contents: write
       pull-requests: write
@@ -40,19 +40,17 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Codex CLI
-        run: npm install -g @openai/codex
-
       - name: Verify Codex CLI
-        run: codex --version
+        run: /usr/local/bin/codex --version
 
       - name: Run ops-department team review
         env:
           AI_CLI_BACKEND: codex
-          CODEX_CLI_PATH: codex
+          REAL_HOME: /Users/ksato
+          HOME: /Users/ksato
+          CODEX_CLI_PATH: /usr/local/bin/codex
           CODEX_MODEL: gpt-5-codex
           CODEX_REASONING_EFFORT: high
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node scripts/ops-team-review.cjs
 
       - name: Check actionable changes
