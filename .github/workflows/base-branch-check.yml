@@ -1,0 +1,23 @@
+name: Base Branch Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-base-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if PR is from develop
+        run: |
+          if [ "${{ github.base_ref }}" = "main" ] && [ "${{ github.head_ref }}" != "develop" ]; then
+            echo "::error::mainブランチへのPRはdevelopブランチからのみ可能です"
+            echo "Base: ${{ github.base_ref }}"
+            echo "Head: ${{ github.head_ref }}"
+            exit 1
+          fi
+          echo "✅ Base branch check passed"
+
+      - name: Success
+        run: echo "PR is from develop branch"
