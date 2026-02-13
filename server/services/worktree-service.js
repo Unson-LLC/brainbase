@@ -341,6 +341,10 @@ export class WorktreeService {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
 
+            // Prepare workspace paths
+            const workspaceName = `${sessionId}-${path.basename(repoPath)}`;
+            const workspacePath = path.join(this.worktreesDir, workspaceName);
+
             // Push bookmark to remote
             console.log(`[merge] Pushing bookmark: ${bookmarkName}`);
             try {
@@ -361,10 +365,10 @@ export class WorktreeService {
             const displayName = sessionName || sessionId;
             const prTitle = `Merge session: ${displayName}`;
 
-            // Create PR
+            // Create PR (run from workspace for gh to detect repo)
             console.log(`[merge] Creating PR for ${bookmarkName}`);
             const { stdout: prUrl } = await this.execPromise(
-                `gh pr create --base "${mainBranchName}" --title "${prTitle}" --body "$(cat <<'EOF'
+                `cd "${workspacePath}" && gh pr create --base "${mainBranchName}" --title "${prTitle}" --body "$(cat <<'EOF'
 ## Summary
 
 ${commits || 'No commit messages'}
@@ -375,16 +379,12 @@ ${commits || 'No commit messages'}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
-)" --repo "${repoPath}"
-            `);
+)"`
+            );
 
-            // Merge PR
+            // Merge PR (run from workspace for gh to detect repo)
             console.log(`[merge] Merging PR`);
-            await this.execPromise(`gh pr merge --merge --delete-branch`);
-
-            // Cleanup workspace
-            const workspaceName = `${sessionId}-${path.basename(repoPath)}`;
-            const workspacePath = path.join(this.worktreesDir, workspaceName);
+            await this.execPromise(`cd "${workspacePath}" && gh pr merge --merge --delete-branch`);
 
             try {
                 await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
