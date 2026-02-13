@@ -66,7 +66,7 @@ export class WorktreeService {
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = sessionId;  // Jujutsu bookmark = sessionId
+        const bookmarkName = `session/${sessionId}`;  // Jujutsu bookmark = sessionId
 
         try {
             // Check if directory exists first
@@ -174,7 +174,7 @@ export class WorktreeService {
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = sessionId;
+        const bookmarkName = `session/${sessionId}`;
 
         try {
             // Forget workspace (metadata only)
@@ -219,7 +219,7 @@ export class WorktreeService {
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = sessionId;
+        const bookmarkName = `session/${sessionId}`;
 
         try {
             // Check if workspace exists
@@ -335,7 +335,7 @@ export class WorktreeService {
      * @returns {Promise<{success: boolean, message?: string, error?: string, needsCommit?: boolean, hasConflicts?: boolean, prUrl?: string}>}
      */
     async merge(sessionId, repoPath, sessionName = null) {
-        const bookmarkName = sessionId;
+        const bookmarkName = `session/${sessionId}`;
 
         try {
             // Get main branch name
