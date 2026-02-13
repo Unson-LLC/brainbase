@@ -194,7 +194,11 @@ describe('GoalSeekCalculationService', () => {
 
             await service.calculate(params, { emitProgress: false });
 
-            expect(mockEventBus.emit).not.toHaveBeenCalled();
+            // started/completedは発行されるが、progressイベントは発行されない
+            const progressCalls = mockEventBus.emit.mock.calls.filter(
+                call => call[0] === 'goal-seek:progress'
+            );
+            expect(progressCalls).toHaveLength(0);
         });
     });
 

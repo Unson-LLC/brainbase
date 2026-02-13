@@ -1,112 +1,103 @@
 /**
  * Goal Seek Routes
  *
- * Goal Seek機能のルーティング定義
+ * 目標達成逆算計算のルーティング定義
  *
  * エンドポイント:
- * - WS /api/goal-seek/calculate - WebSocket計算エンドポイント
- * - POST /api/goal-seek/intervention/:goalId/respond - 介入回答API
- *
- * 設計書参照: /tmp/dev-ops/spec.md § 3
+ * - GET /api/goal-seek/status - サービスステータス確認
+ * - POST /api/goal-seek/calculate - 計算リクエスト（HTTPフォールバック）
+ * - WebSocket upgrade /api/goal-seek/calculate - WebSocket接続
  */
-
 import express from 'express';
-import { WebSocketServer } from 'ws';
-import { GoalSeekWebSocketManager } from '../services/goal-seek-websocket-manager.js';
-import { GoalSeekCalculationService } from '../services/goal-seek-calculation-service.js';
+import { randomUUID } from 'crypto';
+import { requireAuth } from '../middleware/auth.js';
 
-export function createGoalSeekRouter({ authService, eventBus }) {
+export function createGoalSeekRouter({ authService, calculationService, wsManager }) {
     const router = express.Router();
-    const calculationService = new GoalSeekCalculationService({ eventBus });
-    const wsManager = new GoalSeekWebSocketManager({
-        authService,
-        calculationService,
-        maxConnections: Number(process.env.GOAL_SEEK_MAX_CONNECTIONS) || 3,
-        calculationTimeout: Number(process.env.GOAL_SEEK_CALCULATION_TIMEOUT) || 10000,
-        interventionTimeout: Number(process.env.GOAL_SEEK_INTERVENTION_TIMEOUT) || 3600000
-    });
 
-    // WebSocketサーバー参照（server.jsで設定）
-    router.wsManager = wsManager;
-
-    // POST /api/goal-seek/intervention/:goalId/respond - 介入回答API
-    router.post('/intervention/:goalId/respond', async (req, res) => {
-        try {
-            const { goalId } = req.params;
-            const { interventionId, choice, reason } = req.body;
-            const userId = req.user?.userId;
-
-            if (!userId) {
-                return res.status(401).json({
-                    error: 'Unauthorized',
-                    code: 'AUTH_REQUIRED'
-                });
-            }
-
-            if (!interventionId || !choice) {
-                return res.status(400).json({
-                    error: 'Bad Request',
-                    code: 'MISSING_PARAMETERS',
-                    message: 'interventionId and choice are required'
-                });
-            }
-
-            // 介入回答を処理（WebSocketManager経由）
-            const result = await wsManager.handleInterventionResponseHTTP({
-                interventionId,
-                goalId,
-                choice,
-                reason,
-                userId
-            });
-
-            res.json({
-                success: true,
-                interventionId,
-                choice,
-                result
-            });
-        } catch (error) {
-            console.error('[GoalSeek] Intervention response error:', error);
-            res.status(500).json({
-                error: 'Internal Server Error',
-                code: 'INTERNAL_ERROR',
-                message: error.message
-            });
-        }
-    });
-
-    // GET /api/goal-seek/status - ステータス取得
+    /**
+     * GET /api/goal-seek/status
+     * サービスステータスを返す
+     */
     router.get('/status', (req, res) => {
+        const activeConnections = wsManager?.getActiveConnectionCount() || 0;
+
         res.json({
-            activeConnections: wsManager.getActiveConnectionCount(),
-            pendingInterventions: wsManager.pendingInterventions?.size || 0
+            status: 'available',
+            activeConnections,
+            timestamp: new Date().toISOString()
         });
     });
 
+    /**
+     * POST /api/goal-seek/calculate
+     * HTTP経由で計算リクエストを処理（WebSocketのフォールバック）
+     */
+    router.post('/calculate', requireAuth(authService), async (req, res, next) => {
+        try {
+            const { target, period, current = 0, unit = '件', correlationId: clientCorrelationId } = req.body;
+
+            // バリデーション
+            if (target === undefined || target === null) {
+                return res.status(400).json({
+                    error: 'Validation failed: target is required'
+                });
+            }
+
+            if (period === undefined || period === null) {
+                return res.status(400).json({
+                    error: 'Validation failed: period is required'
+                });
+            }
+
+            // 基本型チェック
+            if (typeof target !== 'number' || target < 0) {
+                return res.status(400).json({
+                    error: 'Validation failed: target must be a non-negative number'
+                });
+            }
+
+            if (typeof period !== 'number' || period < 1 || period > 365) {
+                return res.status(400).json({
+                    error: 'Validation failed: period must be between 1 and 365'
+                });
+            }
+
+            // 計算実行
+            const correlationId = clientCorrelationId || randomUUID();
+            const result = await calculationService.calculate(
+                { target, period, current, unit },
+                { correlationId, emitProgress: false }
+            );
+
+            // 介入判定
+            const intervention = calculationService.checkInterventionNeeded(result);
+
+            res.json({
+                result,
+                intervention,
+                correlationId
+            });
+        } catch (error) {
+            // バリデーションエラーは400
+            if (error.message.includes('must be') || error.message.includes('between')) {
+                return res.status(400).json({
+                    error: `Validation failed: ${error.message}`
+                });
+            }
+            // その他のエラーは500
+            next(error);
+        }
+    });
+
+    /**
+     * WebSocket upgrade handling
+     * WebSocket接続はserver.jsでWebSocket Server経由で処理されるため、
+     * ここではルーターエクスポートのみ行う
+     */
+    router.ws = null; // Placeholder for WebSocket upgrade handler
+
     return router;
-}
-
-/**
- * WebSocketサーバーを初期化してルーターにアタッチ
- */
-export function attachWebSocketServer(router, server, path = '/api/goal-seek/calculate') {
-    const wsManager = router.wsManager;
-    if (!wsManager) {
-        throw new Error('WebSocketManager not found in router');
-    }
-
-    const wss = new WebSocketServer({ server, path });
-
-    wss.on('connection', async (ws, request) => {
-        await wsManager.handleConnection(ws, request);
-    });
-
-    wss.on('error', (error) => {
-        console.error('[GoalSeek] WebSocket server error:', error);
-    });
-
-    return wss;
 }
 
 export default createGoalSeekRouter;
