@@ -50,7 +50,7 @@ export class SessionController {
      * ttydプロセスを起動
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine = 'claude', userId = 'ksato' } = req.body;
+        const { sessionId, initialCommand, cwd, engine } = req.body;
         console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
@@ -62,13 +62,19 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
+            const startOptions = { sessionId };
+            if (typeof cwd === 'string' && cwd.trim()) {
+                startOptions.cwd = cwd;
+            }
+            if (typeof initialCommand === 'string') {
+                startOptions.initialCommand = initialCommand;
+            }
+            if (typeof engine === 'string' && engine.trim()) {
+                startOptions.engine = engine;
+            }
+
             // ttydプロセス起動
-            const result = await this.sessionManager.startTtyd({
-                sessionId,
-                cwd,
-                initialCommand,
-                engine
-            });
+            const result = await this.sessionManager.startTtyd(startOptions);
 
             res.json(result);
         } catch (error) {
@@ -89,16 +95,21 @@ export class SessionController {
         const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
 
         if (stopped) {
-            // Update intendedState to 'stopped'
-            const currentState = this.stateStore.get();
-            const updatedSessions = currentState.sessions.map(session =>
-                session.id === id ? { ...session, intendedState: 'stopped' } : session
-            );
+            // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
+            if (!preserveTmux) {
+                const currentState = this.stateStore.get();
+                const now = new Date().toISOString();
+                const updatedSessions = (currentState.sessions || []).map(session =>
+                    session.id === id
+                        ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
+                        : session
+                );
 
-            await this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
-            });
+                await this.stateStore.update({
+                    ...currentState,
+                    sessions: updatedSessions
+                });
+            }
 
             res.json({ success: true });
         } else {
@@ -108,7 +119,7 @@ export class SessionController {
 
     /**
      * POST /api/sessions/:id/archive
-     * セッションをアーカイブ（worktreeマージチェック、ttyd停止、状態更新）
+     * セッションをアーカイブ（workspace統合チェック、ttyd停止、状態更新）
      */
     archive = async (req, res) => {
         const { id } = req.params;
@@ -121,18 +132,18 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        // Check if worktree needs merge
+        // Check if workspace needs integration (Jujutsu: push needed)
         if (session.worktree && !skipMergeCheck) {
             const status = await this.worktreeService.getStatus(
                 id,
                 session.worktree.repo,
                 session.worktree.startCommit || null
             );
-            if (status.needsMerge) {
+            if (status.needsIntegration || status.needsMerge) {
                 return res.json({
                     needsConfirmation: true,
                     status,
-                    message: 'Session has unmerged changes'
+                    message: 'Workspace has changes not pushed to remote'
                 });
             }
         }
@@ -355,15 +366,9 @@ export class SessionController {
             // セッション作成時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
-            // Start ttyd session with worktree as cwd
-            const result = await this.sessionManager.startTtyd({
-                sessionId,
-                cwd: worktreePath,
-                initialCommand,
-                engine
-            });
-
-            // Update state to include worktree info
+            // Update state BEFORE starting ttyd.
+            // This allows ttyd start to persist pid/port and login_script.sh to resolve correct CWD.
+            const now = new Date().toISOString();
             const currentState = this.stateStore.get();
             const newSession = {
                 id: sessionId,
@@ -379,13 +384,34 @@ export class SessionController {
                 initialCommand,
                 engine,
                 intendedState: 'active',
-                createdAt: new Date().toISOString()
+                createdAt: now,
+                updatedAt: now
             };
 
             await this.stateStore.update({
                 ...currentState,
-                sessions: [...(currentState.sessions || []), newSession]
+                sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
             });
+
+            let result;
+            try {
+                // Start ttyd session with worktree as cwd
+                result = await this.sessionManager.startTtyd({
+                    sessionId,
+                    cwd: worktreePath,
+                    initialCommand,
+                    engine
+                });
+            } catch (error) {
+                // Roll back state + workspace on failure (best-effort)
+                const rollbackState = this.stateStore.get();
+                await this.stateStore.update({
+                    ...rollbackState,
+                    sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
+                });
+                this.worktreeService.remove(sessionId, repoPath).catch(() => {});
+                throw error;
+            }
 
             res.json({
                 success: true,
@@ -438,6 +464,7 @@ export class SessionController {
      */
     updateLocalMain = async (req, res) => {
         const { id } = req.params;
+        const { autoStash = false } = req.body || {};
 
         // Get session from state
         const state = this.stateStore.get();
@@ -452,10 +479,7 @@ export class SessionController {
         }
 
         try {
-            const result = await this.worktreeService.updateLocalMain(session.worktree.repo);
-            if (!result.success) {
-                return res.status(400).json({ error: result.error || 'Failed to update local main' });
-            }
+            const result = await this.worktreeService.updateLocalMain(session.worktree.repo, { autoStash });
             res.json(result);
         } catch (error) {
             console.error('Failed to update local main:', error);

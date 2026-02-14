@@ -4,11 +4,10 @@
 #
 # 構成:
 #   - graph-api: brainbase Graph APIサーバー（Docker）
-#   - nginx: HTTPSリバースプロキシ（Let's Encrypt統合）
-#   - certbot: SSL証明書自動更新
+#   - 既存のnginx-proxy + letsencryptを利用
 #
 # デプロイ先: Lightsail (176.34.20.239)
-# ドメイン: graph.brainbase.work
+# ドメイン: graph.brain-base.work
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -17,9 +16,7 @@ services:
   # Graph API Server
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   graph-api:
-    build:
-      context: .
-      dockerfile: Dockerfile.graph-api
+    image: brainbase-graph-api:latest
     container_name: brainbase-graph-api
     restart: unless-stopped
     env_file:
@@ -36,11 +33,17 @@ services:
       - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}
       - SLACK_REDIRECT_URI=${SLACK_REDIRECT_URI}
       # 公開URL
-      - BRAINBASE_PUBLIC_URL=https://graph.brainbase.work
+      - BRAINBASE_PUBLIC_URL=https://graph.brain-base.work
       # CORS許可オリジン
-      - BRAINBASE_AUTH_ALLOWED_ORIGINS=https://graph.brainbase.work
+      - BRAINBASE_AUTH_ALLOWED_ORIGINS=https://graph.brain-base.work
+      # nginx-proxy用設定
+      - VIRTUAL_HOST=graph.brain-base.work
+      - LETSENCRYPT_HOST=graph.brain-base.work
+      - LETSENCRYPT_EMAIL=noreply@example.com
+    expose:
+      - "3000"
     networks:
-      - graph-api-network
+      - ubuntu_nocodb-network
     logging:
       driver: "json-file"
       options:
@@ -53,41 +56,6 @@ services:
       retries: 3
       start_period: 40s
 
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Nginx (HTTPSリバースプロキシ)
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  nginx:
-    image: nginx:alpine
-    container_name: brainbase-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./certbot/www:/var/www/certbot:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
-    networks:
-      - graph-api-network
-    depends_on:
-      - graph-api
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Certbot (Let's Encrypt証明書自動更新)
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  certbot:
-    image: certbot/certbot
-    container_name: brainbase-certbot
-    volumes:
-      - ./certbot/www:/var/www/certbot:rw
-      - ./certbot/conf:/etc/letsencrypt:rw
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-
 networks:
-  graph-api-network:
-    driver: bridge
+  ubuntu_nocodb-network:
+    external: true

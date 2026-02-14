@@ -30,7 +30,7 @@ RUN npm ci --omit=dev --ignore-scripts
 FROM node:20-alpine
 
 # メタデータ
-LABEL maintainer="keigo@unson.jp"
+LABEL maintainer="noreply@example.com"
 LABEL description="brainbase Graph API Server (API + Device Auth only)"
 LABEL version="0.1.0"
 
@@ -49,10 +49,12 @@ COPY server.js ./
 COPY lib/ ./lib/
 COPY server/ ./server/
 
-# Device認証ページ（public/device.html + public/modules/device/）のみコピー
+# Device認証ページ + Setup ページ（public/device.html + public/setup.html + public/modules/device/ + public/modules/setup/）をコピー
 # UIは除外（index.html, app.js, modules/ui/, modules/components/ 等）
 COPY public/device.html ./public/device.html
+COPY public/setup.html ./public/setup.html
 COPY public/modules/device/ ./public/modules/device/
+COPY public/modules/setup/ ./public/modules/setup/
 
 # 権限設定（非rootユーザーに変更）
 RUN chown -R brainbase:brainbase /app

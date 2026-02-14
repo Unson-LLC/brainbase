@@ -101,55 +101,56 @@
             </div>
         </nav>
 
-        <!-- Left Panel Resize Handle -->
-        <div class="panel-resize-handle panel-resize-handle-left" id="left-panel-resize-handle" title="ドラッグで幅を変更"></div>
-
-        <!-- Main Content (Console) -->
-        <main class="main-content">
-            <div class="console-area" id="console-area">
-                <div class="console-toolbar">
-                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
-                        aria-label="クリップボードからペースト">
-                        <i data-lucide="clipboard"></i>
-                    </button>
-                    <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード" aria-label="画像をアップロード">
-                        <i data-lucide="image-plus"></i>
-                    </button>
-                    <input type="file" id="image-file-input" accept="image/*" style="display: none;">
-                    <button id="send-escape-btn" class="console-btn" title="Escapeキーを送信">
-                        <i data-lucide="x-octagon"></i>
-                    </button>
-                    <button id="send-clear-btn" class="console-btn" title="画面クリア (Ctrl+L)">
-                        <i data-lucide="eraser"></i>
-                    </button>
-                    <button id="copy-terminal-btn" class="console-btn" title="ターミナル内容をコピー">
-                        <i data-lucide="copy"></i>
-                    </button>
-                </div>
-                <iframe id="terminal-frame" src="about:blank"></iframe>
-                <div id="menu-overlay" class="menu-overlay hidden"></div>
-                <div id="drop-overlay" class="drop-overlay">
-                    <div class="drop-overlay-content">
-                        <i data-lucide="upload"></i>
-                        <span>ファイルをドロップしてアップロード</span>
-                    </div>
-                </div>
-
-                <!-- Phase 3.2: Choice Overlay for tapping terminal choices -->
-                <div id="choice-overlay" class="choice-overlay">
-                    <div class="choice-overlay-content">
-                        <div class="choice-header">
-                            <h3>選択してください</h3>
-                            <button class="choice-close-btn" id="close-choice-overlay">
-                                <i data-lucide="x"></i>
-                            </button>
-                        </div>
-                        <div id="choice-buttons" class="choice-buttons">
-                            <!-- Choices will be dynamically added here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
+	        <!-- Left Panel Resize Handle -->
+	        <div class="panel-resize-handle panel-resize-handle-left" id="left-panel-resize-handle" title="ドラッグで幅を変更"></div>
+	
+	        <!-- Main Content (Console) -->
+	        <main class="main-content">
+	            <div class="console-area" id="console-area">
+	                <div class="console-toolbar">
+	                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
+	                        aria-label="クリップボードからペースト">
+	                        <i data-lucide="clipboard"></i>
+	                    </button>
+	                    <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード" aria-label="画像をアップロード">
+	                        <i data-lucide="image-plus"></i>
+	                    </button>
+	                    <input type="file" id="image-file-input" accept="image/*" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
+	                    <button id="send-escape-btn" class="console-btn" title="Escapeキーを送信">
+	                        <i data-lucide="x-octagon"></i>
+	                    </button>
+	                    <button id="send-clear-btn" class="console-btn" title="画面クリア (Ctrl+L)">
+	                        <i data-lucide="eraser"></i>
+	                    </button>
+	                    <button id="copy-terminal-btn" class="console-btn" title="ターミナル内容をコピー">
+	                        <i data-lucide="copy"></i>
+	                    </button>
+	                </div>
+	                <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
+	                <iframe id="terminal-frame" src="about:blank"></iframe>
+	                <div id="menu-overlay" class="menu-overlay hidden"></div>
+	                <div id="drop-overlay" class="drop-overlay">
+	                    <div class="drop-overlay-content">
+	                        <i data-lucide="upload"></i>
+	                        <span>ファイルをドロップしてアップロード</span>
+	                    </div>
+	                </div>
+	
+	                <!-- Phase 3.2: Choice Overlay for tapping terminal choices -->
+	                <div id="choice-overlay" class="choice-overlay">
+	                    <div class="choice-overlay-content">
+	                        <div class="choice-header">
+	                            <h3>選択してください</h3>
+	                            <button class="choice-close-btn" id="close-choice-overlay">
+	                                <i data-lucide="x"></i>
+	                            </button>
+	                        </div>
+	                        <div id="choice-buttons" class="choice-buttons">
+	                            <!-- Choices will be dynamically added here -->
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
 
             <!-- Dashboard Panel (Phase 1) -->
             <div class="main-panel" id="dashboard-panel" data-slot="view:dashboard" style="display: none;">
@@ -734,6 +735,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" id="confirm-cancel-btn">キャンセル</button>
+                <button class="btn-info" id="confirm-action-btn" style="display: none;">アクション</button>
                 <button class="btn-danger" id="confirm-ok-btn">OK</button>
             </div>
         </div>
@@ -794,10 +796,16 @@
                 <button class="mobile-input-secondary" id="mobile-dock-more">More</button>
             </div>
         </div>
-        <!-- Actions: Image upload, Copy terminal, Clear, Escape (expanded mode only) -->
+        <!-- Actions: Sessions, Image upload, Paste, Copy terminal, Clear, Escape, Plan mode (expanded mode only) -->
         <div class="mobile-input-row mobile-input-actions">
+            <button class="mobile-input-btn" id="mobile-dock-sessions" title="セッション切り替え">
+                <i data-lucide="layers"></i>
+            </button>
             <button class="mobile-input-btn" id="mobile-dock-upload-image" title="画像アップロード">
                 <i data-lucide="image-plus"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-paste" title="クリップボードからペースト">
+                <i data-lucide="clipboard"></i>
             </button>
             <button class="mobile-input-btn" id="mobile-dock-copy-terminal" title="ターミナル内容をコピー">
                 <i data-lucide="copy"></i>
@@ -807,6 +815,9 @@
             </button>
             <button class="mobile-input-btn" id="mobile-dock-escape" title="Escapeキーを送信">
                 <i data-lucide="x-octagon"></i>
+            </button>
+            <button class="mobile-input-btn" id="mobile-dock-shift-tab" title="プランモード切り替え (Shift+Tab)">
+                <i data-lucide="panel-left"></i>
             </button>
         </div>
     </div>
@@ -940,67 +951,91 @@
         </div>
     </div>
 
-    <!-- Mobile FAB (Floating Action Button) with Speed Dial -->
-    <div id="mobile-fab-container" class="mobile-fab-container">
-        <!-- Overlay to close menu -->
-        <div id="mobile-fab-overlay" class="mobile-fab-overlay"></div>
-
-        <!-- Speed Dial Actions (ordered bottom-to-top by usage frequency) -->
-        <div id="mobile-fab-actions" class="mobile-fab-actions">
-            <!-- Hard reset (top, development use) -->
-            <button class="mobile-fab-action" id="mobile-hard-reset-btn" title="キャッシュクリアして再読込">
-                <i data-lucide="refresh-cw"></i>
-                <span class="fab-action-label">リセット</span>
-            </button>
-            <!-- Least frequent: Copy (top, farthest from FAB) -->
-            <button class="mobile-fab-action" id="mobile-copy-terminal-btn" title="ターミナル内容をコピー">
-                <i data-lucide="copy"></i>
-                <span class="fab-action-label">コピー</span>
-            </button>
-            <!-- Low frequency: Clear -->
-            <button class="mobile-fab-action" id="mobile-send-clear-btn" title="画面クリア (Ctrl+L)">
-                <i data-lucide="eraser"></i>
-                <span class="fab-action-label">クリア</span>
-            </button>
-            <!-- Medium frequency: Escape -->
-            <button class="mobile-fab-action" id="mobile-send-escape-btn" title="Escapeキーを送信">
-                <i data-lucide="x-octagon"></i>
-                <span class="fab-action-label">Escape</span>
-            </button>
-            <!-- Mode toggle: Shift+Tab for plan mode -->
-            <button class="mobile-fab-action" id="mobile-send-shift-tab-btn" title="Shift+Tabを送信（プランモード切り替え）">
-                <i data-lucide="panel-left"></i>
-                <span class="fab-action-label">プラン</span>
-            </button>
-            <!-- Mode toggle: Virtual keyboard visibility -->
-            <button class="mobile-fab-action" id="mobile-toggle-keyboard-btn" title="仮想キーボード表示/非表示">
-                <i data-lucide="keyboard"></i>
-                <span class="fab-action-label">キーボード</span>
-            </button>
-            <!-- High frequency: Image upload -->
-            <button class="mobile-fab-action" id="mobile-upload-image-btn" title="画像を選択してアップロード">
-                <i data-lucide="image-plus"></i>
-                <span class="fab-action-label">画像</span>
-            </button>
-            <!-- Most frequent: Paste (bottom, closest to FAB) -->
-            <button class="mobile-fab-action" id="mobile-paste-btn" title="クリップボードからペースト">
-                <i data-lucide="clipboard"></i>
-                <span class="fab-action-label">ペースト</span>
-            </button>
-        </div>
-
-        <!-- Main FAB Button -->
-        <button id="mobile-fab" class="mobile-fab" title="アクションメニュー">
-            <i data-lucide="wrench" class="fab-icon-default"></i>
-            <i data-lucide="x" class="fab-icon-close"></i>
-        </button>
-    </div>
-
     <!-- Health Detail Modal -->
     <div id="health-detail-modal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="window.dashboardController.closeHealthModal()">&times;</span>
             <div id="health-modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Goal Seek Modal -->
+    <div id="goal-seek-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i data-lucide="target"></i> Goal Seek</h3>
+                <button id="goal-seek-modal-close" class="close-modal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <!-- Goal Parameters -->
+                <div class="form-group">
+                    <label for="goal-target">目標値</label>
+                    <input type="number" id="goal-target" class="form-input" placeholder="例: 1000000">
+                </div>
+                <div class="form-group">
+                    <label for="goal-current">現在値</label>
+                    <input type="number" id="goal-current" class="form-input" placeholder="例: 500000">
+                </div>
+                <div class="form-group">
+                    <label for="goal-unit">単位</label>
+                    <select id="goal-unit" class="form-input">
+                        <option value="yen">円</option>
+                        <option value="count">個</option>
+                        <option value="percent">%</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="goal-period">期間（日数）</label>
+                    <input type="number" id="goal-period" class="form-input" placeholder="例: 30" min="1" max="365">
+                </div>
+                <div class="form-group">
+                    <label for="goal-variable">調整変数</label>
+                    <select id="goal-variable" class="form-input">
+                        <option value="daily_actions">日次アクション数</option>
+                        <option value="conversion_rate">コンバージョン率</option>
+                        <option value="unit_price">単価</option>
+                    </select>
+                </div>
+
+                <!-- Calculation Details -->
+                <div class="goal-seek-details" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                    <h4 style="font-size: 14px; margin-bottom: 8px; color: var(--text-secondary);">計算結果</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                        <div>
+                            <span style="font-size: 12px; color: var(--text-tertiary);">ギャップ</span>
+                            <div id="detail-gap" style="font-size: 18px; font-weight: 600;">-</div>
+                        </div>
+                        <div>
+                            <span style="font-size: 12px; color: var(--text-tertiary);">期間</span>
+                            <div id="detail-period" style="font-size: 18px; font-weight: 600;">-</div>
+                        </div>
+                        <div>
+                            <span style="font-size: 12px; color: var(--text-tertiary);">1日あたり</span>
+                            <div id="detail-daily" style="font-size: 18px; font-weight: 600;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Intervention Section (hidden by default) -->
+                <div id="intervention-section" class="goal-seek-intervention" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <h4 id="intervention-title" style="font-size: 16px; margin-bottom: 8px;">介入が必要です</h4>
+                    <p id="intervention-message" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">メッセージ</p>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                        <span style="font-size: 12px; color: var(--text-tertiary);">残り時間:</span>
+                        <span id="timeout-value" style="font-weight: 600; color: var(--accent-color);">-</span>
+                    </div>
+                    <div id="intervention-options" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"></div>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="intervention-proceed-btn" class="btn-primary">続行</button>
+                        <button id="intervention-abort-btn" class="btn-danger">中止</button>
+                        <button id="intervention-modify-btn" class="btn-secondary">修正</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn">キャンセル</button>
+                <button id="goal-seek-modal-submit" class="btn-primary">計算開始</button>
+            </div>
         </div>
     </div>
 

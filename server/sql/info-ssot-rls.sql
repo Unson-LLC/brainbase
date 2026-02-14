@@ -203,6 +203,13 @@ CREATE POLICY info_graph_entities_insert ON graph_entities
     )
   );
 
+DROP POLICY IF EXISTS info_graph_entities_delete ON graph_entities;
+CREATE POLICY info_graph_entities_delete ON graph_entities
+  FOR DELETE
+  USING (
+    app_current_role_rank() >= 2
+  );
+
 DROP POLICY IF EXISTS info_graph_entities_update ON graph_entities;
 CREATE POLICY info_graph_entities_update ON graph_entities
   FOR UPDATE

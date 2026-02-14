@@ -86,7 +86,9 @@ const parseMarkdownTables = (content) => {
   for (let i = 0; i < lines.length - 1; i += 1) {
     if (!lines[i].trim().startsWith('|')) continue;
     if (!isSeparatorRow(lines[i + 1] || '')) continue;
+    console.log(`[DEBUG parseMarkdownTables] Raw header line (i=${i}): "${lines[i]}"`);
     const headers = parseTableLine(lines[i]);
+    console.log(`[DEBUG parseMarkdownTables] Parsed headers (${headers.length}): [${headers.join(', ')}]`);
     const rows = [];
     let cursor = i + 2;
     while (cursor < lines.length && lines[cursor].trim().startsWith('|')) {
@@ -208,7 +210,7 @@ const collectMarkdownFiles = async (rootDir, options = {}) => {
         if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === '_legacy') continue;
         if (skipDirs.has(entry.name)) continue;
         stack.push(full);
-      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      } else if (entry.isFile() && entry.name.endsWith('.md') && !entry.name.startsWith('.')) {
         results.push(full);
       }
     }
@@ -283,6 +285,7 @@ const main = async () => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await client.query(`SET LOCAL plan_cache_mode = 'force_custom_plan'`);
 
     for (const project of projectDirs) {
       const projectMd = path.join(project.path, 'project.md');
@@ -324,9 +327,9 @@ const main = async () => {
     projectCodeMap.set('zeims', projectCodeMap.get('zeims') || 'zeims');
 
     const projectCodes = [...projectRecords.keys()].join(',');
-    await client.query(`SELECT set_config('app.role', 'ceo', false)`);
-    await client.query(`SELECT set_config('app.project_codes', $1, false)`, [projectCodes]);
-    await client.query(`SELECT set_config('app.clearance', 'internal,restricted,finance,hr,contract', false)`);
+    await client.query(`SELECT set_config('app.role', 'ceo', true)`);
+    await client.query(`SELECT set_config('app.project_codes', $1, true)`, [projectCodes]);
+    await client.query(`SELECT set_config('app.clearance', 'internal,restricted,finance,hr,contract', true)`);
 
     const rlsSettings = await client.query(
       `SELECT current_setting('app.role', true) AS role,
@@ -343,20 +346,25 @@ const main = async () => {
 
     if (!dryRun) {
       for (const project of projectRecords.values()) {
-        await client.query(
-          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-           ON CONFLICT (id)
-           DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
-          [
-            project.id,
-            'project',
-            project.id,
-            JSON.stringify({ code: project.code, name: project.name }),
-            'member',
-            'internal'
-          ]
-        );
+        try {
+          await client.query(
+            `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+             ON CONFLICT (id)
+             DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+            [
+              project.id,
+              'project',
+              project.id,
+              JSON.stringify({ code: project.code, name: project.name }),
+              'member',
+              'internal'
+            ]
+          );
+        } catch (error) {
+          console.error(`[ERROR] Failed to insert/update project entity: ${project.code} (${project.id})`);
+          throw error;
+        }
       }
     }
 
@@ -364,7 +372,7 @@ const main = async () => {
     const peopleMap = new Map();
 
     for (const entry of peopleEntries) {
-      if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+      if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
       const filePath = path.join(peopleRoot, entry.name);
       const content = await fs.readFile(filePath, 'utf-8');
       const { data, body } = parseFrontmatter(content);
@@ -405,7 +413,7 @@ const main = async () => {
       } else {
         personId = `per_${ulid()}`;
         if (!dryRun) {
-          await client.query('INSERT INTO people (id, name, status) VALUES ($1,$2,$3)', [personId, person.name, 'active']);
+          await client.query('INSERT INTO people (id, name) VALUES ($1,$2)', [personId, person.name]);
         }
       }
 
@@ -422,20 +430,56 @@ const main = async () => {
       });
 
       if (!dryRun) {
-        await client.query(
-          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-           ON CONFLICT (id)
-           DO NOTHING`,
-          [
+        // Debug: RLS設定値を再確認（最初のperson INSERT直前のみ）
+        if (!global.rlsDebugShown) {
+          try {
+            const debugRls = await client.query(
+              `SELECT current_setting('app.role', true) AS role,
+                      current_setting('app.project_codes', true) AS projects,
+                      current_setting('app.clearance', true) AS clearance,
+                      app_current_role_rank() AS role_rank,
+                      app_clearance() AS clearance_array`
+            );
+            console.log(`[DEBUG] RLS before person INSERT (${person.name}):`, debugRls.rows[0]);
+            global.rlsDebugShown = true;
+          } catch (debugError) {
+            console.error(`[DEBUG ERROR]:`, debugError.message);
+          }
+        }
+
+        try {
+          const insertParams = [
             personId,
             'person',
             null,
             personPayload,
             'member',
             'internal'
-          ]
-        );
+          ];
+
+          // Debug: 最初のperson INSERT時のみ値を出力
+          if (!global.insertDebugShown) {
+            console.log(`[DEBUG] INSERT params:`, {
+              id: insertParams[0],
+              entity_type: insertParams[1],
+              project_id: insertParams[2],
+              payload_preview: JSON.stringify(JSON.parse(insertParams[3])).slice(0, 100),
+              role_min: insertParams[4],
+              sensitivity: insertParams[5]
+            });
+            global.insertDebugShown = true;
+          }
+
+          await client.query(
+            `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
+             ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+            insertParams
+          );
+        } catch (error) {
+          console.error(`[ERROR] Failed to insert person: ${person.name} (${personId})`);
+          throw error;
+        }
       }
 
       for (const code of projectCodesList) {
@@ -477,7 +521,7 @@ const main = async () => {
     try {
       const orgEntries = await fs.readdir(orgsRoot, { withFileTypes: true });
       for (const entry of orgEntries) {
-        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+        if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
         const filePath = path.join(orgsRoot, entry.name);
         const content = await fs.readFile(filePath, 'utf-8');
         const { data, body } = parseFrontmatter(content);
@@ -528,13 +572,31 @@ const main = async () => {
       sensitivity
     }) => {
       if (dryRun) return;
-      await client.query(
-        `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())
-         ON CONFLICT (id)
-         DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
-        [id, entityType, projectId, JSON.stringify(payload || {}), roleMin, sensitivity]
+
+      // 存在チェック（ON CONFLICT回避でRLS generic plan caching問題を解決）
+      const existing = await client.query(
+        'SELECT id FROM graph_entities WHERE id = $1',
+        [id]
       );
+
+      const payloadJson = JSON.stringify(payload || {});
+
+      if (existing.rows.length === 0) {
+        // 新規INSERT（RLS policy: INSERT のみ評価）
+        await client.query(
+          `INSERT INTO graph_entities (id, entity_type, project_id, payload, role_min, sensitivity, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,NOW(),NOW())`,
+          [id, entityType, projectId, payloadJson, roleMin, sensitivity]
+        );
+      } else {
+        // 既存UPDATE（RLS policy: UPDATE のみ評価）
+        await client.query(
+          `UPDATE graph_entities
+           SET project_id = $1, payload = $2, updated_at = NOW()
+           WHERE id = $3`,
+          [projectId, payloadJson, id]
+        );
+      }
     };
 
     const upsertGraphEdge = async ({
@@ -684,7 +746,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(brandRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(brandRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data, body } = parseFrontmatter(content);
@@ -737,7 +799,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(customersRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(customersRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data } = parseFrontmatter(content);
@@ -778,7 +840,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(partnersRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(partnersRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data, body } = parseFrontmatter(content);
@@ -949,7 +1011,7 @@ const main = async () => {
       try {
         const entries = await fs.readdir(financialsRoot, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
           const filePath = path.join(financialsRoot, entry.name);
           const content = await fs.readFile(filePath, 'utf-8');
           const { data, body } = parseFrontmatter(content);
@@ -1131,6 +1193,171 @@ const main = async () => {
       }
     };
 
+    const ingestGlossary = async () => {
+      const glossaryPath = path.join(CODEX_ROOT, 'common', 'meta', 'glossary.md');
+      let count = 0;
+      try {
+        const content = await fs.readFile(glossaryPath, 'utf-8');
+        console.log(`[DEBUG ingestGlossary] Reading glossary.md, content length=${content.length}`);
+        const tables = parseMarkdownTables(content);
+        console.log(`[DEBUG ingestGlossary] Found ${tables.length} tables in glossary.md`);
+        for (const table of tables) {
+          const headerIndex = new Map(table.headers.map((h, idx) => [h, idx]));
+          const termIdx = headerIndex.get('正しい表記') ?? 1;
+          const patternIdx = headerIndex.get('誤認識パターン') ?? 0;
+          const contextIdx = headerIndex.get('備考') ?? 2;
+          const projectIdx = headerIndex.get('プロジェクト');
+          console.log(`[DEBUG] Table headers (${table.headers.length} cols): [${table.headers.join(', ')}], projectIdx=${projectIdx}`);
+          for (const row of table.rows) {
+            if (row.length !== table.headers.length) {
+              console.log(`[DEBUG] Row length mismatch! headers=${table.headers.length}, row=${row.length}`);
+            }
+            const term = row[termIdx] || '';
+            const patterns = row[patternIdx] || '';
+            const context = row[contextIdx] || '';
+            const projectCol = projectIdx !== undefined ? (row[projectIdx] || '').trim() : '';
+            console.log(`[DEBUG] term=${term}, projectCol='${projectCol}', row=${JSON.stringify(row)}`);
+            if (!term) continue;
+
+            // プロジェクトカラムが空の場合は全プロジェクト共通（project_id=null）
+            // 指定されている場合は、そのプロジェクトに紐づける
+            let targetProject = globalProject;
+            if (projectCol) {
+              const projectCode = normalizeProjectCode(projectCol, projectCodeMap);
+              if (projectCode) {
+                targetProject = projectRecords.get(projectCode) || globalProject;
+              }
+            }
+
+            const termId = `gls_${normalizeToken(term) || hashId('glossary', term).slice(4)}`;
+            await upsertGraphEntity({
+              id: termId,
+              entityType: 'glossary_term',
+              projectId: projectCol ? targetProject.id : null,  // 空ならnull（全プロジェクト共通）
+              payload: {
+                term,
+                definition: patterns,
+                context,
+                project_code: projectCol || null,
+                source: path.relative(CODEX_ROOT, glossaryPath)
+              },
+              roleMin: 'member',
+              sensitivity: 'internal'
+            });
+            if (projectCol) {
+              await upsertBelongsToProject(termId, targetProject, 'member', 'internal');
+            }
+            count++;
+          }
+        }
+      } catch (error) {
+        // glossary.md may not exist
+      }
+      console.log(`[glossary] terms=${count}`);
+    };
+
+    const ingestRaci = async () => {
+      const raciRoot = path.join(CODEX_ROOT, 'common', 'meta', 'raci');
+      let count = 0;
+      try {
+        const entries = await fs.readdir(raciRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name === 'README.md') continue;
+          const filePath = path.join(raciRoot, entry.name);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const { data, body } = parseFrontmatter(content);
+          const orgId = data.org_id || path.basename(entry.name, '.md');
+          const orgName = data.name || orgId;
+          const tables = parseMarkdownTables(body);
+          const decisionTable = tables.find((t) => t.headers.some((h) => h.includes('領域') || h.includes('決裁')));
+          if (!decisionTable) continue;
+          const headerIndex = new Map(decisionTable.headers.map((h, idx) => [h, idx]));
+          const domainIdx = headerIndex.get('領域') ?? 0;
+          const deciderIdx = headerIndex.get('決裁者') ?? headerIndex.get('決裁') ?? 1;
+          for (const row of decisionTable.rows) {
+            const domain = row[domainIdx] || '';
+            const decider = row[deciderIdx] || '';
+            if (!domain || domain === '---') continue;
+            const raciId = `rac_${normalizeToken(`${orgId}_${domain}`) || hashId('raci', `${orgId}:${domain}`).slice(4)}`;
+            const projectCode = normalizeProjectCode(orgId, projectCodeMap);
+            const project = projectCode ? projectRecords.get(projectCode) : globalProject;
+            await upsertGraphEntity({
+              id: raciId,
+              entityType: 'raci_assignment',
+              projectId: project?.id || globalProject.id,
+              payload: {
+                org_id: orgId,
+                org_name: orgName,
+                domain,
+                responsible: decider,
+                accountable: decider,
+                consulted: null,
+                informed: null,
+                source: path.relative(CODEX_ROOT, filePath)
+              },
+              roleMin: 'member',
+              sensitivity: 'internal'
+            });
+            if (project) {
+              await upsertBelongsToProject(raciId, project, 'member', 'internal');
+            }
+            count++;
+          }
+        }
+      } catch (error) {
+        // raci folder may not exist
+      }
+      console.log(`[raci] assignments=${count}`);
+    };
+
+    const ingestMetaDecisions = async () => {
+      const decisionsRoot = path.join(CODEX_ROOT, 'common', 'meta', 'decisions');
+      let count = 0;
+      try {
+        const entries = await fs.readdir(decisionsRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
+          const filePath = path.join(decisionsRoot, entry.name);
+          const content = await fs.readFile(filePath, 'utf-8');
+          const { data, body } = parseFrontmatter(content);
+          const decisionId = data.decision_id || path.basename(entry.name, '.md');
+          const title = data.title || extractTitle(body, entry.name);
+          const decidedAt = data.decided_at || data.date || null;
+          const decider = data.decider || data.decided_by || null;
+          const projectId = data.project_id || data.project || null;
+          const status = data.status || 'decided';
+          const tags = Array.isArray(data.tags) ? data.tags : [];
+          const projectCode = normalizeProjectCode(projectId, projectCodeMap);
+          const project = projectCode ? projectRecords.get(projectCode) : globalProject;
+          const entityId = `dec_${normalizeToken(decisionId) || hashId('decision', filePath).slice(4)}`;
+          await upsertGraphEntity({
+            id: entityId,
+            entityType: 'decision',
+            projectId: project?.id || globalProject.id,
+            payload: {
+              decision_id: decisionId,
+              title,
+              decided_at: decidedAt,
+              decided_by: decider,
+              context: body.slice(0, 500),
+              status,
+              tags,
+              source: path.relative(CODEX_ROOT, filePath)
+            },
+            roleMin: 'member',
+            sensitivity: 'internal'
+          });
+          if (project) {
+            await upsertBelongsToProject(entityId, project, 'member', 'internal');
+          }
+          count++;
+        }
+      } catch (error) {
+        // decisions folder may not exist
+      }
+      console.log(`[meta_decisions] count=${count}`);
+    };
+
     await ingestApps();
     await ingestBrands();
     await ingestCustomers();
@@ -1142,6 +1369,9 @@ const main = async () => {
     const storyIdMap = await ingestStories();
     await ingestFrames();
     await ingestRunLedger(storyIdMap);
+    await ingestGlossary();
+    await ingestRaci();
+    await ingestMetaDecisions();
 
     for (const project of projectRecords.values()) {
       const count = await ingestDocs(project.path, { projectFallback: project, rootLabel: `projects/${project.code}` });

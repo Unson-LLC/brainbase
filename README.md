@@ -53,8 +53,9 @@
 - **Node.js** v20.0.0 以上
 - **tmux** (ターミナル多重化)
 - **ttyd** (Web ターミナル)
+- **Jujutsu (jj)** v0.20.0 以上（AI-firstセッション管理）
 - **Claude Code** (AI コーディング支援) - 任意
-- **Git** v2.13.0 以上 (worktree サポート)
+- **Git** v2.13.0 以上 (Jujutsuのバックエンド)
 
 <details>
 <summary>📦 前提条件のインストール方法</summary>
@@ -66,6 +67,9 @@ brew install tmux
 
 # ttyd
 brew install ttyd
+
+# Jujutsu（必須）
+brew install jj
 
 # Claude Code (任意)
 npm install -g @anthropic-ai/claude-code
@@ -82,8 +86,17 @@ sudo apt-get install tmux
 # ttyd
 sudo apt-get install ttyd
 
+# Jujutsu（必須）- cargoでインストール
+cargo install jj-cli
+
 # Claude Code (任意)
 npm install -g @anthropic-ai/claude-code
+```
+
+#### Jujutsu初期化（既存Gitリポジトリがある場合）
+```bash
+cd /path/to/your/repo
+jj git init  # 既存GitリポジトリにJujutsuを追加
 ```
 
 </details>
@@ -223,6 +236,10 @@ export BRAINBASE_VAR_DIR=/path/to/your/var
 # カスタムポート（デフォルト: 31013、worktree内では31014）
 export PORT=4000
 
+# Codex: auto handover (/handover) (opt-in)
+export BRAINBASE_AUTO_HANDOVER=1
+export BRAINBASE_AUTO_HANDOVER_DELAY_SEC=90  # default: 90
+
 # サーバー起動
 npm start
 ```
@@ -325,28 +342,138 @@ npm start
    - 左サイドバーでプロジェクトをクリック → 即座に切り替え
    - 各プロジェクトのClaude Codeセッションはgit worktreeで分離
 
+6. **セッション引き継ぎ（/handover）**
+   - セッション終了/切り替え前に `/handover` を実行すると、プロジェクトルートに `HANDOVER.md` が生成されます
+   - 自動生成したい場合は `bash .claude/hooks/auto-handover.sh` を使います（失敗時はテンプレのみを出力）
+   - 自動実行（任意, opt-in）
+     - **Codex**: `BRAINBASE_AUTO_HANDOVER=1` を付けて起動すると、処理完了後にアイドル状態が `BRAINBASE_AUTO_HANDOVER_DELAY_SEC` 秒（デフォルト 90）続いたタイミングで自動生成されます
+     - **Claude Code**: `.claude/settings.json` の `SessionEnd` hook で `bash .claude/hooks/auto-handover.sh` を実行してください
+   - 注意: 自動生成は `claude -p` を呼ぶためトークンを消費します
+
 ---
 
-## 🌳 git worktree による並行作業
+## 🥋 JujutsuによるAI-firstセッション管理
 
-Brainbaseは **git worktree** を活用し、プロジェクトごとにClaude Codeセッションを分離します。
+Brainbaseは **Jujutsu (jj)** を採用し、AIエージェントに最適化されたセッション管理を実現しています。
 
-### なぜworktreeを使うのか？
+### Jujutsuとは？
 
-**従来の問題**:
-- プロジェクトAで作業中 → プロジェクトBに切り替え → Claude Codeセッションが混在
-- ブランチ切り替えのたびに作業ディレクトリが変わり、コンテキストが失われる
+[Jujutsu](https://jj-vcs.github.io/jj/latest/) は、Git互換の次世代バージョン管理システムです。**AIエージェントにとって嬉しい**機能が多数搭載されています。
 
-**worktreeの利点**:
-- **並行作業**: 同じリポジトリの複数ブランチを同時に開ける
-- **セッション分離**: プロジェクトごとにClaude Codeセッションを維持
-- **高速切り替え**: ディレクトリ移動のみでプロジェクト切り替え完了
+| 機能 | 説明 | AIにとってのメリット |
+|------|------|-------------------|
+| **Working-copy-as-a-commit** | 変更が自動的にコミットとして扱われる | セッション中断しても変更が失われない |
+| **Operation log** | 全操作履歴が記録される | いつ何をやったか完全に追跡可能 |
+| **Undo** | いつでも操作を取り消せる | ミスっても復元可能 |
+| **Conflicts as first-class** | コンフリクトを先送り可能 | 詰まらずに作業継続 |
+| **Colocated repo** | Gitと同じディレクトリで共存 | 既存Git環境と互換 |
 
-### 使い方（自動セットアップ）
+### なぜJujutsuなのか？
 
-Brainbaseは初回起動時に自動的にworktreeを作成します。手動操作は不要です。
+**従来のGit（worktree）の問題**:
+- セッション中断 → 未コミット変更が失われるリスク
+- AIが何をやったか追跡困難（reflogは人間向け）
+- コンフリクトで作業が止まる
 
-詳細: [git worktree ガイド](docs/git-worktree-guide.md)
+**Jujutsuの解決策**:
+```
+Git worktree:
+  未コミット変更 → 失われる可能性
+
+Jujutsu workspace:
+  未コミット変更 → 自動的にコミットとして保存
+  操作履歴 → operation logで完全追跡
+```
+
+### セッション管理フロー
+
+Brainbaseの「Merge to Main」ボタンは、以下のJujutsuワークフローを自動実行します：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  1. セッション開始                                            │
+│     jj workspace add --name <session-id> <path>             │
+│     jj bookmark create -r main <session-id>                 │
+│                                                             │
+│  2. 作業（Working-copy-as-a-commit）                         │
+│     変更が自動的にコミットとして扱われる                        │
+│     セッション中断しても変更は保持される                        │
+│                                                             │
+│  3. マージ（Merge to Main）                                   │
+│     jj git push --bookmark <session-id>                     │
+│     gh pr create → gh pr merge                              │
+│                                                             │
+│  4. クリーンアップ                                            │
+│     jj workspace forget <session-id>                        │
+│     jj bookmark delete <session-id>                         │
+│     rm -rf <workspace-path>                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Workspace vs Git Worktree
+
+| 項目 | Git worktree | Jujutsu workspace |
+|------|-------------|-------------------|
+| 物理ディレクトリ | 別の場所に作成 | 別の場所に作成 |
+| リポジトリ共有 | 各worktree独立 | **全workspace共通** |
+| 履歴管理 | reflog（人間向け） | **operation log（機械可読）** |
+| undo | worktree単位 | **リポジトリ全体**で可能 |
+
+### インストール
+
+```bash
+# macOS
+brew install jj
+
+# Linux
+cargo install jj-cli
+
+# 確認
+jj version
+```
+
+### 既存リポジトリへの導入
+
+```bash
+cd /path/to/your/repo
+
+# GitリポジトリにJujutsuを初期化（共存可能）
+jj git init
+
+# 確認
+jj workspace list
+# default: xxxxxx (no description set)
+```
+
+### よく使うコマンド
+
+```bash
+# ワークスペース作成
+jj workspace add --name my-session /path/to/workspace
+
+# ステータス確認
+jj status
+
+# 変更をコミット（明示的に）
+jj commit -m "feat: 新機能追加"
+
+# 操作履歴確認
+jj op log
+
+# 最後の操作を取り消し
+jj undo
+
+# ブックマーク（ブランチ相当）をpush
+jj git push --bookmark my-session
+```
+
+### 注意点
+
+- Jujutsuは **Apache 2.0ライセンス**（商用利用可能）
+- 既存のGitリポジトリと**共存可能**（colocated repo）
+- GitHub連携は `jj git push` / `jj git fetch` で可能
+
+詳細: [Jujutsu公式ドキュメント](https://jj-vcs.github.io/jj/latest/)
 
 ---
 
@@ -378,7 +505,8 @@ Brainbaseは以下のアーキテクチャパターンを採用:
 - [開発者向けガイド](./CLAUDE.md) - 開発標準・アーキテクチャ原則
 - [設計ドキュメント](./DESIGN.md) - UI/UX設計・データフロー
 - [リファクタリング計画](./docs/REFACTORING_PLAN.md) - 3-Phase移行戦略
-- [git worktree ガイド](./docs/git-worktree-guide.md) - worktree詳細説明
+- [git worktree ガイド](./docs/git-worktree-guide.md) - worktree詳細説明（レガシー）
+- [Jujutsu公式ドキュメント](https://jj-vcs.github.io/jj/latest/) - AI-first VCS
 
 ---
 
@@ -456,14 +584,26 @@ sudo lsof -i :31013
 ifconfig | grep "inet "
 ```
 
-### Q4: git worktreeが自動作成されない
+### Q4: Jujutsu workspaceが作成されない
 
-**A**: Git v2.13.0以上が必要です。バージョンを確認してください。
+**A**: Jujutsuがインストールされ、リポジトリで初期化されているか確認してください。
 ```bash
-git --version
+# Jujutsuのバージョン確認
+jj version
+
+# リポジトリで初期化済みか確認
+jj workspace list
+# → "default: ..." が表示されればOK
+
+# 未初期化の場合
+jj git init
 ```
 
-### Q5: `./setup.sh`を実行せずに起動できますか？
+### Q5: Git worktreeを使いたい（Jujutsuを使いたくない）
+
+**A**: Jujutsuはオプションです。従来のGit worktreeも引き続き利用可能です。ただし、AIエージェントによる自動管理を活用するにはJujutsuを推奨します。`
+
+### Q6: `./setup.sh`を実行せずに起動できますか？
 
 **A**: 可能です。以下を手動で実行してください:
 ```bash

@@ -923,5 +923,48 @@
     console.log('[ttyd-monitor] WebSocket monitoring initialized for session:', sessionId);
 })();
 </script>
+<script>
+// Focus control from parent window (brainbase-ui)
+(function() {
+    function isTrustedOrigin(origin) {
+        return (
+            origin === window.location.origin ||
+            origin.includes('brain-base.work') ||
+            origin.includes('localhost')
+        );
+    }
+
+    function focusXterm() {
+        try {
+            if (window.term && typeof window.term.focus === 'function') {
+                window.term.focus();
+                return true;
+            }
+        } catch (error) {
+            // ignore
+        }
+
+        try {
+            const helper = document.querySelector('.xterm-helper-textarea');
+            if (helper && typeof helper.focus === 'function') {
+                helper.focus();
+                return true;
+            }
+        } catch (error) {
+            // ignore
+        }
+
+        return false;
+    }
+
+    window.addEventListener('message', function(event) {
+        if (!isTrustedOrigin(event.origin)) return;
+        const data = event.data || {};
+        if (data.type === 'bb-terminal-focus') {
+            focusXterm();
+        }
+    });
+})();
+</script>
 </body>
 </html>

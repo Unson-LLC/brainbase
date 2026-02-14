@@ -20,7 +20,7 @@ LIGHTSAIL_HOST="176.34.20.239"
 LIGHTSAIL_USER="ubuntu"
 LIGHTSAIL_KEY="$HOME/.ssh/lightsail-brainbase.pem"
 REMOTE_DIR="/opt/graph-api"
-API_URL="https://graph.brainbase.work"
+API_URL="https://graph.brain-base.work"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🚀 Graph API デプロイ開始"
@@ -44,7 +44,7 @@ echo "✅ .env.graph-api 確認完了"
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo "🔨 Step 2: Dockerイメージビルド"
-docker build -f Dockerfile.graph-api -t brainbase-graph-api:latest .
+docker build --platform linux/amd64 -f Dockerfile.graph-api -t brainbase-graph-api:latest .
 echo "✅ ビルド完了"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -88,13 +88,13 @@ ssh -i "$LIGHTSAIL_KEY" "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" << 'EOF'
 cd /opt/graph-api
 
 # 既存コンテナ停止・削除
-docker-compose down || true
+docker compose down || true
 
 # Dockerイメージロード
 gunzip -c graph-api-image.tar.gz | docker load
 
 # コンテナ起動
-docker-compose up -d
+docker compose up -d
 
 # 不要なファイル削除
 rm -f graph-api-image.tar.gz
@@ -161,7 +161,7 @@ echo "     ssh -i $LIGHTSAIL_KEY $LIGHTSAIL_USER@$LIGHTSAIL_HOST"
 echo "     cd $REMOTE_DIR"
 echo "     docker-compose run --rm certbot certonly \\"
 echo "       --webroot --webroot-path=/var/www/certbot \\"
-echo "       --email keigo@unson.jp --agree-tos \\"
+echo "       --email noreply@example.com --agree-tos \\"
 echo "       -d graph.brainbase.work"
 echo "     docker-compose restart nginx"
 echo ""

@@ -88,6 +88,9 @@ export function requireAuth(authService) {
             const decoded = authService.verifyToken(token);
             // Phase 1: PostgreSQLベース権限管理
             const access = {
+                role: decoded.role || 'member',
+                projectCodes: decoded.projectCodes || [],
+                clearance: decoded.clearance || [],
                 level: decoded.level || 1,
                 employmentType: decoded.employmentType || 'contractor',
                 personId: decoded.sub || null,

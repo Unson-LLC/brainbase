@@ -2,7 +2,7 @@
  * SessionManager
  * セッション管理とttyd/tmuxプロセス管理を担当
  */
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import net from 'net';
 import path from 'path';
@@ -73,134 +73,171 @@ export class SessionManager {
             console.log('[restoreActiveSessions] Restoring active sessions from state.json...');
 
             const state = this.stateStore.get();
-            if (!state.sessions) {
+            const sessions = state.sessions || [];
+            if (sessions.length === 0) {
                 console.log('[restoreActiveSessions] No sessions in state.json');
                 return;
             }
 
             // intendedState === 'active' のセッションを抽出
-            const activeSessions = state.sessions.filter(s => s.intendedState === 'active');
+            const activeSessions = sessions.filter(s => s.intendedState === 'active');
             console.log(`[restoreActiveSessions] Found ${activeSessions.length} active session(s) in state.json`);
 
             if (activeSessions.length === 0) {
                 return;
             }
 
-            const restoredSessionIds = new Set();
+            // Collect tmux sessions once
+            const { stdout: tmuxOut } = await this.execPromise(
+                'tmux list-sessions -F "#{session_name}" 2>/dev/null || echo ""'
+            ).catch(() => ({ stdout: '' }));
+            const tmuxSessions = new Set(tmuxOut.trim().split('\n').filter(Boolean));
 
-            // Phase 3: state.jsonのttydProcess情報を使用して復旧
-            const sessionsWithTtydProcess = activeSessions.filter(s => s.ttydProcess);
-            console.log(`[restoreActiveSessions] Found ${sessionsWithTtydProcess.length} session(s) with ttydProcess info`);
+            // Collect ttyd processes once
+            const { stdout: psOut } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
+            const ttydLines = psOut.trim() ? psOut.trim().split('\n') : [];
 
-            for (const session of sessionsWithTtydProcess) {
-                const { port, pid } = session.ttydProcess;
+            const ttydProcsBySessionId = new Map();
+            for (const line of ttydLines) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parseInt(parts[1], 10);
+                if (!Number.isFinite(pid)) continue;
 
-                // プロセスが実際に存在するか確認
-                if (this._isProcessRunning(pid)) {
-                    // activeSessionsに登録（復旧時はprocessはnull）
-                    this.activeSessions.set(session.id, {
-                        port,
-                        pid,
-                        process: null  // 復旧時はChildProcessオブジェクトなし
+                const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
+                const sessionId = sessionMatch ? sessionMatch[1] : null;
+                if (!sessionId) continue;
+
+                const portMatch = line.match(/-p\s+(\d+)/);
+                const port = portMatch ? parseInt(portMatch[1], 10) : null;
+                if (!Number.isFinite(port)) continue;
+
+                const list = ttydProcsBySessionId.get(sessionId) || [];
+                list.push({ pid, port, line });
+                ttydProcsBySessionId.set(sessionId, list);
+            }
+
+            const pauseSessionIds = new Set();
+
+            for (const session of activeSessions) {
+                const sessionId = session.id;
+                const engine = session.engine || 'claude';
+                const initialCommand = session.initialCommand || '';
+                const cwd = session.path || (session.worktree && session.worktree.path);
+
+                const hasTmux = tmuxSessions.has(sessionId);
+                const candidates = ttydProcsBySessionId.get(sessionId) || [];
+
+                // If tmux is missing, don't auto-recreate. Pause + kill stray ttyd (prevents wrong log linkage).
+                if (!hasTmux) {
+                    if (candidates.length > 0) {
+                        console.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Killing ${candidates.length} ttyd process(es) and pausing session.`);
+                        for (const proc of candidates) {
+                            await this.execPromise(`kill ${proc.pid}`).catch(() => {});
+                        }
+                    } else {
+                        console.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Pausing session.`);
+                    }
+                    pauseSessionIds.add(sessionId);
+                    this.activeSessions.delete(sessionId);
+                    continue;
+                }
+
+                // Prefer persisted pid if it's still running.
+                const persistedPid = session?.ttydProcess?.pid;
+                const persistedPort = session?.ttydProcess?.port;
+
+                let keep = null;
+                if (Number.isFinite(persistedPid) && this._isProcessRunning(persistedPid)) {
+                    const port = Number.isFinite(persistedPort)
+                        ? persistedPort
+                        : candidates.find(p => p.pid === persistedPid)?.port;
+                    if (Number.isFinite(port)) {
+                        keep = { pid: persistedPid, port };
+                    }
+                }
+
+                // Otherwise, adopt from ps aux.
+                if (!keep && candidates.length > 0) {
+                    const running = candidates.filter(p => this._isProcessRunning(p.pid));
+                    const pool = running.length > 0 ? running : candidates;
+                    const chosen = pool.sort((a, b) => b.pid - a.pid)[0];
+                    keep = { pid: chosen.pid, port: chosen.port };
+                }
+
+                if (keep && Number.isFinite(keep.pid) && Number.isFinite(keep.port)) {
+                    this.activeSessions.set(sessionId, {
+                        port: keep.port,
+                        pid: keep.pid,
+                        process: null
                     });
-                    restoredSessionIds.add(session.id);
-                    console.log(`[restoreActiveSessions] Restored session ${session.id} from ttydProcess: PID ${pid}, Port ${port}`);
-                } else {
-                    console.log(`[restoreActiveSessions] Process ${pid} not running for ${session.id}, will restart`);
-                    // ttydProcess情報をクリア
-                    await this._clearTtydProcessInfo(session.id);
+
+                    // Kill duplicates (best-effort)
+                    for (const proc of candidates) {
+                        if (proc.pid === keep.pid) continue;
+                        console.warn(`[restoreActiveSessions] Duplicate ttyd for ${sessionId}: killing pid ${proc.pid} (keeping ${keep.pid})`);
+                        await this.execPromise(`kill ${proc.pid}`).catch(() => {});
+                    }
+
+                    // Sync persisted ttydProcess when needed
+                    if (session?.ttydProcess?.pid !== keep.pid || session?.ttydProcess?.port !== keep.port) {
+                        await this._saveTtydProcessInfo(sessionId, { port: keep.port, pid: keep.pid, engine });
+                    }
+
+                    console.log(`[restoreActiveSessions] Restored session ${sessionId}: PID ${keep.pid}, Port ${keep.port}`);
+                    continue;
+                }
+
+                // No running ttyd found: clear stale info then start a new ttyd attached to existing tmux.
+                if (session.ttydProcess) {
+                    await this._clearTtydProcessInfo(sessionId);
+                }
+
+                try {
+                    // Use persisted port for reconnection stability (UI URLs stay valid)
+                    const preferredPort = session?.ttydProcess?.port;
+                    console.log(`[restoreActiveSessions] Reconnecting ttyd for ${sessionId} (preferredPort: ${preferredPort}, engine: ${engine})`);
+
+                    await this._restartTtydForExistingTmux(sessionId, preferredPort, engine);
+                    console.log(`[restoreActiveSessions] Successfully reconnected ttyd for ${sessionId}`);
+                } catch (err) {
+                    console.error(`[restoreActiveSessions] Failed to reconnect ttyd for ${sessionId}:`, err);
                 }
             }
 
-            // ttydProcess情報がないセッションに対して、従来のps aux検索（後方互換性）
-            const sessionsWithoutTtydProcess = activeSessions.filter(s => !s.ttydProcess && !restoredSessionIds.has(s.id));
-            if (sessionsWithoutTtydProcess.length > 0) {
-                console.log(`[restoreActiveSessions] Checking ps aux for ${sessionsWithoutTtydProcess.length} session(s) without ttydProcess info...`);
-
-                // 全ttydプロセスを取得
-                const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
-
-                if (stdout.trim()) {
-                    const lines = stdout.trim().split('\n');
-                    console.log(`[restoreActiveSessions] Found ${lines.length} ttyd process(es)`);
-
-                    // 各ttydプロセスから sessionId と port を抽出
-                    for (const line of lines) {
-                        const parts = line.trim().split(/\s+/);
-                        const pid = parseInt(parts[1], 10);
-
-                        // コマンドライン全体を取得
-                        const cmdLine = parts.slice(10).join(' ');
-
-                        // -p PORT を抽出
-                        const portMatch = cmdLine.match(/-p\s+(\d+)/);
-                        const port = portMatch ? parseInt(portMatch[1], 10) : null;
-
-                        // -b /console/SESSION_ID を抽出
-                        const sessionMatch = cmdLine.match(/-b\s+\/console\/(session-\d+)/);
-                        const sessionId = sessionMatch ? sessionMatch[1] : null;
-
-                        if (!sessionId || !port) {
-                            continue;
-                        }
-
-                        // state.jsonのactiveセッションに一致するか確認
-                        const matchingSession = sessionsWithoutTtydProcess.find(s => s.id === sessionId);
-                        if (matchingSession && !restoredSessionIds.has(sessionId)) {
-                            this.activeSessions.set(sessionId, {
-                                port,
-                                pid,
-                                process: null
-                            });
-                            restoredSessionIds.add(sessionId);
-                            console.log(`[restoreActiveSessions] Restored session ${sessionId} from ps aux: PID ${pid}, Port ${port}`);
-
-                            // 見つかったプロセス情報をstate.jsonに永続化
-                            await this._saveTtydProcessInfo(sessionId, { port, pid, engine: matchingSession.engine || 'claude' });
-                        }
-                    }
-                }
-            }
-
-            // ttydプロセスが見つからなかったactiveセッションに対してttydを起動
-            const missingSessions = activeSessions.filter(s => !restoredSessionIds.has(s.id));
-            if (missingSessions.length > 0) {
-                console.log(`[restoreActiveSessions] Starting ttyd for ${missingSessions.length} session(s) without running process...`);
-
-                for (const session of missingSessions) {
-                    try {
-                        const cwd = session.path || (session.worktree && session.worktree.path);
-                        const engine = session.engine || 'claude';
-                        const initialCommand = session.initialCommand || '';
-
-                        console.log(`[restoreActiveSessions] Starting ttyd for ${session.id} (cwd: ${cwd}, engine: ${engine})`);
-
-                        await this.startTtyd({
-                            sessionId: session.id,
-                            cwd,
-                            initialCommand,
-                            engine
-                        });
-
-                        console.log(`[restoreActiveSessions] Successfully started ttyd for ${session.id}`);
-                    } catch (err) {
-                        console.error(`[restoreActiveSessions] Failed to start ttyd for ${session.id}:`, err);
-                    }
-                }
+            if (pauseSessionIds.size > 0) {
+                const now = new Date().toISOString();
+                const currentState = this.stateStore.get();
+                const updatedSessions = (currentState.sessions || []).map(session => {
+                    if (!pauseSessionIds.has(session.id)) return session;
+                    return {
+                        ...session,
+                        intendedState: 'paused',
+                        pausedAt: now,
+                        tmuxMissingAt: now,
+                        ttydProcess: null,
+                        updatedAt: now
+                    };
+                });
+                await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+                console.warn(`[restoreActiveSessions] Paused ${pauseSessionIds.size} session(s) with missing TMUX`);
             }
 
             console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
 
             // Update nextPort to avoid port conflicts with restored sessions
             // 既存セッションがUIポート帯でも、新規セッションは40000番台から開始
-            if (this.activeSessions.size > 0) {
-                const maxPort = Math.max(
-                    40000,
-                    ...Array.from(this.activeSessions.values()).map(s => s.port)
-                );
+            const ports = Array.from(this.activeSessions.values())
+                .map(s => s.port)
+                .filter(p => Number.isFinite(p));
+
+            if (ports.length > 0) {
+                const maxPort = Math.max(40000, ...ports);
                 this.nextPort = maxPort + 1;
                 console.log(`[restoreActiveSessions] Updated nextPort to ${this.nextPort} (max existing port: ${maxPort})`);
             }
+
+            // Best-effort: orphan/duplicate cleanup
+            await this.cleanupOrphans();
         } catch (err) {
             console.error('[restoreActiveSessions] Error:', err);
         }
@@ -216,7 +253,7 @@ export class SessionManager {
      */
     async cleanupOrphans() {
         try {
-            console.log('[cleanupOrphans] Checking for orphaned ttyd processes...');
+            console.log('[cleanupOrphans] Checking for orphaned/duplicate ttyd processes...');
 
             // 1. 全てのttydプロセスを取得
             const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
@@ -228,49 +265,106 @@ export class SessionManager {
             const lines = stdout.trim().split('\n');
             console.log(`[cleanupOrphans] Found ${lines.length} ttyd process(es)`);
 
-            // 2. activeSessionsのPIDを取得
-            const activePids = new Set();
-            for (const [sessionId, sessionData] of this.activeSessions) {
-                if (sessionData.process && sessionData.process.pid) {
-                    activePids.add(sessionData.process.pid);
-                    console.log(`[cleanupOrphans] Active session ${sessionId}: PID ${sessionData.process.pid}`);
+            // 2. 保護対象: state.json の intendedState === 'active' または 'paused'
+            const state = this.stateStore.get();
+            const protectedSessionIds = new Set(
+                (state.sessions || [])
+                    .filter(s => s.intendedState === 'active' || s.intendedState === 'paused')
+                    .map(s => s.id)
+            );
+            console.log(`[cleanupOrphans] Found ${protectedSessionIds.size} active/paused session(s) in state.json`);
+
+            // 3. state.json / in-memory の正PIDマップ
+            const statePidBySessionId = new Map();
+            const stateEngineBySessionId = new Map();
+            for (const session of state.sessions || []) {
+                const pid = session?.ttydProcess?.pid;
+                if (Number.isFinite(pid)) {
+                    statePidBySessionId.set(session.id, pid);
+                    stateEngineBySessionId.set(session.id, session.engine || session?.ttydProcess?.engine || 'claude');
                 }
             }
 
-            // 3. state.json の intendedState === 'active' のセッションIDを取得
-            // BUG FIX: TEST_MODEでrestoreActiveSessions()がスキップされた場合、
-            // activeSessions Mapが空になるため、state.jsonも確認してアクティブセッションを保護する
-            const state = this.stateStore.get();
-            const activeSessionIds = new Set(
-                state.sessions
-                    .filter(s => s.intendedState === 'active')
-                    .map(s => s.id)
-            );
-            console.log(`[cleanupOrphans] Found ${activeSessionIds.size} active session(s) in state.json`);
+            const activePidBySessionId = new Map();
+            for (const [sessionId, sessionData] of this.activeSessions) {
+                const pid = sessionData.process?.pid || sessionData.pid;
+                if (Number.isFinite(pid)) {
+                    activePidBySessionId.set(sessionId, pid);
+                }
+            }
 
-            // 4. 孤立したttydプロセスのみ殺す
-            let orphansKilled = 0;
+            // 4. ttydプロセスを sessionId ごとにグループ化
+            const procsBySessionId = new Map();
             for (const line of lines) {
                 const parts = line.trim().split(/\s+/);
                 const pid = parseInt(parts[1], 10);
+                if (!Number.isFinite(pid)) continue;
 
-                // 行全体からセッションIDを抽出
                 const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
                 const sessionId = sessionMatch ? sessionMatch[1] : null;
+                if (!sessionId) continue;
 
-                // activePids にあるか、または activeSessionIds にあれば保護
-                const isActive = activePids.has(pid) || (sessionId && activeSessionIds.has(sessionId));
+                const portMatch = line.match(/-p\s+(\d+)/);
+                const port = portMatch ? parseInt(portMatch[1], 10) : null;
 
-                if (!isActive) {
-                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
-                    await this.execPromise(`kill ${pid}`).catch(() => {});
-                    orphansKilled++;
+                const list = procsBySessionId.get(sessionId) || [];
+                list.push({ pid, port, line });
+                procsBySessionId.set(sessionId, list);
+            }
+
+            let killed = 0;
+
+            // 5. 保護対象外は全kill
+            for (const [sessionId, procs] of procsBySessionId.entries()) {
+                if (protectedSessionIds.has(sessionId)) continue;
+
+                for (const proc of procs) {
+                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${proc.pid} (sessionId: ${sessionId})`);
+                    await this.execPromise(`kill ${proc.pid}`).catch(() => {});
+                    killed++;
+                }
+                procsBySessionId.delete(sessionId);
+            }
+
+            // 6. 保護対象内の重複だけkill（正PIDは保持）
+            for (const [sessionId, procs] of procsBySessionId.entries()) {
+                if (procs.length <= 1) continue;
+
+                const activePid = activePidBySessionId.get(sessionId);
+                const statePid = statePidBySessionId.get(sessionId);
+
+                const candidatePids = new Set(procs.map(p => p.pid));
+
+                let keepPid = null;
+                if (Number.isFinite(activePid) && candidatePids.has(activePid) && this._isProcessRunning(activePid)) {
+                    keepPid = activePid;
+                } else if (Number.isFinite(statePid) && candidatePids.has(statePid) && this._isProcessRunning(statePid)) {
+                    keepPid = statePid;
                 } else {
-                    console.log(`[cleanupOrphans] Keeping active ttyd process: PID ${pid} (sessionId: ${sessionId || 'unknown'})`);
+                    // Prefer the newest PID as a fallback.
+                    keepPid = Math.max(...procs.map(p => p.pid));
+                }
+
+                console.warn(`[cleanupOrphans] Duplicate ttyd detected for ${sessionId}. Keeping pid=${keepPid}, killing ${procs.length - 1} process(es).`);
+
+                for (const proc of procs) {
+                    if (proc.pid === keepPid) continue;
+                    console.log(`[cleanupOrphans] Killing duplicate ttyd process: PID ${proc.pid} (sessionId: ${sessionId})`);
+                    await this.execPromise(`kill ${proc.pid}`).catch(() => {});
+                    killed++;
+                }
+
+                // Best-effort: persist keepPid when state pid doesn't match.
+                if (Number.isFinite(keepPid) && keepPid != statePid) {
+                    const keepPort = procs.find(p => p.pid == keepPid)?.port;
+                    if (Number.isFinite(keepPort)) {
+                        const engine = stateEngineBySessionId.get(sessionId) || 'claude';
+                        await this._saveTtydProcessInfo(sessionId, { port: keepPort, pid: keepPid, engine });
+                    }
                 }
             }
 
-            console.log(`[cleanupOrphans] Cleaned up ${orphansKilled} orphaned ttyd process(es)`);
+            console.log(`[cleanupOrphans] Cleaned up ${killed} orphaned/duplicate ttyd process(es)`);
         } catch (err) {
             console.error('[cleanupOrphans] Error:', err);
         }
@@ -532,9 +626,10 @@ export class SessionManager {
      * @param {string} options.cwd - 作業ディレクトリ
      * @param {string} options.initialCommand - 初期コマンド
      * @param {string} options.engine - エンジン（'claude' | 'codex'）
+     * @param {number} [options.preferredPort] - 優先ポート番号（再利用用）
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
-    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude' }) {
+    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
         // Validate engine
         if (!['claude', 'codex'].includes(engine)) {
             throw new Error('engine must be "claude" or "codex"');
@@ -555,9 +650,18 @@ export class SessionManager {
             this.activeSessions.delete(sessionId);
         }
 
-        // Allocate new port
-        const port = await this.findFreePort(this.nextPort);
-        this.nextPort = port + 1;
+        // Allocate port: prefer persisted port for reconnection stability
+        let port;
+        if (Number.isFinite(preferredPort) && preferredPort >= 40000) {
+            // Try preferred port first (from state.json)
+            port = await this.findFreePort(preferredPort);
+            if (port !== preferredPort) {
+                console.log(`[startTtyd] Preferred port ${preferredPort} in use, allocated ${port} instead`);
+            }
+        } else {
+            port = await this.findFreePort(this.nextPort);
+            this.nextPort = port + 1;
+        }
 
         console.log(`Starting ttyd for session '${sessionId}' on port ${port} with engine '${engine}'...`);
         if (cwd) console.log(`Working directory: ${cwd}`);
@@ -609,6 +713,8 @@ export class SessionManager {
         const args = [
             '-p', port.toString(),
             '-W',
+            // Exit on disconnect to avoid PTY FD leaks accumulating inside long-lived ttyd processes.
+            '-o',
         ];
 
         // Only use base path on non-Windows platforms
@@ -623,6 +729,10 @@ export class SessionManager {
             args.push('-w', workingDir);
         }
 
+        const fontFamily = process.platform === 'win32'
+            ? 'Cascadia Code, Consolas, monospace'
+            : (engine === 'codex' ? 'Menlo, Monaco, monospace' : 'Menlo');
+
         args.push(
             '-I', customIndexPath, // Custom HTML with keyboard shortcuts and mobile scroll support
             '-m', '1',                         // Max 1 client: prevent concurrent PTY allocation per session
@@ -630,7 +740,7 @@ export class SessionManager {
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
             '-t', 'fontSize=14',            // Readable font size for mobile
-            '-t', `fontFamily=${process.platform === 'win32' ? 'Cascadia Code, Consolas, monospace' : 'Menlo'}`, // Platform-specific monospace font
+            '-t', `fontFamily=${fontFamily}`, // Engine/platform-specific monospace font
             '-t', 'scrollback=5000',        // Larger scrollback buffer
             '-t', 'scrollSensitivity=3',    // Touch scroll sensitivity for mobile
             bashPath,
@@ -640,15 +750,14 @@ export class SessionManager {
             engine
         );
 
-        // Options for spawn (detached: サーバー再起動後もttydが継続)
+        // Options for spawn (server-managed)
         const spawnOptions = {
             stdio: ['ignore', 'pipe', 'pipe'],  // stdin無視、stdout/stderrはpipe
             env: {
                 ...process.env,  // Inherit parent process environment
                 LANG: 'en_US.UTF-8',
                 LC_ALL: 'en_US.UTF-8'
-            },
-            detached: true  // 親プロセスから切り離し
+            }
         };
 
         const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
@@ -682,8 +791,6 @@ export class SessionManager {
         console.log(`[ttyd:${sessionId}] CWD: ${spawnOptions.cwd || 'default'}`);
         const ttyd = spawn(ttydPath, args, spawnOptions);
 
-        // 親プロセス終了時に子プロセスを待機しない
-        ttyd.unref();
 
         ttyd.stdout.on('data', (data) => {
             console.log(`[ttyd:${sessionId}] ${data}`);
@@ -697,15 +804,19 @@ export class SessionManager {
             console.error(`Failed to start ttyd for ${sessionId}:`, err);
         });
 
-        ttyd.on('exit', async (code) => {
-            console.log(`ttyd for ${sessionId} exited with code ${code}`);
+        ttyd.on('exit', async (code, signal) => {
+            console.log(`ttyd for ${sessionId} exited with code ${code}${signal ? ` signal ${signal}` : ''}`);
 
-            // クリーンアップ: TMUXセッションとMCPプロセスを削除
-            await this.cleanupSessionResources(sessionId);
+            // If a newer ttyd has been started for this session, ignore stale exits.
+            const activeEntry = this.activeSessions.get(sessionId);
+            const activePid = activeEntry?.process?.pid || activeEntry?.pid;
+            if (activePid && ttyd.pid && activePid !== ttyd.pid) {
+                console.log(`[ttyd:${sessionId}] Ignoring exit for stale pid ${ttyd.pid} (active pid ${activePid})`);
+                return;
+            }
 
-            // ttydProcess情報をクリア
-            await this._clearTtydProcessInfo(sessionId);
-
+            // Preserve tmux on ttyd exit. tmux lifecycle is managed explicitly (archive/delete/TTL).
+            await this._clearTtydProcessInfoIfMatches(sessionId, ttyd.pid);
             this.activeSessions.delete(sessionId);
         });
 
@@ -727,6 +838,35 @@ export class SessionManager {
         });
 
         return { port, proxyPath: basePath };
+    }
+
+    /**
+     * 既存のtmuxセッションにttydを再接続（サーバー再起動後の復旧用）
+     * tmuxセッションは生きてるけどttydが落ちた場合に使用
+     *
+     * @param {string} sessionId - セッションID
+     * @param {number} preferredPort - 優先ポート番号（state.jsonから）
+     * @param {string} engine - エンジン（'claude' | 'codex'）
+     * @returns {Promise<{port: number, proxyPath: string}>}
+     */
+    async _restartTtydForExistingTmux(sessionId, preferredPort, engine = 'claude') {
+        // tmuxセッションの存在確認
+        const tmuxRunning = await this._isTmuxSessionRunning(sessionId);
+        if (!tmuxRunning) {
+            throw new Error(`TMUX session ${sessionId} not found. Cannot reconnect ttyd.`);
+        }
+
+        console.log(`[_restartTtydForExistingTmux] Reconnecting ttyd to existing tmux: ${sessionId}`);
+
+        // login_script.shは既存tmuxセッションを検出してattachする
+        // initialCommandは空文字（既存セッションだから）
+        return await this.startTtyd({
+            sessionId,
+            cwd: null,  // 既存セッションなのでCWD不要
+            initialCommand: '',  // 初期コマンドなし
+            engine,
+            preferredPort
+        });
     }
 
     /**
@@ -770,8 +910,12 @@ export class SessionManager {
                 console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
             }
 
-            // ttydProcess情報をクリア
-            await this._clearTtydProcessInfo(sessionId);
+            // ttydProcess情報をクリア (only if it still points to this pid)
+            if (pid) {
+                await this._clearTtydProcessInfoIfMatches(sessionId, pid);
+            } else {
+                await this._clearTtydProcessInfo(sessionId);
+            }
 
             this.activeSessions.delete(sessionId);
             // hookStatusは保持（'done'ステータスを保持するため）
@@ -794,44 +938,65 @@ export class SessionManager {
 
         console.log(`[Cleanup] Starting cleanup for session ${sessionId}...`);
 
-        let tmuxDeleted = false;
         let processesKilled = 0;
 
-        // 1. TMUXセッション削除
-        try {
-            await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
-            tmuxDeleted = true;
-            console.log(`[Cleanup] ✅ TMUX session deleted: ${sessionId}`);
-        } catch (err) {
-            console.log(`[Cleanup] ⚠️ TMUX session ${sessionId} already deleted or not found`);
-        }
-
-        // 2. TMUXペインのプロセスID取得 → 子プロセス（MCP含む）を強制終了
+        // 1. 先にPID取得（tmuxが生きているうちに）
+        let panePids = [];
         try {
             const { stdout } = await this.execPromise(
                 `tmux list-panes -s -t "${sessionId}" -F "#{pane_pid}" 2>/dev/null || echo ""`
             );
-
             if (stdout.trim()) {
-                const panePids = stdout.trim().split('\n');
-                console.log(`[Cleanup] Found ${panePids.length} pane process(es) for ${sessionId}`);
-
-                for (const pid of panePids) {
-                    // 子プロセス（MCP等）を終了
-                    await this.execPromise(`pkill -TERM -P ${pid} 2>/dev/null`).catch(() => {});
-                    // 親プロセスを終了
-                    await this.execPromise(`kill -TERM ${pid} 2>/dev/null`).catch(() => {});
-                    processesKilled++;
-                }
-                console.log(`[Cleanup] ✅ Killed ${processesKilled} pane processes for ${sessionId}`);
-            } else {
-                console.log(`[Cleanup] ⚠️ No pane processes found for ${sessionId}`);
+                panePids = stdout.trim().split('\n').filter(p => p.trim());
+                console.log(`[Cleanup] Collected ${panePids.length} pane PID(s) for ${sessionId}: ${panePids.join(', ')}`);
             }
         } catch (err) {
-            console.log(`[Cleanup] ⚠️ Error cleaning up pane processes for ${sessionId}:`, err.message);
+            console.log(`[Cleanup] Could not collect pane PIDs for ${sessionId}:`, err.message);
         }
 
-        console.log(`[Cleanup] Completed for ${sessionId} (TMUX: ${tmuxDeleted ? '✅' : '⚠️'}, Processes: ${processesKilled})`);
+        // 2. 子プロセスツリーを全て取得（pgrep -P で再帰的に）
+        const allPids = new Set();
+        for (const pid of panePids) {
+            allPids.add(pid);
+            try {
+                const { stdout } = await this.execPromise(`pgrep -P ${pid} 2>/dev/null`);
+                if (stdout.trim()) {
+                    stdout.trim().split('\n').forEach(p => allPids.add(p.trim()));
+                }
+            } catch (_) {}
+        }
+
+        // 3. TMUXセッション削除
+        try {
+            await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
+            console.log(`[Cleanup] TMUX session deleted: ${sessionId}`);
+        } catch (err) {
+            console.log(`[Cleanup] TMUX session ${sessionId} already deleted or not found`);
+        }
+
+        // 4. 収集したプロセスを全てkill（SIGTERM → 待機 → SIGKILL）
+        if (allPids.size > 0) {
+            console.log(`[Cleanup] Killing ${allPids.size} process(es) for ${sessionId}: ${[...allPids].join(', ')}`);
+            for (const pid of allPids) {
+                try {
+                    await this.execPromise(`kill -TERM ${pid} 2>/dev/null`);
+                } catch (_) {}
+            }
+            // SIGTERM後500ms待機
+            await new Promise(resolve => setTimeout(resolve, 500));
+            // まだ生きてるやつはSIGKILL
+            for (const pid of allPids) {
+                if (this._isProcessRunning(parseInt(pid))) {
+                    try {
+                        await this.execPromise(`kill -9 ${pid} 2>/dev/null`);
+                        console.log(`[Cleanup] Force killed PID ${pid}`);
+                    } catch (_) {}
+                }
+            }
+            processesKilled = allPids.size;
+        }
+
+        console.log(`[Cleanup] Completed for ${sessionId} (Processes killed: ${processesKilled})`);
     }
 
     /**
@@ -912,7 +1077,14 @@ export class SessionManager {
     async _saveTtydProcessInfo(sessionId, { port, pid, engine }) {
         try {
             const state = this.stateStore.get();
-            const updatedSessions = state.sessions.map(session =>
+            const sessions = state.sessions || [];
+            const hasSession = sessions.some(session => session.id === sessionId);
+            if (!hasSession) {
+                console.warn(`[ttydProcess] Skip save: session ${sessionId} not found in state`);
+                return;
+            }
+
+            const updatedSessions = sessions.map(session =>
                 session.id === sessionId
                     ? {
                         ...session,
@@ -939,7 +1111,8 @@ export class SessionManager {
     async _clearTtydProcessInfo(sessionId) {
         try {
             const state = this.stateStore.get();
-            const updatedSessions = state.sessions.map(session =>
+            const sessions = state.sessions || [];
+            const updatedSessions = sessions.map(session =>
                 session.id === sessionId
                     ? { ...session, ttydProcess: null }
                     : session
@@ -951,6 +1124,45 @@ export class SessionManager {
         }
     }
 
+
+    /**
+     * Phase 3: ttydProcess情報をstate.jsonからクリア（PID一致時のみ）
+     * 重複ttydがいる状態でstaleプロセスがexitしても、正しいPIDを消さないためのガード。
+     * @param {string} sessionId - セッションID
+     * @param {number|undefined|null} pid - ttyd PID
+     * @returns {Promise<boolean>} クリアしたらtrue
+     */
+    async _clearTtydProcessInfoIfMatches(sessionId, pid) {
+        try {
+            const state = this.stateStore.get();
+            const sessions = state.sessions || [];
+
+            let changed = false;
+            const updatedSessions = sessions.map(session => {
+                if (session.id !== sessionId) return session;
+                if (!session.ttydProcess) return session;
+
+                const currentPid = session.ttydProcess?.pid;
+                // If both are valid pids and don't match, don't clear.
+                if (Number.isFinite(currentPid) && Number.isFinite(pid) && currentPid !== pid) {
+                    return session;
+                }
+
+                changed = true;
+                return { ...session, ttydProcess: null };
+            });
+
+            if (!changed) return false;
+
+            await this.stateStore.update({ ...state, sessions: updatedSessions });
+            console.log(`[ttydProcess] Cleared for ${sessionId}${Number.isFinite(pid) ? ` (pid=${pid})` : ''}`);
+            return true;
+        } catch (err) {
+            console.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
+            return false;
+        }
+    }
+
     /**
      * Phase 3: プロセスが実行中かどうかを確認
      * @param {number} pid - プロセスID
@@ -959,8 +1171,25 @@ export class SessionManager {
     _isProcessRunning(pid) {
         try {
             process.kill(pid, 0);  // シグナル0 = 存在確認のみ
-            return true;
+            // ゾンビ検出: psコマンドでプロセス状態を確認
+            const status = execSync(`ps -o state= -p ${pid} 2>/dev/null`, { encoding: 'utf-8' }).trim();
+            // 'Z' = zombie, 'Z+' = zombie (foreground)
+            return !status.startsWith('Z');
         } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * tmuxセッションが存在するか確認
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<boolean>} 存在すればtrue
+     */
+    async _isTmuxSessionRunning(sessionId) {
+        try {
+            await this.execPromise(`tmux has-session -t "${sessionId}" 2>/dev/null`);
+            return true;
+        } catch {
             return false;
         }
     }
@@ -1082,5 +1311,64 @@ export class SessionManager {
             choices: choices,
             hasChoices: choices.length > 0
         };
+    }
+
+    /**
+     * PTY Watchdog: 定期的にPTY使用状況を監視し、閾値超過時に警告
+     * @param {number} intervalMs - 監視間隔（デフォルト: 600000ms = 10分）
+     */
+    startPtyWatchdog(intervalMs = 600000) {
+        if (this._ptyWatchdogTimer) return;
+        console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
+
+        this._ptyWatchdogTimer = setInterval(async () => {
+            try {
+                // macOS: sysctl kern.tty.ptmx_max でPTY上限取得
+                const { stdout: maxOut } = await this.execPromise('sysctl -n kern.tty.ptmx_max 2>/dev/null || echo 512');
+                const maxPty = parseInt(maxOut.trim()) || 512;
+
+                // 現在のPTY使用数
+                const { stdout: countOut } = await this.execPromise('ls /dev/pty* 2>/dev/null | wc -l');
+                const usedPty = parseInt(countOut.trim()) || 0;
+
+                const usage = (usedPty / maxPty * 100).toFixed(1);
+                const level = usedPty > maxPty * 0.8 ? 'CRITICAL' : usedPty > maxPty * 0.6 ? 'WARNING' : 'OK';
+
+                console.log(`[PTY Watchdog] ${level}: ${usedPty}/${maxPty} PTYs used (${usage}%)`);
+
+                if (level === 'CRITICAL') {
+                    console.error(`[PTY Watchdog] CRITICAL: PTY usage at ${usage}%! Running orphan cleanup...`);
+                    await this.cleanupOrphans();
+                }
+            } catch (err) {
+                console.error('[PTY Watchdog] Error:', err.message);
+            }
+        }, intervalMs);
+    }
+
+    /**
+     * PTY Watchdogを停止
+     */
+    stopPtyWatchdog() {
+        if (this._ptyWatchdogTimer) {
+            clearInterval(this._ptyWatchdogTimer);
+            this._ptyWatchdogTimer = null;
+            console.log('[PTY Watchdog] Stopped');
+        }
+    }
+
+    /**
+     * Graceful shutdown: 全セッションのリソースをクリーンアップ
+     * server.jsのSIGTERM/SIGINTハンドラから呼ばれる
+     */
+    async cleanup() {
+        this.stopPtyWatchdog();
+        console.log('[SessionManager] Starting graceful cleanup (preserve tmux)...');
+        const sessionIds = [...this.activeSessions.keys()];
+        for (const sessionId of sessionIds) {
+            console.log(`[SessionManager] Stopping ttyd for session: ${sessionId}`);
+            await this.stopTtyd(sessionId, { preserveTmux: true });
+        }
+        console.log(`[SessionManager] Graceful cleanup complete (${sessionIds.length} session(s))`);
     }
 }

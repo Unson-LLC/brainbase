@@ -13,7 +13,9 @@ const __dirname = dirname(__filename);
  * 認証テスト（auth-service.js）- Permission System拡張
  */
 
-describe('Auth Service Permission Tests', () => {
+const describeWithPermissionDb = process.env.TEST_PERMISSION_DB_URL ? describe : describe.skip;
+
+describeWithPermissionDb('Auth Service Permission Tests', () => {
     let pool;
     let testDbUrl;
     let authService;
@@ -71,15 +73,15 @@ describe('Auth Service Permission Tests', () => {
 
     describe('TC-AUTH-001: 正常系 - Slack ID → DB検索 → JWT発行', () => {
         it('登録済みユーザーでSlack OAuthコールバックが成功しJWTが発行される', async () => {
-            // Given: DBにユーザー sato_keigo (slack_user_id: U07LNUP582X)が登録済み
+            // Given: DBにユーザー test_user (slack_user_id: U07LNUP582X)が登録済み
             // 1. peopleレコード作成
             await pool.query(`
-                INSERT INTO people (id, name) VALUES ('sato_keigo', '佐藤圭吾')
+                INSERT INTO people (id, name) VALUES ('test_user', 'テストユーザー')
             `);
             // 2. usersレコード作成
             await pool.query(`
                 INSERT INTO users (slack_user_id, person_id, workspace_id, name, access_level, employment_type, status)
-                VALUES ('U07LNUP582X', 'sato_keigo', 'unson', '佐藤圭吾', 4, 'executive', 'active')
+                VALUES ('U07LNUP582X', 'test_user', 'unson', 'テストユーザー', 4, 'executive', 'active')
             `);
 
             // When: Slack OAuthコールバックで slack_user_id='U07LNUP582X'が渡される
@@ -87,7 +89,7 @@ describe('Auth Service Permission Tests', () => {
 
             // Then: ユーザーが見つかる
             expect(user).toBeDefined();
-            expect(user.person_id).toBe('sato_keigo');
+            expect(user.person_id).toBe('test_user');
             expect(user.slack_user_id).toBe('U07LNUP582X');
             expect(user.access_level).toBe(4);
 
@@ -107,18 +109,18 @@ describe('Auth Service Permission Tests', () => {
 
     describe('TC-AUTH-002: JWT Payloadの内容検証（Level 4ユーザー）', () => {
         it('JWT発行後にペイロードをデコードすると正しい内容が含まれる', async () => {
-            // Given: DBにユーザー sato_keigo が access_level=4, employment_type='executive'で登録済み
+            // Given: DBにユーザー test_user が access_level=4, employment_type='executive'で登録済み
             await pool.query(`
-                INSERT INTO people (id, name) VALUES ('sato_keigo', '佐藤圭吾')
+                INSERT INTO people (id, name) VALUES ('test_user', 'テストユーザー')
             `);
             await pool.query(`
                 INSERT INTO users (slack_user_id, person_id, workspace_id, name, access_level, employment_type, status)
-                VALUES ('U07LNUP582X', 'sato_keigo', 'unson', '佐藤圭吾', 4, 'executive', 'active')
+                VALUES ('U07LNUP582X', 'test_user', 'unson', 'テストユーザー', 4, 'executive', 'active')
             `);
 
             // When: JWT発行
             const token = authService.issueToken({
-                sub: 'sato_keigo',
+                sub: 'test_user',
                 slackUserId: 'U07LNUP582X',
                 level: 4,
                 employmentType: 'executive',
@@ -128,7 +130,7 @@ describe('Auth Service Permission Tests', () => {
             // Then: ペイロードに正しい内容が含まれる
             const decoded = jwt.verify(token, jwtSecret);
 
-            expect(decoded.sub).toBe('sato_keigo');
+            expect(decoded.sub).toBe('test_user');
             expect(decoded.slackUserId).toBe('U07LNUP582X');
             expect(decoded.level).toBe(4);
             expect(decoded.employmentType).toBe('executive');
@@ -155,13 +157,13 @@ describe('Auth Service Permission Tests', () => {
 
     describe('TC-AUTH-006: 異常系 - inactiveユーザー（仕様確定: ブロック）', () => {
         it('status="inactive"のユーザーは認証がブロックされる（403/404）', async () => {
-            // Given: DBにユーザー sato_keigo（infoアカウント）が status='inactive'で登録済み
+            // Given: DBにユーザー test_user_info（infoアカウント）が status='inactive'で登録済み
             await pool.query(`
-                INSERT INTO people (id, name) VALUES ('sato_keigo_info', '佐藤圭吾')
+                INSERT INTO people (id, name) VALUES ('test_user_info', 'テストユーザー')
             `);
             await pool.query(`
                 INSERT INTO users (slack_user_id, person_id, workspace_id, name, access_level, employment_type, status)
-                VALUES ('U_INFO_INACTIVE', 'sato_keigo_info', 'unson', '佐藤圭吾（info）', 4, 'executive', 'inactive')
+                VALUES ('U_INFO_INACTIVE', 'test_user_info', 'unson', 'テストユーザー（info）', 4, 'executive', 'inactive')
             `);
 
             // When: Slack OAuthコールバックで該当slack_user_idが渡される

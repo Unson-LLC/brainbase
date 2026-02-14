@@ -1,0 +1,76 @@
+{
+  "areas": [
+    {
+      "area": "lib",
+      "refactored_at": "2026-02-12T08:10:47.519Z",
+      "files_modified": [
+        "lib/config-parser.js"
+      ],
+      "changes_summary": "config.ymlの読み込みをキャッシュ付きヘルパーにまとめて、Slack系YAMLも同じルートで読むようにしたから重複コード消えてスッキリだよ〜☆",
+      "run_number": "23",
+      "run_id": "21938485772",
+      "trigger_event": "workflow_dispatch",
+      "pr_number": 164,
+      "pr_branch": "ops-department/weekly-review-23",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/164",
+      "pr_status": "merged",
+      "merged_at": "2026-02-12T08:53:35Z"
+    },
+    {
+      "area": "lib",
+      "refactored_at": "2026-02-12T08:56:57.974Z",
+      "files_modified": [
+        "lib/config-parser.js"
+      ],
+      "changes_summary": "lib/config-parser.js:10 とかでYAML読み込みの共通ヘルパーとキャッシュを生やして、Slack/Config系の loader 全部をそれ経由にしたからDRYったよ〜。lib/config-parser.js:57 でローカルパス展開も関数化して `getProjects` 以外でも再利用できるようにしてるっちゃ。lib/config-parser.js:183 と 344 あたりでプラグインや通知・組織系の取得も全部この共通キャッシュから読むよう統一してI/O削減してるよん。テストはまだ回してないから、必要なら `npm test` でチェックお願いね〜。",
+      "run_number": "24",
+      "run_id": "21939818529",
+      "trigger_event": "workflow_dispatch",
+      "pr_number": 165,
+      "pr_branch": "ops-department/weekly-review-24",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/165",
+      "pr_status": "open",
+      "merged_at": null
+    },
+    {
+      "area": "lib",
+      "refactored_at": "2026-02-12T12:18:58.355Z",
+      "files_modified": [
+        "lib/config-parser.js"
+      ],
+      "changes_summary": "Slack系YAML読むとこヘルパー化＆config.ymlをキャッシュするユーティリティ入れてI/O被りを削って、プラグインのデフォ挙動もキープしたまま全体の重複処理をスッキリさせたよ〜",
+      "run_number": "26",
+      "run_id": "21946212201",
+      "trigger_event": "schedule",
+      "pr_number": 167,
+      "pr_branch": "ops-department/weekly-review-26",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/167",
+      "pr_status": "open",
+      "merged_at": null
+    },
+    {
+      "area": "public/modules",
+      "refactored_at": "2026-02-12T18:30:50.578Z",
+      "files_modified": [
+        "public/modules/archive-modal-controller.js",
+        "public/modules/archive-modal-renderer.js",
+        "public/modules/auth/auth-manager.js",
+        "public/modules/components/chart-colors.js",
+        "public/modules/components/donut-chart.js",
+        "public/modules/components/gauge-chart.js"
+      ],
+      "changes_summary": "public/modules/archive-modal-controller.js:5 と public/modules/archive-modal-renderer.js:1 で archived session 抽出を getArchivedSessions にまとめて renderer からも再利用できるようにして、public/modules/auth/auth-manager.js:62 には localStorage 更新ヘルパー＆ID生成を追加して set/clear 周りの重複をスッキリさせたよ〜。さらに public/modules/components/chart-colors.js:1 を新設して Donut/Gauge (public/modules/components/donut-chart.js:1, public/modules/components/gauge-chart.js:1) でスコア色決定や SVG/Canvas 要素生成を共通ヘルパー化したから DRY になってるし、次はブラウザでモーダルとチャートの描画を軽く目視確認してくれると安心だよん♡",
+      "run_number": "27",
+      "run_id": "21958945190",
+      "trigger_event": "schedule",
+      "pr_number": 173,
+      "pr_branch": "ops-department/weekly-review-27",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/173",
+      "pr_status": "open",
+      "merged_at": null
+    }
+  ],
+  "last_updated": "2026-02-12T18:30:59.059Z",
+  "total_prs_created": 4,
+  "total_prs_merged": 1
+}

@@ -546,6 +546,15 @@ body::after {
     height: 12px;
 }
 
+/* SVG Engine Icons - テーマに合わせて白っぽく表示 */
+.engine-svg-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+    vertical-align: middle;
+    filter: brightness(0) saturate(100%) invert(90%);
+}
+
 .engine-icon.engine-codex {
     color: #10a37f;
 }
@@ -915,6 +924,80 @@ body::after {
 
 .console-area:hover .console-toolbar {
     opacity: 1;
+}
+
+/* Terminal input status (focus/connection visibility) */
+.terminal-input-status {
+    position: absolute;
+    bottom: 50px;
+    left: 8px;
+    z-index: 101;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: rgba(248, 250, 252, 0.92);
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    user-select: none;
+}
+
+.terminal-input-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-color, var(--warning-color));
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+.terminal-input-status.hidden {
+    display: none;
+}
+
+.terminal-input-status.ready {
+    --status-color: var(--success-color);
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.terminal-input-status.needs-focus {
+    --status-color: var(--warning-color);
+    border-color: rgba(245, 158, 11, 0.55);
+    background: rgba(245, 158, 11, 0.12);
+    cursor: pointer;
+}
+
+.terminal-input-status.reconnecting {
+    --status-color: var(--accent-color);
+    border-color: rgba(59, 130, 246, 0.55);
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.terminal-input-status.disconnected {
+    --status-color: var(--danger-color);
+    border-color: rgba(239, 68, 68, 0.55);
+    background: rgba(239, 68, 68, 0.12);
+    cursor: pointer;
+}
+
+.terminal-input-status.blocked {
+    --status-color: var(--warning-color);
+    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.08);
+}
+
+/* tmux copy-mode (pane_in_mode): scrolling state blocks normal input */
+.terminal-input-status.copy-mode {
+    --status-color: var(--warning-color);
+    border-color: rgba(245, 158, 11, 0.55);
+    background: rgba(245, 158, 11, 0.12);
+    cursor: pointer;
 }
 
 .console-btn {
@@ -3057,6 +3140,128 @@ body.resizing iframe {
     white-space: pre-wrap;
 }
 
+/* Confirm Modal */
+#confirm-modal {
+    backdrop-filter: blur(2px);
+}
+
+#confirm-modal .modal-content {
+    width: min(560px, 92vw);
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(17, 24, 39, 0.96) 100%);
+    box-shadow:
+        0 24px 60px rgba(2, 6, 23, 0.65),
+        0 0 0 1px rgba(148, 163, 184, 0.08);
+    overflow: hidden;
+}
+
+#confirm-modal .modal-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    background: linear-gradient(90deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+}
+
+#confirm-modal #confirm-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+#confirm-modal #confirm-modal-title svg {
+    color: #f8c94d;
+}
+
+#confirm-modal .modal-body {
+    padding: 18px;
+}
+
+#confirm-modal #confirm-modal-message {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.65;
+    color: rgba(248, 250, 252, 0.95);
+    font-size: 0.95rem;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+
+#confirm-modal .modal-footer {
+    padding: 14px 18px 18px;
+    border-top: 1px solid rgba(148, 163, 184, 0.22);
+    gap: 10px;
+}
+
+#confirm-modal .modal-footer button {
+    min-height: 42px;
+    border-radius: 8px;
+    font-weight: 700;
+}
+
+#confirm-modal #confirm-cancel-btn {
+    border: 1px solid rgba(148, 163, 184, 0.38);
+    background: rgba(148, 163, 184, 0.12);
+}
+
+#confirm-modal #confirm-cancel-btn:hover {
+    background: rgba(148, 163, 184, 0.22);
+}
+
+#confirm-modal #confirm-action-btn {
+    border: 1px solid rgba(59, 130, 246, 0.55);
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.9) 100%);
+}
+
+#confirm-modal #confirm-action-btn:hover {
+    filter: brightness(1.06);
+}
+
+#confirm-modal #confirm-ok-btn {
+    box-shadow: 0 8px 18px rgba(220, 53, 69, 0.32);
+}
+
+#confirm-modal.confirm-modal--action .modal-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+        "cancel action"
+        "ok ok";
+}
+
+#confirm-modal.confirm-modal--action #confirm-cancel-btn {
+    grid-area: cancel;
+    width: 100%;
+}
+
+#confirm-modal.confirm-modal--action #confirm-action-btn {
+    grid-area: action;
+    width: 100%;
+}
+
+#confirm-modal.confirm-modal--action #confirm-ok-btn {
+    grid-area: ok;
+    width: 100%;
+}
+
+@media (max-width: 640px) {
+    #confirm-modal .modal-content {
+        width: calc(100vw - 24px);
+    }
+
+    #confirm-modal.confirm-modal--action .modal-footer {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "ok"
+            "action"
+            "cancel";
+    }
+}
+
 /* Danger Button */
 .btn-danger {
     padding: 6px 16px;
@@ -3071,6 +3276,22 @@ body.resizing iframe {
 
 .btn-danger:hover {
     background-color: #c82333;
+}
+
+/* Info Button */
+.btn-info {
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    font-weight: 500;
+    background-color: #3b82f6;
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #2563eb;
 }
 
 /* Toast Notifications */
@@ -5024,11 +5245,6 @@ body.resizing iframe {
     padding: 12px;
 }
 
-/* Mobile FAB (Floating Action Button) with Speed Dial */
-.mobile-fab-container {
-    display: none;
-}
-
 /* Mobile: 900px以下で縦積み */
 @media (max-width: 900px) {
     .task-filter {
@@ -5067,7 +5283,6 @@ body.resizing iframe {
 
     .mobile-input-dock,
     .mobile-bottom-nav,
-    .mobile-fab-container,
     .keyboard-debug-panel {
         transform: translate3d(var(--vv-left, 0px), var(--vv-top, 0px), 0);
     }
@@ -5086,8 +5301,39 @@ body.resizing iframe {
         display: none;
     }
 
+    .mobile-input-dock.expanded .mobile-input-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    /* 3行表示: 1行3個 */
+    .mobile-input-dock.expanded .mobile-input-btn {
+        flex: 1 1 calc(33.33% - 12px);
+        min-width: 0;
+    }
+
     body.mobile-input-expanded {
-        --mobile-input-offset: 220px;
+        --mobile-input-offset: 200px;
+    }
+
+    /* Agent Teamsモード: 1行表示 */
+    body.agent-teams-mode .mobile-input-dock.expanded .mobile-input-actions {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 4px;
+    }
+
+    body.agent-teams-mode .mobile-input-dock.expanded .mobile-input-btn {
+        flex: 0 0 auto;
+        min-width: 44px;
+        font-size: 10px;
+        padding: 6px 8px;
+    }
+
+    body.agent-teams-mode .mobile-input-dock.expanded .mobile-input-btn i {
+        width: 16px;
+        height: 16px;
     }
 
     body.mobile-composer-open .mobile-input-dock {
@@ -5139,6 +5385,8 @@ body.resizing iframe {
         min-height: 36px;
         min-width: 44px;
         touch-action: manipulation;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
     }
 
     .mobile-input-primary {
@@ -5268,7 +5516,6 @@ body.resizing iframe {
         flex-wrap: wrap;
     }
 
-    body.mobile-composer-open .mobile-fab-container,
     body.mobile-composer-open .mobile-bottom-nav {
         display: none;
     }
@@ -5360,167 +5607,6 @@ body.resizing iframe {
         font-size: 13px;
         padding: 12px;
         text-align: center;
-    }
-
-    .mobile-fab-container {
-        display: block;
-        position: fixed;
-        bottom: 72px;
-        right: 16px;
-        z-index: 999;
-    }
-
-    /* Overlay */
-    .mobile-fab-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.3);
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease, visibility 0.3s ease;
-        z-index: 998;
-        pointer-events: none;
-        /* クリックを通過させる */
-    }
-
-    .mobile-fab-container.active .mobile-fab-overlay {
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
-        /* アクティブ時のみクリックを受け取る */
-    }
-
-    /* Speed Dial Actions Container */
-    .mobile-fab-actions {
-        position: absolute;
-        bottom: 70px;
-        right: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        opacity: 0;
-        visibility: hidden;
-        transform: translateY(20px);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        z-index: 1000;
-        /* オーバーレイより前面に配置 */
-        pointer-events: auto;
-        /* ボタンが常にクリック可能 */
-    }
-
-    .mobile-fab-container.active .mobile-fab-actions {
-        opacity: 1;
-        visibility: visible;
-        transform: translateY(0);
-    }
-
-    /* Individual Action Buttons */
-    .mobile-fab-action {
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 12px;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
-        border-radius: 28px;
-        padding: 0 12px 0 16px;
-        height: 48px;
-        color: var(--text-primary);
-        cursor: pointer;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        transition: all 0.2s ease;
-        white-space: nowrap;
-        touch-action: manipulation;
-    }
-
-    .mobile-fab-action:active {
-        transform: scale(0.95);
-    }
-
-    .mobile-fab-action i {
-        width: 20px;
-        height: 20px;
-    }
-
-    .fab-action-label {
-        font-size: 14px;
-        font-weight: 500;
-    }
-
-    /* Main FAB Button */
-    .mobile-fab {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background: var(--accent-color);
-        color: white;
-        border: none;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-        cursor: pointer;
-        transition: all 0.3s ease;
-        position: relative;
-        touch-action: manipulation;
-    }
-
-    .mobile-fab:active {
-        transform: scale(0.95);
-    }
-
-    /* FAB Icon switching */
-    .mobile-fab .fab-icon-close {
-        display: none;
-        position: absolute;
-    }
-
-    .mobile-fab-container.active .mobile-fab {
-        transform: rotate(90deg);
-    }
-
-    .mobile-fab-container.active .mobile-fab .fab-icon-default {
-        display: none;
-    }
-
-    .mobile-fab-container.active .mobile-fab .fab-icon-close {
-        display: block;
-    }
-
-    /* Stagger animation for action buttons */
-    .mobile-fab-action:nth-child(1) {
-        transition-delay: 0.05s;
-    }
-
-    .mobile-fab-action:nth-child(2) {
-        transition-delay: 0.1s;
-    }
-
-    .mobile-fab-action:nth-child(3) {
-        transition-delay: 0.15s;
-    }
-
-    .mobile-fab-action:nth-child(4) {
-        transition-delay: 0.2s;
-    }
-
-    .mobile-fab-action:nth-child(5) {
-        transition-delay: 0.25s;
-    }
-
-    .mobile-fab-action:nth-child(6) {
-        transition-delay: 0.3s;
-    }
-
-    .mobile-fab-action:nth-child(7) {
-        transition-delay: 0.35s;
-    }
-
-    .mobile-fab-action:nth-child(8) {
-        transition-delay: 0.4s;
     }
 
     /* Show mobile bottom nav */

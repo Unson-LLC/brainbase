@@ -31,7 +31,7 @@
     "predev": "bash scripts/check-worktree.sh",
     "dev": "node --watch-path=server --watch-path=lib --watch-path=public --watch-path=server.js --watch-path=package.json --watch-preserve-output server.js",
     "start": "node server.js",
-    "mcp-setup": "node scripts/mcp-setup.mjs",
+    "auth-setup": "node scripts/auth-setup.mjs",
     "test:server": "BRAINBASE_TEST_MODE=true node server.js",
     "test": "vitest",
     "test:run": "vitest run",
@@ -60,12 +60,13 @@
     "node-cache": "^5.1.2",
     "open": "^11.0.0",
     "pg": "^8.18.0",
-    "ulid": "^2.4.0"
+    "ulid": "^2.4.0",
+    "ws": "^8.18.0",
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "@vitest/coverage-v8": "^4.0.16",
-    "dotenv": "^17.2.3",
     "jsdom": "^27.3.0",
     "supertest": "^7.1.4",
     "vitest": "^4.0.16"

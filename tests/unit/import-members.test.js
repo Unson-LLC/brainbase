@@ -12,7 +12,9 @@ const __dirname = dirname(__filename);
  * 初期インポートテスト（import_members_to_db.py）
  */
 
-describe('Import Members Tests', () => {
+const describeWithPermissionDb = process.env.TEST_PERMISSION_DB_URL ? describe : describe.skip;
+
+describeWithPermissionDb('Import Members Tests', () => {
     let pool;
     let testDbUrl;
 
@@ -94,21 +96,21 @@ describe('Import Members Tests', () => {
     });
 
     describe('TC-IMPORT-002: ユーザー属性の正確なインポート（Level 4: 役員）', () => {
-        it('members.ymlのsato_keigoがaccess_level:4, employment_type:executiveで正しく設定される', async () => {
-            // Given: members.ymlに sato_keigo が access_level:4, employment_type:executiveで存在
+        it('members.ymlのtest_userがaccess_level:4, employment_type:executiveで正しく設定される', async () => {
+            // Given: members.ymlに test_user が access_level:4, employment_type:executiveで存在
             // When: インポート実行
             await runImportScript();
 
             // Then: DBに正しく設定される（person_idで検索）
             const { rows } = await pool.query(`
-                SELECT * FROM users WHERE person_id = 'sato_keigo'
+                SELECT * FROM users WHERE person_id = 'test_user'
             `);
 
             expect(rows).toHaveLength(1);
             const user = rows[0];
 
             expect(user.slack_user_id).toBe('U07LNUP582X');
-            expect(user.person_id).toBe('sato_keigo');
+            expect(user.person_id).toBe('test_user');
             expect(user.access_level).toBe(4);
             expect(user.employment_type).toBe('executive');
             expect(user.status).toBe('active');
@@ -117,17 +119,17 @@ describe('Import Members Tests', () => {
 
     describe('TC-IMPORT-007: UPSERT動作（既存ユーザーのaccess_level更新）', () => {
         it('既存ユーザーのaccess_levelを更新してインポート再実行すると更新される', async () => {
-            // Given: peopleとusersテーブルに watanabe_hiroaki が access_level=1で存在
+            // Given: peopleとusersテーブルに test_user_a が access_level=1で存在
             await pool.query(`
-                INSERT INTO people (id, name) VALUES ('watanabe_hiroaki', 'Watanabe Hiroaki')
+                INSERT INTO people (id, name) VALUES ('test_user_a', 'Test User A')
             `);
             await pool.query(`
                 INSERT INTO users (slack_user_id, person_id, workspace_id, name, access_level, employment_type, status)
-                VALUES ('U_WATANABE_TEST', 'watanabe_hiroaki', 'unson', 'Watanabe Hiroaki', 1, 'contractor', 'active')
+                VALUES ('U_TEST_USER_A', 'test_user_a', 'unson', 'Test User A', 1, 'contractor', 'active')
             `);
 
             const { rows: beforeRows } = await pool.query(`
-                SELECT access_level, updated_at FROM users WHERE slack_user_id = 'U_WATANABE_TEST'
+                SELECT access_level, updated_at FROM users WHERE slack_user_id = 'U_TEST_USER_A'
             `);
             const beforeLevel = beforeRows[0].access_level;
             const beforeUpdatedAt = beforeRows[0].updated_at;
@@ -140,12 +142,12 @@ describe('Import Members Tests', () => {
             await pool.query(`
                 UPDATE users
                 SET access_level = 3, updated_at = NOW()
-                WHERE slack_user_id = 'U_WATANABE_TEST'
+                WHERE slack_user_id = 'U_TEST_USER_A'
             `);
 
             // Then: access_levelが3に更新、updated_atが更新、レコードは1件のまま
             const { rows: afterRows } = await pool.query(`
-                SELECT access_level, updated_at FROM users WHERE slack_user_id = 'U_WATANABE_TEST'
+                SELECT access_level, updated_at FROM users WHERE slack_user_id = 'U_TEST_USER_A'
             `);
 
             expect(afterRows).toHaveLength(1);
@@ -156,7 +158,7 @@ describe('Import Members Tests', () => {
 
             // レコード数が1件のまま
             const { rows: countRows } = await pool.query(`
-                SELECT COUNT(*) as count FROM users WHERE slack_user_id = 'U_WATANABE_TEST'
+                SELECT COUNT(*) as count FROM users WHERE slack_user_id = 'U_TEST_USER_A'
             `);
             expect(countRows[0].count).toBe('1');
         });

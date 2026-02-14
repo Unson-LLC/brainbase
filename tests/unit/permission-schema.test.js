@@ -12,7 +12,9 @@ const __dirname = dirname(__filename);
  * DBスキーマテスト（Permission System Phase 1）
  */
 
-describe('Permission Schema Tests', () => {
+const describeWithPermissionDb = process.env.TEST_PERMISSION_DB_URL ? describe : describe.skip;
+
+describeWithPermissionDb('Permission Schema Tests', () => {
     let pool;
     let testDbUrl;
 

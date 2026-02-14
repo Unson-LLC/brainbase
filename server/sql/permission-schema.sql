@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS organizations (
 
 -- 初期データ投入
 INSERT INTO organizations (id, name, workspace_id, projects) VALUES
-  ('unson', 'UNSON', 'T089CNQ4D1A', ARRAY['zeims', 'dialogai', 'baao', 'salestailor', 'brainbase', 'senrigan', 'backoffice', 'mywa']),
+  ('unson', 'UNSON', 'T089CNQ4D1A', ARRAY['zeims', 'dialogai', 'baao', 'brainbase', 'senrigan', 'backoffice', 'mywa']),
   ('salestailor', 'SalesTailor株式会社', 'T08FB9S7HUL', ARRAY['salestailor']),
   ('techknight', 'Tech Knight', 'T07AF0YNSDA', ARRAY['techknight'])
 ON CONFLICT (id) DO NOTHING;

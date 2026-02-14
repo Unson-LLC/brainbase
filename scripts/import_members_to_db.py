@@ -14,7 +14,11 @@ from pathlib import Path
 
 def import_members():
     # members.yml読み込み
-    members_path = Path('/Users/ksato/workspace/shared/_codex/common/meta/slack/members.yml')
+    codex_path = os.getenv('CODEX_PATH')
+    if not codex_path:
+        raise ValueError("CODEX_PATH environment variable must be set")
+
+    members_path = Path(codex_path) / 'common' / 'meta' / 'slack' / 'members.yml'
 
     if not members_path.exists():
         raise FileNotFoundError(f"members.yml not found at {members_path}")

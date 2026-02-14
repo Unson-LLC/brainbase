@@ -4,7 +4,7 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
-import { showConfirm } from '../../confirm-modal.js';
+import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
 
@@ -447,67 +447,54 @@ export class SessionView {
                         return;
                     }
 
-                    let updateError = null;
-                    if (session.worktree) {
-                        const status = await this.sessionService.getWorktreeStatus(session.id);
-                        if (status?.localMainStale) {
-                            const behindCount = status.localMainBehind || 0;
-                            const aheadCount = status.localMainAhead || 0;
-                            const mainBranch = status.mainBranch || 'main';
-                            const aheadWarning = aheadCount > 0
-                                ? `\nローカル${mainBranch}に${aheadCount}コミットの独自変更があります（自動更新は失敗します）`
-                                : '';
-                            const confirmed = await showConfirm(
-                                `ローカル${mainBranch}が${behindCount}コミット遅れています。最新化しますか？${aheadWarning}`,
-                                { title: 'main更新', okText: '更新する', cancelText: 'スキップ', danger: false }
-                            );
-                            if (confirmed) {
-                                try {
-                                    const updateResult = await this.sessionService.updateLocalMain(session.id);
-                                    if (updateResult?.success && updateResult.updated !== false) {
-                                        showSuccess(`ローカル${mainBranch}を更新しました`);
-                                    } else if (updateResult?.success) {
-                                        showInfo(`ローカル${mainBranch}は最新です`);
-                                    } else {
-                                        updateError = updateResult?.error || 'ローカルmainの更新に失敗しました';
-                                        showError(updateError);
-                                    }
-                                } catch (err) {
-                                    console.error('Failed to update local main:', err);
-                                    const raw = err?.message || 'ローカルmainの更新に失敗しました';
-                                    updateError = raw.replace(/^Network Error:\s*/, '');
-                                    showError(updateError);
-                                }
-                            }
-                        }
-                    }
-
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
                         const details = [];
-                        if (updateError) {
-                            details.push(`main更新失敗: ${updateError}`);
+
+                        // Jujutsu概念でステータス表示
+                        if (status.changesNotPushed > 0) {
+                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
                         }
-                        const mainBranchLabel = status.mainBranch || 'main';
-                        if (status.localMainAhead > 0) {
-                            details.push(`ローカル${mainBranchLabel}が${status.localMainAhead}コミット進んでいます`);
+                        if (!status.bookmarkPushed && status.bookmarkName) {
+                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
                         }
-                        if (status.localMainBehind > 0) {
-                            details.push(`ローカル${mainBranchLabel}が${status.localMainBehind}コミット遅れています`);
+                        if (status.hasWorkingCopyChanges) {
+                            details.push('working copyに未完了のchangeがあります');
                         }
-                        if (status.commitsAhead > 0) {
-                            details.push(`このセッションのワークツリーに${status.commitsAhead}コミットの未マージ変更があります`);
-                        }
-                        if (status.hasUncommittedChanges) {
-                            details.push('未コミット変更があります');
-                        }
-                        const detailText = details.length ? `\n\n${details.join(' / ')}` : '';
-                        const confirmed = await showConfirm(
-                            `未マージの変更があります。マージチェックをスキップしてアーカイブしますか？${detailText}`,
-                            { title: 'アーカイブ確認', okText: 'スキップしてアーカイブ', cancelText: 'キャンセル', danger: true }
+
+                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
+                        const confirmResult = await showConfirmWithAction(
+                            `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
+                            {
+                                title: 'アーカイブ確認',
+                                okText: 'そのままアーカイブ',
+                                cancelText: 'キャンセル',
+                                actionText: 'pushして統合',
+                                danger: true
+                            }
                         );
-                        if (!confirmed) {
+                        const selectedAction = typeof confirmResult === 'object' && confirmResult !== null
+                            ? confirmResult.action
+                            : (confirmResult ? 'ok' : 'cancel');
+
+                        if (selectedAction === 'action') {
+                            // pushして統合
+                            try {
+                                const mergeResult = await this.sessionService.mergeSession(session.id);
+                                if (mergeResult?.success) {
+                                    showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
+                                } else {
+                                    showError(mergeResult?.error || 'pushに失敗しました');
+                                }
+                            } catch (mergeErr) {
+                                console.error('Failed to push session:', mergeErr);
+                                showError('pushに失敗しました');
+                            }
+                            return;
+                        }
+
+                        if (selectedAction !== 'ok') {
                             showInfo('アーカイブをキャンセルしました');
                             return;
                         }
@@ -672,6 +659,66 @@ export class SessionView {
     }
 
     /**
+     * 調査プロンプトを利用可能な入力先に配信
+     * @param {string} prompt
+     * @returns {Promise<{mode: 'inserted'|'clipboard'|'console'}>}
+     */
+    async _deliverInvestigationPrompt(prompt) {
+        const controller = window.mobileInputController || window.brainbaseApp?.mobileInputController;
+        if (controller && typeof controller.insertTextAtCursor === 'function') {
+            const inserted = controller.insertTextAtCursor(prompt);
+            if (inserted !== false) {
+                return { mode: 'inserted' };
+            }
+        }
+
+        if (this._insertTextIntoActiveEditable(prompt)) {
+            return { mode: 'inserted' };
+        }
+
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(prompt);
+                return { mode: 'clipboard' };
+            }
+        } catch (error) {
+            console.warn('Failed to copy investigation prompt to clipboard:', error);
+        }
+
+        console.log('[Archive Investigation Prompt]');
+        console.log(prompt);
+        return { mode: 'console' };
+    }
+
+    /**
+     * 現在フォーカス中の入力欄にテキスト挿入
+     * @param {string} text
+     * @returns {boolean}
+     */
+    _insertTextIntoActiveEditable(text) {
+        const active = document.activeElement;
+        const isTextarea = active instanceof HTMLTextAreaElement;
+        const isTextInput = active instanceof HTMLInputElement
+            && ['text', 'search', 'url', 'email', 'tel'].includes((active.type || 'text').toLowerCase());
+
+        if (!isTextarea && !isTextInput) {
+            return false;
+        }
+
+        const inputEl = active;
+        const start = inputEl.selectionStart ?? inputEl.value.length;
+        const end = inputEl.selectionEnd ?? inputEl.value.length;
+        inputEl.value = inputEl.value.slice(0, start) + text + inputEl.value.slice(end);
+        const nextPos = start + text.length;
+        if (typeof inputEl.setSelectionRange === 'function') {
+            inputEl.setSelectionRange(nextPos, nextPos);
+        }
+        inputEl.focus();
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+    }
+
+    /**
      * クリーンアップ
      */
     unmount() {
@@ -688,5 +735,35 @@ export class SessionView {
             this.container.innerHTML = '';
             this.container = null;
         }
+    }
+
+    /**
+     * 診断プロンプトを生成（Jujutsu概念）
+     * @param {Object} status - { changesNotPushed, hasWorkingCopyChanges, bookmarkPushed, bookmarkName }
+     * @returns {string} - フォーマット済みプロンプト
+     */
+    _generateInvestigationPrompt(status) {
+        const issues = [];
+
+        if (status.changesNotPushed > 0) {
+            issues.push(`- remoteにpushされてないchange: ${status.changesNotPushed}件`);
+        }
+        if (!status.bookmarkPushed && status.bookmarkName) {
+            issues.push(`- bookmark '${status.bookmarkName}' がremoteにない`);
+        }
+        if (status.hasWorkingCopyChanges) {
+            issues.push('- working copyに未完了のchangeあり');
+        }
+
+        const issueList = issues.length > 0 ? issues.join('\n') : '- 不明な問題';
+
+        return `このセッションをアーカイブしようとしたところ、以下の問題が検出されました：
+
+${issueList}
+
+これらの問題を解決してアーカイブ可能な状態にする方法を教えてください。
+Jujutsuコマンド（jj）を使用してください。
+
+セッションID: ${window.location.hash.slice(1) || '不明'}`;
     }
 }

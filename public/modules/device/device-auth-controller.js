@@ -108,7 +108,7 @@ export class DeviceAuthController {
             let slackUserId = null;
             let slackWorkspaceId = null;
             try {
-                const accessJson = localStorage.getItem('brainbase_access');
+                const accessJson = localStorage.getItem('brainbase.auth.access');
                 if (accessJson) {
                     const access = JSON.parse(accessJson);
                     slackUserId = access.slackUserId;
@@ -199,7 +199,7 @@ export class DeviceAuthController {
         sessionStorage.setItem('brainbase_user_code', this.userCode);
 
         // Redirect to Slack OAuth
-        const returnUrl = `${window.location.origin}/device?slack_callback=true`;
+        const returnUrl = `/device?slack_callback=true`;
         const authUrl = `/api/auth/slack/start?origin=${encodeURIComponent(returnUrl)}&redirect=${encodeURIComponent(returnUrl)}`;
 
         window.location.href = authUrl;
@@ -311,7 +311,7 @@ export class DeviceAuthController {
 // Handle Slack OAuth callback (postMessage from auth callback page)
 window.addEventListener('message', (event) => {
     // Verify origin
-    const allowedOrigins = ['http://localhost:31013', 'https://bb.unson.jp', 'https://graph.brainbase.work'];
+    const allowedOrigins = ['http://localhost:31013', 'https://bb.unson.jp', 'https://graph.brain-base.work'];
     if (!allowedOrigins.includes(event.origin)) {
         return;
     }

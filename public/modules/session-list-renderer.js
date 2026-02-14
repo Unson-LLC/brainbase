@@ -37,11 +37,11 @@ export function renderSessionRowHTML(session, options = {}) {
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
 
-  // Engine icon: codex/claudeの区別をアイコンで表示
+  // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
-    ? { icon: 'code-2', title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
-    : { icon: 'feather', title: 'Claude Code', className: 'engine-icon engine-claude' };
-  const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><i data-lucide="${engineMeta.icon}"></i></span>`;
+    ? { title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
+    : { title: 'Claude Code', className: 'engine-icon engine-claude' };
+  const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><img src="/icons/${engine}.svg" class="engine-svg-icon" alt="${engineMeta.title}"></span>`;
 
   const projectConfig = showProjectEmoji ? getProjectConfig(project) : null;
   const projectEmoji = projectConfig?.emoji ? escapeHtml(projectConfig.emoji) : '';

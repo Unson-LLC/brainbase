@@ -5,6 +5,7 @@ const confirmTitle = document.getElementById('confirm-modal-title');
 const confirmMessage = document.getElementById('confirm-modal-message');
 const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+const confirmActionBtn = document.getElementById('confirm-action-btn');
 
 const hasConfirmModal = Boolean(
     confirmModal
@@ -15,24 +16,39 @@ const hasConfirmModal = Boolean(
 );
 
 let resolvePromise = null;
+let confirmResponseMode = 'boolean';
 
 // Setup event listeners
 if (hasConfirmModal) {
     const closeBtn = confirmModal.querySelector('.close-modal-btn');
-    closeBtn?.addEventListener('click', () => closeConfirm(false));
-    confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
-    confirmOkBtn.addEventListener('click', () => closeConfirm(true));
+    closeBtn?.addEventListener('click', () => closeConfirm(confirmResponseMode === 'action' ? { action: 'cancel' } : false));
+    confirmCancelBtn.addEventListener('click', () => closeConfirm(confirmResponseMode === 'action' ? { action: 'cancel' } : false));
+    confirmOkBtn.addEventListener('click', () => closeConfirm(confirmResponseMode === 'action' ? { action: 'ok' } : true));
     confirmModal.addEventListener('click', (e) => {
-        if (e.target === confirmModal) closeConfirm(false);
+        if (e.target === confirmModal) {
+            closeConfirm(confirmResponseMode === 'action' ? { action: 'cancel' } : false);
+        }
     });
+
+    // Action button event listener (for 3-button pattern)
+    if (confirmActionBtn) {
+        confirmActionBtn.addEventListener('click', () => closeConfirm({ action: 'action' }));
+    }
 }
 
 function closeConfirm(result) {
     if (!confirmModal) return;
     confirmModal.classList.remove('active');
-    if (resolvePromise) {
-        resolvePromise(result);
-        resolvePromise = null;
+    confirmModal.classList.remove('confirm-modal--action');
+    if (confirmActionBtn) {
+        confirmActionBtn.style.display = 'none';
+    }
+
+    const resolver = resolvePromise;
+    resolvePromise = null;
+    confirmResponseMode = 'boolean';
+    if (resolver) {
+        resolver(result);
     }
 }
 
@@ -60,6 +76,72 @@ export function showConfirm(message, options = {}) {
         cancelText = 'キャンセル',
         danger = true
     } = options;
+    confirmResponseMode = 'boolean';
+    confirmModal.classList.remove('confirm-modal--action');
+
+    // XSS対策: DOMメソッドで構築
+    confirmTitle.innerHTML = '';
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'alert-circle');
+    const titleText = document.createTextNode(' ' + title);
+    confirmTitle.appendChild(icon);
+    confirmTitle.appendChild(titleText);
+    confirmMessage.textContent = message;
+    confirmOkBtn.textContent = okText;
+    confirmCancelBtn.textContent = cancelText;
+    if (confirmActionBtn) {
+        confirmActionBtn.style.display = 'none';
+    }
+
+    // Toggle danger style
+    if (danger) {
+        confirmOkBtn.className = 'btn-danger';
+    } else {
+        confirmOkBtn.className = 'btn-primary';
+    }
+
+    // Initialize lucide icon
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+
+    confirmModal.classList.add('active');
+
+    return new Promise((resolve) => {
+        resolvePromise = resolve;
+    });
+}
+
+/**
+ * Show a confirm dialog with an action button (3-button pattern)
+ * @param {string} message - The message to display
+ * @param {Object} options - Options
+ * @param {string} options.title - Modal title (default: '確認')
+ * @param {string} options.okText - OK button text (default: 'OK')
+ * @param {string} options.cancelText - Cancel button text (default: 'キャンセル')
+ * @param {string} options.actionText - Action button text (default: 'アクション')
+ * @param {boolean} options.danger - Use danger button style for OK (default: true)
+ * @returns {Promise<{action: 'ok'|'cancel'|'action'}>} - Resolves to action type
+ */
+export function showConfirmWithAction(message, options = {}) {
+    if (!hasConfirmModal) {
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+            const confirmed = window.confirm(message);
+            return Promise.resolve({ action: confirmed ? 'ok' : 'cancel' });
+        }
+        console.warn('Confirm modal not found. Skipping confirmation dialog.');
+        return Promise.resolve({ action: 'cancel' });
+    }
+
+    const {
+        title = '確認',
+        okText = 'OK',
+        cancelText = 'キャンセル',
+        actionText = 'アクション',
+        danger = true
+    } = options;
+    confirmResponseMode = 'action';
+    confirmModal.classList.add('confirm-modal--action');
 
     // XSS対策: DOMメソッドで構築
     confirmTitle.innerHTML = '';
@@ -72,7 +154,13 @@ export function showConfirm(message, options = {}) {
     confirmOkBtn.textContent = okText;
     confirmCancelBtn.textContent = cancelText;
 
-    // Toggle danger style
+    // 3つ目のボタンを表示
+    if (confirmActionBtn) {
+        confirmActionBtn.textContent = actionText;
+        confirmActionBtn.style.display = 'inline-block';
+    }
+
+    // danger クラス制御
     if (danger) {
         confirmOkBtn.className = 'btn-danger';
     } else {

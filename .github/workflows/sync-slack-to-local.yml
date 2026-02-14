@@ -16,7 +16,7 @@ jobs:
 
       - name: Sync Slack from S3
         run: |
-          bash _codex/common/ops/scripts/sync-slack-to-local.sh 7
+          bash "${HOME}/workspace/_codex/common/ops/scripts/sync-slack-to-local.sh" 7
         env:
           AWS_PROFILE: k.sato
 

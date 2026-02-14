@@ -3,7 +3,7 @@ import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject } from '../../session-manager.js';
-import { addSession } from '../../state-api.js';
+import { addSession, removeSession } from '../../state-api.js';
 
 /**
  * セッションのビジネスロジック
@@ -130,19 +130,8 @@ export class SessionService {
      * @private
      */
     async _createRegularSession(sessionId, name, repoPath, initialCommand, engine, project) {
-        // Start terminal session
-        const res = await this.httpClient.post('/api/sessions/start', {
-            sessionId,
-            initialCommand,
-            cwd: repoPath,
-            engine
-        });
-
-        if (!res || res.error) {
-            throw new Error('Failed to start terminal session');
-        }
-
-        // Build session object and add to state
+        // Build session object and add to state first.
+        // This allows the server to persist ttydProcess info and login_script.sh to resolve the correct CWD.
         const newSession = buildSessionObject({
             id: sessionId,
             name,
@@ -154,6 +143,30 @@ export class SessionService {
         });
 
         await addSession(newSession);
+
+        try {
+            // Start terminal session
+            const res = await this.httpClient.post('/api/sessions/start', {
+                sessionId,
+                initialCommand,
+                cwd: repoPath,
+                engine
+            });
+
+            if (!res || res.error) {
+                throw new Error('Failed to start terminal session');
+            }
+        } catch (error) {
+            // Roll back state on failure (best-effort)
+            try {
+                await removeSession(sessionId);
+                await this.loadSessions();
+            } catch (_) {
+                // ignore rollback errors
+            }
+            throw error;
+        }
+
         await this.loadSessions();
 
         await this.eventBus.emit(EVENTS.SESSION_CREATED, { session: newSession });
@@ -358,8 +371,8 @@ export class SessionService {
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object>}
      */
-    async updateLocalMain(sessionId) {
-        return await this.httpClient.post(`/api/sessions/${sessionId}/update-local-main`, {});
+    async updateLocalMain(sessionId, options = {}) {
+        return await this.httpClient.post(`/api/sessions/${sessionId}/update-local-main`, options);
     }
 
     /**
@@ -385,6 +398,25 @@ export class SessionService {
         await this.loadSessions();
         await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
         return { success: true };
+    }
+
+    /**
+     * セッションを統合（pushしてマージ）
+     * Jujutsu: bookmarkをpushしてPR作成→マージ
+     * @param {string} sessionId - 統合するセッションのID
+     * @returns {Promise<{success?: boolean, error?: string, prUrl?: string}>}
+     */
+    async mergeSession(sessionId) {
+        const result = await this.httpClient.post(
+            `/api/sessions/${sessionId}/merge`
+        );
+
+        if (result.success) {
+            await this.loadSessions();
+            await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+        }
+
+        return result;
     }
 
     /**
