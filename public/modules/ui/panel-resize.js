@@ -13,68 +13,57 @@ const DEFAULTS = {
     RIGHT: { width: 350, min: 280, max: 500 }
 };
 
+const PANEL_CONFIGS = [
+    {
+        key: 'LEFT',
+        handleId: 'left-panel-resize-handle',
+        panelId: 'sidebar',
+        direction: 'left',
+        missingWarning: '[PanelResize] Left panel elements not found'
+    },
+    {
+        key: 'RIGHT',
+        handleId: 'right-panel-resize-handle',
+        panelId: 'context-sidebar',
+        direction: 'right',
+        missingWarning: '[PanelResize] Right panel elements not found'
+    }
+];
+
 /**
  * パネルリサイズを初期化
  */
 export function initPanelResize() {
     const cleanupFns = [];
 
-    // 左パネルのリサイズ
-    const leftCleanup = initLeftPanelResize();
-    if (leftCleanup) cleanupFns.push(leftCleanup);
-
-    // 右パネルのリサイズ
-    const rightCleanup = initRightPanelResize();
-    if (rightCleanup) cleanupFns.push(rightCleanup);
+    PANEL_CONFIGS.forEach(config => {
+        const cleanup = initPanel(config);
+        if (cleanup) cleanupFns.push(cleanup);
+    });
 
     return () => {
         cleanupFns.forEach(fn => fn());
     };
 }
 
-/**
- * 左パネルのリサイズを初期化
- */
-function initLeftPanelResize() {
-    const handle = document.getElementById('left-panel-resize-handle');
-    const panel = document.getElementById('sidebar');
+function initPanel(config) {
+    const handle = document.getElementById(config.handleId);
+    const panel = document.getElementById(config.panelId);
 
     if (!handle || !panel) {
-        console.warn('[PanelResize] Left panel elements not found');
+        console.warn(config.missingWarning);
         return null;
     }
 
+    const defaults = DEFAULTS[config.key];
     return setupHorizontalResize({
         handle,
         panel,
-        storageKey: STORAGE_KEYS.LEFT,
-        minWidth: DEFAULTS.LEFT.min,
-        maxWidth: DEFAULTS.LEFT.max,
-        defaultWidth: DEFAULTS.LEFT.width,
-        direction: 'left' // パネルが左側にある
-    });
-}
-
-/**
- * 右パネルのリサイズを初期化
- */
-function initRightPanelResize() {
-    const handle = document.getElementById('right-panel-resize-handle');
-    const panel = document.getElementById('context-sidebar');
-
-    if (!handle || !panel) {
-        console.warn('[PanelResize] Right panel elements not found');
-        return null;
-    }
-
-    return setupHorizontalResize({
-        handle,
-        panel,
-        storageKey: STORAGE_KEYS.RIGHT,
-        minWidth: DEFAULTS.RIGHT.min,
-        maxWidth: DEFAULTS.RIGHT.max,
-        defaultWidth: DEFAULTS.RIGHT.width,
-        direction: 'right' // パネルが右側にある
+        storageKey: STORAGE_KEYS[config.key],
+        minWidth: defaults.min,
+        maxWidth: defaults.max,
+        defaultWidth: defaults.width,
+        direction: config.direction
     });
 }
 
@@ -96,6 +85,9 @@ function setupHorizontalResize({ handle, panel, storageKey, minWidth, maxWidth, 
         if (!isNaN(width) && width >= minWidth && width <= maxWidth) {
             panel.style.width = `${width}px`;
         }
+    } else if (typeof defaultWidth === 'number') {
+        const clampedDefault = Math.max(minWidth, Math.min(maxWidth, defaultWidth));
+        panel.style.width = `${clampedDefault}px`;
     }
 
     // リサイズ中にiframeのマウスイベントをブロックするオーバーレイ
