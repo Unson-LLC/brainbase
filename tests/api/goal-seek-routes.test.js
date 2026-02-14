@@ -3,6 +3,9 @@ import express from 'express';
 import request from 'supertest';
 import { createGoalSeekRouter } from '../../server/routes/goal-seek-routes.js';
 import { GoalSeekStore } from '../../server/services/goal-seek-store.js';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 /**
  * Goal Seek API Routes テスト
@@ -22,18 +25,26 @@ import { GoalSeekStore } from '../../server/services/goal-seek-store.js';
 describe('Goal Seek API Routes', () => {
     let app;
     let store;
+    let tempDir;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         app = express();
         app.use(express.json());
 
-        // テスト用のインメモリストア
-        store = new GoalSeekStore({ type: 'memory' });
+        // テスト用の一時ディレクトリ
+        tempDir = await mkdtemp(join(tmpdir(), 'goal-seek-test-'));
+
+        // テスト用のファイルベースストア
+        store = new GoalSeekStore({ dataFile: join(tempDir, 'test.json') });
+        await store.init();
         app.use('/api/goal-seek', createGoalSeekRouter(store));
     });
 
-    afterEach(() => {
-        store?.clear?.();
+    afterEach(async () => {
+        await store?.clear?.();
+        if (tempDir) {
+            await rm(tempDir, { recursive: true, force: true });
+        }
     });
 
     // ========================================

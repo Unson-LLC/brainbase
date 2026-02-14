@@ -2,27 +2,81 @@
  * GoalSeekStore
  *
  * Goal Seekデータの永続化ストア。
- * まずはインメモリ実装、後でPostgreSQLに移行可能。
+ * ファイルベース（JSON）で永続化。インメモリキャッシュ付き。
  */
 
 import { randomUUID } from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
 
 /**
  * GoalSeekStore
- * インメモリストア（PostgreSQL移行可能）
+ * ファイルベースストア（JSON永続化）
  */
 export class GoalSeekStore {
     /**
      * @param {Object} options
-     * @param {string} options.type - ストレージタイプ ('memory' | 'postgres')
+     * @param {string} options.dataFile - データファイルパス（デフォルト: var/goal-seek.json）
      */
     constructor(options = {}) {
-        this.type = options.type || 'memory';
+        this.dataFile = options.dataFile || path.join(process.cwd(), 'var', 'goal-seek.json');
+        this.initialized = false;
 
-        // インメモリストレージ
+        // インメモリキャッシュ
         this.goals = new Map();
         this.interventions = new Map();
         this.logs = [];
+    }
+
+    /**
+     * 初期化（ファイルからロード）
+     */
+    async init() {
+        if (this.initialized) return;
+
+        try {
+            await fs.mkdir(path.dirname(this.dataFile), { recursive: true });
+            const data = await fs.readFile(this.dataFile, 'utf-8');
+            const parsed = JSON.parse(data);
+
+            if (parsed.goals) {
+                parsed.goals.forEach(g => this.goals.set(g.id, g));
+            }
+            if (parsed.interventions) {
+                parsed.interventions.forEach(i => this.interventions.set(i.id, i));
+            }
+            if (parsed.logs) {
+                this.logs = parsed.logs;
+            }
+
+            console.log(`[GoalSeekStore] Loaded ${this.goals.size} goals from ${this.dataFile}`);
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                console.error('[GoalSeekStore] Load error:', error.message);
+            }
+            // ファイルがない場合は空で開始
+        }
+
+        this.initialized = true;
+    }
+
+    /**
+     * ファイルに保存
+     * @private
+     */
+    async _save() {
+        try {
+            const data = {
+                goals: Array.from(this.goals.values()),
+                interventions: Array.from(this.interventions.values()),
+                logs: this.logs,
+                savedAt: new Date().toISOString()
+            };
+            await fs.mkdir(path.dirname(this.dataFile), { recursive: true });
+            await fs.writeFile(this.dataFile, JSON.stringify(data, null, 2));
+        } catch (error) {
+            console.error('[GoalSeekStore] Save error:', error.message);
+        }
     }
 
     // ========================================
@@ -50,6 +104,7 @@ export class GoalSeekStore {
         };
 
         this.goals.set(id, goal);
+        await this._save();
         return goal;
     }
 
@@ -79,6 +134,7 @@ export class GoalSeekStore {
         };
 
         this.goals.set(id, updated);
+        await this._save();
         return updated;
     }
 
@@ -88,7 +144,9 @@ export class GoalSeekStore {
      * @returns {Promise<boolean>} 削除結果
      */
     async deleteGoal(id) {
-        return this.goals.delete(id);
+        const deleted = this.goals.delete(id);
+        if (deleted) await this._save();
+        return deleted;
     }
 
     /**
@@ -129,6 +187,7 @@ export class GoalSeekStore {
         };
 
         this.interventions.set(id, intervention);
+        await this._save();
         return intervention;
     }
 
@@ -157,6 +216,7 @@ export class GoalSeekStore {
         };
 
         this.interventions.set(id, updated);
+        await this._save();
         return updated;
     }
 
@@ -187,6 +247,7 @@ export class GoalSeekStore {
         };
 
         this.logs.push(log);
+        await this._save();
         return log;
     }
 
@@ -206,14 +267,19 @@ export class GoalSeekStore {
     /**
      * 全データクリア（テスト用）
      */
-    clear() {
+    async clear() {
         this.goals.clear();
         this.interventions.clear();
         this.logs = [];
+        await this._save();
     }
 }
 
-// シングルトンインスタンス
-export const goalSeekStore = new GoalSeekStore();
+// シングルトンインスタンス（VAR_DIRを使用）
+import { existsSync } from 'fs';
+const VAR_DIR = process.env.BRAINBASE_VAR_DIR || path.join(process.cwd(), 'var');
+const dataFile = path.join(VAR_DIR, 'goal-seek.json');
+
+export const goalSeekStore = new GoalSeekStore({ dataFile });
 
 export default GoalSeekStore;
