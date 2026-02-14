@@ -28,6 +28,8 @@ import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
+import { GoalSeekService } from './modules/domain/goal/goal-service.js';
+import { GoalSeekRepository } from './modules/domain/goal/goal-repository.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -35,6 +37,7 @@ import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
+import { GoalSeekView } from './modules/domain/goal/goal-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
@@ -260,12 +263,20 @@ export class App {
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
 
+        // Goal Seek Service
+        const goalRepository = new GoalSeekRepository({ httpClient });
+        this.container.register('goalService', () => new GoalSeekService({
+            repository: goalRepository,
+            eventBus: eventBus
+        }));
+
         // Get service instances
         this.taskService = this.container.get('taskService');
         this.sessionService = this.container.get('sessionService');
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
+        this.goalService = this.container.get('goalService');
     }
 
     /**
@@ -277,6 +288,16 @@ export class App {
         if (sessionContainer) {
             this.views.sessionView = new SessionView({ sessionService: this.sessionService });
             this.views.sessionView.mount(sessionContainer);
+        }
+
+        // Goal Seek View
+        const goalSeekContainer = document.getElementById('goal-seek-container');
+        if (goalSeekContainer && this.goalService) {
+            this.views.goalSeekView = new GoalSeekView({
+                service: this.goalService,
+                eventBus: eventBus,
+                containerSelector: '#goal-seek-container'
+            });
         }
     }
 
@@ -674,6 +695,34 @@ export class App {
             // Auto-return to console view if available
             if (this.showConsole) {
                 this.showConsole();
+            }
+        });
+
+        // Goal Seek setup request from session dropdown
+        const unsubGoalSeekSetup = eventBus.onAsync(EVENTS.GOAL_SEEK_SETUP_REQUEST, async (event) => {
+            const { sessionId } = event.detail;
+
+            try {
+                // Load existing goal for session (if any)
+                const goals = await this.goalService.getGoalsBySession(sessionId);
+                const currentGoal = goals[0] || null;
+
+                // Render GoalSeekView for this session
+                if (this.views.goalSeekView) {
+                    this.views.goalSeekView.render({
+                        goal: currentGoal,
+                        sessionId
+                    });
+                }
+
+                // Show the container
+                const container = document.getElementById('goal-seek-container');
+                if (container) {
+                    container.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Failed to setup Goal Seek:', error);
+                showError('ゴール設定の読み込みに失敗しました');
             }
         });
 
