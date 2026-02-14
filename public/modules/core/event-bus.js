@@ -272,6 +272,7 @@ export const EVENTS = {
     GOAL_SEEK_ERROR: 'goal-seek:error',
     GOAL_SEEK_INTERVENTION_REQUIRED: 'goal-seek:intervention-required',
     GOAL_SEEK_INTERVENTION_RESPONDED: 'goal-seek:intervention-responded',
+    GOAL_SEEK_SETUP_REQUEST: 'goal-seek:setup-request',
 
     // Browser Notification関連
     NOTIFICATION_PERMISSION_CHANGED: 'notification:permission-changed',

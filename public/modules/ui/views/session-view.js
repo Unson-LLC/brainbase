@@ -541,6 +541,16 @@ export class SessionView {
             });
         }
 
+        // Goal setup button
+        const goalSetupBtn = row.querySelector('.goal-setup-btn');
+        if (goalSetupBtn) {
+            goalSetupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeDropdown();
+                eventBus.emit(EVENTS.GOAL_SEEK_SETUP_REQUEST, { sessionId: session.id });
+            });
+        }
+
         if (enableDrag) {
             // Drag and Drop handlers
             const project = row.dataset.project;

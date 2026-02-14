@@ -673,6 +673,16 @@ export class App {
             this.views.sessionView = new SessionView({ sessionService: this.sessionService });
             this.views.sessionView.mount(sessionContainer);
         }
+
+        // Goal Seek View
+        const goalSeekContainer = document.getElementById('goal-seek-container');
+        if (goalSeekContainer && this.goalSeekService) {
+            this.views.goalSeekView = new GoalSeekView({
+                service: this.goalSeekService,
+                eventBus: eventBus,
+                containerSelector: '#goal-seek-container'
+            });
+        }
     }
 
     /**
@@ -1074,6 +1084,34 @@ export class App {
             // Auto-return to console view if available
             if (this.showConsole) {
                 this.showConsole();
+            }
+        });
+
+        // Goal Seek setup request from session dropdown
+        const unsubGoalSeekSetup = eventBus.onAsync(EVENTS.GOAL_SEEK_SETUP_REQUEST, async (event) => {
+            const { sessionId } = event.detail;
+
+            try {
+                // Load existing goal for session (if any)
+                const goals = await this.goalService.getGoalsBySession(sessionId);
+                const currentGoal = goals[0] || null;
+
+                // Render GoalSeekView for this session
+                if (this.views.goalSeekView) {
+                    this.views.goalSeekView.render({
+                        goal: currentGoal,
+                        sessionId
+                    });
+                }
+
+                // Show the container
+                const container = document.getElementById('goal-seek-container');
+                if (container) {
+                    container.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Failed to setup Goal Seek:', error);
+                showError('ゴール設定の読み込みに失敗しました');
             }
         });
 

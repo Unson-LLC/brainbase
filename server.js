@@ -478,6 +478,7 @@ const sessionManager = new SessionManager({
 (async () => {
     try {
         await stateStore.init();
+        await goalSeekStore.init();
         await sessionManager.restoreHookStatus();
 
         // Phase 3: activeセッションを復元してからcleanupを実行
