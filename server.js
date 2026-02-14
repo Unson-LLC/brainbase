@@ -52,6 +52,8 @@ import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
+import { createGoalSeekRouter } from './server/routes/goal-seek-routes.js';
+import { goalSeekStore } from './server/services/goal-seek-store.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -522,6 +524,7 @@ app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
+app.use('/api/goal-seek', createGoalSeekRouter(goalSeekStore));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================
