@@ -103,6 +103,7 @@ export function renderSessionRowHTML(session, options = {}) {
           <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>
           ${resumePauseMenuItem}
           <div class="dropdown-divider"></div>
+          <button class="dropdown-item goal-setup-btn"><i data-lucide="target"></i>ゴール設定</button>
           <button class="dropdown-item delete-session-btn danger"><i data-lucide="trash-2"></i>Delete</button>
         </div>
       </div>
