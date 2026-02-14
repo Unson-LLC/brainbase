@@ -37,7 +37,6 @@ import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
-import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
@@ -673,16 +672,6 @@ export class App {
             this.views.sessionView = new SessionView({ sessionService: this.sessionService });
             this.views.sessionView.mount(sessionContainer);
         }
-
-        // Goal Seek View
-        const goalSeekContainer = document.getElementById('goal-seek-container');
-        if (goalSeekContainer && this.goalSeekService) {
-            this.views.goalSeekView = new GoalSeekView({
-                service: this.goalSeekService,
-                eventBus: eventBus,
-                containerSelector: '#goal-seek-container'
-            });
-        }
     }
 
     /**
@@ -1091,27 +1080,9 @@ export class App {
         const unsubGoalSeekSetup = eventBus.onAsync(EVENTS.GOAL_SEEK_SETUP_REQUEST, async (event) => {
             const { sessionId } = event.detail;
 
-            try {
-                // Load existing goal for session (if any)
-                const goals = await this.goalService.getGoalsBySession(sessionId);
-                const currentGoal = goals[0] || null;
-
-                // Render GoalSeekView for this session
-                if (this.views.goalSeekView) {
-                    this.views.goalSeekView.render({
-                        goal: currentGoal,
-                        sessionId
-                    });
-                }
-
-                // Show the container
-                const container = document.getElementById('goal-seek-container');
-                if (container) {
-                    container.classList.remove('hidden');
-                }
-            } catch (error) {
-                console.error('Failed to setup Goal Seek:', error);
-                showError('ゴール設定の読み込みに失敗しました');
+            // Show GoalSeekModal
+            if (this.modals.goalSeekModal) {
+                this.modals.goalSeekModal.show();
             }
         });
 
