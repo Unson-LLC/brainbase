@@ -57,6 +57,7 @@ import { createSetupRouter } from './server/routes/setup.js';
 import { createGoalSeekRouter } from './server/routes/goal-seek.js';
 
 // Import GoalSeek services
+import { GoalSeekStore } from './server/services/goal-seek-store.js';
 import { GoalSeekCalculationService } from './server/services/goal-seek-calculation-service.js';
 import { GoalSeekWebSocketManager } from './server/services/goal-seek-websocket-manager.js';
 
@@ -261,6 +262,7 @@ const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
 
 // GoalSeek Services
+const goalSeekStore = new GoalSeekStore();
 const goalSeekCalculationService = new GoalSeekCalculationService({ eventBus: null });
 const goalSeekWebSocketManager = new GoalSeekWebSocketManager({
     authService,

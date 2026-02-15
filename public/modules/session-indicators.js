@@ -67,6 +67,8 @@ export function updateConnectionStatus(isConnected) {
  * @param {string|null} currentSessionId - Currently active session ID
  */
 export async function pollSessionStatus(currentSessionId, onStatusChange) {
+    console.log('[DEBUG] pollSessionStatus called with currentSessionId:', currentSessionId);
+
     try {
         const res = await fetch('/api/sessions/status');
 
@@ -76,6 +78,7 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         const status = await res.json();
+        console.log('[DEBUG] API response status:', status);
         const previousStatuses = new Map(sessionStatusMap);
         let hasStatusChange = false;
 
@@ -130,9 +133,17 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
  */
 export function updateSessionIndicators(currentSessionId) {
     const sessionItems = document.querySelectorAll('.session-child-row');
+    console.log('[DEBUG] updateSessionIndicators called:', {
+        currentSessionId,
+        sessionItemsCount: sessionItems.length,
+        sessionStatusMap: Object.fromEntries(sessionStatusMap)
+    });
+
     sessionItems.forEach(item => {
         const sessionId = item.dataset.id;
         const status = sessionStatusMap.get(sessionId);
+
+        console.log('[DEBUG] Processing session:', { sessionId, status });
 
         // Remove existing indicator
         const existingIndicator = item.querySelector('.session-activity-indicator');
@@ -155,7 +166,8 @@ export function updateSessionIndicators(currentSessionId) {
             } else {
                 item.appendChild(indicator);
             }
-        } else if (status?.isDone) {
+            console.log('[DEBUG] Added working indicator for:', sessionId);
+        } else if (status?.isDone && sessionId !== currentSessionId) {
             const indicator = document.createElement('div');
             indicator.className = 'session-activity-indicator done';
             // drag-handleの後に挿入（左側に配置）
@@ -165,6 +177,7 @@ export function updateSessionIndicators(currentSessionId) {
             } else {
                 item.appendChild(indicator);
             }
+            console.log('[DEBUG] Added done indicator for:', sessionId);
         }
     });
 }

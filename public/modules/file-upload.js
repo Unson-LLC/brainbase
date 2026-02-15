@@ -363,10 +363,13 @@ function setupKeyHandling() {
         }
 
         if (event.data && event.data.type === 'TMUX_SCROLL') {
+            console.log('[DEBUG] Received TMUX_SCROLL event:', event.data);
             const currentSessionId = getSessionId?.();
+            console.log('[DEBUG] currentSessionId value:', currentSessionId, 'type:', typeof currentSessionId);
             if (currentSessionId) {
                 const direction = event.data.direction === 'down' ? 'down' : 'up';
                 const steps = Math.min(5, Math.max(1, Number(event.data.steps) || 1));
+                console.log('[DEBUG] Sending scroll request:', { currentSessionId, direction, steps });
                 try {
                     await fetch(`/api/sessions/${currentSessionId}/scroll`, {
                         method: 'POST',
@@ -376,9 +379,12 @@ function setupKeyHandling() {
                             steps
                         })
                     });
+                    console.log('[DEBUG] Scroll request sent successfully');
                 } catch (error) {
                     console.error('Failed to send scroll command:', error);
                 }
+            } else {
+                console.log('[DEBUG] No currentSessionId, skipping scroll');
             }
         }
 
