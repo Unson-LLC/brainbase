@@ -4,6 +4,9 @@
  * Handles file uploads via drag & drop and clipboard paste.
  */
 
+// --- Imports ---
+import { httpClient } from './core/http-client.js';
+
 // --- Module State ---
 let getSessionId = null; // Callback to get current session ID
 let consoleArea = null;
@@ -89,21 +92,15 @@ async function handleFiles(files) {
     try {
         console.log('アップロード中...');
         // 1. Upload File
-        const uploadRes = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData
-        });
+        const uploadRes = await httpClient.post('/api/upload', formData);
 
-        if (!uploadRes.ok) throw new Error('Upload failed');
-
-        const { path } = await uploadRes.json();
+        const { path } = uploadRes;
         console.log('アップロード完了:', path);
 
         // 2. Paste path into terminal
-        await fetch(`/api/sessions/${currentSessionId}/input`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ input: path, type: 'text' })
+        await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+            input: path,
+            type: 'text'
         });
 
     } catch (error) {
@@ -311,10 +308,9 @@ async function showPasteConfirmModal(text, sessionId) {
  */
 async function pasteTextToTerminal(sessionId, text) {
     try {
-        await fetch(`/api/sessions/${sessionId}/input`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ input: text, type: 'text' })
+        await httpClient.post(`/api/sessions/${sessionId}/input`, {
+            input: text,
+            type: 'text'
         });
     } catch (error) {
         console.error('Failed to paste text:', error);
@@ -329,13 +325,9 @@ function setupKeyHandling() {
             if (currentSessionId) {
                 console.log('Received SHIFT_ENTER from iframe, sending M-Enter to session');
                 try {
-                    await fetch(`/api/sessions/${currentSessionId}/input`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            input: 'M-Enter',
-                            type: 'key'
-                        })
+                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+                        input: 'M-Enter',
+                        type: 'key'
                     });
                 } catch (error) {
                     console.error('Failed to send key command:', error);
@@ -348,7 +340,7 @@ function setupKeyHandling() {
             if (currentSessionId) {
                 console.log('Received CMD_BACKSPACE from iframe, sending C-u to session');
                 try {
-                    await fetch(`/api/sessions/${currentSessionId}/input`, {
+                    await fetchWithCsrf(`/api/sessions/${currentSessionId}/input`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -368,13 +360,9 @@ function setupKeyHandling() {
                 const direction = event.data.direction === 'down' ? 'down' : 'up';
                 const steps = Math.min(5, Math.max(1, Number(event.data.steps) || 1));
                 try {
-                    await fetch(`/api/sessions/${currentSessionId}/scroll`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            direction,
-                            steps
-                        })
+                    await httpClient.post(`/api/sessions/${currentSessionId}/scroll`, {
+                        direction,
+                        steps
                     });
                 } catch (error) {
                     console.error('Failed to send scroll command:', error);
@@ -388,11 +376,7 @@ function setupKeyHandling() {
                 const direction = event.data.direction;
                 if (['U', 'D', 'L', 'R'].includes(direction)) {
                     try {
-                        await fetch(`/api/sessions/${currentSessionId}/select_pane`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ direction })
-                        });
+                        await httpClient.post(`/api/sessions/${currentSessionId}/select_pane`, { direction });
                     } catch (error) {
                         console.error('Failed to select pane:', error);
                     }
@@ -404,10 +388,7 @@ function setupKeyHandling() {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {
                 try {
-                    await fetch(`/api/sessions/${currentSessionId}/exit_copy_mode`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
+                    await httpClient.post(`/api/sessions/${currentSessionId}/exit_copy_mode`, {});
                 } catch (error) {
                     console.error('Failed to exit copy mode:', error);
                 }
