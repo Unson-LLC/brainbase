@@ -232,6 +232,9 @@ export const EVENTS = {
     NOCODB_TASK_ERROR: 'nocodb:task-error',
     TASK_TAB_CHANGED: 'task:tab-changed',
 
+    // Commit Tree関連
+    COMMIT_LOG_LOADED: 'commit-tree:loaded',
+
     // UI関連
     INBOX_TOGGLED: 'inbox:toggled',
     MODAL_OPENED: 'modal:opened',

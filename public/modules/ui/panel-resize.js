@@ -5,12 +5,14 @@
 
 const STORAGE_KEYS = {
     LEFT: 'brainbase:left-panel-width',
-    RIGHT: 'brainbase:right-panel-width'
+    RIGHT: 'brainbase:right-panel-width',
+    COMMIT_TREE: 'brainbase:commit-tree-panel-width'
 };
 
 const DEFAULTS = {
     LEFT: { width: 280, min: 200, max: 400 },
-    RIGHT: { width: 350, min: 280, max: 500 }
+    RIGHT: { width: 350, min: 280, max: 500 },
+    COMMIT_TREE: { width: 260, min: 200, max: 400 }
 };
 
 /**
@@ -22,6 +24,10 @@ export function initPanelResize() {
     // 左パネルのリサイズ
     const leftCleanup = initLeftPanelResize();
     if (leftCleanup) cleanupFns.push(leftCleanup);
+
+    // コミットツリーパネルのリサイズ
+    const commitTreeCleanup = initCommitTreePanelResize();
+    if (commitTreeCleanup) cleanupFns.push(commitTreeCleanup);
 
     // 右パネルのリサイズ
     const rightCleanup = initRightPanelResize();
@@ -52,6 +58,28 @@ function initLeftPanelResize() {
         maxWidth: DEFAULTS.LEFT.max,
         defaultWidth: DEFAULTS.LEFT.width,
         direction: 'left' // パネルが左側にある
+    });
+}
+
+/**
+ * コミットツリーパネルのリサイズを初期化
+ */
+function initCommitTreePanelResize() {
+    const handle = document.getElementById('commit-tree-resize-handle');
+    const panel = document.getElementById('commit-tree-panel');
+
+    if (!handle || !panel) {
+        return null;
+    }
+
+    return setupHorizontalResize({
+        handle,
+        panel,
+        storageKey: STORAGE_KEYS.COMMIT_TREE,
+        minWidth: DEFAULTS.COMMIT_TREE.min,
+        maxWidth: DEFAULTS.COMMIT_TREE.max,
+        defaultWidth: DEFAULTS.COMMIT_TREE.width,
+        direction: 'right'
     });
 }
 

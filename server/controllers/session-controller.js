@@ -529,6 +529,38 @@ export class SessionController {
     };
 
     /**
+     * GET /api/sessions/:id/commit-log
+     * コミットログを取得
+     */
+    getCommitLog = async (req, res) => {
+        const { id } = req.params;
+        const limit = parseInt(req.query.limit) || 50;
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        if (!session.worktree) {
+            return res.status(400).json({ error: 'Session does not have a worktree' });
+        }
+
+        try {
+            const result = await this.worktreeService.getCommitLog(
+                id,
+                session.worktree.repo,
+                limit
+            );
+            res.json(result);
+        } catch (error) {
+            console.error('Failed to get commit log:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
      * DELETE /api/sessions/:id/worktree
      * worktreeを削除
      */

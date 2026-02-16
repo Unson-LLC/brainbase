@@ -181,6 +181,7 @@ export const appStore = new Store({
     tasks: [],
     schedule: null,
     inbox: [],
+    commitLog: null,
     testMode: false, // テストモード（読み取り専用）
     filters: {
         taskFilter: '',
