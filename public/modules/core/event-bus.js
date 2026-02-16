@@ -262,6 +262,7 @@ export const EVENTS = {
     PLUGIN_SLOT_MISSING: 'plugin:slot-missing',
 
     // Goal Seek関連
+    GOAL_SEEK_OPEN: 'goal-seek:open',
     GOAL_SEEK_STARTED: 'goal-seek:started',
     GOAL_SEEK_PROGRESS: 'goal-seek:progress',
     GOAL_SEEK_COMPLETED: 'goal-seek:completed',
