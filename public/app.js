@@ -1262,7 +1262,14 @@ export class App {
             }
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6);
+        // Goal seek: open goal seek modal
+        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
+            const { session } = event.detail;
+            console.log('Goal seek requested for session:', session?.id);
+            this.modals.goalSeekModal.show();
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
