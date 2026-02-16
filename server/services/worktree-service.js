@@ -251,14 +251,21 @@ export class WorktreeService {
             }
 
             // Check if bookmark exists and is pushed to remote
+            // bookmark名はsessionId or session/sessionIdの両方を試す
             let bookmarkPushed = false;
-            try {
-                const { stdout: bookmarkList } = await this.execPromise(
-                    `jj -R "${repoPath}" bookmark list ${bookmarkName} --no-pager`
-                );
-                bookmarkPushed = bookmarkList.includes('origin') || bookmarkList.includes('@origin');
-            } catch {
-                bookmarkPushed = false;
+            const bookmarkCandidates = [bookmarkName, `session/${bookmarkName}`];
+            for (const candidate of bookmarkCandidates) {
+                try {
+                    const { stdout: bookmarkList } = await this.execPromise(
+                        `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager`
+                    );
+                    if (bookmarkList.includes('origin') || bookmarkList.includes('@origin')) {
+                        bookmarkPushed = true;
+                        break;
+                    }
+                } catch {
+                    // continue to next candidate
+                }
             }
 
             // Determine if integration (push) is needed
