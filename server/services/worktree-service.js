@@ -421,6 +421,119 @@ EOF
     }
 
     /**
+     * コミットログを取得
+     * @param {string} sessionId - セッションID
+     * @param {string} repoPath - リポジトリパス
+     * @param {number} [limit=50] - 取得件数
+     * @returns {Promise<{commits: Array, repoType: string, worktreePath: string}>}
+     */
+    async getCommitLog(sessionId, repoPath, limit = 50) {
+        const repoName = path.basename(repoPath);
+        const workspaceName = `${sessionId}-${repoName}`;
+        const workspacePath = path.join(this.worktreesDir, workspaceName);
+
+        // Check if workspace exists
+        try {
+            await fs.access(workspacePath);
+        } catch {
+            return { commits: [], repoType: 'unknown', worktreePath: workspacePath };
+        }
+
+        const isJujutsu = await this._isJujutsuRepo(repoPath);
+
+        if (isJujutsu) {
+            return this._getJujutsuCommitLog(workspacePath, limit);
+        }
+        return this._getGitCommitLog(workspacePath, limit);
+    }
+
+    /**
+     * Jujutsuのコミットログを取得
+     * @private
+     */
+    async _getJujutsuCommitLog(workspacePath, limit) {
+        try {
+            const template = 'commit_id ++ "\\x00" ++ description.first_line() ++ "\\x00" ++ committer.timestamp() ++ "\\x00" ++ author.name() ++ "\\x00" ++ bookmarks ++ "\\x00" ++ if(self.working_copies(), "true", "false") ++ "\\n"';
+            const { stdout } = await this.execPromise(
+                `jj -R "${workspacePath}" log -r "::@" -T '${template}' --no-pager -n ${limit}`
+            );
+
+            const commits = this._parseJujutsuLog(stdout);
+            return { commits, repoType: 'jj', worktreePath: workspacePath };
+        } catch (err) {
+            console.error(`[commitLog] jj log failed for ${workspacePath}:`, err.message);
+            return { commits: [], repoType: 'jj', worktreePath: workspacePath };
+        }
+    }
+
+    /**
+     * Jujutsuログ出力をパース
+     * @private
+     */
+    _parseJujutsuLog(stdout) {
+        if (!stdout || !stdout.trim()) return [];
+
+        return stdout.trim().split('\n')
+            .filter(line => line.includes('\x00'))
+            .map(line => {
+                const parts = line.split('\x00');
+                const hash = (parts[0] || '').trim();
+                return {
+                    hash: hash.substring(0, 12),
+                    description: (parts[1] || '').trim() || '(empty)',
+                    timestamp: (parts[2] || '').trim(),
+                    author: (parts[3] || '').trim(),
+                    bookmarks: (parts[4] || '').trim().split(/\s+/).filter(Boolean),
+                    isWorkingCopy: (parts[5] || '').trim() === 'true'
+                };
+            });
+    }
+
+    /**
+     * Gitのコミットログを取得（フォールバック）
+     * @private
+     */
+    async _getGitCommitLog(workspacePath, limit) {
+        try {
+            const { stdout } = await this.execPromise(
+                `git -C "${workspacePath}" log --format="%h%x00%s%x00%aI%x00%an%x00%D%x00" -n ${limit}`
+            );
+
+            const commits = this._parseGitLog(stdout);
+            // Mark first commit as working copy
+            if (commits.length > 0) {
+                commits[0].isWorkingCopy = true;
+            }
+            return { commits, repoType: 'git', worktreePath: workspacePath };
+        } catch (err) {
+            console.error(`[commitLog] git log failed for ${workspacePath}:`, err.message);
+            return { commits: [], repoType: 'git', worktreePath: workspacePath };
+        }
+    }
+
+    /**
+     * Gitログ出力をパース
+     * @private
+     */
+    _parseGitLog(stdout) {
+        if (!stdout || !stdout.trim()) return [];
+
+        return stdout.trim().split('\n')
+            .filter(line => line.includes('\x00'))
+            .map(line => {
+                const parts = line.split('\x00');
+                return {
+                    hash: (parts[0] || '').trim(),
+                    description: (parts[1] || '').trim() || '(empty)',
+                    timestamp: (parts[2] || '').trim(),
+                    author: (parts[3] || '').trim(),
+                    bookmarks: (parts[4] || '').trim().split(/,\s*/).filter(Boolean),
+                    isWorkingCopy: false
+                };
+            });
+    }
+
+    /**
      * 全てのJujutsu workspaceをリストアップ
      * @returns {Promise<Array<{name: string, path: string, isMain: boolean}>>}
      */
