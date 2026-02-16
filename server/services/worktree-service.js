@@ -34,7 +34,7 @@ export class WorktreeService {
             return this.isJujutsuRepo;
         }
         try {
-            await this.execPromise(`jj -C "${repoPath}" version`);
+            await this.execPromise(`jj -R "${repoPath}" version`);
             this.isJujutsuRepo = true;
             return true;
         } catch {
@@ -85,12 +85,12 @@ export class WorktreeService {
             // Check if workspace already exists
             try {
                 const { stdout: workspaceList } = await this.execPromise(
-                    `jj -C "${repoPath}" workspace list`
+                    `jj -R "${repoPath}" workspace list`
                 );
                 if (workspaceList.includes(`${workspaceName}:`)) {
                     console.log(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
                     const { stdout: startCommit } = await this.execPromise(
-                        `jj -C "${workspacePath}" log -r @ -T 'commit_id' --no-pager`
+                        `jj -R "${workspacePath}" log -r @ -T 'commit_id' --no-pager`
                     );
                     return { worktreePath: workspacePath, branchName: `session/${sessionId}`, repoPath, startCommit: startCommit.trim(), workspaceName };
                 }
@@ -100,18 +100,18 @@ export class WorktreeService {
 
             // Fetch latest from remote
             try {
-                await this.execPromise(`jj -C "${repoPath}" git fetch`);
+                await this.execPromise(`jj -R "${repoPath}" git fetch`);
             } catch (fetchErr) {
                 console.log(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
             }
 
             // Create workspace
-            await this.execPromise(`jj -C "${repoPath}" workspace add --name "${workspaceName}" "${workspacePath}"`);
+            await this.execPromise(`jj -R "${repoPath}" workspace add --name "${workspaceName}" "${workspacePath}"`);
             console.log(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
 
             // Create bookmark
             try {
-                await this.execPromise(`jj -C "${repoPath}" bookmark create -r main ${bookmarkName}`);
+                await this.execPromise(`jj -R "${repoPath}" bookmark create -r main ${bookmarkName}`);
                 console.log(`[workspace] Created bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
                 console.log(`[workspace] Bookmark creation skipped: ${bookmarkErr.message}`);
@@ -153,7 +153,7 @@ export class WorktreeService {
 
             // Get current HEAD as startCommit
             const { stdout: startCommit } = await this.execPromise(
-                `jj -C "${workspacePath}" log -r @ -T 'commit_id' --no-pager`
+                `jj -R "${workspacePath}" log -r @ -T 'commit_id' --no-pager`
             );
 
             console.log(`Created Jujutsu workspace at ${workspacePath}`);
@@ -179,7 +179,7 @@ export class WorktreeService {
         try {
             // Forget workspace (metadata only)
             try {
-                await this.execPromise(`jj -C "${repoPath}" workspace forget "${workspaceName}"`);
+                await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
                 console.log(`[workspace] Forgot workspace: ${workspaceName}`);
             } catch (forgetErr) {
                 console.log(`[workspace] Workspace forget skipped: ${forgetErr.message}`);
@@ -187,7 +187,7 @@ export class WorktreeService {
 
             // Delete bookmark
             try {
-                await this.execPromise(`jj -C "${repoPath}" bookmark delete "${bookmarkName}"`);
+                await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
                 console.log(`[workspace] Deleted bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
                 console.log(`[workspace] Bookmark deletion skipped: ${bookmarkErr.message}`);
@@ -232,7 +232,7 @@ export class WorktreeService {
             let changesNotPushed = 0;
             try {
                 const { stdout: aheadCount } = await this.execPromise(
-                    `jj -C "${workspacePath}" log -r "${mainBranchName}..@" -T '"x\n"' --no-pager 2>/dev/null | wc -l`
+                    `jj -R "${workspacePath}" log -r "${mainBranchName}..@" -T '"x\n"' --no-pager 2>/dev/null | wc -l`
                 );
                 changesNotPushed = parseInt(aheadCount.trim()) || 0;
             } catch {
@@ -243,7 +243,7 @@ export class WorktreeService {
             let hasWorkingCopyChanges = false;
             try {
                 const { stdout: statusOutput } = await this.execPromise(
-                    `jj -C "${workspacePath}" status --no-pager`
+                    `jj -R "${workspacePath}" status --no-pager`
                 );
                 hasWorkingCopyChanges = statusOutput.trim().length > 0;
             } catch {
@@ -254,7 +254,7 @@ export class WorktreeService {
             let bookmarkPushed = false;
             try {
                 const { stdout: bookmarkList } = await this.execPromise(
-                    `jj -C "${repoPath}" bookmark list ${bookmarkName} --no-pager`
+                    `jj -R "${repoPath}" bookmark list ${bookmarkName} --no-pager`
                 );
                 bookmarkPushed = bookmarkList.includes('origin') || bookmarkList.includes('@origin');
             } catch {
@@ -305,7 +305,7 @@ export class WorktreeService {
 
         try {
             // Fetch latest from remote
-            await this.execPromise(`jj -C "${repoPath}" git fetch`);
+            await this.execPromise(`jj -R "${repoPath}" git fetch`);
         } catch (err) {
             return { success: false, error: `fetch失敗: ${err.message}` };
         }
@@ -344,7 +344,7 @@ export class WorktreeService {
             // Push bookmark to remote
             console.log(`[merge] Pushing bookmark: ${bookmarkName}`);
             try {
-                await this.execPromise(`jj -C "${repoPath}" git push --bookmark "${bookmarkName}"`);
+                await this.execPromise(`jj -R "${repoPath}" git push --bookmark "${bookmarkName}"`);
             } catch (pushErr) {
                 return {
                     success: false,
@@ -354,7 +354,7 @@ export class WorktreeService {
 
             // Get commits for PR description
             const { stdout: commits } = await this.execPromise(
-                `jj -C "${repoPath}" log -r "${mainBranchName}..${bookmarkName}" -T '"- " ++ description.first_line() ++ "\\n"' --no-pager`
+                `jj -R "${repoPath}" log -r "${mainBranchName}..${bookmarkName}" -T '"- " ++ description.first_line() ++ "\\n"' --no-pager`
             );
 
             // Build PR title
@@ -387,13 +387,13 @@ EOF
             const workspacePath = path.join(this.worktreesDir, workspaceName);
 
             try {
-                await this.execPromise(`jj -C "${repoPath}" workspace forget "${workspaceName}"`);
+                await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
             } catch (forgetErr) {
                 console.log(`[merge] Workspace forget skipped: ${forgetErr.message}`);
             }
 
             try {
-                await this.execPromise(`jj -C "${repoPath}" bookmark delete "${bookmarkName}"`);
+                await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
             } catch (bookmarkErr) {
                 console.log(`[merge] Bookmark deletion skipped: ${bookmarkErr.message}`);
             }
@@ -420,7 +420,7 @@ EOF
     async listWorktrees() {
         try {
             const { stdout } = await this.execPromise(
-                `jj -C "${this.canonicalRoot}" workspace list --no-pager`
+                `jj -R "${this.canonicalRoot}" workspace list --no-pager`
             );
 
             const workspaces = [];
