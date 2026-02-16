@@ -666,6 +666,11 @@ export class SessionManager {
         console.log(`Starting ttyd for session '${sessionId}' on port ${port} with engine '${engine}'...`);
         if (cwd) console.log(`Working directory: ${cwd}`);
 
+        // Validate working directory exists
+        if (cwd && !fs.existsSync(cwd)) {
+            throw new Error(`Working directory does not exist: ${cwd}`);
+        }
+
         // Spawn ttyd with Base Path
         const scriptPath = fs.existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
             ? path.join(this.serverDir, 'scripts', 'login_script.sh')

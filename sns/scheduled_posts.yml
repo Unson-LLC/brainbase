@@ -1828,3 +1828,16 @@ posts:
   status: skipped
   skipped_at: '2026-02-13T15:04:08+09:00'
   skip_reason: slack:sns_review_reject
+- id: x-20260213-003
+  story_id: story-20260213-003
+  story_stage: hook
+  scheduled_at: '2026-02-17T12:00:00+09:00'
+  type: x_post
+  title: AIエージェントと長期コンテキスト
+  body: "4事業やってて、人を雇うより先にAIエージェント増やしてる\n\n採用面接ゼロ、退職リスクゼロ\n\
+    \nでも1個だけ、どうしても人間じゃないと無理なことがある\n\n長期コンテキストの維持\n\n3事業目の失敗が4事業目の設計に効いてる感覚\n\
+    半年前にあの判断をした理由\n「前もこのパターンで詰まった」って気づき\n\nAIは毎回まっさらに戻る\n事業の記憶を持てない\n\n\
+    だから今、4事業分の判断ログをAIに食わせる仕組みを自分で作ってる"
+  image: ''
+  sns_smart_completed: true
+  status: ready

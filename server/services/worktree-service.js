@@ -425,7 +425,7 @@ EOF
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @param {number} [limit=50] - 取得件数
-     * @returns {Promise<{commits: Array, repoType: string, worktreePath: string}>}
+     * @returns {Promise<{commits: Array, repoType: string, repoName: string, worktreePath: string}>}
      */
     async getCommitLog(sessionId, repoPath, limit = 50) {
         const repoName = path.basename(repoPath);
@@ -436,15 +436,17 @@ EOF
         try {
             await fs.access(workspacePath);
         } catch {
-            return { commits: [], repoType: 'unknown', worktreePath: workspacePath };
+            return { commits: [], repoType: 'unknown', repoName, worktreePath: workspacePath };
         }
 
         const isJujutsu = await this._isJujutsuRepo(repoPath);
 
         if (isJujutsu) {
-            return this._getJujutsuCommitLog(workspacePath, limit);
+            const result = await this._getJujutsuCommitLog(workspacePath, limit);
+            return { ...result, repoName };
         }
-        return this._getGitCommitLog(workspacePath, limit);
+        const result = await this._getGitCommitLog(workspacePath, limit);
+        return { ...result, repoName };
     }
 
     /**
@@ -453,9 +455,9 @@ EOF
      */
     async _getJujutsuCommitLog(workspacePath, limit) {
         try {
-            const template = 'commit_id ++ "\\x00" ++ description.first_line() ++ "\\x00" ++ committer.timestamp() ++ "\\x00" ++ author.name() ++ "\\x00" ++ bookmarks ++ "\\x00" ++ if(self.working_copies(), "true", "false") ++ "\\n"';
+            const template = 'commit_id ++ "\\x00" ++ description.first_line() ++ "\\x00" ++ committer.timestamp() ++ "\\x00" ++ author.name() ++ "\\x00" ++ bookmarks ++ "\\x00" ++ if(self.working_copies(), "true", "false") ++ "\\x00" ++ parents.map(|c| c.commit_id()).join(",") ++ "\\n"';
             const { stdout } = await this.execPromise(
-                `jj -R "${workspacePath}" log -r "::@" -T '${template}' --no-pager -n ${limit}`
+                `jj -R "${workspacePath}" log -r "::@" -T '${template}' --no-graph --no-pager -n ${limit}`
             );
 
             const commits = this._parseJujutsuLog(stdout);
@@ -478,13 +480,15 @@ EOF
             .map(line => {
                 const parts = line.split('\x00');
                 const hash = (parts[0] || '').trim();
+                const parentStr = (parts[6] || '').trim();
                 return {
                     hash: hash.substring(0, 12),
                     description: (parts[1] || '').trim() || '(empty)',
                     timestamp: (parts[2] || '').trim(),
                     author: (parts[3] || '').trim(),
                     bookmarks: (parts[4] || '').trim().split(/\s+/).filter(Boolean),
-                    isWorkingCopy: (parts[5] || '').trim() === 'true'
+                    isWorkingCopy: (parts[5] || '').trim() === 'true',
+                    parents: parentStr ? parentStr.split(',').map(p => p.trim().substring(0, 12)) : []
                 };
             });
     }
@@ -496,7 +500,7 @@ EOF
     async _getGitCommitLog(workspacePath, limit) {
         try {
             const { stdout } = await this.execPromise(
-                `git -C "${workspacePath}" log --format="%h%x00%s%x00%aI%x00%an%x00%D%x00" -n ${limit}`
+                `git -C "${workspacePath}" log --format="%h%x00%s%x00%aI%x00%an%x00%D%x00%p%x00" -n ${limit}`
             );
 
             const commits = this._parseGitLog(stdout);
@@ -522,13 +526,15 @@ EOF
             .filter(line => line.includes('\x00'))
             .map(line => {
                 const parts = line.split('\x00');
+                const parentStr = (parts[5] || '').trim();
                 return {
                     hash: (parts[0] || '').trim(),
                     description: (parts[1] || '').trim() || '(empty)',
                     timestamp: (parts[2] || '').trim(),
                     author: (parts[3] || '').trim(),
                     bookmarks: (parts[4] || '').trim().split(/,\s*/).filter(Boolean),
-                    isWorkingCopy: false
+                    isWorkingCopy: false,
+                    parents: parentStr ? parentStr.split(' ').filter(Boolean) : []
                 };
             });
     }

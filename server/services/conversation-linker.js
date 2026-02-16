@@ -25,6 +25,9 @@ export class ConversationLinker {
         this.claudeProjectsDir = path.join(this.homeDir, '.claude', 'projects');
         this.codexSessionsDir = path.join(this.homeDir, '.codex', 'sessions');
         this._intervalTimer = null;
+        this._isLinking = false;
+        this._codexIndexCache = null;
+        this._codexIndexCacheTime = 0;
     }
 
     /**
@@ -68,6 +71,7 @@ export class ConversationLinker {
      * @returns {Promise<{messageCount: number, sizeBytes: number, lastActivity: string|null}>}
      */
     async getClaudeConversationStats(jsonlPath) {
+        let stream;
         try {
             const stat = await fs.stat(jsonlPath);
             const sizeBytes = stat.size;
@@ -75,16 +79,23 @@ export class ConversationLinker {
 
             // Count lines (each line = one message/event)
             let messageCount = 0;
-            const stream = createReadStream(jsonlPath);
+            stream = createReadStream(jsonlPath);
             const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
-            for await (const _line of rl) {
-                messageCount++;
+            try {
+                for await (const _line of rl) {
+                    messageCount++;
+                }
+            } finally {
+                rl.close();
+                stream.destroy();
             }
 
             return { messageCount, sizeBytes, lastActivity };
         } catch {
             return { messageCount: 0, sizeBytes: 0, lastActivity: null };
+        } finally {
+            if (stream && !stream.destroyed) stream.destroy();
         }
     }
 
@@ -94,31 +105,37 @@ export class ConversationLinker {
      * @returns {Promise<string|null>}
      */
     async getFirstPrompt(jsonlPath) {
+        let stream;
         try {
-            const stream = createReadStream(jsonlPath);
+            stream = createReadStream(jsonlPath);
             const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
-            for await (const line of rl) {
-                try {
-                    const data = JSON.parse(line);
-                    if (data.type === 'user' && data.message?.content) {
-                        const content = data.message.content;
-                        const text = typeof content === 'string'
-                            ? content
-                            : Array.isArray(content)
-                                ? content.find(c => typeof c === 'string' || c?.text)?.text || content[0]?.text || ''
-                                : '';
-                        // Truncate to 100 chars
-                        rl.close();
-                        return text.substring(0, 100);
+            try {
+                for await (const line of rl) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type === 'user' && data.message?.content) {
+                            const content = data.message.content;
+                            const text = typeof content === 'string'
+                                ? content
+                                : Array.isArray(content)
+                                    ? content.find(c => typeof c === 'string' || c?.text)?.text || content[0]?.text || ''
+                                    : '';
+                            return text.substring(0, 100);
+                        }
+                    } catch {
+                        // Skip malformed lines
                     }
-                } catch {
-                    // Skip malformed lines
                 }
+                return null;
+            } finally {
+                rl.close();
+                stream.destroy();
             }
-            return null;
         } catch {
             return null;
+        } finally {
+            if (stream && !stream.destroyed) stream.destroy();
         }
     }
 
@@ -129,27 +146,34 @@ export class ConversationLinker {
      * @returns {Promise<string|null>} cwd
      */
     async getCodexSessionCwd(jsonlPath) {
+        let stream;
         try {
-            const stream = createReadStream(jsonlPath);
+            stream = createReadStream(jsonlPath);
             const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
-            for await (const line of rl) {
-                try {
-                    const data = JSON.parse(line);
-                    if (data.type === 'session_meta' || data.session_meta) {
-                        const meta = data.session_meta || data;
-                        rl.close();
-                        return meta.cwd || null;
+            try {
+                for await (const line of rl) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type === 'session_meta' || data.session_meta) {
+                            const meta = data.session_meta || data.payload || data;
+                            return meta.cwd || null;
+                        }
+                    } catch {
+                        // Skip malformed lines
                     }
-                } catch {
-                    // Skip malformed lines
+                    // Only check first few lines
+                    break;
                 }
-                // Only check first few lines
-                break;
+                return null;
+            } finally {
+                rl.close();
+                stream.destroy();
             }
-            return null;
         } catch {
             return null;
+        } finally {
+            if (stream && !stream.destroyed) stream.destroy();
         }
     }
 
@@ -158,46 +182,55 @@ export class ConversationLinker {
      * @returns {Promise<{updated: number, total: number, errors: string[]}>}
      */
     async linkAll() {
-        const state = this.stateStore.get();
-        const sessions = state.sessions || [];
-        const errors = [];
-        let updated = 0;
+        if (this._isLinking) {
+            console.warn('[ConversationLinker] linkAll already in progress, skipping');
+            return { updated: 0, total: 0, errors: [], skipped: true };
+        }
+        this._isLinking = true;
+        try {
+            const state = this.stateStore.get();
+            const sessions = state.sessions || [];
+            const errors = [];
+            let updated = 0;
 
-        console.log(`[ConversationLinker] Starting linkAll for ${sessions.length} session(s)...`);
+            console.log(`[ConversationLinker] Starting linkAll for ${sessions.length} session(s)...`);
 
-        // Build Codex session index (cwd → files) once
-        const codexIndex = await this._buildCodexIndex();
+            // Build Codex session index (cwd → files) once
+            const codexIndex = await this._buildCodexIndex();
 
-        const updatedSessions = [];
+            const updatedSessions = [];
 
-        for (const session of sessions) {
-            try {
-                const summary = await this._linkSession(session, codexIndex);
-                if (summary) {
-                    updatedSessions.push({ ...session, conversationSummary: summary });
-                    updated++;
-                } else {
+            for (const session of sessions) {
+                try {
+                    const summary = await this._linkSession(session, codexIndex);
+                    if (summary) {
+                        updatedSessions.push({ ...session, conversationSummary: summary });
+                        updated++;
+                    } else {
+                        updatedSessions.push(session);
+                    }
+                } catch (err) {
+                    errors.push(`${session.id}: ${err.message}`);
                     updatedSessions.push(session);
                 }
-            } catch (err) {
-                errors.push(`${session.id}: ${err.message}`);
-                updatedSessions.push(session);
             }
-        }
 
-        // Save updated state
-        if (updated > 0) {
-            await this.stateStore.update({ ...state, sessions: updatedSessions });
-            console.log(`[ConversationLinker] Updated ${updated}/${sessions.length} session(s)`);
-        } else {
-            console.log(`[ConversationLinker] No updates needed`);
-        }
+            // Save updated state
+            if (updated > 0) {
+                await this.stateStore.update({ ...state, sessions: updatedSessions });
+                console.log(`[ConversationLinker] Updated ${updated}/${sessions.length} session(s)`);
+            } else {
+                console.log(`[ConversationLinker] No updates needed`);
+            }
 
-        if (errors.length > 0) {
-            console.warn(`[ConversationLinker] ${errors.length} error(s):`, errors.slice(0, 5));
-        }
+            if (errors.length > 0) {
+                console.warn(`[ConversationLinker] ${errors.length} error(s):`, errors.slice(0, 5));
+            }
 
-        return { updated, total: sessions.length, errors };
+            return { updated, total: sessions.length, errors };
+        } finally {
+            this._isLinking = false;
+        }
     }
 
     /**
@@ -229,12 +262,27 @@ export class ConversationLinker {
                 }));
             } else {
                 // sessions-index.json がない場合は jsonl ファイルを直接走査
+                const existingConversations = session.conversationSummary?.lastConversation
+                    ? [session.conversationSummary.lastConversation,
+                       ...(session.conversationSummary._cachedConversations || [])]
+                    : [];
                 try {
                     const files = await fs.readdir(claudeLogDir);
                     const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
                     for (const file of jsonlFiles) {
                         const filePath = path.join(claudeLogDir, file);
                         const uuid = path.basename(file, '.jsonl');
+                        const stat = await fs.stat(filePath);
+                        const mtime = stat.mtime.toISOString();
+
+                        // 前回のlinkAt以降に変更がなければスキップ
+                        const existingConv = existingConversations.find(c => c.conversationId === uuid);
+                        if (existingConv && existingConv.lastActivity === mtime) {
+                            claudeConversations.push(existingConv);
+                            continue;
+                        }
+
+                        // 変更があった場合のみストリームを開く
                         const stats = await this.getClaudeConversationStats(filePath);
                         const firstPrompt = await this.getFirstPrompt(filePath);
                         claudeConversations.push({
@@ -315,6 +363,12 @@ export class ConversationLinker {
      * @returns {Promise<Map<string, string[]>>} cwd → ファイルパスの配列
      */
     async _buildCodexIndex() {
+        // 1分以内の再リクエストはキャッシュ返却
+        const now = Date.now();
+        if (this._codexIndexCache && (now - this._codexIndexCacheTime) < 60_000) {
+            return this._codexIndexCache;
+        }
+
         const index = new Map();
 
         if (!existsSync(this.codexSessionsDir)) {
@@ -352,6 +406,8 @@ export class ConversationLinker {
         }
 
         console.log(`[ConversationLinker] Codex index: ${index.size} unique cwd(s)`);
+        this._codexIndexCache = index;
+        this._codexIndexCacheTime = Date.now();
         return index;
     }
 

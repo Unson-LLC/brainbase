@@ -31,6 +31,7 @@ import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-serv
 import { GoalSeekService } from './modules/domain/goal-seek/goal-seek-service.js';
 import { BrowserNotificationService } from './modules/domain/browser-notification/browser-notification-service.js';
 import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
+import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -39,7 +40,6 @@ import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
-import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
@@ -650,11 +650,12 @@ export class App {
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
         this.container.register('browserNotificationService', () => new BrowserNotificationService());
-        this.container.register('commitTreeService', () => new CommitTreeService());
         this.container.register('goalSeekService', () => new GoalSeekService({
             wsUrl: 'ws://localhost:31013/api/goal-seek/calculate',
-            token: this.authManager?.getToken() || null
+            token: this.authManager?.token || null
         }));
+
+        this.container.register('commitTreeService', () => new CommitTreeService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -677,7 +678,7 @@ export class App {
             this.views.sessionView.mount(sessionContainer);
         }
 
-        // Commit Tree (between main and right sidebar)
+        // Commit Tree (right sidebar)
         const commitTreeContainer = document.getElementById('commit-tree-list');
         if (commitTreeContainer) {
             this.commitTreeService = this.container.get('commitTreeService');

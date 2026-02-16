@@ -1734,6 +1734,16 @@ body::after {
     display: none;
 }
 
+.commit-tree-repo-name {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    padding: 2px 0 0 4px;
+}
+
+.commit-tree-repo-name.hidden {
+    display: none;
+}
+
 .commit-tree-list {
     flex: 1;
     overflow-y: auto;
@@ -1747,54 +1757,43 @@ body::after {
     padding: 24px 12px;
 }
 
-.commit-node {
+/* Commit tree: single-SVG graph layout */
+.commit-tree-content {
     position: relative;
-    display: flex;
-    gap: 10px;
-    padding: 6px 0;
-    padding-left: 4px;
 }
 
-.commit-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--text-tertiary);
-    border: 2px solid var(--bg-secondary);
-    flex-shrink: 0;
-    margin-top: 4px;
-    z-index: 1;
-}
-
-.commit-node.current .commit-dot {
-    background: var(--accent-blue);
-    border-color: rgba(59, 130, 246, 0.3);
-    box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
-}
-
-.commit-line {
+.commit-tree-graph {
     position: absolute;
-    left: 8px;
-    top: 20px;
-    bottom: -6px;
-    width: 2px;
-    background: var(--border-color);
+    left: 0;
+    top: 0;
+    pointer-events: none;
 }
 
-.commit-node:last-child .commit-line {
-    display: none;
+.commit-tree-rows {
+    position: relative;
 }
 
-.commit-info {
-    flex: 1;
-    min-width: 0;
+.commit-row {
+    height: 54px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 6px 4px 2px;
+    box-sizing: border-box;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    overflow: hidden;
+}
+
+.commit-row.current {
+    background: rgba(59, 130, 246, 0.06);
 }
 
 .commit-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
+    gap: 5px;
+    flex-wrap: nowrap;
+    overflow: hidden;
 }
 
 .commit-hash {
@@ -1813,6 +1812,11 @@ body::after {
     border-radius: 3px;
     background: rgba(34, 197, 94, 0.15);
     color: rgb(34, 197, 94);
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
 }
 
 .commit-desc {
@@ -1824,7 +1828,7 @@ body::after {
     text-overflow: ellipsis;
 }
 
-.commit-node.current .commit-desc {
+.commit-row.current .commit-desc {
     font-weight: 500;
 }
 
