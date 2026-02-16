@@ -7,6 +7,32 @@ import { getProjectConfig } from './project-mapping.js';
 import { escapeHtml } from './ui-helpers.js';
 
 /**
+ * 相対時間フォーマット（例: "3m ago", "2h ago", "1d ago"）
+ * @param {string} isoString - ISO 8601 日時文字列
+ * @returns {string} 相対時間
+ */
+function formatRelativeTime(isoString) {
+  if (!isoString) return '';
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffMs = now - then;
+  if (diffMs < 0) return 'now';
+
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
+/**
  * セッション行のHTMLを生成
  * @param {Object} session - セッションオブジェクト
  * @param {Object} options - オプション
@@ -37,17 +63,25 @@ export function renderSessionRowHTML(session, options = {}) {
   // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
 
-  // Engine icon: codex/claudeの区別をアイコンで表示
+  // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
-    ? { icon: 'code-2', title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
-    : { icon: 'feather', title: 'Claude Code', className: 'engine-icon engine-claude' };
-  const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><i data-lucide="${engineMeta.icon}"></i></span>`;
+    ? { title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
+    : { title: 'Claude Code', className: 'engine-icon engine-claude' };
+  const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><img src="/icons/${engine}.svg" class="engine-svg-icon" alt="${engineMeta.title}"></span>`;
 
   const projectConfig = showProjectEmoji ? getProjectConfig(project) : null;
   const projectEmoji = projectConfig?.emoji ? escapeHtml(projectConfig.emoji) : '';
   const projectLabel = escapeHtml(project);
   const projectEmojiBadge = showProjectEmoji && projectEmoji
     ? `<span class="session-project-emoji" title="${projectLabel}">${projectEmoji}</span>`
+    : '';
+
+  // 会話ログ情報（conversationSummary）
+  const convSummary = session.conversationSummary;
+  const convCount = convSummary?.totalConversations || 0;
+  const convLastActivity = convSummary?.lastConversation?.lastActivity;
+  const convBadge = convCount > 0
+    ? `<span class="conversation-badge" title="${convCount} conversation(s)${convLastActivity ? ', last: ' + formatRelativeTime(convLastActivity) : ''}"><i data-lucide="message-square"></i>${convCount}</span>`
     : '';
 
   // エージェント活動インジケーター（session-indicators.js）のみ使用
@@ -92,6 +126,7 @@ export function renderSessionRowHTML(session, options = {}) {
         ${projectEmojiBadge}
         <span class="session-name">${displayName}</span>
         <span class="session-meta session-meta-right">
+          ${convBadge}
           ${engineBadge}
         </span>
       </div>
@@ -103,6 +138,7 @@ export function renderSessionRowHTML(session, options = {}) {
           <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>
           ${resumePauseMenuItem}
           <div class="dropdown-divider"></div>
+          <button class="dropdown-item goal-setup-btn"><i data-lucide="target"></i>ゴール設定</button>
           <button class="dropdown-item delete-session-btn danger"><i data-lucide="trash-2"></i>Delete</button>
         </div>
       </div>

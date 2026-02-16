@@ -38,6 +38,7 @@ import { SessionManager } from './server/services/session-manager.js';
 import { WorktreeService } from './server/services/worktree-service.js';
 import { InfoSSOTService } from './server/services/info-ssot-service.js';
 import { AuthService } from './server/services/auth-service.js';
+import { ConversationLinker } from './server/services/conversation-linker.js';
 
 // Import routers
 import { createTaskRouter } from './server/routes/tasks.js';
@@ -57,6 +58,7 @@ import { createSetupRouter } from './server/routes/setup.js';
 import { createGoalSeekRouter } from './server/routes/goal-seek.js';
 
 // Import GoalSeek services
+import { GoalSeekStore } from './server/services/goal-seek-store.js';
 import { GoalSeekCalculationService } from './server/services/goal-seek-calculation-service.js';
 import { GoalSeekWebSocketManager } from './server/services/goal-seek-websocket-manager.js';
 
@@ -261,6 +263,7 @@ const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
 
 // GoalSeek Services
+const goalSeekStore = new GoalSeekStore();
 const goalSeekCalculationService = new GoalSeekCalculationService({ eventBus: null });
 const goalSeekWebSocketManager = new GoalSeekWebSocketManager({
     authService,
@@ -474,10 +477,13 @@ const sessionManager = new SessionManager({
     uiPort: PORT
 });
 
+const conversationLinker = new ConversationLinker({ stateStore });
+
 // Initialize State Store and restore session state
 (async () => {
     try {
         await stateStore.init();
+        await goalSeekStore.init();
         await sessionManager.restoreHookStatus();
 
         // Phase 3: activeセッションを復元してからcleanupを実行
@@ -486,6 +492,13 @@ const sessionManager = new SessionManager({
             await sessionManager.restoreActiveSessions();
             await sessionManager.cleanupOrphans();
             sessionManager.startPtyWatchdog();
+
+            // ConversationLinker: 初回実行 + 5分間隔の定期実行
+            console.log('[BRAINBASE] Starting conversation linker...');
+            conversationLinker.linkAll().catch(err => {
+                console.error('[BRAINBASE] Initial conversation link failed:', err.message);
+            });
+            conversationLinker.startPeriodicLink(5 * 60 * 1000); // 5分間隔
         } else {
             console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
         }
@@ -608,7 +621,7 @@ app.use('/api/state', createStateRouter(stateStore, sessionManager, TEST_MODE));
 app.use('/api/config', createConfigRouter(configParser, configService));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
-app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE));
+app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE, conversationLinker));
 app.use('/api/brainbase', createBrainbaseRouter({
     taskParser,
     worktreeService,
@@ -687,7 +700,10 @@ async function gracefulShutdown(signal) {
         await stateStore.cleanup();
     }
 
-    // 3. Cleanup SessionManager (if cleanup method exists)
+    // 3. Cleanup ConversationLinker
+    conversationLinker.stopPeriodicLink();
+
+    // 4. Cleanup SessionManager (if cleanup method exists)
     if (sessionManager.cleanup) {
         await sessionManager.cleanup();
     }
