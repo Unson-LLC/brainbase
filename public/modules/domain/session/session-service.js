@@ -2,7 +2,7 @@ import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
-import { createSessionId, buildSessionObject } from '../../session-manager.js';
+import { createSessionId, buildSessionObject, generateSessionName } from '../../session-manager.js';
 import { addSession, removeSession } from '../../state-api.js';
 
 /**
@@ -76,10 +76,17 @@ export class SessionService {
      * @returns {Promise<Object>} 作成されたセッション
      */
     async createSession(params) {
-        const { project, name, initialCommand = '', useWorktree = false, engine = 'claude' } = params;
+        const { project, initialCommand = '', useWorktree = false, engine = 'claude' } = params;
+        let { name } = params;
 
         const repoPath = getProjectPath(project);
         const sessionId = createSessionId('session');
+
+        // 名前が空の場合、自動生成: {project}-{MMDD}-{連番}
+        if (!name || !name.trim()) {
+            const existingSessions = this.store.getState().sessions || [];
+            name = generateSessionName(project, existingSessions);
+        }
 
         // Auto-Claude RecoveryManager pattern: 前回の失敗情報を確認
         let recoveryHints = null;
