@@ -1,0 +1,14 @@
+[
+  {
+    "id": "x-20260126-002",
+    "score": 50,
+    "pass": false,
+    "diagnosis": [
+      "subagent失敗: JSONDecodeError"
+    ],
+    "fix": [
+      "再実行してログを確認"
+    ],
+    "rewrite_hint": "n/a"
+  }
+]
