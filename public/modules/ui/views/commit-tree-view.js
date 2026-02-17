@@ -78,13 +78,14 @@ export class CommitTreeView {
         const rowsHtml = graphRows.map(row => {
             const c = row.commit;
             const cls = c.isWorkingCopy ? ' current' : '';
+            const wcBadge = c.isWorkingCopy ? '<span class="commit-wc-badge">@</span>' : '';
             const bm = c.bookmarks.length > 0
                 ? c.bookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join('')
                 : '';
             const t = this._formatTime(c.timestamp);
             return `<div class="commit-row${cls}">
                 <div class="commit-header">
-                    <span class="commit-hash">${escapeHtml(c.hash)}</span>${bm}
+                    <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}${bm}
                 </div>
                 <div class="commit-desc">${escapeHtml(c.description)}</div>
                 <div class="commit-meta">

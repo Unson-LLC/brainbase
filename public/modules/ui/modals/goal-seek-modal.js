@@ -43,6 +43,7 @@ export class GoalSeekModal {
         if (!this.modalElement) return;
 
         this.modalElement.classList.remove('hidden');
+        this.modalElement.classList.add('active');
         this.eventBus.emit(EVENTS.MODAL_OPENED, { modalId: 'goal-seek-modal' });
     }
 
@@ -52,6 +53,7 @@ export class GoalSeekModal {
     hide() {
         if (!this.modalElement) return;
 
+        this.modalElement.classList.remove('active');
         this.modalElement.classList.add('hidden');
         this._clearTimeoutInterval();
         this.eventBus.emit(EVENTS.MODAL_CLOSED, { modalId: 'goal-seek-modal' });
