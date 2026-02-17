@@ -76,6 +76,18 @@ export class SessionController {
             // ttydプロセス起動
             const result = await this.sessionManager.startTtyd(startOptions);
 
+            // intendedState を active に更新（restore と同様）
+            const currentState = this.stateStore.get();
+            const updatedSessions = (currentState.sessions || []).map(session =>
+                session.id === sessionId
+                    ? { ...session, intendedState: 'active', updatedAt: new Date().toISOString() }
+                    : session
+            );
+            await this.stateStore.update({
+                ...currentState,
+                sessions: updatedSessions
+            });
+
             res.json(result);
         } catch (error) {
             console.error('Failed to start session:', error);
