@@ -113,8 +113,11 @@ export class MobileInputUIController {
         if (!element) return;
 
         let touchHandled = false;
+        const runHandler = () => {
+            this.safeInvoke(handler);
+        };
 
-        element.addEventListener('touchstart', (e) => {
+        element.addEventListener('touchstart', () => {
             touchHandled = false;
         }, { passive: true });
 
@@ -122,17 +125,41 @@ export class MobileInputUIController {
             e.preventDefault();
             if (!touchHandled) {
                 touchHandled = true;
-                handler();
+                runHandler();
             }
         }, { passive: false });
 
-        element.addEventListener('click', (e) => {
+        element.addEventListener('click', () => {
             if (touchHandled) {
                 touchHandled = false;
                 return;
             }
-            handler();
+            runHandler();
         });
+    }
+
+    safeInvoke(handler) {
+        if (typeof handler !== 'function') {
+            throw new TypeError('[MobileInputUIController] handler must be a function');
+        }
+
+        try {
+            const result = handler();
+            if (result && typeof result.then === 'function') {
+                return Promise.resolve(result).catch((error) => {
+                    this.handleHandlerError(error);
+                    throw error;
+                });
+            }
+            return result;
+        } catch (error) {
+            this.handleHandlerError(error);
+            throw error;
+        }
+    }
+
+    handleHandlerError(error) {
+        console.error('[MobileInputUIController] handler execution failed', error);
     }
 
     bindComposer() {
@@ -228,12 +255,17 @@ export class MobileInputUIController {
         if (!button) return;
 
         let touchHandled = false;
+        const runSend = () => {
+            this.safeInvoke(() => {
+                this.handleSend(mode);
+                this.focusManager.refocusInput(focusInput);
+            });
+        };
 
         button.addEventListener('touchstart', (e) => {
             e.preventDefault();                    // フォーカスが外れるのを防ぐ
             touchHandled = true;
-            this.handleSend(mode);
-            this.focusManager.refocusInput(focusInput);
+            runSend();
         }, { passive: false });
 
         button.addEventListener('click', () => {
@@ -241,8 +273,7 @@ export class MobileInputUIController {
                 touchHandled = false;
                 return;
             }
-            this.handleSend(mode);
-            this.focusManager.refocusInput(focusInput);
+            runSend();
         });
     }
 
