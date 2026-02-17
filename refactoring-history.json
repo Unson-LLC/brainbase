@@ -125,9 +125,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/225",
       "pr_status": "merged",
       "merged_at": "2026-02-17T06:41:56Z"
+    },
+    {
+      "area": "server/controllers",
+      "refactored_at": "2026-02-17T12:18:50.118Z",
+      "files_modified": [
+        "server/controllers/nocodb-controller.js"
+      ],
+      "changes_summary": "NocoDBのタスクテーブル取得ロジックを共通ヘルパー化してDRYったよ〜、重複fetch消して保守もしやすくなったんだわ♡",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 33,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Helperメソッド `_getTaskTableInfo` へ共通ロジックを抽出し、タスクテーブル検出と列メタ取得の重複コードを一元化。既存の例外処理や404ハンドリングを保ちつつ重複を減らしていて、挙動変化のリスクは見当たりません。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "テーブル情報を繰り返し取得する箇所が他にもあるなら順次このヘルパーに寄せ、必要なら簡易キャッシュを検討すると更に効率化できます。"
+      ],
+      "run_number": "53",
+      "run_id": "22098120049",
+      "trigger_event": "schedule",
+      "pr_number": 227,
+      "pr_branch": "ops-department/auto-refactor-53",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/227",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-17T09:20:36.522Z",
-  "total_prs_created": 6,
+  "last_updated": "2026-02-17T12:19:00.967Z",
+  "total_prs_created": 7,
   "total_prs_merged": 3
 }
