@@ -68,9 +68,38 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/173",
       "pr_status": "closed",
       "merged_at": null
+    },
+    {
+      "area": "public/modules/ui",
+      "refactored_at": "2026-02-17T03:56:13.240Z",
+      "files_modified": [
+        "public/modules/ui/mobile-input-ui-controller.js"
+      ],
+      "changes_summary": "safeInvokeが関数ミス配線をちゃんとTypeErrorで炙り出すように戻して、handleHandlerErrorから勝手なshowError呼び出し外してログだけにしたから挙動変化なしで安心だよ☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 59,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "safeInvokeでハンドラ実行を一箇所にまとめてエラーログも出るようになってるし、touch/clickの分岐も挙動変えずにスッキリしてて全体的にいい感じ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "asyncハンドラのPromiseを待って未処理拒否を防ぐ仕組みを足すなら更に安心かも〜",
+        "ユニットテストでsafeInvokeの同期/非同期ケースを押さえておくとリファクタの安心感アップするよ〜"
+      ],
+      "run_number": "50",
+      "run_id": "22085275189",
+      "trigger_event": "schedule",
+      "pr_number": 224,
+      "pr_branch": "ops-department/auto-refactor-50",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/224",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-16T06:28:16.728Z",
-  "total_prs_created": 4,
+  "last_updated": "2026-02-17T03:56:23.982Z",
+  "total_prs_created": 5,
   "total_prs_merged": 1
 }
