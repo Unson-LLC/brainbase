@@ -134,22 +134,7 @@ export class NocoDBController {
                 return res.status(404).json({ error: 'Unknown project or baseId' });
             }
 
-            // テーブル一覧を取得してタスクテーブルIDを特定
-            const tablesResponse = await fetch(
-                `${this.nocodbUrl}/api/v2/meta/bases/${mapping.base_id}/tables`,
-                {
-                    headers: {
-                        'xc-token': this.nocodbToken
-                    }
-                }
-            );
-
-            if (!tablesResponse.ok) {
-                throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
-            }
-
-            const tablesData = await tablesResponse.json();
-            const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+            const { taskTable } = await this._getTaskTableInfo(mapping.base_id);
 
             if (!taskTable) {
                 return res.status(404).json({ error: 'Task table not found' });
@@ -231,38 +216,11 @@ export class NocoDBController {
                 return res.status(404).json({ error: 'Unknown base_id' });
             }
 
-            // テーブル一覧を取得してタスクテーブルIDを特定
-            const tablesResponse = await fetch(
-                `${this.nocodbUrl}/api/v2/meta/bases/${mapping.base_id}/tables`,
-                {
-                    headers: {
-                        'xc-token': this.nocodbToken
-                    }
-                }
-            );
-
-            if (!tablesResponse.ok) {
-                throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
-            }
-
-            const tablesData = await tablesResponse.json();
-            const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+            const { taskTable, tableDetail } = await this._getTaskTableInfo(mapping.base_id, { includeDetail: true });
 
             if (!taskTable) {
                 return res.status(404).json({ error: 'Task table not found' });
             }
-
-            // Fetch table details to get columns (tables list doesn't include columns)
-            const tableDetailResponse = await fetch(
-                `${this.nocodbUrl}/api/v2/meta/tables/${taskTable.id}`,
-                {
-                    headers: {
-                        'xc-token': this.nocodbToken
-                    }
-                }
-            );
-
-            const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
             const idFieldName = this._resolveIdFieldName(tableDetail);
 
             const recordIdValue = this._normalizeRecordId(id);
@@ -341,38 +299,11 @@ export class NocoDBController {
                 return res.status(404).json({ error: 'Unknown base_id' });
             }
 
-            // テーブル一覧を取得してタスクテーブルIDを特定
-            const tablesResponse = await fetch(
-                `${this.nocodbUrl}/api/v2/meta/bases/${mapping.base_id}/tables`,
-                {
-                    headers: {
-                        'xc-token': this.nocodbToken
-                    }
-                }
-            );
-
-            if (!tablesResponse.ok) {
-                throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
-            }
-
-            const tablesData = await tablesResponse.json();
-            const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+            const { taskTable, tableDetail } = await this._getTaskTableInfo(mapping.base_id, { includeDetail: true });
 
             if (!taskTable) {
                 return res.status(404).json({ error: 'Task table not found' });
             }
-
-            // Fetch table details to get columns (tables list doesn't include columns)
-            const tableDetailResponse = await fetch(
-                `${this.nocodbUrl}/api/v2/meta/tables/${taskTable.id}`,
-                {
-                    headers: {
-                        'xc-token': this.nocodbToken
-                    }
-                }
-            );
-
-            const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
             const idFieldName = this._resolveIdFieldName(tableDetail);
 
             const recordIdValue = this._normalizeRecordId(id);
@@ -428,38 +359,12 @@ export class NocoDBController {
 
         // NocoDB v2 API: /api/v2/tables/{tableId}/records
         // tableIdはbase_idから取得する必要がある場合がある
-        // まずはテーブル一覧を取得してタスクテーブルのIDを特定
-        const tablesResponse = await fetch(
-            `${this.nocodbUrl}/api/v2/meta/bases/${mapping.base_id}/tables`,
-            {
-                headers: {
-                    'xc-token': this.nocodbToken
-                }
-            }
-        );
-
-        if (!tablesResponse.ok) {
-            throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
-        }
-
-        const tablesData = await tablesResponse.json();
-        const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+        const { taskTable, tableDetail } = await this._getTaskTableInfo(mapping.base_id, { includeDetail: true });
 
         if (!taskTable) {
             // タスクテーブルがない場合は空配列を返す
             return [];
         }
-
-        // テーブル詳細を取得（IDフィールド解決用）
-        const tableDetailResponse = await fetch(
-            `${this.nocodbUrl}/api/v2/meta/tables/${taskTable.id}`,
-            {
-                headers: {
-                    'xc-token': this.nocodbToken
-                }
-            }
-        );
-        const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
         const idFieldName = this._resolveIdFieldName(tableDetail);
 
         // タスクレコードを取得
@@ -686,5 +591,39 @@ export class NocoDBController {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    async _getTaskTableInfo(baseId, { includeDetail = false } = {}) {
+        const tablesResponse = await fetch(
+            `${this.nocodbUrl}/api/v2/meta/bases/${baseId}/tables`,
+            {
+                headers: {
+                    'xc-token': this.nocodbToken
+                }
+            }
+        );
+
+        if (!tablesResponse.ok) {
+            throw new Error(`Failed to fetch tables: ${tablesResponse.status}`);
+        }
+
+        const tablesData = await tablesResponse.json();
+        const taskTable = tablesData.list?.find(t => t.title === 'タスク');
+
+        if (!taskTable || !includeDetail) {
+            return { taskTable, tableDetail: null };
+        }
+
+        const tableDetailResponse = await fetch(
+            `${this.nocodbUrl}/api/v2/meta/tables/${taskTable.id}`,
+            {
+                headers: {
+                    'xc-token': this.nocodbToken
+                }
+            }
+        );
+
+        const tableDetail = tableDetailResponse.ok ? await tableDetailResponse.json() : null;
+        return { taskTable, tableDetail };
     }
 }
