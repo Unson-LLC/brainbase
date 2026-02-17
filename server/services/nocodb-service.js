@@ -153,29 +153,51 @@ export class NocoDBService {
      * @returns {Object} タスク統計（フラット構造）
      */
     _calculateTaskStats(tasks) {
-        const total = tasks.length;
-        const completed = tasks.filter(t => t.ステータス === '完了').length;
-        const inProgress = tasks.filter(t => t.ステータス === '進行中').length;
-        const pending = tasks.filter(t => t.ステータス === '未着手').length;
-        const blocked = tasks.filter(t => t.ステータス === 'ブロック').length;
+        const summary = {
+            total: tasks.length,
+            completed: 0,
+            inProgress: 0,
+            pending: 0,
+            blocked: 0,
+            overdue: 0
+        };
 
-        // 期限超過タスク
-        const now = new Date();
-        const overdue = tasks.filter(t => {
-            if (t.ステータス === '完了') return false;
-            if (!t.期限) return false;
-            return new Date(t.期限) < now;
-        }).length;
+        const now = Date.now();
 
-        const completionRate = total > 0 ? Math.round((completed / total) * 100) : 100;
+        for (const task of tasks) {
+            switch (task.ステータス) {
+                case '完了':
+                    summary.completed += 1;
+                    break;
+                case '進行中':
+                    summary.inProgress += 1;
+                    break;
+                case '未着手':
+                    summary.pending += 1;
+                    break;
+                case 'ブロック':
+                    summary.blocked += 1;
+                    break;
+                default:
+                    break;
+            }
+
+            if (!task.期限 || task.ステータス === '完了') {
+                continue;
+            }
+
+            const dueTime = new Date(task.期限).getTime();
+            if (!Number.isNaN(dueTime) && dueTime < now) {
+                summary.overdue += 1;
+            }
+        }
+
+        const completionRate = summary.total > 0
+            ? Math.round((summary.completed / summary.total) * 100)
+            : 100;
 
         return {
-            total,
-            completed,
-            inProgress,
-            pending,
-            blocked,
-            overdue,
+            ...summary,
             completionRate
         };
     }
