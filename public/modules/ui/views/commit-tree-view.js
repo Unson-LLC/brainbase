@@ -40,12 +40,34 @@ export class CommitTreeView {
     _setupEventListeners() {
         const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, (e) => {
             const sessionId = e.detail?.sessionId || appStore.getState().currentSessionId;
+            this._lastNotify = 0;
             this.commitTreeService.loadCommitLog(sessionId);
         });
         const unsub2 = eventBus.on(EVENTS.COMMIT_LOG_LOADED, () => {
             this.render();
         });
         this._unsubscribers.push(unsub1, unsub2);
+
+        // リフレッシュボタン
+        const refreshBtn = document.getElementById('refresh-commit-tree');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                const sessionId = appStore.getState().currentSessionId;
+                if (sessionId) this.commitTreeService.loadCommitLog(sessionId);
+            });
+        }
+
+        // commit-notify ポーリング（5秒間隔）
+        this._lastNotify = 0;
+        this._pollInterval = setInterval(async () => {
+            const sessionId = appStore.getState().currentSessionId;
+            if (!sessionId) return;
+            const ts = await this.commitTreeService.checkCommitNotify(sessionId);
+            if (ts > this._lastNotify) {
+                this._lastNotify = ts;
+                this.commitTreeService.loadCommitLog(sessionId);
+            }
+        }, 5000);
     }
 
     render() {
@@ -268,6 +290,10 @@ export class CommitTreeView {
     unmount() {
         this._unsubscribers.forEach(fn => fn());
         this._unsubscribers = [];
+        if (this._pollInterval) {
+            clearInterval(this._pollInterval);
+            this._pollInterval = null;
+        }
         if (this.container) this.container.innerHTML = '';
     }
 }

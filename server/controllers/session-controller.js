@@ -12,6 +12,7 @@ export class SessionController {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
+        this._commitNotifyMap = new Map(); // sessionId → timestamp
     }
 
     // ========================================
@@ -570,6 +571,24 @@ export class SessionController {
             console.error('Failed to get commit log:', error);
             res.status(500).json({ error: error.message });
         }
+    };
+
+    /**
+     * POST /api/sessions/:id/commit-notify
+     * コミット通知を受信（CLIから呼ばれる）
+     */
+    commitNotify = async (req, res) => {
+        this._commitNotifyMap.set(req.params.id, Date.now());
+        res.json({ ok: true });
+    };
+
+    /**
+     * GET /api/sessions/:id/commit-notify
+     * コミット通知のタイムスタンプを取得（フロントからポーリング）
+     */
+    getCommitNotify = async (req, res) => {
+        const ts = this._commitNotifyMap.get(req.params.id) || 0;
+        res.json({ lastNotify: ts });
     };
 
     /**
