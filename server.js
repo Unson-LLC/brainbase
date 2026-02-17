@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { readFileSync, existsSync } from 'fs';
-import { WebSocketServer } from 'ws';
+
 
 const envPaths = [
     process.env.BRAINBASE_ENV_PATH,
@@ -57,10 +57,11 @@ import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createSetupRouter } from './server/routes/setup.js';
 import { createGoalSeekRouter } from './server/routes/goal-seek.js';
 
-// Import GoalSeek services
+// Import GoalSeek V2 services
 import { GoalSeekStore } from './server/services/goal-seek-store.js';
-import { GoalSeekCalculationService } from './server/services/goal-seek-calculation-service.js';
-import { GoalSeekWebSocketManager } from './server/services/goal-seek-websocket-manager.js';
+import { ProblemDetector } from './server/services/problem-detector.js';
+import { SessionMonitor } from './server/services/session-monitor.js';
+import { ManagerAIService } from './server/services/manager-ai-service.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -261,14 +262,6 @@ const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
-
-// GoalSeek Services
-const goalSeekStore = new GoalSeekStore();
-const goalSeekCalculationService = new GoalSeekCalculationService({ eventBus: null });
-const goalSeekWebSocketManager = new GoalSeekWebSocketManager({
-    authService,
-    calculationService: goalSeekCalculationService
-});
 
 // Middleware
 // Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
@@ -479,11 +472,23 @@ const sessionManager = new SessionManager({
 
 const conversationLinker = new ConversationLinker({ stateStore });
 
+// GoalSeek V2 Services (Session Autopilot)
+const goalStore = new GoalSeekStore(VAR_DIR);
+const problemDetector = new ProblemDetector();
+const managerAI = new ManagerAIService();
+const sessionMonitor = new SessionMonitor({
+    sessionManager,
+    problemDetector,
+    managerAI,
+    goalStore,
+    eventBus: null
+});
+
 // Initialize State Store and restore session state
 (async () => {
     try {
         await stateStore.init();
-        await goalSeekStore.init();
+        await goalStore.init();
         await sessionManager.restoreHookStatus();
 
         // Phase 3: activeセッションを復元してからcleanupを実行
@@ -633,10 +638,11 @@ app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
-app.use('/api/goal-seek', requireAuth(authService), createGoalSeekRouter({
+app.use('/api/goal-seek', createGoalSeekRouter({
     authService,
-    calculationService: goalSeekCalculationService,
-    wsManager: goalSeekWebSocketManager
+    goalStore,
+    sessionMonitor,
+    managerAI
 }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
@@ -662,26 +668,6 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', (request, socket, head) => {
-    const { pathname } = new URL(request.url, 'http://localhost');
-
-    // GoalSeek WebSocket upgrade: /api/goal-seek/calculate
-    if (pathname === '/api/goal-seek/calculate') {
-        // Create a WebSocket server for this connection
-        const wss = new WebSocketServer({ noServer: true });
-        wss.handleUpgrade(request, socket, head, (ws) => {
-            wss.emit('connection', ws, request);
-        });
-
-        wss.on('connection', (ws, req) => {
-            goalSeekWebSocketManager.handleConnection(ws, req);
-
-            ws.on('close', () => {
-                goalSeekWebSocketManager.handleDisconnect(ws);
-            });
-        });
-        return;
-    }
-
     // TTYD console proxy
     ttydProxy.upgrade(request, socket, head);
 });
@@ -708,11 +694,9 @@ async function gracefulShutdown(signal) {
         await sessionManager.cleanup();
     }
 
-    // 4. Cleanup GoalSeek WebSocket Manager
-    if (goalSeekWebSocketManager.cleanup) {
-        goalSeekWebSocketManager.cleanup();
-        console.log('✅ GoalSeek WebSocket Manager cleaned up');
-    }
+    // 4. Cleanup GoalSeek SessionMonitor
+    sessionMonitor.stopAll();
+    console.log('✅ GoalSeek SessionMonitor stopped');
 
     console.log('✅ Graceful shutdown complete');
     process.exit(0);

@@ -1,371 +1,703 @@
 /**
- * Goal Seek Styles
- *
- * 目標達成逆算計算UI用スタイル
- * 設計書参照: /tmp/dev-ops/spec.md § 5.1
+ * Goal Seek V2 Styles - Session Autopilot
  */
 
 /* =========================================
-   CSS Variables for Goal Seek
+   CSS Variables
    ========================================= */
 :root {
-    --goal-seek-primary: #3b82f6;
-    --goal-seek-secondary: #60a5fa;
-    --goal-seek-bg: rgba(59, 130, 246, 0.1);
-    --goal-seek-text: #f8fafc;
-    --goal-seek-border: rgba(59, 130, 246, 0.3);
-
-    --intervention-bg: rgba(245, 158, 11, 0.15);
-    --intervention-border: rgba(245, 158, 11, 0.4);
-    --intervention-text: #fbbf24;
+    --gs-green: #10b981;
+    --gs-red: #ef4444;
+    --gs-yellow: #f59e0b;
+    --gs-blue: #3b82f6;
+    --gs-gray: #6b7280;
+    --gs-bg-problem: rgba(239, 68, 68, 0.08);
+    --gs-bg-monitoring: rgba(16, 185, 129, 0.08);
+    --gs-bg-escalation: rgba(245, 158, 11, 0.08);
 }
 
 /* =========================================
-   Goal Seek View Container
+   Main View Layout
    ========================================= */
-.goal-seek-container {
-    padding: 24px;
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-}
-
-.goal-seek-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.goal-seek-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.goal-seek-subtitle {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-top: 4px;
-}
-
-/* =========================================
-   Parameter Input Form
-   ========================================= */
-.goal-seek-form {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.goal-seek-field {
+.gs-view {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-}
-
-.goal-seek-label {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.goal-seek-input {
-    padding: 10px 14px;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    font-size: 1rem;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.goal-seek-input:focus {
-    outline: none;
-    border-color: var(--goal-seek-primary);
-    box-shadow: 0 0 0 3px var(--goal-seek-bg);
-}
-
-.goal-seek-input::placeholder {
-    color: var(--text-secondary);
-}
-
-/* =========================================
-   Calculate Button
-   ========================================= */
-.goal-seek-button {
-    padding: 12px 24px;
-    background: var(--goal-seek-primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-}
-
-.goal-seek-button:hover:not(:disabled) {
-    background: var(--goal-seek-secondary);
-}
-
-.goal-seek-button:active:not(:disabled) {
-    transform: scale(0.98);
-}
-
-.goal-seek-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.goal-seek-button--cancel {
-    background: var(--danger-color);
-}
-
-.goal-seek-button--cancel:hover:not(:disabled) {
-    background: #dc2626;
-}
-
-/* =========================================
-   Progress Display
-   ========================================= */
-.goal-seek-progress {
-    margin-top: 24px;
-}
-
-.goal-seek-progress-bar-container {
-    height: 8px;
-    background: var(--bg-primary);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 8px;
-}
-
-.goal-seek-progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--goal-seek-primary), var(--goal-seek-secondary));
-    border-radius: 4px;
-    transition: width 0.3s ease;
 }
 
-.goal-seek-progress-text {
+.gs-header {
     display: flex;
-    justify-content: space-between;
-    font-size: 0.875rem;
-    color: var(--text-secondary);
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
 }
 
-/* =========================================
-   Result Display
-   ========================================= */
-.goal-seek-result {
-    margin-top: 24px;
-    padding: 20px;
-    background: var(--goal-seek-bg);
-    border: 1px solid var(--goal-seek-border);
-    border-radius: 12px;
-}
-
-.goal-seek-result-title {
+.gs-title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: var(--goal-seek-text);
-    margin-bottom: 16px;
-}
-
-.goal-seek-result-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 16px;
-}
-
-.goal-seek-result-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.goal-seek-result-value {
-    font-size: 1.5rem;
-    font-weight: 700;
     color: var(--text-primary);
+    margin: 0;
 }
 
-.goal-seek-result-label {
+.gs-subtitle {
     font-size: 0.75rem;
     color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    background: var(--bg-primary);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.gs-header .btn-primary {
+    margin-left: auto;
+}
+
+.gs-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 }
 
 /* =========================================
-   Intervention Modal Styles
+   Goal List
    ========================================= */
-.goal-seek-intervention {
-    padding: 24px;
-    background: var(--intervention-bg);
-    border: 1px solid var(--intervention-border);
-    border-radius: 12px;
+.gs-goal-list {
+    width: 280px;
+    min-width: 280px;
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.gs-empty {
+    padding: 32px 16px;
     text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
 }
 
-.goal-seek-intervention-icon {
-    font-size: 3rem;
-    margin-bottom: 16px;
+.gs-empty-hint {
+    font-size: 0.75rem;
+    margin-top: 4px;
+    opacity: 0.7;
 }
 
-.goal-seek-intervention-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--intervention-text);
+.gs-goal-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 4px;
+}
+
+.gs-goal-row:hover {
+    background: var(--bg-secondary);
+}
+
+.gs-goal-row.selected {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.gs-goal-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.gs-goal-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gs-goal-session {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* =========================================
+   Status Dot (Goal List)
+   ========================================= */
+.gs-goal-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.gs-status-active .gs-goal-status-dot {
+    background: var(--gs-gray);
+}
+
+.gs-status-monitoring .gs-goal-status-dot {
+    background: var(--gs-green);
+}
+
+.gs-status-problem .gs-goal-status-dot {
+    background: var(--gs-red);
+}
+
+.gs-status-completed .gs-goal-status-dot {
+    background: var(--gs-gray);
+    opacity: 0.5;
+}
+
+.gs-status-failed .gs-goal-status-dot {
+    background: var(--gs-red);
+    opacity: 0.5;
+}
+
+/* Pulse animation for problem state */
+.gs-goal-status-dot.pulse {
+    animation: gs-pulse 1.2s ease-in-out infinite;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+}
+
+@keyframes gs-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+/* =========================================
+   Status Badges
+   ========================================= */
+.gs-goal-badge {
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+}
+
+.gs-badge-active {
+    background: rgba(107, 114, 128, 0.15);
+    color: var(--gs-gray);
+}
+
+.gs-badge-monitoring {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--gs-green);
+}
+
+.gs-badge-problem {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--gs-red);
+    animation: gs-badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes gs-badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.gs-badge-completed {
+    background: rgba(107, 114, 128, 0.1);
+    color: var(--gs-gray);
+}
+
+.gs-badge-failed {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--gs-red);
+    opacity: 0.7;
+}
+
+/* =========================================
+   Detail Panel
+   ========================================= */
+.gs-detail-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.gs-detail-header {
+    margin-bottom: 24px;
+}
+
+.gs-detail-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     margin-bottom: 8px;
 }
 
-.goal-seek-intervention-reason {
+.gs-detail-title-row h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.gs-detail-desc {
     font-size: 0.875rem;
     color: var(--text-secondary);
-    margin-bottom: 24px;
+    margin: 0 0 8px 0;
     line-height: 1.5;
 }
 
-.goal-seek-intervention-choices {
+.gs-detail-meta {
     display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
 }
 
-.goal-seek-intervention-btn {
-    padding: 12px 24px;
-    border-radius: 8px;
+.gs-detail-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.gs-section-title {
     font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid;
-}
-
-.goal-seek-intervention-btn--proceed {
-    background: var(--success-color);
-    color: white;
-    border-color: var(--success-color);
-}
-
-.goal-seek-intervention-btn--proceed:hover {
-    background: #059669;
-}
-
-.goal-seek-intervention-btn--abort {
-    background: transparent;
-    color: var(--danger-color);
-    border-color: var(--danger-color);
-}
-
-.goal-seek-intervention-btn--abort:hover {
-    background: var(--danger-color);
-    color: white;
-}
-
-.goal-seek-intervention-btn--modify {
-    background: transparent;
-    color: var(--goal-seek-primary);
-    border-color: var(--goal-seek-primary);
-}
-
-.goal-seek-intervention-btn--modify:hover {
-    background: var(--goal-seek-primary);
-    color: white;
-}
-
-/* =========================================
-   Timeout Warning
-   ========================================= */
-.goal-seek-timeout {
-    margin-top: 16px;
-    padding: 12px;
-    background: rgba(239, 68, 68, 0.1);
-    border-radius: 8px;
-    font-size: 0.75rem;
-    color: var(--danger-color);
-}
-
-.goal-seek-timeout-timer {
     font-weight: 600;
-    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
 }
 
 /* =========================================
-   Status Indicators
+   Problems Panel
    ========================================= */
-.goal-seek-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 500;
+.gs-problems-panel {
+    margin-bottom: 24px;
 }
 
-.goal-seek-status--idle {
-    background: var(--bg-primary);
+.gs-problems-empty {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    padding: 12px 0;
+}
+
+.gs-problem-card {
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 3px solid;
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+}
+
+.gs-severity-critical {
+    border-left-color: var(--gs-red);
+    background: var(--gs-bg-problem);
+}
+
+.gs-severity-warning {
+    border-left-color: var(--gs-yellow);
+    background: var(--gs-bg-escalation);
+}
+
+.gs-severity-info {
+    border-left-color: var(--gs-blue);
+}
+
+.gs-problem-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.gs-problem-type {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
     color: var(--text-secondary);
 }
 
-.goal-seek-status--calculating {
-    background: var(--goal-seek-bg);
-    color: var(--goal-seek-primary);
+.gs-problem-severity {
+    font-size: 0.65rem;
+    padding: 1px 6px;
+    border-radius: 4px;
 }
 
-.goal-seek-status--completed {
+.gs-sev-critical {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--gs-red);
+}
+
+.gs-sev-warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--gs-yellow);
+}
+
+.gs-sev-info {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--gs-blue);
+}
+
+.gs-problem-time {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+
+.gs-problem-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.gs-problem-desc {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    white-space: pre-wrap;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.gs-problem-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.gs-action-chip {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+/* =========================================
+   Timeline Panel
+   ========================================= */
+.gs-timeline-panel {
+    margin-bottom: 24px;
+}
+
+.gs-timeline-empty {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    padding: 12px 0;
+}
+
+.gs-timeline {
+    position: relative;
+    padding-left: 20px;
+}
+
+.gs-timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border-color);
+}
+
+.gs-timeline-entry {
+    position: relative;
+    padding-bottom: 16px;
+    display: flex;
+    gap: 12px;
+}
+
+.gs-tl-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border-color);
+    flex-shrink: 0;
+    margin-top: 4px;
+    position: absolute;
+    left: -20px;
+    z-index: 1;
+}
+
+.gs-tl-progress .gs-tl-dot {
+    background: var(--gs-green);
+}
+
+.gs-tl-problem .gs-tl-dot {
+    background: var(--gs-red);
+}
+
+.gs-tl-escalation .gs-tl-dot {
+    background: var(--gs-yellow);
+}
+
+.gs-tl-intervention .gs-tl-dot {
+    background: var(--gs-blue);
+}
+
+.gs-tl-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.gs-tl-time {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+}
+
+.gs-tl-summary {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.gs-tl-details {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin: 2px 0 0 0;
+    line-height: 1.4;
+}
+
+/* =========================================
+   Escalation Panel
+   ========================================= */
+.gs-escalation-panel {
+    margin-bottom: 24px;
+}
+
+.gs-escalation-card {
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--gs-bg-escalation);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.gs-esc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: var(--gs-yellow);
+}
+
+.gs-esc-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.gs-esc-question {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin: 0 0 8px 0;
+}
+
+.gs-esc-context {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin: 0 0 16px 0;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.gs-esc-options {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.gs-esc-option-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.gs-esc-option-btn:hover {
+    border-color: var(--gs-yellow);
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.gs-esc-option-btn small {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+}
+
+.gs-esc-custom {
+    margin-top: 8px;
+}
+
+/* =========================================
+   Form Elements
+   ========================================= */
+.gs-input,
+.gs-textarea,
+.gs-select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    transition: border-color 0.15s;
+}
+
+.gs-input:focus,
+.gs-textarea:focus,
+.gs-select:focus {
+    outline: none;
+    border-color: var(--gs-blue);
+}
+
+.gs-textarea {
+    resize: vertical;
+    font-family: inherit;
+}
+
+.gs-select {
+    cursor: pointer;
+}
+
+.gs-form-group {
+    margin-bottom: 16px;
+}
+
+.gs-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.gs-error {
+    padding: 8px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    color: var(--gs-red);
+    font-size: 0.875rem;
+    margin-top: 8px;
+}
+
+/* =========================================
+   Modal Styles
+   ========================================= */
+.gs-modal {
+    max-width: 520px;
+    width: 90%;
+}
+
+/* =========================================
+   Button Overrides
+   ========================================= */
+.btn-sm {
+    font-size: 0.8rem;
+    padding: 6px 14px;
+}
+
+.btn-danger {
+    background: var(--gs-red);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.btn-danger:hover {
+    opacity: 0.85;
+}
+
+/* =========================================
+   Session Row Goal Badge (session-view integration)
+   ========================================= */
+.session-goal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    margin-left: 6px;
+}
+
+.session-goal-badge--monitoring {
     background: rgba(16, 185, 129, 0.15);
-    color: var(--success-color);
+    color: var(--gs-green);
 }
 
-.goal-seek-status--intervention {
-    background: var(--intervention-bg);
-    color: var(--intervention-text);
-}
-
-.goal-seek-status--error {
+.session-goal-badge--problem {
     background: rgba(239, 68, 68, 0.15);
-    color: var(--danger-color);
+    color: var(--gs-red);
+    animation: gs-badge-pulse 2s ease-in-out infinite;
 }
 
-.goal-seek-status-dot {
-    width: 6px;
-    height: 6px;
+.session-goal-badge--escalation {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--gs-yellow);
+}
+
+.session-goal-badge-dot {
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: currentColor;
 }
 
-.goal-seek-status--calculating .goal-seek-status-dot {
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+.session-goal-badge--problem .session-goal-badge-dot {
+    animation: gs-pulse 1.2s ease-in-out infinite;
 }
 
 /* =========================================
-   Responsive Adjustments
+   Responsive
    ========================================= */
-@media (max-width: 640px) {
-    .goal-seek-container {
-        padding: 16px;
-    }
-
-    .goal-seek-form {
-        grid-template-columns: 1fr;
-    }
-
-    .goal-seek-intervention-choices {
+@media (max-width: 768px) {
+    .gs-content {
         flex-direction: column;
     }
 
-    .goal-seek-intervention-btn {
+    .gs-goal-list {
+        width: 100%;
+        min-width: unset;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .gs-esc-options {
+        flex-direction: column;
+    }
+
+    .gs-esc-option-btn {
         width: 100%;
     }
 }

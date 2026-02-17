@@ -1,13 +1,13 @@
-# セッションマージ（PRモード）
+# セッションマージ（jj + PRモード）
 
-session/* ブランチを main へマージします。
+セッションのworkspaceをmainへマージします（GitHub PR経由）。
 
 ---
 
 ## 前提条件
 
-- 現ブランチ: `session/*` であること
-- 全てのコミット完了
+- jj workspaceでセッション作業中であること
+- 全てのコミットに説明がついていること（`jj log` で確認）
 - テスト通過済み
 - gh CLI インストール済み (`gh --version`)
 - GitHub認証完了 (`gh auth status`)
@@ -19,56 +19,41 @@ session/* ブランチを main へマージします。
 ### 1. 前提確認
 
 ```bash
-# ブランチ確認
-CURRENT_BRANCH=$(git branch --show-current)
-if [[ ! "$CURRENT_BRANCH" =~ ^session/ ]]; then
-  echo "Error: session/* ブランチから実行してください"
-  exit 1
-fi
+# workspaceとworking copy確認
+jj workspace list
+jj log -r @ --no-pager
+
+# 未説明のコミットがないか確認
+jj log -r "::@" --no-pager -n 10
 
 # gh CLI確認
-if ! command -v gh &> /dev/null; then
-  echo "Error: gh CLI がインストールされていません"
-  echo "インストール: brew install gh"
-  exit 1
-fi
-
-# GitHub認証確認
-if ! gh auth status &> /dev/null; then
-  echo "Error: GitHub認証が必要です"
-  echo "実行: gh auth login"
-  exit 1
-fi
-
-echo "✓ 前提確認完了"
+gh auth status
 ```
 
-### 2. リモートへpush
+### 2. bookmarkをpush
 
 ```bash
-echo "📤 リモートへpush中..."
-git push -u origin "$CURRENT_BRANCH"
-echo "✓ Push完了"
+# セッションIDをbookmark名として使用
+# bookmark が @ の親（describe済みコミット）を指していることを確認
+jj log -r "bookmarks()" --no-pager
+
+# リモートへpush
+jj git push --bookmark <session-id>
 ```
 
 ### 3. PR作成
 
 ```bash
-# コミット数取得
-COMMIT_COUNT=$(git rev-list --count main..HEAD)
-
-# PR Title生成
-if [ "$COMMIT_COUNT" -eq 1 ]; then
-  PR_TITLE=$(git log -1 --format="%s")
-else
-  PR_TITLE="chore: merge $CURRENT_BRANCH"
-fi
+# mainとの差分確認
+jj log -r "main..@-" --no-pager
 
 # PR作成
-gh pr create --title "$PR_TITLE" --body "$(cat <<EOF
+gh pr create \
+  --title "<type>: <summary>" \
+  --body "$(cat <<'EOF'
 ## Summary
 
-$(git log main..HEAD --format="- %s")
+- 主な変更点
 
 ## Test plan
 
@@ -77,42 +62,44 @@ $(git log main..HEAD --format="- %s")
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
-
-echo "✓ PR作成完了"
 ```
 
 ### 4. GitHub経由マージ
 
 ```bash
-echo "🔀 GitHub経由でマージ中..."
 gh pr merge --merge --delete-branch
-
-if [ $? -ne 0 ]; then
-  echo "Error: マージに失敗しました"
-  echo "GitHub UI でPRを確認してください: gh pr view --web"
-  exit 1
-fi
-
-echo "✓ マージ完了"
 ```
 
-### 5. ローカル同期
+### 5. ローカル同期 + ワークスペースクリーンアップ
 
 ```bash
-echo "🔄 ローカル同期中..."
-git checkout main
-git pull origin main
-git fetch --prune
-echo "✓ ローカル同期完了"
+# リモートの変更を取り込み
+jj git fetch
+
+# ワークスペースを忘れる（物理ディレクトリは残る）
+jj workspace forget <workspace-name>
+
+# bookmarkを削除
+jj bookmark delete <session-id>
 ```
 
 ### 6. 完了確認
 
 ```bash
-echo ""
-echo "✅ マージ成功！"
-git log --oneline -3
+jj log -r "main" --no-pager -n 3
 ```
+
+---
+
+## API経由マージ（推奨）
+
+上記手順はbrainbaseサーバーのAPIでも実行可能：
+
+```bash
+curl -X POST http://localhost:31013/api/sessions/<session-id>/merge
+```
+
+サーバー側の `worktreeService.merge()` が上記手順を一括実行する。
 
 ---
 
@@ -121,3 +108,4 @@ git log --oneline -3
 - `gh pr merge --merge` は CI完了後にマージ実行（GitHub側で制御）
 - コンフリクト時は GitHub UI で手動解決が必要
 - ブランチは自動削除されます（--delete-branch）
+- ワークスペースの物理ディレクトリは手動削除が必要な場合あり

@@ -264,18 +264,20 @@ export const EVENTS = {
     PLUGIN_REQUIREMENTS_FAILED: 'plugin:requirements-failed',
     PLUGIN_SLOT_MISSING: 'plugin:slot-missing',
 
-    // Goal Seek関連
+    // Goal Seek V2関連
+    GOAL_CREATED: 'goal:created',
+    GOAL_UPDATED: 'goal:updated',
+    GOAL_MONITORING_STARTED: 'goal:monitoring-started',
+    GOAL_MONITORING_STOPPED: 'goal:monitoring-stopped',
+    GOAL_PROBLEM_DETECTED: 'goal:problem-detected',
+    GOAL_PROBLEM_RESOLVED: 'goal:problem-resolved',
+    GOAL_ESCALATION_REQUIRED: 'goal:escalation-required',
+    GOAL_ESCALATION_RESPONDED: 'goal:escalation-responded',
+    GOAL_PROGRESS_UPDATE: 'goal:progress-update',
+    GOAL_COMPLETED: 'goal:completed',
+    GOAL_FAILED: 'goal:failed',
+    // Goal Seek UI
     GOAL_SEEK_OPEN: 'goal-seek:open',
-    GOAL_SEEK_STARTED: 'goal-seek:started',
-    GOAL_SEEK_PROGRESS: 'goal-seek:progress',
-    GOAL_SEEK_COMPLETED: 'goal-seek:completed',
-    GOAL_SEEK_FAILED: 'goal-seek:failed',
-    GOAL_SEEK_CANCELLED: 'goal-seek:cancelled',
-    GOAL_SEEK_CONNECTED: 'goal-seek:connected',
-    GOAL_SEEK_DISCONNECTED: 'goal-seek:disconnected',
-    GOAL_SEEK_ERROR: 'goal-seek:error',
-    GOAL_SEEK_INTERVENTION_REQUIRED: 'goal-seek:intervention-required',
-    GOAL_SEEK_INTERVENTION_RESPONDED: 'goal-seek:intervention-responded',
 
     // Browser Notification関連
     NOTIFICATION_PERMISSION_CHANGED: 'notification:permission-changed',

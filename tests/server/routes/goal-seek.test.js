@@ -1,388 +1,302 @@
-import { describe, it, expect, beforeEach, vi, afterEach, beforeAll } from 'vitest';
-import request from 'supertest';
-import express from 'express';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createGoalSeekRouter } from '../../../server/routes/goal-seek.js';
 
-/**
- * Goal Seek Routes テスト
- *
- * テスト対象エンドポイント:
- * 1. GET /api/goal-seek/status - ステータス確認
- * 2. POST /api/goal-seek/calculate - 計算リクエスト
- * 3. WebSocket upgrade /api/goal-seek/calculate - WebSocket接続
- *
- * テストID:
- * - UT-031: GET /status が200を返す
- * - UT-032: POST /calculate が計算結果を返す
- * - UT-033: WebSocket upgradeが正しく処理される
- * - UT-034: 認証エラーが正しく処理される
- * - UT-035: バリデーションエラーが正しく処理される
- */
-
-// モック: CalculationService
-const mockCalculate = vi.fn();
-const mockCheckInterventionNeeded = vi.fn();
-
-class MockCalculationService {
-    async calculate(params, options) {
-        return mockCalculate(params, options);
-    }
-    checkInterventionNeeded(result) {
-        return mockCheckInterventionNeeded(result);
-    }
-}
-
-// モック: WebSocketManager
-const mockHandleConnection = vi.fn();
-const mockGetActiveConnectionCount = vi.fn(() => 0);
-const mockHandleInterventionResponseHTTP = vi.fn();
-const mockCleanup = vi.fn();
-
-class MockWebSocketManager {
-    constructor(options) {
-        this.options = options;
-    }
-    async handleConnection(ws, request) {
-        return mockHandleConnection(ws, request);
-    }
-    getActiveConnectionCount() {
-        return mockGetActiveConnectionCount();
-    }
-    async handleInterventionResponseHTTP(params) {
-        return mockHandleInterventionResponseHTTP(params);
-    }
-    cleanup() {
-        return mockCleanup();
-    }
-}
-
-// モック: AuthService
-const mockVerifyToken = vi.fn(() => ({
-    userId: 'test-user-id',
-    role: 'member'
+// Mock auth middleware
+vi.mock('../../../server/middleware/auth.js', () => ({
+    requireAuth: () => (req, res, next) => next()
 }));
 
-class MockAuthService {
-    verifyToken(token) {
-        return mockVerifyToken(token);
-    }
+// Helper: extract route handler from express router
+function getHandler(router, method, path) {
+    const layer = router.stack.find(l =>
+        l.route &&
+        l.route.path === path &&
+        l.route.methods[method]
+    );
+    if (!layer) throw new Error(`Route ${method.toUpperCase()} ${path} not found`);
+    // Last handler in stack (after middleware)
+    const handlers = layer.route.stack.map(s => s.handle);
+    return handlers[handlers.length - 1];
 }
 
-// Expressアプリのセットアップ
-let app;
-let mockAuthService;
-let mockCalculationService;
-let mockWsManager;
-let createGoalSeekRouter;
+function mockReq(params = {}, body = {}, query = {}) {
+    return { params, body, query };
+}
 
-beforeAll(async () => {
-    // vi.mockを使ってrequireAuthをモック
-    vi.doMock('../../../server/middleware/auth.js', () => ({
-        requireAuth: vi.fn(() => (req, res, next) => {
-            req.auth = { sub: 'test-user-id', role: 'member' };
-            req.access = { role: 'member', projectCodes: [], clearance: [] };
-            next();
-        })
-    }));
+function mockRes() {
+    const res = {
+        _status: 200,
+        _json: null,
+        status(code) { res._status = code; return res; },
+        json(data) { res._json = data; return res; }
+    };
+    return res;
+}
 
-    // モック適用後にルーターをインポート
-    const module = await import('../../../server/routes/goal-seek.js');
-    createGoalSeekRouter = module.createGoalSeekRouter;
-});
+describe('Goal Seek V2 Routes', () => {
+    let router;
+    let goalStore;
+    let sessionMonitor;
+    let managerAI;
 
-beforeEach(async () => {
-    vi.clearAllMocks();
+    const mockGoal = {
+        id: 'goal_abc',
+        sessionId: 'session-123',
+        title: 'Test Goal',
+        description: 'desc',
+        status: 'active',
+        criteria: { commit: [], signal: [] },
+        managerConfig: { autoAnswerLevel: 'moderate' }
+    };
 
-    // モック作成
-    mockAuthService = new MockAuthService();
-    mockCalculationService = new MockCalculationService();
-    mockWsManager = new MockWebSocketManager({
-        authService: mockAuthService,
-        calculationService: mockCalculationService
-    });
-
-    // デフォルトのモック設定
-    mockCalculate.mockResolvedValue({
-        dailyTarget: 10,
-        totalDays: 30,
-        remainingDays: 30,
-        completed: 0,
-        remaining: 300,
-        unit: '件',
-        isCompleted: false,
-        achievableProbability: 95,
-        gap: { value: 300, percentage: 100 },
-        projection: {
-            milestones: [
-                { day: 7, projected: 70, percentage: 23 },
-                { day: 14, projected: 140, percentage: 47 },
-                { day: 21, projected: 210, percentage: 70 },
-                { day: 28, projected: 280, percentage: 93 }
-            ],
-            estimatedCompletion: 30,
-            confidenceLevel: 'high'
-        }
-    });
-
-    mockCheckInterventionNeeded.mockReturnValue({ needed: false });
-
-    mockGetActiveConnectionCount.mockReturnValue(0);
-
-    // Expressアプリ作成
-    app = express();
-    app.use(express.json());
-
-    // ルーター作成
-    const router = createGoalSeekRouter({
-        authService: mockAuthService,
-        calculationService: mockCalculationService,
-        wsManager: mockWsManager
-    });
-    app.use('/api/goal-seek', router);
-
-    // エラーハンドリングミドルウェア（ルーター後に設定）
-    app.use((err, req, res, next) => {
-        res.status(err.status || 500).json({
-            error: err.message || 'Internal server error'
-        });
-    });
-});
-
-afterEach(() => {
-    // WebSocketManagerのクリーンアップ
-    mockWsManager?.cleanup?.();
-});
-
-// ==================== UT-031: GET /api/goal-seek/status ====================
-
-describe('GET /api/goal-seek/status', () => {
-    it('UT-031: ステータス200でサービス情報を返す', async () => {
-        // モック設定: 接続数0
-        mockGetActiveConnectionCount.mockReturnValue(2);
-
-        // リクエスト実行
-        const res = await request(app).get('/api/goal-seek/status');
-
-        // 検証
-        expect(res.status).toBe(200);
-        expect(res.body).toHaveProperty('status', 'available');
-        expect(res.body).toHaveProperty('activeConnections', 2);
-        expect(res.body).toHaveProperty('timestamp');
-    });
-
-    it('サービス稼働中はstatusがavailable', async () => {
-        mockGetActiveConnectionCount.mockReturnValue(1);
-
-        const res = await request(app).get('/api/goal-seek/status');
-
-        expect(res.status).toBe(200);
-        expect(res.body.status).toBe('available');
-    });
-});
-
-// ==================== UT-032: POST /api/goal-seek/calculate ====================
-
-describe('POST /api/goal-seek/calculate', () => {
-    it('UT-032: 正常な計算リクエストで計算結果を返す', async () => {
-        // リクエストボディ
-        const requestBody = {
-            target: 100,
-            period: 10,
-            current: 20,
-            unit: '件'
+    beforeEach(() => {
+        goalStore = {
+            createGoal: vi.fn().mockReturnValue(mockGoal),
+            getGoal: vi.fn().mockReturnValue(mockGoal),
+            getAllGoals: vi.fn().mockReturnValue([mockGoal]),
+            updateGoal: vi.fn().mockReturnValue({ ...mockGoal, title: 'Updated' }),
+            deleteGoal: vi.fn().mockReturnValue(true),
+            getProblems: vi.fn().mockReturnValue([]),
+            getTimeline: vi.fn().mockReturnValue([]),
+            respondToEscalation: vi.fn().mockReturnValue({
+                id: 'esc_1', goalId: 'goal_abc', status: 'responded',
+                response: { choice: 'yes', reason: '' }
+            }),
+            addTimelineEntry: vi.fn()
         };
 
-        // リクエスト実行
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send(requestBody);
-
-        // 検証
-        expect(res.status).toBe(200);
-        expect(res.body).toHaveProperty('result');
-        expect(res.body.result).toHaveProperty('dailyTarget');
-        expect(res.body.result).toHaveProperty('remaining');
-        expect(res.body.result).toHaveProperty('isCompleted');
-        expect(mockCalculate).toHaveBeenCalledWith(
-            { target: 100, period: 10, current: 20, unit: '件' },
-            expect.objectContaining({
-                correlationId: expect.any(String)
-            })
-        );
-    });
-
-    it('correlationIdを指定できる', async () => {
-        const requestBody = {
-            target: 50,
-            period: 5,
-            current: 10,
-            correlationId: 'custom-correlation-id'
+        sessionMonitor = {
+            getMonitoredSessions: vi.fn().mockReturnValue([]),
+            startMonitoring: vi.fn(),
+            stopMonitoring: vi.fn()
         };
 
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send(requestBody);
+        managerAI = {};
 
-        expect(res.status).toBe(200);
-        expect(mockCalculate).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({
-                correlationId: 'custom-correlation-id'
-            })
-        );
+        router = createGoalSeekRouter({
+            authService: {},
+            goalStore,
+            sessionMonitor,
+            managerAI
+        });
     });
 
-    it('介入が必要な場合にintervention情報を含める', async () => {
-        // 介入が必要なモック設定
-        mockCalculate.mockResolvedValue({
-            dailyTarget: 150,
-            totalDays: 30,
-            remainingDays: 30,
-            isCompleted: false
+    // ========== Status ==========
+
+    describe('GET /status', () => {
+        it('returns service status', () => {
+            const handler = getHandler(router, 'get', '/status');
+            const res = mockRes();
+            handler(mockReq(), res);
+
+            expect(res._json.status).toBe('available');
+            expect(res._json.version).toBe('v2');
+            expect(res._json.totalGoals).toBe(1);
+        });
+    });
+
+    // ========== Goal CRUD ==========
+
+    describe('POST /goals', () => {
+        it('creates goal with valid payload', () => {
+            const handler = getHandler(router, 'post', '/goals');
+            const req = mockReq({}, { sessionId: 'session-123', title: 'New Goal' });
+            const res = mockRes();
+            handler(req, res);
+
+            expect(res._status).toBe(201);
+            expect(goalStore.createGoal).toHaveBeenCalledWith(
+                expect.objectContaining({ sessionId: 'session-123', title: 'New Goal' })
+            );
         });
 
-        mockCheckInterventionNeeded.mockReturnValue({
-            needed: true,
-            type: 'decision',
-            reason: 'dailyTarget exceeds threshold',
-            details: { dailyTarget: 150, threshold: 100 }
+        it('returns 400 without sessionId', () => {
+            const handler = getHandler(router, 'post', '/goals');
+            const res = mockRes();
+            handler(mockReq({}, { title: 'No Session' }), res);
+            expect(res._status).toBe(400);
+            expect(res._json.error).toContain('sessionId');
         });
 
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send({ target: 3000, period: 20, current: 0 });
-
-        expect(res.status).toBe(200);
-        expect(res.body).toHaveProperty('intervention');
-        expect(res.body.intervention).toHaveProperty('needed', true);
-        expect(res.body.intervention).toHaveProperty('type', 'decision');
-    });
-});
-
-// ==================== UT-033: WebSocket upgrade ====================
-
-describe('WebSocket upgrade /api/goal-seek/calculate', () => {
-    it('UT-033: WebSocket upgradeが正しく処理される（Integration Test）', async () => {
-        // WebSocket upgradeはsupertestでは直接テストできないため、
-        // ルーターがWebSocket upgradeハンドラを持っていることを確認
-        const res = await request(app).get('/api/goal-seek/status');
-
-        // WebSocketManagerが正しく設定されていることを確認
-        expect(res.status).toBe(200);
-        expect(mockGetActiveConnectionCount).toHaveBeenCalled();
+        it('returns 400 without title', () => {
+            const handler = getHandler(router, 'post', '/goals');
+            const res = mockRes();
+            handler(mockReq({}, { sessionId: 'session-123' }), res);
+            expect(res._status).toBe(400);
+            expect(res._json.error).toContain('title');
+        });
     });
 
-    it('アクティブ接続数を取得できる', async () => {
-        mockGetActiveConnectionCount.mockReturnValue(3);
-
-        const res = await request(app).get('/api/goal-seek/status');
-
-        expect(res.status).toBe(200);
-        expect(res.body.activeConnections).toBe(3);
+    describe('GET /goals', () => {
+        it('returns all goals', () => {
+            const handler = getHandler(router, 'get', '/goals');
+            const res = mockRes();
+            handler(mockReq(), res);
+            expect(res._json).toHaveLength(1);
+        });
     });
-});
 
-// ==================== UT-034: 認証エラー ====================
-
-describe('認証エラー', () => {
-    it('UT-034: 認証なしでアクセスすると401エラー', async () => {
-        // 認証チェックで401を返すミドルウェア
-        const authCheckApp = express();
-        authCheckApp.use(express.json());
-
-        authCheckApp.use('/api/goal-seek', (req, res, next) => {
-            const header = req.headers.authorization || '';
-            if (!header.startsWith('Bearer ')) {
-                return res.status(401).json({ error: 'Authorization token required' });
-            }
-            req.auth = { sub: 'test-user-id', role: 'member' };
-            req.access = { role: 'member', projectCodes: [], clearance: [] };
-            next();
+    describe('GET /goals/:id', () => {
+        it('returns goal by id', () => {
+            const handler = getHandler(router, 'get', '/goals/:id');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_abc' }), res);
+            expect(res._json.id).toBe('goal_abc');
         });
 
-        // 認証なしでルーターをマウント（requireAuthを使用しない）
-        const routerWithoutAuth = createGoalSeekRouter({
-            authService: mockAuthService,
-            calculationService: mockCalculationService,
-            wsManager: mockWsManager
+        it('returns 404 for unknown goal', () => {
+            goalStore.getGoal.mockReturnValue(null);
+            const handler = getHandler(router, 'get', '/goals/:id');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_nope' }), res);
+            expect(res._status).toBe(404);
+        });
+    });
+
+    describe('PUT /goals/:id', () => {
+        it('updates goal', () => {
+            const handler = getHandler(router, 'put', '/goals/:id');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_abc' }, { title: 'Updated' }), res);
+            expect(goalStore.updateGoal).toHaveBeenCalledWith('goal_abc', expect.objectContaining({ title: 'Updated' }));
         });
 
-        // POSTエンドポイントを直接マウト
-        authCheckApp.post('/api/goal-seek/calculate', routerWithoutAuth.stack.find(
-            layer => layer.route?.path === '/calculate'
-        ).handle);
-
-        // 認証なしでリクエスト
-        const res = await request(authCheckApp)
-            .post('/api/goal-seek/calculate')
-            .send({ target: 100, period: 10 });
-
-        expect(res.status).toBe(401);
-        expect(res.body).toHaveProperty('error');
-    });
-});
-
-// ==================== UT-035: バリデーションエラー ====================
-
-describe('バリデーションエラー', () => {
-    it('UT-035-1: targetが欠落していると400エラー', async () => {
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send({ period: 10, current: 0 });
-
-        expect(res.status).toBe(400);
-        expect(res.body).toHaveProperty('error');
-        expect(res.body.error).toContain('target');
+        it('returns 404 for unknown goal', () => {
+            goalStore.updateGoal.mockReturnValue(null);
+            const handler = getHandler(router, 'put', '/goals/:id');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_nope' }, { title: 'X' }), res);
+            expect(res._status).toBe(404);
+        });
     });
 
-    it('UT-035-2: periodが欠落していると400エラー', async () => {
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send({ target: 100, current: 0 });
+    describe('DELETE /goals/:id', () => {
+        it('deletes goal and stops monitoring', () => {
+            const handler = getHandler(router, 'delete', '/goals/:id');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_abc' }), res);
+            expect(res._json.deleted).toBe(true);
+            expect(sessionMonitor.stopMonitoring).toHaveBeenCalledWith('session-123');
+        });
 
-        expect(res.status).toBe(400);
-        expect(res.body).toHaveProperty('error');
-        expect(res.body.error).toContain('period');
+        it('returns 404 for unknown goal', () => {
+            goalStore.getGoal.mockReturnValue(null);
+            goalStore.deleteGoal.mockReturnValue(false);
+            const handler = getHandler(router, 'delete', '/goals/:id');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_nope' }), res);
+            expect(res._status).toBe(404);
+        });
     });
 
-    it('UT-035-3: targetが負の値の場合400エラー', async () => {
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send({ target: -10, period: 10, current: 0 });
+    // ========== Monitoring ==========
 
-        expect(res.status).toBe(400);
-        expect(res.body).toHaveProperty('error');
+    describe('POST /goals/:id/start-monitor', () => {
+        it('starts monitoring for goal', () => {
+            const handler = getHandler(router, 'post', '/goals/:id/start-monitor');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_abc' }), res);
+            expect(res._json.monitoring).toBe(true);
+            expect(sessionMonitor.startMonitoring).toHaveBeenCalledWith('session-123', mockGoal);
+            expect(goalStore.updateGoal).toHaveBeenCalledWith('goal_abc', { status: 'monitoring' });
+        });
+
+        it('returns 404 for unknown goal', () => {
+            goalStore.getGoal.mockReturnValue(null);
+            const handler = getHandler(router, 'post', '/goals/:id/start-monitor');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_nope' }), res);
+            expect(res._status).toBe(404);
+        });
     });
 
-    it('UT-035-4: periodが範囲外の場合400エラー', async () => {
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send({ target: 100, period: 400, current: 0 });
-
-        expect(res.status).toBe(400);
-        expect(res.body).toHaveProperty('error');
+    describe('POST /goals/:id/stop-monitor', () => {
+        it('stops monitoring for goal', () => {
+            const handler = getHandler(router, 'post', '/goals/:id/stop-monitor');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_abc' }), res);
+            expect(res._json.monitoring).toBe(false);
+            expect(sessionMonitor.stopMonitoring).toHaveBeenCalledWith('session-123');
+            expect(goalStore.updateGoal).toHaveBeenCalledWith('goal_abc', { status: 'active' });
+        });
     });
 
-    it('UT-035-5: 計算サービスのバリデーションエラーを400で返す', async () => {
-        // バリデーションエラーを投げる
-        mockCalculate.mockRejectedValue(new Error('period must be between 1 and 365'));
+    // ========== Problems ==========
 
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send({ target: 100, period: 400, current: 0 });
+    describe('GET /goals/:id/problems', () => {
+        it('returns problems for goal', () => {
+            const handler = getHandler(router, 'get', '/goals/:id/problems');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_abc' }), res);
+            expect(Array.isArray(res._json)).toBe(true);
+        });
 
-        expect(res.status).toBe(400);
-        expect(res.body).toHaveProperty('error');
+        it('returns 404 for unknown goal', () => {
+            goalStore.getGoal.mockReturnValue(null);
+            const handler = getHandler(router, 'get', '/goals/:id/problems');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_nope' }), res);
+            expect(res._status).toBe(404);
+        });
     });
 
-    it('UT-035-6: サーバーエラー時は500エラー', async () => {
-        // 予期せぬエラーを投げる
-        mockCalculate.mockRejectedValue(new Error('Unexpected database error'));
+    // ========== Timeline ==========
 
-        const res = await request(app)
-            .post('/api/goal-seek/calculate')
-            .send({ target: 100, period: 10 });
+    describe('GET /goals/:id/timeline', () => {
+        it('returns timeline for goal', () => {
+            const handler = getHandler(router, 'get', '/goals/:id/timeline');
+            const res = mockRes();
+            handler(mockReq({ id: 'goal_abc' }), res);
+            expect(Array.isArray(res._json)).toBe(true);
+        });
+    });
 
-        expect(res.status).toBe(500);
-        expect(res.body).toHaveProperty('error');
+    // ========== Escalation ==========
+
+    describe('POST /escalations/:id/respond', () => {
+        it('responds to escalation', async () => {
+            goalStore.getGoal.mockReturnValue({ ...mockGoal, status: 'problem' });
+            const handler = getHandler(router, 'post', '/escalations/:id/respond');
+            const res = mockRes();
+            await handler(mockReq({ id: 'esc_1' }, { choice: 'yes', reason: 'Approved' }), res);
+            expect(goalStore.respondToEscalation).toHaveBeenCalledWith('esc_1', expect.objectContaining({ choice: 'yes' }));
+        });
+
+        it('returns 400 without choice', async () => {
+            const handler = getHandler(router, 'post', '/escalations/:id/respond');
+            const res = mockRes();
+            await handler(mockReq({ id: 'esc_1' }, { reason: 'no choice' }), res);
+            expect(res._status).toBe(400);
+        });
+
+        it('returns 404 for unknown escalation', async () => {
+            goalStore.respondToEscalation.mockReturnValue(null);
+            const handler = getHandler(router, 'post', '/escalations/:id/respond');
+            const res = mockRes();
+            await handler(mockReq({ id: 'esc_nope' }, { choice: 'yes' }), res);
+            expect(res._status).toBe(404);
+        });
+
+        it('restores goal status after escalation response', async () => {
+            goalStore.getGoal.mockReturnValue({ ...mockGoal, status: 'problem' });
+            sessionMonitor.getMonitoredSessions.mockReturnValue(['session-123']);
+            const handler = getHandler(router, 'post', '/escalations/:id/respond');
+            const res = mockRes();
+            await handler(mockReq({ id: 'esc_1' }, { choice: 'yes' }), res);
+            expect(goalStore.updateGoal).toHaveBeenCalledWith('goal_abc', { status: 'monitoring' });
+        });
+
+        it('adds timeline entry on escalation response', async () => {
+            const handler = getHandler(router, 'post', '/escalations/:id/respond');
+            const res = mockRes();
+            await handler(mockReq({ id: 'esc_1' }, { choice: 'approve', reason: 'LGTM' }), res);
+            expect(goalStore.addTimelineEntry).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    goalId: 'goal_abc',
+                    type: 'intervention',
+                    summary: 'CEO回答: approve'
+                })
+            );
+        });
     });
 });
