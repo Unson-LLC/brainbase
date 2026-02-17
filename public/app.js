@@ -650,10 +650,7 @@ export class App {
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
         this.container.register('browserNotificationService', () => new BrowserNotificationService());
-        this.container.register('goalSeekService', () => new GoalSeekService({
-            wsUrl: 'ws://localhost:31013/api/goal-seek/calculate',
-            token: this.authManager?.token || null
-        }));
+        this.container.register('goalSeekService', () => new GoalSeekService());
 
         this.container.register('commitTreeService', () => new CommitTreeService());
 
@@ -1279,8 +1276,7 @@ export class App {
         // Goal seek: open goal seek modal
         const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
             const { session } = event.detail;
-            console.log('Goal seek requested for session:', session?.id);
-            this.modals.goalSeekModal.show();
+            this.modals.goalSeekModal.show(session?.id);
         });
 
         this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek);
@@ -2224,6 +2220,16 @@ export class App {
 
         // 3. Initialize modals
         this.initModals();
+
+        // 3.1. Initialize Goal Seek View (depends on modals)
+        const goalSeekContainer = document.getElementById('goal-seek-section');
+        if (goalSeekContainer) {
+            this.views.goalSeekView = new GoalSeekView({
+                goalSeekService: this.goalSeekService,
+                modal: this.modals.goalSeekModal
+            });
+            this.views.goalSeekView.mount(goalSeekContainer);
+        }
 
         // 3.5. Initialize project select dropdown
         this.initProjectSelect();

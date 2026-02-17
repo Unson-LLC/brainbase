@@ -1,101 +1,191 @@
 /**
- * Goal Seek Routes
+ * Goal Seek V2 Routes
  *
- * 目標達成逆算計算のルーティング定義
+ * セッション・オートパイロット API
  *
  * エンドポイント:
- * - GET /api/goal-seek/status - サービスステータス確認
- * - POST /api/goal-seek/calculate - 計算リクエスト（HTTPフォールバック）
- * - WebSocket upgrade /api/goal-seek/calculate - WebSocket接続
+ * - POST   /api/goal-seek/goals              - ゴール作成
+ * - GET    /api/goal-seek/goals              - ゴール一覧
+ * - GET    /api/goal-seek/goals/:id          - ゴール詳細
+ * - PUT    /api/goal-seek/goals/:id          - ゴール更新
+ * - DELETE /api/goal-seek/goals/:id          - ゴール削除
+ * - POST   /api/goal-seek/goals/:id/start-monitor - 監視開始
+ * - POST   /api/goal-seek/goals/:id/stop-monitor  - 監視停止
+ * - GET    /api/goal-seek/goals/:id/problems      - 問題一覧
+ * - GET    /api/goal-seek/goals/:id/timeline      - タイムライン
+ * - POST   /api/goal-seek/escalations/:id/respond - エスカレーション回答
+ * - GET    /api/goal-seek/status                  - サービスステータス
  */
 import express from 'express';
-import { randomUUID } from 'crypto';
 import { requireAuth } from '../middleware/auth.js';
 
-export function createGoalSeekRouter({ authService, calculationService, wsManager }) {
+export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, managerAI }) {
     const router = express.Router();
 
-    /**
-     * GET /api/goal-seek/status
-     * サービスステータスを返す
-     */
+    // ========== Status ==========
+
     router.get('/status', (req, res) => {
-        const activeConnections = wsManager?.getActiveConnectionCount() || 0;
+        const monitoredSessions = sessionMonitor?.getMonitoredSessions() || [];
+        const goals = goalStore.getAllGoals();
 
         res.json({
             status: 'available',
-            activeConnections,
+            version: 'v2',
+            activeGoals: goals.filter(g => g.status === 'active' || g.status === 'monitoring').length,
+            monitoredSessions: monitoredSessions.length,
+            totalGoals: goals.length,
             timestamp: new Date().toISOString()
         });
     });
 
-    /**
-     * POST /api/goal-seek/calculate
-     * HTTP経由で計算リクエストを処理（WebSocketのフォールバック）
-     */
-    router.post('/calculate', requireAuth(authService), async (req, res, next) => {
+    // ========== Goal CRUD ==========
+
+    router.post('/goals', requireAuth(authService), (req, res) => {
         try {
-            const { target, period, current = 0, unit = '件', correlationId: clientCorrelationId } = req.body;
+            const { sessionId, title, description, criteria, managerConfig } = req.body;
 
-            // バリデーション
-            if (target === undefined || target === null) {
-                return res.status(400).json({
-                    error: 'Validation failed: target is required'
-                });
+            if (!sessionId) {
+                return res.status(400).json({ error: 'sessionId is required' });
+            }
+            if (!title) {
+                return res.status(400).json({ error: 'title is required' });
             }
 
-            if (period === undefined || period === null) {
-                return res.status(400).json({
-                    error: 'Validation failed: period is required'
-                });
-            }
-
-            // 基本型チェック
-            if (typeof target !== 'number' || target < 0) {
-                return res.status(400).json({
-                    error: 'Validation failed: target must be a non-negative number'
-                });
-            }
-
-            if (typeof period !== 'number' || period < 1 || period > 365) {
-                return res.status(400).json({
-                    error: 'Validation failed: period must be between 1 and 365'
-                });
-            }
-
-            // 計算実行
-            const correlationId = clientCorrelationId || randomUUID();
-            const result = await calculationService.calculate(
-                { target, period, current, unit },
-                { correlationId, emitProgress: false }
-            );
-
-            // 介入判定
-            const intervention = calculationService.checkInterventionNeeded(result);
-
-            res.json({
-                result,
-                intervention,
-                correlationId
-            });
+            const goal = goalStore.createGoal({ sessionId, title, description, criteria, managerConfig });
+            res.status(201).json(goal);
         } catch (error) {
-            // バリデーションエラーは400
-            if (error.message.includes('must be') || error.message.includes('between')) {
-                return res.status(400).json({
-                    error: `Validation failed: ${error.message}`
-                });
-            }
-            // その他のエラーは500
-            next(error);
+            res.status(500).json({ error: error.message });
         }
     });
 
-    /**
-     * WebSocket upgrade handling
-     * WebSocket接続はserver.jsでWebSocket Server経由で処理されるため、
-     * ここではルーターエクスポートのみ行う
-     */
-    router.ws = null; // Placeholder for WebSocket upgrade handler
+    router.get('/goals', requireAuth(authService), (req, res) => {
+        const goals = goalStore.getAllGoals();
+        res.json(goals);
+    });
+
+    router.get('/goals/:id', requireAuth(authService), (req, res) => {
+        const goal = goalStore.getGoal(req.params.id);
+        if (!goal) {
+            return res.status(404).json({ error: 'Goal not found' });
+        }
+        res.json(goal);
+    });
+
+    router.put('/goals/:id', requireAuth(authService), (req, res) => {
+        const goal = goalStore.updateGoal(req.params.id, req.body);
+        if (!goal) {
+            return res.status(404).json({ error: 'Goal not found' });
+        }
+        res.json(goal);
+    });
+
+    router.delete('/goals/:id', requireAuth(authService), (req, res) => {
+        // 監視中なら停止
+        const goal = goalStore.getGoal(req.params.id);
+        if (goal && sessionMonitor) {
+            sessionMonitor.stopMonitoring(goal.sessionId);
+        }
+
+        const deleted = goalStore.deleteGoal(req.params.id);
+        if (!deleted) {
+            return res.status(404).json({ error: 'Goal not found' });
+        }
+        res.json({ deleted: true });
+    });
+
+    // ========== Monitoring ==========
+
+    router.post('/goals/:id/start-monitor', requireAuth(authService), (req, res) => {
+        const goal = goalStore.getGoal(req.params.id);
+        if (!goal) {
+            return res.status(404).json({ error: 'Goal not found' });
+        }
+
+        if (!sessionMonitor) {
+            return res.status(503).json({ error: 'SessionMonitor not available' });
+        }
+
+        goalStore.updateGoal(goal.id, { status: 'monitoring' });
+        sessionMonitor.startMonitoring(goal.sessionId, goal);
+
+        res.json({ monitoring: true, goalId: goal.id, sessionId: goal.sessionId });
+    });
+
+    router.post('/goals/:id/stop-monitor', requireAuth(authService), (req, res) => {
+        const goal = goalStore.getGoal(req.params.id);
+        if (!goal) {
+            return res.status(404).json({ error: 'Goal not found' });
+        }
+
+        if (sessionMonitor) {
+            sessionMonitor.stopMonitoring(goal.sessionId);
+        }
+        goalStore.updateGoal(goal.id, { status: 'active' });
+
+        res.json({ monitoring: false, goalId: goal.id });
+    });
+
+    // ========== Problems ==========
+
+    router.get('/goals/:id/problems', requireAuth(authService), (req, res) => {
+        const goal = goalStore.getGoal(req.params.id);
+        if (!goal) {
+            return res.status(404).json({ error: 'Goal not found' });
+        }
+        const problems = goalStore.getProblems(goal.id);
+        res.json(problems);
+    });
+
+    // ========== Timeline ==========
+
+    router.get('/goals/:id/timeline', requireAuth(authService), (req, res) => {
+        const goal = goalStore.getGoal(req.params.id);
+        if (!goal) {
+            return res.status(404).json({ error: 'Goal not found' });
+        }
+        const timeline = goalStore.getTimeline(goal.id);
+        res.json(timeline);
+    });
+
+    // ========== Escalation ==========
+
+    router.post('/escalations/:id/respond', requireAuth(authService), async (req, res) => {
+        try {
+            const { choice, reason } = req.body;
+            if (!choice) {
+                return res.status(400).json({ error: 'choice is required' });
+            }
+
+            const escalation = goalStore.respondToEscalation(req.params.id, {
+                choice,
+                reason: reason || '',
+                respondedAt: new Date().toISOString()
+            });
+
+            if (!escalation) {
+                return res.status(404).json({ error: 'Escalation not found' });
+            }
+
+            // ゴールステータスをactiveまたはmonitoringに戻す
+            const goal = goalStore.getGoal(escalation.goalId);
+            if (goal && goal.status === 'problem') {
+                const isMonitoring = sessionMonitor?.getMonitoredSessions().includes(goal.sessionId);
+                goalStore.updateGoal(goal.id, { status: isMonitoring ? 'monitoring' : 'active' });
+            }
+
+            // タイムラインに記録
+            goalStore.addTimelineEntry({
+                goalId: escalation.goalId,
+                type: 'intervention',
+                summary: `CEO回答: ${choice}`,
+                details: reason || ''
+            });
+
+            res.json(escalation);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
 
     return router;
 }

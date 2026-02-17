@@ -236,77 +236,9 @@
                         <!-- Section 5 content injected via renderSection5() -->
                     </section>
 
-                    <!-- Section 7: Actionable Insights (Phase 3) -->
-                    <section class="actionable-insights-section" aria-labelledby="section-7-heading" role="region"
-                        style="
-                        margin-top: 32px;
-                        margin-bottom: 40px;
-                        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
-                        backdrop-filter: blur(30px);
-                        border: 1px solid rgba(255, 255, 255, 0.1);
-                        border-radius: 12px;
-                        padding: 40px;
-                        text-align: center;
-                    ">
-                        <div class="section-header" style="margin-bottom: 20px;">
-                            <h3 id="section-7-heading" style="
-                                color: var(--text-primary);
-                                font-size: 20px;
-                                font-weight: 700;
-                                margin-bottom: 8px;
-                            ">
-                                Section 7: Actionable Insights
-                            </h3>
-                            <p style="
-                                color: var(--text-secondary);
-                                font-size: 14px;
-                            ">
-                                AI提案エンジン by Claude Opus 4.5
-                            </p>
-                        </div>
-
-                        <div style="
-                            background: rgba(255, 255, 255, 0.05);
-                            border: 1px dashed rgba(255, 255, 255, 0.2);
-                            border-radius: 8px;
-                            padding: 32px;
-                            margin-top: 20px;
-                        ">
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="
-                                color: var(--text-tertiary);
-                                opacity: 0.5;
-                                margin: 0 auto 16px;
-                            ">
-                                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                            </svg>
-                            <h4 style="
-                                color: var(--text-tertiary);
-                                font-size: 16px;
-                                font-weight: 600;
-                                margin-bottom: 8px;
-                            ">
-                                Coming Soon in Phase 3
-                            </h4>
-                            <p style="
-                                color: var(--text-tertiary);
-                                font-size: 13px;
-                                line-height: 1.6;
-                                max-width: 500px;
-                                margin: 0 auto;
-                            ">
-                                週次アクション提案、リソース最適化、自動意思決定支援を実装予定。<br>
-                                AI提案の採用率50%以上を目標に、人間は例外対応のみに集中。
-                            </p>
-                            <div style="
-                                margin-top: 20px;
-                                font-size: 12px;
-                                color: var(--text-tertiary);
-                                opacity: 0.7;
-                            ">
-                                実装予定: Week 17-28（Phase 3）
-                            </div>
-                        </div>
+                    <!-- Section 7: Goal Seek V2 (Session Autopilot) -->
+                    <section id="goal-seek-section" style="margin-top: 32px; margin-bottom: 40px; min-height: 400px;
+                        background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
                     </section>
                 </div>
             </div>
@@ -967,85 +899,8 @@
         </div>
     </div>
 
-    <!-- Goal Seek Modal -->
-    <div id="goal-seek-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i data-lucide="target"></i> Goal Seek</h3>
-                <button id="goal-seek-modal-close" class="close-modal-btn"><i data-lucide="x"></i></button>
-            </div>
-            <div class="modal-body">
-                <!-- Goal Parameters -->
-                <div class="form-group">
-                    <label for="goal-target">目標値</label>
-                    <input type="number" id="goal-target" class="form-input" placeholder="例: 1000000">
-                </div>
-                <div class="form-group">
-                    <label for="goal-current">現在値</label>
-                    <input type="number" id="goal-current" class="form-input" placeholder="例: 500000">
-                </div>
-                <div class="form-group">
-                    <label for="goal-unit">単位</label>
-                    <select id="goal-unit" class="form-input">
-                        <option value="yen">円</option>
-                        <option value="count">個</option>
-                        <option value="percent">%</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="goal-period">期間（日数）</label>
-                    <input type="number" id="goal-period" class="form-input" placeholder="例: 30" min="1" max="365">
-                </div>
-                <div class="form-group">
-                    <label for="goal-variable">調整変数</label>
-                    <select id="goal-variable" class="form-input">
-                        <option value="daily_actions">日次アクション数</option>
-                        <option value="conversion_rate">コンバージョン率</option>
-                        <option value="unit_price">単価</option>
-                    </select>
-                </div>
-
-                <!-- Calculation Details -->
-                <div class="goal-seek-details" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-                    <h4 style="font-size: 14px; margin-bottom: 8px; color: var(--text-secondary);">計算結果</h4>
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-                        <div>
-                            <span style="font-size: 12px; color: var(--text-tertiary);">ギャップ</span>
-                            <div id="detail-gap" style="font-size: 18px; font-weight: 600;">-</div>
-                        </div>
-                        <div>
-                            <span style="font-size: 12px; color: var(--text-tertiary);">期間</span>
-                            <div id="detail-period" style="font-size: 18px; font-weight: 600;">-</div>
-                        </div>
-                        <div>
-                            <span style="font-size: 12px; color: var(--text-tertiary);">1日あたり</span>
-                            <div id="detail-daily" style="font-size: 18px; font-weight: 600;">-</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Intervention Section (hidden by default) -->
-                <div id="intervention-section" class="goal-seek-intervention" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
-                    <h4 id="intervention-title" style="font-size: 16px; margin-bottom: 8px;">介入が必要です</h4>
-                    <p id="intervention-message" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">メッセージ</p>
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                        <span style="font-size: 12px; color: var(--text-tertiary);">残り時間:</span>
-                        <span id="timeout-value" style="font-weight: 600; color: var(--accent-color);">-</span>
-                    </div>
-                    <div id="intervention-options" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"></div>
-                    <div style="display: flex; gap: 8px;">
-                        <button id="intervention-proceed-btn" class="btn-primary">続行</button>
-                        <button id="intervention-abort-btn" class="btn-danger">中止</button>
-                        <button id="intervention-modify-btn" class="btn-secondary">修正</button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary close-modal-btn">キャンセル</button>
-                <button id="goal-seek-modal-submit" class="btn-primary">計算開始</button>
-            </div>
-        </div>
-    </div>
+    <!-- Goal Seek V2 Modal (content rendered dynamically by GoalSeekModal) -->
+    <div id="goal-seek-modal" class="modal-overlay hidden"></div>
 
     <script type="module" src="app.js?v=1766798000"></script>
     <script>
