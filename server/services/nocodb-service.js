@@ -1,5 +1,7 @@
 import { logger } from '../utils/logger.js';
 
+const DAY_IN_MS = 1000 * 60 * 60 * 24;
+
 /**
  * NocoDB Service
  * 各プロジェクトのNocoDB Base からタスク・マイルストーンを取得
@@ -153,30 +155,47 @@ export class NocoDBService {
      * @returns {Object} タスク統計（フラット構造）
      */
     _calculateTaskStats(tasks) {
-        const total = tasks.length;
-        const completed = tasks.filter(t => t.ステータス === '完了').length;
-        const inProgress = tasks.filter(t => t.ステータス === '進行中').length;
-        const pending = tasks.filter(t => t.ステータス === '未着手').length;
-        const blocked = tasks.filter(t => t.ステータス === 'ブロック').length;
+        const nowMs = Date.now();
+        const stats = tasks.reduce((acc, task) => {
+            acc.total += 1;
 
-        // 期限超過タスク
-        const now = new Date();
-        const overdue = tasks.filter(t => {
-            if (t.ステータス === '完了') return false;
-            if (!t.期限) return false;
-            return new Date(t.期限) < now;
-        }).length;
+            switch (task.ステータス) {
+                case '完了':
+                    acc.completed += 1;
+                    break;
+                case '進行中':
+                    acc.inProgress += 1;
+                    break;
+                case '未着手':
+                    acc.pending += 1;
+                    break;
+                case 'ブロック':
+                    acc.blocked += 1;
+                    break;
+                default:
+                    break;
+            }
 
-        const completionRate = total > 0 ? Math.round((completed / total) * 100) : 100;
+            if (task.ステータス !== '完了') {
+                const deadline = this._parseDate(task.期限);
+                if (deadline && deadline.getTime() < nowMs) {
+                    acc.overdue += 1;
+                }
+            }
+
+            return acc;
+        }, {
+            total: 0,
+            completed: 0,
+            inProgress: 0,
+            pending: 0,
+            blocked: 0,
+            overdue: 0
+        });
 
         return {
-            total,
-            completed,
-            inProgress,
-            pending,
-            blocked,
-            overdue,
-            completionRate
+            ...stats,
+            completionRate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 100
         };
     }
 
@@ -233,6 +252,8 @@ export class NocoDBService {
     async getCriticalAlerts(projects) {
         try {
             const alerts = [];
+            let totalCritical = 0;
+            let totalWarning = 0;
 
             // 全プロジェクトのタスクを並列取得
             const projectTasks = await Promise.all(
@@ -247,54 +268,26 @@ export class NocoDBService {
                 })
             );
 
-            const now = new Date();
+            const nowMs = Date.now();
 
-            // ブロッカータスクと期限超過タスクを抽出
             for (const { projectId, tasks } of projectTasks) {
                 for (const task of tasks) {
-                    // ブロッカータスク
-                    if (task.ステータス === 'ブロック') {
-                        const createdDate = task.作成日 ? new Date(task.作成日) : now;
-                        const daysBlocked = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
-
-                        alerts.push({
-                            type: 'blocker',
-                            project: projectId,
-                            task: task.タイトル || task.タスク名 || 'Untitled',
-                            owner: task.担当者 || 'Unassigned',
-                            days_blocked: daysBlocked,
-                            severity: 'critical'
-                        });
-                    }
-
-                    // 期限超過タスク（完了以外）
-                    if (task.ステータス !== '完了' && task.期限) {
-                        const deadline = new Date(task.期限);
-                        if (deadline < now) {
-                            const daysOverdue = Math.floor((now - deadline) / (1000 * 60 * 60 * 24));
-
-                            alerts.push({
-                                type: 'overdue',
-                                project: projectId,
-                                task: task.タイトル || task.タスク名 || 'Untitled',
-                                owner: task.担当者 || 'Unassigned',
-                                days_overdue: daysOverdue,
-                                deadline: task.期限,
-                                severity: 'warning'
-                            });
+                    const taskAlerts = this._buildTaskAlerts(task, projectId, nowMs);
+                    for (const alert of taskAlerts) {
+                        alerts.push(alert);
+                        if (alert.severity === 'critical') {
+                            totalCritical += 1;
+                        } else if (alert.severity === 'warning') {
+                            totalWarning += 1;
                         }
                     }
                 }
             }
 
-            // Critical/Warning数を集計
-            const total_critical = alerts.filter(a => a.severity === 'critical').length;
-            const total_warning = alerts.filter(a => a.severity === 'warning').length;
-
             return {
                 alerts,
-                total_critical,
-                total_warning
+                total_critical: totalCritical,
+                total_warning: totalWarning
             };
         } catch (error) {
             logger.error('Failed to get critical alerts', { error });
@@ -304,6 +297,58 @@ export class NocoDBService {
                 total_warning: 0
             };
         }
+    }
+
+    _buildTaskAlerts(task, projectId, nowMs) {
+        const alerts = [];
+        const { title, owner } = this._getTaskMeta(task);
+
+        if (task.ステータス === 'ブロック') {
+            const createdDate = this._parseDate(task.作成日);
+            const createdMs = createdDate ? createdDate.getTime() : nowMs;
+            const daysBlocked = Math.max(0, Math.floor((nowMs - createdMs) / DAY_IN_MS));
+
+            alerts.push({
+                type: 'blocker',
+                project: projectId,
+                task: title,
+                owner,
+                days_blocked: daysBlocked,
+                severity: 'critical'
+            });
+        }
+
+        if (task.ステータス !== '完了') {
+            const deadline = this._parseDate(task.期限);
+            if (deadline && deadline.getTime() < nowMs) {
+                const daysOverdue = Math.max(0, Math.floor((nowMs - deadline.getTime()) / DAY_IN_MS));
+
+                alerts.push({
+                    type: 'overdue',
+                    project: projectId,
+                    task: title,
+                    owner,
+                    days_overdue: daysOverdue,
+                    deadline: task.期限,
+                    severity: 'warning'
+                });
+            }
+        }
+
+        return alerts;
+    }
+
+    _getTaskMeta(task) {
+        return {
+            title: task.タイトル || task.タスク名 || 'Untitled',
+            owner: task.担当者 || 'Unassigned'
+        };
+    }
+
+    _parseDate(value) {
+        if (!value) return null;
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
 
     /**
