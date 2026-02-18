@@ -404,6 +404,10 @@ export class SessionView {
             if (dropdownMenu) {
                 dropdownMenu.classList.add('hidden');
             }
+            const overlay = document.getElementById('menu-overlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+            }
         };
 
         // Rename button

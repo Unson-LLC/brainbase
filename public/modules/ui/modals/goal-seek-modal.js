@@ -38,7 +38,11 @@ export class GoalSeekModal {
     show(sessionId) {
         if (!this.modalElement) return;
         this._sessionId = sessionId || null;
-        this._renderContent();
+        try {
+            this._renderContent();
+        } catch (err) {
+            console.error('[GoalSeekModal] render error:', err);
+        }
         this.modalElement.classList.add('active');
         this.eventBus.emit(EVENTS.MODAL_OPENED, { modalId: 'goal-seek-modal' });
     }
