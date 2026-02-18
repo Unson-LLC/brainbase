@@ -1,13 +1,21 @@
 {
   "status": "skipped",
-  "reason": "judge_threshold_not_met",
+  "reason": "refactor_not_performed",
   "details": {
+    "attempt": 1,
     "area": "lib",
-    "attemptCount": 3
+    "failure": {
+      "reason": "codex_timeout",
+      "details": {
+        "area": "lib",
+        "message": "Codex CLI timed out after 1200000ms",
+        "timeoutMs": 1200000
+      }
+    }
   },
-  "timestamp": "2026-02-18T09:40:49.341Z",
+  "timestamp": "2026-02-18T12:36:44.036Z",
   "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22133745721",
-  "runNumber": "60",
+  "runId": "22139358727",
+  "runNumber": "61",
   "eventName": "schedule"
 }
