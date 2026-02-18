@@ -8,6 +8,7 @@
  * - Manager AI設定（autoAnswerLevel）
  */
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { showSuccess, showError } from '../toast.js';
 
 export class GoalSeekModal {
     constructor({ eventBus: bus = eventBus, goalSeekService, browserNotificationService } = {}) {
@@ -168,8 +169,14 @@ export class GoalSeekModal {
             ? { commit: criteriaText.split('\n').map(l => l.trim()).filter(Boolean) }
             : undefined;
 
+        if (!this.service) {
+            this._showError(errorEl, 'GoalSeekServiceが初期化されていません');
+            console.error('[GoalSeekModal] this.service is null/undefined');
+            return;
+        }
+
+        const submitBtn = this.modalElement.querySelector('#gs-modal-submit');
         try {
-            const submitBtn = this.modalElement.querySelector('#gs-modal-submit');
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.textContent = '作成中...';
@@ -184,9 +191,11 @@ export class GoalSeekModal {
             });
 
             this.hide();
+            showSuccess(`ゴール「${title}」を作成しました`);
         } catch (err) {
+            console.error('[GoalSeekModal] createGoal error:', err);
             this._showError(errorEl, err.message);
-            const submitBtn = this.modalElement.querySelector('#gs-modal-submit');
+            showError(`ゴール作成に失敗しました: ${err.message}`);
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'ゴール作成';
