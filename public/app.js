@@ -1086,6 +1086,9 @@ export class App {
             if (this.showConsole) {
                 this.showConsole();
             }
+
+            // Update session goal banner
+            this._updateSessionGoalBanner(sessionId);
         });
 
         // Start task: create session and switch to it
@@ -1279,7 +1282,17 @@ export class App {
             this.modals.goalSeekModal.show(session?.id);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek);
+        // Goal seek: update banner when goal is created/updated
+        const unsubGoalCreated = eventBus.on(EVENTS.GOAL_CREATED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalUpdated = eventBus.on(EVENTS.GOAL_UPDATED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -2056,6 +2069,57 @@ export class App {
         const sessionsBottomSheet = document.getElementById('sessions-bottom-sheet');
         sessionsSheetOverlay?.classList.remove('active');
         sessionsBottomSheet?.classList.remove('active');
+    }
+
+    /**
+     * セッションのゴールをバナーに表示
+     */
+    async _updateSessionGoalBanner(sessionId) {
+        const banner = document.getElementById('session-goal-banner');
+        if (!banner) return;
+
+        try {
+            const goals = await this.goalSeekService.getGoals();
+            const goal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
+
+            if (!goal) {
+                banner.classList.add('hidden');
+                banner.className = 'session-goal-banner hidden';
+                return;
+            }
+
+            const statusLabel = { active: '未開始', monitoring: '監視中', problem: '問題あり', escalation: 'エスカレーション' }[goal.status] || goal.status;
+            const btnLabel = goal.status === 'monitoring' || goal.status === 'problem' ? '監視停止' : '監視開始';
+            const btnAction = goal.status === 'monitoring' || goal.status === 'problem' ? 'stop' : 'start';
+
+            banner.innerHTML = `
+                <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
+                <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
+                <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
+                <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
+            `;
+
+            banner.className = `session-goal-banner status-${goal.status}`;
+
+            const btn = banner.querySelector('.sgb-btn');
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    try {
+                        if (btnAction === 'start') {
+                            await this.goalSeekService.startMonitoring(goal.id);
+                        } else {
+                            await this.goalSeekService.stopMonitoring(goal.id);
+                        }
+                        this._updateSessionGoalBanner(sessionId);
+                    } catch (err) {
+                        console.error('[GoalBanner] toggle error:', err);
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('[GoalBanner] fetch error:', err);
+            banner.classList.add('hidden');
+        }
     }
 
     /**
