@@ -79,7 +79,14 @@ export class WorktreeService {
             // Check if Jujutsu is available
             const isJujutsu = await this._isJujutsuRepo(repoPath);
             if (!isJujutsu) {
-                throw new Error(`Not a Jujutsu repository: ${repoPath}. Run 'jj git init' in the repository first.`);
+                console.log(`[workspace] Not a jj repo, auto-initializing at ${repoPath}...`);
+                try {
+                    await this.execPromise(`cd "${repoPath}" && jj git init --colocate`);
+                    console.log(`[workspace] jj git init --colocate succeeded at ${repoPath}`);
+                    this.isJujutsuRepo = null; // キャッシュリセット
+                } catch (initErr) {
+                    throw new Error(`jj git init failed at ${repoPath}: ${initErr.message}`);
+                }
             }
 
             // Check if workspace already exists
