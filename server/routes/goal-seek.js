@@ -17,9 +17,8 @@
  * - GET    /api/goal-seek/status                  - サービスステータス
  */
 import express from 'express';
-import { requireAuth } from '../middleware/auth.js';
 
-export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, managerAI }) {
+export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
     const router = express.Router();
 
     // ========== Status ==========
@@ -40,7 +39,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
 
     // ========== Goal CRUD ==========
 
-    router.post('/goals', requireAuth(authService), (req, res) => {
+    router.post('/goals', (req, res) => {
         try {
             const { sessionId, title, description, criteria, managerConfig } = req.body;
 
@@ -58,12 +57,12 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
         }
     });
 
-    router.get('/goals', requireAuth(authService), (req, res) => {
+    router.get('/goals', (req, res) => {
         const goals = goalStore.getAllGoals();
         res.json(goals);
     });
 
-    router.get('/goals/:id', requireAuth(authService), (req, res) => {
+    router.get('/goals/:id', (req, res) => {
         const goal = goalStore.getGoal(req.params.id);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -71,7 +70,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
         res.json(goal);
     });
 
-    router.put('/goals/:id', requireAuth(authService), (req, res) => {
+    router.put('/goals/:id', (req, res) => {
         const goal = goalStore.updateGoal(req.params.id, req.body);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -79,7 +78,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
         res.json(goal);
     });
 
-    router.delete('/goals/:id', requireAuth(authService), (req, res) => {
+    router.delete('/goals/:id', (req, res) => {
         // 監視中なら停止
         const goal = goalStore.getGoal(req.params.id);
         if (goal && sessionMonitor) {
@@ -95,7 +94,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
 
     // ========== Monitoring ==========
 
-    router.post('/goals/:id/start-monitor', requireAuth(authService), (req, res) => {
+    router.post('/goals/:id/start-monitor', (req, res) => {
         const goal = goalStore.getGoal(req.params.id);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -111,7 +110,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
         res.json({ monitoring: true, goalId: goal.id, sessionId: goal.sessionId });
     });
 
-    router.post('/goals/:id/stop-monitor', requireAuth(authService), (req, res) => {
+    router.post('/goals/:id/stop-monitor', (req, res) => {
         const goal = goalStore.getGoal(req.params.id);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -127,7 +126,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
 
     // ========== Problems ==========
 
-    router.get('/goals/:id/problems', requireAuth(authService), (req, res) => {
+    router.get('/goals/:id/problems', (req, res) => {
         const goal = goalStore.getGoal(req.params.id);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -138,7 +137,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
 
     // ========== Timeline ==========
 
-    router.get('/goals/:id/timeline', requireAuth(authService), (req, res) => {
+    router.get('/goals/:id/timeline', (req, res) => {
         const goal = goalStore.getGoal(req.params.id);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -149,7 +148,7 @@ export function createGoalSeekRouter({ authService, goalStore, sessionMonitor, m
 
     // ========== Escalation ==========
 
-    router.post('/escalations/:id/respond', requireAuth(authService), async (req, res) => {
+    router.post('/escalations/:id/respond', async (req, res) => {
         try {
             const { choice, reason } = req.body;
             if (!choice) {
