@@ -428,18 +428,19 @@ EOF
      * @returns {Promise<{commits: Array, repoType: string, repoName: string, worktreePath: string}>}
      */
     async getCommitLog(sessionId, repoPath, limit = 50) {
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
+        const dirName = path.basename(repoPath);
+        const workspaceName = `${sessionId}-${dirName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
 
         // Check if workspace exists
         try {
             await fs.access(workspacePath);
         } catch {
-            return { commits: [], repoType: 'unknown', repoName, worktreePath: workspacePath };
+            return { commits: [], repoType: 'unknown', repoName: dirName, worktreePath: workspacePath };
         }
 
         const isJujutsu = await this._isJujutsuRepo(repoPath);
+        const repoName = await this._getRemoteRepoName(repoPath, isJujutsu) || dirName;
 
         if (isJujutsu) {
             const result = await this._getJujutsuCommitLog(workspacePath, limit);
@@ -537,6 +538,37 @@ EOF
                     parents: parentStr ? parentStr.split(' ').filter(Boolean) : []
                 };
             });
+    }
+
+    /**
+     * origin remoteのURLからリポジトリ名を取得
+     * @private
+     * @param {string} repoPath - リポジトリパス
+     * @param {boolean} isJujutsu - jjリポジトリかどうか
+     * @returns {Promise<string|null>}
+     */
+    async _getRemoteRepoName(repoPath, isJujutsu) {
+        try {
+            let url;
+            if (isJujutsu) {
+                const { stdout } = await this.execPromise(
+                    `jj -R "${repoPath}" git remote list --no-pager 2>/dev/null`
+                );
+                const originLine = stdout.split('\n').find(l => l.startsWith('origin '));
+                url = originLine?.split(/\s+/)[1];
+            } else {
+                const { stdout } = await this.execPromise(
+                    `git -C "${repoPath}" remote get-url origin 2>/dev/null`
+                );
+                url = stdout.trim();
+            }
+            if (!url) return null;
+            // Extract repo name from URL: https://github.com/Org/repo-name.git → repo-name
+            const match = url.match(/\/([^/]+?)(?:\.git)?$/);
+            return match ? match[1] : null;
+        } catch {
+            return null;
+        }
     }
 
     /**
