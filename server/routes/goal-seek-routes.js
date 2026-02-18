@@ -12,6 +12,30 @@ import express from 'express';
 export function createGoalSeekRouter(store) {
     const router = express.Router();
 
+    /**
+     * 共通の必須項目チェック
+     * @param {express.Response} res
+     * @param {object} source - リクエストbodyやquery
+     * @param {string[]} fields - 必須キー
+     * @returns {boolean} trueの場合レスポンス済み（以降処理中断）
+     */
+    const respondIfMissingFields = (res, source, fields) => {
+        const data = source || {};
+        const missing = fields.filter((field) => !data[field]);
+        if (missing.length > 0) {
+            res.status(400).json({
+                error: `Missing required fields: ${missing.join(', ')}`
+            });
+            return true;
+        }
+        return false;
+    };
+
+    const handleServerError = (res, error, action) => {
+        console.error(`Failed to ${action}:`, error);
+        res.status(500).json({ error: error.message });
+    };
+
     // ========================================
     // Goals API
     // ========================================
@@ -25,17 +49,14 @@ export function createGoalSeekRouter(store) {
             const { sessionId, goalType, target } = req.body;
 
             // バリデーション
-            if (!sessionId || !goalType || !target) {
-                return res.status(400).json({
-                    error: 'Missing required fields: sessionId, goalType, target'
-                });
+            if (respondIfMissingFields(res, req.body, ['sessionId', 'goalType', 'target'])) {
+                return;
             }
 
             const goal = await store.createGoal(req.body);
             res.status(201).json(goal);
         } catch (error) {
-            console.error('Failed to create goal:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'create goal');
         }
     });
 
@@ -53,8 +74,7 @@ export function createGoalSeekRouter(store) {
 
             res.json(goal);
         } catch (error) {
-            console.error('Failed to get goal:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'get goal');
         }
     });
 
@@ -72,8 +92,7 @@ export function createGoalSeekRouter(store) {
 
             res.json(goal);
         } catch (error) {
-            console.error('Failed to update goal:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'update goal');
         }
     });
 
@@ -91,8 +110,7 @@ export function createGoalSeekRouter(store) {
 
             res.json({ success: true });
         } catch (error) {
-            console.error('Failed to delete goal:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'delete goal');
         }
     });
 
@@ -104,17 +122,13 @@ export function createGoalSeekRouter(store) {
         try {
             const { sessionId } = req.query;
 
-            let goals;
-            if (sessionId) {
-                goals = await store.getGoalsBySession(sessionId);
-            } else {
-                goals = await store.getAllGoals();
-            }
+            const goals = sessionId
+                ? await store.getGoalsBySession(sessionId)
+                : await store.getAllGoals();
 
             res.json(goals);
         } catch (error) {
-            console.error('Failed to get goals:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'get goals');
         }
     });
 
@@ -128,19 +142,16 @@ export function createGoalSeekRouter(store) {
      */
     router.post('/interventions', async (req, res) => {
         try {
-            const { goalId, type, reason, choices } = req.body;
+            const { goalId, type } = req.body;
 
-            if (!goalId || !type) {
-                return res.status(400).json({
-                    error: 'Missing required fields: goalId, type'
-                });
+            if (respondIfMissingFields(res, req.body, ['goalId', 'type'])) {
+                return;
             }
 
             const intervention = await store.createIntervention(req.body);
             res.status(201).json(intervention);
         } catch (error) {
-            console.error('Failed to create intervention:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'create intervention');
         }
     });
 
@@ -158,8 +169,7 @@ export function createGoalSeekRouter(store) {
 
             res.json(intervention);
         } catch (error) {
-            console.error('Failed to get intervention:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'get intervention');
         }
     });
 
@@ -177,8 +187,7 @@ export function createGoalSeekRouter(store) {
 
             res.json(intervention);
         } catch (error) {
-            console.error('Failed to update intervention:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'update intervention');
         }
     });
 
@@ -190,17 +199,13 @@ export function createGoalSeekRouter(store) {
         try {
             const { status } = req.query;
 
-            let interventions;
-            if (status === 'pending') {
-                interventions = await store.getPendingInterventions();
-            } else {
-                interventions = Array.from((await store.getAllGoals()).values());
-            }
+            const interventions = status === 'pending'
+                ? await store.getPendingInterventions()
+                : Array.from((await store.getAllGoals()).values());
 
             res.json(interventions || []);
         } catch (error) {
-            console.error('Failed to get interventions:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'get interventions');
         }
     });
 
@@ -216,17 +221,14 @@ export function createGoalSeekRouter(store) {
         try {
             const { goalId, phase, action } = req.body;
 
-            if (!goalId || !phase || !action) {
-                return res.status(400).json({
-                    error: 'Missing required fields: goalId, phase, action'
-                });
+            if (respondIfMissingFields(res, req.body, ['goalId', 'phase', 'action'])) {
+                return;
             }
 
             const log = await store.createLog(req.body);
             res.status(201).json(log);
         } catch (error) {
-            console.error('Failed to create log:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'create log');
         }
     });
 
@@ -238,17 +240,13 @@ export function createGoalSeekRouter(store) {
         try {
             const { goalId } = req.query;
 
-            let logs;
-            if (goalId) {
-                logs = await store.getLogsByGoal(goalId);
-            } else {
-                logs = [];
-            }
+            const logs = goalId
+                ? await store.getLogsByGoal(goalId)
+                : [];
 
             res.json(logs);
         } catch (error) {
-            console.error('Failed to get logs:', error);
-            res.status(500).json({ error: error.message });
+            handleServerError(res, error, 'get logs');
         }
     });
 
