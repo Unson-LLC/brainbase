@@ -13,7 +13,11 @@ export class NocoDBTasksView {
         this.members = [];  // メンバーリスト（担当者ドロップダウン用）
         this.selfFilterValue = '__self__';
         this.unassignedFilterValue = '__unassigned__';
-        this.currentFilter = {
+        this.currentFilter = this._createDefaultFilter();
+    }
+
+    _createDefaultFilter() {
+        return {
             project: '',
             assignee: this.selfFilterValue,
             searchText: '',
@@ -169,36 +173,37 @@ export class NocoDBTasksView {
         }
     }
 
+    _setFilter(key, value, transform = (val) => val) {
+        this.currentFilter[key] = transform(value);
+        this.render();
+    }
+
     /**
      * フィルタ変更ハンドラ
      */
     handleFilterChange(project) {
-        this.currentFilter.project = project;
-        this.render();
+        this._setFilter('project', project);
     }
 
     /**
      * 担当者フィルタ変更ハンドラ
      */
     handleAssigneeFilterChange(assignee) {
-        this.currentFilter.assignee = assignee;
-        this.render();
+        this._setFilter('assignee', assignee);
     }
 
     /**
      * タスク名検索変更ハンドラ
      */
     handleSearchFilterChange(searchText) {
-        this.currentFilter.searchText = searchText.trim();
-        this.render();
+        this._setFilter('searchText', (searchText || '').trim());
     }
 
     /**
      * 完了タスク表示トグル
      */
     handleHideCompletedChange(hideCompleted) {
-        this.currentFilter.hideCompleted = hideCompleted;
-        this.render();
+        this._setFilter('hideCompleted', hideCompleted);
     }
 
     /**
