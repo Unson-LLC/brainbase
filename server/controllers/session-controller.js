@@ -223,10 +223,12 @@ export class SessionController {
                 engine
             });
 
-            // Update state to active
-            const updatedSessions = state.sessions.map(s =>
-                s.id === id ? { ...s, intendedState: 'active' } : s
-            );
+            // Update state to active (archivedAt も除去)
+            const updatedSessions = state.sessions.map(s => {
+                if (s.id !== id) return s;
+                const { archivedAt, ...rest } = s;
+                return { ...rest, intendedState: 'active' };
+            });
 
             await this.stateStore.update({
                 ...state,
