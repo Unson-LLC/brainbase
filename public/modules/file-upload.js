@@ -13,6 +13,31 @@ let consoleArea = null;
 let dropOverlay = null;
 let dragCounter = 0;
 
+// Shared drag helpers keep drag/drop UX consistent across targets
+function preventDefaultBehavior(event) {
+    event.preventDefault();
+    event.stopPropagation();
+}
+
+function resetDragState() {
+    dragCounter = 0;
+    consoleArea?.classList.remove('dragging');
+    dropOverlay?.classList.remove('active');
+}
+
+function setCopyDropEffect(event) {
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'copy';
+    }
+}
+
+async function processDroppedFiles(dataTransfer) {
+    const files = dataTransfer?.files;
+    if (files && files.length > 0) {
+        await handleFiles(files);
+    }
+}
+
 // --- Core Functions ---
 
 /**
@@ -114,50 +139,38 @@ async function handleFiles(files) {
 function setupDragDropEvents() {
     // Prevent default drag behaviors on document level
     document.addEventListener('dragenter', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        preventDefaultBehavior(e);
         consoleArea?.classList.add('dragging');
     });
 
     document.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Safari requires explicitly setting dropEffect to allow file drops
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        preventDefaultBehavior(e);
+        setCopyDropEffect(e); // Safari requires dropEffect
     });
 
     document.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        preventDefaultBehavior(e);
         if (e.relatedTarget === null) {
-            consoleArea?.classList.remove('dragging');
-            dropOverlay?.classList.remove('active');
-            dragCounter = 0;
+            resetDragState();
         }
     });
 
     document.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        consoleArea?.classList.remove('dragging');
-        dropOverlay?.classList.remove('active');
-        dragCounter = 0;
-
-        // Fallback: handle drops even if overlay didn't activate (Safari)
-        const files = e.dataTransfer?.files;
-        if (files && files.length > 0) {
-            handleFiles(files);
-        }
+        preventDefaultBehavior(e);
+        resetDragState();
+        processDroppedFiles(e.dataTransfer); // Fallback: ensure drop works even without overlay
     });
 
     // Show overlay when dragging over console area
     consoleArea?.addEventListener('dragenter', (e) => {
+        preventDefaultBehavior(e);
         dragCounter++;
         dropOverlay?.classList.add('active');
         lucide.createIcons();
     });
 
     consoleArea?.addEventListener('dragleave', (e) => {
+        preventDefaultBehavior(e);
         dragCounter--;
         if (dragCounter === 0) {
             dropOverlay?.classList.remove('active');
@@ -166,44 +179,26 @@ function setupDragDropEvents() {
 
     // Allow dropping directly on console area (Safari may skip overlay)
     consoleArea?.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        preventDefaultBehavior(e);
+        setCopyDropEffect(e);
     });
 
     consoleArea?.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dragCounter = 0;
-        consoleArea?.classList.remove('dragging');
-        dropOverlay?.classList.remove('active');
-
-        const files = e.dataTransfer?.files;
-        if (files && files.length > 0) {
-            await handleFiles(files);
-        }
+        preventDefaultBehavior(e);
+        resetDragState();
+        await processDroppedFiles(e.dataTransfer);
     });
 
     // Handle drop on overlay
     dropOverlay?.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        preventDefaultBehavior(e);
+        setCopyDropEffect(e);
     });
 
     dropOverlay?.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dragCounter = 0;
-        consoleArea?.classList.remove('dragging');
-        dropOverlay?.classList.remove('active');
-
-        const dt = e.dataTransfer;
-        const files = dt.files;
-
-        if (files.length > 0) {
-            await handleFiles(files);
-        }
+        preventDefaultBehavior(e);
+        resetDragState();
+        await processDroppedFiles(e.dataTransfer);
     });
 }
 
