@@ -639,7 +639,6 @@ app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api/goal-seek', createGoalSeekRouter({
-    authService,
     goalStore,
     sessionMonitor,
     managerAI
