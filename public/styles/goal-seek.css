@@ -47,7 +47,7 @@
     flex-shrink: 0;
 }
 .sgb-badge.badge-active     { background: rgba(107,114,128,0.2); color: var(--gs-gray); }
-.sgb-badge.badge-monitoring { background: rgba(16,185,129,0.15); color: var(--gs-green); }
+.sgb-badge.badge-monitoring { background: rgba(16,185,129,0.15); color: var(--gs-green); animation: sgb-pulse 2s ease-in-out infinite; }
 .sgb-badge.badge-problem    { background: rgba(239,68,68,0.15);  color: var(--gs-red); }
 .sgb-badge.badge-escalation { background: rgba(245,158,11,0.15); color: var(--gs-yellow); }
 .session-goal-banner .sgb-btn {
@@ -62,6 +62,16 @@
     opacity: 0.8;
 }
 .session-goal-banner .sgb-btn:hover { opacity: 1; }
+.session-goal-banner .sgb-check-time {
+    font-size: 10px;
+    opacity: 0.5;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+@keyframes sgb-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
 
 /* =========================================
    CSS Variables

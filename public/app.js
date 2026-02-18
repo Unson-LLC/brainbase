@@ -1291,8 +1291,39 @@ export class App {
             const { currentSessionId } = appStore.getState();
             if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
         });
+        const unsubGoalMonitoringStarted = eventBus.on(EVENTS.GOAL_MONITORING_STARTED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalMonitoringStopped = eventBus.on(EVENTS.GOAL_MONITORING_STOPPED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalProgressUpdate = eventBus.on(EVENTS.GOAL_PROGRESS_UPDATE, (event) => {
+            const sessionId = event.detail?.goal?.sessionId;
+            const { currentSessionId } = appStore.getState();
+            const targetSession = sessionId || currentSessionId;
+            if (targetSession === currentSessionId) {
+                // チェック時刻だけ軽量更新（再レンダリングなし）
+                const checkTimeEl = document.getElementById('sgb-check-time');
+                if (checkTimeEl) {
+                    const now = new Date();
+                    checkTimeEl.textContent = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')} チェック済`;
+                }
+                // ゴールのstatus変化があれば再レンダリング
+                const goal = event.detail?.goal;
+                if (goal && (goal.status === 'problem' || goal.status === 'escalation')) {
+                    this._updateSessionGoalBanner(targetSession);
+                }
+            }
+        });
+        const unsubGoalProblemDetected = eventBus.on(EVENTS.GOAL_PROBLEM_DETECTED, (event) => {
+            const sessionId = event.detail?.sessionId;
+            const { currentSessionId } = appStore.getState();
+            if (sessionId === currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -2092,11 +2123,17 @@ export class App {
             const btnLabel = goal.status === 'monitoring' || goal.status === 'problem' ? '監視停止' : '監視開始';
             const btnAction = goal.status === 'monitoring' || goal.status === 'problem' ? 'stop' : 'start';
 
+            const isMonitoringActive = goal.status === 'monitoring' || goal.status === 'problem';
+            const checkTimeHtml = isMonitoringActive
+                ? `<span class="sgb-check-time" id="sgb-check-time">チェック中...</span>`
+                : '';
+
             banner.innerHTML = `
                 <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
                 <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
                 <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
                 <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
+                ${checkTimeHtml}
             `;
 
             banner.className = `session-goal-banner status-${goal.status}`;
