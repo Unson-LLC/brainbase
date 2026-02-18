@@ -30,7 +30,7 @@ export class GoalSeekService {
      */
     _getHeaders() {
         const headers = { 'Content-Type': 'application/json' };
-        const token = localStorage.getItem('brainbase_token');
+        const token = localStorage.getItem('brainbase.auth.token');
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }

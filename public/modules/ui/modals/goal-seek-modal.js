@@ -31,7 +31,7 @@ export class GoalSeekModal {
     _createModalElement() {
         this.modalElement = document.createElement('div');
         this.modalElement.id = 'goal-seek-modal';
-        this.modalElement.className = 'modal-overlay hidden';
+        this.modalElement.className = 'modal';
         document.body.appendChild(this.modalElement);
     }
 
@@ -39,7 +39,6 @@ export class GoalSeekModal {
         if (!this.modalElement) return;
         this._sessionId = sessionId || null;
         this._renderContent();
-        this.modalElement.classList.remove('hidden');
         this.modalElement.classList.add('active');
         this.eventBus.emit(EVENTS.MODAL_OPENED, { modalId: 'goal-seek-modal' });
     }
@@ -47,7 +46,6 @@ export class GoalSeekModal {
     hide() {
         if (!this.modalElement) return;
         this.modalElement.classList.remove('active');
-        this.modalElement.classList.add('hidden');
         this.eventBus.emit(EVENTS.MODAL_CLOSED, { modalId: 'goal-seek-modal' });
     }
 
@@ -55,49 +53,54 @@ export class GoalSeekModal {
         if (!this.modalElement) return;
 
         this.modalElement.innerHTML = `
-            <div class="modal-content gs-modal">
+            <div class="modal-content">
                 <div class="modal-header">
-                    <h3>Set Goal for Session</h3>
-                    <button class="modal-close-btn" id="gs-modal-close">&times;</button>
+                    <h3><i data-lucide="target"></i> ゴール設定</h3>
+                    <button class="close-modal-btn" id="gs-modal-close"><i data-lucide="x"></i></button>
                 </div>
                 <div class="modal-body">
-                    <div class="gs-form-group">
-                        <label class="gs-label">Session ID</label>
-                        <input type="text" id="gs-session-id" class="gs-input"
+                    <div class="form-group">
+                        <label>セッションID</label>
+                        <input type="text" id="gs-session-id" class="form-input"
                                value="${this._escapeAttr(this._sessionId || '')}"
-                               placeholder="e.g. session-1234567890" />
+                               placeholder="例: session-1234567890" />
                     </div>
-                    <div class="gs-form-group">
-                        <label class="gs-label">Goal Title *</label>
-                        <input type="text" id="gs-goal-title" class="gs-input"
-                               placeholder="e.g. Implement user authentication" />
+                    <div class="form-group">
+                        <label>ゴール名 *</label>
+                        <input type="text" id="gs-goal-title" class="form-input"
+                               placeholder="例: ユーザー認証の実装" />
                     </div>
-                    <div class="gs-form-group">
-                        <label class="gs-label">Description</label>
-                        <textarea id="gs-goal-desc" class="gs-textarea" rows="3"
-                                  placeholder="Detailed description of what the session should accomplish"></textarea>
+                    <div class="form-group">
+                        <label>説明</label>
+                        <textarea id="gs-goal-desc" class="form-input" rows="3"
+                                  placeholder="セッションで達成したいことの詳細"></textarea>
                     </div>
-                    <div class="gs-form-group">
-                        <label class="gs-label">Completion Criteria (one per line)</label>
-                        <textarea id="gs-goal-criteria" class="gs-textarea" rows="3"
-                                  placeholder="Tests pass\nCode compiles\nNo TypeErrors"></textarea>
+                    <div class="form-group">
+                        <label>完了条件（1行1項目）</label>
+                        <textarea id="gs-goal-criteria" class="form-input" rows="3"
+                                  placeholder="テスト通過&#10;ビルド成功&#10;TypeErrorなし"></textarea>
                     </div>
-                    <div class="gs-form-group">
-                        <label class="gs-label">Auto-Answer Level</label>
-                        <select id="gs-auto-answer" class="gs-select">
-                            <option value="conservative">Conservative - Only confirmations</option>
-                            <option value="moderate" selected>Moderate - Technical decisions auto</option>
-                            <option value="aggressive">Aggressive - Almost everything auto</option>
+                    <div class="form-group">
+                        <label>Manager AI 自動回答レベル</label>
+                        <select id="gs-auto-answer" class="form-input">
+                            <option value="conservative">控えめ - 確認系のみ自動回答</option>
+                            <option value="moderate" selected>標準 - 技術判断は自動回答</option>
+                            <option value="aggressive">積極的 - ほぼ全て自動回答</option>
                         </select>
                     </div>
-                    <div id="gs-modal-error" class="gs-error hidden"></div>
+                    <div id="gs-modal-error" class="hidden" style="color: var(--red); font-size: 0.85rem; margin-top: 8px;"></div>
                 </div>
                 <div class="modal-footer">
-                    <button id="gs-modal-cancel" class="btn-secondary">Cancel</button>
-                    <button id="gs-modal-submit" class="btn-primary">Create Goal</button>
+                    <button id="gs-modal-cancel" class="btn-secondary">キャンセル</button>
+                    <button id="gs-modal-submit" class="btn-primary">ゴール作成</button>
                 </div>
             </div>
         `;
+
+        // Lucideアイコンを描画
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons({ nodes: [this.modalElement] });
+        }
 
         // Reattach handlers after render
         this._attachEventHandlers();
@@ -149,11 +152,11 @@ export class GoalSeekModal {
         const errorEl = this.modalElement.querySelector('#gs-modal-error');
 
         if (!sessionId) {
-            this._showError(errorEl, 'Session ID is required');
+            this._showError(errorEl, 'セッションIDは必須です');
             return;
         }
         if (!title) {
-            this._showError(errorEl, 'Goal title is required');
+            this._showError(errorEl, 'ゴール名は必須です');
             return;
         }
 
@@ -165,7 +168,7 @@ export class GoalSeekModal {
             const submitBtn = this.modalElement.querySelector('#gs-modal-submit');
             if (submitBtn) {
                 submitBtn.disabled = true;
-                submitBtn.textContent = 'Creating...';
+                submitBtn.textContent = '作成中...';
             }
 
             await this.service.createGoal({
@@ -182,7 +185,7 @@ export class GoalSeekModal {
             const submitBtn = this.modalElement.querySelector('#gs-modal-submit');
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Create Goal';
+                submitBtn.textContent = 'ゴール作成';
             }
         }
     }

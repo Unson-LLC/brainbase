@@ -69,8 +69,16 @@ export class StateController {
             const sessionsWithStatus = (state.sessions || []).map(session => {
                 const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
 
+                // conversationSummaryを軽量化（claudeLogDir等の重いフィールドを除外）
+                const { conversationSummary, ...rest } = session;
+                const convLight = conversationSummary ? {
+                    totalConversations: conversationSummary.totalConversations || 0,
+                    lastActivity: conversationSummary.lastConversation?.lastActivity || null
+                } : undefined;
+
                 return {
-                    ...session,
+                    ...rest,
+                    ...(convLight && { conversationSummary: convLight }),
                     // 後方互換性のためttydRunningも残す（将来削除予定）
                     ttydRunning: runtimeStatus.ttydRunning,
                     // 新しいruntimeStatus
