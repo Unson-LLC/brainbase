@@ -1,5 +1,6 @@
 import { BrainbaseService } from './domain/brainbase/brainbase-service.js';
 import { GaugeChart } from './components/gauge-chart.js';
+import { waitForElement } from './utils/dom-ready.js';
 
 export class DashboardController {
     constructor() {
@@ -19,8 +20,8 @@ export class DashboardController {
     }
 
     async init() {
-        // Only initialize if dashboard panel exists
-        if (!document.getElementById('dashboard-panel')) return;
+        const dashboardPanel = await waitForElement('#dashboard-panel');
+        if (!dashboardPanel) return;
 
         await this.loadData();
         await this.loadCriticalAlerts();

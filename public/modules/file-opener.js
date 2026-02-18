@@ -1,3 +1,5 @@
+import { showTransientNotification } from './ui/transient-notification.js';
+
 /**
  * File Opener Utility
  * ファイルを開く/表示するためのヘルパー関数
@@ -221,9 +223,9 @@ function createContextMenu() {
             hideContextMenu();
             const success = await openSelectedFile(item.mode);
             if (success) {
-                showNotification(`${item.label}しました`);
+                showTransientNotification(`${item.label}しました`);
             } else {
-                showNotification('ファイルパスが見つかりませんでした', 'error');
+                showTransientNotification('ファイルパスが見つかりませんでした', { type: 'error' });
             }
         });
 
@@ -277,7 +279,7 @@ export function setupFileOpenerShortcuts() {
             e.preventDefault();
             const success = await openSelectedFile('file');
             if (success) {
-                showNotification('ファイルを開きました');
+                showTransientNotification('ファイルを開きました');
             }
         }
 
@@ -286,7 +288,7 @@ export function setupFileOpenerShortcuts() {
             e.preventDefault();
             const success = await openSelectedFile('reveal');
             if (success) {
-                showNotification('Finderで表示しました');
+                showTransientNotification('Finderで表示しました');
             }
         }
 
@@ -295,7 +297,7 @@ export function setupFileOpenerShortcuts() {
             e.preventDefault();
             const success = await openSelectedFile('cursor');
             if (success) {
-                showNotification('Cursorで開きました');
+                showTransientNotification('Cursorで開きました');
             }
         }
     });
@@ -333,50 +335,4 @@ export function setupFileOpenerShortcuts() {
     console.log('  Cmd+Shift+E: Open in Cursor');
 }
 
-/**
- * 通知を表示
- * @param {string} message - 通知メッセージ
- * @param {string} type - 通知タイプ ('success' | 'error')
- */
-function showNotification(message, type = 'success') {
-    // 簡易的な通知表示
-    const notification = document.createElement('div');
-    notification.textContent = message;
-
-    const bgColor = type === 'error' ? '#f44336' : '#4caf50';
-
-    notification.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: ${bgColor};
-        color: white;
-        padding: 12px 20px;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        z-index: 10000;
-        animation: fadeInOut 2s ease-in-out;
-    `;
-
-    // アニメーション定義
-    if (!document.getElementById('file-opener-animation')) {
-        const style = document.createElement('style');
-        style.id = 'file-opener-animation';
-        style.textContent = `
-            @keyframes fadeInOut {
-                0% { opacity: 0; transform: translateY(10px); }
-                10% { opacity: 1; transform: translateY(0); }
-                90% { opacity: 1; transform: translateY(0); }
-                100% { opacity: 0; transform: translateY(-10px); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    document.body.appendChild(notification);
-
-    // 2秒後に削除
-    setTimeout(() => {
-        notification.remove();
-    }, 2000);
-}
+// Notifications handled by showTransientNotification helper
