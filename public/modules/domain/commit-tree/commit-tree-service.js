@@ -13,6 +13,20 @@ export class CommitTreeService {
      * @param {number} [limit=50] - 取得件数
      * @returns {Promise<void>}
      */
+    /**
+     * commit-notify のタイムスタンプを確認
+     * @param {string} sessionId
+     * @returns {Promise<number>} lastNotify timestamp (0 if none)
+     */
+    async checkCommitNotify(sessionId) {
+        try {
+            const result = await httpClient.get(`/api/sessions/${sessionId}/commit-notify`);
+            return result.lastNotify || 0;
+        } catch {
+            return 0;
+        }
+    }
+
     async loadCommitLog(sessionId, limit = 50) {
         if (!sessionId) {
             appStore.setState({ commitLog: null });
