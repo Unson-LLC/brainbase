@@ -76,10 +76,10 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="session-project-emoji" title="${projectLabel}">${projectEmoji}</span>`
     : '';
 
-  // 会話ログ情報（conversationSummary - 軽量版）
+  // 会話ログ情報（conversationSummary）
   const convSummary = session.conversationSummary;
   const convCount = convSummary?.totalConversations || 0;
-  const convLastActivity = convSummary?.lastActivity;
+  const convLastActivity = convSummary?.lastConversation?.lastActivity;
   const convBadge = convCount > 0
     ? `<span class="conversation-badge" title="${convCount} conversation(s)${convLastActivity ? ', last: ' + formatRelativeTime(convLastActivity) : ''}"><i data-lucide="message-square"></i>${convCount}</span>`
     : '';

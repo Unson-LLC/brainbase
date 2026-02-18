@@ -8,7 +8,7 @@
  * - Manager AI設定（autoAnswerLevel）
  */
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { showSuccess, showError } from '../toast.js';
+import { showSuccess, showError } from '../../toast.js';
 
 export class GoalSeekModal {
     constructor({ eventBus: bus = eventBus, goalSeekService, browserNotificationService } = {}) {

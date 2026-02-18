@@ -81,8 +81,7 @@ export class DashboardController {
             this.renderSection1(),
             this.renderSection2(),
             this.renderSection4(),
-            this.renderSection5(),
-            this.renderSection6()
+            this.renderSection5()
         ]);
 
         // エラーチェック
