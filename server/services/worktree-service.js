@@ -232,7 +232,7 @@ export class WorktreeService {
             let changesNotPushed = 0;
             try {
                 const { stdout: aheadCount } = await this.execPromise(
-                    `jj -R "${workspacePath}" log -r "${mainBranchName}..@" -T '"x\n"' --no-pager 2>/dev/null | wc -l`
+                    `jj -R "${workspacePath}" log -r "${mainBranchName}..@-" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
                 );
                 changesNotPushed = parseInt(aheadCount.trim()) || 0;
             } catch {
@@ -245,7 +245,7 @@ export class WorktreeService {
                 const { stdout: statusOutput } = await this.execPromise(
                     `jj -R "${workspacePath}" status --no-pager`
                 );
-                hasWorkingCopyChanges = statusOutput.trim().length > 0;
+                hasWorkingCopyChanges = statusOutput.includes('Working copy changes:');
             } catch {
                 hasWorkingCopyChanges = false;
             }
