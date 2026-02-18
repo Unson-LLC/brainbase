@@ -88,7 +88,7 @@ export class GoalSeekModal {
                             <option value="aggressive">積極的 - ほぼ全て自動回答</option>
                         </select>
                     </div>
-                    <div id="gs-modal-error" class="hidden" style="color: var(--red); font-size: 0.85rem; margin-top: 8px;"></div>
+                    <div id="gs-modal-error" style="display:none; color: #e05252; font-size: 0.85rem; margin-top: 8px; padding: 6px 8px; background: rgba(224,82,82,0.12); border-radius: 4px;"></div>
                 </div>
                 <div class="modal-footer">
                     <button id="gs-modal-cancel" class="btn-secondary">キャンセル</button>
@@ -98,8 +98,8 @@ export class GoalSeekModal {
         `;
 
         // Lucideアイコンを描画
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons({ nodes: [this.modalElement] });
+        if (window.lucide) {
+            window.lucide.createIcons();
         }
 
         // Reattach handlers after render
@@ -193,7 +193,7 @@ export class GoalSeekModal {
     _showError(el, message) {
         if (el) {
             el.textContent = message;
-            el.classList.remove('hidden');
+            el.style.display = 'block';
         }
     }
 
