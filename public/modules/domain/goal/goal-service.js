@@ -7,7 +7,7 @@
  * 設計書参照: /Users/ksato/workspace/shared/_codex/projects/brainbase/goal-seek-story.md
  */
 
-import { EventBus, EVENTS } from '../../core/event-bus.js';
+import { EVENTS } from '../../core/event-bus.js';
 
 /**
  * ゴールタイプ
@@ -67,7 +67,7 @@ export class GoalSeekService {
      * @param {Object} options
      * @param {Object} options.httpClient - HTTPクライアント
      * @param {Object} options.repository - ゴールリポジトリ
-     * @param {EventBus} options.eventBus - イベントバス
+     * @param {import('../../core/event-bus.js').EventBus} options.eventBus - イベントバス
      * @param {Store} options.store - ストア
      */
     constructor(options = {}) {
@@ -91,12 +91,14 @@ export class GoalSeekService {
         // バリデーション
         this._validateGoalData(goalData);
 
+        const timestamp = this._getTimestamp();
+
         const goal = await this.repository.createGoal({
             ...goalData,
-            current: { value: 0, last_updated: new Date().toISOString() },
+            current: { value: 0, last_updated: timestamp },
             status: GOAL_STATUS.SEEKING,
             phase: GOAL_PHASE.SEEK,
-            createdAt: new Date().toISOString()
+            createdAt: timestamp
         });
 
         // Store更新
@@ -138,7 +140,7 @@ export class GoalSeekService {
             current: {
                 ...goal.current,
                 ...progress,
-                last_updated: new Date().toISOString()
+                last_updated: this._getTimestamp()
             }
         });
 
@@ -167,13 +169,11 @@ export class GoalSeekService {
      * @returns {Promise<Object>} 作成された介入
      */
     async detectIntervention(goalId, interventionData) {
-        const goal = await this.repository.getGoal(goalId);
-
         const intervention = await this.repository.createIntervention({
             goalId,
             ...interventionData,
             status: 'pending',
-            createdAt: new Date().toISOString()
+            createdAt: this._getTimestamp()
         });
 
         // ゴールステータスを介入中に変更
@@ -221,11 +221,8 @@ export class GoalSeekService {
             status: 'responded',
             userChoice: response.choice,
             userReason: response.reason,
-            respondedAt: new Date().toISOString()
+            respondedAt: this._getTimestamp()
         });
-
-        // ゴール取得・更新
-        const goal = await this.repository.getGoal(intervention.goalId);
 
         // 選択に応じた処理
         let newStatus = GOAL_STATUS.SEEKING;
@@ -271,7 +268,7 @@ export class GoalSeekService {
 
         const updatedGoal = await this.repository.updateGoal(goalId, {
             status: GOAL_STATUS.COMPLETED,
-            completedAt: new Date().toISOString()
+            completedAt: this._getTimestamp()
         });
 
         // Store更新
@@ -301,7 +298,7 @@ export class GoalSeekService {
 
         const updatedGoal = await this.repository.updateGoal(goalId, {
             status: GOAL_STATUS.FAILED,
-            failedAt: new Date().toISOString()
+            failedAt: this._getTimestamp()
         });
 
         // Store更新
@@ -332,7 +329,7 @@ export class GoalSeekService {
 
         const updatedGoal = await this.repository.updateGoal(goalId, {
             status: GOAL_STATUS.CANCELLED,
-            cancelledAt: new Date().toISOString()
+            cancelledAt: this._getTimestamp()
         });
 
         // Store更新
@@ -409,26 +406,7 @@ export class GoalSeekService {
      * @private
      */
     _updateStoreGoals(updatedGoal) {
-        if (!this.store) return;
-
-        const { goalSeek } = this.store.getState();
-        const goals = goalSeek?.goals || [];
-        const index = goals.findIndex(g => g.id === updatedGoal.id);
-
-        let newGoals;
-        if (index >= 0) {
-            newGoals = [...goals];
-            newGoals[index] = updatedGoal;
-        } else {
-            newGoals = [...goals, updatedGoal];
-        }
-
-        this.store.setState({
-            goalSeek: {
-                ...goalSeek,
-                goals: newGoals
-            }
-        });
+        this._updateGoalSeekCollection('goals', updatedGoal);
     }
 
     /**
@@ -436,24 +414,32 @@ export class GoalSeekService {
      * @private
      */
     _updateStoreInterventions(updatedIntervention) {
+        this._updateGoalSeekCollection('interventions', updatedIntervention);
+    }
+
+    /**
+     * goalSeek配下のコレクション更新
+     * @private
+     */
+    _updateGoalSeekCollection(collectionName, updatedItem) {
         if (!this.store) return;
 
         const { goalSeek } = this.store.getState();
-        const interventions = goalSeek?.interventions || [];
-        const index = interventions.findIndex(i => i.id === updatedIntervention.id);
+        const collection = goalSeek?.[collectionName] || [];
+        const index = collection.findIndex(item => item.id === updatedItem.id);
 
-        let newInterventions;
+        let newCollection;
         if (index >= 0) {
-            newInterventions = [...interventions];
-            newInterventions[index] = updatedIntervention;
+            newCollection = [...collection];
+            newCollection[index] = updatedItem;
         } else {
-            newInterventions = [...interventions, updatedIntervention];
+            newCollection = [...collection, updatedItem];
         }
 
         this.store.setState({
             goalSeek: {
-                ...goalSeek,
-                interventions: newInterventions
+                ...(goalSeek || {}),
+                [collectionName]: newCollection
             }
         });
     }
@@ -470,8 +456,16 @@ export class GoalSeekService {
             phase,
             action,
             result,
-            createdAt: new Date().toISOString()
+            createdAt: this._getTimestamp()
         });
+    }
+
+    /**
+     * タイムスタンプ取得
+     * @private
+     */
+    _getTimestamp() {
+        return new Date().toISOString();
     }
 }
 
