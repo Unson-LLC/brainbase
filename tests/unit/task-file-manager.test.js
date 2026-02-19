@@ -246,4 +246,28 @@ describe('TaskFileManager', () => {
             expect(doneWriteCall[1]).toContain('task-1');
         });
     });
+
+    describe('moveTask', () => {
+        it('moveTask呼び出し時_オーナー情報が保持される', async () => {
+            const sourceTasks = `- [ ] Source Task
+  - _ID: task-1_
+  - _Owner: owner-chan_`;
+
+            fs.readFile.mockImplementation((path) => {
+                if (path.includes('/fromProject/tasks.md')) return Promise.resolve(sourceTasks);
+                if (path.includes('/fromProject/done.md')) return Promise.resolve('');
+                if (path.includes('/toProject/tasks.md')) return Promise.resolve('');
+                if (path.includes('/toProject/done.md')) return Promise.resolve('');
+                return Promise.reject({ code: 'ENOENT' });
+            });
+            fs.writeFile.mockResolvedValue(undefined);
+            fs.mkdir.mockResolvedValue(undefined);
+
+            const result = await manager.moveTask('fromProject', 'toProject', 'task-1');
+
+            expect(result).toBe(true);
+            const destWriteCall = fs.writeFile.mock.calls.find(c => c[0].includes('/toProject/tasks.md'));
+            expect(destWriteCall[1]).toContain('_Owner: owner-chan_');
+        });
+    });
 });
