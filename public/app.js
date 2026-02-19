@@ -1087,7 +1087,9 @@ export class App {
                 this.showConsole();
             }
 
-            // Update session goal banner
+            // Update session goal banner（セッション切り替え時は即座に非表示→再描画）
+            const banner = document.getElementById('session-goal-banner');
+            if (banner) banner.className = 'session-goal-banner hidden';
             this._updateSessionGoalBanner(sessionId);
         });
 
@@ -2108,6 +2110,13 @@ export class App {
     async _updateSessionGoalBanner(sessionId) {
         const banner = document.getElementById('session-goal-banner');
         if (!banner) return;
+
+        // セッションが変わったら即座に非表示（APIレスポンス待ちの間に古いバナーが残るのを防ぐ）
+        const prevSessionId = banner.dataset.sessionId;
+        if (prevSessionId && prevSessionId !== sessionId) {
+            banner.className = 'session-goal-banner hidden';
+        }
+        banner.dataset.sessionId = sessionId;
 
         try {
             const goals = await this.goalSeekService.getGoals();
