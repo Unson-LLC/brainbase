@@ -46,6 +46,17 @@ export class SettingsCore {
   }
 
   /**
+   * Lucide icons再初期化（存在チェック付き）
+   * @private
+   */
+  _refreshIcons() {
+    if (typeof lucide === 'undefined') {
+      return;
+    }
+    lucide.createIcons();
+  }
+
+  /**
    * Core Pluginを登録
    * @private
    */
@@ -91,9 +102,7 @@ export class SettingsCore {
           container.innerHTML = this._renderOverviewHTML(settingsIntegrity, settingsUnified, settingsManaStats, settingsHealth);
 
           // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          this._refreshIcons();
         }
       }
     });
@@ -132,9 +141,7 @@ export class SettingsCore {
           this._setupOrganizationsCrud(container, settingsOrganizations || []);
 
           // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          this._refreshIcons();
         }
       }
     });
@@ -201,9 +208,7 @@ export class SettingsCore {
           }
 
           // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          this._refreshIcons();
         }
       }
     });
@@ -224,9 +229,7 @@ export class SettingsCore {
           this._setupNotificationsCrud(container, notifications);
 
           // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          this._refreshIcons();
         }
       }
     });
