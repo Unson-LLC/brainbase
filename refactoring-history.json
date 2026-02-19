@@ -407,9 +407,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/242",
       "pr_status": "merged",
       "merged_at": "2026-02-19T18:23:15Z"
+    },
+    {
+      "area": "public/modules/domain/goal",
+      "refactored_at": "2026-02-19T21:14:22.932Z",
+      "files_modified": [
+        "public/modules/domain/goal/goal-service.js"
+      ],
+      "changes_summary": "goalSeek系のストア更新をヘルパーにまとめてタイムスタンプ生成も専用メソッド化、ついでに無駄なGoalフェッチをカットしてサービスの重複と無駄動きをばっさり整えといたよ☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 4,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor keeps behavior stable while tightening timestamps via a shared helper, deduplicating store-update logic through `_updateGoalSeekCollection`, and cleaning unused imports—overall improving clarity without broad scope drift.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider adding/adjusting tests around store updates to prove the new helper covers both goals and interventions paths."
+      ],
+      "run_number": "72",
+      "run_id": "22200268448",
+      "trigger_event": "schedule",
+      "pr_number": 243,
+      "pr_branch": "ops-department/auto-refactor-72",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/243",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-19T21:11:10.556Z",
-  "total_prs_created": 16,
+  "last_updated": "2026-02-19T21:14:34.590Z",
+  "total_prs_created": 17,
   "total_prs_merged": 13
 }
