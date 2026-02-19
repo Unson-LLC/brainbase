@@ -56,7 +56,7 @@ export class SessionService {
 
         // 変換が発生した場合、state.jsonに保存
         if (migrationNeeded) {
-            await this.httpClient.post('/api/state', { ...state, sessions });
+            await this._persistSessionsState(state, sessions);
             console.log('[Migration] Converted "stopped" sessions to "paused"');
         }
 
@@ -221,25 +221,26 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, updates: Object, eventResult: Object}>}
      */
     async updateSession(sessionId, updates) {
-        const state = await this.httpClient.get('/api/state');
         const now = new Date().toISOString();
+        const normalizedUpdates = { ...updates };
 
         // アーカイブ時にarchivedAtを自動設定
-        if (updates.intendedState === 'archived' && !updates.archivedAt) {
-            updates.archivedAt = now;
+        if (normalizedUpdates.intendedState === 'archived' && !normalizedUpdates.archivedAt) {
+            normalizedUpdates.archivedAt = now;
         }
 
-        if (!updates.updatedAt) {
-            updates.updatedAt = now;
+        if (!normalizedUpdates.updatedAt) {
+            normalizedUpdates.updatedAt = now;
         }
 
-        const updatedSessions = state.sessions.map(s =>
-            s.id === sessionId ? { ...s, ...updates } : s
+        await this._applySessionsMutation(sessions =>
+            sessions.map(s =>
+                s.id === sessionId ? { ...s, ...normalizedUpdates } : s
+            )
         );
-        await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
         await this.loadSessions();
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
-        return { success: true, sessionId, updates, eventResult };
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates: normalizedUpdates });
+        return { success: true, sessionId, updates: normalizedUpdates, eventResult };
     }
 
     /**
@@ -248,9 +249,9 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async deleteSession(sessionId) {
-        const state = await this.httpClient.get('/api/state');
-        const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
-        await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
+        await this._applySessionsMutation(sessions =>
+            sessions.filter(s => s.id !== sessionId)
+        );
         await this.loadSessions();
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
         return { success: true, sessionId, eventResult };
@@ -532,24 +533,50 @@ export class SessionService {
      * @param {Array} sessions - 並び替えられたセッション配列
      */
     async saveSessionOrder(sessions) {
+        if (!Array.isArray(sessions)) {
+            throw new Error('sessions must be an array when saving order');
+        }
+
         try {
-            // Get current state from backend
-            const state = await this.httpClient.get('/api/state');
-
-            // Update sessions array with new order
-            const updatedState = {
-                ...state,
-                sessions
-            };
-
-            // Save to backend
-            await this.httpClient.post('/api/state', updatedState);
-
+            await this._applySessionsMutation(() =>
+                sessions.map(session => ({ ...session }))
+            );
             console.log('Session order saved successfully');
         } catch (error) {
             console.error('Failed to save session order:', error);
             throw error;
         }
+    }
+
+    /**
+     * state.jsonのsessionsを保存する共通ヘルパー
+     * @private
+     * @param {Object} state - 現在のstate.json内容
+     * @param {Array} sessions - 保存するセッション配列
+     * @returns {Promise<void>}
+     */
+    async _persistSessionsState(state, sessions) {
+        await this.httpClient.post('/api/state', { ...state, sessions });
+    }
+
+    /**
+     * state.sessionsに対する変更を一元管理
+     * @private
+     * @param {Function} mutationFn - セッション配列から新しい配列を生成する関数
+     * @returns {Promise<Array>} 更新後のセッション配列
+     */
+    async _applySessionsMutation(mutationFn) {
+        const state = await this.httpClient.get('/api/state');
+        const sessions = Array.isArray(state.sessions) ? state.sessions : [];
+        const workingCopy = [...sessions];
+        const updatedSessions = mutationFn(workingCopy);
+
+        if (!Array.isArray(updatedSessions)) {
+            throw new Error('session mutation must return an array');
+        }
+
+        await this._persistSessionsState(state, updatedSessions);
+        return updatedSessions;
     }
 
     /**
