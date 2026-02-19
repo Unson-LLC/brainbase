@@ -351,9 +351,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/240",
       "pr_status": "merged",
       "merged_at": "2026-02-19T12:34:48Z"
+    },
+    {
+      "area": "server/middleware",
+      "refactored_at": "2026-02-19T15:20:23.845Z",
+      "files_modified": [
+        "server/middleware/csrf.js"
+      ],
+      "changes_summary": "CSRFミドルウェアで安全判定やセッションID取得をヘルパー化して重複ばいばいしたよ〜エラーレスポンスも共通関数でスッキリだよん♡",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 6,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 97,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor cleanly extracts CSRF helper utilities (safe method check, device flow path detection, session ID lookup, expiry logic, and forbidden response helper) without altering behavior, improving readability and reuse while keeping the middleware logic intact.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Add unit tests around the new helper functions (e.g., `isTokenExpired`, `isSafeMethod`, `getSessionId`) to lock in the intended behavior and guard future regressions."
+      ],
+      "run_number": "70",
+      "run_id": "22187777763",
+      "trigger_event": "schedule",
+      "pr_number": 241,
+      "pr_branch": "ops-department/auto-refactor-70",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/241",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-19T15:19:01.008Z",
-  "total_prs_created": 14,
+  "last_updated": "2026-02-19T15:20:34.967Z",
+  "total_prs_created": 15,
   "total_prs_merged": 11
 }
