@@ -266,9 +266,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/235",
       "pr_status": "merged",
       "merged_at": "2026-02-19T00:35:14Z"
+    },
+    {
+      "area": "public/modules/core",
+      "refactored_at": "2026-02-19T03:53:13.646Z",
+      "files_modified": [
+        "public/modules/core/plugin-manager.js"
+      ],
+      "changes_summary": "slotまわりの重複ロジックを_helpersにまとめてvisibility制御も使い回せるようにしたから、可読性もメンテもしやすくなったよ〜☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 13,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 93,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor consolidates repeated slot iteration/visibility logic into `_slotEntries`, `_shouldManageVisibility`, and `_updateContainersVisibility`, improving readability without altering behavior and keeping scope tight to the plugin manager.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider adding focused unit coverage around `_slotEntries`/visibility helpers to lock in the new abstractions and guard against future regressions."
+      ],
+      "run_number": "66",
+      "run_id": "22167772132",
+      "trigger_event": "schedule",
+      "pr_number": 237,
+      "pr_branch": "ops-department/auto-refactor-66",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/237",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-19T03:51:44.308Z",
-  "total_prs_created": 11,
+  "last_updated": "2026-02-19T03:53:24.878Z",
+  "total_prs_created": 12,
   "total_prs_merged": 8
 }
