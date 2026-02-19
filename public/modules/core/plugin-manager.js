@@ -95,16 +95,7 @@ export class PluginManager {
         this.enabledConfig = new Set(enabled);
         this.disabledConfig = new Set(disabled);
 
-        if (this.store?.setState) {
-            this.store.setState({
-                plugins: {
-                    enabled,
-                    disabled,
-                    active: Array.from(this.activePluginIds),
-                    failed: Object.fromEntries(this.failedPlugins)
-                }
-            });
-        }
+        this._syncStoreState();
 
         if (this.eventBus?.emit) {
             await this.eventBus.emit(EVENTS.PLUGIN_CONFIG_LOADED, { enabled, disabled });
@@ -163,8 +154,7 @@ export class PluginManager {
         }
 
         const activeMounts = new Map();
-        for (const [slotId, slotDef] of Object.entries(plugin.slots || {})) {
-            const containers = this.getSlots(slotId);
+        for (const { slotId, slotConfig, containers, shouldManageVisibility } of this._iterateSlotEntries(plugin)) {
             if (containers.length === 0) {
                 if (this.eventBus?.emit) {
                     await this.eventBus.emit(EVENTS.PLUGIN_SLOT_MISSING, { pluginId, slotId });
@@ -172,11 +162,9 @@ export class PluginManager {
                 continue;
             }
 
-            const slotConfig = typeof slotDef === 'function' ? { mount: slotDef } : (slotDef || {});
             const mountFn = slotConfig.mount;
-            const manageVisibility = slotConfig.manageVisibility !== false;
             for (const container of containers) {
-                if (manageVisibility) {
+                if (shouldManageVisibility) {
                     this._setSlotVisibility(container, true);
                 }
                 if (!mountFn) continue;
@@ -210,13 +198,7 @@ export class PluginManager {
         const plugin = this.plugins.get(pluginId);
         if (!plugin || !plugin.enabled) return;
 
-        for (const [slotId, slotDef] of Object.entries(plugin.slots || {})) {
-            const containers = this.getSlots(slotId);
-            const slotConfig = typeof slotDef === 'function' ? { mount: slotDef } : (slotDef || {});
-            const manageVisibility = slotConfig.manageVisibility !== false;
-            if (!manageVisibility) continue;
-            containers.forEach(container => this._setSlotVisibility(container, false));
-        }
+        this._setPluginSlotVisibility(plugin, false);
 
         plugin.activeMounts.forEach(unmount => {
             try {
@@ -307,15 +289,41 @@ export class PluginManager {
         container.style.display = isVisible ? '' : 'none';
     }
 
-    _hidePluginSlots(plugin) {
+    _setPluginSlotVisibility(plugin, isVisible) {
         if (!plugin) return;
-        for (const [slotId, slotDef] of Object.entries(plugin.slots || {})) {
-            const slotConfig = typeof slotDef === 'function' ? { mount: slotDef } : (slotDef || {});
-            const manageVisibility = slotConfig.manageVisibility !== false;
-            if (!manageVisibility) continue;
-            const containers = this.getSlots(slotId);
-            containers.forEach(container => this._setSlotVisibility(container, false));
+        for (const { containers, shouldManageVisibility } of this._iterateSlotEntries(plugin)) {
+            if (!shouldManageVisibility) continue;
+            containers.forEach(container => this._setSlotVisibility(container, isVisible));
         }
+    }
+
+    _hidePluginSlots(plugin) {
+        this._setPluginSlotVisibility(plugin, false);
+    }
+
+    *_iterateSlotEntries(plugin) {
+        if (!plugin) return;
+        const slots = plugin.slots || {};
+        for (const [slotId, slotDef] of Object.entries(slots)) {
+            const slotConfig = this._resolveSlotConfig(slotDef);
+            yield {
+                slotId,
+                slotConfig,
+                containers: this.getSlots(slotId),
+                shouldManageVisibility: this._shouldManageVisibility(slotConfig)
+            };
+        }
+    }
+
+    _resolveSlotConfig(slotDef) {
+        if (typeof slotDef === 'function') {
+            return { mount: slotDef };
+        }
+        return slotDef || {};
+    }
+
+    _shouldManageVisibility(slotConfig) {
+        return slotConfig?.manageVisibility !== false;
     }
 
     _createDefaultApiClient() {

@@ -2,13 +2,13 @@
   "status": "success",
   "reason": "refactor_completed",
   "details": {
-    "area": "lib",
+    "area": "public/modules/core",
     "filesModified": 2,
-    "judgeScore": 95
+    "judgeScore": 90
   },
-  "timestamp": "2026-02-19T00:34:58.643Z",
-  "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22163464066",
-  "runNumber": "65",
+  "timestamp": "2026-02-19T03:36:12.318Z",
+  "workflow": "ops-department-auto-refactoring-daily.yml",
+  "runId": "22167252654",
+  "runNumber": "16",
   "eventName": "schedule"
 }

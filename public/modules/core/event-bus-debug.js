@@ -14,6 +14,22 @@ import { eventBus } from './event-bus.js';
 
 // イベント履歴の最大保持数
 const MAX_HISTORY_SIZE = 1000;
+const HISTORY_MISSING_WARNING = '[EventBus Debug] No event history available';
+
+function getDebugWindow() {
+    return typeof window === 'undefined' ? null : window;
+}
+
+function getEventHistory({ warnIfMissing = false } = {}) {
+    const win = getDebugWindow();
+    if (!win || !win.__EVENTBUS_HISTORY__) {
+        if (warnIfMissing) {
+            console.warn(HISTORY_MISSING_WARNING);
+        }
+        return null;
+    }
+    return win.__EVENTBUS_HISTORY__;
+}
 
 /**
  * EventBusデバッグモードを有効化
@@ -21,13 +37,14 @@ const MAX_HISTORY_SIZE = 1000;
  * - イベント履歴を記録
  */
 export function enableEventBusDebug() {
-    if (typeof window === 'undefined') {
+    const win = getDebugWindow();
+    if (!win) {
         console.warn('[EventBus Debug] window is not available');
         return;
     }
 
-    window.__EVENTBUS_DEBUG__ = true;
-    window.__EVENTBUS_HISTORY__ = [];
+    win.__EVENTBUS_DEBUG__ = true;
+    win.__EVENTBUS_HISTORY__ = [];
 
     console.log('[EventBus Debug] Debug mode enabled. Use traceCorrelation(id) to trace event chains.');
 }
@@ -36,18 +53,20 @@ export function enableEventBusDebug() {
  * EventBusデバッグモードを無効化
  */
 export function disableEventBusDebug() {
-    if (typeof window === 'undefined') return;
+    const win = getDebugWindow();
+    if (!win) return;
 
-    window.__EVENTBUS_DEBUG__ = false;
+    win.__EVENTBUS_DEBUG__ = false;
 }
 
 /**
  * イベント履歴をクリア
  */
 export function clearEventHistory() {
-    if (typeof window === 'undefined') return;
+    const history = getEventHistory({ warnIfMissing: true });
+    if (!history) return;
 
-    window.__EVENTBUS_HISTORY__ = [];
+    history.length = 0;
     console.log('[EventBus Debug] Event history cleared');
 }
 
@@ -57,19 +76,19 @@ export function clearEventHistory() {
  * @param {Object} detail - イベント詳細（_meta含む）
  */
 export function recordEvent(eventName, detail) {
-    if (typeof window === 'undefined' || !window.__EVENTBUS_HISTORY__) return;
-
+    const history = getEventHistory();
+    if (!history) return;
     const record = {
         eventName,
         detail,
         timestamp: Date.now()
     };
 
-    window.__EVENTBUS_HISTORY__.push(record);
+    history.push(record);
 
     // 最大サイズを超えたら古いものを削除
-    if (window.__EVENTBUS_HISTORY__.length > MAX_HISTORY_SIZE) {
-        window.__EVENTBUS_HISTORY__.shift();
+    if (history.length > MAX_HISTORY_SIZE) {
+        history.shift();
     }
 }
 
@@ -79,12 +98,10 @@ export function recordEvent(eventName, detail) {
  * @returns {Array} イベントチェーン（時系列順）
  */
 export function traceCorrelation(correlationId) {
-    if (typeof window === 'undefined' || !window.__EVENTBUS_HISTORY__) {
-        console.warn('[EventBus Debug] No event history available');
-        return [];
-    }
+    const history = getEventHistory({ warnIfMissing: true });
+    if (!history) return [];
 
-    const chain = window.__EVENTBUS_HISTORY__
+    const chain = history
         .filter(e => e.detail?._meta?.correlationId === correlationId)
         .sort((a, b) => a.timestamp - b.timestamp)
         .map(e => ({
@@ -115,12 +132,8 @@ export function traceCorrelation(correlationId) {
  * @returns {Array} 因果関係チェーン（原因→結果の順）
  */
 export function traceCausation(eventId) {
-    if (typeof window === 'undefined' || !window.__EVENTBUS_HISTORY__) {
-        console.warn('[EventBus Debug] No event history available');
-        return [];
-    }
-
-    const history = window.__EVENTBUS_HISTORY__;
+    const history = getEventHistory({ warnIfMissing: true });
+    if (!history) return [];
     const chain = [];
     let currentId = eventId;
 
@@ -157,12 +170,10 @@ export function traceCausation(eventId) {
  * @param {number} count - 表示件数（デフォルト: 10）
  */
 export function showRecentEvents(count = 10) {
-    if (typeof window === 'undefined' || !window.__EVENTBUS_HISTORY__) {
-        console.warn('[EventBus Debug] No event history available');
-        return [];
-    }
+    const history = getEventHistory({ warnIfMissing: true });
+    if (!history) return [];
 
-    const recent = window.__EVENTBUS_HISTORY__
+    const recent = history
         .slice(-count)
         .map(e => ({
             eventName: e.eventName,
@@ -179,13 +190,11 @@ export function showRecentEvents(count = 10) {
  * イベント統計を表示
  */
 export function showEventStats() {
-    if (typeof window === 'undefined' || !window.__EVENTBUS_HISTORY__) {
-        console.warn('[EventBus Debug] No event history available');
-        return {};
-    }
+    const history = getEventHistory({ warnIfMissing: true });
+    if (!history) return {};
 
     const stats = {};
-    window.__EVENTBUS_HISTORY__.forEach(e => {
+    history.forEach(e => {
         const name = e.eventName;
         stats[name] = (stats[name] || 0) + 1;
     });
