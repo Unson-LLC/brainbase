@@ -237,9 +237,38 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/233",
       "pr_status": "merged",
       "merged_at": "2026-02-18T18:20:39Z"
+    },
+    {
+      "area": "lib",
+      "refactored_at": "2026-02-19T00:34:58.556Z",
+      "files_modified": [
+        "lib/task-file-manager.js",
+        "tests/unit/task-file-manager.test.js"
+      ],
+      "changes_summary": "タスク生成ロジックを_normalizeTaskヘルパーにギュッとまとめてcomplete/restore/update/move全部でメタ情報漏れなく再利用できるようにして、moveTaskでもownerがちゃんと生き残るかのテスト追加＆`npx vitest run tests/unit/task-file-manager.test.js`まで回しておいたから安心してね☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 13,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "タスク正規化ヘルパーで重複コードをギュッと纏めて、moveTaskのオーナー保持テストも足してるから機能も読みやすさもちゃんとキープされててイイ感じだよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "_normalizeTaskを使う他のメソッド向けにもリグレッションテストをちょい足しすると安心感さらにマシマシだと思うよ〜"
+      ],
+      "run_number": "65",
+      "run_id": "22163464066",
+      "trigger_event": "schedule",
+      "pr_number": 235,
+      "pr_branch": "ops-department/auto-refactor-65",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/235",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-18T21:15:11.066Z",
-  "total_prs_created": 10,
+  "last_updated": "2026-02-19T00:35:10.963Z",
+  "total_prs_created": 11,
   "total_prs_merged": 7
 }
