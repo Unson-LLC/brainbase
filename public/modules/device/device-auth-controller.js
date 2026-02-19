@@ -1,3 +1,12 @@
+const SESSION_KEYS = {
+    deviceCode: 'brainbase_device_code',
+    userCode: 'brainbase_user_code',
+    slackUserId: 'brainbase_slack_user_id',
+    slackWorkspaceId: 'brainbase_slack_workspace_id'
+};
+
+const ALLOWED_ORIGINS = ['http://localhost:31013', 'https://bb.unson.jp', 'https://graph.brain-base.work'];
+
 /**
  * Device Authorization Controller
  * Handles OAuth 2.0 Device Code Flow (RFC 8628) for CLI clients
@@ -58,12 +67,9 @@ export class DeviceAuthController {
     attachEventListeners() {
         // User code input: format as XXXX-XXXX
         this.userCodeInput.addEventListener('input', (e) => {
-            let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            if (value.length > 4) {
-                value = value.slice(0, 4) + '-' + value.slice(4, 8);
-            }
-            e.target.value = value;
-            this.verifyBtn.disabled = value.replace('-', '').length !== 8;
+            const formattedValue = this.formatPartialUserCode(e.target.value);
+            e.target.value = formattedValue;
+            this.updateVerifyButtonState(formattedValue);
         });
 
         // Verify user code
@@ -93,16 +99,17 @@ export class DeviceAuthController {
 
         if (userCode) {
             // Auto-fill and verify if user_code is in URL (verification_uri_complete)
-            this.userCodeInput.value = userCode.toUpperCase();
-            this.verifyBtn.disabled = false;
+            const formattedUserCode = this.formatPartialUserCode(userCode);
+            this.userCodeInput.value = formattedUserCode;
+            this.updateVerifyButtonState(formattedUserCode);
             this.verifyUserCode();
         }
 
         // Check if returning from Slack OAuth
         const slackCallback = params.get('slack_callback');
         if (slackCallback === 'true') {
-            const deviceCode = sessionStorage.getItem('brainbase_device_code');
-            const userCode = sessionStorage.getItem('brainbase_user_code');
+            const deviceCode = sessionStorage.getItem(SESSION_KEYS.deviceCode);
+            const userCode = sessionStorage.getItem(SESSION_KEYS.userCode);
 
             // Slack認証後、localStorageからaccess情報を取得
             let slackUserId = null;
@@ -146,12 +153,12 @@ export class DeviceAuthController {
 
     async verifyUserCode() {
         // ハイフンを削除して、正しいフォーマット（XXXX-XXXX）に再フォーマット
-        const rawCode = this.userCodeInput.value.replace(/-/g, '').toUpperCase();
+        const rawCode = this.getRawUserCode(this.userCodeInput.value);
         if (rawCode.length !== 8) {
             this.showError('正しい形式で入力してください (XXXX-XXXX)');
             return;
         }
-        const userCode = `${rawCode.slice(0, 4)}-${rawCode.slice(4)}`;
+        const formattedCode = this.formatUserCode(rawCode);
 
         this.verifyBtn.disabled = true;
         this.verifyBtn.innerHTML = '<span class="spinner"></span> 確認中...';
@@ -171,13 +178,12 @@ export class DeviceAuthController {
             }
 
             this.deviceCode = data.device_code;
-            this.userCode = userCode;
-            this.userCodeDisplay.textContent = this.formatUserCode(userCode);
-            this.userCodeDisplayApprove.textContent = this.formatUserCode(userCode);
+            this.userCode = formattedCode;
+            this.userCodeDisplay.textContent = formattedCode;
+            this.userCodeDisplayApprove.textContent = formattedCode;
 
             // Save to sessionStorage for Slack callback
-            sessionStorage.setItem('brainbase_device_code', this.deviceCode);
-            sessionStorage.setItem('brainbase_user_code', this.formatUserCode(userCode));
+            this.persistDeviceSession(this.deviceCode, formattedCode);
 
             this.showStep('slack');
         } catch (error) {
@@ -195,8 +201,7 @@ export class DeviceAuthController {
         }
 
         // Save device_code to sessionStorage
-        sessionStorage.setItem('brainbase_device_code', this.deviceCode);
-        sessionStorage.setItem('brainbase_user_code', this.userCode);
+        this.persistDeviceSession(this.deviceCode, this.userCode);
 
         // Redirect to Slack OAuth
         const returnUrl = `/device?slack_callback=true`;
@@ -232,10 +237,7 @@ export class DeviceAuthController {
             }
 
             // Clear sessionStorage
-            sessionStorage.removeItem('brainbase_device_code');
-            sessionStorage.removeItem('brainbase_user_code');
-            sessionStorage.removeItem('brainbase_slack_user_id');
-            sessionStorage.removeItem('brainbase_slack_workspace_id');
+            this.clearSessionData();
 
             this.showStep('success');
         } catch (error) {
@@ -269,10 +271,7 @@ export class DeviceAuthController {
             }
 
             // Clear sessionStorage
-            sessionStorage.removeItem('brainbase_device_code');
-            sessionStorage.removeItem('brainbase_user_code');
-            sessionStorage.removeItem('brainbase_slack_user_id');
-            sessionStorage.removeItem('brainbase_slack_workspace_id');
+            this.clearSessionData();
 
             this.errorDesc.textContent = '認証を拒否しました';
             this.showStep('error');
@@ -285,12 +284,43 @@ export class DeviceAuthController {
     }
 
     formatUserCode(code) {
-        // Format as XXXX-XXXX
-        const clean = code.replace(/[^A-Z0-9]/g, '');
-        if (clean.length === 8) {
-            return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+        const raw = this.getRawUserCode(code);
+        if (raw.length === 8) {
+            return `${raw.slice(0, 4)}-${raw.slice(4)}`;
         }
-        return code;
+        return raw;
+    }
+
+    formatPartialUserCode(value) {
+        const raw = this.getRawUserCode(value);
+        if (raw.length <= 4) {
+            return raw;
+        }
+        return `${raw.slice(0, 4)}-${raw.slice(4)}`;
+    }
+
+    getRawUserCode(value) {
+        return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    }
+
+    updateVerifyButtonState(value) {
+        if (!this.verifyBtn) {
+            return;
+        }
+        this.verifyBtn.disabled = this.getRawUserCode(value).length !== 8;
+    }
+
+    persistDeviceSession(deviceCode, userCode) {
+        if (deviceCode) {
+            sessionStorage.setItem(SESSION_KEYS.deviceCode, deviceCode);
+        }
+        if (userCode) {
+            sessionStorage.setItem(SESSION_KEYS.userCode, userCode);
+        }
+    }
+
+    clearSessionData() {
+        Object.values(SESSION_KEYS).forEach((key) => sessionStorage.removeItem(key));
     }
 
     showError(message) {
@@ -311,8 +341,7 @@ export class DeviceAuthController {
 // Handle Slack OAuth callback (postMessage from auth callback page)
 window.addEventListener('message', (event) => {
     // Verify origin
-    const allowedOrigins = ['http://localhost:31013', 'https://bb.unson.jp', 'https://graph.brain-base.work'];
-    if (!allowedOrigins.includes(event.origin)) {
+    if (!ALLOWED_ORIGINS.includes(event.origin)) {
         return;
     }
 
@@ -325,8 +354,8 @@ window.addEventListener('message', (event) => {
             const slackWorkspaceId = access.workspaceId;
 
             if (slackUserId && slackWorkspaceId) {
-                sessionStorage.setItem('brainbase_slack_user_id', slackUserId);
-                sessionStorage.setItem('brainbase_slack_workspace_id', slackWorkspaceId);
+                sessionStorage.setItem(SESSION_KEYS.slackUserId, slackUserId);
+                sessionStorage.setItem(SESSION_KEYS.slackWorkspaceId, slackWorkspaceId);
 
                 // Redirect to approve step
                 window.location.href = '/device?slack_callback=true';
