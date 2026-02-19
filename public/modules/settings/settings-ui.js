@@ -99,10 +99,7 @@ export class SettingsUI {
       await this.onOpenCallback();
     }
 
-    // Lucide icons再初期化（動的にタブが追加された場合のため）
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
+    this._refreshIcons();
   }
 
   /**
@@ -143,10 +140,7 @@ export class SettingsUI {
       `)
       .join('');
 
-    // Lucide icons再初期化
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
+    this._refreshIcons();
 
     // タブクリックイベントを再設定
     this._setupTabClickListeners();
@@ -241,5 +235,16 @@ export class SettingsUI {
     };
 
     return iconMap[tabId] || 'folder';
+  }
+
+  /**
+   * Lucide icons再初期化（存在確認付き）
+   * @private
+   */
+  _refreshIcons() {
+    if (typeof lucide === 'undefined') {
+      return;
+    }
+    lucide.createIcons();
   }
 }
