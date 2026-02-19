@@ -2111,11 +2111,6 @@ export class App {
         const banner = document.getElementById('session-goal-banner');
         if (!banner) return;
 
-        // セッションが変わったら即座に非表示（APIレスポンス待ちの間に古いバナーが残るのを防ぐ）
-        const prevSessionId = banner.dataset.sessionId;
-        if (prevSessionId && prevSessionId !== sessionId) {
-            banner.className = 'session-goal-banner hidden';
-        }
         banner.dataset.sessionId = sessionId;
 
         try {
@@ -2279,6 +2274,7 @@ export class App {
 
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
+                this._updateSessionGoalBanner(currentSessionId);
             } else {
                 // Load default data (404エラーは許容)
                 try {
