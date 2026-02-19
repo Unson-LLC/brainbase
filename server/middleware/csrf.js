@@ -14,6 +14,32 @@ const tokens = new Map();
 
 // Token expiration time (1 hour)
 const TOKEN_EXPIRY = 60 * 60 * 1000;
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const DEVICE_FLOW_PATH_PREFIX = '/api/auth/device/';
+const DEFAULT_SESSION_ID = 'default';
+
+function isTokenExpired(createdAt, now = Date.now()) {
+    return now - createdAt > TOKEN_EXPIRY;
+}
+
+function isSafeMethod(method) {
+    return SAFE_METHODS.has(method);
+}
+
+function isDeviceCodeFlowPath(pathname) {
+    return pathname.startsWith(DEVICE_FLOW_PATH_PREFIX);
+}
+
+function getSessionId(headers) {
+    return headers['x-session-id'] || DEFAULT_SESSION_ID;
+}
+
+function respondForbidden(res, message) {
+    return res.status(403).json({
+        error: 'Forbidden',
+        message
+    });
+}
 
 /**
  * Generate a new CSRF token
@@ -39,8 +65,7 @@ export function validateCsrfToken(sessionId, token) {
     const stored = tokens.get(sessionId);
     if (!stored) return false;
 
-    // Check expiration
-    if (Date.now() - stored.createdAt > TOKEN_EXPIRY) {
+    if (isTokenExpired(stored.createdAt)) {
         tokens.delete(sessionId);
         return false;
     }
@@ -54,7 +79,7 @@ export function validateCsrfToken(sessionId, token) {
 export function cleanupExpiredTokens() {
     const now = Date.now();
     for (const [sessionId, data] of tokens.entries()) {
-        if (now - data.createdAt > TOKEN_EXPIRY) {
+        if (isTokenExpired(data.createdAt, now)) {
             tokens.delete(sessionId);
         }
     }
@@ -74,17 +99,17 @@ setInterval(cleanupExpiredTokens, 15 * 60 * 1000);
 export function csrfMiddleware() {
     return (req, res, next) => {
         // Skip safe methods
-        if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        if (isSafeMethod(req.method)) {
             return next();
         }
 
         // Skip Device Code Flow endpoints (CLI-based, no CSRF token available)
-        if (req.path.startsWith('/api/auth/device/')) {
+        if (isDeviceCodeFlowPath(req.path)) {
             return next();
         }
 
         const token = req.headers['x-csrf-token'];
-        const sessionId = req.headers['x-session-id'] || 'default';
+        const sessionId = getSessionId(req.headers);
 
         // In development, log warning but allow request
         if (process.env.NODE_ENV !== 'production') {
@@ -96,17 +121,11 @@ export function csrfMiddleware() {
 
         // In production, enforce CSRF validation
         if (!token) {
-            return res.status(403).json({
-                error: 'Forbidden',
-                message: 'CSRF token required'
-            });
+            return respondForbidden(res, 'CSRF token required');
         }
 
         if (!validateCsrfToken(sessionId, token)) {
-            return res.status(403).json({
-                error: 'Forbidden',
-                message: 'Invalid CSRF token'
-            });
+            return respondForbidden(res, 'Invalid CSRF token');
         }
 
         next();
@@ -121,7 +140,7 @@ export function csrfMiddleware() {
  * @param {Response} res
  */
 export function csrfTokenHandler(req, res) {
-    const sessionId = req.headers['x-session-id'] || 'default';
+    const sessionId = getSessionId(req.headers);
     const token = generateCsrfToken(sessionId);
     res.json({ token });
 }
