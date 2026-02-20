@@ -25,9 +25,8 @@ export class BrowserNotificationService {
      * @private
      */
     _syncPermissionState() {
-        // Notification APIが利用可能な場合、現在の権限を取得してStoreに反映
-        if (this._isNotificationSupported()) {
-            const apiPermission = Notification.permission;
+        const apiPermission = this._getPermissionFromApi();
+        if (apiPermission) {
             this.store.setState({ browserNotificationPermission: apiPermission });
         }
     }
@@ -47,17 +46,15 @@ export class BrowserNotificationService {
      */
     _setupEventListeners() {
         // NOTIFICATION_REQUEST イベントで権限リクエスト
-        const unsubRequest = this.eventBus.on(EVENTS.NOTIFICATION_REQUEST, async () => {
+        this._subscribe(EVENTS.NOTIFICATION_REQUEST, async () => {
             await this.requestPermission();
         });
-        this._unsubscribeFunctions.push(unsubRequest);
 
         // NOTIFICATION_SEND イベントで通知送信
-        const unsubSend = this.eventBus.on(EVENTS.NOTIFICATION_SEND, async (event) => {
+        this._subscribe(EVENTS.NOTIFICATION_SEND, async (event) => {
             const { title, options } = event.detail;
             this.notify(title, options);
         });
-        this._unsubscribeFunctions.push(unsubSend);
     }
 
     /**
@@ -67,8 +64,7 @@ export class BrowserNotificationService {
     async requestPermission() {
         // Notification APIがサポートされていない場合
         if (!this._isNotificationSupported()) {
-            const error = new Error('Notification API is not supported');
-            await this.eventBus.emit(EVENTS.NOTIFICATION_ERROR, { error });
+            await this._emitError(new Error('Notification API is not supported'));
             return 'denied';
         }
 
@@ -83,7 +79,7 @@ export class BrowserNotificationService {
 
             return permission;
         } catch (error) {
-            await this.eventBus.emit(EVENTS.NOTIFICATION_ERROR, { error });
+            await this._emitError(error);
             return 'denied';
         }
     }
@@ -95,11 +91,6 @@ export class BrowserNotificationService {
      * @returns {Object} 通知結果 ({ sent: boolean, fallback?: boolean, type?: string })
      */
     notify(title, options = {}) {
-        // Notification APIがサポートされていない場合はフォールバック
-        if (!this._isNotificationSupported()) {
-            return this._fallbackNotification(title, options);
-        }
-
         // 権限がない場合はフォールバック
         if (!this.hasPermission()) {
             return this._fallbackNotification(title, options);
@@ -132,7 +123,7 @@ export class BrowserNotificationService {
             return { sent: true };
         } catch (error) {
             // エラー時はフォールバック
-            this.eventBus.emit(EVENTS.NOTIFICATION_ERROR, { error, title, options });
+            this._emitError(error, { title, options });
             return this._fallbackNotification(title, options);
         }
     }
@@ -174,10 +165,45 @@ export class BrowserNotificationService {
      * @returns {boolean}
      */
     hasPermission() {
+        return this._getPermissionFromApi() === 'granted';
+    }
+
+    /**
+     * Notification APIから権限を取得
+     * @returns {string|null}
+     * @private
+     */
+    _getPermissionFromApi() {
         if (!this._isNotificationSupported()) {
-            return false;
+            return null;
         }
-        return Notification.permission === 'granted';
+        return Notification.permission;
+    }
+
+    /**
+     * Notification Errorイベントを発火
+     * @param {Error} error
+     * @param {Object} context
+     * @returns {Promise<{success: boolean}>}
+     * @private
+     */
+    _emitError(error, context = {}) {
+        return this.eventBus.emit(EVENTS.NOTIFICATION_ERROR, {
+            error,
+            ...context
+        });
+    }
+
+    /**
+     * EventBus購読を登録し解除関数を保持
+     * @param {string} eventName
+     * @param {Function} handler
+     * @private
+     */
+    _subscribe(eventName, handler) {
+        const unsubscribe = this.eventBus.on(eventName, handler);
+        this._unsubscribeFunctions.push(unsubscribe);
+        return unsubscribe;
     }
 
     /**
