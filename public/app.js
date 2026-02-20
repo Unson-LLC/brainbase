@@ -421,6 +421,9 @@ export class App {
         const lastCode = this.reconnectManager?.lastDisconnectCode;
         const recentlyNavigated = this._terminalLastNavigateAt && Date.now() - this._terminalLastNavigateAt < 2500;
 
+        // モバイルではMobile Input Dockから入力するため、iframeフォーカスは不要
+        const isMobile = window.innerWidth <= 768;
+
         let stateClass = 'blocked';
         let text = '入力: 不明';
         let title = `session=${sessionId}`;
@@ -461,7 +464,9 @@ export class App {
                 text = '入力: 切断';
                 title = `session=${sessionId} disconnected${typeof lastCode === 'number' ? ` (code ${lastCode})` : ''}`;
             }
-        } else if (!isFocused) {
+        } else if (!isFocused && !isMobile) {
+            // デスクトップのみ: フォーカスが外れていたらクリックを促す
+            // モバイルではMobile Input Dockから入力するためフォーカス不要
             stateClass = 'needs-focus';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;

@@ -5525,9 +5525,10 @@ body.resizing iframe {
         display: none;
     }
 
-    body.keyboard-open .mobile-bottom-nav {
+    /* 修正: モバイル下メニューバーを常に表示（キーボード開いてても表示） */
+    /* body.keyboard-open .mobile-bottom-nav {
         display: none;
-    }
+    } */
 
     body.keyboard-open .mobile-input-dock {
         bottom: calc(env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
@@ -5701,9 +5702,10 @@ body.resizing iframe {
         flex-wrap: wrap;
     }
 
-    body.mobile-composer-open .mobile-bottom-nav {
+    /* 修正: モバイル下メニューバーを常に表示（Composer開いてても表示） */
+    /* body.mobile-composer-open .mobile-bottom-nav {
         display: none;
-    }
+    } */
 
     /* Mobile Input Sheets */
     .mobile-input-sheet-overlay {
