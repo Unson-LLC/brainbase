@@ -463,9 +463,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/245",
       "pr_status": "merged",
       "merged_at": "2026-02-20T00:30:11Z"
+    },
+    {
+      "area": "public/modules/auth",
+      "refactored_at": "2026-02-20T06:23:34.441Z",
+      "files_modified": [
+        "public/modules/auth/auth-manager.js"
+      ],
+      "changes_summary": "AuthManagerで_verifyingフラグ操作があちこち重複してたから、共通処理を_asyncヘルパー`_withVerifying`にまとめてinitFromStorageやメッセージリスナー内でも使い回せるようにして、状態更新が確実にfinallyで走るよう整えたよ☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 1,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor cleanly centralizes the repeated verifying-flag toggling logic into `_withVerifying`, ensuring the flag always resets even on failures while preserving existing control flow for token verification and refresh handling.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider unit tests covering `_withVerifying` to document the expected behavior when operations throw, since this helper now guards multiple critical auth flows."
+      ],
+      "run_number": "75",
+      "run_id": "22213803661",
+      "trigger_event": "schedule",
+      "pr_number": 248,
+      "pr_branch": "ops-department/auto-refactor-75",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/248",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-20T03:49:49.939Z",
-  "total_prs_created": 18,
+  "last_updated": "2026-02-20T06:23:45.207Z",
+  "total_prs_created": 19,
   "total_prs_merged": 15
 }
