@@ -235,11 +235,13 @@ export class WorktreeService {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
 
-            // Get changes not pushed (main..@)
+            // Get changes not pushed (startCommit..@ if available, else main..@)
+            // startCommitを使うことでセッション開始後のcommitのみカウント（他セッションのcommitを除外）
             let changesNotPushed = 0;
             try {
+                const baseRef = startCommit || mainBranchName;
                 const { stdout: aheadCount } = await this.execPromise(
-                    `jj -R "${workspacePath}" log -r "${mainBranchName}..@-" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
+                    `jj -R "${workspacePath}" log -r "${baseRef}..@-" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
                 );
                 changesNotPushed = parseInt(aheadCount.trim()) || 0;
             } catch {
@@ -276,7 +278,9 @@ export class WorktreeService {
             }
 
             // Determine if integration (push) is needed
-            const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges || !bookmarkPushed;
+            // !bookmarkPushed は除外: 何も作業していないセッションでもbookmarkはremoteにない（false positive）
+            // commitがあれば changesNotPushed > 0 が補足するので !bookmarkPushed は不要
+            const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges;
 
             return {
                 exists: true,
