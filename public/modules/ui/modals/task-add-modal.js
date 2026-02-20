@@ -44,7 +44,7 @@ export class TaskAddModal {
         this.modalElement.classList.add('active');
 
         // タイトル入力にフォーカス
-        const titleInput = document.getElementById('add-task-title');
+        const { titleInput } = this._getFormElements();
         if (titleInput) {
             setTimeout(() => titleInput.focus(), 100);
         }
@@ -64,16 +64,18 @@ export class TaskAddModal {
      * フォームをクリア
      */
     async _clearForm() {
-        const titleInput = document.getElementById('add-task-title');
-        const assigneeInput = document.getElementById('add-task-assignee');
-        const projectInput = document.getElementById('add-task-project');
-        const priorityInput = document.getElementById('add-task-priority');
-        const dueInput = document.getElementById('add-task-due');
-        const descriptionInput = document.getElementById('add-task-description');
+        const {
+            titleInput,
+            assigneeInput,
+            projectInput,
+            priorityInput,
+            dueInput,
+            descriptionInput
+        } = this._getFormElements();
 
         if (titleInput) titleInput.value = '';
         if (assigneeInput) assigneeInput.value = this._getDefaultAssignee();
-        await this._populateProjectSelect();
+        await this._populateProjectSelect(projectInput);
         if (priorityInput) priorityInput.value = 'medium';
         if (dueInput) dueInput.value = this._getDefaultDueDate();
         if (descriptionInput) descriptionInput.value = '';
@@ -86,12 +88,14 @@ export class TaskAddModal {
      * タスクを保存
      */
     async save() {
-        const titleInput = document.getElementById('add-task-title');
-        const assigneeInput = document.getElementById('add-task-assignee');
-        const projectInput = document.getElementById('add-task-project');
-        const priorityInput = document.getElementById('add-task-priority');
-        const dueInput = document.getElementById('add-task-due');
-        const descriptionInput = document.getElementById('add-task-description');
+        const {
+            titleInput,
+            assigneeInput,
+            projectInput,
+            priorityInput,
+            dueInput,
+            descriptionInput
+        } = this._getFormElements();
 
         const title = titleInput?.value?.trim() || '';
         let assignee = assigneeInput?.value?.trim() || '';
@@ -212,7 +216,7 @@ export class TaskAddModal {
 
         // Enterキーで保存（タイトル入力欄）
         // IME変換中（isComposing）はスキップ
-        const titleInput = document.getElementById('add-task-title');
+        const { titleInput } = this._getFormElements();
         if (titleInput) {
             titleInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -230,6 +234,21 @@ export class TaskAddModal {
         const titleEl = document.getElementById('add-task-modal-title');
         if (!titleEl) return;
         titleEl.textContent = this.mode === 'nocodb' ? 'プロジェクトタスク追加' : 'ローカルタスク追加';
+    }
+
+    /**
+     * 入力要素の参照をまとめて取得
+     * @returns {Object}
+     */
+    _getFormElements() {
+        return {
+            titleInput: document.getElementById('add-task-title'),
+            assigneeInput: document.getElementById('add-task-assignee'),
+            projectInput: document.getElementById('add-task-project'),
+            priorityInput: document.getElementById('add-task-priority'),
+            dueInput: document.getElementById('add-task-due'),
+            descriptionInput: document.getElementById('add-task-description')
+        };
     }
 
     /**
@@ -278,8 +297,7 @@ export class TaskAddModal {
     /**
      * プロジェクト選択肢を更新
      */
-    async _populateProjectSelect() {
-        const projectInput = document.getElementById('add-task-project');
+    async _populateProjectSelect(projectInput = document.getElementById('add-task-project')) {
         if (!projectInput) return;
 
         await this._loadProjects();
