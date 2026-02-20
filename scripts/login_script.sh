@@ -210,11 +210,33 @@ if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
 fi
 
+sync_codex_prompts_link() {
+    local codex_dir="$HOME/.codex"
+    local prompts_link="$codex_dir/prompts"
+    local project_prompts_dir="$PWD/.claude/commands"
+
+    if [ ! -d "$project_prompts_dir" ]; then
+        return 0
+    fi
+
+    mkdir -p "$codex_dir" 2>/dev/null || true
+
+    # Use the current project command directory as the single source for /prompts:*.
+    if [ -L "$prompts_link" ] || [ -e "$prompts_link" ]; then
+        rm -rf "$prompts_link" 2>/dev/null || true
+    fi
+    ln -s "$project_prompts_dir" "$prompts_link" 2>/dev/null || true
+}
+
 # Apply tmux settings first (before session creation/attachment)
 # These settings help prevent character duplication when typing fast over WebSocket (ttyd)
 tmux set -g escape-time 0 2>/dev/null || true
 tmux set -g default-terminal "screen-256color" 2>/dev/null || true
 tmux set -g mouse off 2>/dev/null || true
+
+if [ "$ENGINE" = "codex" ]; then
+    sync_codex_prompts_link
+fi
 
 # Check if session exists
 if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then

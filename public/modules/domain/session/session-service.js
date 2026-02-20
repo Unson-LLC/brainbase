@@ -367,6 +367,36 @@ export class SessionService {
     }
 
     /**
+     * コミットログ取得
+     * @param {string} sessionId - セッションID
+     * @param {number} [limit=50] - 取得件数
+     * @returns {Promise<Object|null>}
+     */
+    async getCommitLog(sessionId, limit = 50) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/commit-log?limit=${limit}`);
+        } catch (error) {
+            console.error('Failed to get commit log:', error);
+            return null;
+        }
+    }
+
+    /**
+     * コミット通知タイムスタンプ取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<number>}
+     */
+    async getCommitNotify(sessionId) {
+        try {
+            const result = await this.httpClient.get(`/api/sessions/${sessionId}/commit-notify`);
+            return Number(result?.lastNotify || 0);
+        } catch (error) {
+            console.error('Failed to get commit notify timestamp:', error);
+            return 0;
+        }
+    }
+
+    /**
      * ローカルmainブランチ更新
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object>}
