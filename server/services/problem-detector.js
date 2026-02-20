@@ -16,44 +16,42 @@ export class ProblemDetector {
         this._lastOutputAt = new Map();
         this._lastOutputHash = new Map();
 
+        // 実際の障害を示すパターン（高確度なものに絞る）
         this.errorPatterns = [
-            /\bError\b[:\s]/,
-            /\bERROR\b/,
-            /\bFAIL(ED)?\b/i,
-            /\bfatal\b/i,
-            /\bpanic\b/i,
-            /\bTraceback\b/,
-            /at\s+\S+\s+\(\S+:\d+:\d+\)/,
-            /^\s+at\s+/m,
             /\bUnhandledPromiseRejection\b/,
-            /\bSyntaxError\b/,
-            /\bTypeError\b/,
-            /\bReferenceError\b/,
-            /\bEACCES\b/,
-            /\bENOENT\b/,
+            /\bfatal error\b/i,
+            /\bpanic:\s/i,
+            /\bTraceback \(most recent call last\)/,
             /\bECONNREFUSED\b/,
-            /\bexit code [1-9]\d*\b/i,
-            /\bcommand failed\b/i,
-            /\bpermission denied\b/i,
+            /\bsegmentation fault\b/i,
+            /\bkilled\b.*\bsignal\b/i,
+            /\bexit code [2-9]\d*\b/i,  // exit code 1は許容（多くのCLIが使う）
+            /\bprocess exited with code [2-9]\b/i,
+            /\bcore dumped\b/i,
         ];
 
+        // 対話的な入力を必要とするパターン（AIの質問文は除外）
         this.questionPatterns = [
-            /\?\s*$/m,
-            /\(y\/n\)/i,
-            /\[Y\/n\]/,
-            /\[yes\/no\]/i,
-            /Press\s+(Enter|any key)/i,
-            /Do you want to/i,
-            /Would you like to/i,
-            /Please (choose|select|confirm)/i,
-            /Enter.*:/,
+            /\(y\/n\)\s*[：:>]?\s*$/im,
+            /\[Y\/n\]\s*$/m,
+            /\[yes\/no\]\s*$/im,
+            /Press\s+(Enter|any key)\s+to\s+continue/i,
         ];
 
-        this.ignorePatterns = [
-            /^#/,
-            /console\.(error|warn)/,
-            /\.test\./,
-            /expected.*error/i,
+        // 行単位で除外するパターン（Claude Code出力の誤検知防止）
+        this.ignoreLinePatterns = [
+            /^#/,                                    // コメント行
+            /console\.(error|warn|log)/,             // console出力
+            /\[.*\]\s+(error|warn|info|debug):/i,   // ロガー出力 [Tag] error:
+            /^[●○✓✗⏵⏸⎿⎾→←]/u,                    // Claude Code UIマーカー
+            /^\s*[+\-]\s+/,                          // diff出力
+            /^\s*\d+[→\s]/,                          // 行番号付きdiff
+            /\.test\.\w+/,                           // テストファイル
+            /expected.*error/i,                      // テストのexpected error
+            /catch\s*\(\w*err/i,                     // try-catch
+            /throw new \w*Error/i,                   // エラー生成コード
+            /Error\.message/i,                       // エラープロパティ参照
+            /err\.message/i,                         // エラープロパティ参照
         ];
     }
 
@@ -96,33 +94,30 @@ export class ProblemDetector {
      * @private
      */
     _detectErrors(output, sessionId) {
-        for (const pattern of this.ignorePatterns) {
-            if (pattern.test(output)) {
-                return null;
-            }
-        }
+        // 行単位でignoreLinePatternに一致する行を除外してからエラー検知
+        const lines = output.split('\n');
+        const filteredLines = lines.filter(line =>
+            !this.ignoreLinePatterns.some(p => p.test(line))
+        );
 
-        const matchedPatterns = [];
-        for (const pattern of this.errorPatterns) {
-            if (pattern.test(output)) {
-                matchedPatterns.push(pattern.source);
-            }
-        }
+        if (filteredLines.length === 0) return null;
 
-        if (matchedPatterns.length === 0) return null;
+        const filteredOutput = filteredLines.join('\n');
 
-        const hasCritical = /\b(fatal|panic|UnhandledPromiseRejection)\b/i.test(output);
+        const matchedLines = filteredLines.filter(line =>
+            this.errorPatterns.some(p => p.test(line))
+        );
+
+        if (matchedLines.length === 0) return null;
+
+        const hasCritical = /\b(fatal|panic|UnhandledPromiseRejection|ECONNREFUSED|segmentation fault|core dumped)\b/i.test(filteredOutput);
         const severity = hasCritical ? 'critical' : 'warning';
-
-        const errorLines = output.split('\n')
-            .filter(line => this.errorPatterns.some(p => p.test(line)))
-            .slice(0, 5);
 
         return {
             type: 'error',
             severity,
             title: 'エラー検知',
-            description: errorLines.join('\n'),
+            description: matchedLines.slice(0, 5).join('\n'),
             suggestedActions: ['エラーを確認して修正', '別アプローチを試行', 'セッションを停止']
         };
     }
