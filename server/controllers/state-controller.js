@@ -16,7 +16,9 @@ const ALLOWED_SESSION_FIELDS = [
     // Schema v3 追加フィールド
     'ttydProcess',
     // 状態管理フィールド
-    'hookStatus'
+    'hookStatus',
+    // スキャン生成フィールド
+    'conversationSummary'
 ];
 
 /**
