@@ -11,9 +11,9 @@
     gap: 8px;
     padding: 6px 240px 6px 12px;
     background: var(--gs-bg-monitoring);
-    border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.3);
     font-size: 13px;
-    color: var(--text-primary);
+    color: rgba(255, 255, 255, 0.9);
     min-height: 32px;
 }
 .session-goal-banner.status-problem {
@@ -46,10 +46,10 @@
     font-weight: 600;
     flex-shrink: 0;
 }
-.sgb-badge.badge-active     { background: rgba(107,114,128,0.2); color: var(--gs-gray); }
-.sgb-badge.badge-monitoring { background: rgba(16,185,129,0.15); color: var(--gs-green); animation: sgb-pulse 2s ease-in-out infinite; }
-.sgb-badge.badge-problem    { background: rgba(239,68,68,0.15);  color: var(--gs-red); }
-.sgb-badge.badge-escalation { background: rgba(245,158,11,0.15); color: var(--gs-yellow); }
+.sgb-badge.badge-active     { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); }
+.sgb-badge.badge-monitoring { background: rgba(16,185,129,0.35);  color: #6ee7b7; animation: sgb-pulse 2s ease-in-out infinite; }
+.sgb-badge.badge-problem    { background: rgba(255,255,255,0.2);  color: #fca5a5; }
+.sgb-badge.badge-escalation { background: rgba(245,158,11,0.35);  color: #fde68a; }
 .session-goal-banner .sgb-btn {
     font-size: 11px;
     padding: 2px 9px;
@@ -82,9 +82,9 @@
     --gs-yellow: #f59e0b;
     --gs-blue: #3b82f6;
     --gs-gray: #6b7280;
-    --gs-bg-problem: rgba(239, 68, 68, 0.08);
-    --gs-bg-monitoring: rgba(16, 185, 129, 0.08);
-    --gs-bg-escalation: rgba(245, 158, 11, 0.08);
+    --gs-bg-problem: rgba(239, 68, 68, 0.85);
+    --gs-bg-monitoring: rgba(16, 40, 30, 0.92);
+    --gs-bg-escalation: rgba(120, 80, 0, 0.85);
 }
 
 /* =========================================
