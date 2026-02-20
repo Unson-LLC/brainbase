@@ -63,9 +63,7 @@ export class AuthManager {
             if (this.httpClient?.setAuthToken) {
                 this.httpClient.setAuthToken(token);
             }
-            this._setVerifying(true);
-            const ok = await this.verifyToken({ token });
-            this._setVerifying(false);
+            const ok = await this._withVerifying(() => this.verifyToken({ token }));
             if (ok) {
                 this.setSession({ token, access: this.access || access, persist: false });
                 return;
@@ -73,15 +71,12 @@ export class AuthManager {
         }
 
         if (refreshToken) {
-            this._setVerifying(true);
-            const refreshed = await this.refreshSession({ refreshToken });
-            this._setVerifying(false);
+            const refreshed = await this._withVerifying(() => this.refreshSession({ refreshToken }));
             if (refreshed) {
                 return;
             }
         }
 
-        this._setVerifying(false);
         this.clearSession({ persist: false });
     }
 
@@ -351,13 +346,11 @@ export class AuthManager {
                 this.httpClient.setAuthToken(token);
             }
 
-            this._setVerifying(true);
-            const ok = await this.verifyToken({ token });
-            this._setVerifying(false);
+            const ok = await this._withVerifying(() => this.verifyToken({ token }));
             if (ok) {
                 this.setSession({ token, access: this.access || access, refreshToken: this.refreshToken, persist: true });
             } else if (this.refreshToken) {
-                const refreshed = await this.refreshSession({ refreshToken: this.refreshToken });
+                const refreshed = await this._withVerifying(() => this.refreshSession({ refreshToken: this.refreshToken }));
                 if (!refreshed) {
                     this.setSession({ token: null, access: null, refreshToken: this.refreshToken, persist: true });
                     return;
@@ -439,6 +432,18 @@ export class AuthManager {
     _emit(eventName) {
         if (!this.eventBus?.emit) return;
         this.eventBus.emit(eventName, { summary: this.getSummary() });
+    }
+
+    async _withVerifying(operation) {
+        if (typeof operation !== 'function') {
+            return null;
+        }
+        this._setVerifying(true);
+        try {
+            return await operation();
+        } finally {
+            this._setVerifying(false);
+        }
     }
 
     _setVerifying(value) {
