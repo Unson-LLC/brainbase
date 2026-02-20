@@ -491,9 +491,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/248",
       "pr_status": "merged",
       "merged_at": "2026-02-20T06:23:48Z"
+    },
+    {
+      "area": "public/modules/domain/browser-notification",
+      "refactored_at": "2026-02-20T09:19:17.088Z",
+      "files_modified": [
+        "public/modules/domain/browser-notification/browser-notification-service.js"
+      ],
+      "changes_summary": "通知権限の読み出しとイベント購読をヘルパーにまとめて重複バイバイしたし、エラーemitも共通化して挙動そのままにコードすっきりさせといたよ〜",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 1,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor keeps behavior intact while centralizing API permission queries, consolidating subscription bookkeeping, and routing all notification errors through a reusable helper, improving clarity without expanding scope.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider awaiting `_emitError` inside `notify` to keep error-handling flow consistent with other call sites that await it."
+      ],
+      "run_number": "76",
+      "run_id": "22218312699",
+      "trigger_event": "schedule",
+      "pr_number": 249,
+      "pr_branch": "ops-department/auto-refactor-76",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/249",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-20T09:16:44.745Z",
-  "total_prs_created": 19,
+  "last_updated": "2026-02-20T09:19:28.853Z",
+  "total_prs_created": 20,
   "total_prs_merged": 16
 }
