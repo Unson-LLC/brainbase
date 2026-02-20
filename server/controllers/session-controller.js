@@ -77,13 +77,16 @@ export class SessionController {
             // ttydプロセス起動
             const result = await this.sessionManager.startTtyd(startOptions);
 
-            // intendedState を active に更新（restore と同様）
+            // intendedState を active に更新（engine も反映）
             const currentState = this.stateStore.get();
-            const updatedSessions = (currentState.sessions || []).map(session =>
-                session.id === sessionId
-                    ? { ...session, intendedState: 'active', updatedAt: new Date().toISOString() }
-                    : session
-            );
+            const updatedSessions = (currentState.sessions || []).map(session => {
+                if (session.id !== sessionId) return session;
+                const updates = { ...session, intendedState: 'active', updatedAt: new Date().toISOString() };
+                if (startOptions.engine) {
+                    updates.engine = startOptions.engine;
+                }
+                return updates;
+            });
             await this.stateStore.update({
                 ...currentState,
                 sessions: updatedSessions
@@ -138,43 +141,52 @@ export class SessionController {
         const { id } = req.params;
         const { skipMergeCheck } = req.body;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
+        try {
+            const state = this.stateStore.get();
+            const session = state.sessions?.find(s => s.id === id);
 
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-
-        // Check if workspace needs integration (Jujutsu: push needed)
-        if (session.worktree && !skipMergeCheck) {
-            const status = await this.worktreeService.getStatus(
-                id,
-                session.worktree.repo,
-                session.worktree.startCommit || null
-            );
-            if (status.needsIntegration || status.needsMerge) {
-                return res.json({
-                    needsConfirmation: true,
-                    status,
-                    message: 'Workspace has changes not pushed to remote'
-                });
+            if (!session) {
+                return res.status(404).json({ error: 'Session not found' });
             }
+
+            // Check if workspace needs integration (Jujutsu: push needed)
+            if (session.worktree?.repo && !skipMergeCheck) {
+                const status = await this.worktreeService.getStatus(
+                    id,
+                    session.worktree.repo,
+                    session.worktree.startCommit || null
+                );
+                if (status.needsIntegration || status.needsMerge) {
+                    return res.json({
+                        needsConfirmation: true,
+                        status,
+                        message: 'Workspace has changes not pushed to remote'
+                    });
+                }
+            }
+
+            // Stop ttyd process first (release port)
+            try {
+                await this.sessionManager.stopTtyd(id);
+            } catch (ttydError) {
+                console.error(`[archive] Failed to stop ttyd for ${id}:`, ttydError.message);
+            }
+
+            // Archive: Update intendedState to archived
+            const updatedSessions = state.sessions.map(s =>
+                s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
+            );
+
+            const newState = await this.stateStore.update({
+                ...state,
+                sessions: updatedSessions
+            });
+
+            res.json({ success: true, state: newState });
+        } catch (error) {
+            console.error(`[archive] Error archiving session ${id}:`, error);
+            res.status(500).json({ error: 'Failed to archive session', detail: error.message });
         }
-
-        // Stop ttyd process first (release port)
-        await this.sessionManager.stopTtyd(id);
-
-        // Archive: Update intendedState to archived
-        const updatedSessions = state.sessions.map(s =>
-            s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
-        );
-
-        const newState = await this.stateStore.update({
-            ...state,
-            sessions: updatedSessions
-        });
-
-        res.json({ success: true, state: newState });
     };
 
     /**
@@ -201,7 +213,7 @@ export class SessionController {
 
         try {
             // Restore worktree if it existed
-            if (session.worktree) {
+            if (session.worktree?.repo) {
                 const worktreeResult = await this.worktreeService.create(id, session.worktree.repo);
                 if (!worktreeResult) {
                     return res.status(500).json({
@@ -223,11 +235,11 @@ export class SessionController {
                 engine
             });
 
-            // Update state to active (archivedAt も除去)
+            // Update state to active (archivedAt も除去、engine も反映)
             const updatedSessions = state.sessions.map(s => {
                 if (s.id !== id) return s;
                 const { archivedAt, ...rest } = s;
-                return { ...rest, intendedState: 'active' };
+                return { ...rest, intendedState: 'active', engine };
             });
 
             await this.stateStore.update({
@@ -456,7 +468,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -489,7 +501,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -517,7 +529,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -558,7 +570,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -608,7 +620,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 

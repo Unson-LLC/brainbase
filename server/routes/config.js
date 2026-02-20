@@ -36,6 +36,17 @@ export function createConfigRouter(configParser, configService) {
     // GET /api/config/unified - 統合ビューを取得
     router.get('/unified', controller.getUnified);
 
+    // GET /api/config/env - 環境変数の存在チェック
+    router.get('/env', (req, res) => {
+        const keysParam = req.query.keys || '';
+        const keys = keysParam.split(',').filter(Boolean);
+        const result = {};
+        for (const key of keys) {
+            result[key] = !!process.env[key];
+        }
+        res.json({ keys: result });
+    });
+
     // GET /api/config/root - BRAINBASE_ROOTを取得
     router.get('/root', controller.getRoot);
 

@@ -690,11 +690,15 @@ export class App {
      * Initialize UI plugins
      */
     async initPlugins() {
-        this.pluginManager = new PluginManager({ eventBus, store: appStore });
-        this.pluginManager.registerSlotsFromDOM();
-        this._registerUIPlugins();
-        await this.pluginManager.loadConfig();
-        await this.pluginManager.enableConfiguredPlugins();
+        try {
+            this.pluginManager = new PluginManager({ eventBus, store: appStore });
+            this.pluginManager.registerSlotsFromDOM();
+            this._registerUIPlugins();
+            await this.pluginManager.loadConfig();
+            await this.pluginManager.enableConfiguredPlugins();
+        } catch (error) {
+            console.warn('Plugin initialization failed, continuing without plugins:', error.message);
+        }
     }
 
     /**
@@ -2342,8 +2346,8 @@ export class App {
         // 3.5. Initialize project select dropdown
         this.initProjectSelect();
 
-        // 3.8. Initialize UI plugins
-        await this.initPlugins();
+        // 3.8. Initialize UI plugins (non-blocking to prevent session load delay)
+        this.initPlugins();
 
         // 3.9. Initialize panel resize
         this.cleanupPanelResize = initPanelResize();

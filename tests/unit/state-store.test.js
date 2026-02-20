@@ -18,11 +18,13 @@ describe('StateStore - Migration', () => {
   });
 
   afterEach(async () => {
-    // テストファイルをクリーンアップ
-    try {
-      await fs.unlink(testStateFile);
-    } catch (err) {
-      // ファイルが存在しない場合は無視
+    // テストファイルをクリーンアップ（.tmp, .bakも含む）
+    for (const suffix of ['', '.tmp', '.bak']) {
+      try {
+        await fs.unlink(testStateFile + suffix);
+      } catch (err) {
+        // ファイルが存在しない場合は無視
+      }
     }
   });
 
