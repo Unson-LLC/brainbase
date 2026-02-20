@@ -27,7 +27,12 @@ export class GoalSeekStore {
     async init() {
         try {
             if (existsSync(this.filePath)) {
-                const raw = readFileSync(this.filePath, 'utf-8');
+                const raw = readFileSync(this.filePath, 'utf-8').trim();
+                if (!raw) {
+                    // 0バイト or 空ファイル（サーバー強制終了時の破損）
+                    console.warn('[GoalSeekStore] goals.json is empty, starting fresh');
+                    return;
+                }
                 const parsed = JSON.parse(raw);
                 this.data = {
                     goals: parsed.goals || [],
@@ -47,7 +52,11 @@ export class GoalSeekStore {
             if (!existsSync(dir)) {
                 await fs.mkdir(dir, { recursive: true });
             }
-            await fs.writeFile(this.filePath, JSON.stringify(this.data, null, 2));
+            // アトミック書き込み: tmpファイルに書いてからrenameで置換
+            // → サーバー強制終了時にgoals.jsonが0バイトになるのを防ぐ
+            const tmpPath = this.filePath + '.tmp';
+            await fs.writeFile(tmpPath, JSON.stringify(this.data, null, 2));
+            await fs.rename(tmpPath, this.filePath);
         } catch (err) {
             console.error('[GoalSeekStore] Failed to save:', err.message);
         }

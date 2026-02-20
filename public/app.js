@@ -2154,6 +2154,8 @@ export class App {
                         this._updateSessionGoalBanner(sessionId);
                     } catch (err) {
                         console.error('[GoalBanner] toggle error:', err);
+                        // ゴールが見つからない場合はバナーを更新（古いデータを消去）
+                        this._updateSessionGoalBanner(sessionId);
                     }
                 });
             }
