@@ -127,16 +127,39 @@ export class SessionManager {
                 const hasTmux = tmuxSessions.has(sessionId);
                 const candidates = ttydProcsBySessionId.get(sessionId) || [];
 
-                // If tmux is missing, don't auto-recreate. Pause + kill stray ttyd (prevents wrong log linkage).
+                // If tmux is missing, attempt to restart ttyd (don't auto-pause).
                 if (!hasTmux) {
+                    // Kill any stray ttyd processes first
                     if (candidates.length > 0) {
-                        console.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Killing ${candidates.length} ttyd process(es) and pausing session.`);
+                        console.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Killing ${candidates.length} stray ttyd process(es).`);
                         for (const proc of candidates) {
                             await this.execPromise(`kill ${proc.pid}`).catch(() => {});
                         }
-                    } else {
-                        console.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Pausing session.`);
                     }
+
+                    // Attempt to restart ttyd to recreate TMUX session
+                    console.log(`[restoreActiveSessions] TMUX missing for ${sessionId}. Attempting to restart ttyd...`);
+                    try {
+                        const persistedPort = session?.ttydProcess?.port;
+                        const preferredPort = persistedPort || null;
+                        const result = await this.startTtyd({
+                            sessionId,
+                            initialCommand,
+                            cwd,
+                            engine,
+                            preferredPort
+                        });
+
+                        if (result && result.port) {
+                            console.log(`[restoreActiveSessions] Successfully restarted ttyd for ${sessionId} on port ${result.port}`);
+                            continue;
+                        }
+                    } catch (err) {
+                        console.error(`[restoreActiveSessions] Failed to restart ttyd for ${sessionId}:`, err);
+                    }
+
+                    // Only pause if restart failed
+                    console.warn(`[restoreActiveSessions] Could not restart ttyd for ${sessionId}. Pausing session.`);
                     pauseSessionIds.add(sessionId);
                     this.activeSessions.delete(sessionId);
                     continue;
