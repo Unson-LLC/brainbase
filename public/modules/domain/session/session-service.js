@@ -221,7 +221,8 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, updates: Object, eventResult: Object}>}
      */
     async updateSession(sessionId, updates) {
-        const state = await this.httpClient.get('/api/state');
+        const { sessions } = this.store.getState();
+        const snapshot = sessions.map(s => ({ ...s }));
         const now = new Date().toISOString();
 
         // アーカイブ時にarchivedAtを自動設定
@@ -233,13 +234,27 @@ export class SessionService {
             updates.updatedAt = now;
         }
 
-        const updatedSessions = state.sessions.map(s =>
+        // 楽観的UI: Store即時更新
+        const updatedSessions = sessions.map(s =>
             s.id === sessionId ? { ...s, ...updates } : s
         );
-        await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-        await this.loadSessions();
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
-        return { success: true, sessionId, updates, eventResult };
+        this.store.setState({ sessions: updatedSessions });
+        this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
+
+        // サーバー同期（バックグラウンド）
+        try {
+            const state = await this.httpClient.get('/api/state');
+            const serverUpdated = state.sessions.map(s =>
+                s.id === sessionId ? { ...s, ...updates, updatedAt: now } : s
+            );
+            await this.httpClient.post('/api/state', { ...state, sessions: serverUpdated });
+        } catch (error) {
+            // ロールバック
+            this.store.setState({ sessions: snapshot });
+            throw error;
+        }
+
+        return { success: true, sessionId, updates };
     }
 
     /**
@@ -414,20 +429,69 @@ export class SessionService {
      */
     async archiveSession(sessionId, options = {}) {
         const { skipMergeCheck = false } = options;
+        const { currentSessionId, sessions } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
 
-        const result = await this.httpClient.post(
-            `/api/sessions/${sessionId}/archive`,
-            { skipMergeCheck }
-        );
-
-        if (result.needsConfirmation) {
-            // 呼び出し元で警告表示が必要
-            return result;
+        if (!skipMergeCheck) {
+            const result = await this.httpClient.post(
+                `/api/sessions/${sessionId}/archive`,
+                { skipMergeCheck: false }
+            );
+            if (result.needsConfirmation) {
+                return result;
+            }
+            // アーカイブ成功済み → Store即座更新（loadSessions不要）
+            this._optimisticArchive(sessionId, wasCurrentSession);
+            return { success: true };
         }
 
-        await this.loadSessions();
-        await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+        // skipMergeCheck=true → 楽観的にUI更新してからサーバー同期
+        const snapshot = sessions.map(s => ({ ...s }));
+        this._optimisticArchive(sessionId, wasCurrentSession);
+
+        try {
+            await this.httpClient.post(
+                `/api/sessions/${sessionId}/archive`,
+                { skipMergeCheck: true }
+            );
+        } catch (error) {
+            // ロールバック
+            this.store.setState({ sessions: snapshot });
+            if (wasCurrentSession) {
+                this.store.setState({ currentSessionId: sessionId });
+            }
+            throw error;
+        }
+
         return { success: true };
+    }
+
+    /**
+     * 楽観的アーカイブ: Store即時更新
+     * @param {string} sessionId
+     * @param {boolean} wasCurrentSession
+     */
+    _optimisticArchive(sessionId, wasCurrentSession) {
+        const { sessions } = this.store.getState();
+        const now = new Date().toISOString();
+        const updated = sessions.map(s =>
+            s.id === sessionId
+                ? { ...s, intendedState: 'archived', archivedAt: now }
+                : s
+        );
+        this.store.setState({ sessions: updated });
+        this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+        if (wasCurrentSession) {
+            const activeSessions = updated.filter(
+                s => s.intendedState !== 'archived' && s.id !== sessionId
+            );
+            if (activeSessions.length > 0) {
+                this.switchSession(activeSessions[0].id);
+            } else {
+                this.store.setState({ currentSessionId: null });
+            }
+        }
     }
 
     /**
@@ -456,12 +520,25 @@ export class SessionService {
      * @returns {Promise<Object>}
      */
     async unarchiveSession(sessionId) {
-        const result = await this.httpClient.post(
-            `/api/sessions/${sessionId}/restore`
-        );
+        const { sessions } = this.store.getState();
+        const snapshot = sessions.map(s => ({ ...s }));
 
-        await this.loadSessions();
-        return result;
+        // 楽観的UI: 即座にpaused状態に
+        const updated = sessions.map(s =>
+            s.id === sessionId
+                ? { ...s, intendedState: 'paused', archivedAt: null }
+                : s
+        );
+        this.store.setState({ sessions: updated });
+
+        try {
+            await this.httpClient.post(`/api/sessions/${sessionId}/restore`);
+        } catch (error) {
+            this.store.setState({ sessions: snapshot });
+            throw error;
+        }
+
+        return { success: true };
     }
 
     /**
