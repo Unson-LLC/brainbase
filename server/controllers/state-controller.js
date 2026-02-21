@@ -65,16 +65,24 @@ export class StateController {
 
             const state = this.stateStore.get();
 
-            // Add runtime status to each session
+            // activeSessions Mapを使ってPIDチェックをスキップ（O(1) lookup）
+            // watchdogが定期的にプロセスヘルスを監視しているため、
+            // GETレスポンスでは近似値で十分
+            const activeSessions = this.sessionManager.getActiveSessions();
             const sessionsWithStatus = (state.sessions || []).map(session => {
-                const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
-
+                if (session.intendedState === 'active') {
+                    const ttydRunning = activeSessions.has(session.id);
+                    return {
+                        ...session,
+                        ttydRunning,
+                        runtimeStatus: { ttydRunning, needsRestart: !ttydRunning }
+                    };
+                }
+                // archived/paused: プロセス動いてない
                 return {
                     ...session,
-                    // 後方互換性のためttydRunningも残す（将来削除予定）
-                    ttydRunning: runtimeStatus.ttydRunning,
-                    // 新しいruntimeStatus
-                    runtimeStatus
+                    ttydRunning: false,
+                    runtimeStatus: { ttydRunning: false, needsRestart: false }
                 };
             });
 
@@ -130,6 +138,37 @@ export class StateController {
         } catch (error) {
             logger.error('Failed to update state', { error });
             res.status(500).json({ error: 'Failed to update state' });
+        }
+    };
+
+    /**
+     * PATCH /api/state/sessions/:sessionId
+     * 単一セッションの部分更新
+     */
+    patch = async (req, res) => {
+        try {
+            const { sessionId } = req.params;
+            const updates = req.body;
+            if (!sessionId || typeof sessionId !== 'string') {
+                return res.status(400).json({ error: 'Invalid sessionId' });
+            }
+            const state = this.stateStore.get();
+            const sessions = state.sessions || [];
+            const index = sessions.findIndex(s => s.id === sessionId);
+            if (index === -1) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
+            // 許可フィールドのみマージ
+            const validated = validateSession({ ...sessions[index], ...updates });
+            if (!validated) {
+                return res.status(400).json({ error: 'Invalid session data' });
+            }
+            sessions[index] = validated;
+            await this.stateStore.update({ ...state, sessions });
+            res.json({ success: true, session: validated });
+        } catch (error) {
+            logger.error('Failed to patch session', { error });
+            res.status(500).json({ error: 'Failed to patch session' });
         }
     };
 }

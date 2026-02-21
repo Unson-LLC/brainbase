@@ -241,13 +241,9 @@ export class SessionService {
         this.store.setState({ sessions: updatedSessions });
         this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
 
-        // サーバー同期（バックグラウンド）
+        // サーバー同期（バックグラウンド）— PATCHで1件だけ更新
         try {
-            const state = await this.httpClient.get('/api/state');
-            const serverUpdated = state.sessions.map(s =>
-                s.id === sessionId ? { ...s, ...updates, updatedAt: now } : s
-            );
-            await this.httpClient.post('/api/state', { ...state, sessions: serverUpdated });
+            await this.httpClient.patch(`/api/state/sessions/${sessionId}`, { ...updates, updatedAt: now });
         } catch (error) {
             // ロールバック
             this.store.setState({ sessions: snapshot });

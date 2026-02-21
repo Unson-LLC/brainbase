@@ -117,8 +117,8 @@ export class HttpClient {
             headers.Authorization = `Bearer ${this._authToken}`;
         }
 
-        // CSRFトークンを付与（POST/PUT/DELETEリクエスト）
-        if (['POST', 'PUT', 'DELETE'].includes(method.toUpperCase())) {
+        // CSRFトークンを付与（POST/PUT/PATCH/DELETEリクエスト）
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
             const csrfToken = await this._getCsrfToken();
             if (csrfToken) {
                 headers['X-CSRF-Token'] = csrfToken;
@@ -222,6 +222,21 @@ export class HttpClient {
         return this.request(url, {
             ...options,
             method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    }
+
+    /**
+     * PATCHリクエスト
+     * @param {string} url - エンドポイントURL
+     * @param {*} data - リクエストボディ（JSON変換される）
+     * @param {Object} options - fetchオプション
+     * @returns {Promise<*>}
+     */
+    async patch(url, data, options = {}) {
+        return this.request(url, {
+            ...options,
+            method: 'PATCH',
             body: JSON.stringify(data)
         });
     }
