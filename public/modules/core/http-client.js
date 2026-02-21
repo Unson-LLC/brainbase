@@ -108,10 +108,16 @@ export class HttpClient {
     async request(url, options = {}) {
         const fullURL = `${this.baseURL}${url}`;
         const method = options.method || 'GET';
+        const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
         const headers = {
             ...this.defaultHeaders,
             ...options.headers
         };
+
+        // FormData送信時はContent-Typeを削除（ブラウザがboundary付きで自動設定）
+        if (isFormData) {
+            delete headers['Content-Type'];
+        }
 
         if (!headers.Authorization && !headers.authorization && this._authToken) {
             headers.Authorization = `Bearer ${this._authToken}`;
@@ -204,10 +210,11 @@ export class HttpClient {
      * @returns {Promise<*>}
      */
     async post(url, data, options = {}) {
+        const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
         return this.request(url, {
             ...options,
             method: 'POST',
-            body: JSON.stringify(data)
+            body: isFormData ? data : JSON.stringify(data)
         });
     }
 
