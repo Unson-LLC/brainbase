@@ -402,6 +402,25 @@ export class SessionManager {
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
 
+        // activeSessions からrunning/proxyPath情報を追加（軽量チェック）
+        for (const [sessionId, sessionData] of this.activeSessions) {
+            const pid = sessionData.process?.pid || sessionData.pid;
+            let running = false;
+            if (pid) {
+                try {
+                    process.kill(pid, 0);
+                    running = true;
+                } catch {
+                    running = false;
+                }
+            }
+            status[sessionId] = {
+                running,
+                proxyPath: running ? `/console/${sessionId}` : null,
+                port: sessionData.port || null
+            };
+        }
+
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
             const normalized = this._normalizeHookData(hookData);
@@ -417,6 +436,7 @@ export class SessionManager {
             const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
 
             status[sessionId] = {
+                ...(status[sessionId] || {}),
                 isWorking,
                 isDone,
                 lastWorkingAt: normalized.lastWorkingAt,
