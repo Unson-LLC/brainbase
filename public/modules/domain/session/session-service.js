@@ -26,6 +26,7 @@ export class SessionService {
         this.recoveryService = options.recoveryService || null;
         this._lastLoadFingerprint = null;
         this._stateEtag = null;
+        this._projectsCache = null; // config.projects のキャッシュ
     }
 
     _buildLoadFingerprint(sessions, testMode, preferences) {
@@ -50,6 +51,20 @@ export class SessionService {
      * @returns {Promise<Array>} セッション配列
      */
     async loadSessions() {
+        // config.projects をキャッシュ（初回のみ取得）
+        if (!this._projectsCache) {
+            try {
+                const config = await this.httpClient.get('/api/config');
+                this._projectsCache = (config.projects || [])
+                    .filter(p => !p.archived && p.session_select !== false)
+                    .map(p => ({ id: p.id, emoji: p.emoji }))
+                    .sort((a, b) => a.id.localeCompare(b.id));
+            } catch (err) {
+                console.warn('[SessionService] Failed to load config.projects', err);
+                this._projectsCache = [];
+            }
+        }
+
         const localSessions = this.store.getState().sessions;
         const shouldUseConditionalGet =
             typeof this._stateEtag === 'string' &&
@@ -664,15 +679,15 @@ export class SessionService {
 
     /**
      * ユニークなプロジェクト一覧取得
+     * config.projects から全プロジェクトを返す（既存セッションに依存しない）
      * @returns {Array<string>} プロジェクト名配列
      */
     getUniqueProjects() {
-        const { sessions } = this.store.getState();
-        const projects = new Set();
-        (sessions || []).forEach(s => {
-            if (s.project) projects.add(s.project);
-        });
-        return Array.from(projects).sort();
+        if (!this._projectsCache) {
+            console.warn('[SessionService] Projects cache not loaded yet');
+            return [];
+        }
+        return this._projectsCache.map(p => p.id);
     }
 
     /**
