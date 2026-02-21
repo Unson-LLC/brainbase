@@ -19,6 +19,7 @@ jobs:
     env:
       OPS_REFACTOR_TIER: medium
       OPS_REFACTOR_WORKFLOW_FILE: ops-department-auto-refactoring-daily.yml
+      OPS_REFACTOR_DETECTION_MODE: "static"
       OPS_REFACTOR_HOTSPOT_SINCE_DAYS: "90"
       OPS_REFACTOR_COOLDOWN_DAYS: "7"
       OPS_REFACTOR_TARGET_TOP_N: "30"
@@ -27,7 +28,7 @@ jobs:
       OPS_REFACTOR_MAX_ATTEMPTS: "4"
       OPS_REFACTOR_JUDGE_MAX_DIFF_CHARS: "16000"
       OPS_REFACTOR_MAX_FILES: "20"
-      OPS_REFACTOR_MAX_LINES: "1200"
+      OPS_REFACTOR_MAX_LINES: "6000"
 
     steps:
       - name: Checkout repository

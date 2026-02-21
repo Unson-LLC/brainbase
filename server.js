@@ -544,22 +544,37 @@ const ttydProxy = createProxyMiddleware({
         const originalUrl = req.originalUrl || url;
         const activeSessions = sessionManager.getActiveSessions();
 
+        // Helper: check if ttyd PID is alive, cleanup if dead
+        const getValidPort = (sessionId) => {
+            if (!activeSessions.has(sessionId)) return null;
+            const entry = activeSessions.get(sessionId);
+            const pid = entry.process?.pid || entry.pid;
+
+            // Check if PID is still running
+            if (pid && sessionManager._isProcessRunning(pid)) {
+                return entry.port;
+            }
+
+            // PID is dead — cleanup stale entry
+            console.warn(`[Proxy] ttyd for ${sessionId} is dead (pid ${pid}). Removing stale entry.`);
+            activeSessions.delete(sessionId);
+            return null;
+        };
+
         // 1. Try full path match: /console/SESSION_ID/...
         let match = originalUrl.match(/^\/console\/([^/]+)/);
         if (match) {
             const sessionId = match[1];
-            if (activeSessions.has(sessionId)) {
-                return `http://localhost:${activeSessions.get(sessionId).port}`;
-            }
+            const port = getValidPort(sessionId);
+            if (port) return `http://localhost:${port}`;
         }
 
         // 2. Try stripped path match: /SESSION_ID/...
         match = url.match(/^\/?([^/]+)/);
         if (match) {
             const sessionId = match[1];
-            if (activeSessions.has(sessionId)) {
-                return `http://localhost:${activeSessions.get(sessionId).port}`;
-            }
+            const port = getValidPort(sessionId);
+            if (port) return `http://localhost:${port}`;
         }
 
         console.error(`[Proxy] No session found for ${url}`);

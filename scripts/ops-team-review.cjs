@@ -68,6 +68,10 @@ const TARGET_TOP_N = Number.parseInt(
 
 const REFACTOR_TIER = (process.env.OPS_REFACTOR_TIER || "small").toLowerCase();
 
+const DETECTION_MODE = (
+  process.env.OPS_REFACTOR_DETECTION_MODE || "hybrid"
+).toLowerCase();
+
 const REFACTOR_SOURCE_DIRS = ["public/modules", "server", "lib"];
 
 const MAX_CHANGED_FILES = Number.parseInt(
@@ -512,6 +516,178 @@ function scanCodebase() {
 }
 
 /**
+ * 静的分析: ファイルサイズベースのスコア計算
+ * 大きなファイル（1000行以上）ほど高スコア
+ */
+function computeLargeFileScores() {
+  const scores = new Map();
+  const srcDirs = REFACTOR_SOURCE_DIRS; // ["public/modules", "server", "lib"]
+
+  srcDirs.forEach((dir) => {
+    if (!fs.existsSync(dir)) return;
+
+    try {
+      const files = execSync(
+        `find "${dir}" -type f \\( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.cjs" -o -name "*.mjs" \\)`,
+        { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+      )
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+
+      files.forEach((file) => {
+        if (!fs.existsSync(file)) return;
+
+        const content = fs.readFileSync(file, "utf-8");
+        const lines = content.split(/\r\n|\r|\n/).length;
+
+        // 1000行以上のファイルにスコア付与（行数に応じて増加）
+        if (lines >= 1000) {
+          const area = normalizeAreaFromFilePath(file);
+          if (!area) return;
+
+          // スコア = 行数 / 100（例: 2470行 → 24.7点）
+          const score = Math.floor(lines / 100);
+          scores.set(area, (scores.get(area) || 0) + score);
+        }
+      });
+    } catch (error) {
+      console.warn(`Large file scan failed for ${dir}:`, error.message);
+    }
+  });
+
+  return scores;
+}
+
+/**
+ * 静的分析: 関数・メソッド数ベースの複雑度スコア
+ * 多くの関数を持つファイルほど高スコア
+ */
+function computeComplexityScores() {
+  const scores = new Map();
+  const srcDirs = REFACTOR_SOURCE_DIRS;
+
+  srcDirs.forEach((dir) => {
+    if (!fs.existsSync(dir)) return;
+
+    try {
+      const files = execSync(
+        `find "${dir}" -type f \\( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.cjs" -o -name "*.mjs" \\)`,
+        { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+      )
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+
+      files.forEach((file) => {
+        if (!fs.existsSync(file)) return;
+
+        const content = fs.readFileSync(file, "utf-8");
+
+        // 関数・メソッド定義をカウント（簡易的な正規表現）
+        const functionPatterns = [
+          /\bfunction\s+\w+/g,           // function foo()
+          /\b\w+\s*\([^)]*\)\s*\{/g,     // foo() {
+          /\b\w+\s*=\s*\([^)]*\)\s*=>/g, // foo = () =>
+          /\basync\s+\w+/g,              // async foo()
+        ];
+
+        let functionCount = 0;
+        functionPatterns.forEach((pattern) => {
+          const matches = content.match(pattern);
+          if (matches) functionCount += matches.length;
+        });
+
+        // 50個以上の関数を持つファイルにスコア付与
+        if (functionCount >= 50) {
+          const area = normalizeAreaFromFilePath(file);
+          if (!area) return;
+
+          // スコア = 関数数 / 10（例: 121関数 → 12.1点）
+          const score = Math.floor(functionCount / 10);
+          scores.set(area, (scores.get(area) || 0) + score);
+        }
+      });
+    } catch (error) {
+      console.warn(`Complexity scan failed for ${dir}:`, error.message);
+    }
+  });
+
+  return scores;
+}
+
+/**
+ * 静的分析: コード重複ベースのスコア
+ * 同じパターンが繰り返される領域ほど高スコア
+ */
+function computeDuplicationScores() {
+  const scores = new Map();
+  const srcDirs = REFACTOR_SOURCE_DIRS;
+
+  // よくある重複パターン（brainbase-unson向けに調整）
+  const duplicationPatterns = [
+    /if\s*\(\s*!apiKey\s*\)/g,                                    // API key check
+    /const\s+session\s*=\s*await\s+auth\.api\.getSession/g,       // Session fetch (Next.js用、brainbaseでは不要かも)
+    /if\s*\(\s*!session\?\.user\?\.id\s*\)/g,                     // Session validation
+    /:\s*any\b/g,                                                  // any type usage
+    /require\s*\(\s*['"][^'"]+['"]\s*\)/g,                        // require() calls (Node.js)
+  ];
+
+  srcDirs.forEach((dir) => {
+    if (!fs.existsSync(dir)) return;
+
+    try {
+      const files = execSync(
+        `find "${dir}" -type f \\( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.cjs" -o -name "*.mjs" \\)`,
+        { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 }
+      )
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+
+      files.forEach((file) => {
+        if (!fs.existsSync(file)) return;
+
+        const content = fs.readFileSync(file, "utf-8");
+
+        let totalDuplication = 0;
+        duplicationPatterns.forEach((pattern) => {
+          const matches = content.match(pattern);
+          if (matches && matches.length >= 3) {
+            totalDuplication += matches.length;
+          }
+        });
+
+        // 重複が3箇所以上あるファイルにスコア付与
+        if (totalDuplication >= 3) {
+          const area = normalizeAreaFromFilePath(file);
+          if (!area) return;
+
+          scores.set(area, (scores.get(area) || 0) + totalDuplication);
+        }
+      });
+    } catch (error) {
+      console.warn(`Duplication scan failed for ${dir}:`, error.message);
+    }
+  });
+
+  return scores;
+}
+
+/**
+ * スコア統合（複数のスコアMapをマージ）
+ */
+function mergeScores(...scoreMaps) {
+  const merged = new Map();
+  scoreMaps.forEach((scoreMap) => {
+    for (const [area, score] of scoreMap.entries()) {
+      merged.set(area, (merged.get(area) || 0) + score);
+    }
+  });
+  return merged;
+}
+
+/**
  * ファイルパスから "area"（そのままディレクトリ）を正規化
  */
 function normalizeAreaFromFilePath(filePath) {
@@ -615,25 +791,39 @@ function findEligibleAreas(allAreas, history, params = {}) {
 function selectTargetArea(eligibleAreas, hotspotScores, params = {}) {
   const topNRaw = params.topN ?? TARGET_TOP_N;
   const topN = Number.isFinite(topNRaw) ? Math.max(1, topNRaw) : 20;
+  const staticScores = params.staticScores || new Map();
+  const mode = params.mode || DETECTION_MODE;
 
-  const scored = eligibleAreas
-    .map((area) => ({ area, score: hotspotScores.get(area) || 0 }))
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        a.area.localeCompare(b.area, "en", { numeric: true }),
-    );
+  // モードに応じてスコアを選択
+  let finalScores = new Map();
+  if (mode === "hotspot") {
+    finalScores = hotspotScores;
+  } else if (mode === "static") {
+    finalScores = staticScores;
+  } else {
+    // hybridモード（デフォルト）: 両方を統合
+    finalScores = mergeScores(hotspotScores, staticScores);
+  }
 
-  if (scored.length === 0) return null;
+  const scored = eligibleAreas.map((area) => ({
+    area,
+    score: finalScores.get(area) || 0,
+    hotspot: hotspotScores.get(area) || 0,
+    static: staticScores.get(area) || 0,
+  }));
 
-  // If everything is cold, just take the first.
-  const head = scored[0];
-  if (head.score === 0) return head.area;
+  scored.sort((a, b) => b.score - a.score);
 
-  const top = scored.slice(0, topN);
-  const maxScore = top[0]?.score ?? 0;
-  const tied = top.filter((row) => row.score === maxScore);
-  return tied[0]?.area || head.area;
+  if (scored.length === 0) {
+    return null;
+  }
+
+  const selected = scored[0];
+  console.log(
+    `  🎯 Selected: ${selected.area} (total: ${selected.score}, hotspot: ${selected.hotspot}, static: ${selected.static}, mode: ${mode})`
+  );
+
+  return selected.area;
 }
 
 /**
@@ -846,7 +1036,7 @@ Return JSON only in this format:
 
   const userPrompt = `Judge the following refactor attempt.
 
-Repo context: TypeScript/Next.js codebase.
+Repo context: Express.js/Node.js codebase (ESM modules).
 Area: ${area}
 Attempt: ${attempt}
 Passing threshold: ${threshold}
@@ -1237,6 +1427,28 @@ async function main() {
     `  ✅ Hotspot window: last ${HOTSPOT_SINCE_DAYS} days (tier=${REFACTOR_TIER})`,
   );
 
+  // 静的分析の追加
+  console.log("\n🔬 Computing static analysis scores...");
+  console.log(`  Detection mode: ${DETECTION_MODE}`);
+
+  let staticScores = new Map();
+  if (DETECTION_MODE === "static" || DETECTION_MODE === "hybrid") {
+    console.log("  🔍 Scanning large files...");
+    const largeFileScores = computeLargeFileScores();
+    console.log(`    ✅ Found ${largeFileScores.size} areas with large files`);
+
+    console.log("  🔍 Scanning complexity...");
+    const complexityScores = computeComplexityScores();
+    console.log(`    ✅ Found ${complexityScores.size} areas with high complexity`);
+
+    console.log("  🔍 Scanning code duplication...");
+    const duplicationScores = computeDuplicationScores();
+    console.log(`    ✅ Found ${duplicationScores.size} areas with duplication`);
+
+    staticScores = mergeScores(largeFileScores, complexityScores, duplicationScores);
+    console.log(`  ✅ Total static analysis areas: ${staticScores.size}`);
+  }
+
   // 3. 対象領域（ホットスポット優先 + クールダウン）を選択
   const eligibleAreas = findEligibleAreas(allAreas, history, {
     cooldownDays: COOLDOWN_DAYS,
@@ -1255,6 +1467,8 @@ async function main() {
 
   const targetArea = selectTargetArea(eligibleAreas, hotspotScores, {
     topN: TARGET_TOP_N,
+    staticScores,
+    mode: DETECTION_MODE,
   });
   if (!targetArea) {
     console.log("\n⚠️  Failed to select a target area.");

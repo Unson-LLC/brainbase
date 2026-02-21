@@ -18,6 +18,7 @@ jobs:
     env:
       OPS_REFACTOR_TIER: small
       OPS_REFACTOR_WORKFLOW_FILE: ops-department-auto-refactoring.yml
+      OPS_REFACTOR_DETECTION_MODE: "hotspot"
       OPS_REFACTOR_HOTSPOT_SINCE_DAYS: "30"
       OPS_REFACTOR_COOLDOWN_DAYS: "30"
       OPS_REFACTOR_TARGET_TOP_N: "20"
