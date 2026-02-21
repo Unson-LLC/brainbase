@@ -76,20 +76,27 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         const status = await res.json();
-        const previousStatuses = new Map(sessionStatusMap);
-        let hasStatusChange = false;
+        const entries = Object.entries(status || {});
+        let hasStatusChange = entries.length !== sessionStatusMap.size;
 
-        // Update map
-        for (const [sessionId, newStatus] of Object.entries(status)) {
-            const prev = previousStatuses.get(sessionId);
+        for (const [sessionId, newStatus] of entries) {
+            const prev = sessionStatusMap.get(sessionId);
             if (!prev ||
                 prev.isWorking !== newStatus.isWorking ||
                 prev.isDone !== newStatus.isDone ||
                 prev.lastWorkingAt !== newStatus.lastWorkingAt ||
-                prev.lastDoneAt !== newStatus.lastDoneAt
+                prev.lastDoneAt !== newStatus.lastDoneAt ||
+                prev.running !== newStatus.running ||
+                prev.proxyPath !== newStatus.proxyPath ||
+                prev.port !== newStatus.port
             ) {
                 hasStatusChange = true;
             }
+        }
+
+        // 常に最新スナップショットへ置き換え（削除済みセッションを反映）
+        sessionStatusMap.clear();
+        for (const [sessionId, newStatus] of entries) {
             sessionStatusMap.set(sessionId, newStatus);
         }
 

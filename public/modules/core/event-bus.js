@@ -241,6 +241,14 @@ export const EVENTS = {
     MOBILE_INPUT_SENT: 'mobile-input:sent',
     MOBILE_INPUT_DRAFT_SAVED: 'mobile-input:draft-saved',
 
+    // Performance関連
+    PERF_SESSION_SWITCH_START: 'perf:session-switch:start',
+    PERF_SESSION_SWITCH_READY: 'perf:session-switch:ready',
+    PERF_SESSION_RESTORE_START: 'perf:session-restore:start',
+    PERF_SESSION_RESTORE_READY: 'perf:session-restore:ready',
+    PERF_MOBILE_LOAD_START: 'perf:mobile-load:start',
+    PERF_MOBILE_LOAD_READY: 'perf:mobile-load:ready',
+
     // Recovery関連 (Auto-Claude RecoveryManager pattern)
     RECOVERY_HINTS_LOADED: 'recovery:hints-loaded',
     FAILURE_RECORDED: 'recovery:failure-recorded',

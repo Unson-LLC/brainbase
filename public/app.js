@@ -21,6 +21,8 @@ import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
+import { createTraceId } from './modules/core/trace-id.js';
+import { initPerformanceMetrics } from './modules/performance-metrics.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -295,6 +297,7 @@ export class App {
         this.modals = {};
         this.unsubscribers = [];
         this.pollingIntervalId = null;
+        this.sessionFullRefreshIntervalId = null;
         this.refreshIntervalId = null;
         this.choiceCheckInterval = null;
         this.lastChoiceHash = null;
@@ -310,6 +313,33 @@ export class App {
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
+        this._pendingSessionSwitchPerf = null;
+        this._pendingMobileLoadPerf = null;
+        this.performanceMetrics = null;
+    }
+
+    _perfNow() {
+        return typeof performance !== 'undefined' ? performance.now() : Date.now();
+    }
+
+    _startPerfFlow(eventName, extra = {}) {
+        const traceId = createTraceId('perf');
+        const startedAt = this._perfNow();
+        eventBus.emit(eventName, { traceId, startedAt, ...extra }).catch(() => {});
+        return { traceId, startedAt };
+    }
+
+    _finishPerfFlow(eventName, flow, extra = {}) {
+        if (!flow) return;
+        const endedAt = this._perfNow();
+        const durationMs = Math.max(0, Math.round(endedAt - flow.startedAt));
+        eventBus.emit(eventName, {
+            traceId: flow.traceId,
+            startedAt: flow.startedAt,
+            endedAt,
+            durationMs,
+            ...extra
+        }).catch(() => {});
     }
 
     _isConsoleVisible() {
@@ -508,7 +538,22 @@ export class App {
 
         // Reconnect manager status callback.
         if (this.reconnectManager) {
-            this.reconnectManager.onStatusChange = () => this._updateTerminalInputStatus();
+            this.reconnectManager.onStatusChange = (status) => {
+                this._updateTerminalInputStatus();
+
+                const pending = this._pendingSessionSwitchPerf;
+                if (
+                    pending &&
+                    status?.wsConnected &&
+                    status?.sessionId === pending.sessionId
+                ) {
+                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, pending.flow, {
+                        sessionId: pending.sessionId,
+                        phase: 'ws-connected'
+                    });
+                    this._pendingSessionSwitchPerf = null;
+                }
+            };
         }
 
         // Track tmux copy-mode (entered by TMUX_SCROLL; exited by TERMINAL_INTERACT).
@@ -1067,13 +1112,15 @@ export class App {
             // Switch terminal frame
             await this.switchSession(sessionId);
 
-            // Load session-specific data
-            await this.loadSessionData(sessionId);
-
             // Auto-return to console view if available
             if (this.showConsole) {
                 this.showConsole();
             }
+
+            // Non-blocking: terminal準備を優先してから関連データを更新
+            this.loadSessionData(sessionId).catch((error) => {
+                console.error('Failed to load session data after switch:', error);
+            });
         });
 
         // Goal Seek setup request from session dropdown
@@ -2060,44 +2107,32 @@ export class App {
             return;
         }
         this.terminalFrame = terminalFrame;
+        let perfFlow = null;
 
         try {
             // Get session info from store
             const { sessions } = appStore.getState();
             const session = sessions.find(s => s.id === sessionId);
+            perfFlow = this._startPerfFlow(EVENTS.PERF_SESSION_SWITCH_START, { sessionId });
 
             if (!session) {
                 console.error('Session not found:', sessionId);
                 terminalFrame.src = 'about:blank';
+                this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
+                    sessionId,
+                    phase: 'session-not-found'
+                });
                 return;
             }
 
-            // Get session status to check if it's already running and get proxyPath
-            const status = await httpClient.get('/api/sessions/status');
-            const sessionStatus = status[sessionId];
+            const startPayload = {
+                sessionId: session.id,
+                initialCommand: session.initialCommand || '',
+                cwd: session.worktree?.path || session.path,
+                engine: session.engine || 'claude'
+            };
 
-            let proxyPath = null;
-
-            if (sessionStatus && sessionStatus.running && sessionStatus.proxyPath) {
-                // Session is already running, use existing proxyPath
-                proxyPath = sessionStatus.proxyPath;
-                console.log('Session already running, using existing proxyPath:', proxyPath);
-            } else {
-                // Session not running, start it
-                const res = await httpClient.post('/api/sessions/start', {
-                    sessionId: session.id,
-                    initialCommand: session.initialCommand || '',
-                    cwd: session.path,
-                    engine: session.engine || 'claude'
-                });
-
-                if (res && res.proxyPath) {
-                    proxyPath = res.proxyPath;
-                    console.log('Started session, got proxyPath:', proxyPath);
-                }
-            }
-
-            if (proxyPath) {
+            const applyTerminalProxy = (proxyPath, phase) => {
                 terminalFrame.src = proxyPath;
                 console.log('Terminal switched to:', proxyPath);
 
@@ -2105,9 +2140,80 @@ export class App {
                 this.reconnectManager?.setCurrentSession(sessionId);
                 this._terminalLastNavigateAt = Date.now();
                 this.focusTerminal('switchSession');
+                this._pendingSessionSwitchPerf = {
+                    sessionId,
+                    flow: perfFlow
+                };
+                const onFrameLoad = () => {
+                    if (this._pendingSessionSwitchPerf?.sessionId !== sessionId) return;
+                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
+                        sessionId,
+                        phase: 'iframe-load'
+                    });
+                    this._pendingSessionSwitchPerf = null;
+                };
+                terminalFrame.addEventListener('load', onFrameLoad, { once: true });
+                setTimeout(() => {
+                    if (this._pendingSessionSwitchPerf?.sessionId !== sessionId) return;
+                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
+                        sessionId,
+                        phase: 'timeout'
+                    });
+                    this._pendingSessionSwitchPerf = null;
+                }, 8000);
+
+                // reconnect managerが無い場合はsrc設定時点で完了扱い
+                if (!this.reconnectManager) {
+                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
+                        sessionId,
+                        phase
+                    });
+                    this._pendingSessionSwitchPerf = null;
+                }
+            };
+
+            const startResult = async () => {
+                // start APIはidempotent: runningなら既存proxyPathを返す
+                const res = await httpClient.post('/api/sessions/start', startPayload, {
+                    traceId: perfFlow.traceId
+                });
+                return {
+                    proxyPath: res?.proxyPath || null,
+                    phase: res?.timing?.startedExisting ? 'already-running' : 'started-or-resumed'
+                };
+            };
+
+            const optimisticProxyPath = session.ttydRunning
+                ? (session.runtimeStatus?.proxyPath || `/console/${session.id}`)
+                : null;
+
+            if (optimisticProxyPath) {
+                applyTerminalProxy(optimisticProxyPath, 'runtime-cache');
+
+                // cache miss/stale対策: 非同期でstartを叩いて最終proxyを確認
+                startResult().then(({ proxyPath }) => {
+                    const isCurrent = appStore.getState().currentSessionId === sessionId;
+                    if (!isCurrent || !proxyPath) return;
+                    if (terminalFrame.src.endsWith(proxyPath)) return;
+
+                    terminalFrame.src = proxyPath;
+                    this._terminalLastNavigateAt = Date.now();
+                    this.focusTerminal('switchSession-ensure');
+                }).catch((error) => {
+                    console.warn('Failed to ensure session runtime after optimistic switch:', error);
+                });
             } else {
-                console.error('No proxyPath available for session:', sessionId);
-                terminalFrame.src = 'about:blank';
+                const { proxyPath, phase } = await startResult();
+                if (proxyPath) {
+                    applyTerminalProxy(proxyPath, phase);
+                } else {
+                    console.error('No proxyPath available for session:', sessionId);
+                    terminalFrame.src = 'about:blank';
+                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
+                        sessionId,
+                        phase: 'proxy-missing'
+                    });
+                }
             }
 
             // Update active state in UI (handled by SessionView re-render, but keep for now)
@@ -2124,6 +2230,16 @@ export class App {
         } catch (error) {
             console.error('Failed to switch session:', error);
             terminalFrame.src = 'about:blank';
+            if (perfFlow) {
+                this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
+                    sessionId,
+                    phase: 'switch-error',
+                    error: error.message
+                });
+            }
+            if (this._pendingSessionSwitchPerf?.sessionId === sessionId) {
+                this._pendingSessionSwitchPerf = null;
+            }
         }
     }
 
@@ -2132,11 +2248,11 @@ export class App {
      */
     async loadSessionData(sessionId) {
         try {
-            // Load tasks for the session
-            await this.taskService.loadTasks();
-
-            // Load schedule for the session
-            await this.scheduleService.loadSchedule();
+            // 並列化して体感待機を短縮
+            await Promise.all([
+                this.taskService.loadTasks(),
+                this.scheduleService.loadSchedule()
+            ]);
 
             console.log('Session data loaded for:', sessionId);
         } catch (error) {
@@ -2197,6 +2313,13 @@ export class App {
      */
     async start() {
         console.log('Starting brainbase-ui...');
+        this.performanceMetrics = initPerformanceMetrics({ attachToWindow: true });
+        if (this.isMobile()) {
+            this._pendingMobileLoadPerf = this._startPerfFlow(EVENTS.PERF_MOBILE_LOAD_START, {
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight
+            });
+        }
 
         // 0. Initialize auth (load token before API calls)
         await this.initAuth();
@@ -2250,10 +2373,16 @@ export class App {
         this.pollingIntervalId = startPolling(
             () => appStore.getState().currentSessionId,
             3000,
-            async () => {
-                await this.sessionService.loadSessions();
+            async (statusMap) => {
+                this.sessionService.syncRuntimeStatus(statusMap);
             }
         );
+        // 全state再取得は低頻度にしてI/Oと再描画を抑制
+        this.sessionFullRefreshIntervalId = setInterval(() => {
+            this.sessionService.loadSessions().catch((error) => {
+                console.warn('Periodic session refresh failed:', error.message);
+            });
+        }, 30000);
 
         // 8. Start periodic refresh (every 5 minutes)
         this.startPeriodicRefresh();
@@ -2272,6 +2401,16 @@ export class App {
 
         // 13. Setup mobile input UI (Dock/Composer)
         this.initMobileInput();
+
+        if (this._pendingMobileLoadPerf) {
+            requestAnimationFrame(() => {
+                this._finishPerfFlow(EVENTS.PERF_MOBILE_LOAD_READY, this._pendingMobileLoadPerf, {
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight
+                });
+                this._pendingMobileLoadPerf = null;
+            });
+        }
 
         console.log('brainbase-ui started successfully');
     }
@@ -2644,6 +2783,10 @@ export class App {
             clearInterval(this.pollingIntervalId);
             this.pollingIntervalId = null;
         }
+        if (this.sessionFullRefreshIntervalId) {
+            clearInterval(this.sessionFullRefreshIntervalId);
+            this.sessionFullRefreshIntervalId = null;
+        }
 
         // Stop refresh
         if (this.refreshIntervalId) {
@@ -2670,6 +2813,10 @@ export class App {
 
         // Cleanup mobile input controller
         this.mobileInputController?.destroy();
+        this._pendingSessionSwitchPerf = null;
+        this._pendingMobileLoadPerf = null;
+        this.performanceMetrics?.destroy?.();
+        this.performanceMetrics = null;
 
         console.log('brainbase-ui destroyed');
     }

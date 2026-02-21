@@ -1,6 +1,7 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { createTraceId } from '../../core/trace-id.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject } from '../../session-manager.js';
 import { addSession, removeSession } from '../../state-api.js';
@@ -23,6 +24,25 @@ export class SessionService {
         this.store = appStore;
         this.eventBus = eventBus;
         this.recoveryService = options.recoveryService || null;
+        this._lastLoadFingerprint = null;
+        this._stateEtag = null;
+    }
+
+    _buildLoadFingerprint(sessions, testMode, preferences) {
+        return JSON.stringify({
+            testMode: Boolean(testMode),
+            sessions: (sessions || []).map((session) => ({
+                id: session.id,
+                name: session.name || null,
+                intendedState: session.intendedState || null,
+                updatedAt: session.updatedAt || null,
+                archivedAt: session.archivedAt || null,
+                pausedAt: session.pausedAt || null,
+                ttydRunning: session.ttydRunning || false,
+                needsRestart: session.runtimeStatus?.needsRestart || false
+            })),
+            preferences: preferences || {}
+        });
     }
 
     /**
@@ -30,7 +50,29 @@ export class SessionService {
      * @returns {Promise<Array>} セッション配列
      */
     async loadSessions() {
-        const state = await this.httpClient.get('/api/state');
+        const localSessions = this.store.getState().sessions;
+        const shouldUseConditionalGet =
+            typeof this._stateEtag === 'string' &&
+            this._stateEtag.length > 0 &&
+            Array.isArray(localSessions) &&
+            localSessions.length > 0;
+
+        const state = shouldUseConditionalGet
+            ? await this.httpClient.get('/api/state', {
+                allowNotModified: true,
+                headers: {
+                    'If-None-Match': this._stateEtag
+                }
+            })
+            : await this.httpClient.get('/api/state');
+        if (state?.notModified) {
+            return localSessions || [];
+        }
+
+        if (typeof state?.etag === 'string' && state.etag.length > 0) {
+            this._stateEtag = state.etag;
+        }
+
         let sessions = state.sessions || [];
         const testMode = state.testMode || false;
         const storedPreferences = state.preferences || {};
@@ -57,9 +99,16 @@ export class SessionService {
         // 変換が発生した場合、state.jsonに保存
         if (migrationNeeded) {
             await this.httpClient.post('/api/state', { ...state, sessions });
+            this._stateEtag = null;
             console.log('[Migration] Converted "stopped" sessions to "paused"');
         }
 
+        const fingerprint = this._buildLoadFingerprint(sessions, testMode, preferences);
+        if (this._lastLoadFingerprint === fingerprint) {
+            return sessions;
+        }
+
+        this._lastLoadFingerprint = fingerprint;
         this.store.setState({ sessions, testMode, preferences });
         await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         return sessions;
@@ -518,6 +567,13 @@ export class SessionService {
     async unarchiveSession(sessionId) {
         const { sessions } = this.store.getState();
         const snapshot = sessions.map(s => ({ ...s }));
+        const traceId = createTraceId('restore');
+        const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.eventBus.emit(EVENTS.PERF_SESSION_RESTORE_START, {
+            sessionId,
+            traceId,
+            startedAt
+        }).catch(() => {});
 
         // 楽観的UI: 即座にpaused状態に
         const updated = sessions.map(s =>
@@ -528,13 +584,82 @@ export class SessionService {
         this.store.setState({ sessions: updated });
 
         try {
-            await this.httpClient.post(`/api/sessions/${sessionId}/restore`);
+            await this.httpClient.post(`/api/sessions/${sessionId}/restore`, {}, { traceId });
         } catch (error) {
             this.store.setState({ sessions: snapshot });
             throw error;
         }
 
+        const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.eventBus.emit(EVENTS.PERF_SESSION_RESTORE_READY, {
+            sessionId,
+            traceId,
+            startedAt,
+            endedAt,
+            durationMs: Math.max(0, Math.round(endedAt - startedAt))
+        }).catch(() => {});
+
         return { success: true };
+    }
+
+    /**
+     * /api/sessions/status の結果で実行時状態だけを同期
+     * /api/state の全件再取得を減らすための軽量更新
+     * @param {Object<string, {running?: boolean, proxyPath?: string, port?: number}>} statusMap
+     * @returns {boolean} 変更があればtrue
+     */
+    syncRuntimeStatus(statusMap = {}) {
+        const { sessions } = this.store.getState();
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+            return false;
+        }
+
+        let changed = false;
+        const updatedSessions = sessions.map((session) => {
+            const status = statusMap?.[session.id] || {};
+            const running = Boolean(status.running);
+            const needsRestart = session.intendedState === 'active' && !running;
+            const proxyPath = running
+                ? (typeof status.proxyPath === 'string' && status.proxyPath.trim()
+                    ? status.proxyPath
+                    : `/console/${session.id}`)
+                : null;
+            const port = running && Number.isFinite(status.port) ? status.port : null;
+            const prevRuntime = session.runtimeStatus || {};
+            const prevProxyPath = running
+                ? (typeof prevRuntime.proxyPath === 'string' && prevRuntime.proxyPath.trim()
+                    ? prevRuntime.proxyPath
+                    : `/console/${session.id}`)
+                : null;
+            const prevPort = running && Number.isFinite(prevRuntime.port) ? prevRuntime.port : null;
+
+            if (
+                session.ttydRunning === running &&
+                prevRuntime.needsRestart === needsRestart &&
+                prevProxyPath === proxyPath &&
+                prevPort === port
+            ) {
+                return session;
+            }
+
+            changed = true;
+            return {
+                ...session,
+                ttydRunning: running,
+                runtimeStatus: {
+                    ttydRunning: running,
+                    needsRestart,
+                    proxyPath,
+                    port
+                }
+            };
+        });
+
+        if (changed) {
+            this.store.setState({ sessions: updatedSessions });
+        }
+
+        return changed;
     }
 
     /**

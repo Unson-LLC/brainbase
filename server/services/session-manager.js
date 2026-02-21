@@ -478,6 +478,14 @@ export class SessionManager {
         }
 
         const effectiveStatus = lastWorkingAt > lastDoneAt ? 'working' : 'done';
+        const unchanged = (
+            currentHookData.status === effectiveStatus &&
+            currentHookData.lastWorkingAt === lastWorkingAt &&
+            currentHookData.lastDoneAt === lastDoneAt
+        );
+        if (unchanged) {
+            return;
+        }
 
         const hookStatusData = {
             status: effectiveStatus,
@@ -647,7 +655,7 @@ export class SessionManager {
      * @param {string} options.initialCommand - 初期コマンド
      * @param {string} options.engine - エンジン（'claude' | 'codex'）
      * @param {number} [options.preferredPort] - 優先ポート番号（再利用用）
-     * @returns {Promise<{port: number, proxyPath: string}>}
+     * @returns {Promise<{port: number, proxyPath: string, startedExisting: boolean}>}
      */
     async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
         // Validate engine
@@ -662,7 +670,8 @@ export class SessionManager {
             if (pid && this._isProcessRunning(pid)) {
                 return {
                     port: existing.port,
-                    proxyPath: `/console/${sessionId}`
+                    proxyPath: `/console/${sessionId}`,
+                    startedExisting: true
                 };
             }
             // Process is dead but entry remains in map — clean up and proceed to new launch
@@ -846,18 +855,33 @@ export class SessionManager {
         // state.jsonにttydProcess情報を永続化
         await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
 
-        // Give ttyd a moment to bind to the port and verify it's still running
+        // 起動直後に短時間だけ生存確認して即返す（固定500ms待機を回避）
         await new Promise((resolve, reject) => {
-            setTimeout(() => {
-                if (this.activeSessions.has(sessionId)) {
-                    resolve();
-                } else {
+            const minStableMs = 120;
+            const timeoutMs = 500;
+            const stableAt = Date.now() + minStableMs;
+            const deadline = Date.now() + timeoutMs;
+
+            const check = () => {
+                if (!this.activeSessions.has(sessionId)) {
                     reject(new Error('Session failed to start (process exited)'));
+                    return;
                 }
-            }, 500);
+                if (Date.now() >= stableAt) {
+                    resolve();
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    reject(new Error('Session start verification timeout'));
+                    return;
+                }
+                setTimeout(check, 25);
+            };
+
+            check();
         });
 
-        return { port, proxyPath: basePath };
+        return { port, proxyPath: basePath, startedExisting: false };
     }
 
     /**

@@ -1,9 +1,33 @@
 import { logger } from '../utils/logger.js';
+import { createHash } from 'crypto';
 
 /**
  * StateController
  * 状態管理のHTTPリクエスト処理
  */
+function nowMs() {
+    return Number(process.hrtime.bigint() / 1000000n);
+}
+
+function getTraceId(req) {
+    const header = req.headers['x-bb-trace-id'] || req.headers['x-trace-id'];
+    return Array.isArray(header) ? header[0] : header || null;
+}
+
+function buildEtag(payload) {
+    const hash = createHash('sha1')
+        .update(JSON.stringify(payload))
+        .digest('base64url');
+    return `W/"${hash}"`;
+}
+
+function isNotModified(ifNoneMatchHeader, currentEtag) {
+    if (!ifNoneMatchHeader || !currentEtag) return false;
+    const raw = Array.isArray(ifNoneMatchHeader) ? ifNoneMatchHeader.join(',') : String(ifNoneMatchHeader);
+    const tags = raw.split(',').map((v) => v.trim()).filter(Boolean);
+    if (tags.includes('*')) return true;
+    return tags.includes(currentEtag);
+}
 
 // セッションオブジェクトの許可フィールド
 const ALLOWED_SESSION_FIELDS = [
@@ -57,9 +81,20 @@ export class StateController {
      */
     get = async (req, res) => {
         try {
+            const traceId = getTraceId(req);
+            const startedAt = nowMs();
+            const readyWaitStart = nowMs();
             const ready = await this.sessionManager.waitUntilReady();
+            const readyWaitMs = Math.max(0, nowMs() - readyWaitStart);
             if (!ready) {
-                res.status(503).json({ error: 'Service not ready' });
+                res.status(503).json({
+                    error: 'Service not ready',
+                    traceId,
+                    timing: {
+                        readyWaitMs,
+                        totalMs: Math.max(0, nowMs() - startedAt)
+                    }
+                });
                 return;
             }
 
@@ -86,11 +121,36 @@ export class StateController {
                 };
             });
 
-            res.json({
+            const payload = {
                 ...state,
                 sessions: sessionsWithStatus,
                 // テストモードフラグを追加
                 testMode: this.testMode
+            };
+            const etag = buildEtag(payload);
+            const ifNoneMatch = req.headers['if-none-match'];
+
+            const timing = {
+                readyWaitMs,
+                totalMs: Math.max(0, nowMs() - startedAt)
+            };
+
+            res.set('Cache-Control', 'private, no-cache, must-revalidate');
+            res.set('ETag', etag);
+
+            if (isNotModified(ifNoneMatch, etag)) {
+                return res.status(304).end();
+            }
+
+            if (timing.totalMs > 500) {
+                logger.warn('Slow GET /api/state', { traceId, timing });
+            }
+
+            res.json({
+                ...payload,
+                traceId,
+                timing,
+                etag
             });
         } catch (error) {
             logger.error('Failed to get state', { error });
