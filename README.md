@@ -508,6 +508,17 @@ Brainbaseは以下のアーキテクチャパターンを採用:
 - [git worktree ガイド](./docs/git-worktree-guide.md) - worktree詳細説明（レガシー）
 - [Jujutsu公式ドキュメント](https://jj-vcs.github.io/jj/latest/) - AI-first VCS
 
+## 📈 UX待機時間のKPI採取
+
+セッション切り替え・復元・モバイル初動のUX指標を、ブラウザ上で直接確認できます。
+
+1. Brainbaseを起動して対象操作を実行（切替/復元/モバイル読み込み）
+2. ブラウザDevTools Consoleで `window.brainbasePerf.getSummary()` を実行
+3. 生データを保存する場合は `window.brainbasePerf.export()` を実行
+4. 再計測前は `window.brainbasePerf.reset()` でサンプルをクリア
+
+出力には `sessionSwitch / sessionRestore / mobileLoad` の `count, p50, p95, min, max` が含まれます。
+
 ---
 
 ## 🔮 Coming Soon

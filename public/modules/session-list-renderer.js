@@ -58,6 +58,10 @@ export function renderSessionRowHTML(session, options = {}) {
     ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>'
     : '';
 
+  const commitTreeButton = session.intendedState !== 'archived'
+    ? '<button class="commit-tree-btn" title="Commit tree"><i data-lucide="git-branch"></i></button>'
+    : '';
+
   // 再開ボタン: 一時停止中の場合に表示
   const resumeButton = isPaused
     ? '<button class="resume-session-btn" title="Resume session"><i data-lucide="play-circle"></i></button>'
@@ -71,6 +75,10 @@ export function renderSessionRowHTML(session, options = {}) {
   // ドロップダウンメニュー項目
   const mergeMenuItem = hasWorktree && session.intendedState !== 'archived'
     ? '<button class="dropdown-item merge-session-btn"><i data-lucide="git-merge"></i>Merge to main</button>'
+    : '';
+
+  const commitTreeMenuItem = session.intendedState !== 'archived'
+    ? '<button class="dropdown-item commit-tree-btn"><i data-lucide="git-branch"></i>Commit tree</button>'
     : '';
 
   const resumePauseMenuItem = isPaused
@@ -99,6 +107,7 @@ export function renderSessionRowHTML(session, options = {}) {
         <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
         <div class="session-dropdown-menu hidden">
           <button class="dropdown-item rename-session-btn"><i data-lucide="edit-2"></i>Rename</button>
+          ${commitTreeMenuItem}
           ${mergeMenuItem}
           <button class="dropdown-item archive-session-btn"><i data-lucide="${archiveIcon}"></i>${archiveLabel}</button>
           ${resumePauseMenuItem}
@@ -109,6 +118,7 @@ export function renderSessionRowHTML(session, options = {}) {
       </div>
       <div class="child-actions" style="display: none;">
         <button class="rename-session-btn" title="Rename"><i data-lucide="edit-2"></i></button>
+        ${commitTreeButton}
         ${mergeButton}
         <button class="archive-session-btn" title="${session.intendedState === 'archived' ? 'Unarchive' : 'Archive'}">
           <i data-lucide="${session.intendedState === 'archived' ? 'archive-restore' : 'archive'}"></i>

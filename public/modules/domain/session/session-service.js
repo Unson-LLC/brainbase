@@ -1,6 +1,7 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { createTraceId } from '../../core/trace-id.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject } from '../../session-manager.js';
 import { addSession, removeSession } from '../../state-api.js';
@@ -23,6 +24,25 @@ export class SessionService {
         this.store = appStore;
         this.eventBus = eventBus;
         this.recoveryService = options.recoveryService || null;
+        this._lastLoadFingerprint = null;
+        this._stateEtag = null;
+    }
+
+    _buildLoadFingerprint(sessions, testMode, preferences) {
+        return JSON.stringify({
+            testMode: Boolean(testMode),
+            sessions: (sessions || []).map((session) => ({
+                id: session.id,
+                name: session.name || null,
+                intendedState: session.intendedState || null,
+                updatedAt: session.updatedAt || null,
+                archivedAt: session.archivedAt || null,
+                pausedAt: session.pausedAt || null,
+                ttydRunning: session.ttydRunning || false,
+                needsRestart: session.runtimeStatus?.needsRestart || false
+            })),
+            preferences: preferences || {}
+        });
     }
 
     /**
@@ -30,7 +50,29 @@ export class SessionService {
      * @returns {Promise<Array>} セッション配列
      */
     async loadSessions() {
-        const state = await this.httpClient.get('/api/state');
+        const localSessions = this.store.getState().sessions;
+        const shouldUseConditionalGet =
+            typeof this._stateEtag === 'string' &&
+            this._stateEtag.length > 0 &&
+            Array.isArray(localSessions) &&
+            localSessions.length > 0;
+
+        const state = shouldUseConditionalGet
+            ? await this.httpClient.get('/api/state', {
+                allowNotModified: true,
+                headers: {
+                    'If-None-Match': this._stateEtag
+                }
+            })
+            : await this.httpClient.get('/api/state');
+        if (state?.notModified) {
+            return localSessions || [];
+        }
+
+        if (typeof state?.etag === 'string' && state.etag.length > 0) {
+            this._stateEtag = state.etag;
+        }
+
         let sessions = state.sessions || [];
         const testMode = state.testMode || false;
         const storedPreferences = state.preferences || {};
@@ -57,9 +99,16 @@ export class SessionService {
         // 変換が発生した場合、state.jsonに保存
         if (migrationNeeded) {
             await this.httpClient.post('/api/state', { ...state, sessions });
+            this._stateEtag = null;
             console.log('[Migration] Converted "stopped" sessions to "paused"');
         }
 
+        const fingerprint = this._buildLoadFingerprint(sessions, testMode, preferences);
+        if (this._lastLoadFingerprint === fingerprint) {
+            return sessions;
+        }
+
+        this._lastLoadFingerprint = fingerprint;
         this.store.setState({ sessions, testMode, preferences });
         await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         return sessions;
@@ -221,7 +270,8 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, updates: Object, eventResult: Object}>}
      */
     async updateSession(sessionId, updates) {
-        const state = await this.httpClient.get('/api/state');
+        const { sessions } = this.store.getState();
+        const snapshot = sessions.map(s => ({ ...s }));
         const now = new Date().toISOString();
 
         // アーカイブ時にarchivedAtを自動設定
@@ -233,13 +283,23 @@ export class SessionService {
             updates.updatedAt = now;
         }
 
-        const updatedSessions = state.sessions.map(s =>
+        // 楽観的UI: Store即時更新
+        const updatedSessions = sessions.map(s =>
             s.id === sessionId ? { ...s, ...updates } : s
         );
-        await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-        await this.loadSessions();
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
-        return { success: true, sessionId, updates, eventResult };
+        this.store.setState({ sessions: updatedSessions });
+        this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
+
+        // サーバー同期（バックグラウンド）— PATCHで1件だけ更新
+        try {
+            await this.httpClient.patch(`/api/state/sessions/${sessionId}`, { ...updates, updatedAt: now });
+        } catch (error) {
+            // ロールバック
+            this.store.setState({ sessions: snapshot });
+            throw error;
+        }
+
+        return { success: true, sessionId, updates };
     }
 
     /**
@@ -367,6 +427,36 @@ export class SessionService {
     }
 
     /**
+     * コミットログ取得
+     * @param {string} sessionId - セッションID
+     * @param {number} [limit=50] - 取得件数
+     * @returns {Promise<Object|null>}
+     */
+    async getCommitLog(sessionId, limit = 50) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/commit-log?limit=${limit}`);
+        } catch (error) {
+            console.error('Failed to get commit log:', error);
+            return null;
+        }
+    }
+
+    /**
+     * コミット通知タイムスタンプ取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<number>}
+     */
+    async getCommitNotify(sessionId) {
+        try {
+            const result = await this.httpClient.get(`/api/sessions/${sessionId}/commit-notify`);
+            return Number(result?.lastNotify || 0);
+        } catch (error) {
+            console.error('Failed to get commit notify timestamp:', error);
+            return 0;
+        }
+    }
+
+    /**
      * ローカルmainブランチ更新
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object>}
@@ -384,20 +474,69 @@ export class SessionService {
      */
     async archiveSession(sessionId, options = {}) {
         const { skipMergeCheck = false } = options;
+        const { currentSessionId, sessions } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
 
-        const result = await this.httpClient.post(
-            `/api/sessions/${sessionId}/archive`,
-            { skipMergeCheck }
-        );
-
-        if (result.needsConfirmation) {
-            // 呼び出し元で警告表示が必要
-            return result;
+        if (!skipMergeCheck) {
+            const result = await this.httpClient.post(
+                `/api/sessions/${sessionId}/archive`,
+                { skipMergeCheck: false }
+            );
+            if (result.needsConfirmation) {
+                return result;
+            }
+            // アーカイブ成功済み → Store即座更新（loadSessions不要）
+            this._optimisticArchive(sessionId, wasCurrentSession);
+            return { success: true };
         }
 
-        await this.loadSessions();
-        await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+        // skipMergeCheck=true → 楽観的にUI更新してからサーバー同期
+        const snapshot = sessions.map(s => ({ ...s }));
+        this._optimisticArchive(sessionId, wasCurrentSession);
+
+        try {
+            await this.httpClient.post(
+                `/api/sessions/${sessionId}/archive`,
+                { skipMergeCheck: true }
+            );
+        } catch (error) {
+            // ロールバック
+            this.store.setState({ sessions: snapshot });
+            if (wasCurrentSession) {
+                this.store.setState({ currentSessionId: sessionId });
+            }
+            throw error;
+        }
+
         return { success: true };
+    }
+
+    /**
+     * 楽観的アーカイブ: Store即時更新
+     * @param {string} sessionId
+     * @param {boolean} wasCurrentSession
+     */
+    _optimisticArchive(sessionId, wasCurrentSession) {
+        const { sessions } = this.store.getState();
+        const now = new Date().toISOString();
+        const updated = sessions.map(s =>
+            s.id === sessionId
+                ? { ...s, intendedState: 'archived', archivedAt: now }
+                : s
+        );
+        this.store.setState({ sessions: updated });
+        this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+        if (wasCurrentSession) {
+            const activeSessions = updated.filter(
+                s => s.intendedState !== 'archived' && s.id !== sessionId
+            );
+            if (activeSessions.length > 0) {
+                this.switchSession(activeSessions[0].id);
+            } else {
+                this.store.setState({ currentSessionId: null });
+            }
+        }
     }
 
     /**
@@ -426,12 +565,101 @@ export class SessionService {
      * @returns {Promise<Object>}
      */
     async unarchiveSession(sessionId) {
-        const result = await this.httpClient.post(
-            `/api/sessions/${sessionId}/restore`
-        );
+        const { sessions } = this.store.getState();
+        const snapshot = sessions.map(s => ({ ...s }));
+        const traceId = createTraceId('restore');
+        const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.eventBus.emit(EVENTS.PERF_SESSION_RESTORE_START, {
+            sessionId,
+            traceId,
+            startedAt
+        }).catch(() => {});
 
-        await this.loadSessions();
-        return result;
+        // 楽観的UI: 即座にpaused状態に
+        const updated = sessions.map(s =>
+            s.id === sessionId
+                ? { ...s, intendedState: 'paused', archivedAt: null }
+                : s
+        );
+        this.store.setState({ sessions: updated });
+
+        try {
+            await this.httpClient.post(`/api/sessions/${sessionId}/restore`, {}, { traceId });
+        } catch (error) {
+            this.store.setState({ sessions: snapshot });
+            throw error;
+        }
+
+        const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.eventBus.emit(EVENTS.PERF_SESSION_RESTORE_READY, {
+            sessionId,
+            traceId,
+            startedAt,
+            endedAt,
+            durationMs: Math.max(0, Math.round(endedAt - startedAt))
+        }).catch(() => {});
+
+        return { success: true };
+    }
+
+    /**
+     * /api/sessions/status の結果で実行時状態だけを同期
+     * /api/state の全件再取得を減らすための軽量更新
+     * @param {Object<string, {running?: boolean, proxyPath?: string, port?: number}>} statusMap
+     * @returns {boolean} 変更があればtrue
+     */
+    syncRuntimeStatus(statusMap = {}) {
+        const { sessions } = this.store.getState();
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+            return false;
+        }
+
+        let changed = false;
+        const updatedSessions = sessions.map((session) => {
+            const status = statusMap?.[session.id] || {};
+            const running = Boolean(status.running);
+            const needsRestart = session.intendedState === 'active' && !running;
+            const proxyPath = running
+                ? (typeof status.proxyPath === 'string' && status.proxyPath.trim()
+                    ? status.proxyPath
+                    : `/console/${session.id}`)
+                : null;
+            const port = running && Number.isFinite(status.port) ? status.port : null;
+            const prevRuntime = session.runtimeStatus || {};
+            const prevProxyPath = running
+                ? (typeof prevRuntime.proxyPath === 'string' && prevRuntime.proxyPath.trim()
+                    ? prevRuntime.proxyPath
+                    : `/console/${session.id}`)
+                : null;
+            const prevPort = running && Number.isFinite(prevRuntime.port) ? prevRuntime.port : null;
+
+            if (
+                session.ttydRunning === running &&
+                prevRuntime.needsRestart === needsRestart &&
+                prevProxyPath === proxyPath &&
+                prevPort === port
+            ) {
+                return session;
+            }
+
+            changed = true;
+            return {
+                ...session,
+                ttydRunning: running,
+                runtimeStatus: {
+                    ttydRunning: running,
+                    needsRestart,
+                    proxyPath,
+                    port
+                }
+            };
+        });
+
+        if (changed) {
+            this.store.setState({ sessions: updatedSessions });
+        }
+
+        return changed;
     }
 
     /**

@@ -59,6 +59,7 @@ import { createGoalSeekRouter } from './server/routes/goal-seek.js';
 // Import GoalSeek services
 import { GoalSeekCalculationService } from './server/services/goal-seek-calculation-service.js';
 import { GoalSeekWebSocketManager } from './server/services/goal-seek-websocket-manager.js';
+import { GoalSeekStore } from './server/services/goal-seek-store.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -261,6 +262,7 @@ const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
 
 // GoalSeek Services
+const goalSeekStore = new GoalSeekStore({ dataFile: path.join(VAR_DIR, 'goal-seek.json') });
 const goalSeekCalculationService = new GoalSeekCalculationService({ eventBus: null });
 const goalSeekWebSocketManager = new GoalSeekWebSocketManager({
     authService,

@@ -417,6 +417,10 @@ export class AuthManager {
         };
     }
 
+    getToken() {
+        return this.token;
+    }
+
     getStatus() {
         if (this._verifying) return 'checking';
         if (!this.token) return 'anonymous';

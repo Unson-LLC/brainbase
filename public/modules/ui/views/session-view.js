@@ -20,6 +20,8 @@ export class SessionView {
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
+        this.commitTreeModalEl = null;
+        this.commitTreeCloseHandler = null;
     }
 
     /**
@@ -541,6 +543,16 @@ export class SessionView {
             });
         }
 
+        // Commit tree button
+        const commitTreeBtn = row.querySelector('.commit-tree-btn');
+        if (commitTreeBtn) {
+            commitTreeBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                closeDropdown();
+                await this._openCommitTreeModal(session);
+            });
+        }
+
         // Goal setup button
         const goalSetupBtn = row.querySelector('.goal-setup-btn');
         if (goalSetupBtn) {
@@ -718,6 +730,179 @@ export class SessionView {
         return true;
     }
 
+    _ensureCommitTreeModal() {
+        if (this.commitTreeModalEl) return this.commitTreeModalEl;
+
+        const modal = document.createElement('div');
+        modal.className = 'modal commit-tree-modal';
+        modal.innerHTML = `
+            <div class="modal-content commit-tree-modal-content">
+                <div class="modal-header">
+                    <h3 id="commit-tree-title">Commit tree</h3>
+                    <button class="close-modal-btn" type="button" aria-label="Close">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="commit-tree-meta" class="commit-tree-meta"></div>
+                    <div class="commit-tree-toolbar">
+                        <button type="button" class="commit-tree-toolbar-btn" data-commit-tree-action="expand-all">全展開</button>
+                        <button type="button" class="commit-tree-toolbar-btn" data-commit-tree-action="collapse-all">全縮小</button>
+                    </div>
+                    <div id="commit-tree-list" class="commit-tree-list"></div>
+                </div>
+            </div>
+        `;
+
+        const closeBtn = modal.querySelector('.close-modal-btn');
+        this.commitTreeCloseHandler = () => {
+            modal.classList.remove('active');
+        };
+
+        closeBtn?.addEventListener('click', this.commitTreeCloseHandler);
+        modal.addEventListener('click', (event) => {
+            const actionBtn = event.target.closest('[data-commit-tree-action]');
+            if (actionBtn) {
+                const action = actionBtn.getAttribute('data-commit-tree-action');
+                this._setAllCommitTreeExpanded(modal, action === 'expand-all');
+                return;
+            }
+
+            const toggleBtn = event.target.closest('.commit-tree-toggle');
+            if (toggleBtn) {
+                const item = toggleBtn.closest('.commit-tree-item');
+                if (item) {
+                    const nextExpanded = !item.classList.contains('is-expanded');
+                    this._setCommitTreeItemExpanded(item, nextExpanded);
+                }
+                return;
+            }
+
+            if (event.target === modal) {
+                this.commitTreeCloseHandler();
+            }
+        });
+
+        document.body.appendChild(modal);
+        this.commitTreeModalEl = modal;
+        return modal;
+    }
+
+    _formatCommitTimestamp(timestamp) {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        if (Number.isNaN(date.getTime())) return escapeHtml(String(timestamp));
+        return date.toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    _renderCommitTree(commits) {
+        if (!Array.isArray(commits) || commits.length === 0) {
+            return '<div class="commit-tree-empty">コミットが見つかりません</div>';
+        }
+
+        return commits.map((commit) => {
+            const hash = escapeHtml(commit.hash || '');
+            const description = escapeHtml(commit.description || '(empty)');
+            const author = escapeHtml(commit.author || 'unknown');
+            const timestamp = this._formatCommitTimestamp(commit.timestamp);
+            const bookmarkText = Array.isArray(commit.bookmarks) && commit.bookmarks.length > 0
+                ? ` • ${escapeHtml(commit.bookmarks.join(', '))}`
+                : '';
+            const parents = Array.isArray(commit.parents) ? commit.parents.filter(Boolean) : [];
+            const parentText = parents.length > 0
+                ? `parent: ${escapeHtml(parents.join(', '))}`
+                : 'parent: (root)';
+            const mergeBadge = parents.length > 1
+                ? '<span class="commit-tree-badge merge">merge</span>'
+                : '';
+            const wcBadge = commit.isWorkingCopy
+                ? '<span class="commit-tree-badge wc">working</span>'
+                : '';
+            const isExpanded = Boolean(commit.isWorkingCopy);
+            const expandedClass = isExpanded ? ' is-expanded' : '';
+            const ariaExpanded = isExpanded ? 'true' : 'false';
+
+            return `
+                <div class="commit-tree-item${expandedClass}">
+                    <button class="commit-tree-toggle" type="button" aria-expanded="${ariaExpanded}">
+                        <div class="commit-tree-main">
+                        <span class="commit-tree-hash">${hash}</span>
+                        ${mergeBadge}
+                        ${wcBadge}
+                        <span class="commit-tree-desc">${description}</span>
+                        </div>
+                        <span class="commit-tree-caret" aria-hidden="true">▸</span>
+                    </button>
+                    <div class="commit-tree-details">
+                        <div class="commit-tree-sub">${author} • ${timestamp}${bookmarkText}</div>
+                        <div class="commit-tree-parent">${parentText}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    _setCommitTreeItemExpanded(item, expanded) {
+        if (!item) return;
+        item.classList.toggle('is-expanded', expanded);
+        const toggleBtn = item.querySelector('.commit-tree-toggle');
+        if (toggleBtn) {
+            toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+    }
+
+    _setAllCommitTreeExpanded(modal, expanded) {
+        modal.querySelectorAll('.commit-tree-item').forEach((item) => {
+            this._setCommitTreeItemExpanded(item, expanded);
+        });
+    }
+
+    async _openCommitTreeModal(session) {
+        const modal = this._ensureCommitTreeModal();
+        const titleEl = modal.querySelector('#commit-tree-title');
+        const metaEl = modal.querySelector('#commit-tree-meta');
+        const listEl = modal.querySelector('#commit-tree-list');
+
+        if (titleEl) {
+            titleEl.textContent = `Commit tree: ${session.name || session.id}`;
+        }
+        if (metaEl) {
+            metaEl.textContent = '読み込み中...';
+        }
+        if (listEl) {
+            listEl.innerHTML = '<div class="commit-tree-loading">コミット履歴を取得しています...</div>';
+        }
+
+        modal.classList.add('active');
+
+        const result = await this.sessionService.getCommitLog(session.id, 100);
+        if (!result) {
+            if (metaEl) metaEl.textContent = '取得失敗';
+            if (listEl) listEl.innerHTML = '<div class="commit-tree-empty">取得に失敗しました</div>';
+            return;
+        }
+
+        const commits = Array.isArray(result.commits) ? result.commits : [];
+        const repoType = escapeHtml(result.repoType || 'unknown');
+        const repoName = escapeHtml(result.repoName || 'unknown');
+        if (metaEl) {
+            metaEl.textContent = `${repoName} (${repoType}) • ${commits.length} commits`;
+        }
+        if (listEl) {
+            listEl.innerHTML = this._renderCommitTree(commits);
+        }
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
     /**
      * クリーンアップ
      */
@@ -729,6 +914,16 @@ export class SessionView {
         if (this._outsideClickHandler) {
             document.removeEventListener('click', this._outsideClickHandler);
             this._outsideClickHandler = null;
+        }
+
+        if (this.commitTreeModalEl) {
+            const closeBtn = this.commitTreeModalEl.querySelector('.close-modal-btn');
+            if (closeBtn && this.commitTreeCloseHandler) {
+                closeBtn.removeEventListener('click', this.commitTreeCloseHandler);
+            }
+            this.commitTreeModalEl.remove();
+            this.commitTreeModalEl = null;
+            this.commitTreeCloseHandler = null;
         }
 
         if (this.container) {

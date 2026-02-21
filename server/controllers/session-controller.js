@@ -7,12 +7,25 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+function nowMs() {
+    return Number(process.hrtime.bigint() / 1000000n);
+}
+
+function toTiming(startMs) {
+    return Math.max(0, nowMs() - startMs);
+}
+
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore) {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
+    }
+
+    _getTraceId(req) {
+        const header = req.headers['x-bb-trace-id'] || req.headers['x-trace-id'];
+        return Array.isArray(header) ? header[0] : header || null;
     }
 
     // ========================================
@@ -52,6 +65,9 @@ export class SessionController {
      */
     start = async (req, res) => {
         const { sessionId, initialCommand, cwd, engine } = req.body;
+        const traceId = this._getTraceId(req);
+        const startedAt = nowMs();
+        const timing = {};
         console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
@@ -61,7 +77,9 @@ export class SessionController {
 
         try {
             // セッション開始時に'done'ステータスをクリア
+            const clearStarted = nowMs();
             this.sessionManager.clearDoneStatus(sessionId);
+            timing.clearDoneStatusMs = toTiming(clearStarted);
 
             const startOptions = { sessionId };
             if (typeof cwd === 'string' && cwd.trim()) {
@@ -75,9 +93,13 @@ export class SessionController {
             }
 
             // ttydプロセス起動
+            const ttydStarted = nowMs();
             const result = await this.sessionManager.startTtyd(startOptions);
+            timing.startTtydMs = toTiming(ttydStarted);
+            timing.startedExisting = result?.startedExisting === true;
 
             // intendedState を active に更新（engine も反映）
+            const stateUpdateStarted = nowMs();
             const currentState = this.stateStore.get();
             const updatedSessions = (currentState.sessions || []).map(session => {
                 if (session.id !== sessionId) return session;
@@ -91,10 +113,25 @@ export class SessionController {
                 ...currentState,
                 sessions: updatedSessions
             });
+            timing.stateUpdateMs = toTiming(stateUpdateStarted);
+            timing.totalMs = toTiming(startedAt);
 
-            res.json(result);
+            console.log('[perf:server] session.start', {
+                traceId,
+                sessionId,
+                timing
+            });
+
+            res.json({ ...result, timing, traceId });
         } catch (error) {
+            timing.totalMs = toTiming(startedAt);
             console.error('Failed to start session:', error);
+            console.error('[perf:server] session.start.error', {
+                traceId,
+                sessionId,
+                timing,
+                error: error.message
+            });
             res.status(500).json({ error: error.message || 'Failed to allocate port' });
         }
     };
@@ -196,6 +233,9 @@ export class SessionController {
     restore = async (req, res) => {
         const { id } = req.params;
         const { engine: requestEngine } = req.body;
+        const traceId = this._getTraceId(req);
+        const startedAt = nowMs();
+        const timing = {};
 
         const state = this.stateStore.get();
         const session = state.sessions?.find(s => s.id === id);
@@ -214,6 +254,7 @@ export class SessionController {
         try {
             // Restore worktree if it existed
             if (session.worktree?.repo) {
+                const worktreeStarted = nowMs();
                 const worktreeResult = await this.worktreeService.create(id, session.worktree.repo);
                 if (!worktreeResult) {
                     return res.status(500).json({
@@ -221,12 +262,16 @@ export class SessionController {
                         detail: 'worktreeService.create returned null'
                     });
                 }
+                timing.restoreWorktreeMs = toTiming(worktreeStarted);
             }
 
             // セッション復元時に'done'ステータスをクリア
+            const clearStarted = nowMs();
             this.sessionManager.clearDoneStatus(id);
+            timing.clearDoneStatusMs = toTiming(clearStarted);
 
             // Start ttyd session
+            const ttydStarted = nowMs();
             const cwd = session.worktree?.path || session.cwd;
             const result = await this.sessionManager.startTtyd({
                 sessionId: id,
@@ -234,8 +279,11 @@ export class SessionController {
                 initialCommand: session.initialCommand,
                 engine
             });
+            timing.startTtydMs = toTiming(ttydStarted);
+            timing.startedExisting = result?.startedExisting === true;
 
             // Update state to active (archivedAt も除去、engine も反映)
+            const stateUpdateStarted = nowMs();
             const updatedSessions = state.sessions.map(s => {
                 if (s.id !== id) return s;
                 const { archivedAt, ...rest } = s;
@@ -246,14 +294,31 @@ export class SessionController {
                 ...state,
                 sessions: updatedSessions
             });
+            timing.stateUpdateMs = toTiming(stateUpdateStarted);
+            timing.totalMs = toTiming(startedAt);
+
+            console.log('[perf:server] session.restore', {
+                traceId,
+                sessionId: id,
+                timing
+            });
 
             res.json({
                 success: true,
                 port: result.port,
-                proxyPath: result.proxyPath
+                proxyPath: result.proxyPath,
+                timing,
+                traceId
             });
         } catch (error) {
+            timing.totalMs = toTiming(startedAt);
             console.error('Failed to restore session:', error);
+            console.error('[perf:server] session.restore.error', {
+                traceId,
+                sessionId: id,
+                timing,
+                error: error.message
+            });
             res.status(500).json({ error: error.message });
         }
     };
