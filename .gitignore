@@ -256,3 +256,4 @@ pr-title.txt
 pr-body.txt
 refactoring-result.json
 .codex-last-message-*.txt
+!.claude/settings.json

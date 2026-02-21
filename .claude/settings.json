@@ -1,0 +1,134 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/pre-tool-use/forbidden-commands-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\""
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/pre-tool-use/serena-enforcement-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/pre-tool-use/edit-comprehensive-validator.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "timeout": 30000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/post-tool-use/read-tool-warning-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/post-tool-use/edit-validator.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "timeout": 20000
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/post-tool-use/git-notification-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/post-tool-use/requirement-checker-wrapper.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "timeout": 30000
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/post-tool-use/verification-tracker-wrapper.ts",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/post-tool-use/interrupt-detector.ts",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*test.*|.*テスト.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/test-enforcer.ts",
+            "timeout": 120000
+          }
+        ]
+      },
+      {
+        "matcher": ".*FRD-\\d+.*|.*REQ-\\d+.*|.*BUG-\\d+.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/enforce-nocodb-lookup.ts",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/env-section-injector-wrapper.ts",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/stop/completion-notifier-wrapper.ts"
+          }
+        ]
+      }
+    ]
+  }
+}
