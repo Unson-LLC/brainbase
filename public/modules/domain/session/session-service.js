@@ -255,11 +255,27 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async deleteSession(sessionId) {
+        // 削除前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const state = await this.httpClient.get('/api/state');
         const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
         await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
         await this.loadSessions();
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
+
+        // 現在表示中のセッションを削除した場合、次のアクティブセッションに切り替え
+        if (wasCurrentSession) {
+            const activeSessions = this.getFilteredSessions()
+                .filter(s => s.intendedState !== 'archived');
+            if (activeSessions.length > 0) {
+                await this.switchSession(activeSessions[0].id);
+            } else {
+                this.store.setState({ currentSessionId: null });
+            }
+        }
+
         return { success: true, sessionId, eventResult };
     }
 
@@ -392,6 +408,10 @@ export class SessionService {
     async archiveSession(sessionId, options = {}) {
         const { skipMergeCheck = false } = options;
 
+        // アーカイブ前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/archive`,
             { skipMergeCheck }
@@ -404,6 +424,19 @@ export class SessionService {
 
         await this.loadSessions();
         await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+        // 現在表示中のセッションをアーカイブした場合、次のアクティブセッションに切り替え
+        if (wasCurrentSession) {
+            const activeSessions = this.getFilteredSessions()
+                .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
+            if (activeSessions.length > 0) {
+                await this.switchSession(activeSessions[0].id);
+            } else {
+                // アクティブセッションがない場合はcurrentSessionIdをクリア
+                this.store.setState({ currentSessionId: null });
+            }
+        }
+
         return { success: true };
     }
 
@@ -414,6 +447,10 @@ export class SessionService {
      * @returns {Promise<{success?: boolean, error?: string, prUrl?: string}>}
      */
     async mergeSession(sessionId) {
+        // マージ前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/merge`
         );
@@ -421,6 +458,17 @@ export class SessionService {
         if (result.success) {
             await this.loadSessions();
             await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+            // 現在表示中のセッションをマージした場合、次のアクティブセッションに切り替え
+            if (wasCurrentSession) {
+                const activeSessions = this.getFilteredSessions()
+                    .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
+                if (activeSessions.length > 0) {
+                    await this.switchSession(activeSessions[0].id);
+                } else {
+                    this.store.setState({ currentSessionId: null });
+                }
+            }
         }
 
         return result;

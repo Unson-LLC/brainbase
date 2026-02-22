@@ -181,7 +181,7 @@ export class MobileInputUIController {
         const root = container || document;
         const buttons = root.querySelectorAll('[data-mobile-cursor]');
         buttons.forEach(button => {
-            button.addEventListener('click', () => {
+            this.bindTapHandler(button, () => {
                 const action = button.getAttribute('data-mobile-cursor');
                 if (action === 'enter') {
                     this.sendEnterKey();

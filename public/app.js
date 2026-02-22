@@ -421,6 +421,9 @@ export class App {
         const lastCode = this.reconnectManager?.lastDisconnectCode;
         const recentlyNavigated = this._terminalLastNavigateAt && Date.now() - this._terminalLastNavigateAt < 2500;
 
+        // モバイルではMobile Input Dockから入力するため、iframeフォーカスは不要
+        const isMobile = window.innerWidth <= 768;
+
         let stateClass = 'blocked';
         let text = '入力: 不明';
         let title = `session=${sessionId}`;
@@ -461,7 +464,9 @@ export class App {
                 text = '入力: 切断';
                 title = `session=${sessionId} disconnected${typeof lastCode === 'number' ? ` (code ${lastCode})` : ''}`;
             }
-        } else if (!isFocused) {
+        } else if (!isFocused && !isMobile) {
+            // デスクトップのみ: フォーカスが外れていたらクリックを促す
+            // モバイルではMobile Input Dockから入力するためフォーカス不要
             stateClass = 'needs-focus';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;
@@ -690,11 +695,15 @@ export class App {
      * Initialize UI plugins
      */
     async initPlugins() {
-        this.pluginManager = new PluginManager({ eventBus, store: appStore });
-        this.pluginManager.registerSlotsFromDOM();
-        this._registerUIPlugins();
-        await this.pluginManager.loadConfig();
-        await this.pluginManager.enableConfiguredPlugins();
+        try {
+            this.pluginManager = new PluginManager({ eventBus, store: appStore });
+            this.pluginManager.registerSlotsFromDOM();
+            this._registerUIPlugins();
+            await this.pluginManager.loadConfig();
+            await this.pluginManager.enableConfiguredPlugins();
+        } catch (error) {
+            console.warn('Plugin initialization failed, continuing without plugins:', error.message);
+        }
     }
 
     /**
@@ -1087,7 +1096,9 @@ export class App {
                 this.showConsole();
             }
 
-            // Update session goal banner
+            // Update session goal banner（セッション切り替え時は即座に非表示→再描画）
+            const banner = document.getElementById('session-goal-banner');
+            if (banner) banner.className = 'session-goal-banner hidden';
             this._updateSessionGoalBanner(sessionId);
         });
 
@@ -2109,6 +2120,8 @@ export class App {
         const banner = document.getElementById('session-goal-banner');
         if (!banner) return;
 
+        banner.dataset.sessionId = sessionId;
+
         try {
             const goals = await this.goalSeekService.getGoals();
             const goal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
@@ -2150,6 +2163,8 @@ export class App {
                         this._updateSessionGoalBanner(sessionId);
                     } catch (err) {
                         console.error('[GoalBanner] toggle error:', err);
+                        // ゴールが見つからない場合はバナーを更新（古いデータを消去）
+                        this._updateSessionGoalBanner(sessionId);
                     }
                 });
             }
@@ -2270,6 +2285,7 @@ export class App {
 
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
+                this._updateSessionGoalBanner(currentSessionId);
             } else {
                 // Load default data (404エラーは許容)
                 try {
@@ -2335,8 +2351,8 @@ export class App {
         // 3.5. Initialize project select dropdown
         this.initProjectSelect();
 
-        // 3.8. Initialize UI plugins
-        await this.initPlugins();
+        // 3.8. Initialize UI plugins (non-blocking to prevent session load delay)
+        this.initPlugins();
 
         // 3.9. Initialize panel resize
         this.cleanupPanelResize = initPanelResize();
