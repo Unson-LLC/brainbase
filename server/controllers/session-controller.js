@@ -55,6 +55,29 @@ export class SessionController {
         res.json(status);
     };
 
+    /**
+     * GET /api/sessions/:id
+     * 単一セッションを取得（優先ロード用）
+     */
+    get = async (req, res) => {
+        const { id } = req.params;
+        const traceId = this._getTraceId(req);
+        const startedAt = nowMs();
+
+        try {
+            const session = this.sessionManager.getSessionById(id);
+            if (!session) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
+
+            const timing = { totalMs: toTiming(startedAt) };
+            res.json({ session, timing, traceId });
+        } catch (error) {
+            console.error('Failed to get session:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
     // ========================================
     // Process Management
     // ========================================

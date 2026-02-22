@@ -236,10 +236,6 @@ export BRAINBASE_VAR_DIR=/path/to/your/var
 # カスタムポート（デフォルト: 31013、worktree内では31014）
 export PORT=4000
 
-# Codex: auto handover (/handover) (opt-in)
-export BRAINBASE_AUTO_HANDOVER=1
-export BRAINBASE_AUTO_HANDOVER_DELAY_SEC=90  # default: 90
-
 # サーバー起動
 npm start
 ```
@@ -341,14 +337,6 @@ npm start
 5. **セッション切り替え**
    - 左サイドバーでプロジェクトをクリック → 即座に切り替え
    - 各プロジェクトのClaude Codeセッションはgit worktreeで分離
-
-6. **セッション引き継ぎ（/handover）**
-   - セッション終了/切り替え前に `/handover` を実行すると、プロジェクトルートに `HANDOVER.md` が生成されます
-   - 自動生成したい場合は `bash .claude/hooks/auto-handover.sh` を使います（失敗時はテンプレのみを出力）
-   - 自動実行（任意, opt-in）
-     - **Codex**: `BRAINBASE_AUTO_HANDOVER=1` を付けて起動すると、処理完了後にアイドル状態が `BRAINBASE_AUTO_HANDOVER_DELAY_SEC` 秒（デフォルト 90）続いたタイミングで自動生成されます
-     - **Claude Code**: `.claude/settings.json` の `SessionEnd` hook で `bash .claude/hooks/auto-handover.sh` を実行してください
-   - 注意: 自動生成は `claude -p` を呼ぶためトークンを消費します
 
 ---
 
@@ -507,17 +495,6 @@ Brainbaseは以下のアーキテクチャパターンを採用:
 - [リファクタリング計画](./docs/REFACTORING_PLAN.md) - 3-Phase移行戦略
 - [git worktree ガイド](./docs/git-worktree-guide.md) - worktree詳細説明（レガシー）
 - [Jujutsu公式ドキュメント](https://jj-vcs.github.io/jj/latest/) - AI-first VCS
-
-## 📈 UX待機時間のKPI採取
-
-セッション切り替え・復元・モバイル初動のUX指標を、ブラウザ上で直接確認できます。
-
-1. Brainbaseを起動して対象操作を実行（切替/復元/モバイル読み込み）
-2. ブラウザDevTools Consoleで `window.brainbasePerf.getSummary()` を実行
-3. 生データを保存する場合は `window.brainbasePerf.export()` を実行
-4. 再計測前は `window.brainbasePerf.reset()` でサンプルをクリア
-
-出力には `sessionSwitch / sessionRestore / mobileLoad` の `count, p50, p95, min, max` が含まれます。
 
 ---
 

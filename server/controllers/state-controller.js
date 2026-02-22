@@ -104,7 +104,12 @@ export class StateController {
             // watchdogが定期的にプロセスヘルスを監視しているため、
             // GETレスポンスでは近似値で十分
             const activeSessions = this.sessionManager.getActiveSessions();
-            const sessionsWithStatus = (state.sessions || []).map(session => {
+
+            // アーカイブ除外フィルタを追加（629個 → 15個）
+            const activePausedSessions = (state.sessions || [])
+                .filter(session => session.intendedState !== 'archived');
+
+            const sessionsWithStatus = activePausedSessions.map(session => {
                 if (session.intendedState === 'active') {
                     const ttydRunning = activeSessions.has(session.id);
                     return {
@@ -113,7 +118,7 @@ export class StateController {
                         runtimeStatus: { ttydRunning, needsRestart: !ttydRunning }
                     };
                 }
-                // archived/paused: プロセス動いてない
+                // paused: プロセス動いてない
                 return {
                     ...session,
                     ttydRunning: false,

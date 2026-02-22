@@ -1,39 +1,66 @@
-# 標準コミット実行
+# 標準コミット実行（jj）
 
-現在の変更を CLAUDE.md のコミットルールに従ってコミットします。
+現在の変更に説明をつけ、次の変更に進みます。
 **SNS投稿のネタになるよう「悩み→判断→結果」の過程も記録する。**
+
+## 前提
+
+- brainbaseは **Jujutsu (jj)** で管理されている
+- jjではworking copyが常にコミット。`git add` + `git commit` は不要
+- `jj describe` で説明をつけ、`jj new` で次の変更に進む
 
 ## 実行手順
 
-1. **ブランチ確認**（最重要）
-   - `git branch --show-current` で現在のブランチを確認
-   - `session/*` ブランチ → そのままコミット（正常）
-   - `main` ブランチ → ユーザーに確認（下記参照）
+1. **ワークスペース確認**
+   - `jj workspace list` で現在のワークスペースを確認
+   - `jj log -r @ --no-pager` で現在のworking copyを確認
 
-2. **mainブランチの場合の確認**
-   - セッション内でmainにいる場合 → 警告を出す
-   - 許容ケース: 緊急hotfix、軽微修正、CI/CD設定変更
-   - 判断できない場合はユーザーに「mainに直接コミットしますか？」と確認
+2. **変更内容の確認**
+   - `jj diff --stat` で変更ファイルを確認
+   - `jj diff` で変更内容を確認（必要に応じて）
 
-3. `git status` で変更ファイルを確認
-4. `git diff --stat HEAD` で変更量を確認
-5. **会話の文脈から以下を抽出:**
+3. **会話の文脈から以下を抽出:**
    - **悩み**: 何に悩んだか（トレードオフ、選択肢の比較、迷い）
    - **判断**: なぜその判断をしたか（理由、根拠、決め手）
    - **結果**: どうなったか、何が変わったか
-6. コミットメッセージを生成:
-   - type: feat/fix/docs/refactor/chore/style から選択
-   - summary: 50文字以内で要約
-   - 悩み→判断: 思考過程（あれば）
-   - why: 変更の意図・背景
-   - what: 主な変更点（変更が多い場合）
-7. `git add -A && git commit` を実行
-8. 結果を報告
+
+4. **コミットメッセージを設定:**
+   ```bash
+   jj describe -m "$(cat <<'EOF'
+   <type>: <summary>
+
+   悩み→判断:
+   - 何に悩んだか
+   - なぜこの判断をしたか
+   （※思考過程がある場合のみ。単純な修正では省略可）
+
+   なぜ:
+   - 変更の意図・背景
+
+   変更:
+   - 主な変更点（多い場合のみ）
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+   Co-Authored-By: Claude <noreply@anthropic.com>
+   EOF
+   )"
+   ```
+
+5. **次の変更に進む:**
+   ```bash
+   jj new
+   ```
+
+6. **結果を確認:**
+   ```bash
+   jj log -r @- --no-pager
+   ```
 
 ## コミットメッセージフォーマット
 
 ```
-<type>: <summary>
+<type>: <summary>（日本語可、50文字以内）
 
 悩み→判断:
 - 何に悩んだか（例：AとBどちらを採用するか）
@@ -51,8 +78,25 @@
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-## 注意事項
+### type一覧
 
-- 秘密情報（.env, credentials等）が含まれていないか確認
-- 変更が大きすぎる場合は分割を提案
-- コミット後は `git status` で確認
+| type | 用途 |
+|------|------|
+| `feat` | 新機能・新規追加 |
+| `fix` | バグ修正 |
+| `docs` | ドキュメントのみの変更 |
+| `refactor` | リファクタリング（機能変更なし） |
+| `chore` | ビルド・設定・運用系の変更 |
+| `style` | フォーマット変更（機能に影響なし） |
+
+## jj特有の注意事項
+
+- `jj describe` は現在のworking copy（`@`）の説明を更新する。何度でも書き直せる
+- `jj new` を実行すると、現在の `@` が確定し、新しい空の `@` が作られる
+- 過去のコミットを修正したい場合は `jj edit <change-id>` で戻って `jj describe` で修正。子孫は自動rebase
+- bookmarkは自動で動かない。必要なら `jj bookmark set <name> -r @-` で手動設定
+
+## 禁止事項
+
+- 秘密情報（.env, credentials.json等）を含む変更を放置しない
+- 変更が大きすぎる場合は `jj split` で分割を提案

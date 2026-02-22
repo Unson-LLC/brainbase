@@ -243,6 +243,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     # Create new session
     tmux new-session -d -s "$SESSION_NAME"
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
+    tmux set-environment -t "$SESSION_NAME" BRAINBASE_SERVER_PATH "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
     if [ "$ENGINE" = "codex" ]; then
         # Default Codex permissions: full filesystem + network, no approval prompts

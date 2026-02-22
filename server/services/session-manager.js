@@ -648,6 +648,36 @@ export class SessionManager {
     }
 
     /**
+     * 単一セッションを取得（優先ロード用）
+     * @param {string} sessionId - セッションID
+     * @returns {Object|null} セッション情報（runtime status付き）
+     */
+    getSessionById(sessionId) {
+        const state = this.stateStore.get();
+        const session = (state.sessions || []).find(s => s.id === sessionId);
+        if (!session) return null;
+
+        // Runtime status を追加
+        const activeEntry = this.activeSessions.get(sessionId);
+        const activePid = activeEntry?.process?.pid || activeEntry?.pid;
+        const persistedPid = session?.ttydProcess?.pid;
+        const pidToCheck = activePid || persistedPid;
+        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
+        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+
+        return {
+            ...session,
+            ttydRunning,
+            runtimeStatus: {
+                ttydRunning,
+                needsRestart,
+                proxyPath: ttydRunning ? `/console/${sessionId}` : null,
+                port: activeEntry?.port || null
+            }
+        };
+    }
+
+    /**
      * ttydプロセスを起動
      * @param {Object} options - 起動オプション
      * @param {string} options.sessionId - セッションID
