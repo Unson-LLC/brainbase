@@ -772,8 +772,10 @@ export class SessionManager {
         const args = [
             '-p', port.toString(),
             '-W',
-            // Exit on disconnect to avoid PTY FD leaks accumulating inside long-lived ttyd processes.
-            '-o',
+            // WebSocket ping interval to prevent timeout (especially over Cloudflare Zero Trust)
+            '-P', '3',
+            // Note: Removed '-o' (exit on disconnect) to allow reconnection on mobile/Cloudflare Zero Trust
+            // PTY leak prevention is now handled by session lifecycle management
         ];
 
         // Only use base path on non-Windows platforms
