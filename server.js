@@ -54,12 +54,6 @@ import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createSetupRouter } from './server/routes/setup.js';
-import { createGoalSeekRouter } from './server/routes/goal-seek.js';
-
-// Import GoalSeek services
-import { GoalSeekCalculationService } from './server/services/goal-seek-calculation-service.js';
-import { GoalSeekWebSocketManager } from './server/services/goal-seek-websocket-manager.js';
-import { GoalSeekStore } from './server/services/goal-seek-store.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -260,14 +254,6 @@ const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
-
-// GoalSeek Services
-const goalSeekStore = new GoalSeekStore({ dataFile: path.join(VAR_DIR, 'goal-seek.json') });
-const goalSeekCalculationService = new GoalSeekCalculationService({ eventBus: null });
-const goalSeekWebSocketManager = new GoalSeekWebSocketManager({
-    authService,
-    calculationService: goalSeekCalculationService
-});
 
 // Middleware
 // Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
@@ -480,7 +466,6 @@ const sessionManager = new SessionManager({
 (async () => {
     try {
         await stateStore.init();
-        await goalSeekStore.init();
         await sessionManager.restoreHookStatus();
 
         // Phase 3: activeセッションを復元してからcleanupを実行
@@ -638,11 +623,6 @@ app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
-app.use('/api/goal-seek', requireAuth(authService), createGoalSeekRouter({
-    authService,
-    calculationService: goalSeekCalculationService,
-    wsManager: goalSeekWebSocketManager
-}));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================
@@ -667,26 +647,6 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', (request, socket, head) => {
-    const { pathname } = new URL(request.url, 'http://localhost');
-
-    // GoalSeek WebSocket upgrade: /api/goal-seek/calculate
-    if (pathname === '/api/goal-seek/calculate') {
-        // Create a WebSocket server for this connection
-        const wss = new WebSocketServer({ noServer: true });
-        wss.handleUpgrade(request, socket, head, (ws) => {
-            wss.emit('connection', ws, request);
-        });
-
-        wss.on('connection', (ws, req) => {
-            goalSeekWebSocketManager.handleConnection(ws, req);
-
-            ws.on('close', () => {
-                goalSeekWebSocketManager.handleDisconnect(ws);
-            });
-        });
-        return;
-    }
-
     // TTYD console proxy
     ttydProxy.upgrade(request, socket, head);
 });
