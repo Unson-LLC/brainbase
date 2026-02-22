@@ -70,6 +70,21 @@ export class MobileInputFocusManager {
         if (this.lastKeyboardData) {
             this.updateKeyboardDebug(this.lastKeyboardData);
         }
+
+        // モバイルボトムナビの表示制御（キーボード状態に応じて）
+        this.updateBottomNavVisibility();
+    }
+
+    updateBottomNavVisibility() {
+        // モバイルのみ処理
+        if (window.innerWidth > 768) return;
+
+        const bottomNav = document.getElementById('mobile-bottom-nav');
+        if (!bottomNav) return;
+
+        // キーボード表示中は非表示、それ以外は表示
+        const keyboardOpen = document.body.classList.contains('keyboard-open');
+        bottomNav.style.display = keyboardOpen ? 'none' : 'flex';
     }
 
     scheduleKeyboardSync() {
@@ -156,6 +171,9 @@ export class MobileInputFocusManager {
             this.lastKeyboardOffset = offset;
             this.lastKeyboardData = { baseline, heightDelta, rawOffset, offset, keyboardOpen, dockGap, visualHeight };
             this.updateKeyboardDebug(this.lastKeyboardData);
+
+            // キーボード状態変化時にボトムナビも更新
+            this.updateBottomNavVisibility();
         };
 
         this.viewportHandler = update;

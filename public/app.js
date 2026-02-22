@@ -21,8 +21,6 @@ import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
-import { createTraceId } from './modules/core/trace-id.js';
-import { initPerformanceMetrics } from './modules/performance-metrics.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -32,6 +30,8 @@ import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
 import { GoalSeekService } from './modules/domain/goal-seek/goal-seek-service.js';
 import { BrowserNotificationService } from './modules/domain/browser-notification/browser-notification-service.js';
+import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
+import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -39,6 +39,7 @@ import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
+import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
@@ -297,7 +298,6 @@ export class App {
         this.modals = {};
         this.unsubscribers = [];
         this.pollingIntervalId = null;
-        this.sessionFullRefreshIntervalId = null;
         this.refreshIntervalId = null;
         this.choiceCheckInterval = null;
         this.lastChoiceHash = null;
@@ -313,33 +313,6 @@ export class App {
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
-        this._pendingSessionSwitchPerf = null;
-        this._pendingMobileLoadPerf = null;
-        this.performanceMetrics = null;
-    }
-
-    _perfNow() {
-        return typeof performance !== 'undefined' ? performance.now() : Date.now();
-    }
-
-    _startPerfFlow(eventName, extra = {}) {
-        const traceId = createTraceId('perf');
-        const startedAt = this._perfNow();
-        eventBus.emit(eventName, { traceId, startedAt, ...extra }).catch(() => {});
-        return { traceId, startedAt };
-    }
-
-    _finishPerfFlow(eventName, flow, extra = {}) {
-        if (!flow) return;
-        const endedAt = this._perfNow();
-        const durationMs = Math.max(0, Math.round(endedAt - flow.startedAt));
-        eventBus.emit(eventName, {
-            traceId: flow.traceId,
-            startedAt: flow.startedAt,
-            endedAt,
-            durationMs,
-            ...extra
-        }).catch(() => {});
     }
 
     _isConsoleVisible() {
@@ -448,6 +421,9 @@ export class App {
         const lastCode = this.reconnectManager?.lastDisconnectCode;
         const recentlyNavigated = this._terminalLastNavigateAt && Date.now() - this._terminalLastNavigateAt < 2500;
 
+        // モバイルではMobile Input Dockから入力するため、iframeフォーカスは不要
+        const isMobile = window.innerWidth <= 768;
+
         let stateClass = 'blocked';
         let text = '入力: 不明';
         let title = `session=${sessionId}`;
@@ -488,7 +464,9 @@ export class App {
                 text = '入力: 切断';
                 title = `session=${sessionId} disconnected${typeof lastCode === 'number' ? ` (code ${lastCode})` : ''}`;
             }
-        } else if (!isFocused) {
+        } else if (!isFocused && !isMobile) {
+            // デスクトップのみ: フォーカスが外れていたらクリックを促す
+            // モバイルではMobile Input Dockから入力するためフォーカス不要
             stateClass = 'needs-focus';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;
@@ -538,22 +516,7 @@ export class App {
 
         // Reconnect manager status callback.
         if (this.reconnectManager) {
-            this.reconnectManager.onStatusChange = (status) => {
-                this._updateTerminalInputStatus();
-
-                const pending = this._pendingSessionSwitchPerf;
-                if (
-                    pending &&
-                    status?.wsConnected &&
-                    status?.sessionId === pending.sessionId
-                ) {
-                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, pending.flow, {
-                        sessionId: pending.sessionId,
-                        phase: 'ws-connected'
-                    });
-                    this._pendingSessionSwitchPerf = null;
-                }
-            };
+            this.reconnectManager.onStatusChange = () => this._updateTerminalInputStatus();
         }
 
         // Track tmux copy-mode (entered by TMUX_SCROLL; exited by TERMINAL_INTERACT).
@@ -692,10 +655,9 @@ export class App {
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
         this.container.register('browserNotificationService', () => new BrowserNotificationService());
-        this.container.register('goalSeekService', () => new GoalSeekService({
-            wsUrl: 'ws://localhost:31013/api/goal-seek/calculate',
-            token: this.authManager?.getToken() || null
-        }));
+        this.container.register('goalSeekService', () => new GoalSeekService());
+
+        this.container.register('commitTreeService', () => new CommitTreeService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -717,17 +679,31 @@ export class App {
             this.views.sessionView = new SessionView({ sessionService: this.sessionService });
             this.views.sessionView.mount(sessionContainer);
         }
+
+        // Commit Tree (right sidebar)
+        const commitTreeContainer = document.getElementById('commit-tree-list');
+        if (commitTreeContainer) {
+            this.commitTreeService = this.container.get('commitTreeService');
+            this.views.commitTreeView = new CommitTreeView({
+                commitTreeService: this.commitTreeService
+            });
+            this.views.commitTreeView.mount(commitTreeContainer);
+        }
     }
 
     /**
      * Initialize UI plugins
      */
     async initPlugins() {
-        this.pluginManager = new PluginManager({ eventBus, store: appStore });
-        this.pluginManager.registerSlotsFromDOM();
-        this._registerUIPlugins();
-        await this.pluginManager.loadConfig();
-        await this.pluginManager.enableConfiguredPlugins();
+        try {
+            this.pluginManager = new PluginManager({ eventBus, store: appStore });
+            this.pluginManager.registerSlotsFromDOM();
+            this._registerUIPlugins();
+            await this.pluginManager.loadConfig();
+            await this.pluginManager.enableConfiguredPlugins();
+        } catch (error) {
+            console.warn('Plugin initialization failed, continuing without plugins:', error.message);
+        }
     }
 
     /**
@@ -1112,25 +1088,18 @@ export class App {
             // Switch terminal frame
             await this.switchSession(sessionId);
 
+            // Load session-specific data
+            await this.loadSessionData(sessionId);
+
             // Auto-return to console view if available
             if (this.showConsole) {
                 this.showConsole();
             }
 
-            // Non-blocking: terminal準備を優先してから関連データを更新
-            this.loadSessionData(sessionId).catch((error) => {
-                console.error('Failed to load session data after switch:', error);
-            });
-        });
-
-        // Goal Seek setup request from session dropdown
-        const unsubGoalSeekSetup = eventBus.onAsync(EVENTS.GOAL_SEEK_SETUP_REQUEST, async (event) => {
-            const { sessionId } = event.detail;
-
-            // Show GoalSeekModal
-            if (this.modals.goalSeekModal) {
-                this.modals.goalSeekModal.show();
-            }
+            // Update session goal banner（セッション切り替え時は即座に非表示→再描画）
+            const banner = document.getElementById('session-goal-banner');
+            if (banner) banner.className = 'session-goal-banner hidden';
+            this._updateSessionGoalBanner(sessionId);
         });
 
         // Start task: create session and switch to it
@@ -1318,7 +1287,54 @@ export class App {
             }
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6);
+        // Goal seek: open goal seek modal
+        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
+            const { session } = event.detail;
+            this.modals.goalSeekModal.show(session?.id);
+        });
+
+        // Goal seek: update banner when goal is created/updated
+        const unsubGoalCreated = eventBus.on(EVENTS.GOAL_CREATED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalUpdated = eventBus.on(EVENTS.GOAL_UPDATED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalMonitoringStarted = eventBus.on(EVENTS.GOAL_MONITORING_STARTED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalMonitoringStopped = eventBus.on(EVENTS.GOAL_MONITORING_STOPPED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalProgressUpdate = eventBus.on(EVENTS.GOAL_PROGRESS_UPDATE, (event) => {
+            const sessionId = event.detail?.goal?.sessionId;
+            const { currentSessionId } = appStore.getState();
+            const targetSession = sessionId || currentSessionId;
+            if (targetSession === currentSessionId) {
+                // チェック時刻だけ軽量更新（再レンダリングなし）
+                const checkTimeEl = document.getElementById('sgb-check-time');
+                if (checkTimeEl) {
+                    const now = new Date();
+                    checkTimeEl.textContent = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')} チェック済`;
+                }
+                // ゴールのstatus変化があれば再レンダリング
+                const goal = event.detail?.goal;
+                if (goal && (goal.status === 'problem' || goal.status === 'escalation')) {
+                    this._updateSessionGoalBanner(targetSession);
+                }
+            }
+        });
+        const unsubGoalProblemDetected = eventBus.on(EVENTS.GOAL_PROBLEM_DETECTED, (event) => {
+            const sessionId = event.detail?.sessionId;
+            const { currentSessionId } = appStore.getState();
+            if (sessionId === currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -2098,6 +2114,67 @@ export class App {
     }
 
     /**
+     * セッションのゴールをバナーに表示
+     */
+    async _updateSessionGoalBanner(sessionId) {
+        const banner = document.getElementById('session-goal-banner');
+        if (!banner) return;
+
+        banner.dataset.sessionId = sessionId;
+
+        try {
+            const goals = await this.goalSeekService.getGoals();
+            const goal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
+
+            if (!goal) {
+                banner.classList.add('hidden');
+                banner.className = 'session-goal-banner hidden';
+                return;
+            }
+
+            const statusLabel = { active: '未開始', monitoring: '監視中', problem: '問題あり', escalation: 'エスカレーション' }[goal.status] || goal.status;
+            const btnLabel = goal.status === 'monitoring' || goal.status === 'problem' ? '監視停止' : '監視開始';
+            const btnAction = goal.status === 'monitoring' || goal.status === 'problem' ? 'stop' : 'start';
+
+            const isMonitoringActive = goal.status === 'monitoring' || goal.status === 'problem';
+            const checkTimeHtml = isMonitoringActive
+                ? `<span class="sgb-check-time" id="sgb-check-time">チェック中...</span>`
+                : '';
+
+            banner.innerHTML = `
+                <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
+                <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
+                <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
+                <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
+                ${checkTimeHtml}
+            `;
+
+            banner.className = `session-goal-banner status-${goal.status}`;
+
+            const btn = banner.querySelector('.sgb-btn');
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    try {
+                        if (btnAction === 'start') {
+                            await this.goalSeekService.startMonitoring(goal.id);
+                        } else {
+                            await this.goalSeekService.stopMonitoring(goal.id);
+                        }
+                        this._updateSessionGoalBanner(sessionId);
+                    } catch (err) {
+                        console.error('[GoalBanner] toggle error:', err);
+                        // ゴールが見つからない場合はバナーを更新（古いデータを消去）
+                        this._updateSessionGoalBanner(sessionId);
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('[GoalBanner] fetch error:', err);
+            banner.classList.add('hidden');
+        }
+    }
+
+    /**
      * Switch to a session and update terminal frame
      */
     async switchSession(sessionId) {
@@ -2107,32 +2184,44 @@ export class App {
             return;
         }
         this.terminalFrame = terminalFrame;
-        let perfFlow = null;
 
         try {
             // Get session info from store
             const { sessions } = appStore.getState();
             const session = sessions.find(s => s.id === sessionId);
-            perfFlow = this._startPerfFlow(EVENTS.PERF_SESSION_SWITCH_START, { sessionId });
 
             if (!session) {
                 console.error('Session not found:', sessionId);
                 terminalFrame.src = 'about:blank';
-                this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
-                    sessionId,
-                    phase: 'session-not-found'
-                });
                 return;
             }
 
-            const startPayload = {
-                sessionId: session.id,
-                initialCommand: session.initialCommand || '',
-                cwd: session.worktree?.path || session.path,
-                engine: session.engine || 'claude'
-            };
+            // Get session status to check if it's already running and get proxyPath
+            const status = await httpClient.get('/api/sessions/status');
+            const sessionStatus = status[sessionId];
 
-            const applyTerminalProxy = (proxyPath, phase) => {
+            let proxyPath = null;
+
+            if (sessionStatus && sessionStatus.running && sessionStatus.proxyPath) {
+                // Session is already running, use existing proxyPath
+                proxyPath = sessionStatus.proxyPath;
+                console.log('Session already running, using existing proxyPath:', proxyPath);
+            } else {
+                // Session not running, start it
+                const res = await httpClient.post('/api/sessions/start', {
+                    sessionId: session.id,
+                    initialCommand: session.initialCommand || '',
+                    cwd: session.path,
+                    engine: session.engine || 'claude'
+                });
+
+                if (res && res.proxyPath) {
+                    proxyPath = res.proxyPath;
+                    console.log('Started session, got proxyPath:', proxyPath);
+                }
+            }
+
+            if (proxyPath) {
                 terminalFrame.src = proxyPath;
                 console.log('Terminal switched to:', proxyPath);
 
@@ -2140,80 +2229,9 @@ export class App {
                 this.reconnectManager?.setCurrentSession(sessionId);
                 this._terminalLastNavigateAt = Date.now();
                 this.focusTerminal('switchSession');
-                this._pendingSessionSwitchPerf = {
-                    sessionId,
-                    flow: perfFlow
-                };
-                const onFrameLoad = () => {
-                    if (this._pendingSessionSwitchPerf?.sessionId !== sessionId) return;
-                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
-                        sessionId,
-                        phase: 'iframe-load'
-                    });
-                    this._pendingSessionSwitchPerf = null;
-                };
-                terminalFrame.addEventListener('load', onFrameLoad, { once: true });
-                setTimeout(() => {
-                    if (this._pendingSessionSwitchPerf?.sessionId !== sessionId) return;
-                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
-                        sessionId,
-                        phase: 'timeout'
-                    });
-                    this._pendingSessionSwitchPerf = null;
-                }, 8000);
-
-                // reconnect managerが無い場合はsrc設定時点で完了扱い
-                if (!this.reconnectManager) {
-                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
-                        sessionId,
-                        phase
-                    });
-                    this._pendingSessionSwitchPerf = null;
-                }
-            };
-
-            const startResult = async () => {
-                // start APIはidempotent: runningなら既存proxyPathを返す
-                const res = await httpClient.post('/api/sessions/start', startPayload, {
-                    traceId: perfFlow.traceId
-                });
-                return {
-                    proxyPath: res?.proxyPath || null,
-                    phase: res?.timing?.startedExisting ? 'already-running' : 'started-or-resumed'
-                };
-            };
-
-            const optimisticProxyPath = session.ttydRunning
-                ? (session.runtimeStatus?.proxyPath || `/console/${session.id}`)
-                : null;
-
-            if (optimisticProxyPath) {
-                applyTerminalProxy(optimisticProxyPath, 'runtime-cache');
-
-                // cache miss/stale対策: 非同期でstartを叩いて最終proxyを確認
-                startResult().then(({ proxyPath }) => {
-                    const isCurrent = appStore.getState().currentSessionId === sessionId;
-                    if (!isCurrent || !proxyPath) return;
-                    if (terminalFrame.src.endsWith(proxyPath)) return;
-
-                    terminalFrame.src = proxyPath;
-                    this._terminalLastNavigateAt = Date.now();
-                    this.focusTerminal('switchSession-ensure');
-                }).catch((error) => {
-                    console.warn('Failed to ensure session runtime after optimistic switch:', error);
-                });
             } else {
-                const { proxyPath, phase } = await startResult();
-                if (proxyPath) {
-                    applyTerminalProxy(proxyPath, phase);
-                } else {
-                    console.error('No proxyPath available for session:', sessionId);
-                    terminalFrame.src = 'about:blank';
-                    this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
-                        sessionId,
-                        phase: 'proxy-missing'
-                    });
-                }
+                console.error('No proxyPath available for session:', sessionId);
+                terminalFrame.src = 'about:blank';
             }
 
             // Update active state in UI (handled by SessionView re-render, but keep for now)
@@ -2230,16 +2248,6 @@ export class App {
         } catch (error) {
             console.error('Failed to switch session:', error);
             terminalFrame.src = 'about:blank';
-            if (perfFlow) {
-                this._finishPerfFlow(EVENTS.PERF_SESSION_SWITCH_READY, perfFlow, {
-                    sessionId,
-                    phase: 'switch-error',
-                    error: error.message
-                });
-            }
-            if (this._pendingSessionSwitchPerf?.sessionId === sessionId) {
-                this._pendingSessionSwitchPerf = null;
-            }
         }
     }
 
@@ -2248,11 +2256,11 @@ export class App {
      */
     async loadSessionData(sessionId) {
         try {
-            // 並列化して体感待機を短縮
-            await Promise.all([
-                this.taskService.loadTasks(),
-                this.scheduleService.loadSchedule()
-            ]);
+            // Load tasks for the session
+            await this.taskService.loadTasks();
+
+            // Load schedule for the session
+            await this.scheduleService.loadSchedule();
 
             console.log('Session data loaded for:', sessionId);
         } catch (error) {
@@ -2277,6 +2285,7 @@ export class App {
 
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
+                this._updateSessionGoalBanner(currentSessionId);
             } else {
                 // Load default data (404エラーは許容)
                 try {
@@ -2313,13 +2322,6 @@ export class App {
      */
     async start() {
         console.log('Starting brainbase-ui...');
-        this.performanceMetrics = initPerformanceMetrics({ attachToWindow: true });
-        if (this.isMobile()) {
-            this._pendingMobileLoadPerf = this._startPerfFlow(EVENTS.PERF_MOBILE_LOAD_START, {
-                viewportWidth: window.innerWidth,
-                viewportHeight: window.innerHeight
-            });
-        }
 
         // 0. Initialize auth (load token before API calls)
         await this.initAuth();
@@ -2336,11 +2338,21 @@ export class App {
         // 3. Initialize modals
         this.initModals();
 
+        // 3.1. Initialize Goal Seek View (depends on modals)
+        const goalSeekContainer = document.getElementById('goal-seek-section');
+        if (goalSeekContainer) {
+            this.views.goalSeekView = new GoalSeekView({
+                goalSeekService: this.goalSeekService,
+                modal: this.modals.goalSeekModal
+            });
+            this.views.goalSeekView.mount(goalSeekContainer);
+        }
+
         // 3.5. Initialize project select dropdown
         this.initProjectSelect();
 
-        // 3.8. Initialize UI plugins
-        await this.initPlugins();
+        // 3.8. Initialize UI plugins (non-blocking to prevent session load delay)
+        this.initPlugins();
 
         // 3.9. Initialize panel resize
         this.cleanupPanelResize = initPanelResize();
@@ -2373,16 +2385,10 @@ export class App {
         this.pollingIntervalId = startPolling(
             () => appStore.getState().currentSessionId,
             3000,
-            async (statusMap) => {
-                this.sessionService.syncRuntimeStatus(statusMap);
+            async () => {
+                await this.sessionService.loadSessions();
             }
         );
-        // 全state再取得は低頻度にしてI/Oと再描画を抑制
-        this.sessionFullRefreshIntervalId = setInterval(() => {
-            this.sessionService.loadSessions().catch((error) => {
-                console.warn('Periodic session refresh failed:', error.message);
-            });
-        }, 30000);
 
         // 8. Start periodic refresh (every 5 minutes)
         this.startPeriodicRefresh();
@@ -2401,16 +2407,6 @@ export class App {
 
         // 13. Setup mobile input UI (Dock/Composer)
         this.initMobileInput();
-
-        if (this._pendingMobileLoadPerf) {
-            requestAnimationFrame(() => {
-                this._finishPerfFlow(EVENTS.PERF_MOBILE_LOAD_READY, this._pendingMobileLoadPerf, {
-                    viewportWidth: window.innerWidth,
-                    viewportHeight: window.innerHeight
-                });
-                this._pendingMobileLoadPerf = null;
-            });
-        }
 
         console.log('brainbase-ui started successfully');
     }
@@ -2783,10 +2779,6 @@ export class App {
             clearInterval(this.pollingIntervalId);
             this.pollingIntervalId = null;
         }
-        if (this.sessionFullRefreshIntervalId) {
-            clearInterval(this.sessionFullRefreshIntervalId);
-            this.sessionFullRefreshIntervalId = null;
-        }
 
         // Stop refresh
         if (this.refreshIntervalId) {
@@ -2813,10 +2805,6 @@ export class App {
 
         // Cleanup mobile input controller
         this.mobileInputController?.destroy();
-        this._pendingSessionSwitchPerf = null;
-        this._pendingMobileLoadPerf = null;
-        this.performanceMetrics?.destroy?.();
-        this.performanceMetrics = null;
 
         console.log('brainbase-ui destroyed');
     }
@@ -2839,4 +2827,40 @@ if (shouldAutoStart) {
 
     // Expose for debugging
     window.brainbaseApp = app;
+
+    // バックグラウンドから復帰時のボトムナビ表示復元
+    // iOS Safariでページがキャッシュから復元された時にCSSが正しく適用されない問題の対策
+    const ensureBottomNavVisibility = () => {
+        // モバイルのみ処理
+        if (window.innerWidth > 768) return;
+
+        const bottomNav = document.getElementById('mobile-bottom-nav');
+        if (!bottomNav) return;
+
+        // キーボード表示中は非表示のまま（要件通り）
+        const keyboardOpen = document.body.classList.contains('keyboard-open');
+        if (keyboardOpen) {
+            bottomNav.style.display = 'none';
+        } else {
+            // キーボード非表示の場合は必ず表示
+            bottomNav.style.display = 'flex';
+        }
+    };
+
+    // ページが visible になった時（バックグラウンドから復帰）
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            ensureBottomNavVisibility();
+        }
+    });
+
+    // iOS Safari でページがキャッシュから復元された時
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            ensureBottomNavVisibility();
+        }
+    });
+
+    // 初回ロード時も実行
+    ensureBottomNavVisibility();
 }
