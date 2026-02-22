@@ -215,6 +215,7 @@ export const EVENTS = {
     MERGE_SESSION: 'session:merge',
     RENAME_SESSION: 'session:rename',
     CREATE_SESSION: 'session:create',
+    COMMIT_LOG_LOADED: 'commit-log:loaded',
 
     // Schedule関連
     SCHEDULE_LOADED: 'schedule:loaded',

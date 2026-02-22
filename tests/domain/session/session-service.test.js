@@ -89,11 +89,14 @@ describe('SessionService', () => {
 
     describe('loadSessions', () => {
         it('should fetch sessions from API and update store', async () => {
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            const mockConfig = { projects: [] };
+            httpClient.get.mockResolvedValueOnce(mockConfig);   // 1回目: /api/config
+            httpClient.get.mockResolvedValueOnce({ sessions: mockSessions }); // 2回目: /api/state
 
             const result = await sessionService.loadSessions();
 
-            expect(httpClient.get).toHaveBeenCalledWith('/api/state');
+            expect(httpClient.get).toHaveBeenNthCalledWith(1, '/api/config');
+            expect(httpClient.get).toHaveBeenNthCalledWith(2, '/api/state');
             expect(appStore.getState().sessions).toEqual(mockSessions);
             expect(result).toEqual(mockSessions);
         });
@@ -121,9 +124,11 @@ describe('SessionService', () => {
         });
 
         it('should use conditional GET with ETag and skip update on 304', async () => {
+            const mockConfig = { projects: [] };
             httpClient.get
-                .mockResolvedValueOnce({ sessions: mockSessions, etag: 'W/"etag-1"' })
-                .mockResolvedValueOnce({ notModified: true, status: 304, headers: { etag: 'W/"etag-1"' } });
+                .mockResolvedValueOnce(mockConfig)  // 1回目: /api/config（初回loadSessions）
+                .mockResolvedValueOnce({ sessions: mockSessions, etag: 'W/"etag-1"' })  // 2回目: /api/state（初回loadSessions）
+                .mockResolvedValueOnce({ notModified: true, status: 304, headers: { etag: 'W/"etag-1"' } }); // 3回目: /api/state（2回目loadSessions、/api/configはキャッシュされるので呼ばれない）
             const listener = vi.fn();
             eventBus.on(EVENTS.SESSION_LOADED, listener);
 
@@ -131,8 +136,9 @@ describe('SessionService', () => {
             const before = appStore.getState().sessions;
             const result = await sessionService.loadSessions();
 
-            expect(httpClient.get).toHaveBeenNthCalledWith(1, '/api/state');
-            expect(httpClient.get).toHaveBeenNthCalledWith(2, '/api/state', expect.objectContaining({
+            expect(httpClient.get).toHaveBeenNthCalledWith(1, '/api/config');
+            expect(httpClient.get).toHaveBeenNthCalledWith(2, '/api/state');
+            expect(httpClient.get).toHaveBeenNthCalledWith(3, '/api/state', expect.objectContaining({
                 allowNotModified: true,
                 headers: {
                     'If-None-Match': 'W/"etag-1"'
@@ -757,14 +763,21 @@ describe('SessionService', () => {
     });
 
     describe('getUniqueProjects', () => {
-        it('getUniqueProjects呼び出し時_ユニークなプロジェクト一覧が返却される', () => {
-            const sessionsWithProjects = [
-                { id: '1', project: 'project-a' },
-                { id: '2', project: 'project-b' },
-                { id: '3', project: 'project-a' }, // 重複
-                { id: '4', project: 'project-c' }
-            ];
-            appStore.setState({ sessions: sessionsWithProjects });
+        it('getUniqueProjects呼び出し時_ユニークなプロジェクト一覧が返却される', async () => {
+            const mockConfig = {
+                projects: [
+                    { id: 'project-a', name: 'Project A' },
+                    { id: 'project-b', name: 'Project B' },
+                    { id: 'project-c', name: 'Project C' }
+                ]
+            };
+            const mockSessions = [];
+
+            httpClient.get.mockResolvedValueOnce(mockConfig);
+            httpClient.get.mockResolvedValueOnce({ sessions: mockSessions });
+
+            // loadSessions()で_projectsCacheを初期化
+            await sessionService.loadSessions();
 
             const result = sessionService.getUniqueProjects();
 
@@ -774,13 +787,21 @@ describe('SessionService', () => {
             expect(result).toContain('project-c');
         });
 
-        it('getUniqueProjects呼び出し時_projectがnullのセッションは除外される', () => {
-            const sessionsWithNull = [
-                { id: '1', project: 'project-a' },
-                { id: '2', project: null },
-                { id: '3', project: undefined }
-            ];
-            appStore.setState({ sessions: sessionsWithNull });
+        it('getUniqueProjects呼び出し時_archivedまたはsession_select=falseのプロジェクトは除外される', async () => {
+            const mockConfig = {
+                projects: [
+                    { id: 'project-a', name: 'Project A', archived: false, session_select: true },
+                    { id: 'project-b', name: 'Project B', archived: true },  // archived=trueは除外
+                    { id: 'project-c', name: 'Project C', session_select: false }  // session_select=falseは除外
+                ]
+            };
+            const mockSessions = [];
+
+            httpClient.get.mockResolvedValueOnce(mockConfig);
+            httpClient.get.mockResolvedValueOnce({ sessions: mockSessions });
+
+            // loadSessions()で_projectsCacheを初期化
+            await sessionService.loadSessions();
 
             const result = sessionService.getUniqueProjects();
 
@@ -788,8 +809,15 @@ describe('SessionService', () => {
             expect(result).toContain('project-a');
         });
 
-        it('getUniqueProjects呼び出し時_セッションなし_空配列が返却される', () => {
-            appStore.setState({ sessions: [] });
+        it('getUniqueProjects呼び出し時_セッションなし_空配列が返却される', async () => {
+            const mockConfig = { projects: [] };
+            const mockSessions = [];
+
+            httpClient.get.mockResolvedValueOnce(mockConfig);
+            httpClient.get.mockResolvedValueOnce({ sessions: mockSessions });
+
+            // loadSessions()で_projectsCacheを初期化
+            await sessionService.loadSessions();
 
             const result = sessionService.getUniqueProjects();
 

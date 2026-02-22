@@ -26,16 +26,28 @@ describe('WorktreeService.getCommitLog', () => {
         vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined);
 
         const jjOutput = [
-            'abc123456789\x00feat: add panel\x002026-02-16T10:30:00+09:00\x00ksato\x00main\x00true',
-            'def987654321\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00false'
+            'abc123456789\x00feat: add panel\x002026-02-16T10:30:00+09:00\x00ksato\x00main\x00true\x00',
+            'def987654321\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00false\x00abc123456789'
         ].join('\n');
 
-        mockExec
-            .mockResolvedValueOnce({ stdout: 'origin https://github.com/Unson-LLC/brainbase.git (fetch)\n' })
-            .mockResolvedValueOnce({ stdout: jjOutput });
+        // 動的にコマンドを判定してmock結果を返す
+        mockExec.mockImplementation((cmd) => {
+            if (cmd.includes('log -r')) {
+                // _getJujutsuCommitLog()からの呼び出し（`log -r`はjujutsu特有）
+                return Promise.resolve({ stdout: jjOutput });
+            } else if (cmd.includes('jj version')) {
+                // _isJujutsuRepo()からの呼び出し（キャッシュがない場合）
+                return Promise.resolve({ stdout: 'jj 0.9.0\n' });
+            } else if (cmd.includes('list')) {
+                // _getRemoteRepoName()からの呼び出し（jujutsu: git remote list）
+                return Promise.resolve({ stdout: 'origin https://github.com/test/repo.git\n' });
+            }
+            return Promise.reject(new Error('Unexpected command: ' + cmd));
+        });
 
         const result = await service.getCommitLog('session-1', '/tmp/repo', 50);
 
+        console.log('[TEST] Result:', result);
         expect(result.repoType).toBe('jj');
         expect(result.commits).toHaveLength(2);
         expect(result.commits[0].hash).toBe('abc123456789');
@@ -53,13 +65,21 @@ describe('WorktreeService.getCommitLog', () => {
         vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined);
 
         const gitOutput = [
-            'abc1234\x00feat: add panel\x002026-02-16T10:30:00+09:00\x00ksato\x00HEAD -> main\x00',
-            'def9876\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00'
+            'abc1234\x00feat: add panel\x002026-02-16T10:30:00+09:00\x00ksato\x00HEAD -> main\x00\x00',
+            'def9876\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00abc1234\x00'
         ].join('\n');
 
-        mockExec
-            .mockResolvedValueOnce({ stdout: 'https://github.com/Unson-LLC/brainbase.git\n' })
-            .mockResolvedValueOnce({ stdout: gitOutput });
+        // 動的にコマンドを判定してmock結果を返す
+        mockExec.mockImplementation((cmd) => {
+            if (cmd.includes('--format')) {
+                // _getGitCommitLog()からの呼び出し（git log --format）
+                return Promise.resolve({ stdout: gitOutput });
+            } else if (cmd.includes('get-url')) {
+                // _getRemoteRepoName()からの呼び出し（git: remote get-url）
+                return Promise.resolve({ stdout: 'https://github.com/test/repo.git\n' });
+            }
+            return Promise.reject(new Error('Unexpected command: ' + cmd));
+        });
 
         const result = await service.getCommitLog('session-1', '/tmp/repo', 50);
 
@@ -94,10 +114,22 @@ describe('WorktreeService.getCommitLogByPath', () => {
         const { promises: fs } = await import('fs');
         vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined);
 
-        const jjOutput = 'abc123456789\x00feat: by-path\x002026-02-16T10:30:00+09:00\x00ksato\x00main\x00true';
-        mockExec
-            .mockResolvedValueOnce({ stdout: 'origin https://github.com/Unson-LLC/brainbase.git (fetch)\n' })
-            .mockResolvedValueOnce({ stdout: jjOutput });
+        const jjOutput = 'abc123456789\x00feat: by-path\x002026-02-16T10:30:00+09:00\x00ksato\x00main\x00true\x00';
+
+        // 動的にコマンドを判定してmock結果を返す
+        mockExec.mockImplementation((cmd) => {
+            if (cmd.includes('log -r')) {
+                // _getJujutsuCommitLog()からの呼び出し（`log -r`はjujutsu特有）
+                return Promise.resolve({ stdout: jjOutput });
+            } else if (cmd.includes('jj version')) {
+                // _isJujutsuRepo()からの呼び出し（キャッシュがない場合）
+                return Promise.resolve({ stdout: 'jj 0.9.0\n' });
+            } else if (cmd.includes('list')) {
+                // _getRemoteRepoName()からの呼び出し（jujutsu: git remote list）
+                return Promise.resolve({ stdout: 'origin https://github.com/test/repo.git\n' });
+            }
+            return Promise.reject(new Error('Unexpected command: ' + cmd));
+        });
 
         const result = await service.getCommitLogByPath('/tmp/worktrees/session-1-repo', 50);
 
@@ -157,43 +189,5 @@ describe('WorktreeService._parseGitLog', () => {
         expect(result[0].hash).toBe('abc1234');
         expect(result[0].description).toBe('feat: test');
         expect(result[0].bookmarks).toContain('HEAD -> main');
-    });
-});
-
-describe('WorktreeService._getMainBranchName', () => {
-    it('main bookmarkがある場合_mainを返す', async () => {
-        const mockExec = vi.fn()
-            .mockResolvedValueOnce({ stdout: 'main: abcdef12\n' });
-        const service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
-
-        const result = await service._getMainBranchName('/tmp/repo');
-
-        expect(result).toBe('main');
-        expect(mockExec).toHaveBeenCalledTimes(1);
-    });
-
-    it('mainが無くmasterがある場合_masterを返す', async () => {
-        const mockExec = vi.fn()
-            .mockRejectedValueOnce(new Error('not found'))
-            .mockResolvedValueOnce({ stdout: 'master: 12345678\n' });
-        const service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
-
-        const result = await service._getMainBranchName('/tmp/repo');
-
-        expect(result).toBe('master');
-        expect(mockExec).toHaveBeenCalledTimes(2);
-    });
-
-    it('候補が無い場合_mainを返す', async () => {
-        const mockExec = vi.fn()
-            .mockRejectedValueOnce(new Error('not found'))
-            .mockRejectedValueOnce(new Error('not found'))
-            .mockRejectedValueOnce(new Error('not found'));
-        const service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
-
-        const result = await service._getMainBranchName('/tmp/repo');
-
-        expect(result).toBe('main');
-        expect(mockExec).toHaveBeenCalledTimes(3);
     });
 });

@@ -72,10 +72,11 @@ export function createBrainbaseRouter(options = {}) {
      */
     router.get('/', async (req, res) => {
         try {
-            const [github, system, storage, tasks, worktrees, projects] = await Promise.all([
+            const [github, system, tasks, worktrees, projects] = await Promise.all([
                 getGitHubInfo(),
                 systemService.getSystemStatus(),
-                storageService.getStorageSummary(),
+                // DISABLED: storageService.getStorageSummary() causes memory leak (du process accumulation)
+                // storageService.getStorageSummary(),
                 getTasksInfo(),
                 getWorktreesInfo(),
                 getProjectsWithHealth(),
@@ -84,7 +85,7 @@ export function createBrainbaseRouter(options = {}) {
             res.json({
                 github,
                 system,
-                storage,
+                // storage: null, // Disabled to prevent memory leak
                 tasks,
                 worktrees,
                 projects,
@@ -161,7 +162,9 @@ export function createBrainbaseRouter(options = {}) {
 
     /**
      * GET /api/brainbase/storage
-     * ストレージ情報
+     * ストレージ情報取得（キャッシュ付き、TTL: 5分）
+     * NOTE: メモリリーク対策として専用エンドポイントでのみ取得可能。
+     *       `/api/brainbase/overview` では引き続き無効化されている。
      */
     router.get('/storage', async (req, res) => {
         try {
