@@ -43,7 +43,7 @@ description: 開発ワークフロー統合ガイド（7 Skills統合版）。Gi
 
 | Skill名 | 行数 | 統合先セクション | 主要テーマ |
 |---------|------|-----------------|-----------|
-| git-commit-rules | 142行 | § 1 | Gitコミットルール、type一覧、HEREDOC形式 |
+| git-commit-rules | 142行 | § 1 | Jujutsuコミットルール、type一覧、HEREDOC形式 |
 | github-actions-management | 53行 | § 2 | GitHub Actions管理、scheduled-jobs.md更新 |
 | cursor-design-to-code | 50行 | § 3 | Cursor Planning mode、Design-to-Code手法 |
 | claude-code-patterns | 286行 | § 4 | Hooks設定、@path記法、学習管理 |
@@ -53,7 +53,7 @@ description: 開発ワークフロー統合ガイド（7 Skills統合版）。Gi
 
 ---
 
-# § 1. Git Workflow (Commit Rules)
+# § 1. Jujutsu Workflow (Commit Rules)
 
 ## 1.1 コミットメッセージフォーマット
 
@@ -101,7 +101,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 HEREDOCを使用してフォーマットを保持：
 
 ```bash
-git commit -m "$(cat <<'EOF'
+COMMIT_MSG="$(cat <<'EOF'
 <type>: <summary>
 
 なぜ:
@@ -113,13 +113,17 @@ git commit -m "$(cat <<'EOF'
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
+
+jj describe -m "$COMMIT_MSG"
+jj new
 ```
 
 ---
 
 ## 1.5 禁止事項
 
-- `git commit --amend` は原則禁止（pre-commit hook修正後のみ許可）
+- `git commit` / `git commit --amend` は使用しない
+- `jj squash` / `jj rebase` など履歴改変系は原則禁止（明示要求時のみ）
 - `--no-verify`, `--no-gpg-sign` はユーザー明示要求時のみ
 - mainへの直接push禁止（セッション内作業時）
 - 秘密情報（.env, credentials.json等）のコミット禁止
@@ -1300,15 +1304,19 @@ git commit -m "docs: ナレッジ追加"
 
 セッション終了時の `/merge` コマンドは以下を実行：
 
-1. **セッションブランチの変更確認**
-   - プロジェクトコードの変更があればセッションブランチにコミット
+1. **session workspace の検出**
+   - `jj workspace list` で現在workspaceを検出（`default` は対象外）
 
-2. **正本の変更確認**
-   - 正本ディレクトリの変更があればmainに直接コミット
-   - 「正本の変更をmainにコミットしますか？」と確認
+2. **bookmark push**
+   - `jj git push --bookmark <session-id>` でリモート反映
 
-3. **マージ実行**
-   - セッションブランチをmainにマージ
+3. **PR作成とマージ**
+   - `gh pr create --head <session-id> --base <default-branch>`
+   - `gh pr merge --merge --delete-branch`
+
+4. **workspace cleanup**
+   - `jj workspace forget <session-id>`
+   - `jj bookmark delete <session-id>`
 
 ---
 
@@ -1317,8 +1325,8 @@ git commit -m "docs: ナレッジ追加"
 brainbase-uiがworktree作成時に自動実行：
 
 ```bash
-# worktree作成
-git worktree add shared/.worktrees/session-xxx -b session/session-xxx
+# workspace作成
+jj workspace add --name session-xxx shared/.worktrees/session-xxx
 
 # シンボリックリンク作成
 cd shared/.worktrees/session-xxx
@@ -1706,7 +1714,7 @@ claude setup-token
 
 # Quick Reference: 状況別参照ガイド
 
-## Gitコミット作成
+## Jujutsuコミット作成
 → § 1.1 コミットメッセージフォーマット
 → § 1.2 type一覧
 → § 1.4 コミット実行コマンド

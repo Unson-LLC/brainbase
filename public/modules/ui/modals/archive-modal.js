@@ -1,4 +1,5 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { appStore } from '../../core/store.js';
 import { showConfirm } from '../../confirm-modal.js';
 import { getProjectFromPath } from '../../project-mapping.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -32,8 +33,28 @@ export class ArchiveModal {
     /**
      * モーダルを開く
      */
-    open() {
+    async open() {
         if (!this.modalElement) return;
+
+        // アーカイブ込みでセッションをリロード
+        const currentFilters = appStore.getState().filters || {};
+        appStore.setState({
+            filters: {
+                ...currentFilters,
+                showArchivedSessions: true
+            }
+        });
+
+        // セッション一覧を再取得（アーカイブ込み）
+        await this.sessionService.loadSessions();
+
+        // フィルタを元に戻す（他の画面への影響を防ぐ）
+        appStore.setState({
+            filters: {
+                ...currentFilters,
+                showArchivedSessions: false
+            }
+        });
 
         // プロジェクトフィルターを更新
         this._updateProjectFilter();

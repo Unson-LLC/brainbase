@@ -6,9 +6,14 @@ on:
     - cron: '0 21 * * *'
   workflow_dispatch:  # 手動実行用
 
+concurrency:
+  group: sync-slack-to-local
+  cancel-in-progress: true
+
 jobs:
   sync:
     runs-on: [self-hosted, local]
+    timeout-minutes: 15
 
     steps:
       - name: Checkout

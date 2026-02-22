@@ -671,7 +671,7 @@ async function gracefulShutdown(signal) {
     }
 
     // 4. Cleanup GoalSeek WebSocket Manager
-    if (goalSeekWebSocketManager.cleanup) {
+    if (goalSeekWebSocketManager?.cleanup) {
         goalSeekWebSocketManager.cleanup();
         console.log('✅ GoalSeek WebSocket Manager cleaned up');
     }

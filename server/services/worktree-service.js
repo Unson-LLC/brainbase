@@ -339,10 +339,20 @@ export class WorktreeService {
      * @returns {Promise<string>}
      */
     async _getMainBranchName(repoPath) {
-        const { stdout: mainBranch } = await this.execPromise(
-            `git -C "${repoPath}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"`
-        );
-        return mainBranch.trim() || 'main';
+        const candidates = ['main', 'master', 'develop'];
+        for (const candidate of candidates) {
+            try {
+                const { stdout } = await this.execPromise(
+                    `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager 2>/dev/null`
+                );
+                if ((stdout || '').includes(`${candidate}:`)) {
+                    return candidate;
+                }
+            } catch {
+                // Continue probing candidates
+            }
+        }
+        return 'main';
     }
 
     /**

@@ -2,7 +2,7 @@
 
 - Generated At: 2026-02-22 09:35 JST
 - Branch: develop
-- Repo: /Users/ksato/workspace/code/brainbase
+- Repo: `~/workspace/code/brainbase` (or your preferred location)
 - Session Goal: 不明（自動生成に失敗）
 
 ## 1. 今回やったこと（完了）

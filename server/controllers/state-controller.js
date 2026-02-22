@@ -105,9 +105,11 @@ export class StateController {
             // GETレスポンスでは近似値で十分
             const activeSessions = this.sessionManager.getActiveSessions();
 
-            // アーカイブ除外フィルタを追加（629個 → 15個）
-            const activePausedSessions = (state.sessions || [])
-                .filter(session => session.intendedState !== 'archived');
+            // アーカイブ除外フィルタ（クエリパラメータで制御可能）
+            const includeArchived = req.query.include_archived === 'true';
+            const activePausedSessions = includeArchived
+                ? (state.sessions || [])
+                : (state.sessions || []).filter(session => session.intendedState !== 'archived');
 
             const sessionsWithStatus = activePausedSessions.map(session => {
                 if (session.intendedState === 'active') {

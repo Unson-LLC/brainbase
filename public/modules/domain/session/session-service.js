@@ -72,14 +72,19 @@ export class SessionService {
             Array.isArray(localSessions) &&
             localSessions.length > 0;
 
+        // アーカイブ表示フラグに応じてクエリパラメータを追加
+        const includeArchivedParam = this.store.getState().filters?.showArchivedSessions
+            ? '?include_archived=true'
+            : '';
+
         const state = shouldUseConditionalGet
-            ? await this.httpClient.get('/api/state', {
+            ? await this.httpClient.get(`/api/state${includeArchivedParam}`, {
                 allowNotModified: true,
                 headers: {
                     'If-None-Match': this._stateEtag
                 }
             })
-            : await this.httpClient.get('/api/state');
+            : await this.httpClient.get(`/api/state${includeArchivedParam}`);
         if (state?.notModified) {
             return localSessions || [];
         }
