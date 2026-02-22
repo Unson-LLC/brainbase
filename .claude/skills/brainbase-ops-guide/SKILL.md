@@ -490,6 +490,31 @@ launchctl unload ~/Library/LaunchAgents/com.brainbase.ui.plist
 launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist
 ```
 
+### 7.4 state.json パス注意事項（重要）
+
+**サーバーが実際に読み書きする state.json のパスは launchd plist の `BRAINBASE_VAR_DIR` で決まる。**
+
+| 環境変数 | plist設定値 | 用途 |
+|---------|-----------|------|
+| `BRAINBASE_VAR_DIR` | `/Users/ksato/workspace/brainbase-config/var` | state.json等の永続データ保存先 |
+| `WORKSPACE_ROOT` | `/Users/ksato/workspace/brainbase-config` | brainbase-configルート |
+| `WorkingDirectory` | `/Users/ksato/workspace/code/brainbase` | サーバーコード（起動元） |
+
+**正しいパス**: `brainbase-config/var/state.json`
+**間違いやすいパス**: `code/brainbase/var/state.json`（サーバーコード側。**ここを編集しても反映されない**）
+
+**なぜ間違えやすいか**:
+- `WorkingDirectory` は `code/brainbase/` → サーバーコードはここにある
+- しかし `BRAINBASE_VAR_DIR` は `brainbase-config/var/` → データはここに保存される
+- コード側の `var/` ディレクトリにも `state.json` が存在する場合があり、混同しやすい
+
+**直接編集時の鉄則**:
+1. `~/Library/LaunchAgents/com.brainbase.ui.plist` の `BRAINBASE_VAR_DIR` を必ず確認
+2. 編集対象は `brainbase-config/var/state.json`
+3. `code/brainbase/var/state.json` はサーバーが使わない参照用
+
+**2026-02-20 インシデント**: `code/brainbase/var/state.json` に616セッションをマージしたが、サーバーは `brainbase-config/var/state.json`（1セッション）を読んでいたため、UIに1セッションしか表示されなかった。正しいパスにコピーして復旧。
+
 ---
 
 ## 統合によるメリット

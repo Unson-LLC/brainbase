@@ -1,22 +1,37 @@
 ---
 name: git-commit-rules
-description: brainbaseにおけるGitコミットのルールとフォーマット。コミットメッセージの書き方、type一覧、自動提案タイミングを定義。コミット作成時に使用。
+description: コミットメッセージのフォーマット定義（jj対応）。type一覧、メッセージ構造、実行コマンドの正本。コミット粒度・自律提案は `.claude/rules/commit-strategy.md` を参照。
 ---
 
 ## Triggers
 
 以下の状況で使用：
-- Gitコミットを作成するとき
+- コミット説明を設定するとき
 - コミットメッセージのフォーマットを確認したいとき
 - /commitコマンドを実行するとき
 
-# Git コミットルール
+# コミットメッセージフォーマット（jj対応）
 
-brainbaseにおけるGitコミットの標準ルールです。
+このSkillは**フォーマット定義の正本**。コミット粒度・AI自律提案のルールは `.claude/rules/commit-strategy.md` に定義。
 
 ## Instructions
 
-### 1. コミットメッセージフォーマット
+### 1. jjでのコミットフロー
+
+jjではworking copyが常にコミット。`git add` + `git commit` は不要。
+
+```bash
+# 1. 変更内容を確認
+jj diff --stat
+
+# 2. コミット説明を設定
+jj describe -m "<message>"
+
+# 3. 次の変更に進む
+jj new
+```
+
+### 2. コミットメッセージフォーマット
 
 ```
 <type>: <summary>（日本語可、50文字以内）
@@ -29,12 +44,10 @@ brainbaseにおけるGitコミットの標準ルールです。
 - 主な変更点1
 - 主な変更点2
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-### 2. type一覧
+### 3. type一覧
 
 | type | 用途 |
 |------|------|
@@ -45,44 +58,42 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 | `chore` | ビルド・設定・運用系の変更 |
 | `style` | フォーマット変更（機能に影響なし） |
 
-### 3. コミット頻度
+### 4. コミット粒度
 
-- **小さく・こまめに**（1つの論理的変更 = 1コミット）
-- 大きな変更は分割してコミット
-- タスクに紐づく場合はタスクIDを含める（推奨、例: `[TECHKNIGHT-HP-SALES]`）
+> **詳細は `.claude/rules/commit-strategy.md` を参照**
 
-### 4. 自動提案タイミング
-
-Claudeは以下の条件で `/commit` の実行を提案する：
-- 論理的なまとまりの変更が完了した時
-- ユーザーが「できた」「完了」「OK」など完了を示唆した時
-- 複数ファイルの関連変更が一段落した時
+基本: 1つの意図 = 1コミット。分割は `jj split` で。
 
 ### 5. コミット実行コマンド
 
-HEREDOCを使用してフォーマットを保持：
-
 ```bash
-git commit -m "$(cat <<'EOF'
+jj describe -m "$(cat <<'EOF'
 <type>: <summary>
 
 なぜ:
 - 理由1
 - 理由2
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
 Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
+
+jj new
 ```
 
-### 6. 禁止事項
+### 6. jj特有の操作
 
-- `git commit --amend` は原則禁止（pre-commit hook修正後のみ許可）
-- `--no-verify`, `--no-gpg-sign` はユーザー明示要求時のみ
-- mainへの直接push禁止（セッション内作業時）
-- 秘密情報（.env, credentials.json等）のコミット禁止
+| 操作 | コマンド | 説明 |
+|------|---------|------|
+| 説明を書き直す | `jj describe -m "..."` | 何度でも変更可能 |
+| 過去のコミットを修正 | `jj edit <change-id>` | 子孫は自動rebase |
+| コミットを分割 | `jj split` | 大きな変更を分ける |
+| bookmark設定 | `jj bookmark set <name> -r @-` | 手動で設定が必要 |
+
+### 7. 禁止事項
+
+- 秘密情報（.env, credentials.json等）を含む変更を放置しない
+- mainへの直接変更は原則禁止（セッション内作業時）
 
 ## Examples
 
@@ -99,30 +110,10 @@ feat: ユーザー認証機能を追加
 - auth/middleware.ts 追加
 - pages/login.tsx 追加
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-### 例2: ドキュメント更新
-
-```
-docs: プロジェクトファイルをproject.mdに統合
-
-なぜ:
-- MCP Serverでコンテキスト自動ロードするため
-- 01-05の分散管理より1ファイルの方が扱いやすい
-
-変更:
-- 13プロジェクトのproject.md作成
-- architecture_map.mdに新構造を反映
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-### 例3: バグ修正
+### 例2: バグ修正
 
 ```
 fix: ログイン時のセッション切れを修正
@@ -131,11 +122,5 @@ fix: ログイン時のセッション切れを修正
 - ユーザーから「5分でログアウトされる」との報告
 - トークン更新ロジックの不具合
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
-
----
-
-このルールに従うことで、一貫したコミット履歴を維持できます。

@@ -83,19 +83,11 @@ jobs:
             fi
 
             # TDD Rule: If implementation files changed, test files must also change
-            # Exception: Bug fixes (commits starting with "fix(") are exempt
             if [ -n "$impl_files" ] && [ -z "$test_files" ]; then
-              # Check if this is a bug fix
-              if echo "$commit_msg" | grep -q "^fix("; then
-                echo "🐛 Bug fix detected - Test-first rule waived"
-                echo "   Implementation files: $impl_files"
-                echo "   💡 Consider adding regression tests for future safety"
-              else
-                echo "❌ ERROR: Implementation without tests detected"
-                echo "   Implementation files: $impl_files"
-                echo "   Test files: (none)"
-                violations=$((violations + 1))
-              fi
+              echo "❌ ERROR: Implementation without tests detected"
+              echo "   Implementation files: $impl_files"
+              echo "   Test files: (none)"
+              violations=$((violations + 1))
             elif [ -n "$test_files" ] && [ -n "$impl_files" ]; then
               echo "✅ PASS: Both tests and implementation changed"
             elif [ -n "$test_files" ] && [ -z "$impl_files" ]; then

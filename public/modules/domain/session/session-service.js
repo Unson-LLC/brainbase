@@ -457,6 +457,21 @@ export class SessionService {
     }
 
     /**
+     * 単一セッションを取得（優先ロード用）
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object|null>} セッション情報
+     */
+    async getSessionById(sessionId) {
+        try {
+            const result = await this.httpClient.get(`/api/sessions/${sessionId}`);
+            return result.session || null;
+        } catch (error) {
+            console.error('Failed to get session by ID:', error);
+            return null;
+        }
+    }
+
+    /**
      * コミット通知タイムスタンプ取得
      * @param {string} sessionId - セッションID
      * @returns {Promise<number>}
@@ -691,24 +706,44 @@ export class SessionService {
     }
 
     /**
-     * セッション切り替え
+     * セッション切り替え（優先ロード対応）
      * currentSessionIdを更新（intendedStateは変更しない）
      * @param {string} sessionId - 切り替え先のセッションID
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}|null>}
      */
     async switchSession(sessionId) {
-        const { currentSessionId } = this.store.getState();
+        const { currentSessionId, sessions } = this.store.getState();
 
         // 同じセッションへの切り替えは何もしない
         if (currentSessionId === sessionId) {
             return null;
         }
 
-        // currentSessionIdを更新
-        this.store.setState({ currentSessionId: sessionId });
+        // 優先ロード: 選択したセッション1個だけを最優先で取得
+        const existingSession = sessions.find(s => s.id === sessionId);
+        if (!existingSession) {
+            // Store にない場合、API から取得して即座に追加
+            const session = await this.getSessionById(sessionId);
+            if (session) {
+                this.store.setState({
+                    sessions: [...sessions, session],
+                    currentSessionId: sessionId
+                });
+            } else {
+                console.error(`Session ${sessionId} not found`);
+                return null;
+            }
+        } else {
+            // 既にStore にある場合は即座に切り替え
+            this.store.setState({ currentSessionId: sessionId });
+        }
 
         // SESSION_CHANGEDイベントを発火（app.jsでターミナルiframe切り替え用）
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+
+        // バックグラウンドで全セッション一覧を更新（非ブロッキング）
+        this.loadSessions().catch(err => console.error('Failed to load sessions in background:', err));
+
         return { success: true, sessionId, eventResult };
     }
 

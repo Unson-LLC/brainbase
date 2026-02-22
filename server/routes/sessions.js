@@ -21,6 +21,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore)
     // ========================================
     router.post('/report_activity', controller.reportActivity);
     router.get('/status', controller.getStatus);
+    router.get('/:id', controller.get);
 
     // ========================================
     // Process Management
