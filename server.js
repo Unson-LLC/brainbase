@@ -252,6 +252,9 @@ const ensureDir = async (dir) => {
 await ensureDir(BRAINBASE_ROOT);
 await ensureDir(VAR_DIR);
 await ensureDir(UPLOADS_DIR);
+await ensureDir(path.join(BRAINBASE_ROOT, '_tasks'));
+await ensureDir(path.join(BRAINBASE_ROOT, '_inbox'));
+await ensureDir(SCHEDULES_DIR);
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
