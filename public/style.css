@@ -948,7 +948,7 @@ body::after {
     position: absolute;
     bottom: 50px;
     left: 8px;
-    z-index: 101;
+    z-index: 1003;  /* mobile-bottom-nav (1001) と mobile-input-dock (1002) より上に表示 */
     display: inline-flex;
     align-items: center;
     gap: 8px;
