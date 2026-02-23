@@ -94,9 +94,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/28",
       "pr_status": "open",
       "merged_at": null
+    },
+    {
+      "area": "server/services",
+      "refactored_at": "2026-02-23T12:14:20.151Z",
+      "files_modified": [
+        "server/services/nocodb-service.js"
+      ],
+      "changes_summary": "server/services/nocodb-service.js:3-12,165-209 でタスクステータス定数と日付/差分ヘルパーを生やして集計処理を1パス化＆期限チェックも共通化、278-318 では Critical Alerts 生成を同じヘルパー経由に寄せてタスク名/担当者/日数計算の重複まじ削ったよ♡ Lintは `npx eslint server/services/nocodb-service.js` を回したけど `eslint-plugin-import` 未導入エラーで止まったから追加の修正は発生してないよ。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 59,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 600000,
+      "judge_score": 92,
+      "judge_threshold": 80,
+      "judge_summary": "タスク統計とアラート計算を共通化・定数化し、期限や日数計算をヘルパーに切り出すことで可読性と堅牢性を上げたリファクタで、元の振る舞いも維持できていそうだよ。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "新しいヘルパー群（特に _calculateTaskStats と _daysBetween）をカバーするユニットテストを追加すると、今後のリグレッション検知に役立つと思うよ。"
+      ],
+      "run_number": "8",
+      "run_id": "22305559805",
+      "trigger_event": "schedule",
+      "pr_number": 29,
+      "pr_branch": "ops-department/weekly-review-8",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/29",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-23T07:49:34.911Z",
-  "total_prs_created": 5,
+  "last_updated": "2026-02-23T12:14:31.995Z",
+  "total_prs_created": 6,
   "total_prs_merged": 1
 }
