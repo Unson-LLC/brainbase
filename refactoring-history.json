@@ -68,9 +68,35 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/173",
       "pr_status": "open",
       "merged_at": null
+    },
+    {
+      "area": "server/services",
+      "refactored_at": "2026-02-23T07:49:24.726Z",
+      "files_modified": [
+        "server/services/nocodb-service.js"
+      ],
+      "changes_summary": "タスク統計とマイルストーン統計の算出ロジックを単一ループ集計に統合し、filterの重複処理を排除。期限超過判定のNaNガードも追加し、進捗率は数値変換とnullチェックを経て計算するようにして集計の堅牢性を向上させたよ。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 59,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 600000,
+      "judge_score": 95,
+      "judge_threshold": 80,
+      "judge_summary": "Stats helpers were refactored for clarity and efficiency: task counting now happens in a single loop with explicit handling for invalid deadlines, and milestone progress averaging now skips null/NaN entries without building intermediates. Behavior stays unchanged, so the refactor raises readability and performance with no scope creep.",
+      "judge_must_fix": [],
+      "judge_suggestions": [],
+      "run_number": "7",
+      "run_id": "22297180941",
+      "trigger_event": "workflow_dispatch",
+      "pr_number": 28,
+      "pr_branch": "ops-department/weekly-review-7",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/28",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-12T18:30:59.059Z",
-  "total_prs_created": 4,
+  "last_updated": "2026-02-23T07:49:34.911Z",
+  "total_prs_created": 5,
   "total_prs_merged": 1
 }
