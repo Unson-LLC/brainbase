@@ -16,6 +16,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: develop
           fetch-depth: 0 # 全履歴取得（git diffで比較するため）
 
       - name: Setup Node.js
@@ -116,7 +117,7 @@ jobs:
             - tdd-engineer: test coverage check
 
             Co-Authored-By: ops-department <ops-department@users.noreply.github.com>
-          base: main
+          base: develop
           branch: ops-department/weekly-review-${{ github.run_number }}
           delete-branch: true
           title: ${{ steps.pr-title.outputs.title }}
@@ -126,12 +127,12 @@ jobs:
             refactoring
             ops-department
 
-      - name: Update refactoring history in main
+      - name: Update refactoring history in develop
         if: steps.create-pr.outputs.pull-request-number
         env:
           PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
           PR_BRANCH: ${{ steps.create-pr.outputs.pull-request-branch }}
-          TARGET_BRANCH: main
+          TARGET_BRANCH: develop
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: node scripts/commit-history-to-develop.cjs
 
@@ -147,7 +148,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: develop
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -157,7 +158,7 @@ jobs:
 
       - name: Update PR merge status
         env:
-          TARGET_BRANCH: main
+          TARGET_BRANCH: develop
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/update-pr-status.cjs
