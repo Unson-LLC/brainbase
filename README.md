@@ -607,6 +607,29 @@ cp config.sample.yml data/config.yml
 
 ---
 
+## 🔧 UNSON標準設定
+
+### tmux設定（URL/パスコピー改善）
+
+UNSONメンバー向けの標準tmux設定を提供しています。
+
+**機能**：
+- `prefix + u`: URL/ファイルパスを改行削除してコピー（fzf選択）
+- `prefix + p`: ファイルパス専用コピー（fzf選択）
+- `prefix + c`: 汎用改行削除コピー（バッファから）
+
+**セットアップ**：
+
+```bash
+bash scripts/setup-tmux.sh
+```
+
+**要件**：
+- fzf: `brew install fzf`
+- tmux: 既にインストール済みの場合はそのまま使用可能
+
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
