@@ -1,39 +1,53 @@
-# PR作成コマンド
+# PR作成コマンド（Jujutsu）
 
-session/* ブランチから Pull Request を作成します。
+現在の Jujutsu workspace（session）から Pull Request を作成します。  
 コミットメッセージからタイトル・ボディを自動生成し、ブラウザで開きます。
 
 **用途**:
-- PRを作成してレビュー依頼（マージはGitHub UIで実施）
+- PRを作成してレビュー依頼（マージはGitHub UIまたは `/merge`）
 - CI/CDチェック、チーム協業
-
-**マージまで行う場合**: `/merge` コマンドのPRモードを使用してください
 
 ---
 
 ## 0. 前提チェック
 
 実行前に以下を確認してください:
-- 現ブランチ: `session/*` であること
-- 少なくとも1つのコミットがあること
-- GitHub リモートが設定されていること
-- gh CLI がインストールされていること (`gh --version`)
-- GitHub認証が完了していること (`gh auth status`)
+- `jj` が利用可能であること（`jj --version`）
+- 現在workspaceが `default` 以外であること（session workspace想定）
+- gh CLI がインストール済み（`gh --version`）
+- GitHub認証済み（`gh auth status`）
 
 ---
 
-## 1. gh CLI インストール確認
+## 1. workspace / session検出
 
 ```bash
-# gh CLI確認
-if ! command -v gh &> /dev/null; then
-  echo "Error: gh CLI がインストールされていません"
-  echo "インストール: brew install gh"
-  echo "認証: gh auth login"
+if ! command -v jj &> /dev/null; then
+  echo "Error: jj がインストールされていません"
   exit 1
 fi
 
-# GitHub認証確認
+CURRENT_WS=$(jj workspace list 2>/dev/null | grep -E "^\*" | awk '{print $1}' || echo "")
+if [ -z "$CURRENT_WS" ] || [ "$CURRENT_WS" = "default" ]; then
+  echo "Error: session workspace から実行してください"
+  exit 1
+fi
+
+SESSION_ID="$CURRENT_WS"
+echo "✓ workspace: $SESSION_ID"
+```
+
+---
+
+## 2. gh CLI / 認証確認
+
+```bash
+if ! command -v gh &> /dev/null; then
+  echo "Error: gh CLI がインストールされていません"
+  echo "インストール: brew install gh"
+  exit 1
+fi
+
 if ! gh auth status &> /dev/null; then
   echo "Error: GitHub認証が必要です"
   echo "実行: gh auth login"
@@ -43,31 +57,33 @@ fi
 
 ---
 
-## 2. ブランチ確認
+## 3. デフォルトブランチ取得
 
 ```bash
-CURRENT_BRANCH=$(git branch --show-current)
+DEFAULT_BRANCH=""
+for candidate in main master develop; do
+  if jj bookmark list "$candidate" --no-pager 2>/dev/null | grep -q "^$candidate:"; then
+    DEFAULT_BRANCH="$candidate"
+    break
+  fi
+done
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH="main"
 
-# session/* チェック
-if [[ ! "$CURRENT_BRANCH" =~ ^session/ ]]; then
-  echo "Error: session/* ブランチから実行してください"
-  echo "現在のブランチ: $CURRENT_BRANCH"
-  exit 1
-fi
-
-echo "✓ ブランチ: $CURRENT_BRANCH"
+echo "✓ default branch: $DEFAULT_BRANCH"
 ```
 
 ---
 
-## 3. コミット存在確認
+## 4. push & 変更確認
 
 ```bash
-COMMIT_COUNT=$(git rev-list --count main..HEAD)
+echo "📤 bookmark を push 中..."
+jj git push --bookmark "$SESSION_ID"
 
-if [ "$COMMIT_COUNT" -eq 0 ]; then
-  echo "Error: コミットがありません"
-  echo "先に /commit でコミットしてください"
+COMMIT_COUNT=$(jj log -r "${DEFAULT_BRANCH}..${SESSION_ID}" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l | tr -d ' ')
+if [ "${COMMIT_COUNT:-0}" -eq 0 ]; then
+  echo "Error: PR対象コミットがありません"
+  echo "先に /commit を実行してください"
   exit 1
 fi
 
@@ -76,87 +92,19 @@ echo "✓ コミット数: $COMMIT_COUNT"
 
 ---
 
-## 4. すでにPRが存在するかチェック
+## 5. PRタイトル / ボディ生成
 
 ```bash
-if gh pr view >/dev/null 2>&1; then
-  PR_NUMBER=$(gh pr view --json number -q .number)
-  PR_URL=$(gh pr view --json url -q .url)
-  echo "Warning: このブランチのPR (#$PR_NUMBER) は既に存在します"
-  echo "PR URL: $PR_URL"
-  echo ""
-  echo "ブラウザで開きますか？ [Y/n]"
-  read -r OPEN_BROWSER
-  if [[ "$OPEN_BROWSER" != "n" && "$OPEN_BROWSER" != "N" ]]; then
-    gh pr view --web
-  fi
-  exit 0
-fi
-```
-
----
-
-## 5. リモートへpush
-
-```bash
-echo "📤 リモートへpush中..."
-git push -u origin "$CURRENT_BRANCH"
-
-if [ $? -ne 0 ]; then
-  echo "Error: push に失敗しました"
-  exit 1
-fi
-
-echo "✓ Push完了"
-```
-
----
-
-## 6. PR Title生成
-
-```bash
-# 単一コミット: 最新コミットのサマリー
 if [ "$COMMIT_COUNT" -eq 1 ]; then
-  PR_TITLE=$(git log -1 --format="%s")
-  echo "✓ PRタイトル（単一コミット）: $PR_TITLE"
+  PR_TITLE=$(jj log -r "$SESSION_ID" -T 'description.first_line()' --no-pager | head -1)
+else
+  PR_TITLE="chore: merge $SESSION_ID"
 fi
 
-# 複数コミット: ブランチ名から推測
-if [ "$COMMIT_COUNT" -gt 1 ]; then
-  # session/2025-12-29-feature-priority-filter
-  # → "feat: priority-filter"
-
-  BRANCH_TYPE=$(echo "$CURRENT_BRANCH" | cut -d- -f4)
-  BRANCH_NAME=$(echo "$CURRENT_BRANCH" | cut -d- -f5-)
-
-  case "$BRANCH_TYPE" in
-    feature) TYPE="feat" ;;
-    fix) TYPE="fix" ;;
-    refactor) TYPE="refactor" ;;
-    hotfix) TYPE="hotfix" ;;
-    *) TYPE="chore" ;;
-  esac
-
-  PR_TITLE="$TYPE: $BRANCH_NAME"
-  echo "✓ PRタイトル（複数コミット）: $PR_TITLE"
-fi
-```
-
----
-
-## 7. PR Body生成
-
-```bash
-PR_BODY=$(cat <<EOF
+PR_BODY="$(cat <<EOF_BODY
 ## Summary
 
-$(git log main..HEAD --format="- %s")
-
-## コミット履歴
-
-\`\`\`
-$(git log main..HEAD --oneline)
-\`\`\`
+$(jj log -r "${DEFAULT_BRANCH}..${SESSION_ID}" -T '"- " ++ description.first_line() ++ "\\n"' --no-pager)
 
 ## Test plan
 
@@ -164,101 +112,35 @@ $(git log main..HEAD --oneline)
 - [ ] 変更が意図通りに動作することを確認
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)
-
-echo "✓ PR Body生成完了"
+EOF_BODY
+)"
 ```
 
 ---
 
-## 8. PR作成（ブラウザで開く）
+## 6. PR作成（ブラウザで開く）
 
 ```bash
 echo "🔧 PR作成中..."
 
 gh pr create \
+  --base "$DEFAULT_BRANCH" \
+  --head "$SESSION_ID" \
   --title "$PR_TITLE" \
   --body "$PR_BODY" \
   --web
-
-if [ $? -eq 0 ]; then
-  echo ""
-  echo "✅ PR作成成功！"
-  echo "ブラウザでPRを確認・編集してください"
-  echo ""
-  echo "マージは以下の方法で実施:"
-  echo "  - GitHub UI でマージ（推奨）"
-  echo "  - /merge コマンドのPRモード"
-else
-  echo "Error: PR作成に失敗しました"
-  exit 1
-fi
 ```
 
 ---
 
 ## 注意事項
 
-### PRタイトルとボディの編集
-
-- ブラウザで自動的に開かれるので、必要に応じて手動調整してください
-- 特に Test plan は手動でチェック項目を追加することを推奨します
-
-### マージの実施
-
-- **PRを作成しただけではマージされていません**
-- GitHub UI でマージボタンをクリックするか、`/merge` コマンドのPRモードを使用してください
-
-### PRを作らずに直接マージしたい場合
-
-- `/merge` コマンドを使用して、"PRを作成しますか？" で No を選択してください
-- Safe Mode または Fast Mode で直接マージできます
-
----
-
-## トラブルシューティング
-
-### "gh: command not found"
-
-```bash
-# macOS
-brew install gh
-
-# 認証
-gh auth login
-```
-
-### "main ブランチから実行できません"
-
-```bash
-# 新しいsession/*ブランチを作成してください
-git checkout -b session/$(date +%Y-%m-%d)-<type>-<name>
-```
-
-### "コミットがありません"
-
-```bash
-# 変更をコミットしてください
-git add <files>
-# /commit コマンドを使用（推奨）
-```
-
-### "すでにPRが存在します"
-
-- 既存のPR URLが表示されるので、ブラウザで確認してください
-- 追加のコミットをpushする場合:
-  ```bash
-  git push origin $CURRENT_BRANCH
-  ```
-  PRは自動的に更新されます
+- PR作成のみ。マージは `/merge` または GitHub UIで実施
+- `git push` ではなく `jj git push --bookmark` を使用する
+- `default` workspace からは実行しない
 
 ---
 
 **関連コマンド**:
-- `/commit`: コミット作成（決定記録）
-- `/merge`: PRモードでマージまで実施
-
-**関連Skill**:
-- git-workflow: ブランチ戦略、PRワークフロー
-- development-workflow: Phase 6 (Merge)
+- `/commit`: `jj describe + jj new` でコミット確定
+- `/merge`: PR作成〜マージ〜workspace掃除まで実行

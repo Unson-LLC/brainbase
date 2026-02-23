@@ -402,6 +402,25 @@ export class SessionManager {
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
 
+        // activeSessions からrunning/proxyPath情報を追加（軽量チェック）
+        for (const [sessionId, sessionData] of this.activeSessions) {
+            const pid = sessionData.process?.pid || sessionData.pid;
+            let running = false;
+            if (pid) {
+                try {
+                    process.kill(pid, 0);
+                    running = true;
+                } catch {
+                    running = false;
+                }
+            }
+            status[sessionId] = {
+                running,
+                proxyPath: running ? `/console/${sessionId}` : null,
+                port: sessionData.port || null
+            };
+        }
+
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
             const normalized = this._normalizeHookData(hookData);
@@ -417,6 +436,7 @@ export class SessionManager {
             const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
 
             status[sessionId] = {
+                ...(status[sessionId] || {}),
                 isWorking,
                 isDone,
                 lastWorkingAt: normalized.lastWorkingAt,
@@ -458,6 +478,14 @@ export class SessionManager {
         }
 
         const effectiveStatus = lastWorkingAt > lastDoneAt ? 'working' : 'done';
+        const unchanged = (
+            currentHookData.status === effectiveStatus &&
+            currentHookData.lastWorkingAt === lastWorkingAt &&
+            currentHookData.lastDoneAt === lastDoneAt
+        );
+        if (unchanged) {
+            return;
+        }
 
         const hookStatusData = {
             status: effectiveStatus,
@@ -620,6 +648,36 @@ export class SessionManager {
     }
 
     /**
+     * 単一セッションを取得（優先ロード用）
+     * @param {string} sessionId - セッションID
+     * @returns {Object|null} セッション情報（runtime status付き）
+     */
+    getSessionById(sessionId) {
+        const state = this.stateStore.get();
+        const session = (state.sessions || []).find(s => s.id === sessionId);
+        if (!session) return null;
+
+        // Runtime status を追加
+        const activeEntry = this.activeSessions.get(sessionId);
+        const activePid = activeEntry?.process?.pid || activeEntry?.pid;
+        const persistedPid = session?.ttydProcess?.pid;
+        const pidToCheck = activePid || persistedPid;
+        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
+        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+
+        return {
+            ...session,
+            ttydRunning,
+            runtimeStatus: {
+                ttydRunning,
+                needsRestart,
+                proxyPath: ttydRunning ? `/console/${sessionId}` : null,
+                port: activeEntry?.port || null
+            }
+        };
+    }
+
+    /**
      * ttydプロセスを起動
      * @param {Object} options - 起動オプション
      * @param {string} options.sessionId - セッションID
@@ -627,7 +685,7 @@ export class SessionManager {
      * @param {string} options.initialCommand - 初期コマンド
      * @param {string} options.engine - エンジン（'claude' | 'codex'）
      * @param {number} [options.preferredPort] - 優先ポート番号（再利用用）
-     * @returns {Promise<{port: number, proxyPath: string}>}
+     * @returns {Promise<{port: number, proxyPath: string, startedExisting: boolean}>}
      */
     async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
         // Validate engine
@@ -642,7 +700,8 @@ export class SessionManager {
             if (pid && this._isProcessRunning(pid)) {
                 return {
                     port: existing.port,
-                    proxyPath: `/console/${sessionId}`
+                    proxyPath: `/console/${sessionId}`,
+                    startedExisting: true
                 };
             }
             // Process is dead but entry remains in map — clean up and proceed to new launch
@@ -718,8 +777,10 @@ export class SessionManager {
         const args = [
             '-p', port.toString(),
             '-W',
-            // Exit on disconnect to avoid PTY FD leaks accumulating inside long-lived ttyd processes.
-            '-o',
+            // WebSocket ping interval to prevent timeout (especially over Cloudflare Zero Trust)
+            '-P', '3',
+            // Note: Removed '-o' (exit on disconnect) to allow reconnection on mobile/Cloudflare Zero Trust
+            // PTY leak prevention is now handled by session lifecycle management
         ];
 
         // Only use base path on non-Windows platforms
@@ -831,18 +892,33 @@ export class SessionManager {
         // state.jsonにttydProcess情報を永続化
         await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
 
-        // Give ttyd a moment to bind to the port and verify it's still running
+        // 起動直後に短時間だけ生存確認して即返す（固定500ms待機を回避）
         await new Promise((resolve, reject) => {
-            setTimeout(() => {
-                if (this.activeSessions.has(sessionId)) {
-                    resolve();
-                } else {
+            const minStableMs = 120;
+            const timeoutMs = 500;
+            const stableAt = Date.now() + minStableMs;
+            const deadline = Date.now() + timeoutMs;
+
+            const check = () => {
+                if (!this.activeSessions.has(sessionId)) {
                     reject(new Error('Session failed to start (process exited)'));
+                    return;
                 }
-            }, 500);
+                if (Date.now() >= stableAt) {
+                    resolve();
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    reject(new Error('Session start verification timeout'));
+                    return;
+                }
+                setTimeout(check, 25);
+            };
+
+            check();
         });
 
-        return { port, proxyPath: basePath };
+        return { port, proxyPath: basePath, startedExisting: false };
     }
 
     /**

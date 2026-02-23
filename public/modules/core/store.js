@@ -178,6 +178,7 @@ export class Store {
 export const appStore = new Store({
     sessions: [],
     currentSessionId: null,
+    commitLog: null,
     tasks: [],
     schedule: null,
     inbox: [],

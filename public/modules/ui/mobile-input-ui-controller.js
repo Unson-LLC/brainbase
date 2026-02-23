@@ -46,53 +46,63 @@ export class MobileInputUIController {
         this.bindTouchClickHandler(dockSend, 'dock', dockInput);
 
         // iOS Safari対応: touchstart + click で確実にタップ検出
-        this.bindTapHandler(dockMore, () => {
+        this.bindDockTapWithRefocus(dockMore, () => {
             this.toggleDockExpanded();
-            this.focusManager.refocusInput(dockInput);
         });
         this.bindTapHandler(dockSessions, () => {
             this.handleSessionsSheet();
         });
-        this.bindTapHandler(dockPaste, async () => {
+        this.bindDockTapWithRefocus(dockPaste, async () => {
             const result = await this.pasteFromClipboard();
-            if (result) {
-                this.autoResize(result.inputEl);
-                this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-            }
-            this.focusManager.refocusInput(dockInput);
+            this.handleClipboardResult(result);
         });
-        this.bindTapHandler(dockUploadImage, () => {
+        this.bindDockTapWithRefocus(dockUploadImage, () => {
             this.handleUploadImage();
-            this.focusManager.refocusInput(dockInput);
         });
         this.bindTapHandler(dockCopyTerminal, () => {
             this.handleCopyTerminal();
         });
-        this.bindTapHandler(dockClear, () => {
+        this.bindDockTapWithRefocus(dockClear, () => {
             this.handleClear();
-            this.focusManager.refocusInput(dockInput);
         });
-        this.bindTapHandler(dockEscape, () => {
+        this.bindDockTapWithRefocus(dockEscape, () => {
             this.handleEscape();
-            this.focusManager.refocusInput(dockInput);
         });
-        this.bindTapHandler(dockShiftTab, () => {
+        this.bindDockTapWithRefocus(dockShiftTab, () => {
             this.handleShiftTab();
-            this.focusManager.refocusInput(dockInput);
         });
 
         this.elements.dockClipButtons.forEach((button, index) => {
             this.bindTapHandler(button, async () => {
                 const result = await this.handleClipSlot(index);
-                if (result) {
-                    this.autoResize(result.inputEl);
-                    this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-                }
+                this.handleClipboardResult(result);
             });
             this.clipboardManager.bindLongPressClear(button, index);
         });
 
         this.bindCursorButtons(dockInput, this.elements.dock);
+    }
+
+    bindDockTapWithRefocus(element, handler) {
+        if (!element) return;
+
+        const refocusDock = () => {
+            const dockInput = this.elements.dockInput;
+            if (!dockInput) return;
+            this.focusManager.refocusInput(dockInput);
+        };
+
+        const safeHandler = typeof handler === 'function' ? handler : null;
+
+        this.bindTapHandler(element, async () => {
+            try {
+                if (safeHandler) {
+                    await safeHandler();
+                }
+            } finally {
+                refocusDock();
+            }
+        });
     }
 
     /**
@@ -144,10 +154,7 @@ export class MobileInputUIController {
         composerBack?.addEventListener('click', () => this.closeComposer(true));
         composerPaste?.addEventListener('click', async () => {
             const result = await this.pasteFromClipboard();
-            if (result) {
-                this.autoResize(result.inputEl);
-                this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-            }
+            this.handleClipboardResult(result);
         });
         composerClipboard?.addEventListener('click', () => this.sheetManager.openClipboardSheet());
         composerSnippets?.addEventListener('click', () => this.sheetManager.openSnippetSheet());
@@ -278,6 +285,19 @@ export class MobileInputUIController {
 
     getActiveInput() {
         return this.focusManager.getActiveInput();
+    }
+
+    getActiveInputContext() {
+        const inputEl = this.getActiveInput();
+        if (!inputEl) return null;
+        const mode = inputEl === this.elements.composerInput ? 'composer' : 'dock';
+        return { inputEl, mode };
+    }
+
+    handleClipboardResult(result) {
+        if (!result) return;
+        this.autoResize(result.inputEl);
+        this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
     }
 
     openComposer() {
@@ -566,28 +586,18 @@ export class MobileInputUIController {
     }
 
     async handleClipSlot(index) {
-        await this.clipboardManager.handleClipSlot(index);
-        // handleClipSlot内でinsertTextAtCursorが呼ばれているが、
-        // その後のautoResizeとscheduleDraftSaveが必要なので、
-        // insertTextAtCursorの戻り値を返す
-        // 実際にはhandleClipSlotの中でinsertTextAtCursorが呼ばれた時の情報を返す必要がある
-        // ここでは簡略化のため、getActiveInput()で現在の入力欄を返す
-        const inputEl = this.getActiveInput();
-        return inputEl ? { inputEl, mode: inputEl === this.elements.composerInput ? 'composer' : 'dock' } : null;
+        const result = await this.clipboardManager.handleClipSlot(index, () => this.getActiveInput());
+        return result ?? this.getActiveInputContext();
     }
 
     async pasteFromClipboard() {
-        await this.clipboardManager.pasteFromClipboard();
-        const inputEl = this.getActiveInput();
-        return inputEl ? { inputEl, mode: inputEl === this.elements.composerInput ? 'composer' : 'dock' } : null;
+        const result = await this.clipboardManager.pasteFromClipboard();
+        return result ?? this.getActiveInputContext();
     }
 
     insertTextAtCursor(text) {
         const result = this.clipboardManager.insertTextAtCursor(text, () => this.getActiveInput());
-        if (result) {
-            this.autoResize(result.inputEl);
-            this.draftManager.scheduleDraftSave(result.mode, result.inputEl);
-        }
+        this.handleClipboardResult(result);
     }
 
     updateNetworkState() {

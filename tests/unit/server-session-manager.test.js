@@ -100,9 +100,18 @@ user     22222  0.0  0.1  ttyd -p 3002 -b /console/session-67890
       sessionManager.activeSessions.clear();
 
       const psOutput = `
-user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-orphan
+user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       `.trim();
-      execPromiseMock.mockResolvedValueOnce({ stdout: psOutput });
+
+      // 動的にコマンドを判定してmock結果を返す
+      execPromiseMock.mockImplementation((cmd) => {
+        if (cmd.includes('ps aux')) {
+          return Promise.resolve({ stdout: psOutput });
+        } else if (cmd.includes('kill')) {
+          return Promise.resolve({ stdout: '' });
+        }
+        return Promise.reject(new Error('Unexpected command'));
+      });
 
       await sessionManager.cleanupOrphans();
 

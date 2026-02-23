@@ -1,3 +1,5 @@
+import { createTraceId } from './trace-id.js';
+
 /**
  * HTTPクライアント
  * fetch APIをラップしてJSON自動変換とエラーハンドリングを提供
@@ -98,6 +100,15 @@ export class HttpClient {
         this._onUnauthorized = handler;
     }
 
+    _headersToObject(headers) {
+        const obj = {};
+        if (!headers || typeof headers.forEach !== 'function') return obj;
+        headers.forEach((value, key) => {
+            obj[String(key).toLowerCase()] = value;
+        });
+        return obj;
+    }
+
     /**
      * HTTPリクエストを実行
      * @param {string} url - エンドポイントURL
@@ -106,19 +117,34 @@ export class HttpClient {
      * @throws {Error} HTTPエラーまたはネットワークエラー
      */
     async request(url, options = {}) {
+        const {
+            traceId: providedTraceId,
+            allowNotModified = false,
+            ...fetchOptions
+        } = options;
         const fullURL = `${this.baseURL}${url}`;
-        const method = options.method || 'GET';
+        const method = fetchOptions.method || 'GET';
+        const isFormData = typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData;
         const headers = {
             ...this.defaultHeaders,
-            ...options.headers
+            ...fetchOptions.headers
         };
+        const traceId = providedTraceId || createTraceId('req');
+
+        // FormData送信時はContent-Typeを削除（ブラウザがboundary付きで自動設定）
+        if (isFormData) {
+            delete headers['Content-Type'];
+        }
 
         if (!headers.Authorization && !headers.authorization && this._authToken) {
             headers.Authorization = `Bearer ${this._authToken}`;
         }
+        if (!headers['X-BB-Trace-Id'] && !headers['x-bb-trace-id']) {
+            headers['X-BB-Trace-Id'] = traceId;
+        }
 
-        // CSRFトークンを付与（POST/PUT/DELETEリクエスト）
-        if (['POST', 'PUT', 'DELETE'].includes(method.toUpperCase())) {
+        // CSRFトークンを付与（POST/PUT/PATCH/DELETEリクエスト）
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
             const csrfToken = await this._getCsrfToken();
             if (csrfToken) {
                 headers['X-CSRF-Token'] = csrfToken;
@@ -126,10 +152,20 @@ export class HttpClient {
         }
 
         try {
+            const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
             const response = await fetch(fullURL, {
-                ...options,
+                ...fetchOptions,
                 headers
             });
+            const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt;
+
+            if (allowNotModified && response.status === 304) {
+                return {
+                    notModified: true,
+                    status: 304,
+                    headers: this._headersToObject(response.headers)
+                };
+            }
 
             if (!response.ok) {
                 if (response.status === 401 && typeof this._onUnauthorized === 'function') {
@@ -150,7 +186,7 @@ export class HttpClient {
                             const newToken = await this._getCsrfToken();
                             if (newToken) {
                                 headers['X-CSRF-Token'] = newToken;
-                                const retryResponse = await fetch(fullURL, { ...options, headers });
+                                const retryResponse = await fetch(fullURL, { ...fetchOptions, headers });
                                 if (retryResponse.ok) {
                                     return retryResponse.json();
                                 }
@@ -174,6 +210,12 @@ export class HttpClient {
                 throw new Error(errorMessage);
             }
 
+            if (elapsed > 500) {
+                console.warn(`[HttpClient] Slow request: ${method} ${url} ${Math.round(elapsed)}ms (trace=${traceId})`);
+            }
+            if (response.status === 204) {
+                return null;
+            }
             return response.json();
         } catch (error) {
             if (error.message.startsWith('HTTP Error:') || error.message.includes('Failed to')) {
@@ -204,10 +246,11 @@ export class HttpClient {
      * @returns {Promise<*>}
      */
     async post(url, data, options = {}) {
+        const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
         return this.request(url, {
             ...options,
             method: 'POST',
-            body: JSON.stringify(data)
+            body: isFormData ? data : JSON.stringify(data)
         });
     }
 
@@ -222,6 +265,21 @@ export class HttpClient {
         return this.request(url, {
             ...options,
             method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    }
+
+    /**
+     * PATCHリクエスト
+     * @param {string} url - エンドポイントURL
+     * @param {*} data - リクエストボディ（JSON変換される）
+     * @param {Object} options - fetchオプション
+     * @returns {Promise<*>}
+     */
+    async patch(url, data, options = {}) {
+        return this.request(url, {
+            ...options,
+            method: 'PATCH',
             body: JSON.stringify(data)
         });
     }

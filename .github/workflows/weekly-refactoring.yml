@@ -5,9 +5,14 @@ on:
     - cron: "0 */6 * * *" # 6時間ごと（0:00, 6:00, 12:00, 18:00 UTC）
   workflow_dispatch: {}
 
+concurrency:
+  group: ops-department-auto-refactoring
+  cancel-in-progress: true
+
 jobs:
   ops-department-review:
     runs-on: [self-hosted, local]
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -139,6 +144,7 @@ jobs:
   # PRマージ状態を定期的に更新
   update-pr-status:
     runs-on: [self-hosted, local]
+    timeout-minutes: 10
     if: github.event_name == 'schedule'
     permissions:
       contents: write

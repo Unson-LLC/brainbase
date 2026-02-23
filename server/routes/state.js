@@ -15,5 +15,8 @@ export function createStateRouter(stateStore, sessionManager, testMode = false) 
     // POST /api/state - アプリケーション状態を更新
     router.post('/', controller.update);
 
+    // PATCH /api/state/sessions/:sessionId - 単一セッション部分更新
+    router.patch('/sessions/:sessionId', controller.patch);
+
     return router;
 }

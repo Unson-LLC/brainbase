@@ -1426,8 +1426,8 @@ export class App {
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
         if (toggleArchivedBtn) {
-            toggleArchivedBtn.onclick = () => {
-                this.modals.archiveModal.open();
+            toggleArchivedBtn.onclick = async () => {
+                await this.modals.archiveModal.open();
             };
         }
 
@@ -2057,8 +2057,8 @@ export class App {
         // Mobile archive toggle button
         const mobileToggleArchivedBtn = document.getElementById('mobile-toggle-archived-btn');
         if (mobileToggleArchivedBtn) {
-            mobileToggleArchivedBtn.addEventListener('click', () => {
-                this.modals.archiveModal.open();
+            mobileToggleArchivedBtn.addEventListener('click', async () => {
+                await this.modals.archiveModal.open();
                 closeSessionsSheet();
             });
         }
