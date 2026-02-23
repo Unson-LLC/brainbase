@@ -3,6 +3,9 @@ import { appStore } from '../../core/store.js';
 import { NocoDBTaskAdapter } from './nocodb-task-adapter.js';
 import { NocoDBTaskRepository } from './nocodb-task-repository.js';
 
+const UNASSIGNED_ASSIGNEE = '__unassigned__';
+const PRIORITY_SORT_ORDER = { high: 0, medium: 1, low: 2 };
+
 /**
  * NocoDBTaskService
  * NocoDBタスクのビジネスロジック
@@ -15,6 +18,69 @@ export class NocoDBTaskService {
         this.projects = [];
         this.loading = false;
         this.error = null;
+    }
+
+    _findTaskOrThrow(taskId) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+        return task;
+    }
+
+    _updateStore() {
+        appStore.setState({ nocodbTasks: [...this.tasks] });
+    }
+
+    _applyLocalUpdates(task, updates = {}) {
+        if (updates.name !== undefined) {
+            task.title = updates.name;
+            task.name = updates.name;
+        }
+        if (updates.priority !== undefined) {
+            task.priority = updates.priority;
+        }
+        if (updates.due !== undefined) {
+            task.due = updates.due;
+            task.deadline = updates.due;
+        }
+        if (updates.description !== undefined) {
+            task.description = updates.description;
+        }
+        if (updates.assignee !== undefined) {
+            task.assignee = updates.assignee;
+        }
+        if (updates.status !== undefined) {
+            task.status = updates.status;
+        }
+    }
+
+    _emitTaskError(error, fallbackMessage) {
+        const message = error?.message || fallbackMessage;
+        eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
+            error: message
+        });
+        return message;
+    }
+
+    async _persistTaskUpdates(task, updates, nocoFields, { logLabel = 'updateTask', fallbackMessage = 'Failed to update task' } = {}) {
+        try {
+            await this.repository.updateTask(
+                task.nocodbRecordId,
+                task.nocodbBaseId,
+                nocoFields
+            );
+
+            this._applyLocalUpdates(task, updates);
+            this._updateStore();
+            eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
+
+            return task;
+        } catch (error) {
+            console.error(`NocoDBTaskService.${logLabel} error:`, error);
+            this._emitTaskError(error, fallbackMessage);
+            throw error;
+        }
     }
 
     /**
@@ -71,37 +137,20 @@ export class NocoDBTaskService {
      * @param {string} newStatus - 新しいステータス (pending/in_progress/completed)
      */
     async updateStatus(taskId, newStatus) {
-        const task = this.tasks.find(t => t.id === taskId);
-        if (!task) {
-            throw new Error('Task not found');
+        if (!newStatus) {
+            throw new Error('New status is required');
         }
 
+        const task = this._findTaskOrThrow(taskId);
         const nocoStatus = this.adapter.toNocoDBStatus(newStatus);
+        const nocoFields = { 'ステータス': nocoStatus };
 
-        try {
-            await this.repository.updateTask(
-                task.nocodbRecordId,
-                task.nocodbBaseId,
-                { 'ステータス': nocoStatus }
-            );
-
-            // ローカル状態更新
-            task.status = newStatus;
-
-            // Store更新
-            appStore.setState({ nocodbTasks: [...this.tasks] });
-
-            // イベント発火
-            eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
-
-            return task;
-        } catch (error) {
-            console.error('NocoDBTaskService.updateStatus error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to update task'
-            });
-            throw error;
-        }
+        return this._persistTaskUpdates(
+            task,
+            { status: newStatus },
+            nocoFields,
+            { logLabel: 'updateStatus' }
+        );
     }
 
     /**
@@ -110,42 +159,11 @@ export class NocoDBTaskService {
      * @param {Object} updates - 更新データ { name, priority, due, description }
      */
     async updateTask(taskId, updates) {
-        const task = this.tasks.find(t => t.id === taskId);
-        if (!task) {
-            throw new Error('Task not found');
-        }
+        const task = this._findTaskOrThrow(taskId);
 
         // 内部形式→NocoDB形式に変換
         const nocoFields = this.adapter.toNocoDBFields(updates);
-
-        try {
-            await this.repository.updateTask(
-                task.nocodbRecordId,
-                task.nocodbBaseId,
-                nocoFields
-            );
-
-            // ローカル状態更新
-            if (updates.name) task.title = updates.name;
-            if (updates.priority) task.priority = updates.priority;
-            if (updates.due !== undefined) task.due = updates.due;
-            if (updates.description !== undefined) task.description = updates.description;
-            if (updates.assignee !== undefined) task.assignee = updates.assignee;
-
-            // Store更新
-            appStore.setState({ nocodbTasks: [...this.tasks] });
-
-            // イベント発火
-            eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
-
-            return task;
-        } catch (error) {
-            console.error('NocoDBTaskService.updateTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to update task'
-            });
-            throw error;
-        }
+        return this._persistTaskUpdates(task, updates, nocoFields, { logLabel: 'updateTask' });
     }
 
     /**
@@ -166,9 +184,7 @@ export class NocoDBTaskService {
             return created;
         } catch (error) {
             console.error('NocoDBTaskService.createTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to create task'
-            });
+            this._emitTaskError(error, 'Failed to create task');
             throw error;
         }
     }
@@ -178,10 +194,7 @@ export class NocoDBTaskService {
      * @param {string} taskId - 内部タスクID
      */
     async deleteTask(taskId) {
-        const task = this.tasks.find(t => t.id === taskId);
-        if (!task) {
-            throw new Error('Task not found');
-        }
+        const task = this._findTaskOrThrow(taskId);
 
         try {
             await this.repository.deleteTask(
@@ -193,7 +206,7 @@ export class NocoDBTaskService {
             this.tasks = this.tasks.filter(t => t.id !== taskId);
 
             // Store更新
-            appStore.setState({ nocodbTasks: [...this.tasks] });
+            this._updateStore();
 
             // イベント発火
             eventBus.emit(EVENTS.NOCODB_TASK_DELETED, { taskId });
@@ -201,9 +214,7 @@ export class NocoDBTaskService {
             return { success: true };
         } catch (error) {
             console.error('NocoDBTaskService.deleteTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to delete task'
-            });
+            this._emitTaskError(error, 'Failed to delete task');
             throw error;
         }
     }
@@ -215,7 +226,6 @@ export class NocoDBTaskService {
      */
     getFilteredTasks(filters = {}) {
         let result = [...this.tasks];
-        const unassignedValue = '__unassigned__';
 
         // プロジェクトフィルタ
         if (filters.project) {
@@ -238,7 +248,7 @@ export class NocoDBTaskService {
         }
 
         // 担当者フィルタ
-        if (filters.assignee === unassignedValue) {
+        if (filters.assignee === UNASSIGNED_ASSIGNEE) {
             result = result.filter(t => !t.assignee);
         } else if (filters.assignee) {
             const assignee = filters.assignee.toLowerCase();
@@ -255,9 +265,8 @@ export class NocoDBTaskService {
         }
 
         // 優先度でソート（high > medium > low）
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
         result.sort((a, b) => {
-            return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
+            return (PRIORITY_SORT_ORDER[a.priority] ?? 2) - (PRIORITY_SORT_ORDER[b.priority] ?? 2);
         });
 
         return result;
