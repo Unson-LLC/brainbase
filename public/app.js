@@ -577,7 +577,13 @@ export class App {
             if (!this.reconnectManager?.wsConnected && !this.reconnectManager?.isReconnecting) {
                 this.reconnectManager?.handleDisconnect?.();
             }
-            this.focusTerminal('status-click');
+
+            // モバイルでは focusTerminal を呼ばない（iframe.focus() でキーボードが閉じる問題を回避）
+            const isMobile = window.innerWidth <= 768;
+            if (!isMobile) {
+                this.focusTerminal('status-click');
+            }
+
             this._updateTerminalInputStatus();
         };
         this.terminalInputStatusEl?.addEventListener('click', onStatusClick);
@@ -2827,4 +2833,40 @@ if (shouldAutoStart) {
 
     // Expose for debugging
     window.brainbaseApp = app;
+
+    // バックグラウンドから復帰時のボトムナビ表示復元
+    // iOS Safariでページがキャッシュから復元された時にCSSが正しく適用されない問題の対策
+    const ensureBottomNavVisibility = () => {
+        // モバイルのみ処理
+        if (window.innerWidth > 768) return;
+
+        const bottomNav = document.getElementById('mobile-bottom-nav');
+        if (!bottomNav) return;
+
+        // キーボード表示中は非表示のまま（要件通り）
+        const keyboardOpen = document.body.classList.contains('keyboard-open');
+        if (keyboardOpen) {
+            bottomNav.style.display = 'none';
+        } else {
+            // キーボード非表示の場合は必ず表示
+            bottomNav.style.display = 'flex';
+        }
+    };
+
+    // ページが visible になった時（バックグラウンドから復帰）
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            ensureBottomNavVisibility();
+        }
+    });
+
+    // iOS Safari でページがキャッシュから復元された時
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            ensureBottomNavVisibility();
+        }
+    });
+
+    // 初回ロード時も実行
+    ensureBottomNavVisibility();
 }
