@@ -491,6 +491,112 @@ function getTotalLines(fileStats) {
 }
 
 /**
+ * ファイルが他のファイルから参照されているかチェックする
+ * @param {string} filePath - チェック対象のファイルパス
+ * @returns {boolean} - 参照されている場合true、されていない場合false
+ */
+function isFileReferenced(filePath) {
+  const baseName = path.basename(filePath, path.extname(filePath));
+
+  // 検索パターン（複数形式に対応）
+  const searchPatterns = [
+    `from ["'].*${baseName}`,           // ES6 import
+    `from ["'][^"']*/${baseName}["']`,  // パス付きimport
+    `require\\(["'].*${baseName}`,      // CommonJS require
+    `import\\(["'].*${baseName}`        // Dynamic import
+  ];
+
+  try {
+    // server/, public/, lib/ 配下のJavaScriptファイルを検索
+    const searchDirs = ['server/', 'public/', 'lib/'];
+    for (const dir of searchDirs) {
+      for (const pattern of searchPatterns) {
+        const grepCmd = `grep -r -E "${pattern}" ${dir} --include="*.js" --include="*.cjs" --include="*.mjs" 2>/dev/null || true`;
+        const result = execSync(grepCmd, {
+          encoding: 'utf-8',
+          maxBuffer: 10 * 1024 * 1024
+        }).trim();
+
+        if (result) {
+          // 自分自身からの参照は除外
+          const references = result.split('\n').filter(line => {
+            const refFile = line.split(':')[0];
+            return refFile !== filePath;
+          });
+
+          if (references.length > 0) {
+            console.log(`  ⚠️  ${filePath} is referenced by:`);
+            references.slice(0, 3).forEach(ref => {
+              console.log(`      ${ref}`);
+            });
+            if (references.length > 3) {
+              console.log(`      ... and ${references.length - 3} more`);
+            }
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.warn(`  ⚠️  Failed to check dependencies for ${filePath}:`, error.message);
+    // エラー時は安全側に倒して「参照されている」と判定
+    return true;
+  }
+}
+
+/**
+ * 安全にワーキングツリーの変更を破棄する
+ * 依存関係チェックを行い、参照されているファイルは保護する
+ */
+function discardWorkingTreeChanges() {
+  try {
+    execSync("git restore --staged --worktree .", { stdio: "inherit" });
+  } catch (error) {
+    console.warn("⚠️  git restore failed:", error.message);
+  }
+
+  let untracked = [];
+  try {
+    const out = execSync("git ls-files --others --exclude-standard || true", {
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+    }).trim();
+    if (out) untracked = out.split("\n").filter(Boolean);
+  } catch (_error) {
+    untracked = [];
+  }
+
+  console.log(`\n🔍 Checking ${untracked.length} untracked file(s) for dependencies...`);
+
+  let deletedCount = 0;
+  let protectedCount = 0;
+
+  for (const p of untracked) {
+    // server/, public/, lib/ 配下のソースファイルの場合のみ依存関係チェック
+    if ((p.startsWith('server/') || p.startsWith('public/') || p.startsWith('lib/')) &&
+        /\.(js|cjs|mjs)$/.test(p)) {
+      if (isFileReferenced(p)) {
+        console.log(`  🛡️  Protected: ${p} (has references)`);
+        protectedCount++;
+        continue;
+      }
+    }
+
+    // 参照されていない、または非ソースファイルの場合は削除
+    try {
+      fs.rmSync(p, { recursive: true, force: true });
+      deletedCount++;
+    } catch (_error) {
+      // ignore
+    }
+  }
+
+  console.log(`\n📊 Cleanup summary: ${deletedCount} deleted, ${protectedCount} protected\n`);
+}
+
+/**
  * PRタイトルを生成
  */
 function generatePRTitle(metadata) {

@@ -53,6 +53,16 @@ jobs:
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
             echo "✅ Actionable changes detected:"
             printf '%s\n' "${actionable_files}"
+
+            # ✅ 新規追加: ファイル削除の検出
+            deleted_files="$(git diff --name-only --diff-filter=D || true)"
+            if [ -n "${deleted_files}" ]; then
+              deleted_count="$(printf '%s\n' "${deleted_files}" | sed '/^$/d' | wc -l | tr -d ' ')"
+              echo "⚠️  WARNING: This PR contains ${deleted_count} file deletion(s):"
+              printf '  - %s\n' ${deleted_files}
+              echo ""
+              echo "🔍 Dependency check will protect referenced files from deletion."
+            fi
           else
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
             echo "ℹ️  No actionable changes detected. Skipping PR creation."
