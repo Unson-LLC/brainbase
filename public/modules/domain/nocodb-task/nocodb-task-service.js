@@ -3,6 +3,9 @@ import { appStore } from '../../core/store.js';
 import { NocoDBTaskAdapter } from './nocodb-task-adapter.js';
 import { NocoDBTaskRepository } from './nocodb-task-repository.js';
 
+const UNASSIGNED_FILTER_VALUE = '__unassigned__';
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+
 /**
  * NocoDBTaskService
  * NocoDBタスクのビジネスロジック
@@ -38,10 +41,7 @@ export class NocoDBTaskService {
             this.tasks = rawTasks.map(record => this.adapter.toInternalTask(record));
 
             // Store更新
-            appStore.setState({
-                nocodbTasks: this.tasks,
-                nocodbProjects: this.projects
-            });
+            this._syncTasksState(true);
 
             return this.tasks;
         } catch (error) {
@@ -71,10 +71,7 @@ export class NocoDBTaskService {
      * @param {string} newStatus - 新しいステータス (pending/in_progress/completed)
      */
     async updateStatus(taskId, newStatus) {
-        const task = this.tasks.find(t => t.id === taskId);
-        if (!task) {
-            throw new Error('Task not found');
-        }
+        const task = this._findTaskOrThrow(taskId);
 
         const nocoStatus = this.adapter.toNocoDBStatus(newStatus);
 
@@ -86,21 +83,17 @@ export class NocoDBTaskService {
             );
 
             // ローカル状態更新
-            task.status = newStatus;
+            this._applyLocalUpdates(task, { status: newStatus });
 
             // Store更新
-            appStore.setState({ nocodbTasks: [...this.tasks] });
+            this._syncTasksState();
 
             // イベント発火
             eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
 
             return task;
         } catch (error) {
-            console.error('NocoDBTaskService.updateStatus error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to update task'
-            });
-            throw error;
+            this._handleTaskError('updateStatus', error, 'Failed to update task');
         }
     }
 
@@ -110,10 +103,7 @@ export class NocoDBTaskService {
      * @param {Object} updates - 更新データ { name, priority, due, description }
      */
     async updateTask(taskId, updates) {
-        const task = this.tasks.find(t => t.id === taskId);
-        if (!task) {
-            throw new Error('Task not found');
-        }
+        const task = this._findTaskOrThrow(taskId);
 
         // 内部形式→NocoDB形式に変換
         const nocoFields = this.adapter.toNocoDBFields(updates);
@@ -126,25 +116,17 @@ export class NocoDBTaskService {
             );
 
             // ローカル状態更新
-            if (updates.name) task.title = updates.name;
-            if (updates.priority) task.priority = updates.priority;
-            if (updates.due !== undefined) task.due = updates.due;
-            if (updates.description !== undefined) task.description = updates.description;
-            if (updates.assignee !== undefined) task.assignee = updates.assignee;
+            this._applyLocalUpdates(task, updates);
 
             // Store更新
-            appStore.setState({ nocodbTasks: [...this.tasks] });
+            this._syncTasksState();
 
             // イベント発火
             eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
 
             return task;
         } catch (error) {
-            console.error('NocoDBTaskService.updateTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to update task'
-            });
-            throw error;
+            this._handleTaskError('updateTask', error, 'Failed to update task');
         }
     }
 
@@ -165,11 +147,7 @@ export class NocoDBTaskService {
             eventBus.emit(EVENTS.NOCODB_TASK_CREATED, { task: created });
             return created;
         } catch (error) {
-            console.error('NocoDBTaskService.createTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to create task'
-            });
-            throw error;
+            this._handleTaskError('createTask', error, 'Failed to create task');
         }
     }
 
@@ -178,10 +156,7 @@ export class NocoDBTaskService {
      * @param {string} taskId - 内部タスクID
      */
     async deleteTask(taskId) {
-        const task = this.tasks.find(t => t.id === taskId);
-        if (!task) {
-            throw new Error('Task not found');
-        }
+        const task = this._findTaskOrThrow(taskId);
 
         try {
             await this.repository.deleteTask(
@@ -193,18 +168,14 @@ export class NocoDBTaskService {
             this.tasks = this.tasks.filter(t => t.id !== taskId);
 
             // Store更新
-            appStore.setState({ nocodbTasks: [...this.tasks] });
+            this._syncTasksState();
 
             // イベント発火
             eventBus.emit(EVENTS.NOCODB_TASK_DELETED, { taskId });
 
             return { success: true };
         } catch (error) {
-            console.error('NocoDBTaskService.deleteTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to delete task'
-            });
-            throw error;
+            this._handleTaskError('deleteTask', error, 'Failed to delete task');
         }
     }
 
@@ -215,7 +186,6 @@ export class NocoDBTaskService {
      */
     getFilteredTasks(filters = {}) {
         let result = [...this.tasks];
-        const unassignedValue = '__unassigned__';
 
         // プロジェクトフィルタ
         if (filters.project) {
@@ -238,7 +208,7 @@ export class NocoDBTaskService {
         }
 
         // 担当者フィルタ
-        if (filters.assignee === unassignedValue) {
+        if (filters.assignee === UNASSIGNED_FILTER_VALUE) {
             result = result.filter(t => !t.assignee);
         } else if (filters.assignee) {
             const assignee = filters.assignee.toLowerCase();
@@ -255,9 +225,8 @@ export class NocoDBTaskService {
         }
 
         // 優先度でソート（high > medium > low）
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
         result.sort((a, b) => {
-            return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
+            return (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2);
         });
 
         return result;
@@ -285,5 +254,41 @@ export class NocoDBTaskService {
      */
     getError() {
         return this.error;
+    }
+
+    _findTaskOrThrow(taskId) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+        return task;
+    }
+
+    _applyLocalUpdates(task, updates = {}) {
+        if (updates.name) {
+            task.title = updates.name;
+            task.name = updates.name;
+        }
+        if (updates.priority) task.priority = updates.priority;
+        if (updates.due !== undefined) task.due = updates.due;
+        if (updates.description !== undefined) task.description = updates.description;
+        if (updates.assignee !== undefined) task.assignee = updates.assignee;
+        if (updates.status) task.status = updates.status;
+    }
+
+    _syncTasksState(includeProjects = false) {
+        const nextState = { nocodbTasks: [...this.tasks] };
+        if (includeProjects) {
+            nextState.nocodbProjects = this.projects;
+        }
+        appStore.setState(nextState);
+    }
+
+    _handleTaskError(context, error, fallbackMessage) {
+        console.error(`NocoDBTaskService.${context} error:`, error);
+        eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
+            error: error.message || fallbackMessage
+        });
+        throw error;
     }
 }
