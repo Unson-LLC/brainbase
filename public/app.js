@@ -16,7 +16,6 @@ import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, startPolling } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
-import { showConfirm, showConfirmWithAction } from './modules/confirm-modal.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
@@ -40,6 +39,7 @@ import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
+import { SessionContextBarView } from './modules/ui/views/session-context-bar-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
@@ -679,6 +679,14 @@ export class App {
      * Initialize views
      */
     initViews() {
+        const contextBarContainer = document.getElementById('session-context-bar');
+        if (contextBarContainer) {
+            this.views.sessionContextBarView = new SessionContextBarView({
+                sessionService: this.sessionService
+            });
+            this.views.sessionContextBarView.mount(contextBarContainer);
+        }
+
         // Sessions (left sidebar)
         const sessionContainer = document.getElementById('session-list');
         if (sessionContainer) {
@@ -1252,47 +1260,6 @@ export class App {
             this.modals.renameModal.open(session);
         });
 
-        // Merge session: send /merge command to Claude Code
-        const unsub6 = eventBus.on(EVENTS.MERGE_SESSION, async (event) => {
-            const { sessionId } = event.detail;
-            const { sessions } = appStore.getState();
-            const session = sessions.find(s => s.id === sessionId);
-            const displayName = session?.name || sessionId;
-
-            const confirmed = await showConfirm(
-                `「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`,
-                {
-                    title: 'Merge to main',
-                    okText: 'マージ実行',
-                    cancelText: 'キャンセル',
-                    danger: false
-                }
-            );
-            if (!confirmed) {
-                return;
-            }
-
-            try {
-                // Send /merge command to Claude Code via tmux
-                await fetch(`/api/sessions/${sessionId}/input`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input: '/merge', type: 'text' })
-                });
-                // Send Enter key to execute the command
-                await fetch(`/api/sessions/${sessionId}/input`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input: 'Enter', type: 'key' })
-                });
-
-                showSuccess('/merge コマンドを送信しました。ターミナルで進捗を確認してください。');
-            } catch (err) {
-                console.error('Failed to send merge command', err);
-                showError('/merge コマンドの送信に失敗しました');
-            }
-        });
-
         // Goal seek: open goal seek modal
         const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
             const { session } = event.detail;
@@ -1340,7 +1307,7 @@ export class App {
             if (sessionId === currentSessionId) this._updateSessionGoalBanner(currentSessionId);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
