@@ -151,9 +151,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/30",
       "pr_status": "open",
       "merged_at": null
+    },
+    {
+      "area": "server/controllers",
+      "refactored_at": "2026-02-24T00:19:54.258Z",
+      "files_modified": [
+        "server/controllers/nocodb-controller.js"
+      ],
+      "changes_summary": "NocoDBコントローラに設定チェック＆タスクテーブル取得/詳細取得のヘルパー生やしてfetchヘッダーも共通化したから、list/create/update/delete/_fetchProjectTasksの重複ロジックをまるっとスリムにしたよ〜。node_modules未導入でテストは走らせられてないから確認お願いね💖",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 41,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 600000,
+      "judge_score": 92,
+      "judge_threshold": 80,
+      "judge_summary": "ヘルパー抽出でNocoDB設定チェックやテーブル取得ロジックを共通化し、ヘッダー構築も一元管理されたことで重複コードが減り読みやすさが上がってるっちゃ。挙動は元と同じレスポンスやエラーハンドリングを保っているように見えて、リファクタのスコープも限定的で安心感あるよ。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "新設したヘルパー（_ensureNocoDBConfig, _fetchTaskTable など）向けに少しだけ単体テストを足しておくと、将来の挙動保証がしやすくなるかも。"
+      ],
+      "run_number": "10",
+      "run_id": "22330752187",
+      "trigger_event": "schedule",
+      "pr_number": 31,
+      "pr_branch": "ops-department/weekly-review-10",
+      "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/31",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-23T18:22:38.316Z",
-  "total_prs_created": 7,
+  "last_updated": "2026-02-24T00:20:01.237Z",
+  "total_prs_created": 8,
   "total_prs_merged": 1
 }
