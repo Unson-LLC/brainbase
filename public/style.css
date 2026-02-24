@@ -1706,6 +1706,7 @@ body::after {
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
 }
 
@@ -1717,6 +1718,12 @@ body::after {
     align-items: center;
     gap: 6px;
     margin: 0;
+}
+
+.commit-tree-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .commit-tree-repo-badge {
@@ -1853,6 +1860,31 @@ body::after {
 
 .panel-resize-handle-commit-tree {
     border-left: 1px solid var(--border-color);
+}
+
+.commit-tree-expand-btn {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    width: 26px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    margin: 0 4px 0 2px;
+    flex-shrink: 0;
+}
+
+.commit-tree-expand-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.commit-tree-expand-btn.hidden,
+.panel-resize-handle.hidden {
+    display: none !important;
 }
 
 /* === Panel Resize Handles (Left/Right) === */
@@ -5814,7 +5846,8 @@ body.resizing iframe {
         visibility: hidden !important;
     }
 
-    .commit-tree-panel {
+    .commit-tree-panel,
+    .commit-tree-expand-btn {
         display: none !important;
         width: 0 !important;
         visibility: hidden !important;
