@@ -393,6 +393,64 @@ export class SessionManager {
     }
 
     /**
+     * ttydがポートをリッスン状態になるまで待機
+     * @param {number} port - 監視対象ポート
+     * @param {number} timeoutMs - タイムアウト（デフォルト: 10000ms）
+     * @param {number} retryIntervalMs - リトライ間隔（デフォルト: 100ms）
+     * @returns {Promise<void>} - リッスン開始したらresolve、タイムアウトでreject
+     * @throws {Error} - タイムアウト時
+     */
+    async waitForTtydReady(port, timeoutMs = 10000, retryIntervalMs = 100) {
+        const startTime = Date.now();
+        const deadline = startTime + timeoutMs;
+
+        while (Date.now() < deadline) {
+            try {
+                // TCP接続試行（成功 = ttydがリッスン開始）
+                await this._checkPortListening(port);
+                const elapsedMs = Date.now() - startTime;
+                console.log(`[ttyd] Port ${port} ready after ${elapsedMs}ms`);
+                return; // 成功
+            } catch (err) {
+                // 接続失敗 → まだリッスンしていない → リトライ
+                await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
+            }
+        }
+
+        // タイムアウト
+        const elapsedMs = Date.now() - startTime;
+        throw new Error(`ttyd port ${port} did not become ready within ${timeoutMs}ms (elapsed: ${elapsedMs}ms)`);
+    }
+
+    /**
+     * 指定ポートがリッスン状態かチェック（TCP接続試行）
+     * @private
+     * @param {number} port - チェック対象ポート
+     * @param {number} connectionTimeout - 接続タイムアウト（デフォルト: 100ms）
+     * @returns {Promise<void>} - リッスン中ならresolve、接続失敗でreject
+     */
+    _checkPortListening(port, connectionTimeout = 100) {
+        return new Promise((resolve, reject) => {
+            const socket = net.createConnection({ port, host: 'localhost', timeout: connectionTimeout });
+
+            socket.on('connect', () => {
+                socket.end(); // 接続確認したら即座に切断
+                resolve();
+            });
+
+            socket.on('timeout', () => {
+                socket.destroy();
+                reject(new Error('Connection timeout'));
+            });
+
+            socket.on('error', (err) => {
+                socket.destroy();
+                reject(err); // ECONNREFUSED等
+            });
+        });
+    }
+
+    /**
      * セッション状態を取得（Hook報告ベース）
      * ハートビートタイムアウト: 10分以上working報告がなければisWorking=falseとする
      * @returns {Object} sessionId -> {isWorking, isDone}
@@ -917,6 +975,17 @@ export class SessionManager {
 
             check();
         });
+
+        // Step 2: ttyd完全起動確認（ポートリッスン開始を待機）
+        try {
+            await this.waitForTtydReady(port, 10000, 100);
+            console.log(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
+        } catch (error) {
+            console.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
+            // ttydプロセスをクリーンアップ
+            await this.stopTtyd(sessionId);
+            throw new Error(`ttyd startup timeout: ${error.message}`);
+        }
 
         return { port, proxyPath: basePath, startedExisting: false };
     }

@@ -42,6 +42,32 @@ export class SessionController {
         res.json(status);
     };
 
+    /**
+     * GET /api/sessions/:id
+     * 特定セッションの情報を取得
+     */
+    get = (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        // Add runtime status
+        const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
+
+        res.json({
+            ...session,
+            runtimeStatus
+        });
+    };
+
     // ========================================
     // Process Management
     // ========================================

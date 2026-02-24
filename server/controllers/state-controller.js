@@ -142,4 +142,59 @@ export class StateController {
             res.status(500).json({ error: 'Failed to update state' });
         }
     };
+
+    /**
+     * PATCH /api/state/sessions/:sessionId
+     * 単一セッションの部分更新
+     */
+    patch = async (req, res) => {
+        try {
+            const { sessionId } = req.params;
+            if (!sessionId) {
+                return res.status(400).json({ error: 'Session ID required' });
+            }
+
+            // 入力検証
+            if (!req.body || typeof req.body !== 'object') {
+                return res.status(400).json({ error: 'Invalid request body' });
+            }
+
+            // Runtime-only fields を除去
+            const { ttydRunning, runtimeStatus, ...updateFields } = req.body;
+
+            // 更新フィールドの検証
+            const validated = validateSession({ id: sessionId, ...updateFields });
+            if (!validated) {
+                return res.status(400).json({ error: 'Invalid session data' });
+            }
+
+            // 現在の状態を取得
+            const state = this.stateStore.get();
+            const sessionIndex = (state.sessions || []).findIndex(s => s.id === sessionId);
+
+            if (sessionIndex === -1) {
+                return res.status(404).json({ error: 'Session not found' });
+            }
+
+            // セッションを部分更新
+            const updatedSessions = [...state.sessions];
+            updatedSessions[sessionIndex] = {
+                ...updatedSessions[sessionIndex],
+                ...validated,
+                updatedAt: new Date().toISOString()
+            };
+
+            const newState = await this.stateStore.update({
+                ...state,
+                sessions: updatedSessions
+            });
+
+            // 更新されたセッションのみ返す
+            const updatedSession = newState.sessions.find(s => s.id === sessionId);
+            res.json(updatedSession);
+        } catch (error) {
+            logger.error('Failed to patch session', { error, sessionId: req.params.sessionId });
+            res.status(500).json({ error: 'Failed to patch session' });
+        }
+    };
 }
