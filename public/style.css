@@ -5577,6 +5577,12 @@ body.resizing iframe {
         display: none; /* Chrome, Safari */
     }
 
+    /* Terminal Input Status: モバイルでは mobile-bottom-nav の上に表示 */
+    .terminal-input-status {
+        bottom: calc(56px + env(safe-area-inset-bottom, 0) + 14px);
+        /* mobile-bottom-nav (56px) + safe-area + マージン14px */
+    }
+
     /* Mobile Input Dock */
     .mobile-input-dock {
         display: block;
