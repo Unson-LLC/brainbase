@@ -116,6 +116,34 @@ export class WorktreeService {
             await this.execPromise(`jj -R "${repoPath}" workspace add --name "${workspaceName}" "${workspacePath}"`);
             console.log(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
 
+            // Register as git worktree (for git command compatibility)
+            try {
+                const gitWorktreePath = path.join(repoPath, '.git', 'worktrees', workspaceName);
+                await fs.mkdir(gitWorktreePath, { recursive: true });
+
+                // .git/worktrees/{workspace}/gitdir
+                await fs.writeFile(
+                    path.join(gitWorktreePath, 'gitdir'),
+                    path.join(workspacePath, '.git') + '\n'
+                );
+
+                // .git/worktrees/{workspace}/commondir
+                await fs.writeFile(
+                    path.join(gitWorktreePath, 'commondir'),
+                    '../..\n'
+                );
+
+                // worktree/.git file
+                await fs.writeFile(
+                    path.join(workspacePath, '.git'),
+                    `gitdir: ${gitWorktreePath}\n`
+                );
+
+                console.log(`[workspace] Registered git worktree at ${gitWorktreePath}`);
+            } catch (gitErr) {
+                console.log(`[workspace] Git worktree registration failed (non-critical): ${gitErr.message}`);
+            }
+
             // Create bookmark
             try {
                 await this.execPromise(`jj -R "${repoPath}" bookmark create -r main ${bookmarkName}`);

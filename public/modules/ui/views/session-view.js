@@ -538,10 +538,31 @@ export class SessionView {
         // Merge button
         const mergeBtn = row.querySelector('.merge-session-btn');
         if (mergeBtn) {
-            mergeBtn.addEventListener('click', (e) => {
+            mergeBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
+                const displayName = session.name || session.id;
+                const confirmed = await showConfirm(
+                    `「${displayName}」の変更をmainへマージしますか？`,
+                    {
+                        title: 'Merge to main',
+                        okText: 'マージ実行',
+                        cancelText: 'キャンセル'
+                    }
+                );
+                if (!confirmed) return;
+
+                try {
+                    const mergeResult = await this.sessionService.mergeSession(session.id);
+                    if (mergeResult?.success) {
+                        showSuccess(`セッション「${displayName}」をマージしました`);
+                    } else {
+                        showError(mergeResult?.error || 'マージに失敗しました');
+                    }
+                } catch (error) {
+                    console.error('Failed to merge session:', error);
+                    showError('マージに失敗しました');
+                }
             });
         }
 

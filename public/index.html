@@ -105,10 +105,15 @@
 	        <!-- Left Panel Resize Handle -->
 	        <div class="panel-resize-handle panel-resize-handle-left" id="left-panel-resize-handle" title="ドラッグで幅を変更"></div>
 	
-	        <!-- Main Content (Console) -->
-	        <main class="main-content">
-	            <div class="console-area" id="console-area">
-	                <div class="console-toolbar">
+        <!-- Main Content (Console) -->
+        <main class="main-content">
+            <div id="session-context-bar" class="session-context-bar" role="status" aria-live="polite">
+                <div class="session-context-bar-inner">
+                    <div class="session-context-empty">セッション未選択</div>
+                </div>
+            </div>
+            <div class="console-area" id="console-area">
+                <div class="console-toolbar">
 	                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
 	                        aria-label="クリップボードからペースト">
 	                        <i data-lucide="clipboard"></i>
