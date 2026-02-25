@@ -5565,6 +5565,18 @@ body.resizing iframe {
         --mobile-input-offset: 120px;
     }
 
+    /* Session Context Bar: モバイルで横スクロール */
+    .session-context-bar-inner {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox */
+    }
+
+    .session-context-bar-inner::-webkit-scrollbar {
+        display: none; /* Chrome, Safari */
+    }
+
     /* Mobile Input Dock */
     .mobile-input-dock {
         display: block;
