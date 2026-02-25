@@ -252,4 +252,58 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             sensitivity: 'internal'
         })).rejects.toThrow('title is required');
     });
+
+    describe('buildHumanReport sections', () => {
+        it('normalizes falsy payload fields to null for backward compatibility', () => {
+            const { service } = buildService();
+            const decisionNode = {
+                id: 'dec_1',
+                entity_type: 'decision',
+                payload: { title: '', status: 0, decided_at: undefined }
+            };
+
+            const report = service.buildHumanReport({
+                seedId: 'dec_1',
+                projectCode: 'brainbase',
+                nodes: [decisionNode],
+                edges: [],
+                summaryLines: []
+            });
+
+            const decisionSection = report.sections.find(section => section.title === 'Decisions');
+            expect(decisionSection?.items).toEqual([
+                {
+                    id: 'dec_1',
+                    title: null,
+                    status: null,
+                    decided_at: null
+                }
+            ]);
+        });
+
+        it('keeps truthy payload values untouched', () => {
+            const { service } = buildService();
+            const personNode = {
+                id: 'per_1',
+                entity_type: 'person',
+                payload: { name: 'Alice' }
+            };
+
+            const report = service.buildHumanReport({
+                seedId: 'per_1',
+                projectCode: 'brainbase',
+                nodes: [personNode],
+                edges: [],
+                summaryLines: []
+            });
+
+            const peopleSection = report.sections.find(section => section.title === 'People');
+            expect(peopleSection?.items).toEqual([
+                {
+                    id: 'per_1',
+                    name: 'Alice'
+                }
+            ]);
+        });
+    });
 });

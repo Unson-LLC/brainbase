@@ -226,64 +226,7 @@ export class InfoSSOTService {
         const seedNode = nodes.find(node => node.id === seedId) || null;
         const labelFor = (node) => (node ? this.formatEntityLabel(node) : seedId);
 
-        const decisionItems = (byType.decision || []).map(node => ({
-            id: node.id,
-            title: node.payload?.title || null,
-            status: node.payload?.status || null,
-            decided_at: node.payload?.decided_at || null
-        }));
-        const raciItems = (byType.raci_assignment || []).map(node => ({
-            id: node.id,
-            role_code: node.payload?.role_code || null,
-            authority_scope: node.payload?.authority_scope || null,
-            sensitivity_min: node.payload?.sensitivity_min || null
-        }));
-        const personItems = (byType.person || []).map(node => ({
-            id: node.id,
-            name: node.payload?.name || null
-        }));
-        const aiDecisionItems = (byType.ai_decision || []).map(node => ({
-            id: node.id,
-            summary: node.payload?.summary || null,
-            decision_type: node.payload?.decision_type || null,
-            decided_at: node.payload?.decided_at || null,
-            confidence: node.payload?.confidence || null
-        }));
-        const aiQueryItems = (byType.ai_query || []).map(node => ({
-            id: node.id,
-            intent: node.payload?.intent || null,
-            query_type: node.payload?.query_type || null,
-            result_count: node.payload?.result_count || null
-        }));
-        const projectItems = (byType.project || []).map(node => ({
-            id: node.id,
-            code: node.payload?.code || null,
-            name: node.payload?.name || null
-        }));
-        const glossaryItems = (byType.glossary_term || []).map(node => ({
-            id: node.id,
-            term: node.payload?.term || null,
-            reading: node.payload?.reading || null,
-            correct_form: node.payload?.correct_form || null,
-            incorrect_forms: node.payload?.incorrect_forms || null,
-            category: node.payload?.category || null,
-            description: node.payload?.description || null
-        }));
-        const kpiItems = (byType.kpi || []).map(node => ({
-            id: node.id,
-            metric_name: node.payload?.metric_name || null,
-            target_value: node.payload?.target_value || null,
-            current_value: node.payload?.current_value || null,
-            unit: node.payload?.unit || null,
-            period: node.payload?.period || null
-        }));
-        const initiativeItems = (byType.initiative || []).map(node => ({
-            id: node.id,
-            title: node.payload?.title || null,
-            status: node.payload?.status || null,
-            start_date: node.payload?.start_date || null,
-            end_date: node.payload?.end_date || null
-        }));
+        const sections = this._buildReportSections(byType);
 
         return {
             header: {
@@ -296,19 +239,54 @@ export class InfoSSOTService {
                 node_count: nodes.length,
                 edge_count: edges.length
             },
-            sections: [
-                { title: 'Decisions', items: decisionItems },
-                { title: 'RACI', items: raciItems },
-                { title: 'People', items: personItems },
-                { title: 'AI Decisions', items: aiDecisionItems },
-                { title: 'AI Queries', items: aiQueryItems },
-                { title: 'Projects', items: projectItems },
-                { title: 'Glossary', items: glossaryItems },
-                { title: 'KPIs', items: kpiItems },
-                { title: 'Initiatives', items: initiativeItems }
-            ],
+            sections,
             relations: summaryLines || []
         };
+    }
+
+    _buildReportSections(byType) {
+        const sectionConfigs = [
+            { title: 'Decisions', type: 'decision', schema: { title: 'title', status: 'status', decided_at: 'decided_at' } },
+            { title: 'RACI', type: 'raci_assignment', schema: { role_code: 'role_code', authority_scope: 'authority_scope', sensitivity_min: 'sensitivity_min' } },
+            { title: 'People', type: 'person', schema: { name: 'name' } },
+            { title: 'AI Decisions', type: 'ai_decision', schema: { summary: 'summary', decision_type: 'decision_type', decided_at: 'decided_at', confidence: 'confidence' } },
+            { title: 'AI Queries', type: 'ai_query', schema: { intent: 'intent', query_type: 'query_type', result_count: 'result_count' } },
+            { title: 'Projects', type: 'project', schema: { code: 'code', name: 'name' } },
+            { title: 'Glossary', type: 'glossary_term', schema: { term: 'term', reading: 'reading', correct_form: 'correct_form', incorrect_forms: 'incorrect_forms', category: 'category', description: 'description' } },
+            { title: 'KPIs', type: 'kpi', schema: { metric_name: 'metric_name', target_value: 'target_value', current_value: 'current_value', unit: 'unit', period: 'period' } },
+            { title: 'Initiatives', type: 'initiative', schema: { title: 'title', status: 'status', start_date: 'start_date', end_date: 'end_date' } }
+        ];
+
+        return sectionConfigs.map(({ title, type, schema }) => ({
+            title,
+            items: this._mapNodeFields(byType, type, schema)
+        }));
+    }
+
+    _mapNodeFields(byType, type, schema) {
+        const nodes = byType[type] || [];
+        if (!nodes.length) {
+            return [];
+        }
+
+        return nodes.map(node => {
+            const payload = node?.payload || {};
+            const item = { id: node?.id || null };
+
+            Object.entries(schema).forEach(([key, selector]) => {
+                const rawValue = typeof selector === 'function'
+                    ? selector(node, payload)
+                    : payload?.[selector];
+                item[key] = this._normalizeReportValue(rawValue);
+            });
+
+            return item;
+        });
+    }
+
+    _normalizeReportValue(value) {
+        // Preserve the historical `|| null` normalization semantics so reports stay backward compatible
+        return value || null;
     }
 
     assertWriteAccess(access, { projectCode, roleMin, sensitivity }) {
