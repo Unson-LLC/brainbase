@@ -1,13 +1,18 @@
-name: ops-department Auto Refactoring
+name: ops-department Auto Refactoring (3-hourly)
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # 6時間ごと（0:00, 6:00, 12:00, 18:00 UTC）
+    - cron: "0 */3 * * *" # 3時間ごと（0:00, 3:00, 6:00, 9:00, 12:00, 15:00, 18:00, 21:00 UTC）
   workflow_dispatch: {}
+
+concurrency:
+  group: ops-department-auto-refactoring
+  cancel-in-progress: true
 
 jobs:
   ops-department-review:
     runs-on: [self-hosted, local]
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -35,6 +40,26 @@ jobs:
           CODEX_REASONING_EFFORT: high
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node scripts/ops-team-review.cjs
+
+      - name: Clean dependencies
+        if: success()
+        run: |
+          echo "🧹 Cleaning node_modules and npm cache..."
+          rm -rf node_modules
+          npm cache verify || true
+          echo "✅ Cleanup complete"
+
+      - name: Install dependencies
+        if: success()
+        run: npm ci
+
+      - name: Run lint
+        if: success()
+        run: npm run lint
+
+      - name: Run unit tests
+        if: success()
+        run: npm run test:run
 
       - name: Check actionable changes
         if: success()
@@ -136,9 +161,21 @@ jobs:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: node scripts/commit-history-to-develop.cjs
 
+      - name: Auto-merge refactor PR
+        if: steps.create-pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          pr="${{ steps.create-pr.outputs.pull-request-number }}"
+          echo "🔀 Auto-merging PR #${pr} into develop (tests & lint passed)..."
+          gh pr merge "${pr}" --repo "${GITHUB_REPOSITORY}" --merge --delete-branch --yes
+
   # PRマージ状態を定期的に更新
   update-pr-status:
     runs-on: [self-hosted, local]
+    timeout-minutes: 10
     if: github.event_name == 'schedule'
     permissions:
       contents: write

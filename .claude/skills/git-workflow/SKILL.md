@@ -1,13 +1,13 @@
 ---
 name: git-workflow
-description: brainbaseのGitワークフロー（/commit、/merge）への準拠をチェック。Conventional Commits、Decision-making capture、Branch safetyを自動検証。
+description: brainbaseのJujutsuワークフロー（/commit、/merge）への準拠をチェック。Conventional Commits、Decision-making capture、Workspace safetyを自動検証。
 ---
 
-# Git Workflow
+# Jujutsu Workflow
 
-**目的**: brainbaseのGitワークフロー原則への準拠をチェックし、正しいコミット・マージを支援
+**目的**: brainbaseのJujutsu運用原則への準拠をチェックし、正しいコミット・マージを支援
 
-このSkillは、CLAUDE.mdで定義されたGit運用ルールを自動的に実践します。
+このSkillは、CLAUDE.mdで定義された `jj` 運用ルールを自動的に実践します。
 
 ## Workflow Overview
 
@@ -21,10 +21,10 @@ Phase 2: Decision-making captureチェック
 └── agents/phase2_decision_checker.md
     └── 悩み→判断→結果が記録されているか確認
 
-Phase 3: Branch safetyチェック
+Phase 3: Workspace safetyチェック
 └── agents/phase3_branch_checker.md
-    └── session/* branchか確認
-    └── main/masterへの直接コミット防止
+    └── session workspace か確認
+    └── default workspace への直接コミット防止
 ```
 
 ## コミット形式
@@ -47,4 +47,4 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
-最終更新: 2025-12-31
+最終更新: 2026-02-22

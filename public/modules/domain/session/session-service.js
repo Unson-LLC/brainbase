@@ -390,6 +390,20 @@ export class SessionService {
     }
 
     /**
+     * セッション表示用コンテキストを取得
+     * @param {string} sessionId
+     * @returns {Promise<Object|null>}
+     */
+    async getSessionContext(sessionId) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
+        } catch (error) {
+            console.error('Failed to get session context:', error);
+            return null;
+        }
+    }
+
+    /**
      * ローカルmainブランチ更新
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object>}

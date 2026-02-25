@@ -12,6 +12,45 @@ export class StorageService {
     constructor(workspaceDir = process.env.WORKSPACE_ROOT || '/path/to/workspace') {
         this.workspaceDir = workspaceDir;
         this.worktreesDir = path.join(workspaceDir, '.worktrees');
+
+        // キャッシュストレージ（インメモリ）
+        this._cache = new Map();
+        this._cacheTTL = 5 * 60 * 1000; // 5分（ミリ秒）
+    }
+
+    /**
+     * キャッシュ付きで関数を実行
+     * @param {string} key - キャッシュキー
+     * @param {Function} fn - 実行する関数（async）
+     * @returns {Promise<any>} キャッシュまたは計算結果
+     */
+    async _cacheWithTTL(key, fn) {
+        const cached = this._cache.get(key);
+        const now = Date.now();
+
+        // キャッシュが有効な場合は即座に返す
+        if (cached && (now - cached.timestamp) < this._cacheTTL) {
+            console.log(`[StorageService] Cache hit: ${key} (age: ${Math.round((now - cached.timestamp) / 1000)}s)`);
+            return cached.value;
+        }
+
+        // キャッシュが無効または存在しない場合、計算して保存
+        console.log(`[StorageService] Cache miss: ${key}, calculating...`);
+        const value = await fn();
+        this._cache.set(key, { value, timestamp: now });
+
+        return value;
+    }
+
+    /**
+     * キャッシュの経過時間を取得（秒）
+     * @param {string} key - キャッシュキー
+     * @returns {number|null} 経過時間（秒）
+     */
+    _getCacheAge(key) {
+        const cached = this._cache.get(key);
+        if (!cached) return null;
+        return Math.round((Date.now() - cached.timestamp) / 1000);
     }
 
     /**
@@ -147,20 +186,27 @@ export class StorageService {
     }
 
     /**
-     * ストレージサマリー取得
+     * ストレージサマリー取得（キャッシュ付き、TTL: 5分）
      * @returns {Promise<Object>} ストレージサマリー
      */
     async getStorageSummary() {
+        // キャッシュ付きで各メソッドを実行
         const [workspace, largeFiles, worktrees] = await Promise.all([
-            this.getWorkspaceStorage(),
-            this.findLargeFiles(),
-            this.getWorktreesSizes(),
+            this._cacheWithTTL('workspace', () => this.getWorkspaceStorage()),
+            this._cacheWithTTL('largeFiles', () => this.findLargeFiles()),
+            this._cacheWithTTL('worktrees', () => this.getWorktreesSizes()),
         ]);
 
         return {
             workspace,
             largeFiles,
             worktrees,
+            cachedAt: new Date().toISOString(),
+            cacheInfo: {
+                workspaceAge: this._getCacheAge('workspace'),
+                largeFilesAge: this._getCacheAge('largeFiles'),
+                worktreesAge: this._getCacheAge('worktrees'),
+            },
         };
     }
 

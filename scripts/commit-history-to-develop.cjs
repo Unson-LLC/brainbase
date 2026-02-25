@@ -10,7 +10,7 @@
  * - PRに履歴ファイルを含めて add/add 競合するのを避ける
  *
  * Usage:
- *   PR_NUMBER=123 PR_BRANCH=ops-department/weekly-review-999 TARGET_BRANCH=main node scripts/commit-history-to-develop.cjs
+ *   PR_NUMBER=123 PR_BRANCH=ops-department/auto-refactor-999 TARGET_BRANCH=main node scripts/commit-history-to-develop.cjs
  */
 
 const { execSync } = require("child_process");
@@ -87,7 +87,10 @@ function loadRefactoringResult() {
     const content = fs.readFileSync(RESULT_FILE, "utf-8");
     return JSON.parse(content);
   } catch (error) {
-    console.error("❌ リファクタリング結果ファイル読み込み失敗:", error.message);
+    console.error(
+      "❌ リファクタリング結果ファイル読み込み失敗:",
+      error.message,
+    );
     process.exit(1);
   }
 }
@@ -152,7 +155,18 @@ function main() {
     refactored_at: refactoringResult.refactored_at || new Date().toISOString(),
     files_modified: refactoringResult.files_modified || [],
     changes_summary: refactoringResult.changes_summary || "",
-    run_number: refactoringResult.run_number || process.env.GITHUB_RUN_NUMBER || null,
+    tier: refactoringResult.tier || null,
+    hotspot_since_days: refactoringResult.hotspot_since_days ?? null,
+    hotspot_score: refactoringResult.hotspot_score ?? null,
+    cooldown_days: refactoringResult.cooldown_days ?? null,
+    refactor_timeout_ms: refactoringResult.refactor_timeout_ms ?? null,
+    judge_score: refactoringResult.judge_score ?? null,
+    judge_threshold: refactoringResult.judge_threshold ?? null,
+    judge_summary: refactoringResult.judge_summary || "",
+    judge_must_fix: refactoringResult.judge_must_fix || [],
+    judge_suggestions: refactoringResult.judge_suggestions || [],
+    run_number:
+      refactoringResult.run_number || process.env.GITHUB_RUN_NUMBER || null,
     run_id: refactoringResult.run_id || process.env.GITHUB_RUN_ID || null,
     trigger_event:
       refactoringResult.trigger_event || process.env.GITHUB_EVENT_NAME || null,

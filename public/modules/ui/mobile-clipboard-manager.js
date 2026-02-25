@@ -32,20 +32,20 @@ export class MobileClipboardManager {
         this.snippets = this.loadJson(STORAGE_KEYS.snippets, []);
     }
 
-    async handleClipSlot(index) {
+    async handleClipSlot(index, getActiveInputFn) {
         const pinned = this.pins[index];
         if (pinned) {
-            this.insertTextAtCursor(pinned);
-            return;
+            return this.insertTextAtCursor(pinned, getActiveInputFn);
         }
 
         const clipboard = await this.readClipboardText();
-        if (!clipboard) return;
+        if (!clipboard) return null;
 
         this.pins[index] = clipboard;
         this.savePins();
         this.updatePinsUI();
         showSuccess('クリップを保存したよ');
+        return null;
     }
 
     bindLongPressClear(button, index) {

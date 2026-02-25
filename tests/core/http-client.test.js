@@ -30,9 +30,10 @@ describe('HttpClient', () => {
             'https://api.example.com/users',
             expect.objectContaining({
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: expect.objectContaining({
+                    'Content-Type': 'application/json',
+                    'X-BB-Trace-Id': expect.any(String)
+                })
             })
         );
         expect(result).toEqual(mockResponse);
@@ -53,9 +54,10 @@ describe('HttpClient', () => {
             'https://api.example.com/users',
             expect.objectContaining({
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: expect.objectContaining({
+                    'Content-Type': 'application/json',
+                    'X-BB-Trace-Id': expect.any(String)
+                }),
                 body: JSON.stringify(requestBody)
             })
         );
@@ -88,11 +90,38 @@ describe('HttpClient', () => {
         expect(fetchMock).toHaveBeenCalledWith(
             'https://api.example.com/users',
             expect.objectContaining({
-                headers: {
+                headers: expect.objectContaining({
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer token123'
-                }
+                    'Authorization': 'Bearer token123',
+                    'X-BB-Trace-Id': expect.any(String)
+                })
             })
         );
+    });
+
+    it('should return notModified metadata on 304 when allowNotModified is enabled', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 304,
+            statusText: 'Not Modified',
+            headers: new Headers({
+                ETag: 'W/"state-etag-1"'
+            })
+        });
+
+        const result = await client.get('/users', {
+            allowNotModified: true,
+            headers: {
+                'If-None-Match': 'W/"state-etag-1"'
+            }
+        });
+
+        expect(result).toEqual({
+            notModified: true,
+            status: 304,
+            headers: {
+                etag: 'W/"state-etag-1"'
+            }
+        });
     });
 });

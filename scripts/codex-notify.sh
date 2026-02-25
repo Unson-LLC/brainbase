@@ -39,7 +39,73 @@ resolve_brainbase_port() {
   echo "${BRAINBASE_FALLBACK_PORT:-31013}"
 }
 
+should_auto_handover() {
+  # Opt-in to avoid surprise token usage (auto-handover calls `claude -p` when available).
+  case "${BRAINBASE_AUTO_HANDOVER:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+schedule_auto_handover() {
+  if ! should_auto_handover; then
+    return 0
+  fi
+
+  local delay="${BRAINBASE_AUTO_HANDOVER_DELAY_SEC:-90}"
+  case "$delay" in
+    ''|*[!0-9]*) delay=90 ;;
+  esac
+
+  local self="${BASH_SOURCE[0]:-$0}"
+  local script_dir repo_root hook
+  script_dir="$(cd "$(dirname "$self")" && pwd)"
+  repo_root="$(cd "$script_dir/.." && pwd)"
+  hook="$repo_root/.claude/hooks/auto-handover.sh"
+
+  if [ ! -f "$hook" ]; then
+    return 0
+  fi
+
+  local key="${BRAINBASE_SESSION_ID:-$repo_root}"
+  local state_dir="${TMPDIR:-/tmp}/brainbase-auto-handover"
+  mkdir -p "$state_dir" >/dev/null 2>&1 || true
+
+  local key_hash=""
+  if command -v python3 >/dev/null 2>&1; then
+    key_hash="$(python3 - "$key" <<'PY'
+import hashlib
+import sys
+
+s = sys.argv[1].encode("utf-8", errors="replace")
+sys.stdout.write(hashlib.sha1(s).hexdigest())
+PY
+)" || key_hash=""
+  fi
+
+  if [ -z "$key_hash" ]; then
+    # Fallback: sanitize key into a safe-ish filename.
+    key_hash="$(printf '%s' "$key" | tr '/: ' '___' | tr -cd 'A-Za-z0-9_.-' | cut -c1-60)"
+  fi
+
+  local stamp_file="${state_dir}/${key_hash}.last"
+  local stamp
+  stamp="$(date +%s)"
+  printf '%s' "$stamp" > "$stamp_file" 2>/dev/null || true
+
+  (
+    local start="$stamp"
+    sleep "$delay"
+    local latest=""
+    latest="$(cat "$stamp_file" 2>/dev/null || true)"
+    if [ -n "$latest" ] && [ "$latest" = "$start" ]; then
+      ( cd "$repo_root" && bash "$hook" ) >/dev/null 2>&1 || true
+    fi
+  ) >/dev/null 2>&1 &
+}
+
 event_type=""
+is_done_event=false
 
 # If missing, derive session id from tmux session name
 if [ -z "$BRAINBASE_SESSION_ID" ] && [ -n "$TMUX" ] && command -v tmux >/dev/null 2>&1; then
@@ -64,27 +130,34 @@ if not s:
 s = s.strip()
 
 if not s:
-    print("\t\t")
+    print("\t\t\t0")
     sys.exit(0)
 try:
     data = json.loads(s)
 except Exception:
-    print("\t\t")
+    print("\t\t\t0")
     sys.exit(0)
 
-print(f"{data.get('type', '')}\t{data.get('turn-id', '')}\t{data.get('thread-id', '')}")
+def contains_commit_command(value):
+    if isinstance(value, str):
+        return "/commit" in value
+    if isinstance(value, dict):
+        return any(contains_commit_command(v) for v in value.values())
+    if isinstance(value, list):
+        return any(contains_commit_command(v) for v in value)
+    return False
+
+print(f"{data.get('type', '')}\t{data.get('turn-id', '')}\t{data.get('thread-id', '')}\t{1 if contains_commit_command(data) else 0}")
 PY
 )"
 
-  event_type="${parsed%%$'\t'*}"
-  rest="${parsed#*$'\t'}"
-  turn_id="${rest%%$'\t'*}"
-  if [ "$turn_id" = "$rest" ]; then
-    turn_id=""
-  fi
-  thread_id="${rest#*$'\t'}"
-  if [ "$thread_id" = "$rest" ]; then
-    thread_id=""
+  event_type=""
+  turn_id=""
+  thread_id=""
+  is_commit_event="0"
+  IFS=$'\t' read -r event_type turn_id thread_id is_commit_event <<< "$parsed"
+  if [ -z "$is_commit_event" ]; then
+    is_commit_event="0"
   fi
 
   # Keep Codex thread id in tmux session env for status-right.
@@ -111,7 +184,13 @@ PY
       --max-time 1 >/dev/null 2>&1 || true &
   fi
 
-  is_done_event=false
+  COMMIT_STATE_DIR="${TMPDIR:-/tmp}/brainbase-codex-commit"
+  COMMIT_STATE_FILE="${COMMIT_STATE_DIR}/${BRAINBASE_SESSION_ID}.pending"
+  mkdir -p "$COMMIT_STATE_DIR" >/dev/null 2>&1 || true
+  if [ "$is_commit_event" = "1" ]; then
+    echo "$REPORTED_AT" > "$COMMIT_STATE_FILE" 2>/dev/null || true
+  fi
+
   if [ "$event_type" = "agent-turn-complete" ] || [ "$event_type" = "agent-turn-end" ] || [ "$event_type" = "assistant-message" ] || [ "$event_type" = "assistant-response" ] || [ "$event_type" = "assistant-message-complete" ] || [ "$event_type" = "assistant-response-complete" ]; then
     is_done_event=true
   fi
@@ -124,7 +203,19 @@ PY
       -H "Content-Type: application/json" \
       -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"done\", \"reportedAt\": $REPORTED_AT}" \
       --max-time 1 >/dev/null 2>&1 || true &
+
+    if [ -f "$COMMIT_STATE_FILE" ]; then
+      curl -X POST "http://localhost:${PORT}/api/sessions/${BRAINBASE_SESSION_ID}/commit-notify" \
+        -H "Content-Type: application/json" \
+        -d "{\"reportedAt\": $REPORTED_AT}" \
+        --max-time 1 >/dev/null 2>&1 || true &
+      rm -f "$COMMIT_STATE_FILE" >/dev/null 2>&1 || true
+    fi
   fi
+fi
+
+if [ "$is_done_event" = true ]; then
+  schedule_auto_handover
 fi
 
 if [ "$is_done_event" = true ] && [ -x /usr/bin/afplay ]; then

@@ -121,6 +121,87 @@ body::after {
     /* Critical for flex child truncation */
 }
 
+.session-context-bar {
+    flex-shrink: 0;
+    min-height: 38px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(12, 16, 28, 0.95), rgba(8, 11, 20, 0.92));
+    overflow: visible;
+}
+
+.session-context-bar-inner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 38px;
+    padding: 6px 10px;
+    white-space: normal;
+}
+
+.session-context-empty {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+.session-context-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    max-width: 260px;
+}
+
+.session-context-label {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.session-context-value {
+    color: var(--text-secondary);
+    font-size: 12px;
+    display: inline-block;
+    max-width: 180px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+}
+
+.session-context-value[data-full]:hover::after {
+    content: attr(data-full);
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 120;
+    width: max-content;
+    max-width: min(72vw, 760px);
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(8, 12, 22, 0.96);
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.35;
+    white-space: normal;
+    word-break: break-all;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+}
+
+.session-context-value.is-ok {
+    color: #23c18f;
+}
+
+.session-context-value.is-warning {
+    color: #f5c242;
+}
+
 /* Pane 3: Right Context (Schedule & Tasks) */
 .context-sidebar {
     width: 350px;
@@ -945,7 +1026,7 @@ body::after {
 
 /* Terminal input status (focus/connection visibility) */
 .terminal-input-status {
-    position: absolute;
+    position: fixed;  /* absolute → fixed に変更（mobile-input-dock と同じ座標系で確実に上に表示）*/
     bottom: 50px;
     left: 8px;
     z-index: 1003;  /* mobile-bottom-nav (1001) と mobile-input-dock (1002) より上に表示 */
@@ -1706,6 +1787,7 @@ body::after {
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
 }
 
@@ -1717,6 +1799,12 @@ body::after {
     align-items: center;
     gap: 6px;
     margin: 0;
+}
+
+.commit-tree-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .commit-tree-repo-badge {
@@ -1853,6 +1941,31 @@ body::after {
 
 .panel-resize-handle-commit-tree {
     border-left: 1px solid var(--border-color);
+}
+
+.commit-tree-expand-btn {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    width: 26px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    margin: 0 4px 0 2px;
+    flex-shrink: 0;
+}
+
+.commit-tree-expand-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.commit-tree-expand-btn.hidden,
+.panel-resize-handle.hidden {
+    display: none !important;
 }
 
 /* === Panel Resize Handles (Left/Right) === */
@@ -5814,7 +5927,8 @@ body.resizing iframe {
         visibility: hidden !important;
     }
 
-    .commit-tree-panel {
+    .commit-tree-panel,
+    .commit-tree-expand-btn {
         display: none !important;
         width: 0 !important;
         visibility: hidden !important;

@@ -3,6 +3,7 @@
  * セッション関連のHTTPリクエスト処理
  */
 import { exec } from 'child_process';
+import path from 'path';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
@@ -40,6 +41,32 @@ export class SessionController {
     getStatus = (req, res) => {
         const status = this.sessionManager.getSessionStatus();
         res.json(status);
+    };
+
+    /**
+     * GET /api/sessions/:id
+     * 特定セッションの情報を取得
+     */
+    get = (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        // Add runtime status
+        const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
+
+        res.json({
+            ...session,
+            runtimeStatus
+        });
     };
 
     // ========================================
@@ -486,6 +513,76 @@ export class SessionController {
     };
 
     /**
+     * GET /api/sessions/:id/context
+     * セッションの実行コンテキストを取得（UI表示用）
+     */
+    getContext = async (req, res) => {
+        const { id } = req.params;
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const repoPath = session.worktree?.repo || null;
+        const workspacePath = session.worktree?.path || session.path || null;
+        const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
+        const context = {
+            sessionId: session.id,
+            sessionName: session.name || null,
+            engine: session.engine || null,
+            repo: fallbackRepoName,
+            repoPath,
+            workspacePath,
+            bookmark: session.id,
+            dirty: false,
+            changesNotPushed: 0,
+            hasWorkingCopyChanges: false,
+            bookmarkPushed: false,
+            prStatus: session.merged ? 'merged' : 'none',
+            prUrl: session.mergedPrUrl || null,
+            merged: Boolean(session.merged),
+            mergedAt: session.mergedAt || null,
+            baseBranch: null
+        };
+
+        if (!repoPath) {
+            return res.json(context);
+        }
+
+        try {
+            const status = await this.worktreeService.getStatus(
+                id,
+                repoPath,
+                session.worktree?.startCommit || null
+            );
+
+            const changesNotPushed = status.changesNotPushed || 0;
+            const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
+            const dirty = hasWorkingCopyChanges || changesNotPushed > 0;
+            const prStatus = session.merged
+                ? 'merged'
+                : (changesNotPushed > 0 || status.bookmarkPushed ? 'open_or_pending' : 'none');
+
+            res.json({
+                ...context,
+                repo: status.repoName || context.repo,
+                bookmark: status.bookmarkName || context.bookmark,
+                dirty,
+                changesNotPushed,
+                hasWorkingCopyChanges,
+                bookmarkPushed: Boolean(status.bookmarkPushed),
+                prStatus,
+                baseBranch: status.mainBranch || null
+            });
+        } catch (error) {
+            console.error('Failed to get session context:', error);
+            res.json(context);
+        }
+    };
+
+    /**
      * POST /api/sessions/:id/update-local-main
      * ローカルmainブランチを最新化
      */
@@ -537,13 +634,22 @@ export class SessionController {
             const result = await this.worktreeService.merge(id, session.worktree.repo, session.name);
 
             if (result.success) {
+                const mergedAt = result.mergedAt || new Date().toISOString();
                 // Update session to mark as merged
-                const updatedSessions = state.sessions.map(s =>
-                    s.id === id ? { ...s, merged: true, mergedAt: new Date().toISOString() } : s
+                const latestState = this.stateStore.get();
+                const updatedSessions = (latestState.sessions || []).map(s =>
+                    s.id === id
+                        ? {
+                            ...s,
+                            merged: true,
+                            mergedAt,
+                            mergedPrUrl: result.prUrl || null
+                        }
+                        : s
                 );
 
                 await this.stateStore.update({
-                    ...state,
+                    ...latestState,
                     sessions: updatedSessions
                 });
             }
@@ -570,16 +676,22 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree?.repo) {
-            return res.status(400).json({ error: 'Session does not have a worktree' });
-        }
-
         try {
-            const result = await this.worktreeService.getCommitLog(
-                id,
-                session.worktree.repo,
-                limit
-            );
+            let result;
+            if (session.worktree?.repo) {
+                result = await this.worktreeService.getCommitLog(
+                    id,
+                    session.worktree.repo,
+                    limit
+                );
+            } else if (session.path) {
+                result = await this.worktreeService.getCommitLogByPath(
+                    session.path,
+                    limit
+                );
+            } else {
+                return res.status(400).json({ error: 'Session does not have a repository path' });
+            }
             res.json(result);
         } catch (error) {
             console.error('Failed to get commit log:', error);

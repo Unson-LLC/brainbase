@@ -534,4 +534,42 @@ projects: []
       });
     });
   });
+
+  describe('getPlugins', () => {
+    it('plugins設定がない場合_bb-inboxをデフォルトで返す', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+projects: []
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getPlugins();
+
+      expect(result).toEqual({
+        enabled: ['bb-inbox'],
+        disabled: []
+      });
+    });
+
+    it('plugins設定がある場合_設定値をそのまま返す', async () => {
+      const mockConfig = `
+root: /path/to/workspace
+projects: []
+plugins:
+  enabled:
+    - bb-inbox
+    - bb-project-kanban
+  disabled:
+    - bb-github
+`;
+      fs.readFile.mockResolvedValue(mockConfig);
+
+      const result = await parser.getPlugins();
+
+      expect(result).toEqual({
+        enabled: ['bb-inbox', 'bb-project-kanban'],
+        disabled: ['bb-github']
+      });
+    });
+  });
 });
