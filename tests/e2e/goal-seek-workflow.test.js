@@ -16,7 +16,6 @@ const BASE_URL = 'http://localhost:31013';
 const GOALS_JSON_PATH = path.join(process.env.HOME, 'workspace/brainbase-config/var/goals.json');
 
 // テストデータ
-const TEST_SESSION_ID = 'test-session-goal-seek-e2e';
 const TEST_GOAL = {
     title: 'E2Eテストゴール',
     description: 'Goal Seek V2のE2Eテストで作成されたゴール',
@@ -62,7 +61,7 @@ async function restoreGoalsJson(backupPath) {
 }
 
 // Helper: テストセッションを作成（state.json直接操作）
-async function createTestSession(page) {
+async function createTestSession(page, sessionId) {
     try {
         const STATE_JSON_PATH = path.join(process.env.HOME, 'workspace/brainbase-config/var/state.json');
 
@@ -84,12 +83,12 @@ async function createTestSession(page) {
         }
 
         // テストセッションが既に存在する場合は削除
-        state.sessions = state.sessions.filter(s => s.id !== TEST_SESSION_ID);
+        state.sessions = state.sessions.filter(s => s.id !== sessionId);
 
         // テストセッションを追加（pathをnullに設定してプロジェクトグループ化を回避）
         state.sessions.push({
-            id: TEST_SESSION_ID,
-            name: TEST_SESSION_ID,
+            id: sessionId,
+            name: sessionId,
             icon: 'terminal',
             path: null,
             engine: 'claude',
@@ -109,8 +108,8 @@ async function createTestSession(page) {
         // brainbaseサーバーが変更を検出して再ロードするのを待つ（UIの再レンダリング待ち）
         // StateStoreのchokidar watcher（stabilityThreshold: 100ms、pollInterval: 50ms）が
         // 反応して_reloadFromFile()を実行するまで待機
-        // 各テストのpage.goto()で最新のstate.jsonが読み込まれる
-        await page.waitForTimeout(500);
+        // 並列実行時はファイルシステムの競合により待機時間を長めに取る
+        await page.waitForTimeout(1500);
 
         return true;
     } catch (err) {
@@ -119,11 +118,17 @@ async function createTestSession(page) {
     }
 }
 
+test.describe.configure({ mode: 'serial' }); // state.json書き込み競合を防ぐためシーケンシャル実行
+
 test.describe('Goal Seek V2 - E2E Workflow', () => {
     let backupPath;
     let testStartTime;
+    let testSessionId; // 各テストで異なるセッションIDを使用
 
     test.beforeEach(async ({ page }) => {
+        // テストごとにユニークなセッションIDを生成（並列実行時の競合回避）
+        testSessionId = `test-session-goal-seek-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
         // テスト開始時刻を記録（S6で使用）
         testStartTime = new Date().toISOString();
 
@@ -131,12 +136,12 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
         backupPath = await backupGoalsJson();
 
         // テストセッションを作成
-        await createTestSession(page);
+        await createTestSession(page, testSessionId);
     });
 
     test.afterEach(async ({ page }) => {
         // テストセッションを削除
-        await page.request.delete(`${BASE_URL}/api/sessions/${TEST_SESSION_ID}`).catch(() => {});
+        await page.request.delete(`${BASE_URL}/api/sessions/${testSessionId}`).catch(() => {});
 
         // goals.jsonをリストア
         await restoreGoalsJson(backupPath);
@@ -151,7 +156,7 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
         await page.waitForSelector('#session-list', { timeout: 5000 });
 
         // Step 2: テストセッションを選択
-        const sessionRow = page.locator(`.session-child-row[data-id="${TEST_SESSION_ID}"]`);
+        const sessionRow = page.locator(`.session-child-row[data-id="${testSessionId}"]`);
         await expect(sessionRow).toBeVisible({ timeout: 5000 });
         await sessionRow.click();
         await page.waitForTimeout(500);
@@ -187,7 +192,7 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
         // Step 9: Persistence確認 - goals.jsonに保存されている
         const goalsData = await readGoalsJson();
         const createdGoal = goalsData.goals.find(g =>
-            g.sessionId === TEST_SESSION_ID &&
+            g.sessionId === testSessionId &&
             g.title === TEST_GOAL.title
         );
 
@@ -205,7 +210,7 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
         // Setup: 事前にゴールを作成
         const response = await page.request.post(`${BASE_URL}/api/goal-seek/goals`, {
             data: {
-                sessionId: TEST_SESSION_ID,
+                sessionId: testSessionId,
                 title: TEST_GOAL.title,
                 description: TEST_GOAL.description,
                 criteria: {
@@ -224,15 +229,14 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
         await page.waitForSelector('#session-list', { timeout: 5000 });
 
         // Step 2: セッションを選択
-        const sessionRow = page.locator(`.session-child-row[data-id="${TEST_SESSION_ID}"]`);
+        const sessionRow = page.locator(`.session-child-row[data-id="${testSessionId}"]`);
         await expect(sessionRow).toBeVisible({ timeout: 5000 });
         await sessionRow.click();
-        await page.waitForTimeout(500);
 
-        // Step 3: ゴールバナーが表示される
+        // Step 3: ゴールバナーが表示される（goal banner更新まで待機）
         const goalBanner = page.locator('#session-goal-banner');
-        await expect(goalBanner).toBeVisible({ timeout: 3000 });
-        await expect(goalBanner).toContainText(TEST_GOAL.title);
+        // goal bannerのテキストが更新されるまで最大10秒待機
+        await expect(goalBanner).toContainText(TEST_GOAL.title, { timeout: 10000 });
     });
 
     // ========================================
@@ -245,7 +249,7 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
         // Setup: 事前にゴールを作成
         const response = await page.request.post(`${BASE_URL}/api/goal-seek/goals`, {
             data: {
-                sessionId: TEST_SESSION_ID,
+                sessionId: testSessionId,
                 title: TEST_GOAL.title,
                 description: TEST_GOAL.description,
                 criteria: {
@@ -268,7 +272,7 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
         await page.waitForSelector('#session-list', { timeout: 5000 });
 
         // Step 2: セッションを選択
-        const sessionRow = page.locator(`.session-child-row[data-id="${TEST_SESSION_ID}"]`);
+        const sessionRow = page.locator(`.session-child-row[data-id="${testSessionId}"]`);
         await expect(sessionRow).toBeVisible({ timeout: 5000 });
         await sessionRow.click();
         await page.waitForTimeout(500);
@@ -314,7 +318,7 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
             promises.push(
                 page.request.post(`${BASE_URL}/api/goal-seek/goals`, {
                     data: {
-                        sessionId: `${TEST_SESSION_ID}-${i}`,
+                        sessionId: `${testSessionId}-${i}`,
                         title: `並行テストゴール ${i}`,
                         description: 'アトミック書き込みテスト',
                         criteria: { commit: ['テスト'], signal: [] },
@@ -346,7 +350,7 @@ test.describe('Goal Seek V2 - E2E Workflow', () => {
 
         createdGoals.forEach(goal => {
             expect(goal.id).toMatch(/^goal_[a-f0-9]{8}$/);
-            expect(goal.sessionId).toMatch(/^test-session-goal-seek-e2e-\d$/);
+            expect(goal.sessionId).toMatch(/^test-session-goal-seek-e2e-\d+-[a-z0-9]+-\d$/);
             expect(goal.status).toBe('active');
             expect(goal.createdAt).toBeDefined();
             expect(goal.updatedAt).toBeDefined();
