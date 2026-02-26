@@ -39,7 +39,7 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
 
     // ========== Goal CRUD ==========
 
-    router.post('/goals', (req, res) => {
+    router.post('/goals', async (req, res) => {
         try {
             const { sessionId, title, description, criteria, managerConfig } = req.body;
 
@@ -50,7 +50,7 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
                 return res.status(400).json({ error: 'title is required' });
             }
 
-            const goal = goalStore.createGoal({ sessionId, title, description, criteria, managerConfig });
+            const goal = await goalStore.createGoal({ sessionId, title, description, criteria, managerConfig });
             res.status(201).json(goal);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -70,22 +70,22 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
         res.json(goal);
     });
 
-    router.put('/goals/:id', (req, res) => {
-        const goal = goalStore.updateGoal(req.params.id, req.body);
+    router.put('/goals/:id', async (req, res) => {
+        const goal = await goalStore.updateGoal(req.params.id, req.body);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
         }
         res.json(goal);
     });
 
-    router.delete('/goals/:id', (req, res) => {
+    router.delete('/goals/:id', async (req, res) => {
         // 監視中なら停止
         const goal = goalStore.getGoal(req.params.id);
         if (goal && sessionMonitor) {
             sessionMonitor.stopMonitoring(goal.sessionId);
         }
 
-        const deleted = goalStore.deleteGoal(req.params.id);
+        const deleted = await goalStore.deleteGoal(req.params.id);
         if (!deleted) {
             return res.status(404).json({ error: 'Goal not found' });
         }
@@ -94,7 +94,7 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
 
     // ========== Monitoring ==========
 
-    router.post('/goals/:id/start-monitor', (req, res) => {
+    router.post('/goals/:id/start-monitor', async (req, res) => {
         const goal = goalStore.getGoal(req.params.id);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -104,13 +104,13 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
             return res.status(503).json({ error: 'SessionMonitor not available' });
         }
 
-        goalStore.updateGoal(goal.id, { status: 'monitoring' });
+        await goalStore.updateGoal(goal.id, { status: 'monitoring' });
         sessionMonitor.startMonitoring(goal.sessionId, goal);
 
         res.json({ monitoring: true, goalId: goal.id, sessionId: goal.sessionId });
     });
 
-    router.post('/goals/:id/stop-monitor', (req, res) => {
+    router.post('/goals/:id/stop-monitor', async (req, res) => {
         const goal = goalStore.getGoal(req.params.id);
         if (!goal) {
             return res.status(404).json({ error: 'Goal not found' });
@@ -119,7 +119,7 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
         if (sessionMonitor) {
             sessionMonitor.stopMonitoring(goal.sessionId);
         }
-        goalStore.updateGoal(goal.id, { status: 'active' });
+        await goalStore.updateGoal(goal.id, { status: 'active' });
 
         res.json({ monitoring: false, goalId: goal.id });
     });
@@ -155,7 +155,7 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
                 return res.status(400).json({ error: 'choice is required' });
             }
 
-            const escalation = goalStore.respondToEscalation(req.params.id, {
+            const escalation = await goalStore.respondToEscalation(req.params.id, {
                 choice,
                 reason: reason || '',
                 respondedAt: new Date().toISOString()
@@ -169,11 +169,11 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
             const goal = goalStore.getGoal(escalation.goalId);
             if (goal && goal.status === 'problem') {
                 const isMonitoring = sessionMonitor?.getMonitoredSessions().includes(goal.sessionId);
-                goalStore.updateGoal(goal.id, { status: isMonitoring ? 'monitoring' : 'active' });
+                await goalStore.updateGoal(goal.id, { status: isMonitoring ? 'monitoring' : 'active' });
             }
 
             // タイムラインに記録
-            goalStore.addTimelineEntry({
+            await goalStore.addTimelineEntry({
                 goalId: escalation.goalId,
                 type: 'intervention',
                 summary: `CEO回答: ${choice}`,
