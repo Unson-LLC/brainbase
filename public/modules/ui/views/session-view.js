@@ -423,17 +423,24 @@ export class SessionView {
         // Delete button
         const deleteBtn = row.querySelector('.delete-session-btn');
         if (deleteBtn) {
+            console.log('[session-view] Delete button found for session:', session.id);
             deleteBtn.addEventListener('click', async (e) => {
+                console.log('[session-view] Delete button clicked for session:', session.id);
                 e.stopPropagation();
                 closeDropdown();
                 const displayName = session.name || session.id;
+                console.log('[session-view] Showing confirm dialog for:', displayName);
                 const confirmed = await showConfirm(
                     `セッション「${displayName}」を削除しますか？`,
                     { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
                 );
+                console.log('[session-view] Confirm result:', confirmed);
                 if (!confirmed) return;
+                console.log('[session-view] Calling deleteSession for:', session.id);
                 await this.sessionService.deleteSession(session.id);
             });
+        } else {
+            console.warn('[session-view] Delete button NOT found for session:', session.id);
         }
 
         // Archive button
