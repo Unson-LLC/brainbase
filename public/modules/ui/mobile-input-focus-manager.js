@@ -61,12 +61,8 @@ export class MobileInputFocusManager {
         if (this.viewportHandler) {
             this.viewportHandler();
         }
-        const focused = this.isInputFocused();
-        if (focused) {
-            document.body.classList.add('keyboard-open');
-        } else if (this.lastKeyboardOffset === 0) {
-            document.body.classList.remove('keyboard-open');
-        }
+        // viewportHandler() 内で keyboard-open が正しく設定されるので、
+        // ここでは追加の制御は不要（updateBottomNavVisibility() も viewportHandler 内で呼ばれる）
         if (this.lastKeyboardData) {
             this.updateKeyboardDebug(this.lastKeyboardData);
         }
@@ -149,9 +145,9 @@ export class MobileInputFocusManager {
             const dockGap = dockRect ? Math.round(visualHeight - (dockRect.bottom - this.viewport.offsetTop)) : 0;
             let offset = rawOffset > 0 ? rawOffset : heightDelta;
             const focusOpen = this.isInputFocused();
-            // 安定化: offset が大きい場合は確実にキーボードが表示されている
-            // offset が小さくてもフォーカスがあればキーボード表示中と判断
-            let keyboardOpen = offset > 20 || (offset > 0 && focusOpen) || focusOpen;
+            // キーボード表示判定: offset が 20px 以上、または offset > 0 でフォーカスあり
+            // focusOpen 単独では判定しない（手動でキーボードを閉じた時に bottom nav が表示されるように）
+            let keyboardOpen = offset > 20 || (offset > 0 && focusOpen);
             if (focusOpen && offset > 0) {
                 // dockGap > 0: Dock is above visualViewport bottom -> reduce offset
                 // dockGap < 0: Dock is below visualViewport bottom -> increase offset
