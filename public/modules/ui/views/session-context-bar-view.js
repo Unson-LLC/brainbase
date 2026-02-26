@@ -94,12 +94,16 @@ export class SessionContextBarView {
         const prText = prStatus === 'merged' ? 'merged' : prStatus === 'open_or_pending' ? 'pending' : 'none';
         const prClass = prStatus === 'merged' ? 'is-ok' : (prStatus === 'open_or_pending' ? 'is-warning' : '');
 
+        const repoPath = context.repoPath || '-';
+        const baseBranch = context.baseBranch || '-';
         const items = [
             this._renderItem('Session', sessionId),
             this._renderItem('Engine', engine),
             this._renderItem('Repo', repo, { title: context.repoPath || repo }),
+            this._renderItem('Clone', this._shortPath(repoPath), { title: repoPath, full: repoPath }),
             this._renderItem('Workspace', this._shortPath(workspacePath), { title: workspacePath, full: workspacePath }),
             this._renderItem('Bookmark', bookmark),
+            this._renderItem('From', baseBranch),
             this._renderItem('Dirty', dirtyLabel, { valueClass: dirtyClass }),
             this._renderItem('Ahead', `${changesNotPushed}`),
             this._renderItem('PR', prText, { valueClass: prClass })

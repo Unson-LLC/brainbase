@@ -18,16 +18,16 @@ describe('WorktreeService.getCommitLog', () => {
     });
 
     it('Jujutsuリポジトリの場合_jjログがパースされる', async () => {
-        // _isJujutsuRepo をモック
-        service.isJujutsuRepo = true;
+        // _isJujutsuRepo メソッドをモック
+        vi.spyOn(service, '_isJujutsuRepo').mockResolvedValue(true);
 
         // fs.access のモック（workspace存在チェック用）
         const { promises: fs } = await import('fs');
         vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined);
 
         const jjOutput = [
-            'abc123456789\x00feat: add panel\x002026-02-16T10:30:00+09:00\x00ksato\x00main\x00true',
-            'def987654321\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00false'
+            'abc123456789\x00feat: add panel\x002026-02-16T10:30:00+09:00\x00ksato\x00main\x00true\x00parent1',
+            'def987654321\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00false\x00parent2'
         ].join('\n');
 
         mockExec.mockResolvedValueOnce({ stdout: jjOutput });
@@ -44,8 +44,8 @@ describe('WorktreeService.getCommitLog', () => {
     });
 
     it('Gitリポジトリの場合_gitログがパースされる', async () => {
-        // _isJujutsuRepo をモック（false）
-        service.isJujutsuRepo = false;
+        // _isJujutsuRepo メソッドをモック（false）
+        vi.spyOn(service, '_isJujutsuRepo').mockResolvedValue(false);
 
         const { promises: fs } = await import('fs');
         vi.spyOn(fs, 'access').mockResolvedValueOnce(undefined);
