@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 3,
+  "lastOpenTaskId": null,
+  "filters": {},
+  "readNotifications": [],
+  "focusSession": null,
+  "sessions": [
+    {
+      "id": "brainbase",
+      "name": "brainbase",
+      "icon": "brain",
+      "path": "/Users/ksato/workspace/brainbase-config",
+      "intendedState": "stopped",
+      "hookStatus": null,
+      "ttydProcess": null
+    }
+  ]
+}
