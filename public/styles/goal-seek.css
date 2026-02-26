@@ -771,4 +771,33 @@
     .gs-esc-option-btn {
         width: 100%;
     }
+
+    /* Session Goal Banner - スマホ対応 */
+    .session-goal-banner {
+        padding: 6px 12px;  /* 右側paddingを削減 */
+        flex-wrap: wrap;    /* ボタンを折り返し可能に */
+        gap: 6px;
+    }
+
+    .session-goal-banner .sgb-title {
+        flex: 1;
+        min-width: 120px;  /* 最小幅を確保 */
+    }
+
+    .session-goal-banner .sgb-btn {
+        font-size: 10px;
+        padding: 2px 7px;
+    }
+
+    .session-goal-banner .sgb-badge {
+        font-size: 10px;
+        padding: 1px 6px;
+    }
+
+    .session-goal-banner .sgb-check-time {
+        font-size: 9px;
+        width: 100%;  /* 折り返して全幅表示 */
+        margin-left: 0;
+        margin-top: 2px;
+    }
 }
