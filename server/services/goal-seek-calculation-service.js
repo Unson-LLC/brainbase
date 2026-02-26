@@ -24,6 +24,8 @@ const EVENTS = {
     GOAL_SEEK_COMPLETED: 'goal-seek:completed'
 };
 
+const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
+
 /**
  * @typedef {Object} CalculationParams
  * @property {number} target - 目標値
@@ -89,23 +91,17 @@ export class GoalSeekCalculationService {
         this._validateParams({ target, period, current });
 
         // 開始イベント発行
-        if (this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_STARTED, {
-                target,
-                period,
-                current,
-                unit,
-                correlationId
-            });
-        }
+        this._emit(EVENTS.GOAL_SEEK_STARTED, {
+            target,
+            period,
+            current,
+            unit,
+            correlationId
+        });
 
         // 進捗イベント発行（オプション）
-        if (emitProgress && this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_PROGRESS, {
-                correlationId,
-                progress: 0,
-                step: 'validating'
-            });
+        if (emitProgress) {
+            this._emitProgress(correlationId, 0, 'validating');
         }
 
         // 計算実行
@@ -119,21 +115,15 @@ export class GoalSeekCalculationService {
         });
 
         // 進捗イベント発行（オプション）
-        if (emitProgress && this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_PROGRESS, {
-                correlationId,
-                progress: 100,
-                step: 'completed'
-            });
+        if (emitProgress) {
+            this._emitProgress(correlationId, 100, 'completed');
         }
 
         // 完了イベント発行
-        if (this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_COMPLETED, {
-                correlationId,
-                result
-            });
-        }
+        this._emit(EVENTS.GOAL_SEEK_COMPLETED, {
+            correlationId,
+            result
+        });
 
         logger.info('GoalSeek calculation completed', {
             target,
@@ -245,7 +235,7 @@ export class GoalSeekCalculationService {
         const projection = this._createProjection(dailyTarget, period, current, target);
 
         return {
-            dailyTarget: Math.round(dailyTarget * 100) / 100, // 小数点2桁に丸める
+            dailyTarget: roundToTwoDecimals(dailyTarget),
             totalDays: period,
             remainingDays: period,
             completed: current,
@@ -295,7 +285,7 @@ export class GoalSeekCalculationService {
             const projected = Math.min(target, current + (dailyTarget * day));
             milestones.push({
                 day,
-                projected: Math.round(projected * 100) / 100,
+                projected: roundToTwoDecimals(projected),
                 percentage: target > 0 ? Math.round((projected / target) * 100) : 0
             });
         }
@@ -305,6 +295,19 @@ export class GoalSeekCalculationService {
             estimatedCompletion: period,
             confidenceLevel: dailyTarget <= 50 ? 'high' : dailyTarget <= 100 ? 'medium' : 'low'
         };
+    }
+
+    _emit(event, payload) {
+        if (!this.eventBus) return;
+        this.eventBus.emit(event, payload);
+    }
+
+    _emitProgress(correlationId, progress, step) {
+        this._emit(EVENTS.GOAL_SEEK_PROGRESS, {
+            correlationId,
+            progress,
+            step
+        });
     }
 }
 

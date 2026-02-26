@@ -13,6 +13,21 @@ export class NocoDBService {
         this._tableIdCache = new Map(); // baseId:tableName -> tableId キャッシュ
     }
 
+    _authHeaders(additional = {}) {
+        return {
+            'xc-token': this.apiToken,
+            ...additional
+        };
+    }
+
+    async _requestJson(url, options = {}) {
+        const response = await this._fetchWithRetry(url, options);
+        if (!response.ok) {
+            throw new Error(`NocoDB API failed: ${response.status}`);
+        }
+        return response.json();
+    }
+
     /**
      * fetch with retry logic (exponential backoff)
      * @private
@@ -52,26 +67,22 @@ export class NocoDBService {
      */
     async getProjectStats(projectId) {
         try {
-            // タスクとマイルストーンを並列取得
-            const [tasks, milestones] = await Promise.all([
-                this._fetchRecords(projectId, 'タスク'),
-                this._fetchRecords(projectId, 'マイルストーン')
-            ]);
-
-            // タスク統計
-            const taskStats = this._calculateTaskStats(tasks);
-
-            // マイルストーン統計
-            const milestoneStats = this._calculateMilestoneStats(milestones);
-
+            const [tasks, milestones] = await this._fetchProjectEssentials(projectId);
             return {
-                ...taskStats,
-                ...milestoneStats
+                ...this._calculateTaskStats(tasks),
+                ...this._calculateMilestoneStats(milestones)
             };
         } catch (error) {
             logger.error(`Failed to get project stats for project ${projectId}`, { error });
             return this._getDefaultStats();
         }
+    }
+
+    async _fetchProjectEssentials(projectId) {
+        return Promise.all([
+            this._fetchRecords(projectId, 'タスク'),
+            this._fetchRecords(projectId, 'マイルストーン')
+        ]);
     }
 
     /**
@@ -91,17 +102,9 @@ export class NocoDBService {
         // NocoDB v2 API: /api/v2/tables/{tableId}/records
         const url = `${this.baseUrl}/api/v2/tables/${tableId}/records`;
 
-        const response = await this._fetchWithRetry(url, {
-            headers: {
-                'xc-token': this.apiToken
-            }
+        const data = await this._requestJson(url, {
+            headers: this._authHeaders()
         });
-
-        if (!response.ok) {
-            throw new Error(`NocoDB API failed: ${response.status}`);
-        }
-
-        const data = await response.json();
         return data.list || [];
     }
 
@@ -122,17 +125,9 @@ export class NocoDBService {
         try {
             // v2 API: テーブル一覧取得
             const url = `${this.baseUrl}/api/v2/meta/bases/${baseId}/tables`;
-            const response = await this._fetchWithRetry(url, {
-                headers: {
-                    'xc-token': this.apiToken
-                }
+            const data = await this._requestJson(url, {
+                headers: this._authHeaders()
             });
-
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const data = await response.json();
             const tables = data.list || [];
 
             // 全テーブルをキャッシュ
@@ -257,17 +252,17 @@ export class NocoDBService {
             const alerts = [];
 
             // 全プロジェクトのタスクを並列取得
-            const projectTasks = await Promise.all(
-                projects.map(async (project) => {
-                    try {
-                        const tasks = await this._fetchRecords(project.project_id, 'タスク');
-                        return { projectId: project.id, tasks };
-                    } catch (error) {
-                        logger.error(`Failed to fetch tasks for project ${project.id}`, { error });
-                        return { projectId: project.id, tasks: [] };
-                    }
-                })
-            );
+        const projectTasks = await Promise.all(
+            projects.map(async (project) => {
+                try {
+                    const tasks = await this._fetchRecords(project.project_id, 'タスク');
+                    return { projectId: project.id, tasks };
+                } catch (error) {
+                    logger.error(`Failed to fetch tasks for project ${project.id}`, { error });
+                    return { projectId: project.id, tasks: [] };
+                }
+            })
+        );
 
             const now = new Date();
 
@@ -368,12 +363,9 @@ export class NocoDBService {
             const tableName = 'プロジェクト健全性履歴';
             const url = `${this.baseUrl}/api/v1/db/data/noco/brainbase/${encodeURIComponent(tableName)}`;
 
-            const response = await this._fetchWithRetry(url, {
+            const result = await this._requestJson(url, {
                 method: 'POST',
-                headers: {
-                    'xc-token': this.apiToken,
-                    'Content-Type': 'application/json'
-                },
+                headers: this._authHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({
                     project_id: data.project_id,
                     snapshot_date: data.snapshot_date,
@@ -386,12 +378,6 @@ export class NocoDBService {
                     health_score: data.health_score || 0
                 })
             });
-
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const result = await response.json();
             logger.info(`Snapshot inserted for project ${data.project_id} on ${data.snapshot_date}`);
             return result;
         } catch (error) {
@@ -424,17 +410,9 @@ export class NocoDBService {
             const where = `(project_id,eq,${projectId})~and(snapshot_date,gte,${startDateStr})~and(snapshot_date,lte,${endDateStr})`;
             const queryUrl = `${url}?where=${encodeURIComponent(where)}&sort=-snapshot_date`;
 
-            const response = await this._fetchWithRetry(queryUrl, {
-                headers: {
-                    'xc-token': this.apiToken
-                }
+            const data = await this._requestJson(queryUrl, {
+                headers: this._authHeaders()
             });
-
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const data = await response.json();
             const snapshots = data.list || [];
 
             // Calculate trend analysis
