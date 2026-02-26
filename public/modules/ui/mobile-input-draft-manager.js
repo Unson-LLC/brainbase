@@ -45,7 +45,9 @@ export class MobileInputDraftManager {
             selectionEnd: inputEl.selectionEnd ?? 0,
             updatedAt: Date.now()
         };
-        this.saveJson(`${STORAGE_KEYS.draft}:${sessionId}:${mode}`, payload);
+        const key = `${STORAGE_KEYS.draft}:${sessionId}:${mode}`;
+        console.log(`[draft] Saving draft for session ${sessionId} (${mode}):`, payload.value.substring(0, 50));
+        this.saveJson(key, payload);
         eventBus.emit(EVENTS.MOBILE_INPUT_DRAFT_SAVED, { mode, sessionId });
     }
 
@@ -58,6 +60,7 @@ export class MobileInputDraftManager {
     restoreDraftFor(mode, sessionId, inputEl) {
         if (!inputEl) return;
         const draft = this.loadJson(`${STORAGE_KEYS.draft}:${sessionId}:${mode}`, null);
+        console.log(`[draft] Restoring draft for session ${sessionId} (${mode}):`, draft ? draft.value.substring(0, 50) : '(empty)');
         if (!draft) return;
         inputEl.value = draft.value || '';
         const start = draft.selectionStart ?? 0;
