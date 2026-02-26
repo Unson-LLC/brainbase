@@ -88,6 +88,7 @@ export class GoalSeekService {
 
     async deleteGoal(id) {
         await this._fetch(`/goals/${id}`, { method: 'DELETE' });
+        this.eventBus.emit(EVENTS.GOAL_DELETED, { goalId: id });
     }
 
     // ========== Monitoring ==========

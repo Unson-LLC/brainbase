@@ -1261,9 +1261,22 @@ export class App {
         });
 
         // Goal seek: open goal seek modal
-        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
+        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, async (event) => {
             const { session } = event.detail;
-            this.modals.goalSeekModal.show(session?.id);
+            const sessionId = session?.id;
+            if (!sessionId) return;
+
+            // 既存ゴールを確認
+            const goals = await this.goalSeekService.getGoals();
+            const existingGoal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
+
+            if (existingGoal) {
+                // UPDATE mode
+                this.modals.goalSeekModal.show(sessionId, existingGoal.id);
+            } else {
+                // CREATE mode
+                this.modals.goalSeekModal.show(sessionId, null);
+            }
         });
 
         // Goal seek: update banner when goal is created/updated
@@ -2118,13 +2131,25 @@ export class App {
                 <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
                 <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
                 <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
+                <button class="sgb-btn sgb-btn-edit" data-goal-id="${goal.id}">
+                    <i data-lucide="edit-2"></i>編集
+                </button>
                 <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
                 ${checkTimeHtml}
             `;
 
             banner.className = `session-goal-banner status-${goal.status}`;
 
-            const btn = banner.querySelector('.sgb-btn');
+            // 編集ボタンのイベントリスナー
+            const editBtn = banner.querySelector('.sgb-btn-edit');
+            if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                    this.modals.goalSeekModal.show(sessionId, goal.id);
+                });
+            }
+
+            // 監視開始/停止ボタンのイベントリスナー
+            const btn = banner.querySelector('.sgb-btn[data-action]');
             if (btn) {
                 btn.addEventListener('click', async () => {
                     try {

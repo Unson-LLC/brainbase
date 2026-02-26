@@ -60,8 +60,21 @@
     flex-shrink: 0;
     color: inherit;
     opacity: 0.8;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 .session-goal-banner .sgb-btn:hover { opacity: 1; }
+.session-goal-banner .sgb-btn-edit {
+    background-color: var(--gs-blue);
+    color: white;
+    border-color: var(--gs-blue);
+    opacity: 0.9;
+}
+.session-goal-banner .sgb-btn-edit:hover {
+    opacity: 1;
+    background-color: #2563eb;
+}
 .session-goal-banner .sgb-check-time {
     font-size: 10px;
     opacity: 0.5;
@@ -770,5 +783,20 @@
 
     .gs-esc-option-btn {
         width: 100%;
+    }
+
+    /* Goal banner モバイル対応 */
+    .session-goal-banner {
+        padding: 6px 12px;
+    }
+
+    .session-goal-banner .sgb-btn {
+        font-size: 10px;
+        padding: 2px 7px;
+    }
+
+    .session-goal-banner .sgb-btn-edit i {
+        width: 12px;
+        height: 12px;
     }
 }
