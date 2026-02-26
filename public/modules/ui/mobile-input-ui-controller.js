@@ -739,7 +739,8 @@ export class MobileInputUIController {
         }
 
         try {
-            await this.apiClient.sendKey(sessionId, 'S-Tab');
+            // BTab (Backtab) の方がtmuxで確実に認識される
+            await this.apiClient.sendKey(sessionId, 'BTab');
             showSuccess('Shift+Tab送信');
         } catch (error) {
             console.error('Failed to send Shift+Tab:', error);
