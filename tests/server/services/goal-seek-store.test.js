@@ -23,8 +23,8 @@ describe('GoalSeekStore V2', () => {
     // ========== Goal CRUD ==========
 
     describe('Goal CRUD', () => {
-        it('createGoal returns a goal with generated id', () => {
-            const goal = store.createGoal({
+        it('createGoal returns a goal with generated id', async () => {
+            const goal = await store.createGoal({
                 sessionId: 'session-123',
                 title: 'Test Goal',
                 description: 'desc',
@@ -42,15 +42,15 @@ describe('GoalSeekStore V2', () => {
             expect(goal.createdAt).toBeTruthy();
         });
 
-        it('createGoal uses defaults for optional fields', () => {
-            const goal = store.createGoal({ sessionId: 's1', title: 'T' });
+        it('createGoal uses defaults for optional fields', async () => {
+            const goal = await store.createGoal({ sessionId: 's1', title: 'T' });
             expect(goal.description).toBe('');
             expect(goal.criteria).toEqual({ commit: [], signal: [] });
             expect(goal.managerConfig.autoAnswerLevel).toBe('moderate');
         });
 
-        it('getGoal retrieves by id', () => {
-            const created = store.createGoal({ sessionId: 's1', title: 'T' });
+        it('getGoal retrieves by id', async () => {
+            const created = await store.createGoal({ sessionId: 's1', title: 'T' });
             const found = store.getGoal(created.id);
             expect(found).toEqual(created);
         });
@@ -59,67 +59,67 @@ describe('GoalSeekStore V2', () => {
             expect(store.getGoal('goal_nope')).toBeNull();
         });
 
-        it('getGoalBySessionId finds active goal', () => {
-            store.createGoal({ sessionId: 's1', title: 'A' });
+        it('getGoalBySessionId finds active goal', async () => {
+            await store.createGoal({ sessionId: 's1', title: 'A' });
             const found = store.getGoalBySessionId('s1');
             expect(found.title).toBe('A');
         });
 
-        it('getGoalBySessionId skips completed goals', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'A' });
-            store.updateGoal(g.id, { status: 'completed' });
+        it('getGoalBySessionId skips completed goals', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'A' });
+            await store.updateGoal(g.id, { status: 'completed' });
             expect(store.getGoalBySessionId('s1')).toBeNull();
         });
 
-        it('getAllGoals returns all goals', () => {
-            store.createGoal({ sessionId: 's1', title: 'A' });
-            store.createGoal({ sessionId: 's2', title: 'B' });
+        it('getAllGoals returns all goals', async () => {
+            await store.createGoal({ sessionId: 's1', title: 'A' });
+            await store.createGoal({ sessionId: 's2', title: 'B' });
             expect(store.getAllGoals()).toHaveLength(2);
         });
 
-        it('updateGoal updates allowed fields', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'Old' });
-            const updated = store.updateGoal(g.id, { title: 'New', status: 'monitoring' });
+        it('updateGoal updates allowed fields', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'Old' });
+            const updated = await store.updateGoal(g.id, { title: 'New', status: 'monitoring' });
             expect(updated.title).toBe('New');
             expect(updated.status).toBe('monitoring');
             expect(updated.updatedAt).toBeTruthy();
         });
 
-        it('updateGoal ignores non-allowed fields', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            store.updateGoal(g.id, { id: 'hacked', sessionId: 'hacked' });
+        it('updateGoal ignores non-allowed fields', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            await store.updateGoal(g.id, { id: 'hacked', sessionId: 'hacked' });
             const found = store.getGoal(g.id);
             expect(found.id).toBe(g.id);
             expect(found.sessionId).toBe('s1');
         });
 
-        it('updateGoal returns null for unknown id', () => {
-            expect(store.updateGoal('goal_nope', { title: 'X' })).toBeNull();
+        it('updateGoal returns null for unknown id', async () => {
+            expect(await store.updateGoal('goal_nope', { title: 'X' })).toBeNull();
         });
 
-        it('deleteGoal removes goal and related data', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            store.addProblem({ goalId: g.id, sessionId: 's1', type: 'error', severity: 'warning', title: 'E' });
-            store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q' });
-            store.addTimelineEntry({ goalId: g.id, type: 'progress', summary: 'S' });
+        it('deleteGoal removes goal and related data', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            await store.addProblem({ goalId: g.id, sessionId: 's1', type: 'error', severity: 'warning', title: 'E' });
+            await store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q' });
+            await store.addTimelineEntry({ goalId: g.id, type: 'progress', summary: 'S' });
 
-            expect(store.deleteGoal(g.id)).toBe(true);
+            expect(await store.deleteGoal(g.id)).toBe(true);
             expect(store.getGoal(g.id)).toBeNull();
             expect(store.getProblems(g.id)).toHaveLength(0);
             expect(store.getTimeline(g.id)).toHaveLength(0);
         });
 
-        it('deleteGoal returns false for unknown id', () => {
-            expect(store.deleteGoal('goal_nope')).toBe(false);
+        it('deleteGoal returns false for unknown id', async () => {
+            expect(await store.deleteGoal('goal_nope')).toBe(false);
         });
     });
 
     // ========== Problem CRUD ==========
 
     describe('Problem CRUD', () => {
-        it('addProblem creates with defaults', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            const p = store.addProblem({
+        it('addProblem creates with defaults', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            const p = await store.addProblem({
                 goalId: g.id,
                 sessionId: 's1',
                 type: 'error',
@@ -133,34 +133,34 @@ describe('GoalSeekStore V2', () => {
             expect(p.suggestedActions).toEqual([]);
         });
 
-        it('getProblems filters by goalId', () => {
-            const g1 = store.createGoal({ sessionId: 's1', title: 'G1' });
-            const g2 = store.createGoal({ sessionId: 's2', title: 'G2' });
-            store.addProblem({ goalId: g1.id, sessionId: 's1', type: 'error', severity: 'warning', title: 'P1' });
-            store.addProblem({ goalId: g2.id, sessionId: 's2', type: 'stuck', severity: 'warning', title: 'P2' });
+        it('getProblems filters by goalId', async () => {
+            const g1 = await store.createGoal({ sessionId: 's1', title: 'G1' });
+            const g2 = await store.createGoal({ sessionId: 's2', title: 'G2' });
+            await store.addProblem({ goalId: g1.id, sessionId: 's1', type: 'error', severity: 'warning', title: 'P1' });
+            await store.addProblem({ goalId: g2.id, sessionId: 's2', type: 'stuck', severity: 'warning', title: 'P2' });
 
             expect(store.getProblems(g1.id)).toHaveLength(1);
             expect(store.getProblems(g1.id)[0].title).toBe('P1');
         });
 
-        it('updateProblemStatus changes status', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            const p = store.addProblem({ goalId: g.id, sessionId: 's1', type: 'error', severity: 'warning', title: 'E' });
-            const updated = store.updateProblemStatus(p.id, 'resolved');
+        it('updateProblemStatus changes status', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            const p = await store.addProblem({ goalId: g.id, sessionId: 's1', type: 'error', severity: 'warning', title: 'E' });
+            const updated = await store.updateProblemStatus(p.id, 'resolved');
             expect(updated.status).toBe('resolved');
         });
 
-        it('updateProblemStatus returns null for unknown', () => {
-            expect(store.updateProblemStatus('prob_nope', 'resolved')).toBeNull();
+        it('updateProblemStatus returns null for unknown', async () => {
+            expect(await store.updateProblemStatus('prob_nope', 'resolved')).toBeNull();
         });
     });
 
     // ========== Escalation CRUD ==========
 
     describe('Escalation CRUD', () => {
-        it('addEscalation creates with pending status', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            const e = store.addEscalation({
+        it('addEscalation creates with pending status', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            const e = await store.addEscalation({
                 goalId: g.id,
                 sessionId: 's1',
                 question: 'Which approach?',
@@ -173,36 +173,36 @@ describe('GoalSeekStore V2', () => {
             expect(e.response).toBeNull();
         });
 
-        it('getPendingEscalations filters pending only', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            const e1 = store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q1' });
-            store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q2' });
-            store.respondToEscalation(e1.id, { choice: 'yes' });
+        it('getPendingEscalations filters pending only', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            const e1 = await store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q1' });
+            await store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q2' });
+            await store.respondToEscalation(e1.id, { choice: 'yes' });
 
             expect(store.getPendingEscalations(g.id)).toHaveLength(1);
         });
 
-        it('respondToEscalation sets status to responded', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            const e = store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q' });
-            const responded = store.respondToEscalation(e.id, { choice: 'yes', reason: 'OK' });
+        it('respondToEscalation sets status to responded', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            const e = await store.addEscalation({ goalId: g.id, sessionId: 's1', question: 'Q' });
+            const responded = await store.respondToEscalation(e.id, { choice: 'yes', reason: 'OK' });
 
             expect(responded.status).toBe('responded');
             expect(responded.response).toEqual({ choice: 'yes', reason: 'OK' });
             expect(responded.respondedAt).toBeTruthy();
         });
 
-        it('respondToEscalation returns null for unknown', () => {
-            expect(store.respondToEscalation('esc_nope', {})).toBeNull();
+        it('respondToEscalation returns null for unknown', async () => {
+            expect(await store.respondToEscalation('esc_nope', {})).toBeNull();
         });
     });
 
     // ========== Timeline ==========
 
     describe('Timeline', () => {
-        it('addTimelineEntry creates entry', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            const entry = store.addTimelineEntry({
+        it('addTimelineEntry creates entry', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            const entry = await store.addTimelineEntry({
                 goalId: g.id,
                 type: 'progress',
                 summary: 'Started',
@@ -213,21 +213,21 @@ describe('GoalSeekStore V2', () => {
             expect(entry.type).toBe('progress');
         });
 
-        it('getTimeline returns sorted entries', () => {
-            const g = store.createGoal({ sessionId: 's1', title: 'T' });
-            store.addTimelineEntry({ goalId: g.id, type: 'progress', summary: 'First' });
-            store.addTimelineEntry({ goalId: g.id, type: 'problem', summary: 'Second' });
+        it('getTimeline returns sorted entries', async () => {
+            const g = await store.createGoal({ sessionId: 's1', title: 'T' });
+            await store.addTimelineEntry({ goalId: g.id, type: 'progress', summary: 'First' });
+            await store.addTimelineEntry({ goalId: g.id, type: 'problem', summary: 'Second' });
 
             const timeline = store.getTimeline(g.id);
             expect(timeline).toHaveLength(2);
             expect(new Date(timeline[0].timestamp) <= new Date(timeline[1].timestamp)).toBe(true);
         });
 
-        it('getTimeline filters by goalId', () => {
-            const g1 = store.createGoal({ sessionId: 's1', title: 'G1' });
-            const g2 = store.createGoal({ sessionId: 's2', title: 'G2' });
-            store.addTimelineEntry({ goalId: g1.id, type: 'progress', summary: 'A' });
-            store.addTimelineEntry({ goalId: g2.id, type: 'progress', summary: 'B' });
+        it('getTimeline filters by goalId', async () => {
+            const g1 = await store.createGoal({ sessionId: 's1', title: 'G1' });
+            const g2 = await store.createGoal({ sessionId: 's2', title: 'G2' });
+            await store.addTimelineEntry({ goalId: g1.id, type: 'progress', summary: 'A' });
+            await store.addTimelineEntry({ goalId: g2.id, type: 'progress', summary: 'B' });
 
             expect(store.getTimeline(g1.id)).toHaveLength(1);
         });
@@ -237,7 +237,7 @@ describe('GoalSeekStore V2', () => {
 
     describe('Persistence', () => {
         it('saves and loads data from file', async () => {
-            store.createGoal({ sessionId: 's1', title: 'Persistent Goal' });
+            await store.createGoal({ sessionId: 's1', title: 'Persistent Goal' });
 
             // Wait for async _save() to complete
             await new Promise(r => setTimeout(r, 100));

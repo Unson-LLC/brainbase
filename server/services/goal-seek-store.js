@@ -64,7 +64,7 @@ export class GoalSeekStore {
 
     // ========== Goal CRUD ==========
 
-    createGoal({ sessionId, title, description, criteria, managerConfig }) {
+    async createGoal({ sessionId, title, description, criteria, managerConfig }) {
         const goal = {
             id: `goal_${randomUUID().slice(0, 8)}`,
             sessionId,
@@ -82,7 +82,7 @@ export class GoalSeekStore {
             updatedAt: new Date().toISOString()
         };
         this.data.goals.push(goal);
-        this._save();
+        await this._save();
         return goal;
     }
 
@@ -98,7 +98,7 @@ export class GoalSeekStore {
         return [...this.data.goals];
     }
 
-    updateGoal(id, updates) {
+    async updateGoal(id, updates) {
         const idx = this.data.goals.findIndex(g => g.id === id);
         if (idx === -1) return null;
 
@@ -109,24 +109,24 @@ export class GoalSeekStore {
             }
         }
         this.data.goals[idx].updatedAt = new Date().toISOString();
-        this._save();
+        await this._save();
         return this.data.goals[idx];
     }
 
-    deleteGoal(id) {
+    async deleteGoal(id) {
         const idx = this.data.goals.findIndex(g => g.id === id);
         if (idx === -1) return false;
         this.data.goals.splice(idx, 1);
         this.data.problems = this.data.problems.filter(p => p.goalId !== id);
         this.data.escalations = this.data.escalations.filter(e => e.goalId !== id);
         this.data.timeline = this.data.timeline.filter(t => t.goalId !== id);
-        this._save();
+        await this._save();
         return true;
     }
 
     // ========== Problem CRUD ==========
 
-    addProblem({ goalId, sessionId, type, severity, title, description, analysisBy, suggestedActions }) {
+    async addProblem({ goalId, sessionId, type, severity, title, description, analysisBy, suggestedActions }) {
         const problem = {
             id: `prob_${randomUUID().slice(0, 8)}`,
             goalId,
@@ -141,7 +141,7 @@ export class GoalSeekStore {
             timestamp: new Date().toISOString()
         };
         this.data.problems.push(problem);
-        this._save();
+        await this._save();
         return problem;
     }
 
@@ -149,17 +149,17 @@ export class GoalSeekStore {
         return this.data.problems.filter(p => p.goalId === goalId);
     }
 
-    updateProblemStatus(id, status) {
+    async updateProblemStatus(id, status) {
         const problem = this.data.problems.find(p => p.id === id);
         if (!problem) return null;
         problem.status = status;
-        this._save();
+        await this._save();
         return problem;
     }
 
     // ========== Escalation CRUD ==========
 
-    addEscalation({ goalId, sessionId, problemId, question, context, options }) {
+    async addEscalation({ goalId, sessionId, problemId, question, context, options }) {
         const escalation = {
             id: `esc_${randomUUID().slice(0, 8)}`,
             goalId,
@@ -173,7 +173,7 @@ export class GoalSeekStore {
             timestamp: new Date().toISOString()
         };
         this.data.escalations.push(escalation);
-        this._save();
+        await this._save();
         return escalation;
     }
 
@@ -185,19 +185,19 @@ export class GoalSeekStore {
         return this.data.escalations.filter(e => e.goalId === goalId && e.status === 'pending');
     }
 
-    respondToEscalation(id, response) {
+    async respondToEscalation(id, response) {
         const escalation = this.data.escalations.find(e => e.id === id);
         if (!escalation) return null;
         escalation.status = 'responded';
         escalation.response = response;
         escalation.respondedAt = new Date().toISOString();
-        this._save();
+        await this._save();
         return escalation;
     }
 
     // ========== Timeline ==========
 
-    addTimelineEntry({ goalId, type, summary, details }) {
+    async addTimelineEntry({ goalId, type, summary, details }) {
         const entry = {
             id: `tl_${randomUUID().slice(0, 8)}`,
             goalId,
@@ -207,7 +207,7 @@ export class GoalSeekStore {
             details: details || ''
         };
         this.data.timeline.push(entry);
-        this._save();
+        await this._save();
         return entry;
     }
 
@@ -215,5 +215,21 @@ export class GoalSeekStore {
         return this.data.timeline
             .filter(t => t.goalId === goalId)
             .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    }
+
+    // ========== Cascade Delete ==========
+
+    /**
+     * セッション削除時にそのセッションに紐づく全ゴールを削除する
+     * @param {string} sessionId - セッションID
+     */
+    async deleteGoalsBySessionId(sessionId) {
+        const goalIds = this.data.goals
+            .filter(g => g.sessionId === sessionId)
+            .map(g => g.id);
+
+        for (const goalId of goalIds) {
+            await this.deleteGoal(goalId);
+        }
     }
 }

@@ -16,6 +16,30 @@ export class SessionController {
         this._commitNotifyMap = new Map(); // sessionId → timestamp
     }
 
+    /**
+     * State更新をリトライ付きで実行
+     * @param {Function} updateFn - 状態更新関数（currentState => newState）
+     * @param {number} maxRetries - 最大リトライ回数
+     * @returns {Promise<Object>} - 更新後の状態
+     */
+    async _updateStateWithRetry(updateFn, maxRetries = 3) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                const currentState = this.stateStore.get();
+                const newState = updateFn(currentState);
+                await this.stateStore.update(newState);
+                return newState;
+            } catch (err) {
+                if (err.message.includes('State conflict') && i < maxRetries - 1) {
+                    console.warn(`[SessionController] Retry ${i + 1}/${maxRetries} due to conflict`);
+                    await new Promise(resolve => setTimeout(resolve, 100 * (i + 1))); // Exponential backoff
+                    continue;
+                }
+                throw err;
+            }
+        }
+    }
+
     // ========================================
     // Activity & Status
     // ========================================
@@ -104,19 +128,17 @@ export class SessionController {
             // ttydプロセス起動
             const result = await this.sessionManager.startTtyd(startOptions);
 
-            // intendedState を active に更新（engine も反映）
-            const currentState = this.stateStore.get();
-            const updatedSessions = (currentState.sessions || []).map(session => {
-                if (session.id !== sessionId) return session;
-                const updates = { ...session, intendedState: 'active', updatedAt: new Date().toISOString() };
-                if (startOptions.engine) {
-                    updates.engine = startOptions.engine;
-                }
-                return updates;
-            });
-            await this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
+            // intendedState を active に更新（engine も反映）（リトライ付き）
+            await this._updateStateWithRetry((currentState) => {
+                const updatedSessions = (currentState.sessions || []).map(session => {
+                    if (session.id !== sessionId) return session;
+                    const updates = { ...session, intendedState: 'active', updatedAt: new Date().toISOString() };
+                    if (startOptions.engine) {
+                        updates.engine = startOptions.engine;
+                    }
+                    return updates;
+                });
+                return { ...currentState, sessions: updatedSessions };
             });
 
             res.json(result);
@@ -135,28 +157,30 @@ export class SessionController {
         const { id } = req.params;
         const { preserveTmux = false } = req.body || {};
 
-        const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
+        try {
+            const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
 
-        if (stopped) {
-            // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
-            if (!preserveTmux) {
-                const currentState = this.stateStore.get();
-                const now = new Date().toISOString();
-                const updatedSessions = (currentState.sessions || []).map(session =>
-                    session.id === id
-                        ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
-                        : session
-                );
+            if (stopped) {
+                // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
+                if (!preserveTmux) {
+                    const now = new Date().toISOString();
+                    await this._updateStateWithRetry((currentState) => {
+                        const updatedSessions = (currentState.sessions || []).map(session =>
+                            session.id === id
+                                ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
+                                : session
+                        );
+                        return { ...currentState, sessions: updatedSessions };
+                    });
+                }
 
-                await this.stateStore.update({
-                    ...currentState,
-                    sessions: updatedSessions
-                });
+                res.json({ success: true });
+            } else {
+                res.status(404).json({ error: 'Session not found or already stopped' });
             }
-
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Session not found or already stopped' });
+        } catch (error) {
+            console.error(`[stop] Error stopping session ${id}:`, error);
+            res.status(500).json({ error: 'Failed to stop session', detail: error.message });
         }
     };
 
@@ -199,17 +223,15 @@ export class SessionController {
                 console.error(`[archive] Failed to stop ttyd for ${id}:`, ttydError.message);
             }
 
-            // Archive: Update intendedState to archived
-            const updatedSessions = state.sessions.map(s =>
-                s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
-            );
-
-            const newState = await this.stateStore.update({
-                ...state,
-                sessions: updatedSessions
+            // Archive: Update intendedState to archived (リトライ付き)
+            await this._updateStateWithRetry((currentState) => {
+                const updatedSessions = currentState.sessions.map(s =>
+                    s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
+                );
+                return { ...currentState, sessions: updatedSessions };
             });
 
-            res.json({ success: true, state: newState });
+            res.json({ success: true });
         } catch (error) {
             console.error(`[archive] Error archiving session ${id}:`, error);
             res.status(500).json({ error: 'Failed to archive session', detail: error.message });
@@ -262,16 +284,14 @@ export class SessionController {
                 engine
             });
 
-            // Update state to active (archivedAt も除去、engine も反映)
-            const updatedSessions = state.sessions.map(s => {
-                if (s.id !== id) return s;
-                const { archivedAt, ...rest } = s;
-                return { ...rest, intendedState: 'active', engine };
-            });
-
-            await this.stateStore.update({
-                ...state,
-                sessions: updatedSessions
+            // Update state to active (archivedAt も除去、engine も反映)（リトライ付き）
+            await this._updateStateWithRetry((currentState) => {
+                const updatedSessions = currentState.sessions.map(s => {
+                    if (s.id !== id) return s;
+                    const { archivedAt, ...rest } = s;
+                    return { ...rest, intendedState: 'active', engine };
+                });
+                return { ...currentState, sessions: updatedSessions };
             });
 
             res.json({
@@ -423,7 +443,6 @@ export class SessionController {
             // Update state BEFORE starting ttyd.
             // This allows ttyd start to persist pid/port and login_script.sh to resolve correct CWD.
             const now = new Date().toISOString();
-            const currentState = this.stateStore.get();
             const newSession = {
                 id: sessionId,
                 name: name || sessionId,
@@ -442,10 +461,10 @@ export class SessionController {
                 updatedAt: now
             };
 
-            await this.stateStore.update({
+            await this._updateStateWithRetry((currentState) => ({
                 ...currentState,
                 sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
-            });
+            }));
 
             let result;
             try {
@@ -458,11 +477,14 @@ export class SessionController {
                 });
             } catch (error) {
                 // Roll back state + workspace on failure (best-effort)
-                const rollbackState = this.stateStore.get();
-                await this.stateStore.update({
-                    ...rollbackState,
-                    sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
-                });
+                try {
+                    await this._updateStateWithRetry((currentState) => ({
+                        ...currentState,
+                        sessions: (currentState.sessions || []).filter(s => s.id !== sessionId)
+                    }));
+                } catch (rollbackError) {
+                    console.error(`[createWithWorktree] Rollback failed:`, rollbackError);
+                }
                 this.worktreeService.remove(sessionId, repoPath).catch(() => {});
                 throw error;
             }
@@ -635,22 +657,19 @@ export class SessionController {
 
             if (result.success) {
                 const mergedAt = result.mergedAt || new Date().toISOString();
-                // Update session to mark as merged
-                const latestState = this.stateStore.get();
-                const updatedSessions = (latestState.sessions || []).map(s =>
-                    s.id === id
-                        ? {
-                            ...s,
-                            merged: true,
-                            mergedAt,
-                            mergedPrUrl: result.prUrl || null
-                        }
-                        : s
-                );
-
-                await this.stateStore.update({
-                    ...latestState,
-                    sessions: updatedSessions
+                // Update session to mark as merged (リトライ付き)
+                await this._updateStateWithRetry((currentState) => {
+                    const updatedSessions = (currentState.sessions || []).map(s =>
+                        s.id === id
+                            ? {
+                                ...s,
+                                merged: true,
+                                mergedAt,
+                                mergedPrUrl: result.prUrl || null
+                            }
+                            : s
+                    );
+                    return { ...currentState, sessions: updatedSessions };
                 });
             }
 
@@ -740,18 +759,16 @@ export class SessionController {
             const success = await this.worktreeService.remove(id, session.worktree.repo);
 
             if (success) {
-                // Remove worktree info from session state
-                const updatedSessions = state.sessions.map(s => {
-                    if (s.id === id) {
-                        const { worktree, ...rest } = s;
-                        return rest;
-                    }
-                    return s;
-                });
-
-                await this.stateStore.update({
-                    ...state,
-                    sessions: updatedSessions
+                // Remove worktree info from session state (リトライ付き)
+                await this._updateStateWithRetry((currentState) => {
+                    const updatedSessions = currentState.sessions.map(s => {
+                        if (s.id === id) {
+                            const { worktree, ...rest } = s;
+                            return rest;
+                        }
+                        return s;
+                    });
+                    return { ...currentState, sessions: updatedSessions };
                 });
 
                 res.json({ success: true });
