@@ -437,7 +437,22 @@ export class SessionView {
                 console.log('[session-view] Confirm result:', confirmed);
                 if (!confirmed) return;
                 console.log('[session-view] Calling deleteSession for:', session.id);
-                await this.sessionService.deleteSession(session.id);
+                try {
+                    await this.sessionService.deleteSession(session.id);
+                    console.log('[session-view] Delete succeeded for:', session.id);
+                    // 成功通知
+                    if (window.showToast) {
+                        window.showToast(`セッション「${displayName}」を削除しました`, 'success');
+                    }
+                } catch (error) {
+                    console.error('[session-view] Delete failed for:', session.id, error);
+                    // エラー通知
+                    if (window.showToast) {
+                        window.showToast(`削除に失敗しました: ${error.message}`, 'error');
+                    } else {
+                        alert(`削除に失敗しました: ${error.message}`);
+                    }
+                }
             });
         } else {
             console.warn('[session-view] Delete button NOT found for session:', session.id);
