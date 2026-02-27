@@ -162,8 +162,12 @@ export class SessionMonitor {
                 }
             }
 
-            // ✅ Phase 3: ゴール達成検知（問題検知より前に実行）
-            if (this._checkGoalCompletion(content, goal)) {
+            // ✅ Phase 3: ゴール達成検知（監視開始以降の新しい出力のみチェック）
+            const meta = this._monitoringMeta.get(sessionId);
+            const initialLength = meta?.initialContentLength || 0;
+            const newContent = content.slice(initialLength);
+
+            if (this._checkGoalCompletion(newContent, goal)) {
                 logger.info('SessionMonitor: goal completed detected', { sessionId, goalId: goal.id });
 
                 // Goalのステータスを完了に更新
@@ -321,6 +325,13 @@ export class SessionMonitor {
             // brainbase CLI経由でプロンプト送信
             await this.sessionManager.sendInput(sessionId, prompt, 'text');
             await this.sessionManager.sendInput(sessionId, 'Enter', 'key');
+
+            // ✅ 監視開始時の出力長を記録（過去のメッセージ誤検知防止）
+            const initialContent = await this.sessionManager.getContent(sessionId, 200);
+            const meta = this._monitoringMeta.get(sessionId);
+            if (meta) {
+                meta.initialContentLength = initialContent.length;
+            }
 
             await this.goalStore.addTimelineEntry({
                 goalId: goal.id,
