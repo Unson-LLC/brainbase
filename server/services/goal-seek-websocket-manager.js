@@ -193,17 +193,7 @@ export class GoalSeekWebSocketManager {
      * @returns {Promise<Object>} 処理結果
      */
     async handleInterventionResponseHTTP({ interventionId, goalId, choice, reason, userId }) {
-        const pending = this.pendingInterventions.get(interventionId);
-
-        if (!pending) {
-            throw new Error('Intervention not found or expired');
-        }
-
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            throw new Error('Intervention expired');
-        }
+        const pending = this._getActiveIntervention(interventionId);
 
         // 所有者チェック
         const connectionInfo = this.connections.get(pending.ws);
@@ -212,11 +202,11 @@ export class GoalSeekWebSocketManager {
         }
 
         // 介入を削除
-        this.pendingInterventions.delete(interventionId);
+        this._finalizeIntervention(interventionId);
 
         // WebSocket経由で通知
-        this._send(pending.ws, {
-            type: MESSAGE_TYPES.INTERVENTION_ACKNOWLEDGED,
+        this._acknowledgeIntervention({
+            ws: pending.ws,
             correlationId: pending.correlationId,
             interventionId,
             choice,
@@ -226,11 +216,7 @@ export class GoalSeekWebSocketManager {
 
         // 選択に応じて処理を継続
         if (choice === 'proceed') {
-            this._send(pending.ws, {
-                type: MESSAGE_TYPES.COMPLETED,
-                correlationId: pending.correlationId,
-                result: pending.result
-            });
+            this._sendCompletion(pending.ws, pending.correlationId, pending.result);
         }
 
         return {
@@ -292,11 +278,7 @@ export class GoalSeekWebSocketManager {
                 }
             });
         } else {
-            this._send(ws, {
-                type: MESSAGE_TYPES.COMPLETED,
-                correlationId,
-                result
-            });
+            this._sendCompletion(ws, correlationId, result);
         }
     }
 
@@ -307,36 +289,23 @@ export class GoalSeekWebSocketManager {
     async _handleInterventionResponse(ws, correlationId, payload) {
         const { interventionId, choice } = payload;
 
-        const pending = this.pendingInterventions.get(interventionId);
-        if (!pending) {
-            this._sendError(ws, correlationId, 'Intervention not found or expired', null, 'INTERVENTION_EXPIRED');
-            return;
-        }
+        try {
+            const pending = this._getActiveIntervention(interventionId);
+            this._finalizeIntervention(interventionId);
 
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            this._sendError(ws, correlationId, 'Intervention expired', null, 'INTERVENTION_EXPIRED');
-            return;
-        }
-
-        this.pendingInterventions.delete(interventionId);
-
-        // 回答を確認
-        this._send(ws, {
-            type: MESSAGE_TYPES.INTERVENTION_ACKNOWLEDGED,
-            correlationId,
-            interventionId,
-            choice
-        });
-
-        // 選択に応じて処理を継続（実装は要件に応じて拡張）
-        if (choice === 'proceed') {
-            this._send(ws, {
-                type: MESSAGE_TYPES.COMPLETED,
+            this._acknowledgeIntervention({
+                ws,
                 correlationId,
-                result: pending.result
+                interventionId,
+                choice
             });
+
+            // 選択に応じて処理を継続（実装は要件に応じて拡張）
+            if (choice === 'proceed') {
+                this._sendCompletion(ws, correlationId, pending.result);
+            }
+        } catch (error) {
+            this._sendError(ws, correlationId, error.message, null, error.code || 'INTERVENTION_EXPIRED');
         }
     }
 
@@ -345,18 +314,22 @@ export class GoalSeekWebSocketManager {
      * @private
      */
     async _handleCancel(ws, correlationId) {
-        // 関連する介入があれば削除
-        for (const [id, pending] of this.pendingInterventions) {
-            if (pending.correlationId === correlationId) {
-                this.pendingInterventions.delete(id);
-                break;
-            }
-        }
+        this._removeInterventionByCorrelationId(correlationId);
 
         this._send(ws, {
             type: MESSAGE_TYPES.CANCELLED,
             correlationId
         });
+    }
+
+    _removeInterventionByCorrelationId(correlationId) {
+        for (const [id, pending] of this.pendingInterventions) {
+            if (pending.correlationId === correlationId) {
+                this.pendingInterventions.delete(id);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -384,6 +357,58 @@ export class GoalSeekWebSocketManager {
         if (closeCode) {
             ws.close(closeCode);
         }
+    }
+
+    _getActiveIntervention(interventionId) {
+        const pending = this.pendingInterventions.get(interventionId);
+        if (!pending) {
+            const error = new Error('Intervention not found or expired');
+            error.code = 'INTERVENTION_EXPIRED';
+            throw error;
+        }
+
+        if (Date.now() > pending.expiresAt) {
+            this.pendingInterventions.delete(interventionId);
+            const error = new Error('Intervention expired');
+            error.code = 'INTERVENTION_EXPIRED';
+            throw error;
+        }
+
+        return pending;
+    }
+
+    _finalizeIntervention(interventionId) {
+        const pending = this.pendingInterventions.get(interventionId);
+        if (pending) {
+            this.pendingInterventions.delete(interventionId);
+        }
+        return pending;
+    }
+
+    _acknowledgeIntervention({ ws, correlationId, interventionId, choice, reason, source }) {
+        const payload = {
+            type: MESSAGE_TYPES.INTERVENTION_ACKNOWLEDGED,
+            correlationId,
+            interventionId,
+            choice
+        };
+
+        if (reason) {
+            payload.reason = reason;
+        }
+        if (source) {
+            payload.source = source;
+        }
+
+        this._send(ws, payload);
+    }
+
+    _sendCompletion(ws, correlationId, result) {
+        this._send(ws, {
+            type: MESSAGE_TYPES.COMPLETED,
+            correlationId,
+            result
+        });
     }
 }
 
