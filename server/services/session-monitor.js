@@ -450,6 +450,36 @@ export class SessionMonitor {
      * @private
      */
     _checkGoalCompletion(output, goal) {
+        // ✅ 最小経過時間チェック（監視開始から60秒以上経過している場合のみ検知）
+        const meta = this._monitoringMeta.get(goal.sessionId);
+        if (meta) {
+            const elapsedMs = Date.now() - meta.startedAt;
+            if (elapsedMs < 60000) {
+                return false; // 60秒未満は検知しない
+            }
+        }
+
+        // ✅ 指示文・説明文を含む行を除外
+        const lines = output.split('\n');
+        const excludePatterns = [
+            /please state/i,
+            /you should/i,
+            /if you complete/i,
+            /when you finish/i,
+            /clearly state/i,
+            /make sure to/i,
+            /don't forget/i,
+            /remember to/i
+        ];
+
+        const relevantLines = lines.filter(line => {
+            const lower = line.toLowerCase();
+            // 指示文を含む行は除外
+            return !excludePatterns.some(pattern => pattern.test(lower));
+        });
+
+        const relevantOutput = relevantLines.join('\n').toLowerCase();
+
         // キーワードマッチング（完了を示す表現）
         const completionKeywords = [
             'goal completed',
@@ -457,12 +487,10 @@ export class SessionMonitor {
             'successfully completed',
             'all done',
             'finished',
-            'success',
             'achieved the goal'
         ];
 
-        const lower = output.toLowerCase();
-        const hasCompletionKeyword = completionKeywords.some(kw => lower.includes(kw));
+        const hasCompletionKeyword = completionKeywords.some(kw => relevantOutput.includes(kw));
 
         // Success Criteriaに基づく検証（キーワードのみ）
         const commitCriteria = goal.criteria?.commit || [];
@@ -473,7 +501,7 @@ export class SessionMonitor {
             // 各criteriaに含まれるキーワードがoutputに含まれるか確認
             const criteriaMatches = allCriteria.map(criterion => {
                 const criterionKeywords = criterion.toLowerCase().split(/\s+/);
-                return criterionKeywords.some(kw => lower.includes(kw));
+                return criterionKeywords.some(kw => relevantOutput.includes(kw));
             });
 
             // 80%以上のcriteriaがマッチしたら完了と判定
