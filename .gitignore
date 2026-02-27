@@ -60,7 +60,8 @@ external/
 # ========================================
 
 # 非公開: 個人設定・データ
-.claude/commands/
+.claude/commands/*
+!.claude/commands/deploy-merged-pr.md
 .claude/hooks/
 .claude/agents/
 .claude/learning/
