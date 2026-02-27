@@ -96,24 +96,23 @@ export class CommitTreeView {
         // 1枚SVG
         const graphSvg = this._renderFullGraph(graphRows, maxCols, totalH);
 
-        // コミット情報行
+        // コミット情報行（1行表示 + 色分け）
         const rowsHtml = graphRows.map(row => {
             const c = row.commit;
             const cls = c.isWorkingCopy ? ' current' : '';
             const wcBadge = c.isWorkingCopy ? '<span class="commit-wc-badge">@</span>' : '';
             const bm = c.bookmarks.length > 0
-                ? c.bookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join('')
+                ? c.bookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')
                 : '';
             const t = this._formatTime(c.timestamp);
-            return `<div class="commit-row${cls}">
-                <div class="commit-header">
-                    <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}${bm}
-                </div>
-                <div class="commit-desc">${escapeHtml(c.description)}</div>
-                <div class="commit-meta">
-                    <span class="commit-time">${escapeHtml(t)}</span>
-                    <span class="commit-author">${escapeHtml(c.author)}</span>
-                </div>
+            // グラフレーンの色を取得（COLORS配列）
+            const laneColor = COLORS[row.column % COLORS.length];
+            return `<div class="commit-row${cls}" style="color: ${laneColor}">
+                <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}
+                <span class="commit-author">${escapeHtml(c.author)}</span>
+                <span class="commit-time">${escapeHtml(t)}</span>
+                ${bm}
+                <span class="commit-desc">${escapeHtml(c.description)}</span>
             </div>`;
         }).join('');
 
