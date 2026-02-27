@@ -446,7 +446,7 @@ export class SessionMonitor {
     }
 
     /**
-     * ゴール達成検知（キーワードマッチング、Phase 3）
+     * ゴール達成検知（堅牢版 - 文ベース除外 + 厳格キーワード検知）
      * @private
      */
     _checkGoalCompletion(output, goal) {
@@ -459,49 +459,59 @@ export class SessionMonitor {
             }
         }
 
-        // ✅ 指示文・説明文を含む行を除外
-        const lines = output.split('\n');
+        // ✅ 文単位で分割（改行・句点で区切る）
+        const sentences = output
+            .split(/[\n。！？\.]+/)
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+
+        // ✅ 除外パターン（指示文・質問文・引用）
         const excludePatterns = [
-            /please state/i,
+            /please/i,
+            /if you/i,
+            /when you/i,
             /you should/i,
-            /if you complete/i,
-            /when you finish/i,
-            /clearly state/i,
-            /make sure to/i,
+            /make sure/i,
             /don't forget/i,
-            /remember to/i
+            /remember to/i,
+            /clearly state/i,
+            /\?$/, // 質問文
+            /["「『][^"」』]*["」』]/ // 引用符内
         ];
 
-        const relevantLines = lines.filter(line => {
-            const lower = line.toLowerCase();
-            // 指示文を含む行は除外
-            return !excludePatterns.some(pattern => pattern.test(lower));
+        // 指示文・質問文・引用を除外
+        const relevantSentences = sentences.filter(sentence => {
+            return !excludePatterns.some(pattern => pattern.test(sentence));
         });
 
-        const relevantOutput = relevantLines.join('\n').toLowerCase();
-
-        // キーワードマッチング（完了を示す表現）
-        const completionKeywords = [
-            'goal completed',
-            'task completed',
-            'successfully completed',
-            'all done',
-            'finished',
-            'achieved the goal'
+        // ✅ 完了キーワード（文の先頭または句読点直後のみ、正規表現で厳格に）
+        const completionPatterns = [
+            /^\s*goal completed/i,
+            /^\s*task completed/i,
+            /^\s*successfully completed/i,
+            /^\s*all done/i,
+            /^\s*achieved the goal/i,
+            /[\.\,\:\;]\s+goal completed/i,
+            /[\.\,\:\;]\s+task completed/i
         ];
 
-        const hasCompletionKeyword = completionKeywords.some(kw => relevantOutput.includes(kw));
+        // 完了宣言が含まれているか（文の先頭または区切り直後のみ）
+        const hasCompletionKeyword = relevantSentences.some(sentence => {
+            return completionPatterns.some(pattern => pattern.test(sentence));
+        });
 
-        // Success Criteriaに基づく検証（キーワードのみ）
+        // Success Criteriaに基づく検証
         const commitCriteria = goal.criteria?.commit || [];
         const signalCriteria = goal.criteria?.signal || [];
         const allCriteria = [...commitCriteria, ...signalCriteria];
 
         if (allCriteria.length > 0) {
-            // 各criteriaに含まれるキーワードがoutputに含まれるか確認
+            const relevantText = relevantSentences.join(' ').toLowerCase();
+
+            // 各criteriaに含まれるキーワードがrelevantTextに含まれるか確認
             const criteriaMatches = allCriteria.map(criterion => {
                 const criterionKeywords = criterion.toLowerCase().split(/\s+/);
-                return criterionKeywords.some(kw => relevantOutput.includes(kw));
+                return criterionKeywords.some(kw => relevantText.includes(kw));
             });
 
             // 80%以上のcriteriaがマッチしたら完了と判定
