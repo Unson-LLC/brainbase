@@ -5,16 +5,17 @@
     "attempt": 1,
     "area": "public/modules/domain/goal-seek",
     "failure": {
-      "reason": "refactor_area_error",
+      "reason": "codex_timeout",
       "details": {
         "area": "public/modules/domain/goal-seek",
-        "message": "Unexpected token 'や', \"やば〜w GoalS\"... is not valid JSON"
+        "message": "Codex CLI timed out after 1200000ms",
+        "timeoutMs": 1200000
       }
     }
   },
-  "timestamp": "2026-02-26T15:21:12.411Z",
+  "timestamp": "2026-02-27T00:50:31.795Z",
   "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22448432316",
-  "runNumber": "127",
+  "runId": "22467330086",
+  "runNumber": "130",
   "eventName": "schedule"
 }
