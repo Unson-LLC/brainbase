@@ -423,17 +423,39 @@ export class SessionView {
         // Delete button
         const deleteBtn = row.querySelector('.delete-session-btn');
         if (deleteBtn) {
+            console.log('[session-view] Delete button found for session:', session.id);
             deleteBtn.addEventListener('click', async (e) => {
+                console.log('[session-view] Delete button clicked for session:', session.id);
                 e.stopPropagation();
                 closeDropdown();
                 const displayName = session.name || session.id;
+                console.log('[session-view] Showing confirm dialog for:', displayName);
                 const confirmed = await showConfirm(
                     `セッション「${displayName}」を削除しますか？`,
                     { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
                 );
+                console.log('[session-view] Confirm result:', confirmed);
                 if (!confirmed) return;
-                await this.sessionService.deleteSession(session.id);
+                console.log('[session-view] Calling deleteSession for:', session.id);
+                try {
+                    await this.sessionService.deleteSession(session.id);
+                    console.log('[session-view] Delete succeeded for:', session.id);
+                    // 成功通知
+                    if (window.showToast) {
+                        window.showToast(`セッション「${displayName}」を削除しました`, 'success');
+                    }
+                } catch (error) {
+                    console.error('[session-view] Delete failed for:', session.id, error);
+                    // エラー通知
+                    if (window.showToast) {
+                        window.showToast(`削除に失敗しました: ${error.message}`, 'error');
+                    } else {
+                        alert(`削除に失敗しました: ${error.message}`);
+                    }
+                }
             });
+        } else {
+            console.warn('[session-view] Delete button NOT found for session:', session.id);
         }
 
         // Archive button

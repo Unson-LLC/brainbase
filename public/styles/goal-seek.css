@@ -60,21 +60,8 @@
     flex-shrink: 0;
     color: inherit;
     opacity: 0.8;
-    display: flex;
-    align-items: center;
-    gap: 4px;
 }
 .session-goal-banner .sgb-btn:hover { opacity: 1; }
-.session-goal-banner .sgb-btn-edit {
-    background-color: var(--gs-blue);
-    color: white;
-    border-color: var(--gs-blue);
-    opacity: 0.9;
-}
-.session-goal-banner .sgb-btn-edit:hover {
-    opacity: 1;
-    background-color: #2563eb;
-}
 .session-goal-banner .sgb-check-time {
     font-size: 10px;
     opacity: 0.5;
@@ -785,9 +772,16 @@
         width: 100%;
     }
 
-    /* Goal banner モバイル対応 */
+    /* Session Goal Banner - スマホ対応 */
     .session-goal-banner {
-        padding: 6px 12px;
+        padding: 6px 12px;  /* 右側paddingを削減 */
+        flex-wrap: wrap;    /* ボタンを折り返し可能に */
+        gap: 6px;
+    }
+
+    .session-goal-banner .sgb-title {
+        flex: 1;
+        min-width: 120px;  /* 最小幅を確保 */
     }
 
     .session-goal-banner .sgb-btn {
@@ -795,8 +789,15 @@
         padding: 2px 7px;
     }
 
-    .session-goal-banner .sgb-btn-edit i {
-        width: 12px;
-        height: 12px;
+    .session-goal-banner .sgb-badge {
+        font-size: 10px;
+        padding: 1px 6px;
+    }
+
+    .session-goal-banner .sgb-check-time {
+        font-size: 9px;
+        width: 100%;  /* 折り返して全幅表示 */
+        margin-left: 0;
+        margin-top: 2px;
     }
 }

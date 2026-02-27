@@ -197,8 +197,9 @@ describe('State Concurrency - Integration', () => {
 
             expect(session1.intendedState).toBe('active');
             expect(session2.intendedState).toBe('active');
-            expect(session1.engine).toBe('claude');
-            expect(session2.engine).toBe('codex');
+            // Goal Seek V2: engineプロパティは state.json に保存されなくなった（ttyd起動時のパラメータとしてのみ使用）
+            // expect(session1.engine).toBe('claude');
+            // expect(session2.engine).toBe('codex');
 
             // レスポンスが成功したことを確認
             expect(res1.json).toHaveBeenCalledWith({ port: 8080, proxyPath: '/proxy' });

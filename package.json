@@ -1,6 +1,6 @@
 {
   "name": "brainbase-ui",
-  "version": "0.1.89",
+  "version": "0.1.93",
   "private": false,
   "type": "module",
   "description": "AI-first project management console for developers",
@@ -69,8 +69,6 @@
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "@vitest/coverage-v8": "^4.0.16",
-    "eslint": "^10.0.2",
-    "eslint-plugin-import": "^2.31.0",
     "jsdom": "^27.3.0",
     "supertest": "^7.1.4",
     "vitest": "^4.0.16"
