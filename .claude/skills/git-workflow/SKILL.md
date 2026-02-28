@@ -40,6 +40,17 @@ type(scope): summary
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
+## コミット・マージ方針（重要）
+
+**原則**: コミット・マージ対象は「今回のタスクで自分が触ったファイルのみ」。
+
+- 作業開始前から存在する未関連差分は含めない
+- 変更ファイルは `git add <file...>` で明示的に指定してステージする
+- `git add -A` / `git commit -a` のような全量ステージは使わない
+- 未関連差分が残っていても、対象ファイルのみでコミットして先に進める
+
+この方針により、別タスク差分の巻き込みを防ぎ、レビュー対象を明確化する。
+
 ## 参照
 
 - **CLAUDE.md**: `§6.5 Commit (Decision capture)`
@@ -47,4 +58,4 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 ---
 
-最終更新: 2026-02-22
+最終更新: 2026-02-28
