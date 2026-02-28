@@ -18,6 +18,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 export class GoalSeekService {
     constructor(options = {}) {
         this.baseUrl = options.baseUrl || '/api/goal-seek';
+        this.store = options.store; // Store参照を保持
         this.eventBus = eventBus;
         this._pollInterval = null;
         this._pollIntervalMs = options.pollIntervalMs || 5000;
@@ -70,7 +71,13 @@ export class GoalSeekService {
     }
 
     async getGoals() {
-        return this._fetch('/goals');
+        // 現在のセッションIDを取得
+        const sessionId = this.store?.getState()?.currentSessionId;
+
+        // セッションIDが存在する場合、クエリパラメータとして渡す
+        const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
+
+        return this._fetch(`/goals${query}`);
     }
 
     async getGoal(id) {
