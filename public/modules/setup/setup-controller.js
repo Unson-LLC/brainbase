@@ -4,88 +4,113 @@
  */
 
 const STORAGE_TOKEN_KEY = 'brainbase.auth.token';
+const SETUP_CONFIG_ENDPOINT = '/api/setup/config';
+const DEFAULT_ERROR_MESSAGE = 'セットアップ設定の取得に失敗しました';
 
 export class SetupController {
     constructor() {
         this.config = null;
+        this.downloadListenerRegistered = false;
     }
 
     async init() {
         try {
-            // 認証チェック
-            const token = localStorage.getItem(STORAGE_TOKEN_KEY);
+            const token = this.getAuthToken();
             if (!token) {
-                console.warn('No auth token found, redirecting to auth');
-                window.location.href = '/device';
+                this.redirectToDevice('No auth token found, redirecting to auth');
                 return;
             }
 
-            // セットアップ設定を取得
-            const response = await fetch('/api/setup/config', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                if (response.status === 401) {
-                    localStorage.removeItem(STORAGE_TOKEN_KEY);
-                    window.location.href = '/device';
-                    return;
-                }
-                throw new Error(`Failed to fetch setup config: ${response.status}`);
+            const config = await this.fetchSetupConfig(token);
+            if (!config) {
+                return;
             }
 
-            this.config = await response.json();
-
-            if (!this.config.ok) {
-                throw new Error(this.config.error || 'Failed to fetch setup config');
-            }
-
+            this.config = config;
             this.renderSetup();
             this.attachEventListeners();
 
         } catch (error) {
             console.error('Setup init error:', error);
-            this.showError(error.message || 'セットアップ設定の取得に失敗しました');
+            this.showError(error.message || DEFAULT_ERROR_MESSAGE);
         }
+    }
+
+    getAuthToken() {
+        return localStorage.getItem(STORAGE_TOKEN_KEY);
+    }
+
+    redirectToDevice(message) {
+        if (message) {
+            console.warn(message);
+        }
+        window.location.href = '/device';
+    }
+
+    handleUnauthorized() {
+        localStorage.removeItem(STORAGE_TOKEN_KEY);
+        this.redirectToDevice('Auth token invalid, redirecting to auth');
+    }
+
+    async fetchSetupConfig(token) {
+        const response = await fetch(SETUP_CONFIG_ENDPOINT, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                this.handleUnauthorized();
+                return null;
+            }
+            throw new Error(`Failed to fetch setup config: ${response.status}`);
+        }
+
+        const config = await response.json();
+
+        if (!config.ok) {
+            throw new Error(config.error || 'Failed to fetch setup config');
+        }
+
+        return config;
     }
 
     renderSetup() {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('setup-content').style.display = 'block';
+        this.hideElement('loading');
+        this.showElement('setup-content');
 
-        // ユーザー情報
-        document.getElementById('user-name').textContent = this.config.user.name;
-        document.getElementById('slack-user-id').textContent = this.config.user.slackUserId;
-        document.getElementById('workspace-id').textContent = this.config.user.workspaceId;
-
-        // プロジェクト一覧
-        const projectList = document.getElementById('project-list');
-        projectList.innerHTML = '';
-
-        if (this.config.projects.length === 0) {
-            const li = document.createElement('li');
-            li.textContent = 'アクセス可能なプロジェクトがありません';
-            li.style.color = '#fca5a5';
-            projectList.appendChild(li);
-        } else {
-            this.config.projects.forEach(project => {
-                const li = document.createElement('li');
-                li.innerHTML = `<strong>${project.name}</strong> (${project.id})${project.description ? ` - ${project.description}` : ''}`;
-                projectList.appendChild(li);
-            });
-        }
+        const { user, projects } = this.config;
+        this.updateUserInfo(user);
+        this.renderProjectList(projects);
     }
 
     attachEventListeners() {
-        document.getElementById('download-btn').addEventListener('click', () => {
+        if (this.downloadListenerRegistered) {
+            return;
+        }
+
+        const downloadBtn = document.getElementById('download-btn');
+        if (!downloadBtn) {
+            console.warn('Download button not found');
+            return;
+        }
+
+        downloadBtn.addEventListener('click', () => {
             this.downloadConfig();
         });
+
+        this.downloadListenerRegistered = true;
     }
 
     downloadConfig() {
-        const blob = new Blob([this.config.configYaml], { type: 'text/yaml' });
+        const configYaml = this.config?.configYaml;
+        if (!configYaml) {
+            console.error('Config YAML is not ready for download');
+            return;
+        }
+
+        const blob = new Blob([configYaml], { type: 'text/yaml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -97,10 +122,69 @@ export class SetupController {
     }
 
     showError(message) {
-        document.getElementById('loading').style.display = 'none';
+        this.hideElement('loading');
         const errorDiv = document.getElementById('error');
-        errorDiv.textContent = message;
-        errorDiv.style.display = 'block';
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    updateUserInfo(user = {}) {
+        const { name = '-', slackUserId = '-', workspaceId = '-' } = user;
+        this.setTextContent('user-name', name);
+        this.setTextContent('slack-user-id', slackUserId);
+        this.setTextContent('workspace-id', workspaceId);
+    }
+
+    renderProjectList(projects = []) {
+        const projectList = document.getElementById('project-list');
+        if (!projectList) {
+            console.warn('Project list element not found');
+            return;
+        }
+
+        projectList.innerHTML = '';
+
+        if (projects.length === 0) {
+            const li = document.createElement('li');
+            li.textContent = 'アクセス可能なプロジェクトがありません';
+            li.style.color = '#fca5a5';
+            projectList.appendChild(li);
+            return;
+        }
+
+        projects.forEach(project => {
+            projectList.appendChild(this.createProjectListItem(project));
+        });
+    }
+
+    createProjectListItem(project) {
+        const li = document.createElement('li');
+        const description = project.description ? ` - ${project.description}` : '';
+        li.innerHTML = `<strong>${project.name}</strong> (${project.id})${description}`;
+        return li;
+    }
+
+    setTextContent(elementId, text) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.textContent = text;
+        }
+    }
+
+    showElement(elementId, displayValue = 'block') {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.style.display = displayValue;
+        }
+    }
+
+    hideElement(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.style.display = 'none';
+        }
     }
 }
 
