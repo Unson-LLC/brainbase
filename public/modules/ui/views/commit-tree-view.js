@@ -9,7 +9,7 @@ import { escapeHtml } from '../../ui-helpers.js';
 
 const LANE_W = 16;
 const DOT_R = 4;
-const ROW_H = 44;
+const ROW_H = 32;
 
 const COLORS = [
     '#4a9eff', // blue
