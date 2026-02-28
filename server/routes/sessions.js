@@ -116,6 +116,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     router.post('/create-with-worktree', controller.createWithWorktree);
     router.get('/:id/worktree-status', controller.getWorktreeStatus);
     router.get('/:id/context', controller.getContext);
+    router.get('/:id/folder-tree', controller.getFolderTree);
     router.get('/:id/commit-log', controller.getCommitLog);
     router.post('/:id/commit-notify', controller.commitNotify);
     router.get('/:id/commit-notify', controller.getCommitNotify);
