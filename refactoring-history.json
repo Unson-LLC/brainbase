@@ -576,9 +576,39 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/279",
       "pr_status": "merged",
       "merged_at": "2026-02-28T12:11:31Z"
+    },
+    {
+      "area": "server/utils",
+      "refactored_at": "2026-02-28T18:13:04.093Z",
+      "files_modified": [
+        "server/utils/logger.js",
+        "server/utils/permission-filter.js"
+      ],
+      "changes_summary": "`server/utils/logger.js:36-205`で重複しまくってた文字列マスクとconsole呼び出しをhelper化してErrorサニタイズもformatLog経由で安全にまとめたし、`server/utils/permission-filter.js:13-105`もセキュリティレベルmap定数化とprojectsデフォルト付与で未定義アクセスでもコケないよう整えたよ〜。テストはまだ回してないから必要なら声かけてね☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 1,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor centralizes logger redaction/serialization logic and adds safer console dispatching along with a saner security-level map in the permission filter, improving reuse and defensive handling without obvious behavior regressions.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Add targeted tests around the new `logAtLevel` path (especially error serialization and DEBUG gating) to ensure the helper stays stable.",
+        "Consider covering the updated `checkSecurityLevel`/`hasAccessToContent` behavior with unit tests, since defaults and array handling changed subtly."
+      ],
+      "run_number": "144",
+      "run_id": "22526118220",
+      "trigger_event": "schedule",
+      "pr_number": 281,
+      "pr_branch": "ops-department/auto-refactor-144",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/281",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-28T15:05:48.522Z",
-  "total_prs_created": 22,
+  "last_updated": "2026-02-28T18:13:16.084Z",
+  "total_prs_created": 23,
   "total_prs_merged": 19
 }
