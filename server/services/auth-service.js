@@ -3,16 +3,11 @@ import { Pool } from 'pg';
 import { ulid } from 'ulid';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
+import { resolveRole } from './role-utils.js';
 
 const DEFAULT_SCOPES = 'openid profile email';
 const DEFAULT_CLEARANCE = ['internal', 'restricted'];
 const FULL_CLEARANCE = ['internal', 'restricted', 'finance', 'hr', 'contract'];
-
-const ROLE_RANK = {
-    member: 1,
-    gm: 2,
-    ceo: 3
-};
 
 export class AuthService {
     constructor() {
@@ -361,12 +356,11 @@ export class AuthService {
     }
 
     normalizeRole(role) {
-        const normalized = typeof role === 'string' ? role.toLowerCase() : '';
-        return ROLE_RANK[normalized] ? normalized : 'member';
+        return resolveRole(role, 'member') || 'member';
     }
 
     buildAccessFromGrant(grant) {
-        const role = this.normalizeRole(grant.role);
+        const role = resolveRole(grant.role, 'member') || 'member';
         const projectCodes = Array.isArray(grant.project_codes) ? grant.project_codes : [];
         let clearance = Array.isArray(grant.clearance) ? grant.clearance : [];
         if (!clearance.length) {
