@@ -548,9 +548,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/278",
       "pr_status": "merged",
       "merged_at": "2026-02-28T09:13:03Z"
+    },
+    {
+      "area": "public/modules/setup",
+      "refactored_at": "2026-02-28T12:11:17.859Z",
+      "files_modified": [
+        "public/modules/setup/setup-controller.js"
+      ],
+      "changes_summary": "認証チェックや設定取得をメソッド化してearly return整理＋DOM操作も共通ヘルパー＆プロジェクトLI組み立て関数に分離して重複レス、ダウンロードbtnの多重登録防止とエラーハンドリングも追加して安定感アゲたよ☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 1,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "Auth/token handling, fetch logic, DOM updates, and event wiring were decomposed into well‑named helpers, improving readability and resilience without altering observable behavior; safeguards were added for missing elements and duplicate listeners while preserving error paths.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider adding unit tests (or lightweight DOM tests) around the new helper boundaries so future regressions in token handling or rendering can be caught automatically."
+      ],
+      "run_number": "142",
+      "run_id": "22520468394",
+      "trigger_event": "schedule",
+      "pr_number": 279,
+      "pr_branch": "ops-department/auto-refactor-142",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/279",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-28T12:10:11.659Z",
-  "total_prs_created": 21,
+  "last_updated": "2026-02-28T12:11:27.824Z",
+  "total_prs_created": 22,
   "total_prs_merged": 18
 }
