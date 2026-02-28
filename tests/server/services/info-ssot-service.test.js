@@ -32,6 +32,28 @@ const accessContext = {
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
 };
 
+describe('InfoSSOTService access guards', () => {
+    it('assertValidSensitivity rejects invalid values', () => {
+        const { service } = buildService();
+        expect(() => service.assertValidSensitivity('topsecret')).toThrow('Invalid sensitivity: topsecret');
+    });
+
+    it('assertWriteAccess enforces sensitivity and role requirements', () => {
+        const { service } = buildService();
+        expect(() => service.assertWriteAccess(accessContext, {
+            projectCode: 'brainbase',
+            roleMin: 'gm',
+            sensitivity: 'finance'
+        })).not.toThrow();
+
+        expect(() => service.assertWriteAccess(accessContext, {
+            projectCode: 'brainbase',
+            roleMin: 'member',
+            sensitivity: 'finance'
+        })).toThrow('Sensitive data requires role_min gm or ceo');
+    });
+});
+
 describe('InfoSSOTService (Graph SSOT)', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
