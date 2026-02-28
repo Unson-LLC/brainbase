@@ -10,6 +10,14 @@
  * - 業務委託制限判定
  */
 
+const SECURITY_LEVEL_MAP = {
+    'PUBLIC': 1,
+    'PROJECT_SENSITIVE': 3,
+    'INTERNAL': 3,
+    'CONFIDENTIAL': 4
+};
+const DEFAULT_SECURITY_LEVEL = 1;
+
 class PermissionFilter {
     /**
      * SecurityLevel判定
@@ -18,19 +26,7 @@ class PermissionFilter {
      * @returns {boolean} アクセス可能かどうか
      */
     checkSecurityLevel(userLevel, contentSecurityLevel) {
-        const securityLevelMap = {
-            'PUBLIC': 1,
-            'PROJECT_SENSITIVE': 3,
-            'INTERNAL': 3,
-            'CONFIDENTIAL': 4
-        };
-
-        const requiredLevel = securityLevelMap[contentSecurityLevel];
-        if (requiredLevel === undefined) {
-            // 未定義のセキュリティレベルはPUBLIC扱い
-            return userLevel >= 1;
-        }
-
+        const requiredLevel = SECURITY_LEVEL_MAP[contentSecurityLevel] ?? DEFAULT_SECURITY_LEVEL;
         return userLevel >= requiredLevel;
     }
 
@@ -48,7 +44,8 @@ class PermissionFilter {
         }
 
         // Level 1〜2は明示的にアサインされたプロジェクトのみ
-        return userProjects.includes(contentProject);
+        const projects = Array.isArray(userProjects) ? userProjects : [];
+        return projects.includes(contentProject);
     }
 
     /**
@@ -81,23 +78,30 @@ class PermissionFilter {
      * @param {boolean} content.internalOnly - 内部限定フラグ
      * @returns {boolean} アクセス可能かどうか
      */
-    hasAccessToContent(user, content) {
+    hasAccessToContent(user = {}, content = {}) {
+        const {
+            level,
+            employmentType,
+            projects = []
+        } = user;
+        const {
+            securityLevel,
+            projectId,
+            internalOnly
+        } = content;
+
         // SecurityLevelチェック
-        if (!this.checkSecurityLevel(user.level, content.securityLevel)) {
+        if (!this.checkSecurityLevel(level, securityLevel)) {
             return false;
         }
 
         // ProjectAccessチェック（projectIdが指定されている場合のみ）
-        if (content.projectId && !this.checkProjectAccess(user.level, user.projects, content.projectId)) {
+        if (projectId && !this.checkProjectAccess(level, projects, projectId)) {
             return false;
         }
 
         // 業務委託制限チェック
-        if (!this.checkContractorRestriction(user.employmentType, content.internalOnly)) {
-            return false;
-        }
-
-        return true;
+        return this.checkContractorRestriction(employmentType, internalOnly);
     }
 }
 
