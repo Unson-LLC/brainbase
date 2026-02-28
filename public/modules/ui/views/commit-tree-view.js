@@ -108,11 +108,10 @@ export class CommitTreeView {
             // グラフレーンの色を取得（COLORS配列）
             const laneColor = COLORS[row.column % COLORS.length];
             return `<div class="commit-row${cls}" style="color: ${laneColor}">
-                <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}
+                <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}${bm}
+                <span class="commit-desc">${escapeHtml(c.description)}</span>
                 <span class="commit-author">${escapeHtml(c.author)}</span>
                 <span class="commit-time">${escapeHtml(t)}</span>
-                ${bm}
-                <span class="commit-desc">${escapeHtml(c.description)}</span>
             </div>`;
         }).join('');
 
