@@ -1,14 +1,13 @@
 {
-  "status": "success",
-  "reason": "refactor_completed",
+  "status": "skipped",
+  "reason": "judge_threshold_not_met",
   "details": {
-    "area": "public/modules/setup",
-    "filesModified": 1,
-    "judgeScore": 94
+    "area": "server/utils",
+    "attemptCount": 3
   },
-  "timestamp": "2026-02-28T12:11:17.914Z",
+  "timestamp": "2026-02-28T15:16:04.526Z",
   "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22520468394",
-  "runNumber": "142",
+  "runId": "22523184533",
+  "runNumber": "143",
   "eventName": "schedule"
 }
