@@ -12,16 +12,16 @@ const DOT_R = 4;
 const ROW_H = 32;
 
 const COLORS = [
-    '#4a9eff', // blue
-    '#ff6b6b', // red
-    '#50c878', // green
-    '#ffa500', // orange
-    '#da70d6', // orchid
-    '#40e0d0', // turquoise
-    '#ffdf00', // yellow
-    '#ff69b4', // hot pink
-    '#87ceeb', // sky blue
-    '#deb887', // burlywood
+    '#7db3ff', // light blue (明るい青)
+    '#ff8a8a', // light red
+    '#6dd68f', // light green
+    '#ffb84d', // light orange
+    '#e68ae6', // light orchid
+    '#5ee5d5', // light turquoise
+    '#ffe866', // light yellow
+    '#ff8bc4', // light pink
+    '#a3dcf0', // lighter sky blue
+    '#e6c999', // lighter burlywood
 ];
 
 export class CommitTreeView {
@@ -285,7 +285,11 @@ export class CommitTreeView {
         try {
             const d = new Date(ts);
             if (isNaN(d.getTime())) return ts;
-            return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const minute = String(d.getMinutes()).padStart(2, '0');
+            return `${month}-${day} ${hour}:${minute}`;
         } catch { return ts; }
     }
 
