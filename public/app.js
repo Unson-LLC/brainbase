@@ -661,7 +661,9 @@ export class App {
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
         this.container.register('browserNotificationService', () => new BrowserNotificationService());
-        this.container.register('goalSeekService', () => new GoalSeekService());
+        this.container.register('goalSeekService', () => new GoalSeekService({
+            store: this.container.get('store')
+        }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());
 
