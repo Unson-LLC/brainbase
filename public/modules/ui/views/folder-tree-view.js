@@ -179,7 +179,7 @@ export class FolderTreeView {
     async _openFile(sessionId, relativePath) {
         const cwd = this._getSessionCwd(sessionId);
         try {
-            await this.sessionService.openFileInCursor(relativePath, cwd);
+            await this.sessionService.openFileInDefaultApp(relativePath, cwd);
             await this.eventBus.emit(EVENTS.FOLDER_TREE_FILE_OPENED, {
                 sessionId,
                 relativePath

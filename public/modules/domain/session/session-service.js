@@ -415,7 +415,21 @@ export class SessionService {
     }
 
     /**
-     * ファイルをCursorで開く
+     * ファイルをデフォルトアプリで開く
+     * @param {string} relativePath - セッションCWDからの相対パス
+     * @param {string|null} cwd - セッションの作業ディレクトリ
+     * @returns {Promise<Object>}
+     */
+    async openFileInDefaultApp(relativePath, cwd = null) {
+        return await this.httpClient.post('/api/open-file', {
+            path: relativePath,
+            mode: 'file',
+            cwd
+        });
+    }
+
+    /**
+     * ファイルをCursorで開く（互換用）
      * @param {string} relativePath - セッションCWDからの相対パス
      * @param {string|null} cwd - セッションの作業ディレクトリ
      * @returns {Promise<Object>}
