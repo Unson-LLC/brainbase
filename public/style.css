@@ -1954,6 +1954,8 @@ body::after {
 
 .commit-tree-rows {
     position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .commit-row {
@@ -1965,7 +1967,7 @@ body::after {
     padding: 0 6px 0 2px;
     box-sizing: border-box;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    overflow: hidden;
+    min-width: max-content;
     /* color: レーンごとの色（インラインstyleで設定） */
 }
 
@@ -1990,11 +1992,8 @@ body::after {
     /* color: 親から継承（レーンの色） */
     line-height: 1.2;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1 1 300px;
-    min-width: 0;
-    margin-right: 12px;
+    flex-shrink: 0;
+    margin-right: 16px;
 }
 
 .commit-hash {
