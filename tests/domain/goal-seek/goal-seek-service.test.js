@@ -177,6 +177,13 @@ describe('GoalSeekService', () => {
             expect(sentMessage).toBeDefined();
             expect(sentMessage.payload).toEqual(payload);
             expect(sentMessage.correlationId).toBeDefined();
+
+            mockWs._simulateMessage({
+                type: 'completed',
+                correlationId: sentMessage.correlationId,
+                result: { success: true }
+            });
+            await resultPromise;
         });
 
         it('UT-034: 計算結果を受信して返す', async () => {
@@ -352,7 +359,7 @@ describe('GoalSeekService', () => {
                 reason: 'Target is correct'
             };
 
-            service.sendInterventionResponse(response);
+            const ackPromise = service.sendInterventionResponse(response);
 
             // 送信されたメッセージを確認
             const sentMessage = mockWs.sentMessages.find(m => m.type === 'intervention_response');
@@ -360,6 +367,14 @@ describe('GoalSeekService', () => {
             expect(sentMessage.payload.interventionId).toBe('intervention-123');
             expect(sentMessage.payload.choice).toBe('proceed');
             expect(sentMessage.payload.reason).toBe('Target is correct');
+
+            mockWs._simulateMessage({
+                type: 'intervention_acknowledged',
+                correlationId: sentMessage.correlationId,
+                interventionId: 'intervention-123',
+                choice: 'proceed'
+            });
+            await ackPromise;
         });
 
         it('UT-037: 介入確認メッセージを受信して返す', async () => {
@@ -391,8 +406,7 @@ describe('GoalSeekService', () => {
         it('UT-038: キャンセルリクエストを送信できる', async () => {
             await connectAndWait(service);
 
-            // 計算を開始
-            const calculatePromise = service.calculate({ target: 1000, period: 30 });
+            service._currentCorrelationId = 'test-correlation-id';
 
             // キャンセルを送信
             const cancelPromise = service.cancel();
@@ -400,6 +414,7 @@ describe('GoalSeekService', () => {
             // 送信されたメッセージを確認
             const sentMessage = mockWs.sentMessages.find(m => m.type === 'cancel');
             expect(sentMessage).toBeDefined();
+            expect(sentMessage.correlationId).toBe('test-correlation-id');
 
             // キャンセル確認メッセージをシミュレート
             mockWs._simulateMessage({
@@ -527,6 +542,35 @@ describe('GoalSeekService', () => {
 
             // disconnect後はwsがnullになるため、isConnected()はfalsyを返す
             expect(service.isConnected()).toBeFalsy();
+        });
+    });
+
+    describe('correlation cleanup', () => {
+        it('UT-041: 完了メッセージ受信時_保留がなくてもcurrentCorrelationIdをクリアする', () => {
+            const correlationId = 'gs_test_complete';
+            service._currentCorrelationId = correlationId;
+            service._pendingRequests.clear();
+
+            service._handleCompleted({
+                type: 'completed',
+                correlationId,
+                result: { ok: true }
+            });
+
+            expect(service._currentCorrelationId).toBeNull();
+        });
+
+        it('UT-041: キャンセルメッセージ受信時_保留がなくてもcurrentCorrelationIdをクリアする', () => {
+            const correlationId = 'gs_test_cancel';
+            service._currentCorrelationId = correlationId;
+            service._pendingRequests.clear();
+
+            service._handleCancelled({
+                type: 'cancelled',
+                correlationId
+            });
+
+            expect(service._currentCorrelationId).toBeNull();
         });
     });
 });
