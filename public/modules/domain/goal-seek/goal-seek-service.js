@@ -198,9 +198,7 @@ export class GoalSeekService {
      * @returns {Promise<Object>} 確認結果
      */
     async sendInterventionResponse(response) {
-        if (!this.isConnected()) {
-            throw new Error('WebSocket is not connected');
-        }
+        this._assertConnected();
 
         const correlationId = this._generateCorrelationId();
 
@@ -226,9 +224,7 @@ export class GoalSeekService {
      * @returns {Promise<Object>} キャンセル結果
      */
     async cancel() {
-        if (!this.isConnected()) {
-            throw new Error('WebSocket is not connected');
-        }
+        this._assertConnected();
 
         const correlationId = this._currentCorrelationId || this._generateCorrelationId();
 
@@ -331,12 +327,7 @@ export class GoalSeekService {
     _handleCompleted(message) {
         const { correlationId, result } = message;
 
-        // 保留中のリクエストを解決
-        const pending = this._pendingRequests.get(correlationId);
-        if (pending) {
-            this._pendingRequests.delete(correlationId);
-            pending.resolve(result);
-        }
+        const resolved = this._resolvePendingRequest(correlationId, result);
 
         // EventBusに通知
         this.eventBus.emit(EVENTS.GOAL_SEEK_COMPLETED, {
@@ -382,16 +373,11 @@ export class GoalSeekService {
     _handleInterventionAcknowledged(message) {
         const { correlationId, interventionId, choice } = message;
 
-        // 保留中のリクエストを解決
-        const pending = this._pendingRequests.get(correlationId);
-        if (pending) {
-            this._pendingRequests.delete(correlationId);
-            pending.resolve({
-                interventionId,
-                choice,
-                acknowledged: true
-            });
-        }
+        this._resolvePendingRequest(correlationId, {
+            interventionId,
+            choice,
+            acknowledged: true
+        });
     }
 
     /**
@@ -401,12 +387,7 @@ export class GoalSeekService {
     _handleCancelled(message) {
         const { correlationId } = message;
 
-        // 保留中のリクエストを解決
-        const pending = this._pendingRequests.get(correlationId);
-        if (pending) {
-            this._pendingRequests.delete(correlationId);
-            pending.resolve({ cancelled: true, correlationId });
-        }
+        const resolved = this._resolvePendingRequest(correlationId, { cancelled: true, correlationId });
 
         // 関連する他のリクエストもキャンセル
         if (this._currentCorrelationId === correlationId) {
@@ -467,6 +448,16 @@ export class GoalSeekService {
     }
 
     /**
+     * 接続済みか検証
+     * @private
+     */
+    _assertConnected() {
+        if (!this.isConnected()) {
+            throw new Error('WebSocket is not connected');
+        }
+    }
+
+    /**
      * correlationIdを生成
      * @returns {string}
      * @private
@@ -489,6 +480,28 @@ export class GoalSeekService {
         }
         this._pendingRequests.clear();
         this._currentCorrelationId = null;
+    }
+
+    /**
+     * 保留中リクエストを解決
+     * @param {string} correlationId
+     * @param {any} payload
+     * @returns {boolean}
+     * @private
+     */
+    _resolvePendingRequest(correlationId, payload) {
+        if (!correlationId) {
+            return false;
+        }
+
+        const pending = this._pendingRequests.get(correlationId);
+        if (!pending) {
+            return false;
+        }
+
+        this._pendingRequests.delete(correlationId);
+        pending.resolve(payload);
+        return true;
     }
 }
 
