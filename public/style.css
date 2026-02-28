@@ -1993,7 +1993,9 @@ body::after {
     line-height: 1.2;
     white-space: nowrap;
     flex-shrink: 0;
-    margin-right: 8px;
+    width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .commit-hash {
@@ -2005,7 +2007,6 @@ body::after {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-right: 4px;
     opacity: 0.7;
 }
 
@@ -2017,7 +2018,6 @@ body::after {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-right: 4px;
     opacity: 0.7;
 }
 
