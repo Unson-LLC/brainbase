@@ -14,7 +14,7 @@ describe('FolderTreeView', () => {
 
         sessionService = {
             getSessionFolderTree: vi.fn(),
-            openFileInCursor: vi.fn().mockResolvedValue({ success: true })
+            openFileInDefaultApp: vi.fn().mockResolvedValue({ success: true })
         };
         folderTreeView = new FolderTreeView({ sessionService });
 
@@ -93,7 +93,7 @@ describe('FolderTreeView', () => {
         fileButton.click();
 
         await vi.waitFor(() => {
-            expect(sessionService.openFileInCursor).toHaveBeenCalledWith('README.md', '/tmp/project');
+            expect(sessionService.openFileInDefaultApp).toHaveBeenCalledWith('README.md', '/tmp/project');
         });
         expect(listener).toHaveBeenCalled();
         unsubscribe();

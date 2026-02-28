@@ -811,6 +811,18 @@ describe('SessionService', () => {
             expect(httpClient.get).toHaveBeenCalledWith('/api/sessions/session-1/folder-tree?depth=2');
         });
 
+        it('openFileInDefaultApp呼び出し時_open-file APIが呼ばれる', async () => {
+            httpClient.post.mockResolvedValue({ success: true });
+
+            await sessionService.openFileInDefaultApp('README.md', '/tmp/project');
+
+            expect(httpClient.post).toHaveBeenCalledWith('/api/open-file', {
+                path: 'README.md',
+                mode: 'file',
+                cwd: '/tmp/project'
+            });
+        });
+
         it('openFileInCursor呼び出し時_open-file APIが呼ばれる', async () => {
             httpClient.post.mockResolvedValue({ success: true });
 

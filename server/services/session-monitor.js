@@ -40,6 +40,7 @@ export class SessionMonitor {
         this.IDLE_THRESHOLD_POLLS = 6;  // 30秒（5秒 × 6回）
         this.LARGE_OUTPUT_THRESHOLD = 100;  // 100行以上で抽出
         this.MAX_IMPORTANT_LINES = 20;  // 最大20行
+        this.MIN_PROMPT_INTERVAL_MS = 60000;  // 最小プロンプト送信間隔（60秒）
     }
 
     /**
@@ -58,7 +59,8 @@ export class SessionMonitor {
             goalId: goal.id,
             startedAt: Date.now(),
             pollCount: 0,
-            problemCount: 0
+            problemCount: 0,
+            lastPromptSentAt: 0  // 最後のプロンプト送信時刻
         });
 
         // ✅ Phase 1: 初回プロンプト自動送信
@@ -204,9 +206,22 @@ export class SessionMonitor {
                 this._unchangedPollCount.set(sessionId, count);
 
                 if (count >= this.IDLE_THRESHOLD_POLLS) {
-                    logger.info('SessionMonitor: idle detected, prompting next step', { sessionId, count });
-                    await this._promptNextStep(sessionId, goal, content);
-                    this._unchangedPollCount.set(sessionId, 0);  // リセット
+                    // ✅ 最後のプロンプト送信から60秒以上経過しているかチェック
+                    const meta = this._monitoringMeta.get(sessionId);
+                    const timeSinceLastPrompt = Date.now() - (meta?.lastPromptSentAt || 0);
+
+                    if (timeSinceLastPrompt >= this.MIN_PROMPT_INTERVAL_MS) {
+                        logger.info('SessionMonitor: idle detected, prompting next step', { sessionId, count, timeSinceLastPrompt });
+                        await this._promptNextStep(sessionId, goal, content);
+                        this._unchangedPollCount.set(sessionId, 0);  // リセット
+                    } else {
+                        logger.debug('SessionMonitor: idle detected but waiting for AI response', {
+                            sessionId,
+                            count,
+                            timeSinceLastPrompt,
+                            remainingWait: this.MIN_PROMPT_INTERVAL_MS - timeSinceLastPrompt
+                        });
+                    }
                 }
             } else {
                 // 出力が変化した → カウントリセット
@@ -331,6 +346,7 @@ export class SessionMonitor {
             const meta = this._monitoringMeta.get(sessionId);
             if (meta) {
                 meta.initialContentLength = initialContent.length;
+                meta.lastPromptSentAt = Date.now();  // 初回プロンプト送信時刻を記録
             }
 
             await this.goalStore.addTimelineEntry({
@@ -415,6 +431,12 @@ export class SessionMonitor {
         try {
             await this.sessionManager.sendInput(sessionId, prompt, 'text');
             await this.sessionManager.sendInput(sessionId, 'Enter', 'key');
+
+            // ✅ 最後のプロンプト送信時刻を記録
+            const meta = this._monitoringMeta.get(sessionId);
+            if (meta) {
+                meta.lastPromptSentAt = Date.now();
+            }
 
             await this.goalStore.addTimelineEntry({
                 goalId: goal.id,
