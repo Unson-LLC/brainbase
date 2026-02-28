@@ -31,6 +31,15 @@ export function clearDone(sessionId) {
     }
 }
 
+// Clear working status when session is switched
+export function clearWorking(sessionId) {
+    const status = sessionStatusMap.get(sessionId);
+    if (status) {
+        status.isWorking = false;
+        sessionStatusMap.set(sessionId, status);
+    }
+}
+
 // --- Connection Status ---
 
 /**
@@ -76,27 +85,30 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         const status = await res.json();
-        const entries = Object.entries(status || {});
-        let hasStatusChange = entries.length !== sessionStatusMap.size;
+        const previousStatuses = new Map(sessionStatusMap);
+        let hasStatusChange = false;
 
-        for (const [sessionId, newStatus] of entries) {
-            const prev = sessionStatusMap.get(sessionId);
+        // Debug log: 取得した状態を可視化
+        const workingSessions = Object.entries(status).filter(([, s]) => s.isWorking);
+        const doneSessions = Object.entries(status).filter(([, s]) => s.isDone && !s.isWorking);
+        if (workingSessions.length > 0 || doneSessions.length > 0) {
+            console.log('[Session Indicators] Status update:', {
+                working: workingSessions.map(([id]) => id),
+                done: doneSessions.map(([id]) => id)
+            });
+        }
+
+        // Update map
+        for (const [sessionId, newStatus] of Object.entries(status)) {
+            const prev = previousStatuses.get(sessionId);
             if (!prev ||
                 prev.isWorking !== newStatus.isWorking ||
                 prev.isDone !== newStatus.isDone ||
                 prev.lastWorkingAt !== newStatus.lastWorkingAt ||
-                prev.lastDoneAt !== newStatus.lastDoneAt ||
-                prev.running !== newStatus.running ||
-                prev.proxyPath !== newStatus.proxyPath ||
-                prev.port !== newStatus.port
+                prev.lastDoneAt !== newStatus.lastDoneAt
             ) {
                 hasStatusChange = true;
             }
-        }
-
-        // 常に最新スナップショットへ置き換え（削除済みセッションを反映）
-        sessionStatusMap.clear();
-        for (const [sessionId, newStatus] of entries) {
             sessionStatusMap.set(sessionId, newStatus);
         }
 
@@ -122,11 +134,15 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         consecutiveErrors++;
         console.error('Failed to poll session status:', error);
 
-        // 連続エラー時のユーザー通知（初回のみ）
-        if (consecutiveErrors === MAX_CONSECUTIVE_ERRORS) {
-            showError('サーバーとの接続が不安定です');
-            // 接続状態を更新（切断）
+        // 即座にエラー表示（初回エラー時）
+        if (consecutiveErrors === 1) {
+            showError('サーバーとの接続エラー（リトライ中）');
             updateConnectionStatus(false);
+        }
+
+        // 連続エラー時の追加通知（3回目）
+        if (consecutiveErrors === MAX_CONSECUTIVE_ERRORS) {
+            showError('サーバーとの接続が不安定です（自動リトライ継続中）');
         }
     }
 }

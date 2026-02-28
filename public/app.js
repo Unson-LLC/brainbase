@@ -13,9 +13,10 @@ import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
-import { pollSessionStatus, updateSessionIndicators, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, updateSessionIndicators, startPolling, clearWorking } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
+import { showConfirm, showConfirmWithAction } from './modules/confirm-modal.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
@@ -39,11 +40,9 @@ import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
-import { SessionContextBarView } from './modules/ui/views/session-context-bar-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
-import { setupSidebarPrimaryToggle } from './modules/ui/sidebar-primary-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
@@ -680,14 +679,6 @@ export class App {
      * Initialize views
      */
     initViews() {
-        const contextBarContainer = document.getElementById('session-context-bar');
-        if (contextBarContainer) {
-            this.views.sessionContextBarView = new SessionContextBarView({
-                sessionService: this.sessionService
-            });
-            this.views.sessionContextBarView.mount(contextBarContainer);
-        }
-
         // Sessions (left sidebar)
         const sessionContainer = document.getElementById('session-list');
         if (sessionContainer) {
@@ -1097,6 +1088,9 @@ export class App {
             const { sessionId } = event.detail;
             console.log('Session changed:', sessionId);
 
+            // Clear working status of the new session (prevent stale working indicator)
+            clearWorking(sessionId);
+
             // Update currentSessionId in store
             appStore.setState({ currentSessionId: sessionId });
 
@@ -1261,23 +1255,51 @@ export class App {
             this.modals.renameModal.open(session);
         });
 
-        // Goal seek: open goal seek modal
-        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, async (event) => {
-            const { session } = event.detail;
-            const sessionId = session?.id;
-            if (!sessionId) return;
+        // Merge session: send /merge command to Claude Code
+        const unsub6 = eventBus.on(EVENTS.MERGE_SESSION, async (event) => {
+            const { sessionId } = event.detail;
+            const { sessions } = appStore.getState();
+            const session = sessions.find(s => s.id === sessionId);
+            const displayName = session?.name || sessionId;
 
-            // 既存ゴールを確認
-            const goals = await this.goalSeekService.getGoals();
-            const existingGoal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
-
-            if (existingGoal) {
-                // UPDATE mode
-                this.modals.goalSeekModal.show(sessionId, existingGoal.id);
-            } else {
-                // CREATE mode
-                this.modals.goalSeekModal.show(sessionId, null);
+            const confirmed = await showConfirm(
+                `「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`,
+                {
+                    title: 'Merge to main',
+                    okText: 'マージ実行',
+                    cancelText: 'キャンセル',
+                    danger: false
+                }
+            );
+            if (!confirmed) {
+                return;
             }
+
+            try {
+                // Send /merge command to Claude Code via tmux
+                await fetch(`/api/sessions/${sessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: '/merge', type: 'text' })
+                });
+                // Send Enter key to execute the command
+                await fetch(`/api/sessions/${sessionId}/input`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: 'Enter', type: 'key' })
+                });
+
+                showSuccess('/merge コマンドを送信しました。ターミナルで進捗を確認してください。');
+            } catch (err) {
+                console.error('Failed to send merge command', err);
+                showError('/merge コマンドの送信に失敗しました');
+            }
+        });
+
+        // Goal seek: open goal seek modal
+        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
+            const { session } = event.detail;
+            this.modals.goalSeekModal.show(session?.id);
         });
 
         // Goal seek: update banner when goal is created/updated
@@ -1321,7 +1343,7 @@ export class App {
             if (sessionId === currentSessionId) this._updateSessionGoalBanner(currentSessionId);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -1399,9 +1421,7 @@ export class App {
         await this.initSettingsWithExtensions();
 
         const cleanupSessionViewToggle = setupSessionViewToggle({ store: appStore });
-        const cleanupSidebarPrimaryToggle = setupSidebarPrimaryToggle({ store: appStore });
         this.unsubscribers.push(cleanupSessionViewToggle);
-        this.unsubscribers.push(cleanupSidebarPrimaryToggle);
 
         // Auth button (sidebar)
         this.setupAuthControls();
@@ -1409,8 +1429,8 @@ export class App {
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
         if (toggleArchivedBtn) {
-            toggleArchivedBtn.onclick = async () => {
-                await this.modals.archiveModal.open();
+            toggleArchivedBtn.onclick = () => {
+                this.modals.archiveModal.open();
             };
         }
 
@@ -2040,8 +2060,8 @@ export class App {
         // Mobile archive toggle button
         const mobileToggleArchivedBtn = document.getElementById('mobile-toggle-archived-btn');
         if (mobileToggleArchivedBtn) {
-            mobileToggleArchivedBtn.addEventListener('click', async () => {
-                await this.modals.archiveModal.open();
+            mobileToggleArchivedBtn.addEventListener('click', () => {
+                this.modals.archiveModal.open();
                 closeSessionsSheet();
             });
         }
@@ -2134,25 +2154,13 @@ export class App {
                 <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
                 <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
                 <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
-                <button class="sgb-btn sgb-btn-edit" data-goal-id="${goal.id}">
-                    <i data-lucide="edit-2"></i>編集
-                </button>
                 <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
                 ${checkTimeHtml}
             `;
 
             banner.className = `session-goal-banner status-${goal.status}`;
 
-            // 編集ボタンのイベントリスナー
-            const editBtn = banner.querySelector('.sgb-btn-edit');
-            if (editBtn) {
-                editBtn.addEventListener('click', () => {
-                    this.modals.goalSeekModal.show(sessionId, goal.id);
-                });
-            }
-
-            // 監視開始/停止ボタンのイベントリスナー
-            const btn = banner.querySelector('.sgb-btn[data-action]');
+            const btn = banner.querySelector('.sgb-btn');
             if (btn) {
                 btn.addEventListener('click', async () => {
                     try {
