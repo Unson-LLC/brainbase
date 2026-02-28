@@ -43,6 +43,7 @@ import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
+import { setupSidebarPrimaryToggle } from './modules/ui/sidebar-primary-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
@@ -1423,7 +1424,9 @@ export class App {
         await this.initSettingsWithExtensions();
 
         const cleanupSessionViewToggle = setupSessionViewToggle({ store: appStore });
+        const cleanupSidebarPrimaryToggle = setupSidebarPrimaryToggle({ store: appStore });
         this.unsubscribers.push(cleanupSessionViewToggle);
+        this.unsubscribers.push(cleanupSidebarPrimaryToggle);
 
         // Auth button (sidebar)
         this.setupAuthControls();
