@@ -33,6 +33,70 @@ const SENSITIVE_PATH_PATTERNS = [
     /\/\.gnupg/
 ];
 
+const JWT_TOKEN_REGEX = /^eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/;
+const HEX_KEY_REGEX = /^[a-fA-F0-9]{32,}$/;
+const CONSOLE_METHODS = {
+    info: 'log',
+    warn: 'warn',
+    error: 'error',
+    debug: 'log'
+};
+
+function isPlainObject(value) {
+    return Object.prototype.toString.call(value) === '[object Object]';
+}
+
+function redactString(value) {
+    if (JWT_TOKEN_REGEX.test(value)) {
+        return '[JWT_REDACTED]';
+    }
+
+    if (HEX_KEY_REGEX.test(value)) {
+        return '[HEX_KEY_REDACTED]';
+    }
+
+    for (const pattern of SENSITIVE_PATH_PATTERNS) {
+        if (pattern.test(value)) {
+            return '[SENSITIVE_PATH_REDACTED]';
+        }
+    }
+
+    return value;
+}
+
+function serializeError(error) {
+    return {
+        error: error.message,
+        stack: error.stack
+    };
+}
+
+function sanitizeLogData(data = {}) {
+    if (data instanceof Error) {
+        return serializeError(data);
+    }
+
+    if (data && typeof data === 'object' && data.error instanceof Error) {
+        return {
+            ...data,
+            error: data.error.message,
+            stack: data.error.stack
+        };
+    }
+
+    return data;
+}
+
+function logAtLevel(level, msg, data = {}) {
+    if (level === 'debug' && !process.env.DEBUG) {
+        return;
+    }
+
+    const methodName = CONSOLE_METHODS[level] || 'log';
+    const logMethod = console[methodName];
+    logMethod.call(console, formatLog(level, msg, sanitizeLogData(data)));
+}
+
 /**
  * オブジェクト内の機密情報をマスク
  * @param {*} obj - マスク対象のオブジェクト
@@ -48,29 +112,17 @@ function redact(obj, depth = 0) {
 
     // プリミティブはそのまま
     if (typeof obj !== 'object') {
-        // 文字列の場合、トークンっぽいパターンをマスク
-        if (typeof obj === 'string') {
-            // JWTトークンパターン
-            if (/^eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/.test(obj)) {
-                return '[JWT_REDACTED]';
-            }
-            // 長い16進数文字列（APIキーなど）
-            if (/^[a-fA-F0-9]{32,}$/.test(obj)) {
-                return '[HEX_KEY_REDACTED]';
-            }
-            // 機密パスパターン
-            for (const pattern of SENSITIVE_PATH_PATTERNS) {
-                if (pattern.test(obj)) {
-                    return '[SENSITIVE_PATH_REDACTED]';
-                }
-            }
-        }
-        return obj;
+        return typeof obj === 'string' ? redactString(obj) : obj;
     }
 
     // 配列の場合
     if (Array.isArray(obj)) {
         return obj.map(item => redact(item, depth + 1));
+    }
+
+    // プレーンオブジェクト以外はそのまま返す
+    if (!isPlainObject(obj)) {
+        return obj;
     }
 
     // オブジェクトの場合
@@ -99,9 +151,16 @@ function formatLog(level, msg, data = {}) {
     const entry = {
         timestamp: new Date().toISOString(),
         level,
-        msg,
-        ...redact(data)
+        msg
     };
+
+    const redactedData = redact(data);
+    if (isPlainObject(redactedData)) {
+        Object.assign(entry, redactedData);
+    } else if (redactedData !== undefined) {
+        entry.data = redactedData;
+    }
+
     return JSON.stringify(entry);
 }
 
@@ -115,7 +174,7 @@ export const logger = {
      * @param {Object} data - 追加データ
      */
     info(msg, data = {}) {
-        console.log(formatLog('info', msg, data));
+        logAtLevel('info', msg, data);
     },
 
     /**
@@ -124,7 +183,7 @@ export const logger = {
      * @param {Object} data - 追加データ
      */
     warn(msg, data = {}) {
-        console.warn(formatLog('warn', msg, data));
+        logAtLevel('warn', msg, data);
     },
 
     /**
@@ -133,20 +192,7 @@ export const logger = {
      * @param {Object} data - 追加データ
      */
     error(msg, data = {}) {
-        // エラーオブジェクトの場合、スタックトレースを含める
-        if (data instanceof Error) {
-            data = {
-                error: data.message,
-                stack: data.stack
-            };
-        } else if (data.error instanceof Error) {
-            data = {
-                ...data,
-                error: data.error.message,
-                stack: data.error.stack
-            };
-        }
-        console.error(formatLog('error', msg, data));
+        logAtLevel('error', msg, data);
     },
 
     /**
@@ -155,9 +201,7 @@ export const logger = {
      * @param {Object} data - 追加データ
      */
     debug(msg, data = {}) {
-        if (process.env.DEBUG) {
-            console.log(formatLog('debug', msg, data));
-        }
+        logAtLevel('debug', msg, data);
     }
 };
 
