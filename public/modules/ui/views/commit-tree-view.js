@@ -9,7 +9,7 @@ import { escapeHtml } from '../../ui-helpers.js';
 
 const LANE_W = 16;
 const DOT_R = 4;
-const ROW_H = 54;
+const ROW_H = 60;
 
 const COLORS = [
     '#4a9eff', // blue
@@ -96,13 +96,17 @@ export class CommitTreeView {
         // 1枚SVG
         const graphSvg = this._renderFullGraph(graphRows, maxCols, totalH);
 
-        // コミット情報行（1行表示 + 色分け）
+        // コミット情報行（2行表示 + 色分け）
         const rowsHtml = graphRows.map(row => {
             const c = row.commit;
             const cls = c.isWorkingCopy ? ' current' : '';
             const wcBadge = c.isWorkingCopy ? '<span class="commit-wc-badge">@</span>' : '';
-            const bm = c.bookmarks.length > 0
-                ? c.bookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')
+            // ブランチ（bookmark）は重要なもののみ表示
+            const importantBookmarks = c.bookmarks.filter(b =>
+                b === 'main' || b === 'develop' || b.startsWith('session/')
+            );
+            const bm = importantBookmarks.length > 0
+                ? importantBookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')
                 : '';
             const t = this._formatTime(c.timestamp);
             // グラフレーンの色を取得（COLORS配列）
