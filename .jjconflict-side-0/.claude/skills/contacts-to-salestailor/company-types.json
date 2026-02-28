@@ -1,0 +1,4940 @@
+{
+  "株式会社サイバーディフェンス研究所": {
+    "url": "http://www.cyberdefense.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティ診断・脆弱性診断・ペネトレーションテストを提供するセキュリティ企業"
+  },
+  "グローバル・ブレイン株式会社": {
+    "url": "http://www.globalbrains.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャーキャピタルファームでスタートアップ投資を実施"
+  },
+  "Allganize Japan株式会社": {
+    "url": "https://allganize.ai",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AIプラットフォーム製品Alli Worksを提供するSaaS企業"
+  },
+  "FPTジャパンホールディングス株式会社": {
+    "url": "https://fptsoftware.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・オフショア開発を提供するIT企業"
+  },
+  "NRIセキュアテクノロジーズ株式会社": {
+    "url": "http://www.nri-secure.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティとトラストサービスを提供するセキュリティ企業"
+  },
+  "NTTコミュニケーションズ株式会社": {
+    "url": "http://www.ntt.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ・クラウドサービスを提供する通信IT企業"
+  },
+  "株式会社会津ラボ": {
+    "url": "http://www.aizulab.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・Web開発・IoT開発を行う受託開発企業"
+  },
+  "株式会社マクニカ": {
+    "url": "http://www.macnica.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティ・DXソリューションを提供するIT企業"
+  },
+  "株式会社NTTデータイントラマート": {
+    "url": "http://www.accel-mart.com/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "業務改善プラットフォームAccel-Martを提供するSaaS企業"
+  },
+  "DOVA Corporation": {
+    "url": "https://www.dova.co.jp/",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "アシロボなどのSaaS製品を提供している可能性"
+  },
+  "Tokyo Techies 株式会社": {
+    "url": "https://tokyotechies.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "エンドツーエンドのデジタルソリューションを提供する開発企業"
+  },
+  "ServiceNow Japan合同会社": {
+    "url": "http://servicenow.com/jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AIプラットフォーム・ワークフローSaaSを提供"
+  },
+  "Zaimo株式会社": {
+    "url": "https://lp.zaimo.ai",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AI経営管理プラットフォームを提供するSaaS企業"
+  },
+  "株式会社Relic": {
+    "url": "https://relic.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "新規事業開発・イノベーション創出支援を行う事業共創コンサル企業"
+  },
+  "クオリティソフト株式会社": {
+    "url": "http://www.qualitysoft.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティサービスをクラウドで提供するセキュリティ企業"
+  },
+  "日本エリクソン株式会社": {
+    "url": "http://www.ericsson.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ・ネットワーク機器を提供する通信IT企業"
+  },
+  "株式会社アドウェイズ": {
+    "url": "https://adways.net/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "広告・マーケティングサービスを提供する広告企業"
+  },
+  "株式会社オープンコレクター": {
+    "url": "http://open-c.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "決済システム・クラウドインフラ構築を行う受託開発企業"
+  },
+  "株式会社アイティフォー": {
+    "url": "http://www.itfor.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "地域社会向けITシステム開発を行うIT企業"
+  },
+  "株式会社カナミックネットワーク": {
+    "url": "http://www.kanamic.net/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "医療介護連携ネットワークのSaaSプラットフォーム提供"
+  },
+  "国立研究開発法人情報通信研究機構": {
+    "url": "http://www.nict.go.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "国立研究開発法人、情報通信の研究機関"
+  },
+  "株式会社エアトリ": {
+    "url": "https://www.airtrip.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "旅行予約プラットフォーム及びCXOコミュニティ事業を展開"
+  },
+  "株式会社デジタルガレージ": {
+    "url": "https://www.garage.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "投資・インキュベーション事業を展開するデジタル系投資企業"
+  },
+  "株式会社Decentier": {
+    "url": "https://decentier.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "web3特化のコンサルティング・新規事業支援"
+  },
+  "ジェネシスクラウドサービス株式会社": {
+    "url": "http://www.genesys.com/jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AIベースのカスタマーエクスペリエンス・プラットフォーム提供"
+  },
+  "株式会社NTTドコモ": {
+    "url": "http://www.nttdocomo.co.jp/biz/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ及びビジネスソリューション提供"
+  },
+  "": {
+    "url": "https://www.locofy.ai",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "デザインからコード生成するフロントエンド開発プラットフォーム"
+  },
+  "有限会社 GH9": {
+    "url": "http://www.GH9.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "量子コンピュータ・機械学習・システム開発の技術サービス"
+  },
+  "株式会社フォー・クオリア": {
+    "url": "https://4qualia.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "AI/IoT、UI/UX、システム開発・デバッグサービス提供"
+  },
+  "株式会社MAKE A CHANGE": {
+    "url": "https://makeachange.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "自社プロダクト売却済み、現在の事業内容不明"
+  },
+  "KDDIまとめてオフィス株式会社": {
+    "url": "https://www.kddimatomete.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "KDDI系の通信・オフィスソリューション提供企業"
+  },
+  "株式会社ACCESS": {
+    "url": "http://www.access-company.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "IoT・組込みソフトウェア及びプロフェッショナルサービス提供"
+  },
+  "株式会社トリプルアイズ": {
+    "url": "https://www.3-ize.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "画像認識プラットフォームAIZE提供"
+  },
+  "ムーバクラウド株式会社": {
+    "url": "http://www.movacloud.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AI英語学習アプリEngAce等のクラウドサービス提供"
+  },
+  "日本アイ・ビー・エム株式会社": {
+    "url": "https://www.ibm.com/jp-ja/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "AIハイブリッドクラウド・コンサルティング・ITインフラ提供"
+  },
+  "株式会社日本AIコンサルティング": {
+    "url": "https://j-aic.com/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "AIを活用したチームづくり・組織コンサルティング"
+  },
+  "クオリティ株式会社": {
+    "url": "http://www.quality.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティサービス・ITインフラ提供"
+  },
+  "株式会社ミルプラトー": {
+    "url": "https://1000plateaux.com/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "データ活用支援サービスを提供"
+  },
+  "富士ソフト株式会社": {
+    "url": "http://www.fsi.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・IT事業を主体とする企業"
+  },
+  "株式会社ビザスク": {
+    "url": "http://visasq.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "ビジネスマッチングプラットフォームを提供"
+  },
+  "ヴィタネット・ジャパン株式会社": {
+    "url": "http://www.vita.net/jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "店舗内スマホプッシュ通知広告のクラウドサービスを提供"
+  },
+  "TIS Inc.": {
+    "url": "http://www.tis.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システムインテグレーション・IT事業を展開"
+  },
+  "Rubrik Japan株式会社": {
+    "url": "http://rubrik.com/ja/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "データ保護・サイバーセキュリティのクラウドプラットフォームを提供"
+  },
+  "Keepdata株式会社": {
+    "url": "http://www.keepdata.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "DX推進支援・コンサルティングサービスを提供"
+  },
+  "株式会社ブロードバンドタワー": {
+    "url": "http://www.bbtower.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "データセンター・通信インフラ事業を展開"
+  },
+  "グーグル・クラウド・ジャパン合同会社": {
+    "url": "https://cloud.google.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "クラウドプラットフォームサービスを提供"
+  },
+  "SoftBank Commerce & Service Corp.": {
+    "url": "https://cas.softbank.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ITソリューション・通信サービスを提供"
+  },
+  "BBSakuraNetworks株式会社": {
+    "url": "http://bbsakura.net",
+    "type": "it",
+    "confidence": "high",
+    "reason": "5G・IoT・クラウドの技術基盤・ソフトウェア開発"
+  },
+  "クリエーションライン株式会社": {
+    "url": "https://www.creationline.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "クラウドインテグレーション・システム開発"
+  },
+  "DIRECT HUMAN MARKETING": {
+    "url": "https://direct-human-marketing.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "セールス・マーケティング支援コンサルティング"
+  },
+  "株式会社DROX": {
+    "url": "https://drox-inc.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "AI技術を活用した課題解決・事業支援"
+  },
+  "ZOHO CORPORATION": {
+    "url": "https://zoho.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "ビジネスアプリケーションのSaaSスイートを提供"
+  },
+  "Splunk Services Japan合同会社": {
+    "url": "http://splunk.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "セキュリティ・可観測性プラットフォームを提供"
+  },
+  "ジグソー株式会社": {
+    "url": "http://www.jig-saw.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "IoT・IoA時代の技術・サービス基盤開発"
+  },
+  "株式会社LAplust": {
+    "url": "https://laplust.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AI技術を活用した自社プロダクト・プラットフォームを提供"
+  },
+  "tldx Solutions GmbH": {
+    "url": "https://tldv.io",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AI搭載の会議ノート自動生成SaaSツールを提供"
+  },
+  "株式会社エアー": {
+    "url": "http://www.air.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "メール監査・アーカイブソフトウェアの自社開発・提供"
+  },
+  "株式会社クレオ": {
+    "url": "http://creo.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "企業変革・DX推進のコンサルティングサービスを提供"
+  },
+  "エンゲート株式会社": {
+    "url": "http://engate.co.jp/",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "スポーツ選手支援プラットフォームを提供"
+  },
+  "アルティウスリンク株式会社": {
+    "url": "https://www.altius-link.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "コンタクトセンターBPOサービス（アウトソーシング事業）"
+  },
+  "株式会社インタークエスト": {
+    "url": "http://www.iqnet.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "Webシステム開発を中心とした受託開発企業"
+  },
+  "株式会社 Sales and Innovation Japan": {
+    "url": "https://www.salesandinnovation.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "営業力と事業構想力によるスタートアップ支援・新規事業開発支援"
+  },
+  "株式会社アンノーン": {
+    "url": "https://unoun.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "スマホアプリ・Webアプリ・AI・ブロックチェーン等の受託開発"
+  },
+  "株式会社電通": {
+    "url": "http://www.dentsu.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "広告代理店・マーケティング企業"
+  },
+  "株式会社TIMEWELL": {
+    "url": "https://timewell.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "AIを活用したアプリ開発プログラム・AIエージェント提供"
+  },
+  "日本郵政キャピタル株式会社": {
+    "url": "https://www.jp-capital.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "日本郵政グループのベンチャーキャピタル・投資企業"
+  },
+  "りらいあコミュニケーションズ株式会社": {
+    "url": "https://www.relia-group.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "コンタクトセンターBPOサービス（アウトソーシング事業）"
+  },
+  "UiPath株式会社": {
+    "url": "http://www.uipath.com/ja/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "RPA・インテリジェントオートメーションプラットフォームを提供"
+  },
+  "株式会社タナベ経営": {
+    "url": "http://www.tanabekeiei.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "経営コンサルティングサービスを提供"
+  },
+  "株式会社セールスフォース・ドットコム": {
+    "url": "https://salesforce.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "CRMプラットフォーム・SaaS製品提供企業"
+  },
+  "株式会社 FCE": {
+    "url": "https://fce-pat.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "RPA関連のSaaS/DXソリューション提供"
+  },
+  "株式会社ワンズベスト": {
+    "url": "http://www.ones-best.com/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "Webサーバーのデフォルトページのみで業務内容不明"
+  },
+  "SBI R3 Japan株式会社": {
+    "url": "http://sbir3japan.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ブロックチェーン技術・分散型台帳システム開発"
+  },
+  "経済産業省": {
+    "url": "http://www.meti.go.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政府機関（経済産業省）"
+  },
+  "日商エレクトロニクス株式会社": {
+    "url": "http://www.nissho-ele.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITシステム開発・商社向け基幹システム提供"
+  },
+  "株式会社Joystruct": {
+    "url": "https://joystruct.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "組織開発・エンジニアリングマネジメント支援"
+  },
+  "株式会社Wanderlust": {
+    "url": "https://wander-lust.io",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "エンジニア・PM・コンサル採用からIT/開発企業と推定"
+  },
+  "株式会社クレオソリューション": {
+    "url": "http://creo-sol.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "DX・企業変革支援・デジタル社会実現コンサルティング"
+  },
+  "東洋製罐グループホールディングス株式会社": {
+    "url": "http://www.tskg-hd.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "製造業（容器・包装製造グループ）"
+  },
+  "株式会社PHONE APPLI": {
+    "url": "http://phoneappli.net",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "組織コミュニケーション・マネジメントSaaS提供"
+  },
+  "ベスカ株式会社": {
+    "url": "http://www.vesca.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "決済・マーケティングプラットフォーム提供"
+  },
+  "佐鳥電機株式会社": {
+    "url": "https://www.satori.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "電機関連企業と推定されるが詳細不明"
+  },
+  "uCloudlink Japan株式会社": {
+    "url": "https://jp.ucloudlink.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "クラウドリンク通信サービス・通信インフラ提供"
+  },
+  "アスクル株式会社": {
+    "url": "http://www.askul.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "オフィス用品・生活雑貨等のEC・小売事業"
+  },
+  "株式会社ISAO": {
+    "url": "http://www.isao.co.jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "Work SaaS製品を提供するSaaSプラットフォーム企業"
+  },
+  "ソフトバンククリエイティブ株式会社": {
+    "url": "http://www.sbcr.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "出版社・書籍出版事業"
+  },
+  "ミツイワ株式会社": {
+    "url": "http://www.mitsuiwa.co.jp/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "製造業向けソリューション・スマートファクトリー関連"
+  },
+  "ユニテック・ジャパン株式会社": {
+    "url": "https://www.ute.com/jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "データ収集デバイス・RFID/バーコードスキャナー等ハードウェア製品提供"
+  },
+  "スミセイ情報システム株式会社": {
+    "url": "http://www.slcs.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "情報システム開発・ITソリューション提供企業"
+  },
+  "株式会社ザイマックス": {
+    "url": "https://www.xymax.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産サービス・不動産管理事業"
+  },
+  "Rebright Partners Pte Ltd": {
+    "url": "http://www.rebrightpartners.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ASEAN・インド・日本間のベンチャー投資ファンド"
+  },
+  "株式会社サードスコープ": {
+    "url": "http://third-scope.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "UI/UX設計からシステム実装までの受託開発"
+  },
+  "VitaNet, Inc.": {
+    "url": "http://www.vita.net",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "リテール向けリアルタイムプロモーションプラットフォーム提供"
+  },
+  "株式会社DMM.comラボ": {
+    "url": "http://dmm.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "総合エンターテインメント・EC事業"
+  },
+  "合同会社 ZONER": {
+    "url": "https://www.zoner.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "画像編集・管理ソフトウェアパッケージ販売"
+  },
+  "フォースタートアップス株式会社": {
+    "url": "https://forstartups.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "スタートアップ投資・人材支援サービス"
+  },
+  "株式会社トライネット": {
+    "url": "http://www.trinet.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "Webシステム開発・保守運用・機械学習等IT受託開発"
+  },
+  "株式会社日立システムズ": {
+    "url": "http://www.hitachi-systems.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システムインテグレーション・IT保守運用サービス"
+  },
+  "株式会社コプラス": {
+    "url": "https://kolplus.co.jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "ソーシャルコマースプラットフォーム・ECシステム提供"
+  },
+  "Kii株式会社": {
+    "url": "http://www.kii.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "IoT/モバイルバックエンドプラットフォーム提供"
+  },
+  "Shenzhen Guanglianzhitong Tech Co., Ltd": {
+    "url": "https://www.gl-inet.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "5G NR、Wi-Fi 7トラベルルーターなど通信インフラ機器の製造・販売"
+  },
+  "株式会社みらい創造インベストメンツ": {
+    "url": "https://miraisozo.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "投資を推進する企業名に「インベストメンツ」を含む"
+  },
+  "株式会社エヌ・ティ・ティマーケティングアクト": {
+    "url": "http://www.nttact.com/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "コールセンター・BPO・CXコンサルティングサービスを提供"
+  },
+  "株式会社リメディア": {
+    "url": "http://www.remedia.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "Web制作・広告・プロモーション会社"
+  },
+  "株式会社市川サッカークラブ": {
+    "url": "https://ichikawasc.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "サッカークラブ運営"
+  },
+  "アスラテック株式会社": {
+    "url": "http://www.asratec.co.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ロボティクス・テクノロジー関連の技術開発企業"
+  },
+  "株式会社Phone Appli": {
+    "url": "http://www.phoneappli.net",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "組織コミュニケーションとマネジメント見える化のSaaSプラットフォーム提供"
+  },
+  "富士通株式会社": {
+    "url": "http://www.fujitsu.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITシステム開発・インフラ・セキュリティサービスを提供する総合IT企業"
+  },
+  "イノベーション・エンジン株式会社": {
+    "url": "http://www.innovation-engine.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "テクノロジー企業への投資・ファンド運用を推進"
+  },
+  "富士テレコム株式会社": {
+    "url": "http://www.fujitelecom.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ・テレコムサービス提供企業"
+  },
+  "株式会社 POCKET RD": {
+    "url": "https://pocket-rd.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "3Dアバター生成技術・メタバースプラットフォーム提供"
+  },
+  "株式会社 大和コンピューター": {
+    "url": "http://www.daiwa-computer.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・ITコンサルティングサービス提供"
+  },
+  "株式会社レックアイ": {
+    "url": "http://www.reci.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "不動産・住産業向けITシステム開発"
+  },
+  "NextDrive株式会社": {
+    "url": "http://www.nextdrive.io/ja/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "エネルギーマネジメントシステム・IoEプラットフォーム提供"
+  },
+  "IMT": {
+    "url": "http://imt-mirai.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "IT事業活動を通じたシステム開発・運用保守サービス"
+  },
+  "Vieureka株式会社": {
+    "url": "http://www.vieureka.com/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "カメラ・SDK・プラットフォームサービス提供"
+  },
+  "総務省": {
+    "url": "http://www.soumu.go.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政府機関"
+  },
+  "株式会社センシンロボティクス": {
+    "url": "https://www.sensyn-robotics.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "AI・ドローン・ロボティクスを活用した社会インフラDXプラットフォーム提供"
+  },
+  "三井住友ファイナンス&リース株式会社": {
+    "url": "http://www.smfl.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ファイナンス・リース事業"
+  },
+  "INTERNET BUSINESS JAPAN Co., Ltd.": {
+    "url": "http://www.ibj.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が画像のみで判断困難"
+  },
+  "ダイワボウ情報システム株式会社": {
+    "url": "http://www.pc-webzine.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "情報システム関連のメディア・IT製品販売"
+  },
+  "NES株式会社": {
+    "url": "https://nes-vc.com/",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャーキャピタル、スタートアップへの投資"
+  },
+  "ユニアデックス株式会社": {
+    "url": "https://www.uniadex.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITソリューション・システム開発企業"
+  },
+  "株式会社イクシス": {
+    "url": "http://www.ixs.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ロボット・デジタルツイン技術を活用したソリューション"
+  },
+  "株式会社マーズスピリット": {
+    "url": "https://www.mars-spirit.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "AI・機械学習による業務自動化・効率化支援"
+  },
+  "株式会社Blue Planet-works": {
+    "url": "http://www.blueplanet-works.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティソリューション提供"
+  },
+  "株式会社テックバイザージェイピー": {
+    "url": "http://www.techvisor.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "特許事務所・知財サービス"
+  },
+  "GenerativeForce Inc.": {
+    "url": "https://gen-force.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "生成AI活用コンサルティング・システム開発・転職支援"
+  },
+  "株式会社テクラボ": {
+    "url": "https://techlab-inc.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "AI社会実装・技術開発企業"
+  },
+  "株式会社Samurai": {
+    "url": "https://www.samurai-net.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明瞭"
+  },
+  "株式会社MERSTech": {
+    "url": "http://www.merstech.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明瞭"
+  },
+  "ソーホージャパン株式会社": {
+    "url": "https://www.zoho.com/jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "クラウド型ビジネスOS・CRM等のSaaSプラットフォーム提供"
+  },
+  "フレシード株式会社": {
+    "url": "https://www.creseed.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "情シスサポート・ITシステム支援"
+  },
+  "株式会社ネタもと": {
+    "url": "http://netamoto.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "PR・広報支援サービス"
+  },
+  "NOB DATA株式会社": {
+    "url": "https://nobdata.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "データ分析・AI活用コンサルティング"
+  },
+  "日本電気株式会社": {
+    "url": "http://jpn.nec.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "総合IT・通信インフラ企業"
+  },
+  "Super Massive Global Co.,Ltd.": {
+    "url": "https://supermassiveglobal.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明瞭"
+  },
+  "アマノ株式会社": {
+    "url": "http://www.amano.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "時間管理・空気環境機器の製造業"
+  },
+  "株式会社クラウドクリニック": {
+    "url": "https://cloudclinic.jp/company/",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "訪問診療医療機関向け業務サポートサービス"
+  },
+  "モビコム株式会社": {
+    "url": "http://www.mobicomm.co.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "IoT-LTEモジュール提供、通信インフラ関連"
+  },
+  "株式会社日本政策金融公庫": {
+    "url": "http://www.jfc.go.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政策金融機関、融資事業"
+  },
+  "アローサル・テクノロジー株式会社": {
+    "url": "https://www.arousal-tech.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明瞭"
+  },
+  "株式会社日テレWands": {
+    "url": "https://www.ntv-wands.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITとテレビの技術開発企業"
+  },
+  "株式会社バルテック": {
+    "url": "http://www.webjapan.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "クラウドPBX、AIセキュリティシステム提供"
+  },
+  "在日チェコ商工会議所": {
+    "url": "https://www.cccij.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "商工会議所、商業支援団体"
+  },
+  "株式会社ジャフコ": {
+    "url": "http://www.jafco.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャーキャピタル、投資事業"
+  },
+  "リゾートトラスト株式会社": {
+    "url": "http://www.resorttrust.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "リゾート・ホテル運営企業"
+  },
+  "株式会社BPデザイナーズ": {
+    "url": "http://bp-designers.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "業務改善ツールBPEC提供"
+  },
+  "TOMAファイナンシャルアドバイザリー株式会社": {
+    "url": "http://toma.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "経営革新支援、ファイナンシャルアドバイザリー"
+  },
+  "VirnetX Holding Corporation": {
+    "url": "http://www.virnetx.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティ技術・ソリューション提供"
+  },
+  "株式会社ピアノプレップ": {
+    "url": "http://www.pianoprep.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ピアノ販売・小売業"
+  },
+  "モチヤ株式会社": {
+    "url": "https://mochiya.ad.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム設計・開発・運用、ウェブ制作"
+  },
+  "Seven Bank, Ltd.": {
+    "url": "http://www.sevenbank.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "銀行・金融機関"
+  },
+  "Capy Inc.": {
+    "url": "http://www.capy.me",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティソリューション提供"
+  },
+  "JIYI Robotics Co., Ltd.": {
+    "url": "http://www.jiyiuav.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "農業用ドローン製造業"
+  },
+  "株式会社竹中工務店": {
+    "url": "http://www.takenaka.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建設業、総合建設会社"
+  },
+  "リバティーンズ株式会社": {
+    "url": "https://liberteenz.jp/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "アプリグロースイベント運営と事業成長支援"
+  },
+  "デジタル・アドバタイジング・コンソーシアム株式会社": {
+    "url": "http://www.dac.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "デジタルマーケティング・広告運用企業"
+  },
+  "タック株式会社": {
+    "url": "http://www.taknet.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "技術サービス提供企業"
+  },
+  "セコムトラストシステムズ株式会社": {
+    "url": "https://www.secomtrust.net/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティとデータセンターサービス"
+  },
+  "楽天株式会社": {
+    "url": "http://www.rakuten.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ECモール・小売プラットフォーム運営"
+  },
+  "伊藤忠テクノソリューションズ株式会社": {
+    "url": "http://www.ctc-g.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITソリューション・システム開発企業"
+  },
+  "エクイニクス・ジャパン株式会社": {
+    "url": "http://equinix.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "データセンター・通信インフラ企業"
+  },
+  "リンクスペイシーズ株式会社": {
+    "url": "https://profiee.com/i/kado",
+    "type": "other",
+    "confidence": "low",
+    "reason": "個人プロフィールページのため企業タイプ不明"
+  },
+  "株式会社フィット": {
+    "url": "http://www.fit2001.com",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "ドキュメント効率化・AI利活用ツール提供"
+  },
+  "シスコシステムズ合同会社": {
+    "url": "http://cisco.com/jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ネットワーク機器・通信インフラ企業"
+  },
+  "トリオシステムプランズ株式会社": {
+    "url": "http://www.trio.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ICTソリューション・Salesforce導入サービス"
+  },
+  "株式会社イブキ": {
+    "url": "https://ibuki-jpn.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "エンタメ・ヘルスケア事業"
+  },
+  "SUZUKI": {
+    "url": "http://www.leotanimoto.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "バイク販売・ツアー運営"
+  },
+  "株式会社霞草": {
+    "url": "http://www.kasumisou.co.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "ビジネス変革・ビジネスモデル支援"
+  },
+  "株式会社ワックアップ": {
+    "url": "https://waqup.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "ポイントアプリ・LINE連携プラットフォーム提供"
+  },
+  "デジタル庁": {
+    "url": "http://www.digital.go.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政府機関"
+  },
+  "アクセンチュア株式会社": {
+    "url": "https://www.accenture.com/jp-ja/accenture-innovation-center-fukushima",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "テクノロジー・トランスフォーメーション・コンサルティング"
+  },
+  "株式会社シマンテック": {
+    "url": "http://www.symantec.com/jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "サイバーセキュリティ企業"
+  },
+  "モバイルセレクト株式会社": {
+    "url": "http://www.mobileselect.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "モバイル関連サービス（詳細不明）"
+  },
+  "セントラル警備保障株式会社": {
+    "url": "http://www.we-are-csp.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "警備・セキュリティサービス（物理警備）を提供"
+  },
+  "デンカ株式会社": {
+    "url": "https://www.denka.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "化学製品の製造業"
+  },
+  "株式会社ネットラーニングホールディングス": {
+    "url": "http://www.nl-hd.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "オンライン学習プラットフォームとデジタル認証（オープンバッジ）のSaaSを提供"
+  },
+  "株式会社Good Times": {
+    "url": "https://staye.net",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "クラウドホテルマネジメントシステムを提供"
+  },
+  "株式会社IDCフロンティア": {
+    "url": "http://www.idcf.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "データセンター、クラウドインフラ、通信サービスを提供"
+  },
+  "Fabbi Japan": {
+    "url": "https://fabbi-japan.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "AI・ブロックチェーンなどを活用したシステム開発・IT開発サービス"
+  },
+  "聯齊科技股份有限公司": {
+    "url": "http://www.nextdrive.io",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "エネルギー管理IoTプラットフォーム、VPP（バーチャルパワープラント）サービス提供"
+  },
+  "株式会社船井総合研究所": {
+    "url": "https://www.funaisoken.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "業種別経営コンサルティング、事業成長支援を提供"
+  },
+  "株式会社ロケットワークス": {
+    "url": "http://www.rocketworks.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "サイバーセキュリティソリューション、量子ICT技術の開発"
+  },
+  "株式会社Zooops Japan": {
+    "url": "http://www.zooops-japan.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "Zohoアプリケーションのカスタマイズ、ITソリューション、テレワーク導入支援"
+  },
+  "FNZ Japan": {
+    "url": "http://fnz.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "ウェルスマネジメント向けプラットフォーム提供"
+  },
+  "ミツフジ株式会社": {
+    "url": "http://www.mitsufuji.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ウェアラブルデバイス（hamon）製造・販売、繊維技術"
+  },
+  "株式会社ギガプライズ": {
+    "url": "http://www.gigaprize.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "インターネット接続サービス、通信インフラ提供"
+  },
+  "ZVC JAPAN株式会社": {
+    "url": "https://www.zoom.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "Zoomビデオ会議・コミュニケーションプラットフォーム提供"
+  },
+  "株式会社ADVASA": {
+    "url": "http://advasa.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "オンデマンドペイ（給与即日払い）プラットフォーム提供"
+  },
+  "株式会社ジェイシー教育研究所": {
+    "url": "http://www.jc-edu.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "教育コンテンツ・ソフトウェア開発企業"
+  },
+  "株式会社サムシングファン": {
+    "url": "http://www.somethingfun.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "動画制作・動画DX提案会社"
+  },
+  "オリコン・リサーチ株式会社": {
+    "url": "http://www.oricon.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "音楽・エンタメ情報メディア企業"
+  },
+  "メールソリューション・ジャパン株式会社": {
+    "url": "http://www.ms-j.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "郵便・メール便配送コンサルティング企業"
+  },
+  "AnyMind Japan株式会社": {
+    "url": "https://www.anymindgroup.com",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "デジタルビジネスプラットフォーム提供"
+  },
+  "フリービット株式会社": {
+    "url": "http://freebit.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ・システム開発企業"
+  },
+  "株式会社ハローシステム": {
+    "url": "http://www.hellosystem.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・コンサルティング・運用サポート企業"
+  },
+  "株式会社アッズーリ": {
+    "url": "http://www.azzurri.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明確"
+  },
+  "株式会社インフォキャピタル": {
+    "url": "https://infocapital.jp/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "業務内容が不明確だが資本投資関連の可能性"
+  },
+  "株式会社U-NEXT HOLDINGS": {
+    "url": "https://www.unext-hd.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "エンタメ配信サービス等を提供するホールディングス企業"
+  },
+  "キズナジャパン株式会社": {
+    "url": "http://www.kizuna.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "業務内容が不明確"
+  },
+  "東和警備保障株式会社": {
+    "url": "https://www.touwa-keibi.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "警備保障サービス企業"
+  },
+  "新日本有限責任監査法人": {
+    "url": "http://www.shinnihon.or.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "監査法人・アシュアランス・アドバイザリーサービス"
+  },
+  "一般社団法人JPCERTコーディネーションセンター": {
+    "url": "https://www.jpcert.or.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "サイバーセキュリティ・インシデント対応組織"
+  },
+  "株式会社スパイスボックス": {
+    "url": "http://www.spicebox.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "広告・マーケティングコミュニケーション企業"
+  },
+  "慶應義塾大学": {
+    "url": "http://www.w3.org",
+    "type": "other",
+    "confidence": "high",
+    "reason": "W3C標準化団体（大学ではなくWeb標準化組織）"
+  },
+  "株式会社 Romanz": {
+    "url": "https://romanz.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "インフルエンサーマーケティング企業"
+  },
+  "株式会社ローソン": {
+    "url": "http://www.lawson.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "コンビニエンスストア小売企業"
+  },
+  "ITOCHU Corporation": {
+    "url": "https://www.itochu.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "総合商社"
+  },
+  "伊藤忠テクノロジーベンチャーズ株式会社": {
+    "url": "http://www.techv.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "伊藤忠テクノロジーベンチャーズは起業家への投資を行うベンチャーキャピタル"
+  },
+  "イッツ・コミュニケーションズ株式会社": {
+    "url": "https://www.itscom.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ケーブルテレビ・通信インフラサービスを提供するIT企業"
+  },
+  "株式会社オン・アンド・オン": {
+    "url": "http://on-and-on.biz",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "ITデトックス支援、ビジネスコンサルティングを提供"
+  },
+  "株式会社ヴィス": {
+    "url": "http://vis-produce.com",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "ブランディング、データソリューション等の事業支援を実施"
+  },
+  "大成建設株式会社": {
+    "url": "http://www.taisei.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建設業（ダム・トンネル等の施工）"
+  },
+  "京都府立医科大学": {
+    "url": "http://www.ophth.kpu-m.ac.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "大学医学部眼科学教室"
+  },
+  "KDDI株式会社": {
+    "url": "http://www.kddi.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ・災害対策サービスを提供する通信事業者"
+  },
+  "株式会社アジルコア": {
+    "url": "http://www.agilecore.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "病院向け運用支援、システム構築・保守サポートを提供"
+  },
+  "Dentsu": {
+    "url": "http://dentsulab.tokyo",
+    "type": "other",
+    "confidence": "high",
+    "reason": "広告代理店の研究開発ラボ"
+  },
+  "株式会社ローソンデジタルイノベーション": {
+    "url": "http://www.ldi.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ローソンのデジタル技術・システム開発を担当"
+  },
+  "株式会社Liquid（リキッド）": {
+    "url": "http://liquidinc.asia/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "eKYC（本人確認）プラットフォームサービスを提供"
+  },
+  "株式会社アクトブレイク": {
+    "url": "https://actbreak.co.jp/",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "AIチャット・業務効率化ツールを提供"
+  },
+  "AKS Co., Ltd.": {
+    "url": "http://www.akb48.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "AKB48運営会社（エンターテインメント）"
+  },
+  "深圳市茂克電子有限公司": {
+    "url": "http://www.shigezone.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "電子製品製造・販売"
+  },
+  "東京急行電鉄株式会社": {
+    "url": "http://www.tokyu.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "鉄道事業者"
+  },
+  "R-STYLES": {
+    "url": "http://r-styles.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "Webアプリケーション・システム開発・運用保守を提供"
+  },
+  "株式会社ムーブ": {
+    "url": "https://moove.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "Webシステム開発・保守・コンサルティングを提供"
+  },
+  "華為技術日本株式会社": {
+    "url": "http://www.huawei.com/jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信機器メーカー・法人向けソリューション提供"
+  },
+  "日本生命保険相互会社": {
+    "url": "http://www.nissay.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "生命保険会社"
+  },
+  "SBIホールディングス株式会社": {
+    "url": "http://www.sbigroup.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "SBIグループは投資・金融サービスを中核事業とする持株会社"
+  },
+  "日本ダイレックス株式会社": {
+    "url": "http://www.direx.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ITクリニック等のシステム関連サービスを提供"
+  },
+  "株式会社セルージョン": {
+    "url": "http://cellusion.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "再生医療・ヘルスケア業界の企業"
+  },
+  "及川音楽事務所": {
+    "url": "http://ameblo.jp/yuko-tsukagoshi-klavier/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "音楽事務所・個人ブログ"
+  },
+  "株式会社シナプス": {
+    "url": "http://synaps-corp.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "企業の問題解決に向けたプロデュースとコンサルティングサービス"
+  },
+  "損害保険ジャパン日本興亜株式会社": {
+    "url": "https://www.sjnk.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "損害保険会社"
+  },
+  "有限会社西尾システムコンサルタント": {
+    "url": "https://www.team240.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "パソコン修理やITコンサルティングサービス"
+  },
+  "GI Capital Management Ltd.": {
+    "url": "http://www.gicamltd.com/",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "独立系資産運用会社・投資ファンド"
+  },
+  "グリー株式会社": {
+    "url": "https://corp.gree.net/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ゲーム・エンターテインメント企業"
+  },
+  "ジャスネットコミュニケーションズ株式会社": {
+    "url": "https://www.zeikai.net",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "会計業界向けメディア・コミュニケーションサービス"
+  },
+  "SBIインベストメント株式会社": {
+    "url": "http://www.sbinvestment.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャーキャピタル・投資事業"
+  },
+  "カルチュア・コンビニエンス・クラブ株式会社": {
+    "url": "http://www.ccc.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "TSUTAYAを運営する小売・マーケティング企業"
+  },
+  "株式会社サブスクライン": {
+    "url": "https://subscline.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "LINE連携のサブスクリプション管理プラットフォーム提供"
+  },
+  "株式会社JEF": {
+    "url": "http://www.jag-ef.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ジャガー専門の自動車整備・販売"
+  },
+  "株式会社ゴーイング・ドットコム": {
+    "url": "http://www.going.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明瞭だが、一般企業と推測"
+  },
+  "株式会社ジースポート": {
+    "url": "https://www.gsport.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "ヘルスケア向けクラウドサービス提供"
+  },
+  "ベイズ株式会社": {
+    "url": "http://www.bayes.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ソフトウェア・エンジニアリングサービス（SES）・システム開発"
+  },
+  "株式会社タカラトミー": {
+    "url": "http://www.takaratomy.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "玩具製造・販売企業（トミカ等）"
+  },
+  "プラネックスコミュニケーションズ株式会社": {
+    "url": "http://www.planex.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ネットワーク機器・通信インフラ製品提供"
+  },
+  "株式会社サンソウシステムズ": {
+    "url": "https://www.sansou.co.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "システム開発企業"
+  },
+  "YAZAKI Energy System Corporation": {
+    "url": "https://www.yazaki-group.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "自動車部品・エネルギーシステム製造"
+  },
+  "ヤフー株式会社": {
+    "url": "http://yahoo.co.jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "インターネットサービス・プラットフォーム提供"
+  },
+  "DX通信株式会社": {
+    "url": "https://www.dxw.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "DX通信サービス提供"
+  },
+  "産業技術大学院大学": {
+    "url": "http://aiit.ac.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "教育機関（大学院大学）"
+  },
+  "シャープ株式会社": {
+    "url": "http://www.sharp.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "電機メーカー（製造業）"
+  },
+  "医療法人社団敬潤会国際デンタルクリニック": {
+    "url": "http://www.dent-ida.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "歯科医療機関"
+  },
+  "ポールヘイスティングス法律事務所": {
+    "url": "http://www.paulhastings.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "法律事務所"
+  },
+  "アンダーソン・毛利・友常法律事務所": {
+    "url": "http://www.amt-law.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "法律事務所"
+  },
+  "ハナ信用組合": {
+    "url": "https://www.hanashinkumi.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "金融機関（信用組合）"
+  },
+  "株式会社イルカカレッジ": {
+    "url": "http://www.iluka.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "森林火災消火システム（特殊設備）"
+  },
+  "アメリカン・エキスプレス・インターナショナル,Inc.": {
+    "url": "http://www.americanexpress.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "金融サービス（クレジットカード）"
+  },
+  "DAIWABO INFORMATION SYSTEM CO., LTD.": {
+    "url": "http://www.pc-daiwabo.co.jp/english/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITディストリビューター・システム販売"
+  },
+  "株式会社STRACT": {
+    "url": "https://stract.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "インタフェース技術・テクノロジープラットフォーム提供"
+  },
+  "Innovatie Attaché Netwerk (IAN)": {
+    "url": "http://www.ianetwerk.nl",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政府系イノベーション支援ネットワーク"
+  },
+  "株式会社ミツエーリンクス": {
+    "url": "http://www.mitsue.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "Webシステム開発・デジタルコミュニケーション"
+  },
+  "株式会社ミューオン": {
+    "url": "http://www.myu-on.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "AI Shelf等のテクノロジサービス提供"
+  },
+  "グリーンモンスター株式会社": {
+    "url": "https://greenmonster.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が画像のみで具体的な事業内容が不明"
+  },
+  "Cloud services to support business growth | RAKUS Co., Ltd.": {
+    "url": "https://www.rakus.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "クラウドサービス・ITサービスを提供するSaaS企業"
+  },
+  "モバイル・インターネットキャピタル株式会社": {
+    "url": "http://www.mickk.com/",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "IPO実績24社、ベンチャーキャピタル・投資事業"
+  },
+  "TRIART INC.": {
+    "url": "http://triart.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "技術力による創造研究企画、システム開発"
+  },
+  "パシフィックコンサルタンツ株式会社": {
+    "url": "http://www.pacific.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "コンサルタント企業、事業開発支援"
+  },
+  "株式会社トーチライト": {
+    "url": "http://www.torchlight.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "SNSアカウント運用・広告運用支援、デジタルマーケティング企業"
+  },
+  "株式会社レゾナンス": {
+    "url": "http://www.ahead-magazine.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "自動車雑誌の出版、メディア企業"
+  },
+  "AI": {
+    "url": "http://ai-partner.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "iOS・Androidアプリ開発、AI開発、システム開発企業"
+  },
+  "MLOG, inc.": {
+    "url": "http://www.m-log.com",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "モビリティ・IoT分野での技術ノウハウ提供とビジネス展開支援"
+  },
+  "株式会社メガチップス": {
+    "url": "http://www.megachips.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "半導体製造企業"
+  },
+  "株式会社電通コンサルティング": {
+    "url": "https://www.dentsuconsulting.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "グロース特化型コンサルティングファーム、戦略策定支援"
+  },
+  "株式会社ビズリーチ": {
+    "url": "https://www.bizreach.co.jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "人材プラットフォーム・スカウトサービス提供"
+  },
+  "エブリセンスジャパン株式会社": {
+    "url": "http://every-sense.com/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "データ取引市場プラットフォーム、データ流通サービス提供"
+  },
+  "株式会社野村総合研究所": {
+    "url": "http://www.nri.com/jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "総合シンクタンク、コンサルティングとITソリューション提供"
+  },
+  "BBソフトサービス株式会社": {
+    "url": "http://www.bbss.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティサービス・ITみまもりサービス提供"
+  },
+  "SWAPay株式会社": {
+    "url": "http://www.swa-pay.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "QRコード決済プラットフォーム、キャッシュレス決済サービス"
+  },
+  "独立行政法人国立印刷局": {
+    "url": "https://www.npb.go.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "独立行政法人、印刷・製造事業"
+  },
+  "野村證券株式会社": {
+    "url": "http://ipr.nomura.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "証券会社、金融サービス"
+  },
+  "公益社団法人 日本青年会議所": {
+    "url": "http://www.jaycee.or.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "青年会議所という公益社団法人、社会奉仕団体"
+  },
+  "株式会社長谷工システムズ": {
+    "url": "http://www.haseko.co.jp/hss/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "長谷工グループのシステム開発企業"
+  },
+  "株式会社パートナーエージェント": {
+    "url": "http://www.p-a.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "結婚相談所サービス"
+  },
+  "COIN OTAKU OU": {
+    "url": "http://www.coin-otaku.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "暗号資産情報メディア"
+  },
+  "徳洲会インフォメーションシステム株式会社": {
+    "url": "https://www.tokushukai-is.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "医療システム・電子カルテ導入・保守サービス"
+  },
+  "NTTデータカスタマサービス株式会社": {
+    "url": "http://www.nttdatacs.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITシステムの導入・保守サービス、全国拠点でのサポート"
+  },
+  "オウルウッド・ホールディングス株式会社": {
+    "url": "http://www.owl-wood.com",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "総合的なビジネス領域での価値創造、次世代創生ソリューション"
+  },
+  "PwCあらた有限責任監査法人": {
+    "url": "http://www.pwc.com.au",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "PwC監査法人、監査・コンサルティング・税務サービス"
+  },
+  "BTCボックス株式会社": {
+    "url": "http://www.btcbox.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "暗号資産取引所"
+  },
+  "株式会社エフアンドエム": {
+    "url": "http://www.fmltd.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "人事労務クラウドソフト（オフィスステーション）提供"
+  },
+  "東大阪市": {
+    "url": "http://www.city.higashiosaka.lg.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "地方自治体（東大阪市）"
+  },
+  "野村ホールディングス株式会社": {
+    "url": "http://www.nomura.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "野村ホールディングス、金融・投資サービス"
+  },
+  "フェイスブック シンガポール": {
+    "url": "http://fb.com/masashi.tamamura.1",
+    "type": "other",
+    "confidence": "high",
+    "reason": "個人のFacebookページ"
+  },
+  "国家公務員共済組合連合会大手前病院": {
+    "url": "http://www.otemae.gr.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療機関（病院）"
+  },
+  "CEREVO": {
+    "url": "http://cerevo.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "カメラアクセサリー等のハードウェア製造"
+  },
+  "株式会社ネットスターズ": {
+    "url": "http://www.netstars.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "決済サービス・ステーブルコイン決済、金融系サービス"
+  },
+  "ロックハラード証券株式会社": {
+    "url": "http://www.lockehallard.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "金融商品取引業者、証券会社として投資業務を実施"
+  },
+  "株式会社 Force AI": {
+    "url": "https://forceai.jp/",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "生成AIを活用した業務効率化ツール開発とデジタルマーケティング支援"
+  },
+  "株式会社東京ドーム": {
+    "url": "https://www.tokyo-dome.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "東京ドームを運営する娯楽・施設運営企業"
+  },
+  "シンク株式会社": {
+    "url": "http://shin-c.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "WEB制作・リード獲得を主業務とする制作会社"
+  },
+  "株式会社日立製作所": {
+    "url": "http://www.hitachi.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "総合電機メーカー、製造業"
+  },
+  "KGアンドカンパニー株式会社": {
+    "url": "http://www.kgandco.com",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "事業開発支援やコンサルティングサービスを提供"
+  },
+  "wAGruMAFA": {
+    "url": "https://WWW.WAGYUMAFIA.COM",
+    "type": "other",
+    "confidence": "high",
+    "reason": "和牛関連の飲食・小売事業"
+  },
+  "長浜市立湖北病院": {
+    "url": "http://www.ikbk.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療機関、病院"
+  },
+  "南プリント・アート": {
+    "url": "http://www.print-art.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "印刷・アート製品製造業"
+  },
+  "総合探偵社 ガルエージェンシー": {
+    "url": "http://www.galu-akasaka.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "探偵業、調査サービス"
+  },
+  "株式会社ネットサム": {
+    "url": "http://www.netsam.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ネットワークインフラ構築、エンジニアリングサービス提供"
+  },
+  "ディップ株式会社": {
+    "url": "http://www.dip-net.co.jp/",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "求人サービスプラットフォームを提供"
+  },
+  "Iwatani Corporation": {
+    "url": "https://www.iwatani.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "LPガス・水素エネルギー関連の総合商社、製造・流通業"
+  },
+  "株式会社Rockaku": {
+    "url": "http://www.rockaku.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "経営支援、ブランディング、情報発信支援を提供"
+  },
+  "Pico": {
+    "url": "http://www.picovr.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "VRハードウェア製造販売企業"
+  },
+  "株式会社日立ソリューションズ": {
+    "url": "http://www.hitachi-solutions.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITソリューション、システム開発企業"
+  },
+  "ソニー生命保険株式会社": {
+    "url": "https://cs.sonylife.co.jp/L8FFB3",
+    "type": "other",
+    "confidence": "high",
+    "reason": "生命保険会社、金融サービス"
+  },
+  "株式会社MetaMoJi": {
+    "url": "http://www.metamoji.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "Smart Paper等のクラウド/デジタルプロダクト提供"
+  },
+  "K-Best Technology株式会社": {
+    "url": "https://kbestjp.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "無線通信LPWA分野の技術企業"
+  },
+  "国際ドッグビューティースクール": {
+    "url": "http://www.kokusai-dog.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "トリミングスクール、教育機関"
+  },
+  "日本ベンチャーキャピタル株式会社": {
+    "url": "http://www.nvcc.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャーキャピタル、投資事業"
+  },
+  "合同会社アリスト": {
+    "url": "http://www.sonypictures.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "映画・エンターテイメント企業"
+  },
+  "IKIGAI Lab.": {
+    "url": "https://composition2940.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイトエラーで業務内容不明"
+  },
+  "東京都民銀行": {
+    "url": "http://www.tominbank.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "銀行、金融機関"
+  },
+  "学校法人服部学園": {
+    "url": "http://www.ochabi.ac.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "美術学校、教育機関"
+  },
+  "株式会社フィスコ": {
+    "url": "http://www.fisco.co.jp/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "情報サービス・IRコンサル・金融アドバイザリー"
+  },
+  "ディ・エグゼクティブ・センター・ジャパン株式会社": {
+    "url": "http://www.executivecentre.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "レンタルオフィス・コワーキングスペース運営"
+  },
+  "システムマネジメントグローバル株式会社": {
+    "url": "https://www.sm-global.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "Webサーバー管理・システム管理"
+  },
+  "株式会社NewsTV": {
+    "url": "http://news-tv.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ニュース動画メディア"
+  },
+  "北名古屋市役所": {
+    "url": "https://www.city.kitanagoya.lg.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "市役所、行政機関"
+  },
+  "株式会社三菱UFJ銀行": {
+    "url": "https://www.bk.mufg.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "銀行、金融機関"
+  },
+  "一般社団法人医療介護福祉政策研究フォーラム": {
+    "url": "http://www.mcw-forum.or.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療介護福祉政策研究団体"
+  },
+  "特許業務法人深見特許事務所": {
+    "url": "http://www.fukamipat.gr.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "特許事務所、法律サービス"
+  },
+  "日本エンタープライズ株式会社": {
+    "url": "http://www.nihon-e.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ソリューション事例や法人向け製品・サービス提供、システム開発企業と推測"
+  },
+  "豊島ケーブルネットワーク株式会社": {
+    "url": "http://www.toshima.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ケーブルネットワーク会社、通信インフラ事業者"
+  },
+  "ABC PLANNING": {
+    "url": "http://abcplanning.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "企業・自治体のコンサルタント業務をトータルでサポート"
+  },
+  "株式会社イーウィルジャパン": {
+    "url": "http://www.ewil.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "自社ネットショップサイト記事の自動更新サービス、365E-COMMERCE等のSaaS製品提供"
+  },
+  "株式会社リスクコンサルティングファーム": {
+    "url": "http://www.rcf-ins.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "リスクコンサルティングファーム、企業向けコンサルティングサービス提供"
+  },
+  "株式会社モルフォ": {
+    "url": "http://www.morphoinc.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "イメージングAI、デジタル画像処理技術の研究開発型企業"
+  },
+  "株式会社エルテス": {
+    "url": "https://eltes.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "デジタルリスクマネジメント、セキュリティ関連サービス提供企業"
+  },
+  "ビットバンク株式会社": {
+    "url": "http://bitcoinbank.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ビットバンク、暗号資産取引所・金融サービス"
+  },
+  "The Prudential Life Insurance Company, Ltd.": {
+    "url": "https://www.prudential.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "プルデンシャル生命保険、保険業"
+  },
+  "一般社団法人SAI-平和の文化-": {
+    "url": "http://www.sai-hiroko.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "一般社団法人、平和の文化推進団体"
+  },
+  "CRISP SALAD WORKS AZABU-JUBAN": {
+    "url": "http://www.crisp.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "サラダ専門店、飲食業"
+  },
+  "警察庁": {
+    "url": "http://www.npa.go.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "警察庁、政府機関"
+  },
+  "一般財団法人住友病院": {
+    "url": "http://www.sumitomo-hp.or.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "住友病院、医療機関"
+  },
+  "一般社団法人日本ブロックチェーン協会": {
+    "url": "https://jba-web.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "一般社団法人日本ブロックチェーン協会、業界団体"
+  },
+  "巣鴨信用金庫": {
+    "url": "https://www.sugamo.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "巣鴨信用金庫、金融機関"
+  },
+  "MUFG Bank, Ltd.": {
+    "url": "http://www.bk.mufg.jp/global",
+    "type": "other",
+    "confidence": "high",
+    "reason": "三菱UFJ銀行、金融機関"
+  },
+  "株式会社帝国データバンク": {
+    "url": "https://www.tdb.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "帝国データバンク、信用調査・情報サービス業"
+  },
+  "中条商事株式会社": {
+    "url": "http://www.chuugokuhanten.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "中条商事、中国飯店を運営する飲食業"
+  },
+  "株式会社 リモートプラス": {
+    "url": "https://www.remote-plus.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "リモートフロントシステム、宿泊業向けSaaSプラットフォーム提供"
+  },
+  "株式会社KADOKAWA": {
+    "url": "http://www.kadokawa.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "出版・エンターテインメント企業"
+  },
+  "ワークワンダース株式会社": {
+    "url": "https://workwonders.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "生成AI活用の働き方改革SaaSサービス提供"
+  },
+  "株式会社VRaiB": {
+    "url": "http://www.vraib.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "IoT・AI・AR技術のシステム開発企業"
+  },
+  "日本マイクロソフト株式会社": {
+    "url": "http://www.microsoft.com/ja-jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "クラウドサービス・SaaS製品提供企業"
+  },
+  "アフラック": {
+    "url": "http://www.aflac.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "保険会社"
+  },
+  "セプンセンスFAIR株式会社": {
+    "url": "https://seventh-sense.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "経営・会計のプロフェッショナルコンサルティング企業"
+  },
+  "株式会社メディアクラフト": {
+    "url": "https://www.mediacraft-inc.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "美容関連製品の製造・販売企業"
+  },
+  "青山外苑東通り歯科クリニック": {
+    "url": "http://www.aoyama1d.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "歯科クリニック"
+  },
+  "大和ハウス工業株式会社": {
+    "url": "http://www.daiwahouse.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建設・住宅メーカー"
+  },
+  "株式会社ナンバー・クランチャー": {
+    "url": "http://www.number1cruncher.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "金融工学とITのコンサルティング企業"
+  },
+  "酒の及川株式会社ティー・エル・エス": {
+    "url": "https://www.rakuten.co.jp/tlsinfo/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "酒類小売業"
+  },
+  "株式会社FORVIVANT": {
+    "url": "http://www.fornation.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "化粧品・スキンケア製品の輸入販売"
+  },
+  "富里市農業協同組合": {
+    "url": "https://www.ja-tomisato.or.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "農業協同組合"
+  },
+  "エンカレッジ・テクノロジ株式会社": {
+    "url": "http://www.et-x.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITシステム開発・インフラ構築企業"
+  },
+  "フューチャーアーキテクト株式会社": {
+    "url": "http://www.future.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・ITコンサルティング企業"
+  },
+  "睿智通機器人": {
+    "url": "http://www.aeolusbot.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "サービスロボット製造企業"
+  },
+  "一般社団法人日本ユニットケア推進センター": {
+    "url": "http://www.unit-care.or.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "介護・福祉関連の一般社団法人"
+  },
+  "株式会社ハウスプランナー": {
+    "url": "https://tokyoshitamachi-estate.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産仲介業"
+  },
+  "千葉大学医学部附属病院": {
+    "url": "http://www.ho.chiba-u.ac.jp/ikeijuku/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "大学附属病院の人材育成プログラム"
+  },
+  "株式会社パン・パシフィック・インターナショナルホールディングス": {
+    "url": "https://ppih.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ドン・キホーテ等の小売店舗を展開する流通・小売企業"
+  },
+  "株式会社SBI証券": {
+    "url": "https://www.sbisec.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "証券会社（金融サービス）"
+  },
+  "ミライドリ株式会社": {
+    "url": "https://eigyoukakumei.com/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "自動営業システム・問い合わせフォーム営業システムを提供するSaaS企業"
+  },
+  "株式会社 防犯カメラ情報センター": {
+    "url": "http://www.bouhan-kamera.biz",
+    "type": "other",
+    "confidence": "high",
+    "reason": "防犯カメラの販売・設置を行う製品販売企業"
+  },
+  "株式会社つくば防犯": {
+    "url": "http://www.tsukuba-bouhan.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "防犯カメラの専門店・設置業者"
+  },
+  "アクセシレンズ株式会社": {
+    "url": "https://www.accessilens.com",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "Webアクセシビリティツールを提供するSaaS企業"
+  },
+  "株式会社東京アールアンドデー": {
+    "url": "https://www.tr-d.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "モビリティ分野の試作・デザイン・モデリングを行う製造業"
+  },
+  "Nippon COMSYS Corporation": {
+    "url": "https://www.comsys.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ構築とICTソリューション事業を展開するIT企業"
+  },
+  "トーホー工業株式会社": {
+    "url": "http://www.toho-corp.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "耐震架台・耐震金物の製造施工を行う製造業"
+  },
+  "地方独立行政法人大阪府立病院機構大阪府立成人病センター": {
+    "url": "http://www.opho.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "病院機構（医療機関）"
+  },
+  "ハックベンチャーズ株式会社": {
+    "url": "http://www.hack-ventures.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャーキャピタル・投資ファンド運営企業"
+  },
+  "エフアンドエムネット株式会社": {
+    "url": "http://www.fandmnet.com",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "ITを活用した企業支援サービスを提供"
+  },
+  "株式会社リッコー": {
+    "url": "http://www.i-riccoh.com/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "製品製造を行う製造業（詳細不明）"
+  },
+  "南宮国際特許事務所": {
+    "url": "http://www.amemiyapat.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "特許事務所（知的財産権取得支援）"
+  },
+  "株式会社日本経営": {
+    "url": "http://www.nkgr.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "経営コンサルティングサービスを提供"
+  },
+  "未知株式会社": {
+    "url": "http://www.mchs.co.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "人材ポテンシャル開花を目的とした事業開発支援企業"
+  },
+  "株式会社トーショー": {
+    "url": "http://www.tosho.cc/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "業務内容が不明確だが製造・販売系と推測"
+  },
+  "株式会社wiwiw": {
+    "url": "https://www.wiwiw.com",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "eラーニングやリーダーシッププログラムを提供するサービス企業"
+  },
+  "株式会社第一興商": {
+    "url": "https://www.dkkaraoke.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "カラオケ機器・サービス提供企業"
+  },
+  "株式会社キャピタルメディカ": {
+    "url": "http://capimedi.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療・介護施設運営企業"
+  },
+  "ソフトバンク株式会社": {
+    "url": "http://www.softbank.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ・モバイルサービス提供企業"
+  },
+  "エムスリーキャリア株式会社": {
+    "url": "https://www.m3career.com",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "医療人材・経営支援サービス提供"
+  },
+  "株式会社エコルス": {
+    "url": "http://www.ecorus-c.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "介護・医療施設向け衛生機器販売企業"
+  },
+  "ガートナージャパン株式会社": {
+    "url": "https://www.gartner.com/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "IT・ビジネスコンサルティング企業"
+  },
+  "田原大三郎法律事務所": {
+    "url": "http://www.tabara-law.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "法律事務所"
+  },
+  "アマゾンウェブサービスジャパン合同会社": {
+    "url": "http://hiroshi.mizushima.info/",
+    "type": "saas",
+    "confidence": "low",
+    "reason": "URLが個人サイトでAWS企業情報不明"
+  },
+  "株式会社ヤマテ・コーポレーション": {
+    "url": "http://www.yamate-co.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "アミューズメント施設・飲食店運営企業"
+  },
+  "1st PLACE株式会社": {
+    "url": "http://1stplace.co.jp/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "エンターテインメント関連企業"
+  },
+  "東急住宅リース株式会社": {
+    "url": "http://tokyu-housing-lease.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産賃貸・リース企業"
+  },
+  "大平洋貿易株式会社": {
+    "url": "https://www.pacific-japan.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "貿易・検温カメラ等機器販売企業"
+  },
+  "株式会社ウェルアップ": {
+    "url": "https://www.wellup-inc.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "事業内容不明確（健康関連の可能性）"
+  },
+  "丸紅リアルエステートマネジメント株式会社": {
+    "url": "https://www.mfmc.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産管理企業"
+  },
+  "住友不動産販売株式会社": {
+    "url": "http://www.stepon.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産売買仲介企業"
+  },
+  "リエゾン・パートナーズ株式会社": {
+    "url": "http://www.liaison-partners.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ヘルスケア施設投資企業"
+  },
+  "大日本印刷株式会社": {
+    "url": "http://www.dnp.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "印刷・製造業企業"
+  },
+  "株式会社金融革新パートナーズ": {
+    "url": "http://www.finno-gp.net/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "金融・デジタル化支援コンサルティング"
+  },
+  "日本航空株式会社": {
+    "url": "https://www.jal.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "航空運輸企業"
+  },
+  "株式会社ドクターネット": {
+    "url": "http://www.doctor-net.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "遠隔読影サービス（Tele-RAD、Tele-DOC）という医療向けSaaSプラットフォームを提供"
+  },
+  "株式会社日本医療データセンター": {
+    "url": "http://www.jmdc.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "医療データ分析・管理サービスを提供するデータプラットフォーム企業"
+  },
+  "株式会社インテリジェントウェイブ": {
+    "url": "http://www.iwi.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・ITソリューション提供企業"
+  },
+  "NPO 団体 市川てらこや": {
+    "url": "http://ichitera.wixsite.com/home",
+    "type": "other",
+    "confidence": "high",
+    "reason": "NPO団体（教育支援）"
+  },
+  "株式会社七星社": {
+    "url": "http://www.sevenstars-jp.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "業務内容が不明瞭だが、IT・SaaS企業の特徴は見られない"
+  },
+  "EPSホールディングス株式会社": {
+    "url": "http://www.eps-holdings.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ホールディングス企業、具体的な事業内容が不明"
+  },
+  "株式会社アール・インクルージョン": {
+    "url": "https://www.rinclusion.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "人材派遣・転職支援・業務委託を行う人材サービス企業"
+  },
+  "清水総合開発株式会社": {
+    "url": "http://www.scdc.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産開発・賃貸・コンサルティングを行う不動産企業"
+  },
+  "電力広域的運営推進機関": {
+    "url": "https://www.occto.or.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "電力広域的運営推進機関（電力インフラ運営組織）"
+  },
+  "株式会社HOXホールディングス": {
+    "url": "https://hox-hd.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ホールディングス企業、具体的な事業内容が不明"
+  },
+  "株式会社 中村建設": {
+    "url": "https://www.nakamurakensetsu.net",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建設会社"
+  },
+  "OAG税理士法人": {
+    "url": "http://www.oag-tax.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "税理士法人（会計・税務サービス）"
+  },
+  "東京大学": {
+    "url": "http://matsuda-manabu.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政治活動関連の個人サイト（東京大学ではない）"
+  },
+  "クレアボ・テクノロジーズ株式会社": {
+    "url": "https://www.clairvotech.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "医療向けヘルステック・テクノロジーサービスを提供"
+  },
+  "株式会社エー・アイ・クリエイション": {
+    "url": "http://taniguchi-ai.com/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "MENAリージョン特化の事業開発・関係構築支援企業と推定"
+  },
+  "NTTイノベーティブデバイス株式会社": {
+    "url": "https://www.ntt-innovative-devices.com/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "NTTグループのデバイス・通信インフラ関連企業"
+  },
+  "京和工業株式会社": {
+    "url": "http://www.kyowa-kogyo.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明瞭だが製造業の可能性"
+  },
+  "株式会社ラック": {
+    "url": "https://www.lac.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティサービスを提供するIT企業"
+  },
+  "コスモス・ベリーズ株式会社": {
+    "url": "http://www.berrys.co.jp/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ローカルプラットフォーム・加盟店事業を展開"
+  },
+  "サン・エース株式会社": {
+    "url": "http://sunaceinc.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明瞭"
+  },
+  "株式会社水鏡": {
+    "url": "https://www.suikyo.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明瞭"
+  },
+  "RUBY JACK'S": {
+    "url": "http://rubyjacks.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "六本木の飲食・サービス業と推測"
+  },
+  "株式会社あなぶきハウジングサービス": {
+    "url": "https://www.anabuki-housing.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産管理サービス企業"
+  },
+  "TDK Corporation": {
+    "url": "http://www.tdk.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "電子部品製造企業"
+  },
+  "三菱地所リアルエステートサービス株式会社": {
+    "url": "http://www.mecyes.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産サービス企業"
+  },
+  "株式会社 ミレ・キャリア": {
+    "url": "http://www.mile-career.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "アミューズメント・ホテル事業を展開"
+  },
+  "メタウオーター株式会社": {
+    "url": "https://www.metawater.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "水処理関連の製造・エンジニアリング企業"
+  },
+  "株式会社 アスリード": {
+    "url": "http://www.shibaura-group.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ホールディングス企業、エネルギー事業"
+  },
+  "積層冷凍株式会社": {
+    "url": "https://www.yokorei.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "冷蔵倉庫・物流事業を展開"
+  },
+  "エンパワーヘルスケア株式会社": {
+    "url": "http://www.empower-hc.com",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "歯科医療向けデジタルプラットフォーム提供"
+  },
+  "Rainbow Town FM": {
+    "url": "https://885fm.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "コミュニティFMラジオ局"
+  },
+  "INTERTRADE Co., Ltd.": {
+    "url": "http://www.itrade.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "貿易・商社業"
+  },
+  "キステム株式会社": {
+    "url": "http://www.kistem.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "官公庁・流通向けシステム開発"
+  },
+  "MEETSテクノロジー株式会社": {
+    "url": "http://www.meetstech.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "技術提供・システム開発企業"
+  },
+  "株式会社ジャパンエクスチェンジ": {
+    "url": "http://www.jpx.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "金融取引所運営"
+  },
+  "松久産業株式会社": {
+    "url": "http://www.inforobo-j.com/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ICT・ロボット技術・自動化技術提供"
+  },
+  "学校法人愛知医科大学愛知医科大学病院": {
+    "url": "http://www.aichi-med-u.ac.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "大学病院・医療機関"
+  },
+  "昭和リース株式会社": {
+    "url": "https://www.s-l.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "リース・金融サービス"
+  },
+  "株式会社 プレシャス": {
+    "url": "https://net-merci.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "アダルトグッズ卸売"
+  },
+  "メディアマート株式会社": {
+    "url": "http://www.mediamart.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "統計解析ソフト・クラウドPBX等ITサービス提供"
+  },
+  "株式会社MERC": {
+    "url": "http://merc-m.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "マーケティング教育・コンサルティング"
+  },
+  "株式会社良品計画": {
+    "url": "https://ryohin-keikaku.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "小売・製造業（無印良品）"
+  },
+  "株式会社セキュアブレイン": {
+    "url": "http://www.securebrain.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティサービス提供"
+  },
+  "富士フイルムメディカル株式会社": {
+    "url": "http://fms.fujifilm.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療機器・医療用品の製造・販売企業"
+  },
+  "野村信託銀行株式会社": {
+    "url": "http://www.nomura-trust.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "信託銀行・金融機関"
+  },
+  "三井不動産株式会社": {
+    "url": "http://www.mitsuifudosan.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産開発・管理企業"
+  },
+  "大和企業投資株式会社": {
+    "url": "http://www.daiwa-inv.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャーキャピタル・投資ファンド事業"
+  },
+  "内閣府": {
+    "url": "http://www.cao.go.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政府機関"
+  },
+  "内閣官房": {
+    "url": "http://www.cas.go.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政府機関"
+  },
+  "EVOLUTION JAPAN証券株式会社": {
+    "url": "http://www.evofinancialgroup.com/ejs/",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "証券会社・ファンド事業"
+  },
+  "株式会社Looop": {
+    "url": "http://looop.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "エネルギー事業者"
+  },
+  "アットホーム株式会社": {
+    "url": "http://www.athome.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "不動産情報プラットフォーム提供"
+  },
+  "株式会社 ライフサポート・ワン": {
+    "url": "https://www.life2400.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "生活サポートサービス"
+  },
+  "アステラス製薬株式会社": {
+    "url": "https://www.astellas.com/jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "製薬企業"
+  },
+  "株式会社若狹会": {
+    "url": "https://wakasakai.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "LINE予約・受付システム提供"
+  },
+  "日揮株式会社": {
+    "url": "http://www.jgc.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "エンジニアリング・プラント建設企業"
+  },
+  "テュフラインランドジャパン株式会社": {
+    "url": "http://www.jpn.tuv.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "検査・認証サービス企業"
+  },
+  "SBT CO, .LTD.": {
+    "url": "http://www.sbtjapan.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "中古車輸出販売企業"
+  },
+  "綜合ユニコム株式会社": {
+    "url": "https://www.sogo-unicom.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産関連出版・情報提供企業"
+  },
+  "欽山": {
+    "url": "http://www.kinzan.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "旅館・温泉施設"
+  },
+  "株式会社シード・プランニング": {
+    "url": "http://www.seedplanning.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "市場調査・コンサルティング・事業創造支援"
+  },
+  "アーキアエナジー株式会社": {
+    "url": "http://www.archaea-energy.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "エネルギー事業者"
+  },
+  "レコルテ": {
+    "url": "http://www.recolte.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "税理士法人・会計事務所"
+  },
+  "あいおいニッセイ同和損害保険株式会社": {
+    "url": "http://www.aioinissaydowa.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "損害保険会社"
+  },
+  "its communications Inc.": {
+    "url": "http://www.itscom.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ケーブルテレビ・通信インフラサービス企業"
+  },
+  "MH2": {
+    "url": "http://mh2.io",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ドメイン情報のみで業務内容不明"
+  },
+  "株式会社アイ・アールジャパン": {
+    "url": "http://www.irjapan.net",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "議決権・資本市場コンサルティング企業"
+  },
+  "株式会社ソールテック": {
+    "url": "http://soul-tech.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "IT技術・組版・PDF/PostScript開発企業"
+  },
+  "株式会社 サクシード": {
+    "url": "http://www.succeed-net.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "レジャーホテル関連サービス"
+  },
+  "税理士法人東京さくら会計事務所": {
+    "url": "http://www.bizup.jp/sakuranet/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "税理士法人・会計事務所"
+  },
+  "株式会社エヌフォー": {
+    "url": "http://www.enfour.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ブロックチェーン・Web3.0技術関連企業"
+  },
+  "Fabbi": {
+    "url": "https://fabbi.com.vn",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "AI・ブロックチェーン技術企業（ベトナム）"
+  },
+  "株式会社 千葉通信システム": {
+    "url": "http://www.e-tusin.net",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ビジネスホン・ネットワーク構築・通信システム"
+  },
+  "SBIバーチャル・カレンシーズ株式会社": {
+    "url": "http://www.sbivc.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "暗号資産取引所・金融サービス"
+  },
+  "トーンモバイル株式会社": {
+    "url": "http://tone.ne.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "モバイル通信サービス企業"
+  },
+  "スマートビリングサービス株式会社": {
+    "url": "https://smartbilling.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "業務効率化サービス・請求システム提供"
+  },
+  "SepteniJapan株式会社": {
+    "url": "https://www.septeni.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "デジタルマーケティング・広告企業"
+  },
+  "株式会社iSERVE": {
+    "url": "http://www.iserve.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ITサービス・セキュリティ関連企業"
+  },
+  "株式会社アサヒファシリティズ": {
+    "url": "http://asahifm.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建物維持管理・ファシリティマネジメント事業"
+  },
+  "ファイザー株式会社": {
+    "url": "http://www.pfizer.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "製薬会社・バイオ医薬品企業"
+  },
+  "株式会社アンビシオン": {
+    "url": "http://www.ambicion.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "がん治療薬の新薬創出・製薬企業"
+  },
+  "株式会社アグノスワン": {
+    "url": "https://agunosuone.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要不明・情報不足"
+  },
+  "株式会社マンディ": {
+    "url": "http://www.mandi.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システムコンサルティング・システム開発"
+  },
+  "株式会社ミライズ": {
+    "url": "http://mirise-inc.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ワイヤレスイヤホン等の製造・販売"
+  },
+  "金融庁": {
+    "url": "http://www.fsa.go.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政府機関・金融行政"
+  },
+  "岩谷情報システム株式会社": {
+    "url": "http://www.iisnet.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・インフラ構築・セキュリティ対策"
+  },
+  "太陽グラントソントン・アドバイザーズ株式会社": {
+    "url": "https://www.grantthornton.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "アドバイザリー・コンサルティングサービス"
+  },
+  "平山ホールディングス株式会社": {
+    "url": "http://www.hirayama-holdings.com/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイトエラー・業務概要不明"
+  },
+  "アイプロダクツ株式会社": {
+    "url": "http://i-products.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ワイン等の食品製造・販売"
+  },
+  "株式会社ヒュージョン": {
+    "url": "https://www.husion.net",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要不明・情報不足"
+  },
+  "一般社団法人J.S.S.C": {
+    "url": "http://www.jssc.gr.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "安全保障・危機管理の学会・一般社団法人"
+  },
+  "株式会社アサヒプロテクトニーズ": {
+    "url": "http://www.asahi-protect.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "鍵・セキュリティ設備工事・防犯対策"
+  },
+  "株式会社ダイナミックエンタテインメント": {
+    "url": "http://d-enter.tokyo",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "エンタテインメント領域の事業コンサルティング"
+  },
+  "ココロカ株式会社": {
+    "url": "https://cocoroca.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "サプリメント製造・販売"
+  },
+  "ベーカー&マッケンジー法律事務所": {
+    "url": "http://www.bakermckenzie.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "国際法律事務所・法務コンサルティング"
+  },
+  "クアルコムジャパン": {
+    "url": "http://www.qualcomm.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "無線通信技術・半導体の開発企業"
+  },
+  "ZERO株式会社": {
+    "url": "https://www.nofoodloss.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "フードロス削減・無人販売機事業"
+  },
+  "株式会社DC.21": {
+    "url": "http://www.dc21.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産仲介・管理業"
+  },
+  "東日本銀行": {
+    "url": "http://www.higashi-nipponbank.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "銀行・金融機関"
+  },
+  "M&M株式会社": {
+    "url": "http://www.m-m-net.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産管理業"
+  },
+  "株式会社holo": {
+    "url": "http://holo.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "化粧品・スキンケア製品販売"
+  },
+  "フジイ 緑井祭典": {
+    "url": "http://047-377-7777.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "葬儀サービス業"
+  },
+  "株式会社グローバル・エージェンシー": {
+    "url": "http://global-agency.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "保険代理店業"
+  },
+  "株式会社 SSC": {
+    "url": "https://www.ssc-inc.info",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建設・鉄骨工事業"
+  },
+  "株式会社サイモンズ": {
+    "url": "http://www.symons.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "マーケティング・ポイントカード事業"
+  },
+  "株式会社リタプロモーション": {
+    "url": "http://www.rita-promotion.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ページアクセス不可のため詳細不明"
+  },
+  "アイネット・システムズ株式会社": {
+    "url": "http://www.ains.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・IT企業"
+  },
+  "株式会社フォネックス・コミュニケーションズ": {
+    "url": "http://www.phonex.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信サービス・Web関連事業"
+  },
+  "緑屋電気株式会社": {
+    "url": "http://www.midoriya.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "電気・半導体商社"
+  },
+  "永旺幻想(中国)儿童游乐有限公司": {
+    "url": "http://www.aeonfantasy.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "子供向け娯楽施設運営"
+  },
+  "シービーアールイー株式会社": {
+    "url": "https://www.cbre.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "商業用不動産サービス"
+  },
+  "ルナパーク グループ": {
+    "url": "https://www.lunapark-group.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産・賃貸管理業"
+  },
+  "株式会社PAY ROUTE": {
+    "url": "http://www.pay-route.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "決済サービス・QRコード決済提供"
+  },
+  "AIM Technologies Co., Ltd": {
+    "url": "https://www.aim-tech.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "ロボット技術・テクノロジー企業"
+  },
+  "メドピア株式会社": {
+    "url": "http://medpeer.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "医療従事者向けプラットフォーム・集合知サービスを提供"
+  },
+  "株式会社文祥堂": {
+    "url": "http://www.bunshodo.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "オフィス用品・文具販売、1912年創業の老舗小売業"
+  },
+  "株式会社enish": {
+    "url": "http://www.enish.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ゲームアプリ開発・エンターテインメント企業"
+  },
+  "メダップ株式会社": {
+    "url": "http://www.medup.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "病院経営コンサルティング・医療経営支援"
+  },
+  "ソフトブレーン株式会社": {
+    "url": "https://www.softbrain.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "CRM/SFA「eセールスマネージャー」を提供するSaaS企業"
+  },
+  "デロイトトーマツサイバー合同会社": {
+    "url": "http://www.deloitte.com/jp/dtcy",
+    "type": "it",
+    "confidence": "high",
+    "reason": "サイバーセキュリティ専門サービス提供企業"
+  },
+  "株式会社バスシステムデザイン研究所": {
+    "url": "https://bsd.ecobath.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "浴室リフォーム専門の建設・製造関連企業"
+  },
+  "株式会社FACT": {
+    "url": "https://fact-inc.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "デジタルマーケティングと風評対策サービス"
+  },
+  "公益財団法人オイスカ": {
+    "url": "http://www.oisca.org/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "環境保全・植林活動を行う公益財団法人"
+  },
+  "トップランクパートナーズ株式会社": {
+    "url": "https://toprank-partners.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明確だが施設管理・整備関連と推測"
+  },
+  "株式会社ウィズモバイル": {
+    "url": "http://www.wismobile.co.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "スマートフォンサイト制作・モバイルソリューション開発"
+  },
+  "GLANZ合同会社": {
+    "url": "http://glanz-s.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "イベント企画・運営、プロモーション代理店"
+  },
+  "株式会社アイエスエイ": {
+    "url": "http://www.isa-j.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "IoT機器・遠隔監視装置などのハードウェア製造"
+  },
+  "デロイトトーマツコンサルティング合同会社": {
+    "url": "http://www.deloitte.com/jp/dtc",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "デロイトトーマツのコンサルティング部門"
+  },
+  "アイシンクメディカル株式会社": {
+    "url": "http://www.ithink-m.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "医療向けソリューション提供、病理検査関連"
+  },
+  "特定非営利活動法人日本ミャンマー交流協会": {
+    "url": "http://www.ajmmc.org",
+    "type": "other",
+    "confidence": "high",
+    "reason": "日本ミャンマー交流を行うNPO法人"
+  },
+  "P.N.Creation": {
+    "url": "http://www.p-n-creation.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ブライダル関連のプログラム・サービス提供"
+  },
+  "株式会社フォーバルテクノロジー": {
+    "url": "http://www.forvaltech.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "電気通信・設備工事・保守サービス提供企業"
+  },
+  "株式会社avers": {
+    "url": "https://avers.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "メタバース関連事業、業務内容の詳細不明"
+  },
+  "HANWA EUROPE B.V.": {
+    "url": "http://www.hanwa.co.jp/hanwa_nl",
+    "type": "other",
+    "confidence": "low",
+    "reason": "404エラーで詳細不明、社名から商社の可能性"
+  },
+  "タマホーム株式会社": {
+    "url": "https://www.tamahome.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "住宅建設・販売企業"
+  },
+  "響きパートナーズ株式会社": {
+    "url": "http://www.hibikipartners.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "IPO支援・経営支援を提供するプロフェッショナル集団"
+  },
+  "株式会社インデックス": {
+    "url": "http://www.indexweb.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "503エラーで業務内容不明"
+  },
+  "サンシステム株式会社": {
+    "url": "http://sunsys.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "403エラーで業務内容不明"
+  },
+  "株式会社ダンクス": {
+    "url": "http://www.danks-g.com/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "販売代理店・WEBプロモーション事業"
+  },
+  "株式会社MRC": {
+    "url": "http://www.mrc-corp.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "化粧品製造販売・医療用消耗品販売"
+  },
+  "Fingerprint Innovation | APS SA | Luxembourg": {
+    "url": "http://apscard.lu",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "指紋認証カード関連の製造業の可能性"
+  },
+  "オムロン株式会社": {
+    "url": "http://www.omron.co.jp/r_d/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "電子機器製造業"
+  },
+  "株式会社角川メディアハウス": {
+    "url": "http://www.kmh.kadokawa.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "広告代理店・イベント企画運営・メディア事業"
+  },
+  "FORMOSA JAPAN 株式会社": {
+    "url": "http://www.formosa.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "炭素繊維・樹脂等の製品販売・製造業"
+  },
+  "株式会社リンク": {
+    "url": "https://lin-k.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ホテル施設の経営・運営・管理"
+  },
+  "施設の窓口株式会社": {
+    "url": "http://www.reliant.co.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "イスラエル技術の日本市場進出支援・事業開発"
+  },
+  "株式会社インク": {
+    "url": "https://iink.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "専門性で顧客事業を支援するパートナー企業"
+  },
+  "黒龍酒造株式会社": {
+    "url": "http://www.kokuryu.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "酒造メーカー"
+  },
+  "社会福祉法人社の里福祉会": {
+    "url": "http://www.morinosatofukushikai.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "社会福祉法人"
+  },
+  "一般社団法人 サステイナビリティ技術設計機構": {
+    "url": "http://susdi.org/wp/mvc/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "サステイナビリティ・サーキュラーエコノミー関連の一般社団法人"
+  },
+  "ロイヤルハウジング販売株式会社": {
+    "url": "http://www.royal-h.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産仲介・販売企業"
+  },
+  "三徳実業株式会社": {
+    "url": "https://www.santoku-j.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "人と街をつなぐ事業を展開する総合商社的企業"
+  },
+  "株式会社エクセ": {
+    "url": "http://www.exegroup.co.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "投資事業を中心に展開、未来への投資を続けている"
+  },
+  "株式会社ガイナックス": {
+    "url": "http://www.gainax.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "アニメーション制作・ゲームソフト制作会社（破産申立）"
+  },
+  "株式会社新川インフォメーションセンター": {
+    "url": "http://www2.nice-tv.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ケーブルテレビ事業者、通信サービス提供"
+  },
+  "株式会社ソービック": {
+    "url": "https://www.sovic.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "Web制作事業を展開"
+  },
+  "株式会社エスエムオ": {
+    "url": "http://www.success-mo.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "歯科・医院の開業・経営を支援する税理士事務所"
+  },
+  "山越総合法律事務所": {
+    "url": "http://yamakoshi-law.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "法律事務所、弁護士サービス"
+  },
+  "株式会社 フェア": {
+    "url": "https://kk-fair.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明確"
+  },
+  "Lead Capital Management Co., Ltd.": {
+    "url": "http://www.leadcapital.jp",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "ベンチャー企業へのリスクマネー提供、VC投資"
+  },
+  "株式会社メディカルネット": {
+    "url": "http://www.medical-net.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "歯科医療プラットフォームビジネス展開"
+  },
+  "株式会社 H パートナー": {
+    "url": "https://h-partner.co.jp/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "企業支援サービスを提供と推測"
+  },
+  "株式会社セゾン情報システムズ": {
+    "url": "http://www.hulft.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "データ連携ソフトウェアHULFTを提供する情報システム企業"
+  },
+  "三井物産セキュアディレクション株式会社": {
+    "url": "http://www.mbsd.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "セキュリティサービスを提供"
+  },
+  "株式会社 Algoage": {
+    "url": "https://chatboost.dmm.com/cv/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "チャットマーケティングSaaSプラットフォーム提供"
+  },
+  "エンリベル株式会社": {
+    "url": "https://en-liber.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "財務顧問・財務戦略サポート、資産防衛支援"
+  },
+  "Libertable（リベルターブル）": {
+    "url": "http://www.libertable.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ケーキ・パン等の製造販売"
+  },
+  "株式会社PLUS F": {
+    "url": "http://www.plus-f.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アカウント停止中で業務内容不明"
+  },
+  "有限会社エフティ・ワークス": {
+    "url": "http://www.ft-works.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "高周波電子計測・精密機器の製造販売"
+  },
+  "Algoage": {
+    "url": "https://www.algoage.co.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "DMMグループの事業開発・社会課題解決事業"
+  },
+  "株式会社マーキュリアインベストメント": {
+    "url": "https://www.mercuria.jp/",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "社名に「インベストメント」を含み、投資グループとして記載"
+  },
+  "National Vitalized Support of Local Community Organization": {
+    "url": "http://www.chiiki-kassei.or.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "地域振興・活性化支援を行う組織"
+  },
+  "Sophia Digital, Inc.": {
+    "url": "http://sophiadigital.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "デジタル関連企業でIT設備やシステム提供を示唆"
+  },
+  "北野ウイング | 株式会社 北野ウイング site": {
+    "url": "https://kitanowing.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "ホテルや病院等の運営コンサルティングとIT設備導入提案を提供"
+  },
+  "有限会社館": {
+    "url": "http://www.jalh.or.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "レジャーホテル産業関連の業界団体"
+  },
+  "イーヒルズ株式会社": {
+    "url": "https://www.ehills.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "六本木ヒルズ関連の施設運営・不動産管理"
+  },
+  "三鈴集團有限公司 MISUZU Holding Co., Ltd.": {
+    "url": "https://www.misuzuholding.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "製造業のホールディングス企業"
+  },
+  "株式会社コスモサウンド": {
+    "url": "http://www.cosmosound.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "音響関連企業"
+  },
+  "Quipper Limited": {
+    "url": "http://www.quipper.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "教育プラットフォームサービスを提供"
+  },
+  "ワタキューセイモア株式会社": {
+    "url": "http://www.watakyu.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療関連のリネンサプライ等のサービス業"
+  },
+  "ガルエージェンシー㈱": {
+    "url": "http://www.galu-urawa.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "探偵・興信所サービス"
+  },
+  "株式会社円谷プロダクション": {
+    "url": "http://www.tsuburaya-prod.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "エンターテイメント・映像コンテンツ制作"
+  },
+  "HOTEL Orion": {
+    "url": "https://orion-h.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ホテル業"
+  },
+  "エー・リンク株式会社": {
+    "url": "http://www.alinkcorp.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "IT機器・半導体関連事業と介護支援事業"
+  },
+  "ファーストヴィレッジ株式会社": {
+    "url": "http://www.firstvillage.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "経営者向けセミナー集客や経営支援サービスを提供"
+  },
+  "ArTra": {
+    "url": "http://www.artra-group.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "鍼灸接骨院業界特化の経営支援"
+  },
+  "税理士法人M&T": {
+    "url": "http://www.mandt-tax.or.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "税理士法人として企業経営のコンサルティング提供"
+  },
+  "FIVE COLORS LIMITED GROUP": {
+    "url": "http://mikadogames.net",
+    "type": "other",
+    "confidence": "high",
+    "reason": "オンラインゲーム事業"
+  },
+  "クルーガーグループ株式会社": {
+    "url": "http://www.cruager.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明確だが、グループ企業として多角的事業を示唆"
+  },
+  "株式会社クロスボーダー": {
+    "url": "http://x-border.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "PR事業、マーケティング支援、コンサルティングを実施"
+  },
+  "株式会社日本都市": {
+    "url": "https://www.jc-g.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "都市環境づくり、幼稚園、コインランドリー事業を展開"
+  },
+  "Moplus株式会社": {
+    "url": "https://moplus.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "モビリティ関連事業"
+  },
+  "アトラ株式会社": {
+    "url": "http://www.artra-s.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "鍼灸接骨院向けAI院内管理システムを提供"
+  },
+  "日本産業パートナーズ株式会社": {
+    "url": "http://www.jipinc.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "企業再生・成長支援を行う投資ファンド"
+  },
+  "株式会社 東邦技研": {
+    "url": "https://toho-giken.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "製造業、遠隔監視アプリケーション提供"
+  },
+  "万葉倶楽部株式会社": {
+    "url": "https://www.manyo.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "温浴施設運営事業"
+  },
+  "株式会社ダーツライブ": {
+    "url": "https://DARTSLIVE.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ダーツマシン提供、エンターテインメント事業"
+  },
+  "株式会社アイケイシー": {
+    "url": "https://www.roselips.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ラブホテル運営事業"
+  },
+  "teco Co., Ltd.": {
+    "url": "http://www.te-co.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ウェブマーケティング、広告事業"
+  },
+  "株式会社ココト": {
+    "url": "http://cocoto.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "LINEスタンプ等のコンテンツ制作事業"
+  },
+  "照井公基ビジネス・法律事務所": {
+    "url": "http://www.teruibusinesslaw.com",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "法律事務所、ビジネスコンサルティング"
+  },
+  "富岡開発株式会社": {
+    "url": "https://www.mkkgroup.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産事業を中心とした複合企業体"
+  },
+  "GNU株式会社": {
+    "url": "https://www.gnu.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "サービス業、詳細不明だが新しい価値創造を謳う"
+  },
+  "CODホールディングス": {
+    "url": "http://www.expertforce.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "スタートアップ向け資金調達コンサルティング"
+  },
+  "株式会社クライムメディカルシステムズ": {
+    "url": "http://www.climb-ms.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "マンモグラフィ画像診断システム提供"
+  },
+  "株式会社 デジタリフト": {
+    "url": "https://digitalift.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "デジタルマーケティングパートナー、課題解決支援"
+  },
+  "株式会社アール・グラージュ・インターナショナル": {
+    "url": "https://www.artgrage.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明確、画像のみで具体的なサービス内容が判断できない"
+  },
+  "合同会社菊永IT戦略顧問事務所": {
+    "url": "http://www.kikunaga-it.com/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "IT戦略顧問事務所としてIT戦略コンサルティングを提供"
+  },
+  "株式会社ASBRIGHT": {
+    "url": "http://www.asbright.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "メンテナンス中でサービス内容が不明"
+  },
+  "株式会社フュディアルクリエーション": {
+    "url": "https://www.fudealcreation.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産販売事業を展開"
+  },
+  "株式会社キーノートシャープ": {
+    "url": "http://www.keynotesharp.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "制作会社と推測されるが具体的な業務内容が不明確"
+  },
+  "株式会社GHP": {
+    "url": "https://www.ghp21.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ラブホテル運営事業"
+  },
+  "株式会社ケン・コーポレーション": {
+    "url": "http://www.kencorp.co.jp/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "企業向けサービスか一般消費者向けか不明確"
+  },
+  "株式会社SJI": {
+    "url": "http://www.sji-inc.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "海外FX情報メディア運営"
+  },
+  "芦原太郎建築事務所": {
+    "url": "http://www.t-ashihara.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建築設計事務所"
+  },
+  "株式会社北野ウイング": {
+    "url": "https://kwing.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "ホテル・医療施設等の運営コンサルティングとIT設備導入提案"
+  },
+  "株式会社アンシェル": {
+    "url": "http://www.anciel.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "システム開発・技術提供を行うIT企業"
+  },
+  "一般社団法人電資総合研究所": {
+    "url": "http://www.erl.or.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "太陽光発電関連のリース事業"
+  },
+  "株式会社グロースソイル": {
+    "url": "https://growth-soil.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "ナーチャリング戦略設計を行うマーケティングコンサルティングファーム"
+  },
+  "社会福祉法人成仁会特別養護老人ホーム成仁ハウス百年の里": {
+    "url": "http://www.i-seijinkai.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "特別養護老人ホーム運営の社会福祉法人"
+  },
+  "株式会社ナコム": {
+    "url": "https://www.nacom.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ホテル向け介護食・フード提供サービス"
+  },
+  "AdaFes 株式会社": {
+    "url": "http://adafes.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "RFID技術によるトレーサビリティシステム提供"
+  },
+  "社会福祉法人杜の里福祉会": {
+    "url": "http://www.morinosato.biz/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "福祉施設運営の社会福祉法人"
+  },
+  "株式会社イッツ・ミー": {
+    "url": "http://it-s-me.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "障がい者向けグループホーム運営"
+  },
+  "株式会社DaikoCommunications": {
+    "url": "http://www.daiko-tk.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "情報通信事業を展開"
+  },
+  "株式会社キャリアウォーク": {
+    "url": "https://www.careerwalk.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "エラーページでサービス内容が不明"
+  },
+  "総合調査社 ガルエージェンシー": {
+    "url": "https://info.galu-kichijouji.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "探偵・調査業務を提供する総合調査社"
+  },
+  "株式会社グローバルシンキング": {
+    "url": "http://www.global-thinking.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ネットワークインフラ構築からアプリケーション開発まで行う総合SIカンパニー"
+  },
+  "SHENZHEN ANTOP TECHNOLOGY CO., LTD": {
+    "url": "http://www.antop.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "中国深センのテクノロジー企業、詳細不明だが製造業の可能性"
+  },
+  "株式会社 GET": {
+    "url": "https://www.get-s.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "観光集客施設向けのコンサルティング・事業開発支援"
+  },
+  "ドクターズモバイル株式会社": {
+    "url": "http://doctorsmobile.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "医療向けソフトウェア/ハードウェア/通信ソリューション提供"
+  },
+  "監査法人ナカチ": {
+    "url": "http://www.nakachi.or.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "会計監査を行う監査法人"
+  },
+  "ABBEY": {
+    "url": "http://www.abbey2007.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明瞭"
+  },
+  "スマートニュース株式会社": {
+    "url": "https://www.smartnews.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "ニュースアプリプラットフォームを提供"
+  },
+  "株式会社キャリア・マム": {
+    "url": "https://corp.c-mam.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "在宅ワーク会員による業務アウトソーシングサービス"
+  },
+  "PayPay株式会社": {
+    "url": "http://www.paypay-corp.co.jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "決済プラットフォームPayPayを提供"
+  },
+  "株式会社エイビット": {
+    "url": "http://www.abit.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "危機管理型水位計などの製造・販売"
+  },
+  "一般社団法人メディカルサイエンスベーストリソース研究所": {
+    "url": "http://www.msbr.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療サイエンス関連の一般社団法人・研究所"
+  },
+  "株式会社パデコ": {
+    "url": "http://www.padeco.jp/jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "404エラーだが社名から開発・コンサル事業と推測"
+  },
+  "株式会社ハッピージャパン": {
+    "url": "http://www.happyjapan.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "クリエイティブオフィス、デザイン・制作業務"
+  },
+  "株式会社アーチ・エンタテインメント": {
+    "url": "http://arch-ent.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "オペラ等のエンタテインメント事業"
+  },
+  "Zenlok株式会社": {
+    "url": "http://www.zenlok.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "nginxデフォルトページのみで業務内容不明"
+  },
+  "クリオプランニング合同会社": {
+    "url": "https://www.clioplanning.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "メンテナンス中で業務内容不明"
+  },
+  "株式会社LastRoots": {
+    "url": "http://www.lastroots.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アクセス不可で業務内容不明"
+  },
+  "株式会社カナサシテクノサービス": {
+    "url": "http://kanasashi-tech.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "耐震性貯水槽・飲料水兼用水槽の製造販売、造船関連事業"
+  },
+  "e-tabinet.com, Inc.": {
+    "url": "http://www.e-tabinet.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "旅行サービス提供企業"
+  },
+  "有限会社 万来舎": {
+    "url": "http://www.banraisha.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "出版・書籍関連事業"
+  },
+  "A・Tコミュニケーションズ株式会社": {
+    "url": "http://a-tc.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "QRコード技術、セキュリティ技術などIT技術提供"
+  },
+  "Deloitte Tohmatsu Consulting LLC": {
+    "url": "http://www.deloitte.com/jp/en/dtc",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "デロイト トーマツ、戦略策定から実行までのコンサルティングサービス"
+  },
+  "株式会社セイコウ": {
+    "url": "http://www.seikou.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "業務内容の詳細不明、製造業の可能性"
+  },
+  "株式会社アイエム": {
+    "url": "https://inouemasa.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "農業・野菜生産関連事業"
+  },
+  "日幸産業運輸株式会社": {
+    "url": "http://www.nikko-jfn.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "物流・運輸サービス、サプライチェーンマネジメント"
+  },
+  "株式会社ミュゼプラチナム": {
+    "url": "http://musee-pla.com/corporate/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "美容脱毛サロン、美容・コスメEC事業"
+  },
+  "株式会社 DINO": {
+    "url": "https://dino-j.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "AV総合プロダクション、エンターテイメント事業"
+  },
+  "ENSOME PARTNERS": {
+    "url": "http://ensome.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "人材を軸にした包括的な経営支援サービス"
+  },
+  "株式会社MCJ": {
+    "url": "http://www.mcj.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "業務内容の詳細不明"
+  },
+  "株式会社コドモン": {
+    "url": "https://www.codmon.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "子ども・教育関連のSaaSプラットフォーム提供"
+  },
+  "パナソニック株式会社": {
+    "url": "http://panasonic.co.jp/ais",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ページが見つからず業務内容不明"
+  },
+  "シップヘルスケアホールディングス株式会社": {
+    "url": "https://www.shiphd.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ヘルスケアホールディングス企業、医療・介護関連事業"
+  },
+  "日清医療食品株式会社": {
+    "url": "http://www.nifs.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療食品提供サービス企業"
+  },
+  "株式会社GKテック": {
+    "url": "http://www.gk-design.co.jp/tech/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "科学館向け展示物等のデザイン・技術企業"
+  },
+  "Internet Initiative Japan Inc.": {
+    "url": "http://www.iij.ad.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "インターネットインフラ・通信サービス提供企業"
+  },
+  "バラクフェラザノ": {
+    "url": "http://bfkn.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "法律事務所"
+  },
+  "株式会社APOLLON": {
+    "url": "http://www.nba-japan.net",
+    "type": "other",
+    "confidence": "low",
+    "reason": "メンテナンス中でサービス内容不明"
+  },
+  "株式会社Crosstab": {
+    "url": "https://crosstab.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アクセス制限によりサービス内容不明"
+  },
+  "株式会社ワールド・ワイド・メディカル": {
+    "url": "http://www.kumin.ne.jp/wwm/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アクセス制限によりサービス内容不明"
+  },
+  "ソフトバンク株式会社,SB C&S株式会社": {
+    "url": "https://www.softbank.jp/corp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信インフラ・ITサービス提供企業"
+  },
+  "一般社団法人保健医療福祉情報システム工業会": {
+    "url": "http://www.jahis.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "保健医療福祉情報システムの業界団体"
+  },
+  "株式会社ジャパンインベストメントアドバイザー": {
+    "url": "http://www.jia-ltd.com",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "投資・オペレーティングリース事業を展開する金融企業"
+  },
+  "株式会社レイズ": {
+    "url": "http://01s.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サービス内容が不明確"
+  },
+  "株式会社PLAY": {
+    "url": "https://play.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "映像制作・動画コンテンツ制作企業"
+  },
+  "株式会社エバートロン": {
+    "url": "http://www.evertron.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サービス内容が不明確"
+  },
+  "みなと協和法律事務所": {
+    "url": "http://www.minato-kyowa.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "法律事務所"
+  },
+  "株式会社UBIC": {
+    "url": "http://www.ubic.co.jp",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "特化型AI「KIBIT」プラットフォームを提供するAIソリューション企業"
+  },
+  "株式会社AnchorZ": {
+    "url": "http://www.anchorz.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明瞭、SNSアイコンのみで判断困難"
+  },
+  "株式会社キャピタルリンクス": {
+    "url": "http://www.capitallinks.net",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サーバーエラーで業務内容確認不可"
+  },
+  "日本デジタルマネー協会": {
+    "url": "http://www.digitalmoney.or.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アクセス不可で業務内容確認不可"
+  },
+  "株式会社アイシーピー": {
+    "url": "http://www.icp5.co.jp/",
+    "type": "vc",
+    "confidence": "high",
+    "reason": "独立系ベンチャーキャピタル、成長性の高いベンチャー企業への投資育成"
+  },
+  "堀井サイエンスアソーシエイト株式会社": {
+    "url": "http://www.hsa-center.org/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容が不明瞭、学術関連の可能性"
+  },
+  "八重洲ライフ株式会社": {
+    "url": "http://www.yaesugolflife.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ゴルフ場会員権販売、小売・仲介業"
+  },
+  "租税調査研究会": {
+    "url": "http://zeimusoudan.biz/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "税務に関する相談・アドバイス・サポートを提供"
+  },
+  "株式会社シャリオン": {
+    "url": "https://charion.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "オーラルケア製品の製造・販売企業"
+  },
+  "株式会社ファルコン・キャピタル": {
+    "url": "https://www.falconcap.co.jp",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "M&A支援、中小企業の経営支援・資金繰り対策を提供"
+  },
+  "医療法人社団宗仁会": {
+    "url": "http://www.soujinkai.or.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "医療法人、医療サービス提供"
+  },
+  "社会福祉法人 和孝福祉会": {
+    "url": "http://www.aisen.or.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "社会福祉法人、福祉サービス提供"
+  },
+  "1975年生まれ。A型。卯": {
+    "url": "https://note.com/fujita_fukushi",
+    "type": "other",
+    "confidence": "low",
+    "reason": "個人のnoteページ、企業としての業務内容不明"
+  },
+  "社会福祉法人敬世会": {
+    "url": "http://www.nagai-group.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "社会福祉法人、医療・介護サービス提供"
+  },
+  "GFA株式会社": {
+    "url": "http://www.gfa.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "Web3技術を活用した通貨・価値交換プラットフォーム提供"
+  },
+  "株式会社 芝浦通信": {
+    "url": "http://shibatu.com/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "業務用無線システムの設計・施工・保守、通信インフラ事業"
+  },
+  "月光庵": {
+    "url": "http://gekkouan.com/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ページが存在せず業務内容確認不可"
+  },
+  "株式会社セキュリティ工学研究所": {
+    "url": "http://www.istech.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "社名から判断してセキュリティ関連のIT企業"
+  },
+  "Kudan Finance & IT Research Institute": {
+    "url": "https://kudan-research.com",
+    "type": "consulting",
+    "confidence": "low",
+    "reason": "Finance & IT Research Instituteという名称から金融IT系コンサルティング・リサーチ企業と推測"
+  },
+  "ノースショア株式会社": {
+    "url": "http://www.north-s.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "クリエイティブ集団として広告・制作業務を提供"
+  },
+  "プライムパートナー株式会社": {
+    "url": "http://prime-partner.co.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "不動産管理・資産管理を中心とした不動産業"
+  },
+  "株式会社トップランク": {
+    "url": "https://toprank.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "自動車関連サービスを提供"
+  },
+  "株式会社東京商品取引所": {
+    "url": "http://www.tocom.or.jp/jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "商品取引所運営"
+  },
+  "K's Vlag": {
+    "url": "https://www.ks-vlag.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足により判定困難"
+  },
+  "株式会社ケー·ピー·テック": {
+    "url": "http://www.kp-tec.jp",
+    "type": "it",
+    "confidence": "low",
+    "reason": "社名から判断してIT・技術系企業と推測"
+  },
+  "株式会社パレット": {
+    "url": "https://pallet-net.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "VODシステム、カラオケシステム等の法人向けサービスプラットフォームを提供"
+  },
+  "JUPITER": {
+    "url": "http://jupiter-ico.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "アダルトコンテンツのクーポン情報サイト"
+  },
+  "エイベックス・エンタテインメント株式会社": {
+    "url": "http://www.avex.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "エンタテインメント・音楽業界企業"
+  },
+  "有限会社le poison": {
+    "url": "http://www.hamato.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足により判定困難"
+  },
+  "株式会社ドコモCS": {
+    "url": "https://www.docomo-cs.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "ドコモグループの通信・IT関連企業"
+  },
+  "カルトーニ株式会社": {
+    "url": "http://home.att.ne.jp/gold/cartoni/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足により判定困難"
+  },
+  "株式会社NEXYZ.東日本": {
+    "url": "https://www.nexyzgroup.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "通信・IT関連サービスを提供する企業と推測"
+  },
+  "SMART CONTRACT JAPAN Ltd.": {
+    "url": "http://smartcontract.jp/ja/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ホームルーター・WiFi紹介サイト（アフィリエイト等）"
+  },
+  "エボルブアイティワークス株式会社": {
+    "url": "http://www.evolveit.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "社名と業務内容からITシステム開発企業"
+  },
+  "株式会社ピースステイション": {
+    "url": "http://www.mythos.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "高級クラブ・飲食店の運営"
+  },
+  "オリコン株式会社": {
+    "url": "http://www.oricon.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "音楽ランキングや情報提供サービス（メディア・情報サービス企業）"
+  },
+  "株式会社ベネシード": {
+    "url": "https://www.beneseed.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "健康食品・ホワイトニング等の製品販売"
+  },
+  "株式会社オウケイウェイヴ": {
+    "url": "http://www.okwave.co.jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "Q&Aコミュニティプラットフォーム『OKWAVE』提供"
+  },
+  "mobiAI株式会社": {
+    "url": "http://www.mobiai.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（reCAPTCHAページのみ）"
+  },
+  "一般財団法人 災害支援財団": {
+    "url": "http://dsf-j.org/",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "災害支援を行う一般財団法人"
+  },
+  "403 Forbidden": {
+    "url": "http://ierae.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（403エラー）"
+  },
+  "株式会社レピダム": {
+    "url": "https://lepidum.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（403エラー）"
+  },
+  "OKEIOS": {
+    "url": "http://www.okeios.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（画像のみ）"
+  },
+  "株式会社協同制作": {
+    "url": "https://www.kyodo-pro.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "制作会社（映像・イベント等の制作業務）"
+  },
+  "株式会社 H 3": {
+    "url": "http://h3-inc.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "エンターテインメント・音楽マネージメント事業"
+  },
+  "株式会社デイ・ソフトウェア": {
+    "url": "http://www.day-soft.co.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "社名から推測されるソフトウェア開発企業"
+  },
+  "SBフレームワークス株式会社": {
+    "url": "http://www.sbfw.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "物流サービス企業（もの・ことロジ提供）"
+  },
+  "京都大学": {
+    "url": "http://square.umin.ac.jp/kupe/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "大学の研究機関（薬剤疫学分野）"
+  },
+  "株式会社メタップスワン": {
+    "url": "http://metaps-one.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "デジタルマーケティング・広告代理店"
+  },
+  "株式会社ウェイサス": {
+    "url": "http://www.waysas.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "WEB3・セキュリティ製品の専門商社、Web制作"
+  },
+  "株式会社レイ・モンド": {
+    "url": "http://www.raymonde.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "建設資材（レイソイル）製造・販売"
+  },
+  "株式会社イー・メディカルソリューションズ": {
+    "url": "http://www.emsl.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（接続エラー）"
+  },
+  "ジャパンリーディングエッジ株式会社": {
+    "url": "http://www.jle.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（ホームページ未アップロード）"
+  },
+  "WisMobile Co., LTD.": {
+    "url": "http://mobile.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（デフォルトページ）"
+  },
+  "株式会社リブウェル": {
+    "url": "https://livewellgroup.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足（デフォルトWordPressページのみ）"
+  },
+  "株式会社FLAP MEDIA": {
+    "url": "http://f-media.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "イベント事業を展開"
+  },
+  "株式会社サイプレス・ソリューションズ": {
+    "url": "http://www.cypress-sol.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "合併してマーブル社となったシステム開発企業"
+  },
+  "株式会社グランドツー": {
+    "url": "http://www.grand2.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "革新的なITソリューションを提供するベンダー企業"
+  },
+  "株式会社ロボ・ガレージ": {
+    "url": "http://www.robo-garage.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ページ情報なし、ロボット関連と推測"
+  },
+  "一般社団法人オープンガバメント・コンソーシアム": {
+    "url": "http://ogc.or.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "一般社団法人、詳細不明"
+  },
+  "ほとだゆうな事務所": {
+    "url": "http://hotoda-yuna.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "政治家の個人事務所"
+  },
+  "テラ株式会社": {
+    "url": "http://www.tella.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "レーシック等の医療情報サイト運営"
+  },
+  "大下会計事務所": {
+    "url": "https://ohshitacpa.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "税理士事務所（8番と同一）"
+  },
+  "株式会社バスキュール": {
+    "url": "http://www.bascule.co.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "プロジェクトデザイン・デジタルコンテンツ制作企業（9番と同一）"
+  },
+  "パワーサプライテクノロジー株式会社": {
+    "url": "http://www.ps-t.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "カスタム電源製品の製造企業"
+  },
+  "株式会社エンサイクルマーケティング": {
+    "url": "http://encycle.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイト情報なし、詳細不明"
+  },
+  "BellTrans Technology": {
+    "url": "http://www.belltranstech.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "翻訳サービス企業"
+  },
+  "エクスウェルス・インテグレート・ジャパン株式会社": {
+    "url": "http://www.exwealth.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイト情報なし、詳細不明"
+  },
+  "株式会社 キタウロコ 笛本商店": {
+    "url": "http://www.kitauroko.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アクセス不可、笛本商店の可能性"
+  },
+  "株式会社KAIKETSU": {
+    "url": "http://www.kk2.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイトアクセス不可、詳細不明"
+  },
+  "株式会社モントン": {
+    "url": "http://www.monton.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイト情報なし、詳細不明"
+  },
+  "有限会社シヨッカー": {
+    "url": "http://www.shocker.jp.net",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ベッドパネルや学習リモコン等の製造・販売企業"
+  },
+  "株式会社ヒューマントラスト": {
+    "url": "http://www.humantrust.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "人材派遣・求人サービス企業"
+  },
+  "パナソニックデバイス販売株式会社": {
+    "url": "http://panasonic.net/id/pidsj",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ページエラーで情報不明、社名から電子デバイス販売事業と推測"
+  },
+  "アンバサンド税理士法人,アンバサンド株式会社": {
+    "url": "https://ampersand-tax.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "税理士法人・税務会計サービス"
+  },
+  "西村あさひ法律事務所": {
+    "url": "http://www.jurists.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "法律事務所（ページエラーだが社名から判定）"
+  },
+  "株式会社TWO": {
+    "url": "http://two2.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "タグライン「欲しいものは2つある」から一般事業会社と推測、詳細不明"
+  },
+  "Enito Group, Inc.": {
+    "url": "https://enito.co.jp/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "グループ企業で採用・協業を募集、事業内容は不明確だがコンサル系の可能性"
+  },
+  "株式会社トモシステクノロジーズ": {
+    "url": "http://www.tomosystech.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "社名に「システテクノロジーズ」を含むためIT企業と推測"
+  },
+  "株式会社オシクル": {
+    "url": "https://oshikuru.jp/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "インフルエンサープロダクション・マーケティング事業"
+  },
+  "ワースリンデントンス": {
+    "url": "http://www.dentons.com",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ページエラーで詳細不明、社名から法律事務所の可能性"
+  },
+  "株式会社エストゥルース": {
+    "url": "http://estruth.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "会社情報ページのみで事業内容不明"
+  },
+  "合同会社桑原真琴事務所": {
+    "url": "http://kuwaharamakoto.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ページエラーで情報不明、個人事務所と推測"
+  },
+  "コリアタッカンマリ": {
+    "url": "http://www.dakhanmari.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "タッカンマリ専門店・飲食店"
+  },
+  "株式会社G-KIT": {
+    "url": "https://www.g-kit.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "デジタルビジネス・IT関連サービス提供"
+  },
+  "LOF Hotel Management株式会社": {
+    "url": "http://www.lof-hotel.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ホテル管理会社・宿泊業"
+  },
+  "BIT株式会社": {
+    "url": "http://bit.tokyo.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "社名「BIT」からIT関連企業と推測、詳細不明"
+  },
+  "株式会社エー·エル·シー": {
+    "url": "http://www.alc-mg.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "輸入車販売・自動車ディーラー"
+  },
+  "社会福祉法人成仁会": {
+    "url": "http://www.seijinkai.hello-net.info/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "社会福祉法人・福祉事業"
+  },
+  "art contract Japan": {
+    "url": "http://smartcontract.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "ホームルーター比較サイト・メディア運営"
+  },
+  "住友科技股份有限公司": {
+    "url": "http://www.calin.com.tw",
+    "type": "other",
+    "confidence": "low",
+    "reason": "台湾企業で製品情報の詳細不明、製造業の可能性"
+  },
+  "一般社団法人メタバース推進協議会": {
+    "url": "https://jmpc.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "メタバース推進協議会、企業連携による新しい世界創造を支援"
+  },
+  "一般社団法人ファミリーオフィス協会": {
+    "url": "http://www.familyoffice.or.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "ファミリーオフィス協会、資産管理・事業開発支援の可能性"
+  },
+  "株式会社クリップス": {
+    "url": "https://www.clips.co.jp/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "予約システム「ねっぱん！サイトコントローラー」等のSaaS製品提供"
+  },
+  "株式会社ビックカメラ": {
+    "url": "https://www.biccamera.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "家電量販店の小売業"
+  },
+  "株式会社アイガッシュ": {
+    "url": "http://www.igush.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容の詳細不明"
+  },
+  "TM FINANCIAL CONSULTING CO., LTD": {
+    "url": "http://www.tmfc.co.jp",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "社名にFINANCIAL CONSULTINGを含む金融コンサルティング企業"
+  },
+  "有限会社ジェイズコア": {
+    "url": "http://www.jscore.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容不明"
+  },
+  "三鬼商事株式会社": {
+    "url": "http://www.e-miki.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "オフィス仲介・不動産サービス"
+  },
+  "Vormetric, Inc.": {
+    "url": "http://www.vormetric.com",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "Vormetricはデータセキュリティ企業"
+  },
+  "ヒトイル株式会社": {
+    "url": "https://www.hitoiru.co.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "人材・採用支援、企業とヒトを繋ぐ事業開発支援"
+  },
+  "株式会社長谷川萬治商店": {
+    "url": "http://www.haseman.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "木材・建材商社、製造業"
+  },
+  "三洋テクノソリューションズ鳥取株式会社": {
+    "url": "http://www.sts-tottori.com/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "テクノソリューションズの社名からIT・システム開発企業"
+  },
+  "カニエJAPAN株式会社": {
+    "url": "http://www.kaniejapan.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "各種手続き・緊急対応サービス、保険または不動産関連"
+  },
+  "株式会社セレス": {
+    "url": "http://ceres-inc.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "インターネットマーケティング・広告事業"
+  },
+  "株式会社ウード": {
+    "url": "http://woood.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容の詳細不明"
+  },
+  "みらいチャレンジ株式会社": {
+    "url": "http://it-bengosi.com/",
+    "type": "consulting",
+    "confidence": "medium",
+    "reason": "法律事務所、企業向け法務コンサルティング"
+  },
+  "トリムユニバース株式会社": {
+    "url": "http://www.tru.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務内容不明"
+  },
+  "株式会社ラクトザイム": {
+    "url": "http://lactzyme.com/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "乳酸菌産生エキスを製造する健康食品・バイオ関連企業"
+  },
+  "株式会社クロスコンパス": {
+    "url": "http://xcompass.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報取得不可のため判定困難"
+  },
+  "協同組合企業情報センター": {
+    "url": "http://www.kjc.ne.jp/",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "企業情報センターとしてIT/情報サービスを提供する協同組合"
+  },
+  "Public Intelligence Technology Associates KK.": {
+    "url": "http://www.pitakk.com/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報不足のため判定困難"
+  },
+  "東京電機大学": {
+    "url": "http://www.ine.sie.dendai.ac.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "大学の研究機関（教育機関）"
+  },
+  "株式会社フィンテックパートナーズ": {
+    "url": "http://fintechpartners.jp/",
+    "type": "consulting",
+    "confidence": "high",
+    "reason": "フィンテック分野のパートナー/コンサルティング企業"
+  },
+  "株式会社DMM Bitcoin": {
+    "url": "http://bitcoin.dmm.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "暗号資産取引所（サービス終了済み）"
+  },
+  "レンジャーシステムズ株式会社": {
+    "url": "http://ranger-systems.co.jp",
+    "type": "it",
+    "confidence": "high",
+    "reason": "通信事業者向けネットワークインテグレーター"
+  },
+  "株式会社串の坊": {
+    "url": "http://www.kushinobo.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "串揚げ料理の飲食店"
+  },
+  "株式会社 Sound Ocean": {
+    "url": "http://sound-ocean.co.jp",
+    "type": "other",
+    "confidence": "medium",
+    "reason": "詳細不明だが音響関連企業と推測"
+  },
+  "olive SPA": {
+    "url": "http://www.olivespa.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "スパ・エステサロン"
+  },
+  "三聖トラスト会計事務所": {
+    "url": "http://www.sansei-tokyo.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "会計事務所"
+  },
+  "有限会社シモウサ・システムズ": {
+    "url": "http://www.shimousa.com",
+    "type": "it",
+    "confidence": "high",
+    "reason": "VPN構築ソリューションを提供するシステム開発企業"
+  },
+  "株式会社学校健診情報センター": {
+    "url": "http://shrcenter.co.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "学校健診情報システムを提供すると推測"
+  },
+  "AZUMAN": {
+    "url": "http://www.azuman-rd.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報取得不可のため判定困難"
+  },
+  "日本コーネット・テクノロジー株式会社": {
+    "url": "http://www.nihon-cornet.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "情報取得不可のため判定困難"
+  },
+  "東京貿易開発株式会社": {
+    "url": "http://www.tbdl.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "ページアクセス不可のため詳細不明、社名から貿易関連企業と推測"
+  },
+  "株式会社Tax Refund EXpress": {
+    "url": "http://www.tax-rex.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイト情報取得不可、社名から税務関連サービスと推測"
+  },
+  "永和監査法人": {
+    "url": "http://www.eiwa-audit.com",
+    "type": "other",
+    "confidence": "high",
+    "reason": "監査法人として監査業務を提供"
+  },
+  "株式会社ビットイノベーション": {
+    "url": "http://bitinnovation.co.jp",
+    "type": "it",
+    "confidence": "medium",
+    "reason": "Mining、Rendering、Systemサービスを提供するIT企業"
+  },
+  "有限会社 ホテルシャレーワシントン": {
+    "url": "http://www.chalet-w.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "ホテル業"
+  },
+  "Grand Prince Hotel Takanawa": {
+    "url": "http://www.princehotels.co.jp/takanawa-area/",
+    "type": "other",
+    "confidence": "high",
+    "reason": "プリンスホテル・宿泊業"
+  },
+  "トリプル・ダブリュー・ジャパン株式会社": {
+    "url": "http://dfree.biz/",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "排泄予測支援機器DFreeという製品・サービスを提供"
+  },
+  "株式会社impact connect": {
+    "url": "https://icnct.co.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "販促支援・物流事業を展開"
+  },
+  "株式会社ティアフォー": {
+    "url": "https://tier4.jp",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "ティアフォーは自動運転関連のプラットフォーム・ソフトウェアを提供"
+  },
+  "株式会社アマネク・テレマティクスデザイン": {
+    "url": "http://www.amanek.co.jp/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイト情報取得不可、社名からテレマティクス関連と推測"
+  },
+  "株式会社ソナー": {
+    "url": "http://www.snr.jp/",
+    "type": "it",
+    "confidence": "high",
+    "reason": "不動産領域特化のITシステム開発・Webサイト構築・運用保守"
+  },
+  "Origami Inc.": {
+    "url": "http://origami.com/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイト情報不十分で業務内容不明"
+  },
+  "Kiton": {
+    "url": "https://kiton.co.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "サイト情報取得不可、詳細不明"
+  },
+  "株式会社アール・エフ": {
+    "url": "http://www.river-fast.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明確（reCAPTCHAのみ表示）"
+  },
+  "公益財団法人脳血管研究所美原記念病院": {
+    "url": "http://mihara-ibbv.jp",
+    "type": "other",
+    "confidence": "high",
+    "reason": "脳血管研究所・病院（医療機関）"
+  },
+  "グローバルホールディングス株式会社": {
+    "url": "http://global-hd.com/",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アクセス不可のため業務内容不明"
+  },
+  "株式会社キャディッシュ": {
+    "url": "https://www.cadish.co.jp/",
+    "type": "saas",
+    "confidence": "medium",
+    "reason": "Webサイト制作と予約システム（予約番）サービス提供"
+  },
+  "エクスケア・ジャパン株式会社": {
+    "url": "http://www.ex-care.com",
+    "type": "other",
+    "confidence": "low",
+    "reason": "業務概要が不明確（デフォルトWordPressページのみ）"
+  },
+  "クックパッド株式会社": {
+    "url": "http://cookpad.com",
+    "type": "saas",
+    "confidence": "high",
+    "reason": "クックパッド - レシピ共有プラットフォームサービス"
+  },
+  "株式会社プロドローン": {
+    "url": "http://www.prodrone.jp",
+    "type": "other",
+    "confidence": "low",
+    "reason": "アクセス不可のため業務内容不明（社名からドローン製造関連と推測）"
+  }
+}

@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Device Authorization - brainbase</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0b1120 0%, #1e293b 100%);
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 24px;
+            padding: 48px;
+            width: min(520px, 100%);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #60a5fa;
+            margin-bottom: 8px;
+        }
+
+        .logo p {
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .step {
+            display: none;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        .step-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .step-desc {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 24px;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .code-display {
+            background: rgba(59, 130, 246, 0.1);
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            border-radius: 16px;
+            padding: 32px;
+            margin: 24px 0;
+            text-align: center;
+        }
+
+        .code-display .label {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .code-display .code {
+            font-size: 48px;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 8px;
+            color: #60a5fa;
+            margin: 0;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #cbd5e1;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 12px;
+            color: #e2e8f0;
+            outline: none;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .input-group input:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .input-group input::placeholder {
+            color: #64748b;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: center;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn:disabled {
+            background: #334155;
+            color: #64748b;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            color: #cbd5e1;
+            margin-top: 12px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(148, 163, 184, 0.1);
+            border-color: #94a3b8;
+            box-shadow: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 48px;
+        }
+
+        .status-icon.success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .status-icon.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+            color: #fecaca;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .loading-text {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>brainbase</h1>
+            <p>Device Authorization</p>
+        </div>
+
+        <!-- Step 1: User Code Input -->
+        <div class="step active" id="step-input">
+            <h2 class="step-title">認証コードを入力</h2>
+            <p class="step-desc">CLIに表示された8桁のコードを入力してください</p>
+            <div class="input-group">
+                <label for="user-code-input">認証コード (XXXX-XXXX)</label>
+                <input
+                    type="text"
+                    id="user-code-input"
+                    placeholder="XXXX-XXXX"
+                    maxlength="9"
+                    autocomplete="off"
+                    autocapitalize="characters"
+                />
+            </div>
+            <button class="btn" id="verify-btn" disabled>次へ</button>
+            <div id="verify-error" class="error-message" style="display: none;"></div>
+        </div>
+
+        <!-- Step 2: Slack Login -->
+        <div class="step" id="step-slack">
+            <h2 class="step-title">Slackでログイン</h2>
+            <p class="step-desc">Slackアカウントで認証してください</p>
+            <div class="code-display">
+                <div class="label">認証コード</div>
+                <p class="code" id="user-code-display">XXXX-XXXX</p>
+            </div>
+            <button class="btn" id="slack-login-btn">
+                <span class="spinner" style="display: none;"></span>
+                Slackでログイン
+            </button>
+            <button class="btn btn-secondary" id="back-to-input-btn">戻る</button>
+        </div>
+
+        <!-- Step 3: Approve/Deny -->
+        <div class="step" id="step-approve">
+            <h2 class="step-title">認証を許可</h2>
+            <p class="step-desc">このデバイスにbrainbaseへのアクセスを許可しますか？</p>
+            <div class="code-display">
+                <div class="label">認証コード</div>
+                <p class="code" id="user-code-display-approve">XXXX-XXXX</p>
+            </div>
+            <button class="btn" id="approve-btn">許可</button>
+            <button class="btn btn-secondary" id="deny-btn">拒否</button>
+        </div>
+
+        <!-- Step 4: Success -->
+        <div class="step" id="step-success">
+            <div class="status-icon success">✓</div>
+            <h2 class="step-title">認証完了</h2>
+            <p class="step-desc">CLIで認証が完了しました。このウィンドウを閉じてください。</p>
+            <button class="btn" onclick="window.close()">閉じる</button>
+        </div>
+
+        <!-- Step 5: Error -->
+        <div class="step" id="step-error">
+            <div class="status-icon error">✕</div>
+            <h2 class="step-title">認証に失敗</h2>
+            <p class="step-desc" id="error-desc">認証中にエラーが発生しました</p>
+            <button class="btn" onclick="location.reload()">もう一度試す</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { DeviceAuthController } from '/modules/device/device-auth-controller.js?v=5';
+
+        const controller = new DeviceAuthController();
+        controller.init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1718 @@
+{
+  "query": "(AI 経営 OR AI 事業 OR AI 自動化) (気づいた OR やめた OR 変えた) -is:retweet -is:reply",
+  "params": "sort=likes&pages=1&since=7d",
+  "timestamp": 1771292169135,
+  "tweets": [
+    {
+      "id": "2021953935112831422",
+      "text": "【神機能】これ気づいた人いる？🍌\nナノバナナプロで画像生成したらAdobeExpressの編集ボタンが出るようになって、すぐ立ち上がるようになってる…！🤯\n今まで新規で立ち上げてた時間が完全にゼロに。\nGeminiの「スケスケマーク削除」の爆速フロー、動画で撮ったから見て。これは保存推奨👇 https://t.co/9QRl3lrYkz",
+      "author_id": "1967515237416046592",
+      "username": "yoshinari_ai_",
+      "name": "ヨシナリ｜経営者の「世界観」を形にするインスタ運用のプロ",
+      "created_at": "2026-02-12T14:25:58.000Z",
+      "conversation_id": "2021953935112831422",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 102,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/yoshinari_ai_/status/2021953935112831422/video/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yoshinari_ai_/status/2021953935112831422"
+    },
+    {
+      "id": "2023250907874631704",
+      "text": "aiでSNS運用始めたけど出てくる文言がどこかで見たことあるのばっかだと思ったらおじ感満載なことに気づいた高齢経営者向けだから合ってるけども",
+      "author_id": "1937514279433072640",
+      "username": "hiro_usa_osu",
+      "name": "ひろたん",
+      "created_at": "2026-02-16T04:19:41.000Z",
+      "conversation_id": "2023250907874631704",
+      "metrics": {
+        "likes": 2,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 45,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/hiro_usa_osu/status/2023250907874631704"
+    },
+    {
+      "id": "2023303315740872904",
+      "text": "SimilarwebからSemrushへ変えたけど、小規模事業者の支援にはいいかも。オンラインで教えてもらい、使える機能の多さに驚いています。有料版だけどね。\n特にキーワードマジックツールがいい感じ。 https://t.co/SJ2k8G44fB",
+      "author_id": "87645081",
+      "username": "ushun",
+      "name": "多田優之（Masa）｜現場と教育×生成AI @ウェブ解析士",
+      "created_at": "2026-02-16T07:47:56.000Z",
+      "conversation_id": "2023303315740872904",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 20,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/ushun/status/2023303315740872904/photo/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/ushun/status/2023303315740872904"
+    },
+    {
+      "id": "2022446184946897232",
+      "text": "起業して気づいた残酷な真実。 \n\n誰も「よくやった」なんて言ってくれません。\n\n会社員時代は、目標を達成すれば表彰されたり、ボーナスが出たりしました。 \n\nでも、個人事業主になった途端、褒めてくれる上司や同僚はいなくなります。 https://t.co/sHlc57Wect",
+      "author_id": "1977519583964938240",
+      "username": "isshy_ai_life",
+      "name": "いっしー｜AIライフ",
+      "created_at": "2026-02-13T23:02:00.000Z",
+      "conversation_id": "2022446184946897232",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 26,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/isshy_ai_life/status/2022446184946897232/photo/1",
+        "https://x.com/isshy_ai_life/status/2022446184946897232/photo/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/isshy_ai_life/status/2022446184946897232"
+    },
+    {
+      "id": "2022863491095498956",
+      "text": "「毎日投稿しろ」は天才のアドバイス\n凡人がやると、ただ消耗する\n本業で疲れてるのに、\n毎日ネタ考えるとか無理。\nだから僕は\n“頑張る発信”をやめた。\niPhone1台\n1日5分\nやってるのはこれだけ\n① AIで投稿生成\n② Notionにストック\n③ IFTTTで半自動投稿\n根性論より、設計\nこの「努力しない仕組み」",
+      "author_id": "2022608977520144384",
+      "username": "machanma0917",
+      "name": "まっつ | 習慣化のプロ",
+      "created_at": "2026-02-15T02:40:13.000Z",
+      "conversation_id": "2022863491095498956",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 1,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/machanma0917/status/2022863491095498956"
+    },
+    {
+      "id": "2023523532756652509",
+      "text": "すべての失敗は経営者の責任だし\n上手くいくのはみんなのおかげ",
+      "author_id": "1440838511486136327",
+      "username": "AI_dental2021",
+      "name": "保険やめた歯科医アイ",
+      "created_at": "2026-02-16T22:23:00.000Z",
+      "conversation_id": "2023523532756652509",
+      "metrics": {
+        "likes": 6,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 98,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/AI_dental2021/status/2023523532756652509"
+    },
+    {
+      "id": "2021041739834732980",
+      "text": "「疲弊する毎日」を変えた僕の時短術、3選。\n\n・議事録作成はAIが5分で完了\n・メール返信はAIが9割自動化\n・資料構成はAIが瞬時に提案\n\nこれだけで、本当に心が軽くなりますね。AIは最高の相棒です。",
+      "author_id": "1967056718975954949",
+      "username": "kamido_waction",
+      "name": "平社員のカミド | わくしょん",
+      "created_at": "2026-02-10T02:01:14.000Z",
+      "conversation_id": "2021041739834732980",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 28,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/kamido_waction/status/2021041739834732980"
+    },
+    {
+      "id": "2023035891531628582",
+      "text": "世界を変えた\nインターネット、スマホ、クラウド\nに次ぐのがAIなのは確実だから\n\nこれまでと同じように\nAIを使える人\nAIを管理する人\nAIで事業を作る人\nになって価値提供できるようになりたいϵ( 'Θ' )϶\n\n今の子どもたちは10年後、\n現在存在もしないような職業についているんだろうな〜",
+      "author_id": "2022533594678464517",
+      "username": "koge_koge_money",
+      "name": "焦げハンバーグ",
+      "created_at": "2026-02-15T14:05:17.000Z",
+      "conversation_id": "2023035891531628582",
+      "metrics": {
+        "likes": 3,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 23,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/koge_koge_money/status/2023035891531628582"
+    },
+    {
+      "id": "2022990336570921132",
+      "text": "eBayのバイヤーからメッセージが届く。\n太陽光の発電ログを確認する。\nコンサル先の試算表を修正して送り返す。\n\n3つの事業を動かしながら、\n毎朝これを繰り返していた。\n\nある日、手帳を見て気づいた。\n「俺は何日間、考えることをしていない」\n\nそこから話は始まる。",
+      "author_id": "2022945818530189313",
+      "username": "edge_ai_biz",
+      "name": "AI経営の羅針盤｜Edge K",
+      "created_at": "2026-02-15T11:04:16.000Z",
+      "conversation_id": "2022990336570921132",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 4,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/edge_ai_biz/status/2022990336570921132"
+    },
+    {
+      "id": "2023202289704706442",
+      "text": "ある経営者がYouTubeを始めて気づいた、事業と同じ構造の話。\nその経営者はYoutubeを始めた目的が、自分の知見をアウトプットする練習だった。ところが戦略を整理したら想定外の反響が返ってきた。",
+      "author_id": "1819301157816487938",
+      "username": "datamkting",
+      "name": "かける | 体験型マーケ×AI活用",
+      "created_at": "2026-02-16T01:06:29.000Z",
+      "conversation_id": "2023202289704706442",
+      "metrics": {
+        "likes": 9,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 53,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/datamkting/status/2023202289704706442"
+    },
+    {
+      "id": "2022816783304892792",
+      "text": "AIニュースを自動取得できた。\nでも気づいた。\n\n「集めるだけ」では1円にもならない。\n\n大事なのは\n・誰向けか\n・何に繋げるか\n・どう価値化するか\n\nAIは道具。\n設計できて販売した人から収益になる。 https://t.co/ihxNnIRKz5",
+      "author_id": "1987522633983033344",
+      "username": "yamasin9",
+      "name": "はめおじ | AIで人生余裕で過ごしたい！",
+      "created_at": "2026-02-14T23:34:37.000Z",
+      "conversation_id": "2022816783304892792",
+      "metrics": {
+        "likes": 6,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 82,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/yamasin9/status/2022816783304892792/photo/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yamasin9/status/2022816783304892792"
+    },
+    {
+      "id": "2021236296698691712",
+      "text": "正直に書く。\n最近、n8nの自動化が思うように進まなかった。\n\n「自分に能力がないんじゃないか」\n「向いてないのかもしれない」\n何度もそう思った。\n\nでも、ひとつ気づいた。\n原因は“自分”じゃなく“環境と進め方”だった。\n\n古いPCだとChatGPTの返答が遅く、\n1つ確認するのに1時間かかることもある。 https://t.co/ppl8AugfYF",
+      "author_id": "1987522633983033344",
+      "username": "yamasin9",
+      "name": "はめおじ | AIで人生余裕で過ごしたい！",
+      "created_at": "2026-02-10T14:54:20.000Z",
+      "conversation_id": "2021236296698691712",
+      "metrics": {
+        "likes": 13,
+        "retweets": 0,
+        "replies": 2,
+        "quotes": 0,
+        "impressions": 145,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/yamasin9/status/2021236296698691712/photo/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yamasin9/status/2021236296698691712"
+    },
+    {
+      "id": "2023333895484178843",
+      "text": "毎朝30分のSNS投稿作業、ChatGPT+Buffer月額1万2千円で自動化してたが、実は無料で全部できることに気づいた。Googleアカウントだけで月15時間の自由時間を取り戻した方法、【限定配布】する。\n\n①GAS + Claude API無料枠\n②投稿スケジュール自動化\n③成果測定も自動\n\n続きはリプ欄↓ https://t.co/jXVpNmiRyv",
+      "author_id": "1643168478168518656",
+      "username": "yuyukuma0810",
+      "name": "ゆゆくま｜Googleアカウントを「AI自動エージェント」に変える人",
+      "created_at": "2026-02-16T09:49:27.000Z",
+      "conversation_id": "2023333895484178843",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 78,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/yuyukuma0810/status/2023333895484178843/photo/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yuyukuma0810/status/2023333895484178843"
+    },
+    {
+      "id": "2021112959888670809",
+      "text": "AI副業、4日目で気づいた。\n「ツール選び」より「どの作業をAIに丸投げするか」の仕分けが全て。30日で収益化を目指す中、今日はリサーチを全自動化。空いた時間で戦略を練る。この『脳の使い方の変化』こそが最大の収穫。\n失敗も成功も、4日目のリアルな裏側を記録していきます。",
+      "author_id": "2020473116615651328",
+      "username": "AI30days",
+      "name": "平社員｜AI副業30日実験",
+      "created_at": "2026-02-10T06:44:14.000Z",
+      "conversation_id": "2021112959888670809",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 5,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/AI30days/status/2021112959888670809"
+    },
+    {
+      "id": "2021426383529148566",
+      "text": "スモールビジネス向けAI経営エージェント「riri」のサイトを公開しました。\n\nLINEで話しかけるだけで、経理・請求・給与・税務・申告が完結します。月額1,000円。\n\n経理部5年→freee10年→自分でカレー屋をやって気づいた「会計ソフトの画面すら開けない」問題を、AIで解きにいきます。",
+      "author_id": "2021247081365766146",
+      "username": "takashishi0531",
+      "name": "riri | AI経営エージェント",
+      "created_at": "2026-02-11T03:29:40.000Z",
+      "conversation_id": "2021426383529148566",
+      "metrics": {
+        "likes": 3,
+        "retweets": 2,
+        "replies": 7,
+        "quotes": 1,
+        "impressions": 3089,
+        "bookmarks": 3
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/takashishi0531/status/2021426383529148566"
+    },
+    {
+      "id": "2023235564896702530",
+      "text": "「AIに完全に乗り遅れてた」って気づいた瞬間から、毎日が変わった。きっかけは単純で、たまたま昨年末に友達にAIの使い方を聞いたこと。話を聞けば聞くほど「え、今そこまでできるの？」の連続だった。正直ちょっと焦った。自分はアンテナ高いほうだと思ってたから。\n\nまずGoogle",
+      "author_id": "2174701",
+      "username": "takaya",
+      "name": "友瀬貴也｜7か国で経営",
+      "created_at": "2026-02-16T03:18:43.000Z",
+      "conversation_id": "2023235564896702530",
+      "metrics": {
+        "likes": 1,
+        "retweets": 1,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 135,
+        "bookmarks": 2
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/takaya/status/2023235564896702530"
+    },
+    {
+      "id": "2023235266757132380",
+      "text": "「AIに完全に乗り遅れてた」って気づいた瞬間から、毎日が変わった。きっかけは単純で、たまたま昨年末に友達にAIの使い方を聞いたこと。話を聞けば聞くほど「え、今そこまでできるの？」の連続だった。正直ちょっと焦った。自分はアンテナ高いほうだと思ってたから。\n\nまずGoogle",
+      "author_id": "2174701",
+      "username": "takaya",
+      "name": "友瀬貴也｜7か国で経営",
+      "created_at": "2026-02-16T03:17:32.000Z",
+      "conversation_id": "2023235266757132380",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 6,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/takaya/status/2023235266757132380"
+    },
+    {
+      "id": "2022669117313196199",
+      "text": "Claude Codeのスキル\nただ/installして使うだけだと思ってた。。。\n\nでも、気づいた\n\nスキル自体を「インストール」するものじゃなく、\n「設計・育成・自己増殖」させる方が\n圧倒的に効率がいい！\nこれ、もうミニOSだろ…？\n\n普通の使い方 vs この設計、完全に次元が違う。 https://t.co/fVtiCHdonR",
+      "author_id": "104564780",
+      "username": "tokuchi999",
+      "name": "tokuchi⚡AI経営×営業DX | 非エンジニアAI開発者",
+      "created_at": "2026-02-14T13:47:51.000Z",
+      "conversation_id": "2022669117313196199",
+      "metrics": {
+        "likes": 5,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 393,
+        "bookmarks": 1
+      },
+      "urls": [
+        "https://x.com/tokuchi999/status/2022669117313196199/photo/1",
+        "https://x.com/tokuchi999/status/2022669117313196199/photo/1",
+        "https://x.com/tokuchi999/status/2022669117313196199/photo/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/tokuchi999/status/2022669117313196199"
+    },
+    {
+      "id": "2022072685413777584",
+      "text": "転校前の中山道の良さに気づいた",
+      "author_id": "1971996972677844992",
+      "username": "VxpABeSHro81221",
+      "name": "momo|AI活用と経営歴20年で稼ぐシニア副業コンサルタント",
+      "created_at": "2026-02-12T22:17:51.000Z",
+      "conversation_id": "2022072685413777584",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 0,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/VxpABeSHro81221/status/2022072685413777584"
+    },
+    {
+      "id": "2021190158046069166",
+      "text": "【判明】マスクの「マイクロマネジメント」は信頼の欠如ではなかった\n\n「深入りする理由は、それが制約因子だからだ」。\n複数企業を同時経営する中で、制約因子だけに外科的一撃を加えている。\nStarshipのカーボン→ステンレスの変更は「小さなディテール」が宇宙開発を変えた証拠だと明かしている https://t.co/uNULceXYGK https://t.co/3SKJwgG1pi",
+      "author_id": "1404671512544641026",
+      "username": "tomo_ok07",
+      "name": "大川智也 - SHIFT AI",
+      "created_at": "2026-02-10T11:51:00.000Z",
+      "conversation_id": "2021190158046069166",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 64,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/tomo_ok07/status/2021190158046069166/video/1",
+        "https://twitter.com/ianmiles/status/2020437530043208178"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/tomo_ok07/status/2021190158046069166"
+    },
+    {
+      "id": "2021728523174785273",
+      "text": "リール量産、手を動かすのやめた。\n\n【私のAI組織図】\nChatGPT = 企画部長\nVrew = テロップ職人\nCapCut = 編集担当\nAdobe Podcast = 音響スタッフ\nManus = 製造ライン\n人間 = 経営者(方向性のみ)\n\nAIをお手伝いだと思うな。\n\"専門スタッフ\"として雇え。\n2026年、これが正解。",
+      "author_id": "1904203173289705472",
+      "username": "oH6L0sbJ4W98373",
+      "name": "情報",
+      "created_at": "2026-02-11T23:30:16.000Z",
+      "conversation_id": "2021728523174785273",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 22,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/oH6L0sbJ4W98373/status/2021728523174785273"
+    },
+    {
+      "id": "2022815625660502100",
+      "text": "【188日目】\nBitradeX Navigator Jです。\n\n昨日も安定の稼ぎです🙏\n他の事業をしながら\nBitradeXで運用！\n\nBitradeXのフローなど分かりやすくを\nXにて説明していきます。\n\n詳しくは\n\nhttps://t.co/izDDigrOZi",
+      "author_id": "2020686248709660672",
+      "username": "bitradexnavi",
+      "name": "BitradeXナビゲーター・J 🦍 | AI全自動×完全放置 個人で10万ドル運用中",
+      "created_at": "2026-02-14T23:30:01.000Z",
+      "conversation_id": "2022815625660502100",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 2,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://note.com/jolly_echium934/n/n8ae5db4eaa1f"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/bitradexnavi/status/2022815625660502100"
+    },
+    {
+      "id": "2023401709825909226",
+      "text": "今日は本業後にAIニュースX投稿自動化の続き。\n\n完成は、まだできなかった。\n\nでも今日やったのは、GASの\nAI関連Youtube動画の「件数を減らす作業」。\n\n再生3000回の動画は50件以上。\n正直、多すぎる。\n\nだから基準を3万回に上げた。\n\n気づいた。\n\n僕も含めて、AIで成果が出ない人は https://t.co/gsm5YCehXH",
+      "author_id": "1987522633983033344",
+      "username": "yamasin9",
+      "name": "はめおじ | AIで人生余裕で過ごしたい！",
+      "created_at": "2026-02-16T14:18:55.000Z",
+      "conversation_id": "2023401709825909226",
+      "metrics": {
+        "likes": 4,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 135,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/yamasin9/status/2023401709825909226/photo/1"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yamasin9/status/2023401709825909226"
+    },
+    {
+      "id": "2023334720252314104",
+      "text": "40代会社員の私、月曜夜の重い絶望で気づいた残酷な真実。あなたも同じ気持ちですか？\n\n明日からAIを奴隷のように使い倒して1週間で1ヶ月利益  \n寝ながら月10万チャリンと入る未来が待っています\n\n今すぐ980円で始めましょう！値上げ前に↓  \nhttps://t.co/ruVljjWd4a",
+      "author_id": "1447772520086577152",
+      "username": "shigotosuki2025",
+      "name": "AI起業家_とある経営者",
+      "created_at": "2026-02-16T09:52:43.000Z",
+      "conversation_id": "2023334720252314104",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 6,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://tinyurl.com/yourshortlink"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shigotosuki2025/status/2023334720252314104"
+    },
+    {
+      "id": "2023288926648320207",
+      "text": "本当にそうですね…\nAIという『最強の武器』を手に入れても、結局それを振るい続けられる人はわずか。\n逆に言えば、多くの人が勝手に脱落してくれるから、正しいルートを知って淡々と継続するだけで『独走状態』になれる。この残酷な事実に気づいた人から、ステージが変わりますね。 https://t.co/60K7hmxecQ",
+      "author_id": "2020334539357450242",
+      "username": "jin_ai_affili",
+      "name": "ジン｜AIアフィリエイトで自動収益化",
+      "created_at": "2026-02-16T06:50:45.000Z",
+      "conversation_id": "2023288926648320207",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 32,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://twitter.com/mograhukugyo/status/2023273801484730842"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/jin_ai_affili/status/2023288926648320207"
+    },
+    {
+      "id": "2023189630636687800",
+      "text": "正直、AIと副業の自動化って夢のように聞こえるよね。でも、そんな甘い話が実際に転がってると思ってるなら、目を覚ましたほうがいいよ💀。\n\n冷蔵庫の夜警でもできるって？いやいや、そんな甘い考えで突っ走ると、気づいた時には冷蔵庫が空っぽになってるってこともありえるんだよね。",
+      "author_id": "1386487450244059138",
+      "username": "FX47373251",
+      "name": "文体くるり",
+      "created_at": "2026-02-16T00:16:11.000Z",
+      "conversation_id": "2023189630636687800",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 8,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/FX47373251/status/2023189630636687800"
+    },
+    {
+      "id": "2023418927964188806",
+      "text": "財務実務の「3時間」を「数分」に変えた方法。\n\n試算表の転記、検算、前期比較…。 50代の私が辿り着いたのは、AIを“相談相手”ではなく“実務担当者”として設計するやり方でした。\n1社1時間かけていた苦行を終わらせたい方へ。 全手順を公開します。\n\nhttps://t.co/bTQdFuNj3N\n\n#AI #財務 #ClaudeCode",
+      "author_id": "2022945818530189313",
+      "username": "edge_ai_biz",
+      "name": "AI経営の羅針盤｜Edge K",
+      "created_at": "2026-02-16T15:27:20.000Z",
+      "conversation_id": "2023418927964188806",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 7,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://note.com/edge_888/n/n00a5cad24dd2"
+      ],
+      "mentions": [],
+      "hashtags": [
+        "AI",
+        "財務",
+        "ClaudeCode"
+      ],
+      "tweet_url": "https://x.com/edge_ai_biz/status/2023418927964188806"
+    },
+    {
+      "id": "2023454206347415730",
+      "text": "今日やめた仕事：\n\nブログのKWリサーチ\n\n代わりにやったこと：\n\nラッコキーワードで取得\n↓\nClaude Codeに投げて\n・検索意図分類\n・ファネル分類\n・優先順位付け\nまで自動化\n\n結果：\n\n30分 → 5分\n\nもう“探す作業”はしてない。\n設計だけやってる。",
+      "author_id": "1496939234325716992",
+      "username": "rkpg10",
+      "name": "R｜個人開発×AI",
+      "created_at": "2026-02-16T17:47:31.000Z",
+      "conversation_id": "2023454206347415730",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 23,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/rkpg10/status/2023454206347415730"
+    },
+    {
+      "id": "2022592995405795777",
+      "text": "リール量産、手を動かすのやめた。\n\n【私のAI組織図】\nChatGPT = 企画部長\nVrew = テロップ職人\nCapCut = 編集担当\nAdobe Podcast = 音響スタッフ\nManus = 製造ライン\n人間 = 経営者(方向性のみ)\n\nAIをお手伝いだと思うな。\n\"専門スタッフ\"として雇え。\n2026年、これが正解。",
+      "author_id": "1902345569194127361",
+      "username": "AI9277331830633",
+      "name": "世界一わかりやすいAI副業の教科書",
+      "created_at": "2026-02-14T08:45:22.000Z",
+      "conversation_id": "2022592995405795777",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 86,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/AI9277331830633/status/2022592995405795777"
+    },
+    {
+      "id": "2022078280086761917",
+      "text": "100点を狙うから、経営がハードモードになる。自分も携帯代を滞納するほどズボラだったが、AIでD2Cサイトを30分で構築し、未完成で現場に投げる「型」に変えた瞬間、景色が変わった。\n\n正解を悩む時間を捨てれば、商談や家族の時間は必ず作れる。手作業に固執せず、AIというズルい武器で現場を回そう。",
+      "author_id": "960889894900924416",
+      "username": "akabanekakeru",
+      "name": "赤羽翔",
+      "created_at": "2026-02-12T22:40:05.000Z",
+      "conversation_id": "2022078280086761917",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 12,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/akabanekakeru/status/2022078280086761917"
+    },
+    {
+      "id": "2021510747608482297",
+      "text": "クライアントのCさん、フォロワー800人で月40万達成した方法。秘訣は「リプライ戦略」です。他人の投稿に価値あるリプライを1日3回する。そのリプライが有益なら、元投稿の閲覧者があなたのプロフィールに流れてくる。投稿だけでなくリプライも集客導線になると気づいた人が勝ちます。",
+      "author_id": "1945381743894388737",
+      "username": "AiBakusoku",
+      "name": "エル｜AI自動化でX売上10倍",
+      "created_at": "2026-02-11T09:04:54.000Z",
+      "conversation_id": "2021510747608482297",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 2,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/AiBakusoku/status/2021510747608482297"
+    },
+    {
+      "id": "2021816463607443564",
+      "text": "忙しい人向けに、1分で読める要約。\nとんでもない勢いで伸びてるポスト\n\n・AIの進化は「ゆっくり」じゃなく「加速」していて、コロナ前夜みたいに“気づいた時には世界が変わってる”可能性がある\n・AIはもう便利ツールではなく、指示すると完成品を出し、テストや修正まで自走するレベルに近づいている https://t.co/Dx5tGa3ZB9",
+      "author_id": "1918165786860109824",
+      "username": "afi_alchemist",
+      "name": "村長@引退して村づくりしたい経営者",
+      "created_at": "2026-02-12T05:19:43.000Z",
+      "conversation_id": "2021816463607443564",
+      "metrics": {
+        "likes": 4,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 160,
+        "bookmarks": 4
+      },
+      "urls": [
+        "https://twitter.com/mattshumer_/status/2021256989876109403"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/afi_alchemist/status/2021816463607443564"
+    },
+    {
+      "id": "2021725336296468566",
+      "text": "全ての作業、手を動かすのやめた。\n\n【私のAI組織図】\nClaude Code × エージェントチーム = 企画部長\nClaude Code × Remotion = テロップ職人\nClaude Code × Remotion = 編集担当\nClaude Code × Web = 音響スタッフ\nClaude Code Opus4.6 = 製造ライン\n人間 = 経営者(方向性のみ) https://t.co/AhOlYdihpx",
+      "author_id": "1621038507719544832",
+      "username": "gensou_ongaku",
+      "name": "Sushi Ichiro",
+      "created_at": "2026-02-11T23:17:36.000Z",
+      "conversation_id": "2021725336296468566",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 149,
+        "bookmarks": 1
+      },
+      "urls": [
+        "https://twitter.com/serena_ailab/status/2021549745043640753"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/gensou_ongaku/status/2021725336296468566"
+    },
+    {
+      "id": "2021706486603223536",
+      "text": "副業始めて気づいた\n\n「やらない理由」は\n無限に作れる\n\nでも\n「やる理由」は\n自分で決めるしかない\n\n結局\n動くか、動かないか\n\nそれだけの差",
+      "author_id": "1998625810668978176",
+      "username": "yuta_ai_tik",
+      "name": "ユウタ | AI×動画編集で月収自動化",
+      "created_at": "2026-02-11T22:02:42.000Z",
+      "conversation_id": "2021706486603223536",
+      "metrics": {
+        "likes": 4,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 30,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yuta_ai_tik/status/2021706486603223536"
+    },
+    {
+      "id": "2023030557802991655",
+      "text": "AIツールの使い分けに悩んでない？結局、AIごとにプロンプトを変えるのは非効率だし、僕もそれで何度も失敗したんだよね。ChatGPTもClaudeもGeminiも、同じ質で自動化できるから、『自分の求める結果』から逆算したプロンプト設計が何より大事ってことに気づいたよ。",
+      "author_id": "1920260160221843456",
+      "username": "_shinichikun_",
+      "name": "AIで0→1達成｜新一くん",
+      "created_at": "2026-02-15T13:44:05.000Z",
+      "conversation_id": "2023030557802991655",
+      "metrics": {
+        "likes": 2,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 47,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/_shinichikun_/status/2023030557802991655"
+    },
+    {
+      "id": "2023396141132578939",
+      "text": "noteで記事を書きました！\nこの投稿をリポストするとお得に記事を読むことができます。\n【保存版】世界を変えた起業家たちの0→1の正体 | kumao \n@kumao_50 #note \nhttps://t.co/ukNpEn3uWE",
+      "author_id": "1963980567487377408",
+      "username": "kumao_50",
+      "name": "くまお｜AI自動化副業",
+      "created_at": "2026-02-16T13:56:47.000Z",
+      "conversation_id": "2023396141132578939",
+      "metrics": {
+        "likes": 4,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 42,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://note.com/kumao_50/n/nccdbfdc726a5"
+      ],
+      "mentions": [
+        "kumao_50"
+      ],
+      "hashtags": [
+        "note"
+      ],
+      "tweet_url": "https://x.com/kumao_50/status/2023396141132578939"
+    },
+    {
+      "id": "2022958970655391980",
+      "text": "40代会社員の私、日曜深夜の重い絶望で気づいた残酷な真実。あなたも同じ気持ちですか？\n\n明日からAIで業務を自動化→残業減らして家族時間が増え  \n寝ながら月10万チャリンと入る未来が待っています\n\n今すぐ980円で始めましょう！値上げ前に↓  \nhttps://t.co/ruVljjWd4a",
+      "author_id": "1447772520086577152",
+      "username": "shigotosuki2025",
+      "name": "AI起業家_とある経営者",
+      "created_at": "2026-02-15T08:59:38.000Z",
+      "conversation_id": "2022958970655391980",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 14,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://tinyurl.com/yourshortlink"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shigotosuki2025/status/2022958970655391980"
+    },
+    {
+      "id": "2021172813478973567",
+      "text": "40代会社員の私、独学3ヶ月売上0円の絶望で気づいた残酷な真実。あなたも同じ気持ちですか？\n\nコミュニティ入会後28日で初売上！明日からAIプロンプトで寝ながら月10万チャリン\n\n今すぐ980円で始めましょう！値上げ前に↓  \nhttps://t.co/ruVljjVFeC",
+      "author_id": "1447772520086577152",
+      "username": "shigotosuki2025",
+      "name": "AI起業家_とある経営者",
+      "created_at": "2026-02-10T10:42:04.000Z",
+      "conversation_id": "2021172813478973567",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 9,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://tinyurl.com/yourshortlink"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shigotosuki2025/status/2021172813478973567"
+    },
+    {
+      "id": "2021867963566239856",
+      "text": "40代会社員の私、日曜深夜の重い絶望で気づいた残酷な真実。あなたも同じ気持ちですか？\n\n明日からAIで業務を自動化→残業減らして家族時間が増え  \n寝ながら月10万チャリンと入る未来が待っています\n\n今すぐ980円で始めましょう！値上げ前に↓  \nhttps://t.co/ruVljjWd4a",
+      "author_id": "1447772520086577152",
+      "username": "shigotosuki2025",
+      "name": "AI起業家_とある経営者",
+      "created_at": "2026-02-12T08:44:21.000Z",
+      "conversation_id": "2021867963566239856",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 11,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://tinyurl.com/yourshortlink"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shigotosuki2025/status/2021867963566239856"
+    },
+    {
+      "id": "2021513190761550157",
+      "text": "40代会社員の私、日曜深夜の重い絶望で気づいた残酷な真実。あなたも同じ気持ちですか？\n\n明日からAIで業務を自動化→残業減らして家族時間が増え  \n寝ながら月10万チャリンと入る未来が待っています\n\n今すぐ980円で始めましょう！値上げ前に↓  \nhttps://t.co/ruVljjWd4a",
+      "author_id": "1447772520086577152",
+      "username": "shigotosuki2025",
+      "name": "AI起業家_とある経営者",
+      "created_at": "2026-02-11T09:14:37.000Z",
+      "conversation_id": "2021513190761550157",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 14,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://tinyurl.com/yourshortlink"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shigotosuki2025/status/2021513190761550157"
+    },
+    {
+      "id": "2021127569404575886",
+      "text": "「AIは技術者のもの」って思ってる人、\nたぶん半年後に後悔する\n\nClaude Codeで自動化を試して気づいた\n\n・日本語の指示だけで動く\n・コード知識ゼロでOK\n・やりたいことを言語化できれば勝ち\n\n広告業界11年の「要件整理力」が\nまさかAI操作で最強スキルになるとは\n\n広告業界の人でAIまだ使ってない人",
+      "author_id": "1687979496270680064",
+      "username": "miyakan92",
+      "name": "みやかん｜広告業界11年目の現場メモ",
+      "created_at": "2026-02-10T07:42:17.000Z",
+      "conversation_id": "2021127569404575886",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 49,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/miyakan92/status/2021127569404575886"
+    },
+    {
+      "id": "2023215815328239746",
+      "text": "自動化を触っていて、ひとつ気づいた\n\n業務を一気に自動化しようとすると必ず挫折する\n\nポイントはこれ\n\n毎日3分だけ奪われている\n小さな不快をAIに任せること\n\n焦らなくていい\n1回だけ日々の小さな手間を書き出してみて",
+      "author_id": "20972319",
+      "username": "hanabusa104",
+      "name": "はな｜地方にこそAIを",
+      "created_at": "2026-02-16T02:00:14.000Z",
+      "conversation_id": "2023215815328239746",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 16,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/hanabusa104/status/2023215815328239746"
+    },
+    {
+      "id": "2021889607512793527",
+      "text": "「AIに仕事奪われる！」って叫ぶ人、ほとんどいないよね。\n外国人労働者には猛反対するのに。\n\nでも経営者の本音を聞くと多くが「人件費削減できるならAI一択」って考えてる。リストラより文句言われないし。\n\n気づいた時にはもう遅い。",
+      "author_id": "28543412",
+      "username": "keyplayers",
+      "name": "高野秀敏/ベンチャー採用転職/エンジェル投資家/M&A",
+      "created_at": "2026-02-12T10:10:21.000Z",
+      "conversation_id": "2021889607512793527",
+      "metrics": {
+        "likes": 77,
+        "retweets": 4,
+        "replies": 3,
+        "quotes": 3,
+        "impressions": 8675,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/keyplayers/status/2021889607512793527"
+    },
+    {
+      "id": "2022878113009480166",
+      "text": "魔法の呪文を探すのをやめた日\n時短術を追いかけるほど、自由が遠ざかる矛盾。プロンプトを打つ手間が残っているうちは、まだ労働から抜け出せていない。判断の基準を仕組みに預けたら、AIが勝手に「誰に何を出すか」を最適化し始めた。もう私が画面を見張る理由は、どこにもない。",
+      "author_id": "1615313625148960769",
+      "username": "side_job_auto",
+      "name": "かえで@28歳ママが自動化副業で本業超え",
+      "created_at": "2026-02-15T03:38:20.000Z",
+      "conversation_id": "2022878113009480166",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 9,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/side_job_auto/status/2022878113009480166"
+    },
+    {
+      "id": "2022603840542085574",
+      "text": "40代会社員の私、日曜深夜の重い絶望で気づいた残酷な真実。あなたも同じ気持ちですか？\n\n明日からAIで業務を自動化→残業減らして家族時間が増え  \n寝ながら月10万チャリンと入る未来が待っています\n\n今すぐ980円で始めましょう！値上げ前に↓  \nhttps://t.co/ruVljjWd4a",
+      "author_id": "1447772520086577152",
+      "username": "shigotosuki2025",
+      "name": "AI起業家_とある経営者",
+      "created_at": "2026-02-14T09:28:28.000Z",
+      "conversation_id": "2022603840542085574",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 11,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://tinyurl.com/yourshortlink"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shigotosuki2025/status/2022603840542085574"
+    },
+    {
+      "id": "2022239728842748075",
+      "text": "40代会社員の私、日曜深夜の重い絶望で気づいた残酷な真実。あなたも同じ気持ちですか？\n\n明日からAIで業務を自動化→残業減らして家族時間が増え  \n寝ながら月10万チャリンと入る未来が待っています\n\n今すぐ980円で始めましょう！値上げ前に↓  \nhttps://t.co/ruVljjWd4a",
+      "author_id": "1447772520086577152",
+      "username": "shigotosuki2025",
+      "name": "AI起業家_とある経営者",
+      "created_at": "2026-02-13T09:21:37.000Z",
+      "conversation_id": "2022239728842748075",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 13,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://tinyurl.com/yourshortlink"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shigotosuki2025/status/2022239728842748075"
+    },
+    {
+      "id": "2022868477686710599",
+      "text": "毎日その場で料理する店と、たれを作った店\n\n食堂で働く料理人がいた。\n\n注文が入れば作る。\n作った分だけ売上になる。\n手を止めれば、売上も止まる。\n忙しいほど回るが、忙しいほど疲れる。\n\nある日、料理人は気づいた。\n「うちの味の決め手は、特製のたれだ」\nそこで、たれを大量に仕込んで",
+      "author_id": "1963980567487377408",
+      "username": "kumao_50",
+      "name": "くまお｜AI自動化副業",
+      "created_at": "2026-02-15T03:00:02.000Z",
+      "conversation_id": "2022868477686710599",
+      "metrics": {
+        "likes": 9,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 62,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/kumao_50/status/2022868477686710599"
+    },
+    {
+      "id": "2022256366124159312",
+      "text": "確定申告の準備してて気づいた\nレシート溜めすぎて地獄だった\nで、どうせならAIで自動化できないかと思って\n週末にツール作ってみた\nスマホで撮る→自動で仕分け→スプレッドシートに記録\nこれ、自分用に作ったけど\n副業やってる人みんな同じ悩みじゃない？",
+      "author_id": "1960138640853737472",
+      "username": "fukutaro08250",
+      "name": "福太郎",
+      "created_at": "2026-02-13T10:27:44.000Z",
+      "conversation_id": "2022256366124159312",
+      "metrics": {
+        "likes": 6,
+        "retweets": 4,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 204,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/fukutaro08250/status/2022256366124159312"
+    },
+    {
+      "id": "2023035949999898935",
+      "text": "あなたの0→1って、どこから始まると思う？\n「良いアイデア」…じゃなくて、\nもっと手前かもしれない。\n\n世界を変えた起業家たちの共通点は、\n最初に“問題の解像度”を上げてたこと。\n\n解決策を急がずに、\n・誰が困ってるか\n・どの瞬間に困るか\n・何が一番しんどいか https://t.co/BBPlrpe2PA https://t.co/Cu58k63kDj",
+      "author_id": "1963980567487377408",
+      "username": "kumao_50",
+      "name": "くまお｜AI自動化副業",
+      "created_at": "2026-02-15T14:05:31.000Z",
+      "conversation_id": "2023035949999898935",
+      "metrics": {
+        "likes": 12,
+        "retweets": 2,
+        "replies": 1,
+        "quotes": 1,
+        "impressions": 216,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/kumao_50/status/2023035949999898935/photo/1",
+        "https://twitter.com/kumao_50/status/2018250491822743945"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/kumao_50/status/2023035949999898935"
+    },
+    {
+      "id": "2023153092997603761",
+      "text": "AIを使っても売れない。\nそれ、ツールの問題じゃなかった。\n\n以前の自分は、\n投稿も商品も、\n「なんとなく」で作っていた。\n頑張っているのに反応がないのは、\nセンスがないからだと思っていた。\n\nでもAIと一緒に\n思考を言語化するようになって気づいた。\n\n売れない理由は、\n・誰に向けて",
+      "author_id": "1485766472706445315",
+      "username": "hirox_ai_biz",
+      "name": "経営AIコンサルひろ | 元国内最大コンサル(Big4)",
+      "created_at": "2026-02-15T21:51:00.000Z",
+      "conversation_id": "2023153092997603761",
+      "metrics": {
+        "likes": 13,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 58,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/hirox_ai_biz/status/2023153092997603761"
+    },
+    {
+      "id": "2022268897098137843",
+      "text": "「AIに聞けば答えが出る」と思っていた私が、学んだ後に気づいた決定的な違い｜宮下ナオlサロン経営20年 @kumaneco_do https://t.co/U8RIYruPr9",
+      "author_id": "1443876666653118464",
+      "username": "kumaneco_do",
+      "name": "宮下ナオ | サロン経営20年",
+      "created_at": "2026-02-13T11:17:31.000Z",
+      "conversation_id": "2022268897098137843",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 30,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://note.com/kumanecodo4/n/nfea2b9ac4372"
+      ],
+      "mentions": [
+        "kumaneco_do"
+      ],
+      "hashtags": [],
+      "tweet_url": "https://x.com/kumaneco_do/status/2022268897098137843"
+    },
+    {
+      "id": "2022793375569609040",
+      "text": "副業始めたての頃\n\n「自分には無理かも」\nって何度も思った\n\nでも\n続けてるうちに気づいた\n\n「無理」じゃなくて\n「やり方を知らなかっただけ」\n\n知識は\n行動の後からついてくる",
+      "author_id": "1998625810668978176",
+      "username": "yuta_ai_tik",
+      "name": "ユウタ | AI×動画編集で月収自動化",
+      "created_at": "2026-02-14T22:01:37.000Z",
+      "conversation_id": "2022793375569609040",
+      "metrics": {
+        "likes": 2,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 34,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yuta_ai_tik/status/2022793375569609040"
+    },
+    {
+      "id": "2023050839674483135",
+      "text": "第4回 Agentic AI Hackathon with Google Cloud\nに参加しました！！\n\n在宅勤務で集中できない理由は“やる気”じゃない。\n\n環境です。\n\nそれを証明するために\n環境を自動最適化するAI作りました。\n\n↓全解説記事\nhttps://t.co/pzORuhKuLC",
+      "author_id": "1911337196390592512",
+      "username": "ToMoreBeyond",
+      "name": "ToMoreBeyond_Official　トモビ",
+      "created_at": "2026-02-15T15:04:41.000Z",
+      "conversation_id": "2023050839674483135",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 37,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://zenn.dev/shinya337/articles/2d7728b4810399"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/ToMoreBeyond/status/2023050839674483135"
+    },
+    {
+      "id": "2023523543359889816",
+      "text": "成約率が劇的に上がった企業の共通点は「ボタンの文言」を変えただけというシンプルなもの。「申し込む」を「無料で試してみる」に変えただけで、心理的ハードルが下がって行動率が3倍になった事例もあるのよ。大掛かりなリニューアルより「ユーザー心理を理解した一言」のほうが強いのよね😆",
+      "author_id": "1647804252977524737",
+      "username": "hana_festina",
+      "name": "Hana@DX/AIに強いPM・UI/UXデザイン会社を経営する元売れないグラドル",
+      "created_at": "2026-02-16T22:23:02.000Z",
+      "conversation_id": "2023523543359889816",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 14,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/hana_festina/status/2023523543359889816"
+    },
+    {
+      "id": "2022642015696228587",
+      "text": "進化への壁を壊すには？\nヒトの進化の邪魔は、自分一人が変わっても何も変わらない！という思い込みです。\nしかし、時代の転換点は常に仕組みの内側ではなく、その無意味さに気づいた少数から始まります。\n\n誰が止めているかを探し、それを批判することで、自分の進化を後回しにしていませんか？",
+      "author_id": "1714893775863209984",
+      "username": "NaturalRing2023",
+      "name": "重石＠Natural Ring：AIと共存する人と経営課題の解決！",
+      "created_at": "2026-02-14T12:00:10.000Z",
+      "conversation_id": "2022642015696228587",
+      "metrics": {
+        "likes": 11,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 51,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/NaturalRing2023/status/2022642015696228587"
+    },
+    {
+      "id": "2021638371618304074",
+      "text": "Claudeをメインに変えたというAI使いさんが増えてますね。確かに便利そう。\n\n心配なのはセキュリティなんですよね。自分だけならまだしも、中小企業の経営者さんたちが使い出すと大丈夫かな…と。\n\n当面は安全なGoogle Workspace内でGemini+GASかな。",
+      "author_id": "24665416",
+      "username": "tohdamikio",
+      "name": "遠田幹雄＠中小企業診断士　どもども",
+      "created_at": "2026-02-11T17:32:02.000Z",
+      "conversation_id": "2021638371618304074",
+      "metrics": {
+        "likes": 2,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 269,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/tohdamikio/status/2021638371618304074"
+    },
+    {
+      "id": "2022509916544700595",
+      "text": "AIで「月10時間」を空けたその先に、何を置くか？\n\n自動化は目的ではなく、手段です。浮いた時間で、人間にしかできない「大切な仕事」に集中するための、私の大切にしているマインドセット。\n\nhttps://t.co/ixcuYBaAWk\n\n#AI活用 #業務効率化 #生産性向上",
+      "author_id": "1989549799792930816",
+      "username": "maroncat11",
+      "name": "ゆうき｜その雑務、AIなら一瞬。税理士なら正確",
+      "created_at": "2026-02-14T03:15:15.000Z",
+      "conversation_id": "2022509916544700595",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 23,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://note.com/maron_blog/n/n59337ed2aced"
+      ],
+      "mentions": [],
+      "hashtags": [
+        "AI活用",
+        "業務効率化",
+        "生産性向上"
+      ],
+      "tweet_url": "https://x.com/maroncat11/status/2022509916544700595"
+    },
+    {
+      "id": "2022461060771647694",
+      "text": "事業側に対して「曖昧な要件でモノ作らせやがって」って思ってたけど、考え方を変えた。作るのはAIが全部やってるんだし、どこで自分が価値出すか考えたら「事業側がやりたいことを高速で実装する」だなと。もちろんサーバー準備したり、エンジニア経験ないとわからないことはあるんだけど、それがいつ",
+      "author_id": "1529976505358462976",
+      "username": "freelancetl",
+      "name": "傭兵さん｜生成AIでプロダクト開発",
+      "created_at": "2026-02-14T00:01:07.000Z",
+      "conversation_id": "2022461060771647694",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 25,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/freelancetl/status/2022461060771647694"
+    },
+    {
+      "id": "2022459005885673779",
+      "text": "事業側に対して「曖昧な要件でモノ作らせやがってって」思ってたけど、考え方を変えた。作るのはAIが全部やってるんだし、どこで自分が価値出すか考えたら「事業側がやりたいことを高速で実装する」だなと。もちろんサーバー準備したり、エンジニア経験ないとわからないことはあるんだけど、それがいつ",
+      "author_id": "1529976505358462976",
+      "username": "freelancetl",
+      "name": "傭兵さん｜生成AIでプロダクト開発",
+      "created_at": "2026-02-13T23:52:57.000Z",
+      "conversation_id": "2022459005885673779",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 10,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/freelancetl/status/2022459005885673779"
+    },
+    {
+      "id": "2023525088918991197",
+      "text": "今思うと、OpenClaw に名前を変えた時点で、もう OpenAIとの話はついてたのかな...🤔\n\n🦞\n\nしらんけど🙄 https://t.co/5RSIIWLiSX",
+      "author_id": "1856229366696685568",
+      "username": "no_ai_no_life",
+      "name": "小畑タカユキ｜経営者の「困った」をAIで解決",
+      "created_at": "2026-02-16T22:29:11.000Z",
+      "conversation_id": "2023525088918991197",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 64,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://twitter.com/sama/status/2023463428892094655"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/no_ai_no_life/status/2023525088918991197"
+    },
+    {
+      "id": "2021534541735932078",
+      "text": "これないから補助元帳使うしかないんすよね。\n\nhttps://t.co/XIdMI5zqqw",
+      "author_id": "6156742",
+      "username": "sarukun99",
+      "name": "tomoyuki@AIシャイン",
+      "created_at": "2026-02-11T10:39:27.000Z",
+      "conversation_id": "2021534541735932078",
+      "metrics": {
+        "likes": 7,
+        "retweets": 1,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 1303,
+        "bookmarks": 2
+      },
+      "urls": [
+        "https://note.com/kentaro_ajisaka/n/n498f0a735b93"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/sarukun99/status/2021534541735932078"
+    },
+    {
+      "id": "2022102422873907671",
+      "text": "AIを\"ツール\"と思ってる時点で負け。環境なんだよ。水や電気と同じ。気づいた人から世界が変わってる。\n\nhttps://t.co/36bSIzNxlS",
+      "author_id": "1721753196459421696",
+      "username": "leo_utage",
+      "name": "レオ┃Claude Codeでローンチ丸投げ",
+      "created_at": "2026-02-13T00:16:01.000Z",
+      "conversation_id": "2022102422873907671",
+      "metrics": {
+        "likes": 2,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 180,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://x.com/the_agi_way/status/2022014923304501582"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/leo_utage/status/2022102422873907671"
+    },
+    {
+      "id": "2021726936536690846",
+      "text": "AI自動化が進まないと\n「才能がないのかも」と不安に思ってしまう。\n\nでも最近気づいた。\n\n止まっている原因の多くは\nスキル不足じゃなくて\n“確信が持てない状態”が続くこと。\n\n不安は、挑戦している証拠だと思う｡",
+      "author_id": "1987522633983033344",
+      "username": "yamasin9",
+      "name": "はめおじ | AIで人生余裕で過ごしたい！",
+      "created_at": "2026-02-11T23:23:58.000Z",
+      "conversation_id": "2021726936536690846",
+      "metrics": {
+        "likes": 12,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 73,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/yamasin9/status/2021726936536690846"
+    },
+    {
+      "id": "2022065425534566860",
+      "text": "AIを避けていた自分が、\n3ヶ月で仕事の景色を変えた話。\n\nほんの少し前まで、正直AIが怖かった。\n便利なのは分かっていたけど、\n「使いこなせる人のもの」\n「自分の価値を奪いそう」\nそんな感情の方が強かった。\n\n当時は、\nマーケティングも、商品づくりも、集客も、",
+      "author_id": "1485766472706445315",
+      "username": "hirox_ai_biz",
+      "name": "経営AIコンサルひろ | 元国内最大コンサル(Big4)",
+      "created_at": "2026-02-12T21:49:00.000Z",
+      "conversation_id": "2022065425534566860",
+      "metrics": {
+        "likes": 28,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 122,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/hirox_ai_biz/status/2022065425534566860"
+    },
+    {
+      "id": "2022510891485335675",
+      "text": "10万稼ぐための最短ルート、という言葉の違和感。最新AIを導入しても、結局毎日「手動」で調整しているなら、それは仕組み化じゃなくただのデジタル内職。大事なのは努力量じゃなく、判断をどこまで装置に預けられるか。労働を美徳とするのをやめた瞬間、驚くほど自由に使える時間が増えた。",
+      "author_id": "1615313625148960769",
+      "username": "side_job_auto",
+      "name": "かえで@28歳ママが自動化副業で本業超え",
+      "created_at": "2026-02-14T03:19:07.000Z",
+      "conversation_id": "2022510891485335675",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 15,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/side_job_auto/status/2022510891485335675"
+    },
+    {
+      "id": "2022430824172228928",
+      "text": "『葬送のフリーレン』で、魔王討伐から50年後、フリーレンは「ヒンメルを知ろうとしなかった」と後悔する。エルフにとっての50年は人間の数年に過ぎない。けれど人間の寿命はその間に尽きる。フリーレンが気づいたとき、もうヒンメルはいない。この後悔の構造が、教育移住を考える家庭の判断と驚くほど",
+      "author_id": "887452181716127744",
+      "username": "mozilla_h",
+      "name": "Hodaka｜AIに人生相談しながら意思決定する経営者",
+      "created_at": "2026-02-13T22:00:58.000Z",
+      "conversation_id": "2022430824172228928",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 149,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/mozilla_h/status/2022430824172228928"
+    },
+    {
+      "id": "2022423042895548619",
+      "text": "判断基準を「失敗しないか」から「取り返せるか」に変えた。消せる、戻せる、直せる。この3つが揃っていれば、とりあえず動く。迷う時間が一気に減った。",
+      "author_id": "1664739493059112960",
+      "username": "PythonandAI",
+      "name": "たい@AI×自動化ラボ",
+      "created_at": "2026-02-13T21:30:02.000Z",
+      "conversation_id": "2022423042895548619",
+      "metrics": {
+        "likes": 10,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 1,
+        "impressions": 132,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/PythonandAI/status/2022423042895548619"
+    },
+    {
+      "id": "2022204529547391374",
+      "text": "一人でシステム開発してて気づいた\nGeminiとCodex、体感の役割\n\nGemini：相談役。構造と文章の整理が速い\nCodex：実行役。“一式を形にする”が強い\n\n同じAIでも\n「会議が得意」な人と「手を動かす人」くらい違う\n\n一人経営はここを間違えると\n永遠に“途中”で止まる\n\n怖いなぁ\n\nコード書けない開発素人が",
+      "author_id": "89370413",
+      "username": "monaka3_ai",
+      "name": "モナカ / AI副業オタク",
+      "created_at": "2026-02-13T07:01:45.000Z",
+      "conversation_id": "2022204529547391374",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 74,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/monaka3_ai/status/2022204529547391374"
+    },
+    {
+      "id": "2022251159550083199",
+      "text": "今さら何を言ってるのか……。\nわかる！\n今さら生成AIが怖くなってきた。\n\nわいはクリエイターなんや（プランナー、コンサル、ライター……、小説も書ける！）。今は個人事業主としても活動している。個人事業主のライバルはAIだ。\nそういう状況だから気づいた。オレたち仕事を奪われる瀬戸際だぜ！",
+      "author_id": "1350462790905917442",
+      "username": "rockstar_narite",
+      "name": "焔ふぁい｜FIREの精霊",
+      "created_at": "2026-02-13T10:07:02.000Z",
+      "conversation_id": "2022251159550083199",
+      "metrics": {
+        "likes": 8,
+        "retweets": 0,
+        "replies": 1,
+        "quotes": 0,
+        "impressions": 167,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/rockstar_narite/status/2022251159550083199"
+    },
+    {
+      "id": "2022140276459073572",
+      "text": "YouTubeとかで告知始めたけど、業務フローとか運用管理の仕組みとかまだまだやらなきゃいけないことが山積みだとAIと壁打ちして気づいた……やばい焦ってきた💦\n\n前に作った事業コンテキストをまとめたmdファイルを読ませて、経営戦略参謀を作りました。\n\nやるべきことをアドバイスしてもらってます✨",
+      "author_id": "942163380558749696",
+      "username": "shindy_emotion",
+      "name": "シンディ｜AR開発🤖弾き語り🎸ラン🏃‍♂️の人",
+      "created_at": "2026-02-13T02:46:26.000Z",
+      "conversation_id": "2022140276459073572",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 1,
+        "impressions": 81,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shindy_emotion/status/2022140276459073572"
+    },
+    {
+      "id": "2021590286145630527",
+      "text": "この変化の激しい時代の中核になるAI。自ら真剣に取り組んでない経営者は会社ごと消えるだろう。ほぼ全ての人がガラケーからスマホに変えたように、全てにAIが搭載された世界にシフトする。正直どこまで行くか恐ろしい一面もあるがもう不可避なレベルに来てるのでしっかり現場にいる事が大事だわ。",
+      "author_id": "1204712718684442626",
+      "username": "ceo_01music",
+      "name": "CEOセオ@連続起業家兼アーティスト",
+      "created_at": "2026-02-11T14:20:58.000Z",
+      "conversation_id": "2021590286145630527",
+      "metrics": {
+        "likes": 27,
+        "retweets": 3,
+        "replies": 0,
+        "quotes": 1,
+        "impressions": 1408,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/ceo_01music/status/2021590286145630527"
+    },
+    {
+      "id": "2021489754051838177",
+      "text": "生々しくて素晴らしい記事。私も同じ理由でAI使うのやめようってなったことあります。\n\n&gt;断念の理由は「技術的にできなかった」からではありません。中途半端だからです。\n\nClaudeでMFクラウド債務支払を自動化しようとして、やめた話 @sabaaji0113 https://t.co/NaQ1vODMcr",
+      "author_id": "1138626300875235329",
+      "username": "shin_sasaki19",
+      "name": "Shin丨AI×プロダクト開発の専門家🤵🏻",
+      "created_at": "2026-02-11T07:41:29.000Z",
+      "conversation_id": "2021489754051838177",
+      "metrics": {
+        "likes": 14,
+        "retweets": 2,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 4260,
+        "bookmarks": 17
+      },
+      "urls": [
+        "https://note.com/kentaro_ajisaka/n/n498f0a735b93?sub_rt=share_b"
+      ],
+      "mentions": [
+        "sabaaji0113"
+      ],
+      "hashtags": [],
+      "tweet_url": "https://x.com/shin_sasaki19/status/2021489754051838177"
+    },
+    {
+      "id": "2021779859941560721",
+      "text": "売上が大きい事業者ほど、ChatGPTやGeminiを単体で使うのをやめ始めてます。\n\n理由は「毎回同じ説明をAIにしてる」ことに気づいたから。\n\n例えばチラシを作るとき。\n商品情報、ターゲット、口調など毎回イチから伝え直してませんか？\n\nCursorというツールなら、一度まとめた情報がずっと手元に残る。",
+      "author_id": "113067224",
+      "username": "kemtch",
+      "name": "植松 謙 | AIを活用したPR・X運用支援",
+      "created_at": "2026-02-12T02:54:16.000Z",
+      "conversation_id": "2021779859941560721",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 86,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/kemtch/status/2021779859941560721"
+    },
+    {
+      "id": "2022110472045310427",
+      "text": "📢登壇情報📢\n2/20（金）に開催される『生成AI×業務自動化の実践LT』に、弊社阿部が登壇します！\n\n「120個作って、ようやく気づいた。AIツールは“作る”より“使われ続ける”が難しい」と題して、n8nやDifyを活用したDX推進事例についてお話します。\nぜひ会場にお越しください！\nhttps://t.co/XP3dw64Oh5",
+      "author_id": "1894232622789959680",
+      "username": "LinkandM_dev",
+      "name": "リンクアンドモチベーション技術広報",
+      "created_at": "2026-02-13T00:48:00.000Z",
+      "conversation_id": "2022110472045310427",
+      "metrics": {
+        "likes": 0,
+        "retweets": 2,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 193,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://connpass.com/event/383085/"
+      ],
+      "mentions": [],
+      "hashtags": [],
+      "tweet_url": "https://x.com/LinkandM_dev/status/2022110472045310427"
+    },
+    {
+      "id": "2023428938090070480",
+      "text": "【徹底解剖】【3枚で音楽史を変えた】My Bloody Valentine — 22年の沈黙と来日2026全公演ソールドアウト・衝撃の制作過程と... https://t.co/w5Ts6bDLGR @YouTubeより",
+      "author_id": "5835552",
+      "username": "Scottish_Fold",
+      "name": "Kentaro@ブティックサウナARCH | AIネイティブ経営",
+      "created_at": "2026-02-16T16:07:06.000Z",
+      "conversation_id": "2023428938090070480",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 86,
+        "bookmarks": 0
+      },
+      "urls": [
+        "https://youtu.be/O4XCaKr-6Ko?si=FY38GGDP1CkSWGgy"
+      ],
+      "mentions": [
+        "YouTube"
+      ],
+      "hashtags": [],
+      "tweet_url": "https://x.com/Scottish_Fold/status/2023428938090070480"
+    },
+    {
+      "id": "2022910917911155106",
+      "text": "AIは「手」であり、「心」ではない。\n\n昨夜、ふと気づいた。画像生成も素材生成もAIと外注で自動化できたけど、一番大事な「なぜその動画を見るのか？」という感情設計は、人間にしかできない。\n\n今日はPCを閉じて、映画を見る。\nサボりじゃない、これは「感情の逆設計」という仕事だ。\n\n#AI活用",
+      "author_id": "4507616352",
+      "username": "HC_hareruya",
+      "name": "ナオヤ｜AI×人生再設計ログ",
+      "created_at": "2026-02-15T05:48:41.000Z",
+      "conversation_id": "2022910917911155106",
+      "metrics": {
+        "likes": 1,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 39,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [
+        "AI活用"
+      ],
+      "tweet_url": "https://x.com/HC_hareruya/status/2022910917911155106"
+    },
+    {
+      "id": "2022700728620667157",
+      "text": "バンコクに住んで20年。\n\n最近、AIエージェントが\n毎朝のルーティンを変えた。\n\nタスク管理、記事の下書き、\n商品リサーチまで自動化。\n\n人間がやるべきことは\n「判断」だけになった。\n\n50代からの働き方改革、\n場所を選ばない時代。\n\n#AIエージェント #バンコク #働き方改革 #海外生活",
+      "author_id": "1923734823425933313",
+      "username": "GongJu23796",
+      "name": "kiku",
+      "created_at": "2026-02-14T15:53:28.000Z",
+      "conversation_id": "2022700728620667157",
+      "metrics": {
+        "likes": 0,
+        "retweets": 0,
+        "replies": 0,
+        "quotes": 0,
+        "impressions": 8,
+        "bookmarks": 0
+      },
+      "urls": [],
+      "mentions": [],
+      "hashtags": [
+        "AIエージェント",
+        "バンコク",
+        "働き方改革",
+        "海外生活"
+      ],
+      "tweet_url": "https://x.com/GongJu23796/status/2022700728620667157"
+    }
+  ]
+}

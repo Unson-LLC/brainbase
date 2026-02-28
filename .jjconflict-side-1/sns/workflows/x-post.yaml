@@ -1,0 +1,117 @@
+# SNS Workflow: X Post (factory-ready)
+name: sns-x-post
+version: 1.2
+description: X短文の生成→Slackレビュー（例外介入）→予約投稿まで工場化（NocoDBはミラー）
+content_type: x_post
+max_iterations: 12
+initial_step: seed_discovery
+
+steps:
+  - name: seed_discovery
+    agent: orchestrator
+    edit: false
+    rules:
+      - condition: Seed selected
+        next: target_analysis
+    instruction_template: |
+      If topic is not provided, generate seeds via:
+      - python3 _codex/sns/x/ops/scripts/seed_factory.py --days 7 --count 5 --mode auto
+      Save seed log to `_codex/sns/x/04_ideas/YYYY-MM-DD_seed_sprout.md`.
+
+  - name: target_analysis
+    agent: /Users/ksato/workspace/.claude/skills/sns-smart/agents/phase1_target_analysis.md
+    edit: false
+    rules:
+      - condition: Target analysis complete
+        next: draft_creation
+    instruction_template: |
+      Run Phase 1 Target Analysis.
+      Save to `_codex/sns/analysis/{story_id}_x_post_target.md`.
+
+  - name: draft_creation
+    agent: /Users/ksato/workspace/.claude/skills/sns-smart/agents/phase2_draft_creation.md
+    edit: false
+    rules:
+      - condition: Drafts created
+        next: style_review
+    instruction_template: |
+      Create 2-3 drafts (280-400 chars).
+      Save to `_codex/sns/drafts/{story_id}_x_post.md`.
+
+  - name: style_review
+    agent: /Users/ksato/workspace/.claude/skills/sns-smart/agents/phase2_5_style_review.md
+    edit: false
+    rules:
+      - condition: Score >= 80
+        next: queue_review
+      - condition: Score < 80
+        next: draft_creation
+    instruction_template: |
+      Review drafts, select the best, apply fixes, ensure score >= 80.
+      Save to `_codex/sns/drafts/{story_id}_x_post_reviewed.md`.
+
+  - name: queue_review
+    agent: orchestrator
+    edit: false
+    rules:
+      - condition: Review queued
+        next: sync_nocodb_mirror
+    instruction_template: |
+      Create review queue item:
+      - Copy to `_codex/sns/x/05_posts/review/x-{date}-{seq}.md`
+      - Use `_codex/sns/x/05_posts/post_template.md`
+      - Fill story_id/story_stage/type=post/hook/body
+      - If dispatch_plan exists, set scheduled_at
+
+  - name: sync_nocodb_mirror
+    agent: orchestrator
+    edit: false
+    rules:
+      - condition: Synced
+        next: slack_review_notify
+    instruction_template: |
+      Sync review queue to NocoDB (mirror only):
+      - python3 _codex/sns/x/ops/scripts/sync_review_queue.py
+      NocoDB is NOT an approval gate. Slack buttons are the only exception controls.
+
+  - name: slack_review_notify
+    agent: orchestrator
+    edit: false
+    rules:
+      - condition: Review notified
+        next: exception_handling
+    instruction_template: |
+      Post review card to Slack (for exception handling):
+      - GitHub Actions: `.github/workflows/sns-review-queue.yml`
+      - or local: python3 _codex/sns/x/ops/scripts/slack_review_queue.py
+
+  - name: exception_handling
+    agent: orchestrator
+    edit: false
+    rules:
+      - condition: Exception handled or not needed
+        next: shipping
+    instruction_template: |
+      If changes are needed, use Slack buttons:
+      - approve / reject / edit / reschedule
+      Relay -> `.github/workflows/sns-review-action.yml` -> apply_slack_review_action.py
+      Updates: scheduled_posts.yml / md / dispatch plan / run_ledger
+
+  - name: shipping
+    agent: orchestrator
+    edit: false
+    rules:
+      - condition: Posted
+        next: performance_analysis
+    instruction_template: |
+      Shipping is done by scheduler:
+      - python3 _codex/common/ops/scripts/scheduled_post_runner.py --schedule-file _codex/sns/scheduled_posts.yml
+
+  - name: performance_analysis
+    agent: orchestrator
+    edit: false
+    rules:
+      - condition: Metrics recorded
+        next: COMPLETE
+    instruction_template: |
+      Record 24h/7d metrics to `_codex/sns/metrics.md` and post_log.md.

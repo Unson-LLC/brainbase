@@ -1,0 +1,18 @@
+{
+  "name": "contacts-to-salestailor",
+  "version": "1.0.0",
+  "description": "Sync brainbase contacts to SalesTailor API",
+  "type": "module",
+  "main": "sync.js",
+  "scripts": {
+    "sync": "node sync.js",
+    "dry-run": "node sync.js --dry-run",
+    "test": "node sync.js --dry-run --limit 5"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.73.0",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3"
+  }
+}

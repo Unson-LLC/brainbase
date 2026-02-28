@@ -1,0 +1,340 @@
+#!/bin/bash
+
+# Default session name if none provided
+# Keep existing IDs (including legacy suffix付き形式) to preserve log/resume linkage.
+RAW_SESSION_NAME="$1"
+if [ -z "$RAW_SESSION_NAME" ]; then
+    SESSION_NAME="session-$(date +%s%3N)"
+elif [[ "$RAW_SESSION_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    SESSION_NAME="$RAW_SESSION_NAME"
+else
+    SESSION_NAME="session-$(date +%s%3N)"
+fi
+INITIAL_CMD=${2:-}
+ENGINE=${3:-claude}  # claude or codex
+INITIAL_CMD_FILE=""
+
+# Auto-fix CWD: read worktree path from state.json and cd to it
+# This prevents Claude from starting in the wrong directory when ttyd's CWD is incorrect
+STATE_JSON_PATH=""
+SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
+if [ -f "$STATE_JSON_PATH" ]; then
+    # 優先: jq（高速）
+    if command -v jq >/dev/null 2>&1; then
+        WORKTREE_PATH=$(jq -r --arg sid "$SESSION_NAME" '
+            .sessions[] |
+            select(.id == $sid) |
+            (.worktree.path // .path) // empty
+        ' "$STATE_JSON_PATH" 2>/dev/null)
+    # フォールバック: Python3（互換性）
+    elif command -v python3 >/dev/null 2>&1; then
+        WORKTREE_PATH=$(python3 -c "
+import json, sys
+try:
+    with open('$STATE_JSON_PATH') as f:
+        state = json.load(f)
+    for s in state['sessions']:
+        if s['id'] == '$SESSION_NAME':
+            wt = s.get('worktree', {})
+            p = wt.get('path', '') if isinstance(wt, dict) else ''
+            if not p:
+                p = s.get('path', '')
+            print(p)
+            break
+except Exception:
+    pass
+" 2>/dev/null)
+    fi
+
+    if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+        cd "$WORKTREE_PATH"
+    fi
+fi
+
+# Auto-resume: check for saved Claude session ID
+RESUME_SESSION_ID=""
+RESUME_DIR="$HOME/.claude/brainbase-sessions"
+RESUME_FILE="$RESUME_DIR/$SESSION_NAME.resume"
+if [ -f "$RESUME_FILE" ]; then
+    RESUME_SESSION_ID=$(cat "$RESUME_FILE" 2>/dev/null | tr -d '[:space:]')
+fi
+
+create_initial_cmd_file() {
+    if [ -z "$INITIAL_CMD" ]; then
+        return 0
+    fi
+
+    # Write the initial command to a temp file to avoid tmux send-keys truncation
+    if command -v mktemp >/dev/null 2>&1; then
+        INITIAL_CMD_FILE="$(mktemp "/tmp/brainbase-initial-${SESSION_NAME}-XXXXXX.txt" 2>/dev/null || mktemp -t "brainbase-initial-${SESSION_NAME}")"
+    else
+        INITIAL_CMD_FILE="/tmp/brainbase-initial-${SESSION_NAME}.txt"
+    fi
+    printf '%s' "$INITIAL_CMD" > "$INITIAL_CMD_FILE"
+}
+
+escape_initial_cmd() {
+    local input="$1"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$input" <<'PY'
+import sys
+s = sys.argv[1]
+out = []
+for b in s.encode('utf-8'):
+    if b == 10:
+        out.append('\\n')
+    elif b == 13:
+        out.append('\\r')
+    elif b == 9:
+        out.append('\\t')
+    elif b == 39:
+        out.append("\\'")
+    elif b == 92:
+        out.append('\\\\')
+    elif 32 <= b <= 126:
+        out.append(chr(b))
+    else:
+        out.append(f'\\x{b:02x}')
+print("$'" + ''.join(out) + "'")
+PY
+    else
+        printf %q "$input"
+    fi
+}
+
+# Windows/MSYS2 support: Ensure core tools are available
+if [ -d /usr/bin ]; then
+    export PATH="/usr/bin:$PATH"
+fi
+# Also check for MSYS64 installation
+if [ -d /c/msys64/usr/bin ]; then
+    export PATH="/c/msys64/usr/bin:$PATH"
+fi
+
+# Ensure Windows npm global binaries are reachable (claude/codex)
+if [ -z "$APPDATA" ] && [ -n "$HOMEDRIVE" ] && [ -n "$HOMEPATH" ]; then
+    APPDATA="${HOMEDRIVE}${HOMEPATH}\\AppData\\Roaming"
+fi
+
+APPDATA_POSIX=""
+NPM_BIN=""
+if [ -n "$APPDATA" ] && command -v cygpath >/dev/null 2>&1; then
+    APPDATA_POSIX="$(cygpath -u "$APPDATA")"
+    NPM_BIN="${APPDATA_POSIX}/npm"
+    if [ -d "$NPM_BIN" ]; then
+        export PATH="$NPM_BIN:$PATH"
+    fi
+fi
+
+# MSYS2/ttyd fallback: Use HOME to find npm global path
+if [ -z "$NPM_BIN" ] && [ -n "$HOME" ]; then
+    NPM_BIN_HOME="$HOME/AppData/Roaming/npm"
+    if [ -d "$NPM_BIN_HOME" ]; then
+        export PATH="$NPM_BIN_HOME:$PATH"
+        NPM_BIN="$NPM_BIN_HOME"
+    fi
+fi
+
+# Last resort: scan /c/Users/*/AppData/Roaming/npm for claude
+if ! command -v claude >/dev/null 2>&1; then
+    for npm_path in /c/Users/*/AppData/Roaming/npm; do
+        if [ -x "$npm_path/claude" ]; then
+            export PATH="$npm_path:$PATH"
+            NPM_BIN="$npm_path"
+            break
+        fi
+    done
+fi
+
+# Ensure Node.js is reachable for npm-installed CLIs
+if ! command -v node >/dev/null 2>&1; then
+    if [ -n "$PROGRAMFILES" ] && command -v cygpath >/dev/null 2>&1; then
+        NODE_BIN="$(cygpath -u "$PROGRAMFILES")/nodejs"
+        if [ -d "$NODE_BIN" ]; then
+            export PATH="$NODE_BIN:$PATH"
+        fi
+    fi
+fi
+
+# Resolve Claude CLI path - always get full path for tmux compatibility
+CLAUDE_BIN=""
+
+# If claude is in PATH, get its full path
+if command -v claude >/dev/null 2>&1; then
+    CLAUDE_BIN="$(command -v claude)"
+fi
+
+# Windows/MSYS2: Find claude in npm global paths if not found
+if [ -z "$CLAUDE_BIN" ] || [ ! -x "$CLAUDE_BIN" ]; then
+    for candidate in \
+        "$NPM_BIN/claude" \
+        "$APPDATA_POSIX/npm/claude" \
+        "$HOME/AppData/Roaming/npm/claude" \
+        "/c/Users/SalesTailor/AppData/Roaming/npm/claude"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            CLAUDE_BIN="$candidate"
+            break
+        fi
+    done
+fi
+
+# Last resort: scan /c/Users/*/AppData/Roaming/npm
+if [ -z "$CLAUDE_BIN" ] || [ ! -x "$CLAUDE_BIN" ]; then
+    for npm_path in /c/Users/*/AppData/Roaming/npm/claude; do
+        if [ -x "$npm_path" ]; then
+            CLAUDE_BIN="$npm_path"
+            break
+        fi
+    done
+fi
+
+# Fallback to just "claude" if nothing found
+if [ -z "$CLAUDE_BIN" ]; then
+    CLAUDE_BIN="claude"
+fi
+
+# Ensure tmux server inherits PATH for new sessions
+if command -v tmux >/dev/null 2>&1; then
+    tmux set-environment -g PATH "$PATH" 2>/dev/null || true
+fi
+
+# nvm fails if npm_config_prefix is set; clear it before tmux/session creation
+unset npm_config_prefix NPM_CONFIG_PREFIX
+if command -v tmux >/dev/null 2>&1; then
+    tmux set-environment -g -u npm_config_prefix 2>/dev/null || true
+    tmux set-environment -g -u NPM_CONFIG_PREFIX 2>/dev/null || true
+fi
+
+# Prepare initial command file (if provided)
+create_initial_cmd_file
+
+# Resolve repo root (this script lives in scripts/ directory)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
+CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
+CODEX_APP_REPL="$SCRIPT_DIR/codex-app-repl.mjs"
+# Default to Codex CLI; opt-in to app-server REPL via env var.
+USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-0}"
+CODEX_NOTIFY_ARG=""
+if [ -x "$NOTIFY_SCRIPT" ]; then
+    CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
+fi
+
+# Apply tmux settings first (before session creation/attachment)
+# These settings help prevent character duplication when typing fast over WebSocket (ttyd)
+tmux set -g escape-time 0 2>/dev/null || true
+tmux set -g default-terminal "screen-256color" 2>/dev/null || true
+tmux set -g mouse off 2>/dev/null || true
+
+# Check if session exists
+if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    # Create new session
+    tmux new-session -d -s "$SESSION_NAME"
+    tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
+
+    if [ "$ENGINE" = "codex" ]; then
+        # Default Codex permissions: full filesystem + network, no approval prompts
+        tmux set-environment -t "$SESSION_NAME" CODEX_SANDBOX_MODE "danger-full-access"
+        tmux set-environment -t "$SESSION_NAME" CODEX_NETWORK_ACCESS "enabled"
+        tmux set-environment -t "$SESSION_NAME" CODEX_APPROVAL_POLICY "never"
+        # Ensure UTF-8 locale inside tmux session (fix mojibake)
+        tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
+        LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
+
+        if [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
+            # Launch Codex app-server REPL (accurate turn lifecycle)
+            if [ -n "$INITIAL_CMD" ]; then
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && node "%s" --session-id %q --initial "$(cat %q; rm -f %q)"' \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_APP_REPL" \
+                    "$SESSION_NAME" \
+                    "$INITIAL_CMD_FILE" \
+                    "$INITIAL_CMD_FILE"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            else
+                printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && node \"%s\" --session-id %q" \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_APP_REPL" \
+                    "$SESSION_NAME"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            fi
+        else
+            # Launch Codex CLI with notify hook (fallback)
+            if [ -n "$INITIAL_CMD" ]; then
+                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" %s "$(cat %q; rm -f %q)"' \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_WRAPPER" \
+                    "$CODEX_NOTIFY_ARG" \
+                    "$INITIAL_CMD_FILE" \
+                    "$INITIAL_CMD_FILE"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            else
+                printf -v CODEX_CMD "%s && export BRAINBASE_SESSION_ID='%s' CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && \"%s\" %s" \
+                    "$LOCALE_EXPORT" \
+                    "$SESSION_NAME" \
+                    "$CODEX_WRAPPER" \
+                    "$CODEX_NOTIFY_ARG"
+                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
+            fi
+        fi
+    else
+        # Launch Claude Code with initial command as CLI argument (passed as prompt)
+        # Set PATH via tmux environment instead of inline export (prevents command truncation)
+        # --dangerously-skip-permissions: skip permission prompts for trusted brainbase environment
+        tmux set-environment -t "$SESSION_NAME" PATH "$PATH"
+        # Ensure UTF-8 locale inside tmux session (fix mojibake)
+        tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
+        LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
+        # Build resume flag if session ID is available
+        CLAUDE_RESUME_FLAG=""
+        if [ -n "$RESUME_SESSION_ID" ]; then
+            CLAUDE_RESUME_FLAG="--resume $RESUME_SESSION_ID"
+        fi
+        if [ -n "$INITIAL_CMD" ]; then
+            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions %s "$(cat %q; rm -f %q)"' \
+                "$LOCALE_EXPORT" \
+                "$SESSION_NAME" \
+                "$CLAUDE_BIN" \
+                "$CLAUDE_RESUME_FLAG" \
+                "$INITIAL_CMD_FILE" \
+                "$INITIAL_CMD_FILE"
+            tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
+        else
+            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions %s" \
+                "$LOCALE_EXPORT" \
+                "$SESSION_NAME" \
+                "$CLAUDE_BIN" \
+                "$CLAUDE_RESUME_FLAG"
+            tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
+        fi
+    fi
+else
+    # Existing session found - log process state for debugging
+    echo "[login_script] Re-attaching to existing session: $SESSION_NAME"
+    EXISTING_PIDS=$(tmux list-panes -s -t "$SESSION_NAME" -F "#{pane_pid}" 2>/dev/null || echo "")
+    if [ -n "$EXISTING_PIDS" ]; then
+        echo "[login_script] Existing pane PIDs: $EXISTING_PIDS"
+        for PID in $EXISTING_PIDS; do
+            CHILD_COUNT=$(pgrep -P "$PID" 2>/dev/null | wc -l)
+            echo "[login_script] PID $PID has $CHILD_COUNT child process(es)"
+        done
+    fi
+fi
+
+# Ensure BRAINBASE_SESSION_ID is always set even when re-attaching to an existing session
+tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME" 2>/dev/null || true
+
+if [ -n "$BRAINBASE_PORT" ]; then
+    tmux set-environment -t "$SESSION_NAME" BRAINBASE_PORT "$BRAINBASE_PORT"
+fi
+
+# Attach to session
+exec tmux attach-session -t "$SESSION_NAME"

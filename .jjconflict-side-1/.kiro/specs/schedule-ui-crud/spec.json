@@ -1,0 +1,26 @@
+{
+  "feature_name": "schedule-ui-crud",
+  "created_at": "2026-01-12T11:55:00+09:00",
+  "updated_at": "2026-01-12T12:08:00+09:00",
+  "language": "ja",
+  "phase": "completed",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    },
+    "implementation": {
+      "completed": true,
+      "verified": true
+    }
+  },
+  "ready_for_implementation": true
+}

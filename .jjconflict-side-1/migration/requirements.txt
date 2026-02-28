@@ -1,0 +1,20 @@
+# Airtable SDK
+pyairtable>=2.0.0
+
+# NocoDB REST API クライアント
+requests>=2.31.0
+
+# YAML設定読み込み
+PyYAML>=6.0
+
+# 環境変数管理
+python-dotenv>=1.0.0
+
+# プログレスバー
+tqdm>=4.66.0
+
+# ロギング
+colorlog>=6.7.0
+
+# データ検証
+jsonschema>=4.19.0

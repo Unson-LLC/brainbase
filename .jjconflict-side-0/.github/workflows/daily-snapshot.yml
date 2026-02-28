@@ -1,0 +1,26 @@
+name: Daily Project Snapshot
+
+on:
+  schedule:
+    - cron: '0 15 * * *'  # 毎日 00:00 JST (15:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run snapshot script
+        env:
+          NOCODB_API_TOKEN: ${{ secrets.NOCODB_API_TOKEN }}
+          NOCODB_BASE_URL: https://noco.unson.jp
+        run: node scripts/daily-snapshot.js
