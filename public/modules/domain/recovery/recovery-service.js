@@ -51,14 +51,10 @@ export class RecoveryService {
             const hints = apiHints || localHints;
 
             if (hints) {
-                // Store更新
-                this.store.setState({
-                    recovery: {
-                        hints,
-                        attemptCount: hints.attemptCount || 0,
-                        isStuck: hints.isStuck || false,
-                        maxAttempts: RECOVERY_CONFIG.MAX_ATTEMPTS
-                    }
+                this._updateRecoveryStore({
+                    hints,
+                    attemptCount: hints.attemptCount || 0,
+                    isStuck: hints.isStuck || false
                 });
 
                 await this.eventBus.emit(EVENTS.RECOVERY_HINTS_LOADED, {
@@ -68,10 +64,7 @@ export class RecoveryService {
 
                 // スタック検出
                 if (hints.isStuck) {
-                    await this.eventBus.emit(EVENTS.STUCK_DETECTED, {
-                        sessionId,
-                        hints
-                    });
+                    await this._emitStuckDetected(sessionId, hints);
                 }
             }
 
@@ -94,12 +87,13 @@ export class RecoveryService {
         const newCount = currentCount + 1;
         const isStuck = newCount >= RECOVERY_CONFIG.MAX_ATTEMPTS;
 
+        const timestamp = new Date().toISOString();
         const hints = {
             sessionId,
             lastError: {
                 type: error.type || 'unknown',
                 message: error.message || 'Unknown error',
-                timestamp: new Date().toISOString(),
+                timestamp,
                 context: error.context || {}
             },
             attemptCount: newCount,
@@ -108,7 +102,7 @@ export class RecoveryService {
             previousAttempts: [
                 ...(recovery.hints?.previousAttempts || []),
                 {
-                    timestamp: new Date().toISOString(),
+                    timestamp,
                     error: error.message,
                     resolution: 'pending'
                 }
@@ -126,13 +120,10 @@ export class RecoveryService {
         }
 
         // Store更新
-        this.store.setState({
-            recovery: {
-                hints,
-                attemptCount: newCount,
-                isStuck,
-                maxAttempts: RECOVERY_CONFIG.MAX_ATTEMPTS
-            }
+        this._updateRecoveryStore({
+            hints,
+            attemptCount: newCount,
+            isStuck
         });
 
         await this.eventBus.emit(EVENTS.FAILURE_RECORDED, {
@@ -142,9 +133,7 @@ export class RecoveryService {
 
         // スタック検出
         if (isStuck) {
-            await this.eventBus.emit(EVENTS.STUCK_DETECTED, {
-                sessionId,
-                hints,
+            await this._emitStuckDetected(sessionId, hints, {
                 reason: 'max_attempts_exceeded'
             });
         }
@@ -178,13 +167,10 @@ export class RecoveryService {
         }
 
         // Store更新
-        this.store.setState({
-            recovery: {
-                hints: null,
-                attemptCount: 0,
-                isStuck: false,
-                maxAttempts: RECOVERY_CONFIG.MAX_ATTEMPTS
-            }
+        this._updateRecoveryStore({
+            hints: null,
+            attemptCount: 0,
+            isStuck: false
         });
     }
 
@@ -195,7 +181,7 @@ export class RecoveryService {
     async recordSuccess(sessionId) {
         const hints = this._getLocalHints(sessionId);
 
-        if (hints && hints.previousAttempts.length > 0) {
+        if (hints?.previousAttempts?.length > 0) {
             // 最後の試行を成功としてマーク
             const lastAttempt = hints.previousAttempts[hints.previousAttempts.length - 1];
             lastAttempt.resolution = 'success';
@@ -235,7 +221,7 @@ export class RecoveryService {
      */
     _getLocalHints(sessionId) {
         try {
-            const key = `${RECOVERY_CONFIG.STORAGE_KEY_PREFIX}${sessionId}`;
+            const key = this._getStorageKey(sessionId);
             const data = localStorage.getItem(key);
             return data ? JSON.parse(data) : null;
         } catch {
@@ -249,7 +235,7 @@ export class RecoveryService {
      */
     _saveLocalHints(sessionId, hints) {
         try {
-            const key = `${RECOVERY_CONFIG.STORAGE_KEY_PREFIX}${sessionId}`;
+            const key = this._getStorageKey(sessionId);
             localStorage.setItem(key, JSON.stringify(hints));
         } catch (error) {
             console.error('Failed to save recovery hints:', error);
@@ -262,10 +248,33 @@ export class RecoveryService {
      */
     _removeLocalHints(sessionId) {
         try {
-            const key = `${RECOVERY_CONFIG.STORAGE_KEY_PREFIX}${sessionId}`;
+            const key = this._getStorageKey(sessionId);
             localStorage.removeItem(key);
         } catch {
             // 無視
         }
+    }
+
+    _updateRecoveryStore({ hints, attemptCount, isStuck }) {
+        this.store.setState({
+            recovery: {
+                hints,
+                attemptCount,
+                isStuck,
+                maxAttempts: RECOVERY_CONFIG.MAX_ATTEMPTS
+            }
+        });
+    }
+
+    _emitStuckDetected(sessionId, hints, extra = {}) {
+        return this.eventBus.emit(EVENTS.STUCK_DETECTED, {
+            sessionId,
+            hints,
+            ...extra
+        });
+    }
+
+    _getStorageKey(sessionId) {
+        return `${RECOVERY_CONFIG.STORAGE_KEY_PREFIX}${sessionId}`;
     }
 }
