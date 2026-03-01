@@ -660,11 +660,11 @@
       "pr_number": 285,
       "pr_branch": "ops-department/auto-refactor-149",
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/285",
-      "pr_status": "open",
-      "merged_at": null
+      "pr_status": "merged",
+      "merged_at": "2026-03-01T09:11:12Z"
     }
   ],
-  "last_updated": "2026-03-01T09:11:08.423Z",
+  "last_updated": "2026-03-01T12:10:34.469Z",
   "total_prs_created": 25,
-  "total_prs_merged": 21
+  "total_prs_merged": 22
 }
