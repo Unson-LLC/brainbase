@@ -390,59 +390,6 @@ export class SessionService {
     }
 
     /**
-     * セッション表示用コンテキストを取得
-     * @param {string} sessionId
-     * @returns {Promise<Object|null>}
-     */
-    async getSessionContext(sessionId) {
-        try {
-            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
-        } catch (error) {
-            console.error('Failed to get session context:', error);
-            return null;
-        }
-    }
-
-    /**
-     * セッションのフォルダツリーを取得
-     * @param {string} sessionId - セッションID
-     * @param {string} query - クエリ文字列（例: ?path=public&depth=1）
-     * @returns {Promise<Object>}
-     */
-    async getSessionFolderTree(sessionId, query = '') {
-        const suffix = typeof query === 'string' ? query : '';
-        return await this.httpClient.get(`/api/sessions/${sessionId}/folder-tree${suffix}`);
-    }
-
-    /**
-     * ファイルをデフォルトアプリで開く
-     * @param {string} relativePath - セッションCWDからの相対パス
-     * @param {string|null} cwd - セッションの作業ディレクトリ
-     * @returns {Promise<Object>}
-     */
-    async openFileInDefaultApp(relativePath, cwd = null) {
-        return await this.httpClient.post('/api/open-file', {
-            path: relativePath,
-            mode: 'file',
-            cwd
-        });
-    }
-
-    /**
-     * ファイルをCursorで開く（互換用）
-     * @param {string} relativePath - セッションCWDからの相対パス
-     * @param {string|null} cwd - セッションの作業ディレクトリ
-     * @returns {Promise<Object>}
-     */
-    async openFileInCursor(relativePath, cwd = null) {
-        return await this.httpClient.post('/api/open-file', {
-            path: relativePath,
-            mode: 'cursor',
-            cwd
-        });
-    }
-
-    /**
      * ローカルmainブランチ更新
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object>}
