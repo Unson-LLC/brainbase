@@ -1,15 +1,15 @@
-import { httpClient } from '../../core/http-client.js';
-import { appStore } from '../../core/store.js';
-import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { httpClient as defaultHttpClient } from '../../core/http-client.js';
+import { appStore as defaultAppStore } from '../../core/store.js';
+import { eventBus as defaultEventBus, EVENTS } from '../../core/event-bus.js';
 
 /**
  * Inboxのビジネスロジック
  * InboxViewから抽出したInbox管理機能を集約
  */
 export class InboxService {
-    constructor() {
+    constructor({ httpClient = defaultHttpClient, store = defaultAppStore, eventBus = defaultEventBus } = {}) {
         this.httpClient = httpClient;
-        this.store = appStore;
+        this.store = store;
         this.eventBus = eventBus;
     }
 
@@ -30,8 +30,7 @@ export class InboxService {
      * @returns {Promise<{success: boolean, itemId: string, eventResult: Object}>}
      */
     async markAsDone(itemId) {
-        await this.httpClient.post(`/api/inbox/${itemId}/done`);
-        await this.loadInbox(); // リロード
+        await this._refreshInboxAfter(() => this.httpClient.post(`/api/inbox/${itemId}/done`));
         const eventResult = await this.eventBus.emit(EVENTS.INBOX_ITEM_COMPLETED, { itemId });
         return { success: true, itemId, eventResult };
     }
@@ -42,8 +41,7 @@ export class InboxService {
      */
     async markAllAsDone() {
         const beforeCount = this.getInboxCount();
-        await this.httpClient.post('/api/inbox/mark-all-done');
-        await this.loadInbox(); // リロード
+        await this._refreshInboxAfter(() => this.httpClient.post('/api/inbox/mark-all-done'));
         return { success: true, count: beforeCount };
     }
 
@@ -52,7 +50,17 @@ export class InboxService {
      * @returns {number} Inboxアイテム数
      */
     getInboxCount() {
-        const { inbox } = this.store.getState();
-        return inbox ? inbox.length : 0;
+        const { inbox = [] } = this.store.getState();
+        return inbox.length;
+    }
+
+    /**
+     * ミューテーション後に最新状態とイベントを同期
+     * @param {Function} mutationFn - Inbox状態を変更する非同期処理
+     * @returns {Promise<Array>} リフレッシュ後のInbox配列
+     */
+    async _refreshInboxAfter(mutationFn) {
+        await mutationFn();
+        return this.loadInbox();
     }
 }
