@@ -1,14 +1,20 @@
 {
-  "status": "success",
-  "reason": "refactor_completed",
+  "status": "skipped",
+  "reason": "refactor_not_performed",
   "details": {
-    "area": "server/utils",
-    "filesModified": 2,
-    "judgeScore": 95
+    "attempt": 1,
+    "area": "public/modules/components",
+    "failure": {
+      "reason": "refactor_area_error",
+      "details": {
+        "area": "public/modules/components",
+        "message": "Unexpected token '*', \"**Refactor\"... is not valid JSON"
+      }
+    }
   },
-  "timestamp": "2026-02-28T18:13:04.222Z",
+  "timestamp": "2026-03-01T00:35:07.617Z",
   "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22526118220",
-  "runNumber": "144",
+  "runId": "22532363102",
+  "runNumber": "146",
   "eventName": "schedule"
 }
