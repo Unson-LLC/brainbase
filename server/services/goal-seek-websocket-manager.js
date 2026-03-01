@@ -68,15 +68,14 @@ export class GoalSeekWebSocketManager {
      */
     async handleConnection(ws, request) {
         // 接続数チェック
-        if (this.connections.size >= this.maxConnections) {
+        if (!this._hasCapacity()) {
             this._sendError(ws, null, 'Max connections reached', CLOSE_CODES.MAX_CONNECTIONS);
             ws.close(CLOSE_CODES.MAX_CONNECTIONS);
             return;
         }
 
         // 認証
-        const authHeader = request.headers?.authorization || '';
-        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        const token = this._getBearerToken(request);
 
         if (!token) {
             this._sendError(ws, null, 'Authorization required', CLOSE_CODES.AUTH_ERROR);
@@ -192,17 +191,11 @@ export class GoalSeekWebSocketManager {
      * @param {string} params.userId - ユーザーID
      * @returns {Promise<Object>} 処理結果
      */
-    async handleInterventionResponseHTTP({ interventionId, goalId, choice, reason, userId }) {
-        const pending = this.pendingInterventions.get(interventionId);
+    async handleInterventionResponseHTTP({ interventionId, goalId, choice, reason: responseReason, userId }) {
+        const { pending, state } = this._getActivePendingIntervention(interventionId);
 
         if (!pending) {
-            throw new Error('Intervention not found or expired');
-        }
-
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            throw new Error('Intervention expired');
+            throw new Error(state === 'expired' ? 'Intervention expired' : 'Intervention not found or expired');
         }
 
         // 所有者チェック
@@ -214,31 +207,28 @@ export class GoalSeekWebSocketManager {
         // 介入を削除
         this.pendingInterventions.delete(interventionId);
 
-        // WebSocket経由で通知
-        this._send(pending.ws, {
-            type: MESSAGE_TYPES.INTERVENTION_ACKNOWLEDGED,
+        this._finalizeIntervention({
+            targetWs: pending.ws,
             correlationId: pending.correlationId,
             interventionId,
             choice,
-            reason,
-            source: 'http'
+            reason: responseReason,
+            source: 'http',
+            result: pending.result
         });
 
-        // 選択に応じて処理を継続
-        if (choice === 'proceed') {
-            this._send(pending.ws, {
-                type: MESSAGE_TYPES.COMPLETED,
-                correlationId: pending.correlationId,
-                result: pending.result
-            });
-        }
-
-        return {
+        const response = {
             interventionId,
             goalId,
             choice,
             acknowledged: true
         };
+
+        if (responseReason) {
+            response.reason = responseReason;
+        }
+
+        return response;
     }
 
     /**
@@ -307,37 +297,22 @@ export class GoalSeekWebSocketManager {
     async _handleInterventionResponse(ws, correlationId, payload) {
         const { interventionId, choice } = payload;
 
-        const pending = this.pendingInterventions.get(interventionId);
+        const { pending, state } = this._getActivePendingIntervention(interventionId);
         if (!pending) {
-            this._sendError(ws, correlationId, 'Intervention not found or expired', null, 'INTERVENTION_EXPIRED');
-            return;
-        }
-
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            this._sendError(ws, correlationId, 'Intervention expired', null, 'INTERVENTION_EXPIRED');
+            const message = state === 'expired' ? 'Intervention expired' : 'Intervention not found or expired';
+            this._sendError(ws, correlationId, message, null, 'INTERVENTION_EXPIRED');
             return;
         }
 
         this.pendingInterventions.delete(interventionId);
 
-        // 回答を確認
-        this._send(ws, {
-            type: MESSAGE_TYPES.INTERVENTION_ACKNOWLEDGED,
+        this._finalizeIntervention({
+            targetWs: ws,
             correlationId,
             interventionId,
-            choice
+            choice,
+            result: pending.result
         });
-
-        // 選択に応じて処理を継続（実装は要件に応じて拡張）
-        if (choice === 'proceed') {
-            this._send(ws, {
-                type: MESSAGE_TYPES.COMPLETED,
-                correlationId,
-                result: pending.result
-            });
-        }
     }
 
     /**
@@ -383,6 +358,59 @@ export class GoalSeekWebSocketManager {
 
         if (closeCode) {
             ws.close(closeCode);
+        }
+    }
+
+    _hasCapacity() {
+        return this.connections.size < this.maxConnections;
+    }
+
+    _getBearerToken(request) {
+        const authHeader = request.headers?.authorization || '';
+        return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    }
+
+    _getActivePendingIntervention(interventionId) {
+        const pending = this.pendingInterventions.get(interventionId);
+        if (!pending) {
+            return { pending: null, state: 'missing' };
+        }
+
+        if (Date.now() > pending.expiresAt) {
+            this.pendingInterventions.delete(interventionId);
+            return { pending: null, state: 'expired' };
+        }
+
+        return { pending, state: 'active' };
+    }
+
+    _finalizeIntervention({ targetWs, correlationId, interventionId, choice, reason, source, result }) {
+        if (!targetWs) {
+            return;
+        }
+
+        const payload = {
+            type: MESSAGE_TYPES.INTERVENTION_ACKNOWLEDGED,
+            correlationId,
+            interventionId,
+            choice
+        };
+
+        if (reason) {
+            payload.reason = reason;
+        }
+        if (source) {
+            payload.source = source;
+        }
+
+        this._send(targetWs, payload);
+
+        if (choice === 'proceed') {
+            this._send(targetWs, {
+                type: MESSAGE_TYPES.COMPLETED,
+                correlationId,
+                result
+            });
         }
     }
 }
