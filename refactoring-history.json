@@ -718,9 +718,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/287",
       "pr_status": "merged",
       "merged_at": "2026-03-01T18:10:30Z"
+    },
+    {
+      "area": "public/modules/domain/recovery",
+      "refactored_at": "2026-03-01T21:08:31.095Z",
+      "files_modified": [
+        "public/modules/domain/recovery/recovery-service.js"
+      ],
+      "changes_summary": "Store更新やスタック通知の重複ロジックを専用ヘルパーに切り出し、タイムスタンプ生成とストレージキー生成を共通化。previousAttemptsアクセスも安全化してリーダビリティと保守性をUP。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Store更新とイベント発火の共通化が整理されてて挙動もキープされてるっぽくて、読みやすさも上がっててイイ感じだよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "この辺のヘルパー追加に合わせてRecoveryServiceのユニットテストを軽く足しとくと更に安心感マシマシかもだよ〜"
+      ],
+      "run_number": "153",
+      "run_id": "22552675141",
+      "trigger_event": "schedule",
+      "pr_number": 288,
+      "pr_branch": "ops-department/auto-refactor-153",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/288",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-01T21:06:56.854Z",
-  "total_prs_created": 27,
+  "last_updated": "2026-03-01T21:08:41.615Z",
+  "total_prs_created": 28,
   "total_prs_merged": 24
 }
