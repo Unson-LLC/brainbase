@@ -634,9 +634,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/284",
       "pr_status": "merged",
       "merged_at": "2026-03-01T06:21:00Z"
+    },
+    {
+      "area": "public/modules/domain/inbox",
+      "refactored_at": "2026-03-01T09:10:54.609Z",
+      "files_modified": [
+        "public/modules/domain/inbox/inbox-service.js"
+      ],
+      "changes_summary": "DI対応のコンストラクタに変えてテストしやすくしたうえで、load後リロード処理を_privateヘルパにまとめて重複を解消し、inbox数取得もデフォ値付きでスッキリさせといたよ〜",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "依存性注入に対応したコンストラクタと共通リフレッシュヘルパーの追加で可テスト性と重複削減を実現しつつ、既存のロード＆イベント発火フローを維持しているため、安全性・明確性・スコープの観点で良好なリファクタです。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "DI可能になった経緯を踏まえ、後続でInboxService向けのユニットテストを用意して振る舞いを自動検証できるようにすると信頼性がさらに上がります。"
+      ],
+      "run_number": "149",
+      "run_id": "22540169161",
+      "trigger_event": "schedule",
+      "pr_number": 285,
+      "pr_branch": "ops-department/auto-refactor-149",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/285",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-01T09:09:54.247Z",
-  "total_prs_created": 24,
+  "last_updated": "2026-03-01T09:11:08.423Z",
+  "total_prs_created": 25,
   "total_prs_merged": 21
 }
