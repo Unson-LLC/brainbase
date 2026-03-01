@@ -66,10 +66,10 @@ export class QAService {
         await this.eventBus.emit(EVENTS.QA_REVIEW_STARTED, { taskId, artifacts });
 
         const results = {
-            fileExists: await this._checkFileExists(artifacts),
-            successCriteria: await this._checkSuccessCriteria(artifacts),
-            diffAnalysis: await this._analyzeDiff(artifacts),
-            riskAssessment: await this._assessRisk(artifacts)
+            fileExists: this._checkFileExists(artifacts),
+            successCriteria: this._checkSuccessCriteria(artifacts),
+            diffAnalysis: this._analyzeDiff(artifacts),
+            riskAssessment: this._assessRisk(artifacts)
         };
 
         const riskLevel = this._determineRiskLevel(results);
@@ -106,29 +106,25 @@ export class QAService {
      * Step 1: ファイル存在確認
      * @private
      */
-    async _checkFileExists(artifacts) {
-        const results = [];
+    _checkFileExists(artifacts) {
         const { files = [] } = artifacts;
-
-        for (const file of files) {
-            const exists = file.exists !== undefined ? file.exists : true;
+        const details = files.map(file => {
+            const exists = file.exists ?? true;
             const notEmpty = file.size > 0;
-            const recentlyModified = file.modifiedAfterStart !== undefined
-                ? file.modifiedAfterStart
-                : true;
+            const recentlyModified = file.modifiedAfterStart ?? true;
 
-            results.push({
+            return {
                 path: file.path,
                 exists,
                 notEmpty,
                 recentlyModified,
                 pass: exists && notEmpty && recentlyModified
-            });
-        }
+            };
+        });
 
         return {
-            pass: results.every(r => r.pass),
-            details: results
+            pass: details.every(detail => detail.pass),
+            details
         };
     }
 
@@ -136,28 +132,23 @@ export class QAService {
      * Step 2: Success Criteria チェック
      * @private
      */
-    async _checkSuccessCriteria(artifacts) {
+    _checkSuccessCriteria(artifacts) {
         const { successCriteria = [] } = artifacts;
-        const results = [];
+        const details = successCriteria.map(criteria => ({
+            id: criteria.id,
+            description: criteria.description,
+            expected: criteria.expected,
+            actual: criteria.actual,
+            pass: criteria.actual === criteria.expected
+        }));
 
-        for (const criteria of successCriteria) {
-            results.push({
-                id: criteria.id,
-                description: criteria.description,
-                expected: criteria.expected,
-                actual: criteria.actual,
-                pass: criteria.actual === criteria.expected
-            });
-        }
-
-        const passCount = results.filter(r => r.pass).length;
-        const totalCount = results.length;
+        const passCount = details.filter(detail => detail.pass).length;
 
         return {
-            pass: passCount === totalCount,
+            pass: passCount === details.length,
             passCount,
-            totalCount,
-            details: results
+            totalCount: details.length,
+            details
         };
     }
 
@@ -165,28 +156,30 @@ export class QAService {
      * Step 3: 差分分析（要件との整合性）
      * @private
      */
-    async _analyzeDiff(artifacts) {
+    _analyzeDiff(artifacts) {
         const { diffs = [] } = artifacts;
-        const results = [];
+        const details = diffs.map(diff => ({
+            area: diff.area,
+            expected: diff.expected,
+            actual: diff.actual,
+            severity: diff.severity || 'none',
+            isWithinTolerance: diff.severity !== 'critical'
+        }));
 
-        for (const diff of diffs) {
-            const isWithinTolerance = diff.severity !== 'critical';
-            results.push({
-                area: diff.area,
-                expected: diff.expected,
-                actual: diff.actual,
-                severity: diff.severity || 'none',
-                isWithinTolerance
-            });
-        }
-
-        const criticalDiffs = results.filter(r => r.severity === 'critical');
+        const summary = details.reduce((acc, detail) => {
+            if (detail.severity === 'critical') {
+                acc.criticalCount += 1;
+            } else if (detail.severity === 'minor') {
+                acc.minorCount += 1;
+            }
+            return acc;
+        }, { criticalCount: 0, minorCount: 0 });
 
         return {
-            pass: criticalDiffs.length === 0,
-            criticalCount: criticalDiffs.length,
-            minorCount: results.filter(r => r.severity === 'minor').length,
-            details: results
+            pass: summary.criticalCount === 0,
+            criticalCount: summary.criticalCount,
+            minorCount: summary.minorCount,
+            details
         };
     }
 
@@ -194,27 +187,29 @@ export class QAService {
      * Step 4: リスク判定
      * @private
      */
-    async _assessRisk(artifacts) {
+    _assessRisk(artifacts) {
         const { risks = [] } = artifacts;
-        const results = [];
+        const details = risks.map(risk => ({
+            type: risk.type,
+            description: risk.description,
+            level: risk.level || RISK_LEVEL.NONE,
+            mitigation: risk.mitigation
+        }));
 
-        for (const risk of risks) {
-            results.push({
-                type: risk.type,
-                description: risk.description,
-                level: risk.level || RISK_LEVEL.NONE,
-                mitigation: risk.mitigation
-            });
-        }
-
-        const criticalRisks = results.filter(r => r.level === RISK_LEVEL.CRITICAL);
-        const minorRisks = results.filter(r => r.level === RISK_LEVEL.MINOR);
+        const summary = details.reduce((acc, detail) => {
+            if (detail.level === RISK_LEVEL.CRITICAL) {
+                acc.criticalCount += 1;
+            } else if (detail.level === RISK_LEVEL.MINOR) {
+                acc.minorCount += 1;
+            }
+            return acc;
+        }, { criticalCount: 0, minorCount: 0 });
 
         return {
-            pass: criticalRisks.length === 0,
-            criticalCount: criticalRisks.length,
-            minorCount: minorRisks.length,
-            details: results
+            pass: summary.criticalCount === 0,
+            criticalCount: summary.criticalCount,
+            minorCount: summary.minorCount,
+            details
         };
     }
 
