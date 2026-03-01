@@ -606,9 +606,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/281",
       "pr_status": "merged",
       "merged_at": "2026-02-28T18:13:19Z"
+    },
+    {
+      "area": "public/modules/components",
+      "refactored_at": "2026-03-01T06:20:45.229Z",
+      "files_modified": [
+        "public/modules/components/line-chart.js"
+      ],
+      "changes_summary": "public/modules/components/line-chart.jsでSVG要素生成・ツールチップホバー・アニメstyle注入をヘルパー化して重複めっちゃ減らしたから、読みやすさも保守性も爆上がりだよ〜",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Helper methods (`createSvgElement`, hover toggles, animation-style guard) make the LineChart renderer less repetitive while keeping the original behavior intact; no risky logic changes were introduced beyond reorganizing DOM creation and event wiring.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider unit tests (or visual regression checks) for the chart to lock in hover/animation behavior now that logic was centralized."
+      ],
+      "run_number": "148",
+      "run_id": "22537510841",
+      "trigger_event": "schedule",
+      "pr_number": 284,
+      "pr_branch": "ops-department/auto-refactor-148",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/284",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-02-28T21:05:41.821Z",
-  "total_prs_created": 23,
+  "last_updated": "2026-03-01T06:20:56.803Z",
+  "total_prs_created": 24,
   "total_prs_merged": 20
 }
