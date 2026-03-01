@@ -690,9 +690,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/286",
       "pr_status": "merged",
       "merged_at": "2026-03-01T12:12:23Z"
+    },
+    {
+      "area": "public/modules/domain/qa",
+      "refactored_at": "2026-03-01T18:10:13.229Z",
+      "files_modified": [
+        "public/modules/domain/qa/qa-service.js"
+      ],
+      "changes_summary": "レビュー各ステップの判定をmap/reduceでまとめてasync外して超スッキリ、可読性と同期待ちの無駄も削れて盛れたよ〜",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "ループを map/ reduce に整理しつつ `async/await` を外して同期処理に揃えており、返却データの構造や判定ロジックは従来と等価なので QA 判定フローの挙動は保たれています。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "ファイルサイズが未定義のケースでは `notEmpty` が `false` になるため、必要ならデフォルト値やバリデーションを明示するとより安全です。"
+      ],
+      "run_number": "152",
+      "run_id": "22549361369",
+      "trigger_event": "schedule",
+      "pr_number": 287,
+      "pr_branch": "ops-department/auto-refactor-152",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/287",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-01T15:06:36.865Z",
-  "total_prs_created": 26,
+  "last_updated": "2026-03-01T18:10:27.083Z",
+  "total_prs_created": 27,
   "total_prs_merged": 23
 }
