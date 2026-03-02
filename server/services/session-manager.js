@@ -212,6 +212,7 @@ export class SessionManager {
                     return {
                         ...session,
                         intendedState: 'paused',
+                        pausedReason: 'tmux_missing_on_restore',
                         pausedAt: now,
                         tmuxMissingAt: now,
                         ttydProcess: null,

@@ -957,6 +957,8 @@ body::after {
     font-size: 0.7rem;
     color: var(--warning-color, #f59e0b);
     font-weight: 500;
+    margin-left: 6px;
+    white-space: nowrap;
 }
 
 .resume-session-btn {
@@ -5914,14 +5916,69 @@ body.resizing iframe {
         display: none;
     }
 
+    /* 十字キーを十字型レイアウトに変更 */
+    .mobile-input-dock.expanded .mobile-input-cursor {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, auto);
+        gap: 6px;
+        grid-template-areas:
+            ". up ."
+            "left down right"
+            ". enter .";
+        max-width: 300px;
+        margin: 0 auto 8px;
+    }
+
+    .mobile-input-cursor [data-mobile-cursor="up"] {
+        grid-area: up;
+    }
+
+    .mobile-input-cursor [data-mobile-cursor="down"] {
+        grid-area: down;
+    }
+
+    .mobile-input-cursor [data-mobile-cursor="left"] {
+        grid-area: left;
+    }
+
+    .mobile-input-cursor [data-mobile-cursor="right"] {
+        grid-area: right;
+    }
+
+    .mobile-input-cursor [data-mobile-cursor="enter"] {
+        grid-area: enter;
+    }
+
     .mobile-input-dock.expanded .mobile-input-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
     }
 
-    /* expanded時: 入力欄を完全に非表示（キーボードを閉じる） */
+    /* expanded時: 入力欄とSendボタンのみ非表示、×ボタンは表示 */
+    .mobile-input-dock.expanded .mobile-input-main textarea {
+        display: none;
+    }
+
+    .mobile-input-dock.expanded .mobile-input-main #mobile-dock-send {
+        display: none;
+    }
+
+    /* ×ボタンを右上に配置 */
     .mobile-input-dock.expanded .mobile-input-main {
+        position: relative;
+        min-height: 40px;
+    }
+
+    .mobile-input-dock.expanded .mobile-input-main-actions {
+        position: absolute;
+        top: 0;
+        right: 0;
+    }
+
+    /* Sessionsボタンを非表示（ボトムナビから行けるため不要） */
+    .mobile-input-dock.expanded #mobile-dock-sessions {
         display: none;
     }
 

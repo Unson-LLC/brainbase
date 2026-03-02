@@ -4,7 +4,6 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
-import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -16,7 +15,6 @@ import { escapeHtml } from '../../ui-helpers.js';
 export class SessionView {
     constructor({ sessionService }) {
         this.sessionService = sessionService;
-        this.folderTreeView = new FolderTreeView({ sessionService });
         this.container = null;
         this._unsubscribers = [];
         // Drag and drop state
@@ -49,16 +47,8 @@ export class SessionView {
             state => state.ui?.sessionListView,
             () => this.render()
         );
-        const unsub8 = appStore.subscribeToSelector(
-            state => state.ui?.sidebarPrimaryView,
-            () => this.render()
-        );
-        const unsub9 = appStore.subscribeToSelector(
-            state => state.folderTree,
-            () => this.render()
-        );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -106,13 +96,7 @@ export class SessionView {
         this.container.innerHTML = '';
 
         const { sessions, currentSessionId, ui } = appStore.getState();
-        const sidebarPrimaryView = ui?.sidebarPrimaryView || 'sessions';
         const sessionListView = ui?.sessionListView || 'timeline';
-
-        if (sidebarPrimaryView === 'folders') {
-            this.folderTreeView.render(this.container);
-            return;
-        }
 
         if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
@@ -194,13 +178,37 @@ export class SessionView {
 
     /**
      * 時系列表示用のセッション一覧を取得
+     *
+     * ソート優先度:
+     * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
+     *    - 条件: isDone=true AND currentSessionIdではない
+     * 2. 残りのセッションは時系列順（最新が上）
+     *
+     * @param {Array} sessions - セッション一覧
+     * @returns {Array} ソート済みセッション一覧（アーカイブ済み除外）
      * @private
      */
     _getTimelineSessions(sessions) {
+        const { currentSessionId } = appStore.getState();
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
+
         const sorted = [...filtered].sort((a, b) => {
+            // インジケータステータスを取得
+            const statusA = getSessionStatus(a.id);
+            const statusB = getSessionStatus(b.id);
+
+            // 緑インジケータ判定（isDone=true AND 現在のセッションではない）
+            const isGreenA = statusA?.isDone && currentSessionId !== a.id;
+            const isGreenB = statusB?.isDone && currentSessionId !== b.id;
+
+            // 優先度1: 緑セッションを最上部に配置
+            if (isGreenA && !isGreenB) return -1;
+            if (!isGreenA && isGreenB) return 1;
+
+            // 優先度2: 緑セッション同士 or 通常セッション同士は時系列順（最新が上）
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
+
         return sorted;
     }
 
@@ -439,39 +447,17 @@ export class SessionView {
         // Delete button
         const deleteBtn = row.querySelector('.delete-session-btn');
         if (deleteBtn) {
-            console.log('[session-view] Delete button found for session:', session.id);
             deleteBtn.addEventListener('click', async (e) => {
-                console.log('[session-view] Delete button clicked for session:', session.id);
                 e.stopPropagation();
                 closeDropdown();
                 const displayName = session.name || session.id;
-                console.log('[session-view] Showing confirm dialog for:', displayName);
                 const confirmed = await showConfirm(
                     `セッション「${displayName}」を削除しますか？`,
                     { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
                 );
-                console.log('[session-view] Confirm result:', confirmed);
                 if (!confirmed) return;
-                console.log('[session-view] Calling deleteSession for:', session.id);
-                try {
-                    await this.sessionService.deleteSession(session.id);
-                    console.log('[session-view] Delete succeeded for:', session.id);
-                    // 成功通知
-                    if (window.showToast) {
-                        window.showToast(`セッション「${displayName}」を削除しました`, 'success');
-                    }
-                } catch (error) {
-                    console.error('[session-view] Delete failed for:', session.id, error);
-                    // エラー通知
-                    if (window.showToast) {
-                        window.showToast(`削除に失敗しました: ${error.message}`, 'error');
-                    } else {
-                        alert(`削除に失敗しました: ${error.message}`);
-                    }
-                }
+                await this.sessionService.deleteSession(session.id);
             });
-        } else {
-            console.warn('[session-view] Delete button NOT found for session:', session.id);
         }
 
         // Archive button
@@ -576,31 +562,10 @@ export class SessionView {
         // Merge button
         const mergeBtn = row.querySelector('.merge-session-btn');
         if (mergeBtn) {
-            mergeBtn.addEventListener('click', async (e) => {
+            mergeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                const displayName = session.name || session.id;
-                const confirmed = await showConfirm(
-                    `「${displayName}」の変更をmainへマージしますか？`,
-                    {
-                        title: 'Merge to main',
-                        okText: 'マージ実行',
-                        cancelText: 'キャンセル'
-                    }
-                );
-                if (!confirmed) return;
-
-                try {
-                    const mergeResult = await this.sessionService.mergeSession(session.id);
-                    if (mergeResult?.success) {
-                        showSuccess(`セッション「${displayName}」をマージしました`);
-                    } else {
-                        showError(mergeResult?.error || 'マージに失敗しました');
-                    }
-                } catch (error) {
-                    console.error('Failed to merge session:', error);
-                    showError('マージに失敗しました');
-                }
+                eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
             });
         }
 

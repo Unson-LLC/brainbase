@@ -357,7 +357,7 @@ export class MobileInputUIController {
         dock.classList.toggle('expanded', expanded);
         dock.classList.toggle('compact', !expanded);
         document.body.classList.toggle('mobile-input-expanded', expanded);
-        dockMore.textContent = expanded ? '×' : 'More';
+        dockMore.textContent = expanded ? '×' : '≡';
 
         // expanded時: キーボードを強制的に閉じる
         if (expanded && dockInput) {

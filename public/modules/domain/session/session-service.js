@@ -49,7 +49,11 @@ export class SessionService {
         sessions = sessions.map(session => {
             if (session.intendedState === 'stopped') {
                 migrationNeeded = true;
-                return { ...session, intendedState: 'paused' };
+                return {
+                    ...session,
+                    intendedState: 'paused',
+                    pausedReason: session.pausedReason || 'migrated_from_stopped'
+                };
             }
             return session;
         });
@@ -541,6 +545,7 @@ export class SessionService {
         // Phase 2: intendedState を paused に変更 + pausedAt タイムスタンプ設定
         await this.updateSession(sessionId, {
             intendedState: 'paused',
+            pausedReason: 'manual',
             pausedAt: new Date().toISOString()
         });
 
@@ -576,7 +581,10 @@ export class SessionService {
         }
 
         // intendedState を active に変更
-        await this.updateSession(sessionId, { intendedState: 'active' });
+        await this.updateSession(sessionId, {
+            intendedState: 'active',
+            pausedReason: null
+        });
 
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
         return { success: true, sessionId, eventResult };

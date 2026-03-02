@@ -62,7 +62,8 @@ external/
 # 非公開: 個人設定・データ
 .claude/commands/*
 !.claude/commands/deploy-merged-pr.md
-.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/session-start-copy-plugins.sh
 .claude/agents/
 .claude/learning/
 .claude/output/
@@ -71,6 +72,7 @@ external/
 .claude/*.md
 .claude/*.txt
 .claude/*.json
+!.claude/settings.json
 .claude/skills-backup-oss/
 
 # 非公開skills: 個人ノウハウ・ビジネス知識

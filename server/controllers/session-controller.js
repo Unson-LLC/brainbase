@@ -264,7 +264,13 @@ export class SessionController {
                     await this._updateStateWithRetry((currentState) => {
                         const updatedSessions = (currentState.sessions || []).map(session =>
                             session.id === id
-                                ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
+                                ? {
+                                    ...session,
+                                    intendedState: 'paused',
+                                    pausedReason: 'manual',
+                                    pausedAt: now,
+                                    updatedAt: now
+                                }
                                 : session
                         );
                         return { ...currentState, sessions: updatedSessions };
