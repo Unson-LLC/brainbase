@@ -1,14 +1,22 @@
 {
-  "status": "success",
-  "reason": "refactor_completed",
+  "status": "skipped",
+  "reason": "refactor_not_performed",
   "details": {
-    "area": "public/modules/domain/recovery",
-    "filesModified": 1,
-    "judgeScore": 95
+    "attempt": 2,
+    "area": "public/modules/domain/schedule",
+    "failure": {
+      "reason": "revision_timeout",
+      "details": {
+        "area": "public/modules/domain/schedule",
+        "attempt": 2,
+        "message": "Codex CLI timed out after 1200000ms",
+        "timeoutMs": 1200000
+      }
+    }
   },
-  "timestamp": "2026-03-01T21:08:31.157Z",
+  "timestamp": "2026-03-02T01:00:39.705Z",
   "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22552675141",
-  "runNumber": "153",
+  "runId": "22556561123",
+  "runNumber": "154",
   "eventName": "schedule"
 }
