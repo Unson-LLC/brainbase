@@ -5920,6 +5920,11 @@ body.resizing iframe {
         gap: 6px;
     }
 
+    /* expanded時: 入力欄を完全に非表示（キーボードを閉じる） */
+    .mobile-input-dock.expanded .mobile-input-main {
+        display: none;
+    }
+
     /* 3行表示: 1行3個 */
     .mobile-input-dock.expanded .mobile-input-btn {
         flex: 1 1 calc(33.33% - 12px);
