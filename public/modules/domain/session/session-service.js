@@ -380,6 +380,20 @@ export class SessionService {
     }
 
     /**
+     * セッションコンテキスト取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object|null>}
+     */
+    async getSessionContext(sessionId) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
+        } catch (error) {
+            console.error('Failed to get session context:', error);
+            return null;
+        }
+    }
+
+    /**
      * Worktree状態取得
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object|null>}
