@@ -746,9 +746,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/288",
       "pr_status": "merged",
       "merged_at": "2026-03-01T21:08:44Z"
+    },
+    {
+      "area": "public/modules/domain/schedule",
+      "refactored_at": "2026-03-02T06:24:10.966Z",
+      "files_modified": [
+        "public/modules/domain/schedule/schedule-service.js"
+      ],
+      "changes_summary": "今日のイベントエンドポイント生成ヘルパーとミューテ共通処理を差し込んでHTTP呼び出しの重複消して、store参照も専用ヘルパーに寄せてタイムライン取得まわりをスッキリさせたよん♡",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 97,
+      "judge_threshold": 90,
+      "judge_summary": "共通処理を _getTodayEventsEndpoint / _getScheduleState / _mutateTodayEvent に抽出して重複を削減しつつ既存の API 呼び出しフローとストア取得ロジックの振る舞いも維持できており、作用範囲も ScheduleService に限定されている。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "後続で _mutateTodayEvent の戻り値や例外ケースをカバーする単体テストを追加できると信頼性がさらに高まる。"
+      ],
+      "run_number": "156",
+      "run_id": "22564054268",
+      "trigger_event": "schedule",
+      "pr_number": 292,
+      "pr_branch": "ops-department/auto-refactor-156",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/292",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-02T00:29:13.517Z",
-  "total_prs_created": 28,
+  "last_updated": "2026-03-02T06:24:23.192Z",
+  "total_prs_created": 29,
   "total_prs_merged": 25
 }
