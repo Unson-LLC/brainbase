@@ -24,6 +24,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     // ========================================
     router.post('/report_activity', controller.reportActivity);
     router.get('/status', controller.getStatus);
+    router.post('/:id/clear-done', controller.clearDone);
     router.get('/:id', controller.get);
 
     // ========================================

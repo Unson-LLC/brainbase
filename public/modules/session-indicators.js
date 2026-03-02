@@ -40,6 +40,31 @@ export function clearWorking(sessionId) {
     }
 }
 
+/**
+ * Mark done indicator as read for a session.
+ * Local state is updated first for immediate UI response, then server sync is attempted.
+ * @param {string} sessionId - Session to clear done status for
+ * @param {string|null} currentSessionId - Current active session id for indicator rendering
+ */
+export async function markDoneAsRead(sessionId, currentSessionId = null) {
+    if (!sessionId) return;
+
+    clearDone(sessionId);
+    updateSessionIndicators(currentSessionId);
+    await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates: { doneRead: true } });
+
+    try {
+        const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/clear-done`, {
+            method: 'POST'
+        });
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+    } catch (error) {
+        console.warn(`[Session Indicators] Failed to persist done-read for ${sessionId}:`, error);
+    }
+}
+
 // --- Connection Status ---
 
 /**
