@@ -3,6 +3,49 @@ import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { filterByPriority } from '../../utils/task-filters.js';
 
+const PRIORITY_DOWNGRADE_MAP = { high: 'medium', medium: 'low', low: 'low' };
+const DEFAULT_PRIORITY = 'low';
+const PRIORITY_ORDER = { critical: 5, highest: 5, high: 4, medium: 3, normal: 2, low: 1 };
+const FOCUS_PRIORITIES = ['critical', 'highest', 'high'];
+const MAX_VISIBLE_NEXT_TASKS = 10;
+
+function getDeadlineValue(task = {}) {
+    return task.deadline || task.due || null;
+}
+
+function getDeadlineTimestamp(task) {
+    const value = getDeadlineValue(task);
+    return value ? new Date(value).getTime() : null;
+}
+
+function compareByDeadlineAndPriority(a, b) {
+    const aDeadlineTs = getDeadlineTimestamp(a);
+    const bDeadlineTs = getDeadlineTimestamp(b);
+
+    if (aDeadlineTs === null && bDeadlineTs === null) {
+        return (PRIORITY_ORDER[b.priority] || 0) - (PRIORITY_ORDER[a.priority] || 0);
+    }
+    if (aDeadlineTs === null) return 1;
+    if (bDeadlineTs === null) return -1;
+
+    if (aDeadlineTs !== bDeadlineTs) {
+        return aDeadlineTs - bDeadlineTs;
+    }
+
+    return (PRIORITY_ORDER[b.priority] || 0) - (PRIORITY_ORDER[a.priority] || 0);
+}
+
+function resolveTaskActivityDate(task) {
+    if (task?.updated) return new Date(task.updated);
+    if (task?.created) return new Date(task.created);
+    return null;
+}
+
+function getActivityTimestamp(task) {
+    const activityDate = resolveTaskActivityDate(task);
+    return activityDate ? activityDate.getTime() : 0;
+}
+
 /**
  * タスクのビジネスロジック
  * app.jsから抽出したタスク管理機能を集約
@@ -12,6 +55,13 @@ export class TaskService {
         this.httpClient = httpClient;
         this.store = appStore;
         this.eventBus = eventBus;
+    }
+
+    // Ensures state stays fresh after any write operation
+    async _requestAndRefresh(requestCall) {
+        const result = await requestCall();
+        await this.loadTasks();
+        return result;
     }
 
     /**
@@ -31,8 +81,9 @@ export class TaskService {
      * @returns {Promise<{success: boolean, taskId: string, eventResult: Object}>}
      */
     async completeTask(taskId) {
-        await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'done' });
-        await this.loadTasks(); // リロード
+        await this._requestAndRefresh(() =>
+            this.httpClient.put(`/api/tasks/${taskId}`, { status: 'done' })
+        );
         const eventResult = await this.eventBus.emit(EVENTS.TASK_COMPLETED, { taskId });
         return { success: true, taskId, eventResult };
     }
@@ -43,16 +94,16 @@ export class TaskService {
      * @returns {Promise<{success: boolean, taskId: string, newPriority: string, eventResult: Object}|null>}
      */
     async deferTask(taskId) {
-        const { tasks } = this.store.getState();
+        const { tasks = [] } = this.store.getState();
         const task = tasks.find(t => t.id === taskId);
         if (!task) return null;
 
         // 優先度を下げる（high → medium → low → low）
-        const priorityMap = { high: 'medium', medium: 'low', low: 'low' };
-        const newPriority = priorityMap[task.priority] || 'low';
+        const newPriority = PRIORITY_DOWNGRADE_MAP[task.priority] || DEFAULT_PRIORITY;
 
-        await this.httpClient.post(`/api/tasks/${taskId}/defer`, { priority: newPriority });
-        await this.loadTasks(); // リロード
+        await this._requestAndRefresh(() =>
+            this.httpClient.post(`/api/tasks/${taskId}/defer`, { priority: newPriority })
+        );
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
         return { success: true, taskId, newPriority, eventResult };
     }
@@ -62,10 +113,10 @@ export class TaskService {
      * @returns {Array} フィルタリング後のタスク配列
      */
     getFilteredTasks() {
-        const { tasks, filters } = this.store.getState();
+        const { tasks = [], filters = {} } = this.store.getState();
         const { taskFilter, showAllTasks, priorityFilter } = filters;
 
-        let filtered = tasks || [];
+        let filtered = tasks;
 
         // テキストフィルタ
         if (taskFilter) {
@@ -95,7 +146,7 @@ export class TaskService {
      */
     getFocusTask() {
         const tasks = this.getFilteredTasks();
-        return tasks.find(t => t.priority === 'high' || t.priority === 'highest' || t.priority === 'critical') || tasks[0];
+        return tasks.find(t => FOCUS_PRIORITIES.includes(t.priority)) || tasks[0];
     }
 
     /**
@@ -107,7 +158,6 @@ export class TaskService {
      */
     getNextTasks(options = {}) {
         const { showAll = false, owner = null } = options;
-        const MAX_VISIBLE_TASKS = 10;
 
         const { tasks, filters } = this.store.getState();
         const { priorityFilter } = filters || {};
@@ -128,34 +178,15 @@ export class TaskService {
         }
 
         // 期限の昇順でソート（期限なしは最後）、同じ期限なら優先度順
-        const priorityOrder = { critical: 5, highest: 5, high: 4, medium: 3, normal: 2, low: 1 };
-        nextTasks.sort((a, b) => {
-            const aDeadline = a.deadline || a.due;
-            const bDeadline = b.deadline || b.due;
-
-            // 期限なしは最後
-            if (!aDeadline && !bDeadline) {
-                // 両方期限なしなら優先度順
-                return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
-            }
-            if (!aDeadline) return 1;
-            if (!bDeadline) return -1;
-
-            // 期限の昇順
-            const dateCompare = new Date(aDeadline).getTime() - new Date(bDeadline).getTime();
-            if (dateCompare !== 0) return dateCompare;
-
-            // 同じ期限なら優先度順
-            return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
-        });
+        nextTasks.sort(compareByDeadlineAndPriority);
 
         // 表示件数制限
-        const visibleTasks = showAll ? nextTasks : nextTasks.slice(0, MAX_VISIBLE_TASKS);
+        const visibleTasks = showAll ? nextTasks : nextTasks.slice(0, MAX_VISIBLE_NEXT_TASKS);
 
         return {
             tasks: visibleTasks,
             totalCount: nextTasks.length,
-            remainingCount: Math.max(0, nextTasks.length - MAX_VISIBLE_TASKS)
+            remainingCount: Math.max(0, nextTasks.length - MAX_VISIBLE_NEXT_TASKS)
         };
     }
 
@@ -166,8 +197,9 @@ export class TaskService {
      * @returns {Promise<{success: boolean, taskId: string, updates: Object, eventResult: Object}>}
      */
     async updateTask(taskId, updates) {
-        await this.httpClient.put(`/api/tasks/${taskId}`, updates);
-        await this.loadTasks(); // リロード
+        await this._requestAndRefresh(() =>
+            this.httpClient.put(`/api/tasks/${taskId}`, updates)
+        );
         const eventResult = await this.eventBus.emit(EVENTS.TASK_UPDATED, { taskId, updates });
         return { success: true, taskId, updates, eventResult };
     }
@@ -178,8 +210,9 @@ export class TaskService {
      * @returns {Promise<{success: boolean, taskId: string, eventResult: Object}>}
      */
     async deleteTask(taskId) {
-        await this.httpClient.delete(`/api/tasks/${taskId}`);
-        await this.loadTasks(); // リロード
+        await this._requestAndRefresh(() =>
+            this.httpClient.delete(`/api/tasks/${taskId}`)
+        );
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
         return { success: true, taskId, eventResult };
     }
@@ -195,8 +228,9 @@ export class TaskService {
      * @returns {Promise<{success: boolean, task: Object, eventResult: Object}>}
      */
     async createTask(taskData) {
-        const task = await this.httpClient.post('/api/tasks', taskData);
-        await this.loadTasks(); // リロード
+        const task = await this._requestAndRefresh(() =>
+            this.httpClient.post('/api/tasks', taskData)
+        );
         const eventResult = await this.eventBus.emit(EVENTS.TASK_CREATED, { task });
         return { success: true, task, eventResult };
     }
@@ -215,17 +249,13 @@ export class TaskService {
             cutoff.setDate(cutoff.getDate() - dayFilter);
             completed = completed.filter(t => {
                 // created または updated を完了日として使用
-                const completedDate = t.updated ? new Date(t.updated) : (t.created ? new Date(t.created) : null);
+                const completedDate = resolveTaskActivityDate(t);
                 return completedDate && completedDate >= cutoff;
             });
         }
 
         // 新しい順でソート
-        return completed.sort((a, b) => {
-            const dateA = a.updated ? new Date(a.updated) : (a.created ? new Date(a.created) : new Date(0));
-            const dateB = b.updated ? new Date(b.updated) : (b.created ? new Date(b.created) : new Date(0));
-            return dateB - dateA;
-        });
+        return completed.sort((a, b) => getActivityTimestamp(b) - getActivityTimestamp(a));
     }
 
     /**
@@ -234,8 +264,9 @@ export class TaskService {
      * @returns {Promise<{success: boolean, taskId: string, eventResult: Object}>}
      */
     async restoreTask(taskId) {
-        await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'todo' });
-        await this.loadTasks(); // リロード
+        await this._requestAndRefresh(() =>
+            this.httpClient.put(`/api/tasks/${taskId}`, { status: 'todo' })
+        );
         const eventResult = await this.eventBus.emit(EVENTS.TASK_RESTORED, { taskId });
         return { success: true, taskId, eventResult };
     }
