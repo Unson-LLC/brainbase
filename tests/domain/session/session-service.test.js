@@ -513,16 +513,18 @@ describe('SessionService', () => {
             // Check that the sessions were migrated to "paused"
             expect(httpClient.post).toHaveBeenCalledWith('/api/state', {
                 sessions: [
-                    { id: 'session-1', name: 'Session 1', intendedState: 'paused' },
+                    { id: 'session-1', name: 'Session 1', intendedState: 'paused', pausedReason: 'migrated_from_stopped' },
                     { id: 'session-2', name: 'Session 2', intendedState: 'active' },
-                    { id: 'session-3', name: 'Session 3', intendedState: 'paused' }
+                    { id: 'session-3', name: 'Session 3', intendedState: 'paused', pausedReason: 'migrated_from_stopped' }
                 ]
             });
 
             // Check that the migrated sessions were saved to store
             const { sessions } = appStore.getState();
             expect(sessions[0].intendedState).toBe('paused');
+            expect(sessions[0].pausedReason).toBe('migrated_from_stopped');
             expect(sessions[2].intendedState).toBe('paused');
+            expect(sessions[2].pausedReason).toBe('migrated_from_stopped');
         });
 
         it('should not trigger migration if no "stopped" sessions exist', async () => {
