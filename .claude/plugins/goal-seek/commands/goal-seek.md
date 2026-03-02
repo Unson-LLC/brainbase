@@ -2,7 +2,6 @@
 description: "Start Goal Seek loop in current session"
 argument-hint: "GOAL [--criteria TEXT] [--max-iterations N]"
 allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-goal-seek.sh:*)"]
-hide-from-slash-command-tool: "true"
 ---
 
 # Goal Seek Command
