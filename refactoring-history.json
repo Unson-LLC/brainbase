@@ -774,9 +774,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/292",
       "pr_status": "merged",
       "merged_at": "2026-03-02T06:24:27Z"
+    },
+    {
+      "area": "public/modules/domain/task",
+      "refactored_at": "2026-03-02T09:22:35.282Z",
+      "files_modified": [
+        "public/modules/domain/task/task-service.js"
+      ],
+      "changes_summary": "書き込み系処理のリロード重複を _requestAndRefresh にまとめて発火順を整理、優先度/締切ソート&完了日取得ロジックを共通ヘルパー化して getNextTasks と getCompletedTasks をスッキリ、定数も冒頭にまとめて命名と可読性をギャルっと底上げしたよ〜",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "重複してた更新後リロード処理を `_requestAndRefresh` にまとめつつ期限/優先度ソートやアクティビティ日時のヘルパーを生やしたおかげで読みやすさ爆上がりで挙動も変わってなさそうだし、このリファクタ全体的にいい感じだよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "新しく生やしたソートや日時ヘルパーのユニットテストを足しておくと安心感さらにマシマシになると思うよ〜"
+      ],
+      "run_number": "157",
+      "run_id": "22569380877",
+      "trigger_event": "schedule",
+      "pr_number": 293,
+      "pr_branch": "ops-department/auto-refactor-157",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/293",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-02T09:20:43.207Z",
-  "total_prs_created": 29,
+  "last_updated": "2026-03-02T09:22:49.318Z",
+  "total_prs_created": 30,
   "total_prs_merged": 26
 }
