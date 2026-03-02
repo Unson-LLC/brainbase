@@ -21,6 +21,36 @@ export class ScheduleService {
     }
 
     /**
+     * 今日の日付でイベントAPIエンドポイントを生成
+     * @param {string} [eventId]
+     * @returns {string}
+     */
+    _getTodayEventsEndpoint(eventId) {
+        const basePath = `/api/schedule/${this._getTodayDate()}/events`;
+        return eventId ? `${basePath}/${eventId}` : basePath;
+    }
+
+    /**
+     * スケジュール状態を取得
+     * @returns {Object|null}
+     */
+    _getScheduleState() {
+        const { schedule } = this.store.getState();
+        return schedule || null;
+    }
+
+    /**
+     * イベントの変更系リクエスト共通処理
+     * @param {Function} requestExecutor
+     * @returns {Promise<*>}
+     */
+    async _mutateTodayEvent(requestExecutor) {
+        const result = await requestExecutor();
+        await this._refreshAndNotify();
+        return result;
+    }
+
+    /**
      * スケジュール取得
      * @returns {Promise<Object>} スケジュールデータ
      */
@@ -44,7 +74,7 @@ export class ScheduleService {
      * @returns {Array} イベント配列
      */
     getTimeline() {
-        const { schedule } = this.store.getState();
+        const schedule = this._getScheduleState();
         return schedule?.items || [];
     }
 
@@ -53,7 +83,7 @@ export class ScheduleService {
      * @returns {Array} イベント配列
      */
     getEvents() {
-        const { schedule } = this.store.getState();
+        const schedule = this._getScheduleState();
         return schedule?.events || [];
     }
 
@@ -72,13 +102,13 @@ export class ScheduleService {
      * @returns {Promise<Object>} 作成されたイベント
      */
     async addEvent(eventData) {
-        const date = this._getTodayDate();
-        const event = await this.httpClient.post(`/api/schedule/${date}/events`, {
+        const payload = {
             ...eventData,
             source: eventData.source || 'manual'
-        });
-        await this._refreshAndNotify();
-        return event;
+        };
+        return this._mutateTodayEvent(() =>
+            this.httpClient.post(this._getTodayEventsEndpoint(), payload)
+        );
     }
 
     /**
@@ -88,10 +118,9 @@ export class ScheduleService {
      * @returns {Promise<Object>} 更新されたイベント
      */
     async updateEvent(eventId, updates) {
-        const date = this._getTodayDate();
-        const event = await this.httpClient.put(`/api/schedule/${date}/events/${eventId}`, updates);
-        await this._refreshAndNotify();
-        return event;
+        return this._mutateTodayEvent(() =>
+            this.httpClient.put(this._getTodayEventsEndpoint(eventId), updates)
+        );
     }
 
     /**
@@ -100,9 +129,9 @@ export class ScheduleService {
      * @returns {Promise<void>}
      */
     async deleteEvent(eventId) {
-        const date = this._getTodayDate();
-        await this.httpClient.delete(`/api/schedule/${date}/events/${eventId}`);
-        await this._refreshAndNotify();
+        await this._mutateTodayEvent(() =>
+            this.httpClient.delete(this._getTodayEventsEndpoint(eventId))
+        );
     }
 
     /**
