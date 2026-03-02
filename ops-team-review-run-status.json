@@ -2,21 +2,19 @@
   "status": "skipped",
   "reason": "refactor_not_performed",
   "details": {
-    "attempt": 2,
-    "area": "public/modules/domain/schedule",
+    "attempt": 1,
+    "area": "server/services",
     "failure": {
-      "reason": "revision_timeout",
+      "reason": "refactor_area_error",
       "details": {
-        "area": "public/modules/domain/schedule",
-        "attempt": 2,
-        "message": "Codex CLI timed out after 1200000ms",
-        "timeoutMs": 1200000
+        "area": "server/services",
+        "message": "No number after minus sign in JSON at position 1"
       }
     }
   },
-  "timestamp": "2026-03-02T01:00:39.705Z",
-  "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22556561123",
-  "runNumber": "154",
+  "timestamp": "2026-03-02T03:22:24.320Z",
+  "workflow": "ops-department-auto-refactoring-daily.yml",
+  "runId": "22560003619",
+  "runNumber": "30",
   "eventName": "schedule"
 }
