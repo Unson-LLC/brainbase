@@ -858,9 +858,35 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/295",
       "pr_status": "open",
       "merged_at": null
+    },
+    {
+      "area": "public/modules/utils",
+      "refactored_at": "2026-03-03T18:19:06.528Z",
+      "files_modified": [
+        "public/modules/utils/task-filters.js"
+      ],
+      "changes_summary": "filter skip用の定数とtoLowerヘルパーを足して各filterの重複ロジックまとめたから、可読性もキュンと上がったよ〜",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor centralizes shared constants and lowercase helpers, reducing duplication while keeping existing filtering behavior consistent; helper guards handle undefined values safely, and scope stays tight to the task utilities.",
+      "judge_must_fix": [],
+      "judge_suggestions": [],
+      "run_number": "168",
+      "run_id": "22636861493",
+      "trigger_event": "schedule",
+      "pr_number": 296,
+      "pr_branch": "ops-department/auto-refactor-168",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/296",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-03T16:56:35.469Z",
-  "total_prs_created": 32,
+  "last_updated": "2026-03-03T18:19:17.666Z",
+  "total_prs_created": 33,
   "total_prs_merged": 28
 }
