@@ -830,9 +830,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/294",
       "pr_status": "merged",
       "merged_at": "2026-03-03T16:43:06Z"
+    },
+    {
+      "area": "public/modules/domain/timeline",
+      "refactored_at": "2026-03-03T16:56:24.359Z",
+      "files_modified": [
+        "public/modules/domain/timeline/timeline-service.js"
+      ],
+      "changes_summary": "タイムライン項目のストア更新処理を共通ヘルパー _updateTimelineItems() に抽出して重複を削減し、startAutoRecording() のイベントリスナー登録を _registerAutoEvent() に集約して可読性と保守性を向上させた",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 96,
+      "judge_threshold": 90,
+      "judge_summary": "ストア更新と自動記録リスナーをヘルパーにまとめて重複けしちゃってて、挙動もそのままっぽくて見通し良くなってるしイケてるよ〜。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "一応 `_registerAutoEvent` の builder が null を返したときのログとか入れておくとデバッグしやすくなりそうだよ〜"
+      ],
+      "run_number": "167",
+      "run_id": "22629679527",
+      "trigger_event": "schedule",
+      "pr_number": 295,
+      "pr_branch": "ops-department/auto-refactor-167",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/295",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-03T16:43:30.312Z",
-  "total_prs_created": 31,
+  "last_updated": "2026-03-03T16:56:35.469Z",
+  "total_prs_created": 32,
   "total_prs_merged": 28
 }
