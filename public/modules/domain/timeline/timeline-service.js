@@ -18,10 +18,7 @@ export class TimelineService {
      * @returns {Promise<Object>}
      */
     async loadTimeline() {
-        const data = await this.repository.fetchToday();
-        this._updateStore(data);
-        await this.eventBus.emit(EVENTS.TIMELINE_LOADED, data);
-        return data;
+        return this._loadTimelineData(() => this.repository.fetchToday());
     }
 
     /**
@@ -30,10 +27,7 @@ export class TimelineService {
      * @returns {Promise<Object>}
      */
     async loadTimelineByDate(date) {
-        const data = await this.repository.fetchByDate(date);
-        this._updateStore(data);
-        await this.eventBus.emit(EVENTS.TIMELINE_LOADED, data);
-        return data;
+        return this._loadTimelineData(() => this.repository.fetchByDate(date));
     }
 
     /**
@@ -82,12 +76,7 @@ export class TimelineService {
         const result = await this.repository.createItem(item.toJSON());
 
         if (result.success) {
-            // ストアに追加
-            const { timeline } = this.store.getState();
-            const items = [...(timeline?.items || []), result.item];
-            this.store.setState({
-                timeline: { ...timeline, items }
-            });
+            this._withTimelineItems(items => [...items, result.item]);
             await this.eventBus.emit(EVENTS.TIMELINE_ITEM_CREATED, { item: result.item });
         }
 
@@ -104,14 +93,9 @@ export class TimelineService {
         const result = await this.repository.updateItem(id, updates);
 
         if (result.success) {
-            // ストアを更新
-            const { timeline } = this.store.getState();
-            const items = (timeline?.items || []).map(item =>
-                item.id === id ? { ...item, ...result.item } : item
+            this._withTimelineItems(items =>
+                items.map(item => (item.id === id ? { ...item, ...result.item } : item))
             );
-            this.store.setState({
-                timeline: { ...timeline, items }
-            });
             await this.eventBus.emit(EVENTS.TIMELINE_ITEM_UPDATED, { item: result.item });
         }
 
@@ -127,12 +111,7 @@ export class TimelineService {
         const result = await this.repository.deleteItem(id);
 
         if (result.success) {
-            // ストアから削除
-            const { timeline } = this.store.getState();
-            const items = (timeline?.items || []).filter(item => item.id !== id);
-            this.store.setState({
-                timeline: { ...timeline, items }
-            });
+            this._withTimelineItems(items => items.filter(item => item.id !== id));
             await this.eventBus.emit(EVENTS.TIMELINE_ITEM_DELETED, { id });
         }
 
@@ -171,57 +150,59 @@ export class TimelineService {
     }
 
     /**
+     * タイムライン項目をストアに反映（内部メソッド）
+     * @param {Function} updater - items配列を引数に新配列を返す関数
+     * @private
+     */
+    _withTimelineItems(updater) {
+        const { timeline } = this.store.getState();
+        const nextItems = updater(timeline?.items || []);
+        this.store.setState({
+            timeline: { ...timeline, items: nextItems }
+        });
+    }
+
+    /**
+     * タイムラインデータ取得時の共通処理
+     * @param {Function} fetcher - タイムラインデータを返す関数
+     * @returns {Promise<Object>}
+     * @private
+     */
+    async _loadTimelineData(fetcher) {
+        const data = await fetcher();
+        this._updateStore(data);
+        await this.eventBus.emit(EVENTS.TIMELINE_LOADED, data);
+        return data;
+    }
+
+    /**
      * 自動記録を開始
      * SESSION_CREATED, TASK_COMPLETED などのイベントをリッスンして自動的に項目を作成
      */
     startAutoRecording() {
-        // SESSION_CREATED イベント
-        const unsub1 = this.eventBus.onAsync(EVENTS.SESSION_CREATED, async (event) => {
-            const { sessionId, name } = event.detail;
-            await this._createAutoItem({
-                type: 'session',
-                title: `Session started: ${name || sessionId}`,
-                sessionId,
-                metadata: { source: 'auto' }
-            });
-        });
-        this._unsubscribers.push(unsub1);
+        this._registerAutoRecording(EVENTS.SESSION_CREATED, ({ sessionId, name }) => ({
+            type: 'session',
+            title: `Session started: ${name || sessionId}`,
+            sessionId
+        }));
 
-        // SESSION_PAUSED イベント
-        const unsub2 = this.eventBus.onAsync(EVENTS.SESSION_PAUSED, async (event) => {
-            const { sessionId } = event.detail;
-            await this._createAutoItem({
-                type: 'session',
-                title: `Session paused: ${sessionId}`,
-                sessionId,
-                metadata: { source: 'auto' }
-            });
-        });
-        this._unsubscribers.push(unsub2);
+        this._registerAutoRecording(EVENTS.SESSION_PAUSED, ({ sessionId }) => ({
+            type: 'session',
+            title: `Session paused: ${sessionId}`,
+            sessionId
+        }));
 
-        // SESSION_ARCHIVED イベント
-        const unsub3 = this.eventBus.onAsync(EVENTS.SESSION_ARCHIVED, async (event) => {
-            const { sessionId } = event.detail;
-            await this._createAutoItem({
-                type: 'session',
-                title: `Session archived: ${sessionId}`,
-                sessionId,
-                metadata: { source: 'auto' }
-            });
-        });
-        this._unsubscribers.push(unsub3);
+        this._registerAutoRecording(EVENTS.SESSION_ARCHIVED, ({ sessionId }) => ({
+            type: 'session',
+            title: `Session archived: ${sessionId}`,
+            sessionId
+        }));
 
-        // TASK_COMPLETED イベント
-        const unsub4 = this.eventBus.onAsync(EVENTS.TASK_COMPLETED, async (event) => {
-            const { taskId, title } = event.detail;
-            await this._createAutoItem({
-                type: 'task',
-                title: `Task completed: ${title || taskId}`,
-                linkedTaskId: taskId,
-                metadata: { source: 'auto' }
-            });
-        });
-        this._unsubscribers.push(unsub4);
+        this._registerAutoRecording(EVENTS.TASK_COMPLETED, ({ taskId, title }) => ({
+            type: 'task',
+            title: `Task completed: ${title || taskId}`,
+            linkedTaskId: taskId
+        }));
     }
 
     /**
@@ -239,10 +220,26 @@ export class TimelineService {
      */
     async _createAutoItem(itemData) {
         try {
-            await this.createItem(itemData);
+            await this.createItem({
+                ...itemData,
+                metadata: { source: 'auto', ...(itemData.metadata || {}) }
+            });
         } catch (error) {
             console.error('Failed to create auto timeline item:', error);
         }
+    }
+
+    /**
+     * 自動記録イベント購読の共通処理
+     * @param {string} eventName
+     * @param {Function} buildItemData - event.detailを受け取り項目データを返す
+     * @private
+     */
+    _registerAutoRecording(eventName, buildItemData) {
+        const unsubscribe = this.eventBus.onAsync(eventName, async (event) => {
+            await this._createAutoItem(buildItemData(event.detail));
+        });
+        this._unsubscribers.push(unsubscribe);
     }
 
     /**
