@@ -2,6 +2,21 @@
  * タスクフィルタリングユーティリティ
  */
 
+const FILTER_ALL = 'all';
+
+// 優先度のマッピング（類似優先度を含む）
+const PRIORITY_MAP = {
+    'critical': ['critical'],
+    'highest': ['highest'],
+    'high': ['high'],
+    'medium': ['medium'],
+    'normal': ['normal'],
+    'low': ['low', '']
+};
+
+const toLower = (value) => (value || '').toLowerCase();
+const shouldSkipFilter = (value) => !value || value === FILTER_ALL;
+
 /**
  * 優先度でタスクをフィルタリング
  * @param {Array} tasks - タスク配列
@@ -9,24 +24,15 @@
  * @returns {Array} フィルタリング後のタスク配列
  */
 export function filterByPriority(tasks, priority) {
-    if (!priority || priority === 'all') {
+    if (shouldSkipFilter(priority)) {
         return tasks;
     }
 
-    // 優先度のマッピング（類似優先度を含む）
-    const priorityMap = {
-        'critical': ['critical'],
-        'highest': ['highest'],
-        'high': ['high'],
-        'medium': ['medium'],
-        'normal': ['normal'],
-        'low': ['low', '']
-    };
-
-    const acceptedPriorities = priorityMap[priority.toLowerCase()] || [priority.toLowerCase()];
+    const normalizedPriority = toLower(priority);
+    const acceptedPriorities = PRIORITY_MAP[normalizedPriority] || [normalizedPriority];
 
     return tasks.filter(task => {
-        const taskPriority = (task.priority || '').toLowerCase();
+        const taskPriority = toLower(task.priority);
         return acceptedPriorities.includes(taskPriority);
     });
 }
@@ -38,7 +44,7 @@ export function filterByPriority(tasks, priority) {
  * @returns {Array} フィルタリング後のタスク配列
  */
 export function filterByStatus(tasks, status) {
-    if (!status || status === 'all') {
+    if (shouldSkipFilter(status)) {
         return tasks;
     }
 
@@ -52,7 +58,7 @@ export function filterByStatus(tasks, status) {
  * @returns {Array} フィルタリング後のタスク配列
  */
 export function filterByOwner(tasks, owner) {
-    if (!owner || owner === 'all') {
+    if (shouldSkipFilter(owner)) {
         return tasks;
     }
 
@@ -70,11 +76,11 @@ export function filterByText(tasks, searchText) {
         return tasks;
     }
 
-    const lowerSearchText = searchText.toLowerCase();
+    const lowerSearchText = toLower(searchText);
 
     return tasks.filter(task => {
-        const name = (task.name || '').toLowerCase();
-        const description = (task.description || '').toLowerCase();
+        const name = toLower(task.name);
+        const description = toLower(task.description);
         return name.includes(lowerSearchText) || description.includes(lowerSearchText);
     });
 }
