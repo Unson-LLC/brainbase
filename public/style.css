@@ -121,182 +121,6 @@ body::after {
     /* Critical for flex child truncation */
 }
 
-.session-context-bar {
-    flex-shrink: 0;
-    min-height: 38px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(180deg, rgba(12, 16, 28, 0.95), rgba(8, 11, 20, 0.92));
-    overflow: visible;
-}
-
-.session-context-bar-inner {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    min-height: 38px;
-    padding: 6px 10px;
-    white-space: normal;
-}
-
-.session-context-empty {
-    color: var(--text-tertiary);
-    font-size: 12px;
-}
-
-.session-context-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 999px;
-    padding: 2px 8px;
-    background: rgba(255, 255, 255, 0.04);
-    max-width: 260px;
-}
-
-.session-context-label {
-    color: var(--text-tertiary);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.session-context-value {
-    color: var(--text-secondary);
-    font-size: 12px;
-    display: inline-block;
-    max-width: 180px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    position: relative;
-}
-
-.session-context-value[data-full]:hover::after {
-    content: attr(data-full);
-    position: absolute;
-    left: 0;
-    top: calc(100% + 6px);
-    z-index: 120;
-    width: max-content;
-    max-width: min(72vw, 760px);
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(8, 12, 22, 0.96);
-    color: var(--text-primary);
-    font-size: 12px;
-    line-height: 1.35;
-    white-space: normal;
-    word-break: break-all;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-    pointer-events: none;
-}
-
-/* Context Bar: パターンB（コンテキスト表示） */
-.session-context-bar-inner {
-    font-size: 13px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.context-primary {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.session-context-bar-inner .engine-svg-icon {
-    width: 14px;
-    height: 14px;
-    vertical-align: middle;
-    margin: 0 2px;
-}
-
-.context-separator {
-    color: var(--text-tertiary);
-    margin: 0 6px;
-    opacity: 0.5;
-}
-
-.context-alert {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.context-alert.is-warning {
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.1);
-}
-
-.context-alert.is-ok {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.1);
-}
-
-.context-expand-btn {
-    background: none;
-    border: none;
-    color: var(--text-tertiary);
-    font-size: 10px;
-    cursor: pointer;
-    padding: 4px 8px;
-    margin-left: auto;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-}
-
-.context-expand-btn:hover {
-    opacity: 1;
-}
-
-.context-details {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 12px;
-}
-
-.context-detail-item {
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-}
-
-.context-detail-label {
-    color: var(--text-tertiary);
-    font-size: 11px;
-    min-width: 80px;
-    flex-shrink: 0;
-}
-
-.context-detail-value {
-    color: var(--text-secondary);
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
-    word-break: break-all;
-}
-
-.session-context-value.is-ok {
-    color: #23c18f;
-}
-
-.session-context-value.is-warning {
-    color: #f5c242;
-}
-
 /* Pane 3: Right Context (Schedule & Tasks) */
 .context-sidebar {
     width: 350px;
@@ -376,53 +200,11 @@ body::after {
     height: 16px;
 }
 
-.sidebar-primary-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 10px 4px;
-}
-
-.sidebar-primary-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 5px 8px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 12px;
-}
-
-.sidebar-primary-btn i {
-    width: 13px;
-    height: 13px;
-}
-
-.sidebar-primary-btn:hover {
-    color: var(--text-primary);
-    border-color: var(--accent-color);
-}
-
-.sidebar-primary-btn.active {
-    color: var(--text-primary);
-    border-color: var(--accent-color);
-    background: rgba(59, 130, 246, 0.15);
-}
-
 .session-view-toggle {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 0 10px 6px;
-}
-
-.session-view-toggle.is-hidden {
-    display: none;
 }
 
 .session-view-btn {
@@ -460,144 +242,6 @@ body::after {
     padding: 0.5rem 0;
     touch-action: manipulation;
     /* Disable pinch-zoom in scrollable area */
-}
-
-.folder-tree-view {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 4px 8px 10px;
-}
-
-.folder-tree-header {
-    border-bottom: 1px solid var(--border-color);
-    padding: 4px 2px 8px;
-}
-
-.folder-tree-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.folder-tree-title i {
-    width: 14px;
-    height: 14px;
-}
-
-.folder-tree-root {
-    margin-top: 4px;
-    color: var(--text-secondary);
-    font-size: 11px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.folder-tree-body {
-    display: block;
-}
-
-.folder-tree-level {
-    list-style: none;
-    margin: 0;
-    padding-left: var(--folder-indent, 0);
-}
-
-.folder-tree-item {
-    margin: 0;
-}
-
-.folder-tree-node {
-    width: 100%;
-    border: none;
-    background: transparent;
-    color: inherit;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 4px;
-    border-radius: 6px;
-    cursor: pointer;
-    text-align: left;
-}
-
-.folder-tree-node:hover {
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.folder-tree-chev {
-    width: 12px;
-    min-width: 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-tertiary);
-}
-
-.folder-tree-chev i,
-.folder-tree-icon i {
-    width: 13px;
-    height: 13px;
-}
-
-.folder-tree-chev.spacer {
-    visibility: hidden;
-}
-
-.folder-tree-icon {
-    width: 14px;
-    min-width: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.folder-tree-item.directory .folder-tree-icon {
-    color: #f4b740;
-}
-
-.folder-tree-item.file .folder-tree-icon {
-    color: var(--text-secondary);
-}
-
-.folder-tree-name {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12px;
-    color: var(--text-primary);
-}
-
-.folder-tree-loading,
-.folder-tree-empty,
-.folder-tree-error {
-    padding: 8px 6px;
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-.folder-tree-error {
-    color: #fca5a5;
-}
-
-.folder-tree-loading-node,
-.folder-tree-empty-node {
-    margin-left: 24px;
-    padding: 4px 0 6px;
-    font-size: 11px;
-    color: var(--text-tertiary);
-}
-
-.folder-tree-truncated {
-    font-size: 11px;
-    color: var(--warning-color);
-    padding: 0 4px;
 }
 
 /* Filter Section */
@@ -957,8 +601,6 @@ body::after {
     font-size: 0.7rem;
     color: var(--warning-color, #f59e0b);
     font-weight: 500;
-    margin-left: 6px;
-    white-space: nowrap;
 }
 
 .resume-session-btn {
@@ -1303,10 +945,10 @@ body::after {
 
 /* Terminal input status (focus/connection visibility) */
 .terminal-input-status {
-    position: fixed;  /* absolute → fixed に変更（mobile-input-dock と同じ座標系で確実に上に表示）*/
+    position: absolute;
     bottom: 50px;
     left: 8px;
-    z-index: 1003;  /* mobile-bottom-nav (1001) と mobile-input-dock (1002) より上に表示 */
+    z-index: 101;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -2064,7 +1706,6 @@ body::after {
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
 }
 
@@ -2076,12 +1717,6 @@ body::after {
     align-items: center;
     gap: 6px;
     margin: 0;
-}
-
-.commit-tree-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
 
 .commit-tree-repo-badge {
@@ -2136,21 +1771,17 @@ body::after {
 
 .commit-tree-rows {
     position: relative;
-    overflow-x: auto;
-    overflow-y: hidden;
 }
 
 .commit-row {
-    height: 32px;
+    height: 54px;
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    padding: 0 4px 0 2px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 6px 4px 2px;
     box-sizing: border-box;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    min-width: max-content;
-    /* color: レーンごとの色（インラインstyleで設定） */
+    overflow: hidden;
 }
 
 .commit-row.current {
@@ -2159,71 +1790,53 @@ body::after {
 }
 
 .commit-wc-badge {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
-    padding: 0 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.15);
-    /* color: 親から継承（レーンの色） */
+    padding: 0 5px;
+    border-radius: 3px;
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--accent-blue);
     flex-shrink: 0;
 }
 
-.commit-desc {
-    font-size: 13px;
-    font-weight: 500;
-    /* color: 親から継承（レーンの色） */
-    line-height: 1.2;
-    white-space: nowrap;
-    flex-shrink: 0;
-    width: 400px;
+.commit-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .commit-hash {
     font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 10px;
-    /* color: 親から継承（レーンの色） */
-    flex-shrink: 0;
-    width: 60px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    opacity: 0.7;
-}
-
-.commit-author {
-    font-size: 10px;
-    /* color: 親から継承（レーンの色） */
-    flex-shrink: 0;
-    width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    opacity: 0.7;
-}
-
-.commit-time {
-    font-size: 10px;
-    /* color: 親から継承（レーンの色） */
-    flex-shrink: 0;
-    width: 75px;
-    text-align: right;
-    opacity: 0.6;
+    font-size: 11px;
+    color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 1px 5px;
+    border-radius: 3px;
 }
 
 .commit-bookmark {
     font-size: 10px;
     font-weight: 500;
-    padding: 2px 6px;
+    padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.1);
-    /* color: 親から継承（レーンの色） */
+    background: rgba(34, 197, 94, 0.15);
+    color: rgb(34, 197, 94);
     max-width: 120px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     flex-shrink: 0;
+}
+
+.commit-desc {
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .commit-row.current .commit-desc {
@@ -2240,31 +1853,6 @@ body::after {
 
 .panel-resize-handle-commit-tree {
     border-left: 1px solid var(--border-color);
-}
-
-.commit-tree-expand-btn {
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    width: 26px;
-    height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    cursor: pointer;
-    margin: 0 4px 0 2px;
-    flex-shrink: 0;
-}
-
-.commit-tree-expand-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.commit-tree-expand-btn.hidden,
-.panel-resize-handle.hidden {
-    display: none !important;
 }
 
 /* === Panel Resize Handles (Left/Right) === */
@@ -5864,24 +5452,6 @@ body.resizing iframe {
         --mobile-input-offset: 120px;
     }
 
-    /* Session Context Bar: モバイルで横スクロール */
-    .session-context-bar-inner {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none; /* Firefox */
-    }
-
-    .session-context-bar-inner::-webkit-scrollbar {
-        display: none; /* Chrome, Safari */
-    }
-
-    /* Terminal Input Status: モバイルでは mobile-input-dock のすぐ上に表示 */
-    .terminal-input-status {
-        bottom: calc(56px + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px) + var(--mobile-input-offset, 120px) + 8px);
-        /* mobile-bottom-nav (56px) + safe-area + keyboard-offset + mobile-input-dock (120px) + マージン8px */
-    }
-
     /* Mobile Input Dock */
     .mobile-input-dock {
         display: block;
@@ -5916,70 +5486,10 @@ body.resizing iframe {
         display: none;
     }
 
-    /* 十字キーを十字型レイアウトに変更 */
-    .mobile-input-dock.expanded .mobile-input-cursor {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: repeat(3, auto);
-        gap: 6px;
-        grid-template-areas:
-            ". up ."
-            "left down right"
-            ". enter .";
-        max-width: 300px;
-        margin: 0 auto 8px;
-    }
-
-    .mobile-input-cursor [data-mobile-cursor="up"] {
-        grid-area: up;
-    }
-
-    .mobile-input-cursor [data-mobile-cursor="down"] {
-        grid-area: down;
-    }
-
-    .mobile-input-cursor [data-mobile-cursor="left"] {
-        grid-area: left;
-    }
-
-    .mobile-input-cursor [data-mobile-cursor="right"] {
-        grid-area: right;
-    }
-
-    .mobile-input-cursor [data-mobile-cursor="enter"] {
-        grid-area: enter;
-    }
-
     .mobile-input-dock.expanded .mobile-input-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
-    }
-
-    /* expanded時: 入力欄とSendボタンのみ非表示、×ボタンは表示 */
-    .mobile-input-dock.expanded .mobile-input-main textarea {
-        display: none;
-    }
-
-    .mobile-input-dock.expanded .mobile-input-main #mobile-dock-send {
-        display: none;
-    }
-
-    /* ×ボタンを右上に配置 */
-    .mobile-input-dock.expanded .mobile-input-main {
-        position: relative;
-        min-height: 40px;
-    }
-
-    .mobile-input-dock.expanded .mobile-input-main-actions {
-        position: absolute;
-        top: 0;
-        right: 0;
-    }
-
-    /* Sessionsボタンを非表示（ボトムナビから行けるため不要） */
-    .mobile-input-dock.expanded #mobile-dock-sessions {
-        display: none;
     }
 
     /* 3行表示: 1行3個 */
@@ -6015,10 +5525,9 @@ body.resizing iframe {
         display: none;
     }
 
-    /* 修正: モバイル下メニューバーを常に表示（キーボード開いてても表示） */
-    /* body.keyboard-open .mobile-bottom-nav {
+    body.keyboard-open .mobile-bottom-nav {
         display: none;
-    } */
+    }
 
     body.keyboard-open .mobile-input-dock {
         bottom: calc(env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
@@ -6192,10 +5701,9 @@ body.resizing iframe {
         flex-wrap: wrap;
     }
 
-    /* 修正: モバイル下メニューバーを常に表示（Composer開いてても表示） */
-    /* body.mobile-composer-open .mobile-bottom-nav {
+    body.mobile-composer-open .mobile-bottom-nav {
         display: none;
-    } */
+    }
 
     /* Mobile Input Sheets */
     .mobile-input-sheet-overlay {
@@ -6304,8 +5812,7 @@ body.resizing iframe {
         visibility: hidden !important;
     }
 
-    .commit-tree-panel,
-    .commit-tree-expand-btn {
+    .commit-tree-panel {
         display: none !important;
         width: 0 !important;
         visibility: hidden !important;
@@ -8233,4 +7740,105 @@ flex-wrap: wrap;
 .intervention-option label {
     cursor: pointer;
     color: var(--text-primary);
+}
+
+/* ========================================
+   Session Progress Modal
+   ======================================== */
+
+.progress-modal {
+    width: 90%;
+    max-width: 500px;
+    padding: 2rem;
+}
+
+.progress-container {
+    margin-top: 1.5rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 24px;
+    background: var(--bg-tertiary, #2a2a2a);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary, #4CAF50) 0%, var(--accent-secondary, #66BB6A) 100%);
+    border-radius: 12px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.progress-message {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary, #999);
+    text-align: center;
+}
+
+.progress-percent {
+    margin-top: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-primary, #fff);
+    text-align: center;
+}
+
+/* ========================================
+   Terminal Loading Overlay
+   ======================================== */
+
+.terminal-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.3s ease;
+}
+
+.terminal-loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.loading-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent-primary, #4CAF50);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-message {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-primary, #fff);
+    margin-bottom: 0.5rem;
+}
+
+.loading-hint {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #999);
 }
