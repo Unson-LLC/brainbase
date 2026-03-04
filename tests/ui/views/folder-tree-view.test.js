@@ -57,7 +57,7 @@ describe('FolderTreeView', () => {
 
         folderTreeView.render(container);
         await vi.waitFor(() => {
-            expect(sessionService.getSessionFolderTree).toHaveBeenCalledWith('session-1', '?depth=2');
+            expect(sessionService.getSessionFolderTree).toHaveBeenCalledWith('session-1', '?depth=1');
         });
 
         folderTreeView.render(container);
@@ -97,5 +97,23 @@ describe('FolderTreeView', () => {
         });
         expect(listener).toHaveBeenCalled();
         unsubscribe();
+    });
+
+    it('フォルダ読み込み失敗後_同一セッションで自動再試行しない', async () => {
+        appStore.setState({
+            sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
+            currentSessionId: 'session-1'
+        });
+        sessionService.getSessionFolderTree.mockRejectedValue(new Error('network failed'));
+
+        folderTreeView.render(container);
+
+        await vi.waitFor(() => {
+            expect(sessionService.getSessionFolderTree).toHaveBeenCalledTimes(1);
+        });
+
+        // 失敗後に再renderしても、errorがある限り再読込しない
+        folderTreeView.render(container);
+        expect(sessionService.getSessionFolderTree).toHaveBeenCalledTimes(1);
     });
 });
