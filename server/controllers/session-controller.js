@@ -3,15 +3,10 @@
  * セッション関連のHTTPリクエスト処理
  */
 import { exec } from 'child_process';
-import fs from 'fs/promises';
 import path from 'path';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
-const MAX_TREE_DEPTH = 3;
-const DEFAULT_TREE_DEPTH = 2;
-const MAX_TREE_ENTRIES = 200;
-const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
 
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore) {
@@ -19,98 +14,6 @@ export class SessionController {
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
-    }
-
-    _parseTreeDepth(rawDepth) {
-        const parsed = Number.parseInt(rawDepth, 10);
-        if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_TREE_DEPTH;
-        return Math.min(parsed, MAX_TREE_DEPTH);
-    }
-
-    _normalizeRelativePath(rawPath) {
-        if (typeof rawPath !== 'string' || rawPath === '') return '';
-        if (rawPath.includes('\0')) {
-            throw new Error('Invalid path');
-        }
-        const trimmed = rawPath.trim();
-        if (trimmed.startsWith('/') || trimmed.startsWith('\\')) {
-            throw new Error('Invalid path');
-        }
-        const normalized = trimmed.replace(/\\/g, '/').replace(/^\/+/, '');
-        if (normalized.includes('..')) {
-            throw new Error('Invalid path');
-        }
-        return normalized;
-    }
-
-    _isWithinRoot(rootPath, targetPath) {
-        const relative = path.relative(rootPath, targetPath);
-        return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-    }
-
-    async _hasVisibleChildren(absPath) {
-        const children = await fs.readdir(absPath, { withFileTypes: true });
-        return children.some((child) => {
-            if (child.isDirectory()) {
-                return !child.name.startsWith('.') && !EXCLUDED_DIRS.has(child.name);
-            }
-            return !child.name.startsWith('.');
-        });
-    }
-
-    async _readTree(absPath, relativeBase, depth) {
-        const entries = await fs.readdir(absPath, { withFileTypes: true });
-        const visible = entries
-            .filter((entry) => {
-                if (entry.name.startsWith('.')) return false;
-                if (entry.isDirectory() && EXCLUDED_DIRS.has(entry.name)) return false;
-                return true;
-            })
-            .sort((a, b) => {
-                if (a.isDirectory() !== b.isDirectory()) {
-                    return a.isDirectory() ? -1 : 1;
-                }
-                return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-            });
-
-        const truncated = visible.length > MAX_TREE_ENTRIES;
-        const selected = visible.slice(0, MAX_TREE_ENTRIES);
-        const nodes = [];
-
-        for (const entry of selected) {
-            const relPath = relativeBase ? `${relativeBase}/${entry.name}` : entry.name;
-            if (entry.isDirectory()) {
-                const childAbsPath = path.join(absPath, entry.name);
-                let children;
-                let hasChildren = false;
-
-                if (depth > 1) {
-                    const childResult = await this._readTree(childAbsPath, relPath, depth - 1);
-                    children = childResult.nodes;
-                    hasChildren = children.length > 0 || childResult.truncated;
-                } else {
-                    hasChildren = await this._hasVisibleChildren(childAbsPath);
-                }
-
-                nodes.push({
-                    name: entry.name,
-                    relativePath: relPath,
-                    type: 'directory',
-                    hasChildren,
-                    ...(Array.isArray(children) && children.length > 0 ? { children } : {})
-                });
-                continue;
-            }
-
-            nodes.push({
-                name: entry.name,
-                relativePath: relPath,
-                type: 'file',
-                hasChildren: false
-            });
-        }
-
-        return { nodes, truncated };
     }
 
     /**
@@ -698,60 +601,6 @@ export class SessionController {
         } catch (error) {
             console.error('Failed to get session context:', error);
             res.json(context);
-        }
-    };
-
-    /**
-     * GET /api/sessions/:id/folder-tree
-     * セッションワークスペースのフォルダツリーを取得
-     */
-    getFolderTree = async (req, res) => {
-        const { id } = req.params;
-        const rawPath = req.query.path || '';
-        const depth = this._parseTreeDepth(req.query.depth);
-        const state = this.stateStore.get();
-        const session = state.sessions?.find((s) => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-
-        const rootPath = session.worktree?.path || session.path;
-        if (!rootPath) {
-            return res.status(400).json({ error: 'Session does not have workspace path' });
-        }
-
-        try {
-            const relativePath = this._normalizeRelativePath(rawPath);
-            const targetPath = path.resolve(rootPath, relativePath);
-
-            if (!this._isWithinRoot(rootPath, targetPath)) {
-                return res.status(400).json({ error: 'Invalid path: outside session workspace' });
-            }
-
-            const stat = await fs.stat(targetPath);
-            if (!stat.isDirectory()) {
-                return res.status(400).json({ error: 'Target path is not a directory' });
-            }
-
-            const { nodes, truncated } = await this._readTree(targetPath, relativePath, depth);
-            res.json({
-                sessionId: id,
-                rootPath,
-                baseRelativePath: relativePath,
-                nodes,
-                truncated,
-                truncatedPath: truncated ? relativePath : null
-            });
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                return res.status(404).json({ error: 'Directory not found' });
-            }
-            if (error.message === 'Invalid path') {
-                return res.status(400).json({ error: 'Invalid path' });
-            }
-            console.error('Failed to get folder tree:', error);
-            res.status(500).json({ error: error.message || 'Failed to get folder tree' });
         }
     };
 

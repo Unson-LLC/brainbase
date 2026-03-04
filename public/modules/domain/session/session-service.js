@@ -404,31 +404,6 @@ export class SessionService {
     }
 
     /**
-     * セッションのフォルダツリーを取得
-     * @param {string} sessionId - セッションID
-     * @param {string} query - クエリ文字列（例: ?path=public&depth=1）
-     * @returns {Promise<Object>}
-     */
-    async getSessionFolderTree(sessionId, query = '') {
-        const suffix = typeof query === 'string' ? query : '';
-        return await this.httpClient.get(`/api/sessions/${sessionId}/folder-tree${suffix}`);
-    }
-
-    /**
-     * ファイルをCursorで開く
-     * @param {string} relativePath - セッションCWDからの相対パス
-     * @param {string|null} cwd - セッションの作業ディレクトリ
-     * @returns {Promise<Object>}
-     */
-    async openFileInCursor(relativePath, cwd = null) {
-        return await this.httpClient.post('/api/open-file', {
-            path: relativePath,
-            mode: 'cursor',
-            cwd
-        });
-    }
-
-    /**
      * ローカルmainブランチ更新
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object>}

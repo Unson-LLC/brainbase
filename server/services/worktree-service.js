@@ -288,23 +288,15 @@ export class WorktreeService {
             }
 
             // Check if bookmark exists and is pushed to remote
-            // リモートの最新状態を取得
-            try {
-                await this.execPromise(`jj -R "${repoPath}" git fetch`);
-            } catch (fetchErr) {
-                console.log(`[getStatus] git fetch failed, continuing: ${fetchErr.message}`);
-            }
-
             // bookmark名はsessionId or session/sessionIdの両方を試す
             let bookmarkPushed = false;
             const bookmarkCandidates = [bookmarkName, `session/${bookmarkName}`];
             for (const candidate of bookmarkCandidates) {
                 try {
                     const { stdout: bookmarkList } = await this.execPromise(
-                        `jj -R "${repoPath}" bookmark list "${candidate}" --all-remotes --no-pager`
+                        `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager`
                     );
-                    // リモートのbookmarkが存在するかチェック（@origin: または origin: を含む）
-                    if (bookmarkList.includes('@origin:') || bookmarkList.includes('origin:')) {
+                    if (bookmarkList.includes('origin') || bookmarkList.includes('@origin')) {
                         bookmarkPushed = true;
                         break;
                     }

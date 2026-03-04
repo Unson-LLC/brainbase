@@ -801,26 +801,4 @@ describe('SessionService', () => {
             }));
         });
     });
-
-    describe('folder tree helpers', () => {
-        it('getSessionFolderTree呼び出し時_folder-tree APIが呼ばれる', async () => {
-            httpClient.get.mockResolvedValue({ nodes: [] });
-
-            await sessionService.getSessionFolderTree('session-1', '?depth=2');
-
-            expect(httpClient.get).toHaveBeenCalledWith('/api/sessions/session-1/folder-tree?depth=2');
-        });
-
-        it('openFileInCursor呼び出し時_open-file APIが呼ばれる', async () => {
-            httpClient.post.mockResolvedValue({ success: true });
-
-            await sessionService.openFileInCursor('README.md', '/tmp/project');
-
-            expect(httpClient.post).toHaveBeenCalledWith('/api/open-file', {
-                path: 'README.md',
-                mode: 'cursor',
-                cwd: '/tmp/project'
-            });
-        });
-    });
 });

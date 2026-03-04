@@ -4,7 +4,6 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
-import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -16,7 +15,6 @@ import { escapeHtml } from '../../ui-helpers.js';
 export class SessionView {
     constructor({ sessionService }) {
         this.sessionService = sessionService;
-        this.folderTreeView = new FolderTreeView({ sessionService });
         this.container = null;
         this._unsubscribers = [];
         // Drag and drop state
@@ -49,16 +47,8 @@ export class SessionView {
             state => state.ui?.sessionListView,
             () => this.render()
         );
-        const unsub8 = appStore.subscribeToSelector(
-            state => state.ui?.sidebarPrimaryView,
-            () => this.render()
-        );
-        const unsub9 = appStore.subscribeToSelector(
-            state => state.folderTree,
-            () => this.render()
-        );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -106,13 +96,7 @@ export class SessionView {
         this.container.innerHTML = '';
 
         const { sessions, currentSessionId, ui } = appStore.getState();
-        const sidebarPrimaryView = ui?.sidebarPrimaryView || 'sessions';
         const sessionListView = ui?.sessionListView || 'timeline';
-
-        if (sidebarPrimaryView === 'folders') {
-            this.folderTreeView.render(this.container);
-            return;
-        }
 
         if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
@@ -492,26 +476,20 @@ export class SessionView {
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
-                        const criticalDetails = [];
-                        const infoDetails = [];
+                        const details = [];
 
-                        // Jujutsu概念でステータス表示（重要な警告のみ）
+                        // Jujutsu概念でステータス表示
                         if (status.changesNotPushed > 0) {
-                            criticalDetails.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
+                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
+                        }
+                        if (!status.bookmarkPushed && status.bookmarkName) {
+                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
                         }
                         if (status.hasWorkingCopyChanges) {
-                            criticalDetails.push('working copyに未完了のchangeがあります');
+                            details.push('working copyに未完了のchangeがあります');
                         }
 
-                        // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
-                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges)) {
-                            infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
-                        }
-
-                        const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
-                        const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
-                        const detailText = criticalText + infoText;
-
+                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
                         const confirmResult = await showConfirmWithAction(
                             `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
