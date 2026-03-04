@@ -4,6 +4,7 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
+import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -15,6 +16,7 @@ import { escapeHtml } from '../../ui-helpers.js';
 export class SessionView {
     constructor({ sessionService }) {
         this.sessionService = sessionService;
+        this.folderTreeView = new FolderTreeView({ sessionService });
         this.container = null;
         this._unsubscribers = [];
         // Drag and drop state
@@ -47,8 +49,16 @@ export class SessionView {
             state => state.ui?.sessionListView,
             () => this.render()
         );
+        const unsub8 = appStore.subscribeToSelector(
+            state => state.ui?.sidebarPrimaryView,
+            () => this.render()
+        );
+        const unsub9 = appStore.subscribeToSelector(
+            state => state.folderTree,
+            () => this.render()
+        );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -96,7 +106,13 @@ export class SessionView {
         this.container.innerHTML = '';
 
         const { sessions, currentSessionId, ui } = appStore.getState();
+        const sidebarPrimaryView = ui?.sidebarPrimaryView || 'sessions';
         const sessionListView = ui?.sessionListView || 'timeline';
+
+        if (sidebarPrimaryView === 'folders') {
+            this.folderTreeView.render(this.container);
+            return;
+        }
 
         if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
@@ -182,10 +198,20 @@ export class SessionView {
      */
     _getTimelineSessions(sessions) {
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
-        const sorted = [...filtered].sort((a, b) => {
+        const currentSessionId = appStore.getState().currentSessionId;
+
+        return [...filtered].sort((a, b) => {
+            const aStatus = a?.id ? getSessionStatus(a.id) : null;
+            const bStatus = b?.id ? getSessionStatus(b.id) : null;
+            const aIsDonePriority = Boolean(aStatus?.isDone) && a.id !== currentSessionId;
+            const bIsDonePriority = Boolean(bStatus?.isDone) && b.id !== currentSessionId;
+
+            if (aIsDonePriority !== bIsDonePriority) {
+                return bIsDonePriority ? 1 : -1;
+            }
+
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
-        return sorted;
     }
 
     /**

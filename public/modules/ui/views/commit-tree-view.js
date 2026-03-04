@@ -112,11 +112,11 @@ export class CommitTreeView {
             // 行インデックスも加味して隣接行の視認性を上げる
             const laneColor = COLORS[(row.column + rowIndex) % COLORS.length];
             return `<div class="commit-row${cls}" style="color: ${laneColor}">
+                <span class="commit-desc">${escapeHtml(c.description)}</span>
                 <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}
                 <span class="commit-author">${escapeHtml(c.author)}</span>
                 <span class="commit-time">${escapeHtml(t)}</span>
                 ${bm}
-                <span class="commit-desc">${escapeHtml(c.description)}</span>
             </div>`;
         }).join('');
 
