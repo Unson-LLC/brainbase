@@ -121,6 +121,120 @@ body::after {
     /* Critical for flex child truncation */
 }
 
+.session-context-bar {
+    flex-shrink: 0;
+    min-height: 38px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(12, 16, 28, 0.95), rgba(8, 11, 20, 0.92));
+    overflow: visible;
+}
+
+.session-context-bar-inner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 38px;
+    padding: 6px 10px;
+    white-space: normal;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    flex-direction: column;
+}
+
+.session-context-empty {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+.context-primary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.session-context-bar-inner .engine-svg-icon {
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    margin: 0 2px;
+}
+
+.context-separator {
+    color: var(--text-tertiary);
+    margin: 0 6px;
+    opacity: 0.5;
+}
+
+.context-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.context-alert.is-warning {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.context-alert.is-ok {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.context-expand-btn {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-left: auto;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.context-expand-btn:hover {
+    opacity: 1;
+}
+
+.context-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+    width: 100%;
+}
+
+.context-detail-item {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.context-detail-label {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.context-detail-value {
+    color: var(--text-secondary);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    word-break: break-all;
+}
+
 /* Pane 3: Right Context (Schedule & Tasks) */
 .context-sidebar {
     width: 350px;
@@ -1719,6 +1833,13 @@ body::after {
     margin: 0;
 }
 
+.commit-tree-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
 .commit-tree-repo-badge {
     font-size: 10px;
     font-weight: 500;
@@ -1771,17 +1892,20 @@ body::after {
 
 .commit-tree-rows {
     position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .commit-row {
-    height: 54px;
+    height: 32px;
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 4px 6px 4px 2px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px 0 2px;
     box-sizing: border-box;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    overflow: hidden;
+    min-width: max-content;
 }
 
 .commit-row.current {
@@ -1790,39 +1914,49 @@ body::after {
 }
 
 .commit-wc-badge {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    padding: 0 5px;
-    border-radius: 3px;
-    background: rgba(59, 130, 246, 0.2);
-    color: var(--accent-blue);
+    padding: 0 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.15);
     flex-shrink: 0;
-}
-
-.commit-header {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    flex-wrap: nowrap;
-    overflow: hidden;
 }
 
 .commit-hash {
     font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 11px;
-    color: var(--accent-blue);
-    background: rgba(59, 130, 246, 0.1);
-    padding: 1px 5px;
-    border-radius: 3px;
+    font-size: 10px;
+    flex-shrink: 0;
+    width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.7;
+}
+
+.commit-author {
+    font-size: 10px;
+    flex-shrink: 0;
+    width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.7;
+}
+
+.commit-time {
+    font-size: 10px;
+    flex-shrink: 0;
+    width: 75px;
+    text-align: right;
+    opacity: 0.6;
 }
 
 .commit-bookmark {
     font-size: 10px;
     font-weight: 500;
-    padding: 1px 5px;
+    padding: 2px 6px;
     border-radius: 3px;
-    background: rgba(34, 197, 94, 0.15);
-    color: rgb(34, 197, 94);
+    background: rgba(255, 255, 255, 0.1);
     max-width: 120px;
     white-space: nowrap;
     overflow: hidden;
@@ -1831,28 +1965,46 @@ body::after {
 }
 
 .commit-desc {
-    font-size: 12px;
-    color: var(--text-primary);
-    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-shrink: 0;
+    width: 400px;
 }
 
 .commit-row.current .commit-desc {
     font-weight: 500;
 }
 
-.commit-meta {
-    display: flex;
-    gap: 8px;
-    margin-top: 2px;
-    font-size: 11px;
-    color: var(--text-tertiary);
-}
-
 .panel-resize-handle-commit-tree {
     border-left: 1px solid var(--border-color);
+}
+
+.commit-tree-expand-btn {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    width: 26px;
+    height: 42px;
+    border-radius: 6px 0 0 6px;
+    position: fixed;
+    right: 350px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 55;
+    cursor: pointer;
+}
+
+.commit-tree-expand-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.commit-tree-expand-btn.hidden,
+.panel-resize-handle.hidden {
+    display: none !important;
 }
 
 /* === Panel Resize Handles (Left/Right) === */
@@ -5818,8 +5970,24 @@ body.resizing iframe {
         visibility: hidden !important;
     }
 
+    .commit-tree-expand-btn {
+        display: none !important;
+        width: 0 !important;
+    }
+
     .panel-resize-handle-commit-tree {
         display: none !important;
+    }
+
+    .session-context-bar-inner {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .session-context-bar-inner::-webkit-scrollbar {
+        display: none;
     }
 
     /* Main content takes full width */

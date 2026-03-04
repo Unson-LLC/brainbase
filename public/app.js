@@ -41,6 +41,7 @@ import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
 import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
+import { SessionContextBarView } from './modules/ui/views/session-context-bar-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
@@ -669,6 +670,14 @@ export class App {
      * Initialize views
      */
     initViews() {
+        const contextBarContainer = document.getElementById('session-context-bar');
+        if (contextBarContainer) {
+            this.views.sessionContextBarView = new SessionContextBarView({
+                sessionService: this.sessionService
+            });
+            this.views.sessionContextBarView.mount(contextBarContainer);
+        }
+
         // Sessions (left sidebar)
         const sessionContainer = document.getElementById('session-list');
         if (sessionContainer) {

@@ -237,6 +237,20 @@ export class SessionService {
     }
 
     /**
+     * セッションコンテキスト取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object|null>}
+     */
+    async getSessionContext(sessionId) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
+        } catch (error) {
+            console.error('Failed to get session context:', error);
+            return null;
+        }
+    }
+
+    /**
      * セッション更新
      * @param {string} sessionId - セッションID
      * @param {Object} updates - 更新内容

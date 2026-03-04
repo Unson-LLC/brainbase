@@ -51,6 +51,36 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 この方針により、別タスク差分の巻き込みを防ぎ、レビュー対象を明確化する。
 
+## 回帰防止コミット戦略（必須）
+
+`fix` / `feat` のコミットでは、以下を満たさない場合はコミットしない。
+
+1. **Single-intent commit**
+- 1コミットに1つの意図だけを含める
+- 速度改善・UI変更・API変更を同一コミットに混在させない
+
+2. **Risky file guard**
+- 以下の高リスクファイルは、変更理由をコミット本文に明記する
+- `public/app.js`
+- `server/controllers/session-controller.js`
+- `server/routes/sessions.js`
+- `public/style.css`
+
+3. **Behavior regression check**
+- 既存フローに関わる削除 (`-` 行) がある場合、影響機能を列挙する
+- 例: `markDoneAsRead`, `clear-done`, `session-context-bar`
+- 列挙できない削除は「意図しない回帰」の可能性として差し戻す
+
+4. **Targeted test gate**
+- 変更対象機能に対応する単体テストを最低1本実行してからコミット
+- 実行テスト名をコミット本文に残す
+
+5. **Pre-merge diff scan**
+- マージ前に `jj diff -r <base> -r @ -- <high-risk-files>` を実行
+- 想定外の削除が1つでもあれば分割 (`jj split`) または再実装してからマージ
+
+この戦略により、機能を巻き込んで消す事故（広範囲コミット由来）を防ぐ。
+
 ## PRマージ後のworkspace更新（必須フロー）
 
 **問題**: PRをマージしても、サーバーのworkspace（`default@`）は自動更新されない
@@ -89,4 +119,4 @@ launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
 
 ---
 
-最終更新: 2026-02-27
+最終更新: 2026-03-04

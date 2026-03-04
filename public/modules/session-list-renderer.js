@@ -34,10 +34,7 @@ function formatRelativeTime(isoString) {
 
 function getPausedStatusLabel(session, { isPaused, needsRestart }) {
   if (needsRestart && !isPaused) {
-    return {
-      text: 'Restart pending',
-      title: 'ttyd process is not running. Resume session to restart.'
-    };
+    return null;
   }
 
   if (!isPaused) {
@@ -97,7 +94,7 @@ export function renderSessionRowHTML(session, options = {}) {
 
   // 意図的な一時停止状態かどうか（intendedStateで判定）
   const isPaused = session.intendedState === 'paused';
-  const pausedClass = (needsRestart || isPaused) ? ' paused' : '';
+  const pausedClass = isPaused ? ' paused' : '';
   const pausedStatusLabel = getPausedStatusLabel(session, { isPaused, needsRestart });
   const pausedLabelHTML = pausedStatusLabel
     ? `<span class="paused-label" title="${escapeHtml(pausedStatusLabel.title)}">${escapeHtml(pausedStatusLabel.text)}</span>`

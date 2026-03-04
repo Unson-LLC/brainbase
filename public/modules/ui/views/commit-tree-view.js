@@ -12,16 +12,16 @@ const DOT_R = 4;
 const ROW_H = 32;
 
 const COLORS = [
-    '#7db3ff', // light blue (明るい青)
-    '#ff8a8a', // light red
-    '#6dd68f', // light green
-    '#ffb84d', // light orange
-    '#e68ae6', // light orchid
-    '#5ee5d5', // light turquoise
-    '#ffe866', // light yellow
-    '#ff8bc4', // light pink
-    '#a3dcf0', // lighter sky blue
-    '#e6c999', // lighter burlywood
+    '#4a9eff', // blue
+    '#ff6b6b', // red
+    '#6dd68f', // green
+    '#ffb84d', // orange
+    '#b388ff', // purple
+    '#5ee5d5', // turquoise
+    '#ffd54a', // yellow
+    '#ff8bc4', // pink
+    '#7db3ff', // light blue
+    '#e6c999', // burlywood
 ];
 
 export class CommitTreeView {
@@ -96,8 +96,8 @@ export class CommitTreeView {
         // 1枚SVG
         const graphSvg = this._renderFullGraph(graphRows, maxCols, totalH);
 
-        // コミット情報行（2行表示 + 色分け）
-        const rowsHtml = graphRows.map(row => {
+        // コミット情報行（1行表示 + 色分け）
+        const rowsHtml = graphRows.map((row, rowIndex) => {
             const c = row.commit;
             const cls = c.isWorkingCopy ? ' current' : '';
             const wcBadge = c.isWorkingCopy ? '<span class="commit-wc-badge">@</span>' : '';
@@ -109,13 +109,14 @@ export class CommitTreeView {
                 ? importantBookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')
                 : '';
             const t = this._formatTime(c.timestamp);
-            // グラフレーンの色を取得（COLORS配列）
-            const laneColor = COLORS[row.column % COLORS.length];
+            // 行インデックスも加味して隣接行の視認性を上げる
+            const laneColor = COLORS[(row.column + rowIndex) % COLORS.length];
             return `<div class="commit-row${cls}" style="color: ${laneColor}">
-                <span class="commit-desc">${escapeHtml(c.description)}</span>
-                <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}${bm}
+                <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}
                 <span class="commit-author">${escapeHtml(c.author)}</span>
                 <span class="commit-time">${escapeHtml(t)}</span>
+                ${bm}
+                <span class="commit-desc">${escapeHtml(c.description)}</span>
             </div>`;
         }).join('');
 

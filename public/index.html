@@ -106,6 +106,11 @@
 	
 	        <!-- Main Content (Console) -->
 	        <main class="main-content">
+	            <div id="session-context-bar" class="session-context-bar" role="status" aria-live="polite">
+	                <div class="session-context-bar-inner">
+	                    <div class="session-context-empty">セッション未選択</div>
+	                </div>
+	            </div>
 	            <div class="console-area" id="console-area">
 	                <div class="console-toolbar">
 	                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
@@ -126,6 +131,7 @@
 	                        <i data-lucide="copy"></i>
 	                    </button>
 	                </div>
+	                <div id="session-goal-banner" class="session-goal-banner hidden"></div>
 	                <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
 	                <iframe id="terminal-frame" src="about:blank"></iframe>
 
@@ -257,14 +263,25 @@
 
         <!-- Commit Tree Panel -->
         <div class="panel-resize-handle panel-resize-handle-commit-tree" id="commit-tree-resize-handle" title="ドラッグで幅を変更"></div>
-        <aside class="commit-tree-panel" id="commit-tree-panel">
-            <div class="section-header">
-                <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
-            </div>
-            <div class="commit-tree-list" id="commit-tree-list">
-                <div class="commit-tree-empty">セッションを選択してください</div>
-            </div>
-        </aside>
+	        <aside class="commit-tree-panel" id="commit-tree-panel">
+	            <div class="section-header">
+	                <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
+	                <div class="commit-tree-header-actions">
+	                    <button id="refresh-commit-tree" class="icon-btn" title="更新" aria-label="コミットツリーを更新">
+	                        <i data-lucide="refresh-cw"></i>
+	                    </button>
+	                    <button id="toggle-commit-tree-panel" class="icon-btn" title="コミットパネルを閉じる" aria-label="コミットパネルを閉じる" aria-expanded="true">
+	                        <i data-lucide="chevron-right"></i>
+	                    </button>
+	                </div>
+	            </div>
+	            <div class="commit-tree-list" id="commit-tree-list">
+	                <div class="commit-tree-empty">セッションを選択してください</div>
+	            </div>
+	        </aside>
+	        <button id="commit-tree-expand-btn" class="commit-tree-expand-btn hidden" title="コミットパネルを開く" aria-label="コミットパネルを開く">
+	            <i data-lucide="chevron-left"></i>
+	        </button>
 
         <!-- Right Panel Resize Handle -->
         <div class="panel-resize-handle panel-resize-handle-right" id="right-panel-resize-handle" title="ドラッグで幅を変更"></div>
