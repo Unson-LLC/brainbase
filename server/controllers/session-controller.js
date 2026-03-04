@@ -43,6 +43,20 @@ export class SessionController {
     };
 
     /**
+     * POST /api/sessions/:id/clear-done
+     * セッションのdoneステータスをクリア（既読化）
+     */
+    clearDone = (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        this.sessionManager.clearDoneStatus(id);
+        res.json({ success: true });
+    };
+
+    /**
      * プログレス更新
      * @param {string} sessionId - セッションID
      * @param {string} phase - フェーズ名

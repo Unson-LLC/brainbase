@@ -13,7 +13,7 @@ import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
-import { pollSessionStatus, updateSessionIndicators, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { createSessionId } from './modules/session-manager.js';
@@ -1073,9 +1073,15 @@ export class App {
         const unsub1 = eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
             console.log('Session changed:', sessionId);
+            const previousSessionId = appStore.getState().currentSessionId;
 
             // Update currentSessionId in store
             appStore.setState({ currentSessionId: sessionId });
+
+            // セッション離脱時に前セッションのdoneインジケータを既読化
+            if (previousSessionId && previousSessionId !== sessionId) {
+                void markDoneAsRead(previousSessionId, sessionId);
+            }
 
             // Switch terminal frame
             await this.switchSession(sessionId);
