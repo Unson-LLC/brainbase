@@ -2146,13 +2146,27 @@ body::after {
 }
 
 .commit-desc {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13px;
     font-weight: 500;
+    flex-shrink: 0;
+    width: 400px;
+    min-width: 0;
+}
+
+.commit-desc-prefix {
+    display: inline-flex;
+    gap: 4px;
+    min-width: 0;
+}
+
+.commit-desc-text {
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex-shrink: 0;
-    width: 400px;
 }
 
 .commit-row.current .commit-desc {

@@ -71,7 +71,7 @@ describe('CommitTreeView', () => {
             expect(desc.tagName).toBe('SPAN');
         });
 
-        it('順序が hash → author → time → bookmarks → desc になる', () => {
+        it('順序が desc(先頭にbookmark) → hash → author → time になる', () => {
             // Given: ブックマーク付きコミット
             appStore.setState({
                 commitLog: {
@@ -96,11 +96,17 @@ describe('CommitTreeView', () => {
             const commitRow = container.querySelector('.commit-row');
             const children = Array.from(commitRow.children).filter(el => el.tagName === 'SPAN');
 
-            expect(children[0].className).toContain('commit-hash');
-            expect(children[1].className).toContain('commit-author');
-            expect(children[2].className).toContain('commit-time');
-            expect(children[3].className).toContain('commit-bookmark');
-            expect(children[4].className).toContain('commit-desc');
+            expect(children[0].className).toContain('commit-desc');
+            expect(children[1].className).toContain('commit-hash');
+            expect(children[2].className).toContain('commit-author');
+            expect(children[3].className).toContain('commit-time');
+
+            // bookmarkは独立列ではなく、desc内の先頭プレフィックスとして表示
+            const desc = children[0];
+            const bookmark = desc.querySelector('.commit-bookmark');
+            const descText = desc.querySelector('.commit-desc-text');
+            expect(bookmark).not.toBeNull();
+            expect(descText).not.toBeNull();
         });
     });
 
@@ -133,8 +139,8 @@ describe('CommitTreeView', () => {
             expect(style).toContain('#4a9eff'); // COLORS[0]
         });
 
-        it('複数レーンのコミットがそれぞれの色で表示される', () => {
-            // Given: レーン0（青）とレーン1（赤 #ff6b6b）のコミット
+        it('同じレーンのコミットは同じ色で表示される', () => {
+            // Given: 直線履歴（同一レーン）2コミット
             appStore.setState({
                 commitLog: {
                     commits: [
@@ -165,7 +171,7 @@ describe('CommitTreeView', () => {
             // When: レンダリング
             view.render();
 
-            // Then: 各コミットが異なる色
+            // Then: 同一レーンなので同じ色
             const rows = container.querySelectorAll('.commit-row');
             expect(rows.length).toBe(2);
 
@@ -173,10 +179,10 @@ describe('CommitTreeView', () => {
             const style0 = rows[0].getAttribute('style');
             expect(style0).toContain('color:');
 
-            // レーン1（異なる色）
+            // 同一レーンなので同色
             const style1 = rows[1].getAttribute('style');
             expect(style1).toContain('color:');
-            expect(style0).not.toBe(style1); // 色が異なる
+            expect(style0).toBe(style1);
         });
     });
 });

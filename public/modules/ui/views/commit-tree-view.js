@@ -105,18 +105,17 @@ export class CommitTreeView {
             const importantBookmarks = c.bookmarks.filter(b =>
                 b === 'main' || b === 'develop' || b.startsWith('session/')
             );
-            const bm = importantBookmarks.length > 0
-                ? importantBookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')
+            const descPrefix = importantBookmarks.length > 0
+                ? `<span class="commit-desc-prefix">${importantBookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')}</span>`
                 : '';
             const t = this._formatTime(c.timestamp);
             // グラフ線と同じレーン色に合わせる
             const laneColor = COLORS[row.column % COLORS.length];
             return `<div class="commit-row${cls}" style="color: ${laneColor}">
-                <span class="commit-desc">${escapeHtml(c.description)}</span>
+                <span class="commit-desc">${descPrefix}<span class="commit-desc-text">${escapeHtml(c.description)}</span></span>
                 <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}
                 <span class="commit-author">${escapeHtml(c.author)}</span>
                 <span class="commit-time">${escapeHtml(t)}</span>
-                ${bm}
             </div>`;
         }).join('');
 
