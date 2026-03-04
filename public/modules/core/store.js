@@ -205,6 +205,7 @@ export const appStore = new Store({
         inboxOpen: false,
         draggedSessionId: null,
         draggedSessionProject: null,
+        sidebarPrimaryView: 'sessions',
         sessionListView: 'timeline',
         mobileInput: {
             mode: 'dock',
@@ -212,6 +213,12 @@ export const appStore = new Store({
             selectionMode: false,
             online: true
         }
+    },
+    folderTree: {
+        bySessionId: {},
+        expandedPaths: {},
+        loading: false,
+        error: null
     },
     // Auto-Claude RecoveryManager pattern
     recovery: {
