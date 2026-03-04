@@ -109,8 +109,8 @@ export class CommitTreeView {
                 ? importantBookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')
                 : '';
             const t = this._formatTime(c.timestamp);
-            // 行インデックスも加味して隣接行の視認性を上げる
-            const laneColor = COLORS[(row.column + rowIndex) % COLORS.length];
+            // グラフ線と同じレーン色に合わせる
+            const laneColor = COLORS[row.column % COLORS.length];
             return `<div class="commit-row${cls}" style="color: ${laneColor}">
                 <span class="commit-desc">${escapeHtml(c.description)}</span>
                 <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}
