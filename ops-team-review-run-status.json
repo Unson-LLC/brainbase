@@ -1,10 +1,20 @@
 {
   "status": "skipped",
-  "reason": "no_eligible_areas",
-  "details": {},
-  "timestamp": "2026-03-04T00:29:30.274Z",
-  "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22649273700",
-  "runNumber": "170",
+  "reason": "refactor_not_performed",
+  "details": {
+    "attempt": 1,
+    "area": "server/services",
+    "failure": {
+      "reason": "refactor_area_error",
+      "details": {
+        "area": "server/services",
+        "message": "Unexpected token 'ギ', \"ギャル語指示了解だよ\"... is not valid JSON"
+      }
+    }
+  },
+  "timestamp": "2026-03-04T03:20:07.934Z",
+  "workflow": "ops-department-auto-refactoring-daily.yml",
+  "runId": "22653469673",
+  "runNumber": "32",
   "eventName": "schedule"
 }
