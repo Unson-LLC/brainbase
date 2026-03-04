@@ -178,37 +178,13 @@ export class SessionView {
 
     /**
      * 時系列表示用のセッション一覧を取得
-     *
-     * ソート優先度:
-     * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
-     *    - 条件: isDone=true AND currentSessionIdではない
-     * 2. 残りのセッションは時系列順（最新が上）
-     *
-     * @param {Array} sessions - セッション一覧
-     * @returns {Array} ソート済みセッション一覧（アーカイブ済み除外）
      * @private
      */
     _getTimelineSessions(sessions) {
-        const { currentSessionId } = appStore.getState();
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
-
         const sorted = [...filtered].sort((a, b) => {
-            // インジケータステータスを取得
-            const statusA = getSessionStatus(a.id);
-            const statusB = getSessionStatus(b.id);
-
-            // 緑インジケータ判定（isDone=true AND 現在のセッションではない）
-            const isGreenA = statusA?.isDone && currentSessionId !== a.id;
-            const isGreenB = statusB?.isDone && currentSessionId !== b.id;
-
-            // 優先度1: 緑セッションを最上部に配置
-            if (isGreenA && !isGreenB) return -1;
-            if (!isGreenA && isGreenB) return 1;
-
-            // 優先度2: 緑セッション同士 or 通常セッション同士は時系列順（最新が上）
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
-
         return sorted;
     }
 
@@ -428,10 +404,6 @@ export class SessionView {
             if (dropdownMenu) {
                 dropdownMenu.classList.add('hidden');
             }
-            const overlay = document.getElementById('menu-overlay');
-            if (overlay) {
-                overlay.classList.add('hidden');
-            }
         };
 
         // Rename button
@@ -512,6 +484,8 @@ export class SessionView {
                                 const mergeResult = await this.sessionService.mergeSession(session.id);
                                 if (mergeResult?.success) {
                                     showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
+                                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
+                                    this._switchToNextActiveSession(session.id);
                                 } else {
                                     showError(mergeResult?.error || 'pushに失敗しました');
                                 }
@@ -528,10 +502,14 @@ export class SessionView {
                         }
                         await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
                         showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                        // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
+                        this._switchToNextActiveSession(session.id);
                         return;
                     }
 
                     showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
+                    this._switchToNextActiveSession(session.id);
                 } catch (error) {
                     console.error('Failed to archive session:', error);
                     showError('アーカイブに失敗しました');
@@ -744,6 +722,45 @@ export class SessionView {
         inputEl.focus();
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
         return true;
+    }
+
+    /**
+     * アーカイブしたセッションがアクティブだった場合、別のアクティブセッションに切り替え
+     * @param {string} archivedSessionId - アーカイブしたセッションID
+     */
+    _switchToNextActiveSession(archivedSessionId) {
+        const currentSessionId = this.store.getState().currentSessionId;
+
+        // アーカイブしたセッションが現在のアクティブセッションでない場合はスキップ
+        if (currentSessionId !== archivedSessionId) {
+            return;
+        }
+
+        // 他のアクティブセッションを取得（archived以外）
+        const sessions = this.store.getState().sessions || [];
+        const activeSessions = sessions.filter(s =>
+            s.intendedState !== 'archived' && s.id !== archivedSessionId
+        );
+
+        if (activeSessions.length === 0) {
+            // アクティブセッションがない場合、currentSessionIdをnullに
+            this.store.setState({ currentSessionId: null });
+            this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: null });
+            return;
+        }
+
+        // 最新のアクティブセッション（createdAt降順）を選択
+        const sortedSessions = activeSessions.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;  // 降順
+        });
+
+        const nextSession = sortedSessions[0];
+        this.store.setState({ currentSessionId: nextSession.id });
+        this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: nextSession.id });
+
+        console.log(`[Archive] Switched from ${archivedSessionId} to ${nextSession.id}`);
     }
 
     /**
