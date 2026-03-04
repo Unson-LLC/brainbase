@@ -476,20 +476,26 @@ export class SessionView {
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
-                        const details = [];
+                        const criticalDetails = [];
+                        const infoDetails = [];
 
-                        // Jujutsu概念でステータス表示
+                        // Jujutsu概念でステータス表示（重要な警告のみ）
                         if (status.changesNotPushed > 0) {
-                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
-                        }
-                        if (!status.bookmarkPushed && status.bookmarkName) {
-                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
+                            criticalDetails.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
                         }
                         if (status.hasWorkingCopyChanges) {
-                            details.push('working copyに未完了のchangeがあります');
+                            criticalDetails.push('working copyに未完了のchangeがあります');
                         }
 
-                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
+                        // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
+                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges)) {
+                            infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
+                        }
+
+                        const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
+                        const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
+                        const detailText = criticalText + infoText;
+
                         const confirmResult = await showConfirmWithAction(
                             `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
