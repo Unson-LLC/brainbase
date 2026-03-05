@@ -1112,21 +1112,21 @@ export class App {
                 void markDoneAsRead(previousSessionId, sessionId);
             }
 
-            // Show terminal loading overlay
-            this.showTerminalLoadingOverlay();
-
             // Switch terminal frame
             await this.switchSession(sessionId);
-
-            // Wait for Claude initialization
-            await this._waitForClaudeInitialization(sessionId);
 
             // Load session-specific data
             await this.loadSessionData(sessionId);
 
-            // Auto-return to console view if available
+            // Auto-return to console view
             if (this.showConsole) {
                 this.showConsole();
+            } else {
+                // Fallback: showConsole未初期化時（ダッシュボード未訪問）でもconsole viewに戻す
+                const consoleArea = document.getElementById('console-area');
+                const dashboardPanel = document.getElementById('dashboard-panel');
+                if (consoleArea) consoleArea.style.display = 'flex';
+                if (dashboardPanel) dashboardPanel.style.display = 'none';
             }
 
         });
