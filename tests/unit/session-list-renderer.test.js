@@ -71,19 +71,6 @@ describe('session-list-renderer', () => {
       expect(html).toContain('session-child-row paused');
     });
 
-    it('should show restart pending label when active session needs restart', () => {
-      const session = {
-        id: 'session-restart',
-        name: 'Restart Needed',
-        intendedState: 'active',
-        runtimeStatus: { needsRestart: true }
-      };
-
-      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
-
-      expect(html).toContain('Restart pending');
-      expect(html).toContain('session-child-row paused');
-    });
   });
 
   describe('renderSessionGroupHeaderHTML', () => {

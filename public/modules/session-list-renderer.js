@@ -32,14 +32,7 @@ function formatRelativeTime(isoString) {
   return `${months}mo ago`;
 }
 
-function getPausedStatusLabel(session, { isPaused, needsRestart }) {
-  if (needsRestart && !isPaused) {
-    return {
-      text: 'Restart pending',
-      title: 'ttyd process is not running. Resume session to restart.'
-    };
-  }
-
+function getPausedStatusLabel(session, { isPaused }) {
   if (!isPaused) {
     return null;
   }
@@ -91,14 +84,10 @@ export function renderSessionRowHTML(session, options = {}) {
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
   const draggableAttr = isDraggable ? 'true' : 'false';
 
-  // runtimeStatus.needsRestart を使って予期しない停止状態を判定
-  const needsRestart = session.runtimeStatus?.needsRestart || false;
-  const ttydRunning = session.runtimeStatus?.ttydRunning || false;
-
   // 意図的な一時停止状態かどうか（intendedStateで判定）
   const isPaused = session.intendedState === 'paused';
-  const pausedClass = (needsRestart || isPaused) ? ' paused' : '';
-  const pausedStatusLabel = getPausedStatusLabel(session, { isPaused, needsRestart });
+  const pausedClass = isPaused ? ' paused' : '';
+  const pausedStatusLabel = getPausedStatusLabel(session, { isPaused });
   const pausedLabelHTML = pausedStatusLabel
     ? `<span class="paused-label" title="${escapeHtml(pausedStatusLabel.title)}">${escapeHtml(pausedStatusLabel.text)}</span>`
     : '';
