@@ -2,7 +2,6 @@ import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { filterByPriority } from '../../utils/task-filters.js';
-import { sessionDataCache } from '../../core/session-data-cache.js';
 
 /**
  * タスクのビジネスロジック
@@ -20,26 +19,7 @@ export class TaskService {
      * @returns {Promise<Array>} タスク配列
      */
     async loadTasks() {
-        const sessionId = this.store.getState().currentSessionId;
-
-        // キャッシュチェック
-        const cached = sessionDataCache.get('tasks', sessionId);
-        if (cached) {
-            console.log('[TaskService] Cache hit');
-            this.store.setState({ tasks: cached });
-            await this.eventBus.emit(EVENTS.TASK_LOADED, { tasks: cached });
-            return cached;
-        }
-
-        // キャッシュミス: API呼び出し
-        const startTime = performance.now();
         const tasks = await this.httpClient.get('/api/tasks');
-        const duration = performance.now() - startTime;
-        console.log(`[TaskService] API loaded in ${duration.toFixed(2)}ms`);
-
-        // キャッシュに保存（TTL: 5分）
-        sessionDataCache.set('tasks', sessionId, tasks);
-
         this.store.setState({ tasks });
         await this.eventBus.emit(EVENTS.TASK_LOADED, { tasks });
         return tasks;
@@ -52,11 +32,6 @@ export class TaskService {
      */
     async completeTask(taskId) {
         await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'done' });
-
-        // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
-
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_COMPLETED, { taskId });
         return { success: true, taskId, eventResult };
@@ -77,11 +52,6 @@ export class TaskService {
         const newPriority = priorityMap[task.priority] || 'low';
 
         await this.httpClient.post(`/api/tasks/${taskId}/defer`, { priority: newPriority });
-
-        // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
-
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
         return { success: true, taskId, newPriority, eventResult };
@@ -197,11 +167,6 @@ export class TaskService {
      */
     async updateTask(taskId, updates) {
         await this.httpClient.put(`/api/tasks/${taskId}`, updates);
-
-        // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
-
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_UPDATED, { taskId, updates });
         return { success: true, taskId, updates, eventResult };
@@ -214,11 +179,6 @@ export class TaskService {
      */
     async deleteTask(taskId) {
         await this.httpClient.delete(`/api/tasks/${taskId}`);
-
-        // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
-
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
         return { success: true, taskId, eventResult };
@@ -236,11 +196,6 @@ export class TaskService {
      */
     async createTask(taskData) {
         const task = await this.httpClient.post('/api/tasks', taskData);
-
-        // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
-
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_CREATED, { task });
         return { success: true, task, eventResult };
@@ -280,11 +235,6 @@ export class TaskService {
      */
     async restoreTask(taskId) {
         await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'todo' });
-
-        // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
-
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_RESTORED, { taskId });
         return { success: true, taskId, eventResult };

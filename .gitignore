@@ -60,8 +60,11 @@ external/
 # ========================================
 
 # 非公開: 個人設定・データ
-.claude/commands/
+.claude/commands/*
+!.claude/commands/deploy-merged-pr.md
 .claude/hooks/
+!.claude/hooks/session-start-copy-plugins.sh
+!.claude/hooks/*.sample
 .claude/agents/
 .claude/learning/
 .claude/output/
@@ -70,6 +73,8 @@ external/
 .claude/*.md
 .claude/*.txt
 .claude/*.json
+!.claude/settings.json
+!.claude/*.json.sample
 .claude/skills-backup-oss/
 
 # 非公開skills: 個人ノウハウ・ビジネス知識
@@ -248,3 +253,4 @@ pr-body.txt
 refactoring-result.json
 .codex-last-message-*.txt
 .claude/skills/.system/
+node_modules

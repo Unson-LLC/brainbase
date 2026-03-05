@@ -24,6 +24,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     // ========================================
     router.post('/report_activity', controller.reportActivity);
     router.get('/status', controller.getStatus);
+    router.post('/:id/clear-done', controller.clearDone);
     router.get('/:id', controller.get);
 
     // ========================================
@@ -122,7 +123,9 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     router.get('/:id/commit-notify', controller.getCommitNotify);
     router.post('/:id/update-local-main', controller.updateLocalMain);
     router.post('/:id/merge', controller.merge);
-    router.post('/:id/ask-ai-integration', controller.askAiIntegration);
+    router.get('/:id/commit-log', controller.getCommitLog);
+    router.post('/:id/commit-notify', controller.commitNotify);
+    router.get('/:id/commit-notify', controller.getCommitNotify);
     router.delete('/:id/worktree', controller.deleteWorktree);
 
     return router;

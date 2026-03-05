@@ -114,6 +114,57 @@ launchctl list | grep brainbase
 systemctl start brainbase-ui  # ❌ macOSでは動作しない
 ```
 
+### 1.4 PRマージ後のworkspace更新とサーバー再起動
+
+**問題**: PRをマージしても、サーバーのworkspace（`default@`）は自動更新されない
+
+**必須フロー**:
+
+```bash
+# 1. 最新を取得
+cd /Users/ksato/workspace/code/brainbase
+jj git fetch
+
+# 2. サーバーworkspaceを更新
+jj rebase -b default@ -d develop
+
+# 3. 変更内容を確認
+jj diff -r 'default@^::default@' --stat
+
+# 4. 再起動判定
+# - server/ 配下の変更 → 再起動必要
+# - public/ のみの変更 → 再起動不要（ブラウザリロード）
+# - docs/ のみの変更 → 再起動不要
+
+# 5. 再起動（必要な場合のみ）
+# アクティブセッション数を確認
+tmux list-sessions 2>/dev/null | wc -l
+
+# 再起動実行
+launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
+
+# 起動確認
+sleep 3
+curl -s http://localhost:31013/ | head -5
+```
+
+**自動化コマンド**: `/deploy-merged-pr`
+
+**なぜ必要か**:
+- jjのworkspaceはGitのworktreeと同様、手動更新が必要
+- サーバーは`default@`から起動しているため、PRマージ後に明示的な更新が必須
+
+**コンフリクトが発生した場合**:
+```bash
+# コンフリクトマーカーを確認
+grep -n "<<<<<<" server/path/to/file.js
+
+# 手動解決後にsquash
+jj new <conflicted-commit>
+# ファイルを編集
+jj squash
+```
+
 ---
 
 ## § 2. _codex正本管理

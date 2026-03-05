@@ -70,7 +70,7 @@ export class FolderTreeView {
         const cache = this._getSessionCache(sessionId);
         const hasRoot = Boolean(cache?.nodesByPath && Object.prototype.hasOwnProperty.call(cache.nodesByPath, ''));
         if (hasRoot || this._isPathLoading(sessionId, '')) return;
-        await this._loadPath(sessionId, '', 1);
+        await this._loadPath(sessionId, '', 2);
     }
 
     async _ensurePathLoaded(sessionId, relativePath) {
@@ -81,15 +81,6 @@ export class FolderTreeView {
     }
 
     async _loadPath(sessionId, relativePath, depth) {
-        if (typeof this.sessionService?.getSessionFolderTree !== 'function') {
-            const latest = this._getFolderTreeState();
-            this._setFolderTreeState({
-                ...latest,
-                loading: false,
-                error: 'Session service is missing getSessionFolderTree'
-            });
-            return;
-        }
         const loadingKey = this._expandedKey(sessionId, relativePath);
         this._loadingPaths.add(loadingKey);
 
@@ -188,9 +179,6 @@ export class FolderTreeView {
     async _openFile(sessionId, relativePath) {
         const cwd = this._getSessionCwd(sessionId);
         try {
-            if (typeof this.sessionService?.openFileInDefaultApp !== 'function') {
-                throw new Error('Session service is missing openFileInDefaultApp');
-            }
             await this.sessionService.openFileInDefaultApp(relativePath, cwd);
             await this.eventBus.emit(EVENTS.FOLDER_TREE_FILE_OPENED, {
                 sessionId,
@@ -313,7 +301,7 @@ export class FolderTreeView {
         const expandedPaths = folderTree.expandedPaths || {};
         const nodesByPath = cache?.nodesByPath || {};
 
-        if (!cache && !this._isPathLoading(sessionId, '') && !folderTree.error) {
+        if (!cache && !this._isPathLoading(sessionId, '')) {
             void this._ensureRootLoaded(sessionId);
         }
 

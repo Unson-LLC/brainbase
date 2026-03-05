@@ -46,8 +46,17 @@ export class MobileInputUIController {
         this.bindTouchClickHandler(dockSend, 'dock', dockInput);
 
         // iOS Safari対応: touchstart + click で確実にタップ検出
-        this.bindDockTapWithRefocus(dockMore, () => {
+        this.bindTapHandler(dockMore, () => {
             this.toggleDockExpanded();
+
+            // compact時のみキーボードを再表示
+            const isCompact = this.elements.dock?.classList.contains('compact');
+            if (isCompact) {
+                const dockInput = this.elements.dockInput;
+                if (dockInput) {
+                    this.focusManager.refocusInput(dockInput);
+                }
+            }
         });
         this.bindTapHandler(dockSessions, () => {
             this.handleSessionsSheet();
@@ -193,40 +202,12 @@ export class MobileInputUIController {
                 if (action === 'enter') {
                     this.sendEnterKey();
                     this.focusManager.refocusInput(inputEl);
-                } else if (inputEl === this.elements.dockInput && ['up', 'down', 'left', 'right'].includes(action)) {
-                    this.sendDockCursorKey(action);
-                    this.focusManager.refocusInput(inputEl);
                 } else {
                     this.moveCursor(inputEl, action);
                     this.focusManager.refocusInput(inputEl);
                 }
             });
         });
-    }
-
-    async sendDockCursorKey(action) {
-        const keyMap = {
-            up: 'Up',
-            down: 'Down',
-            left: 'Left',
-            right: 'Right'
-        };
-
-        const key = keyMap[action];
-        if (!key) return;
-
-        const sessionId = appStore.getState().currentSessionId;
-        if (!sessionId) {
-            showInfo('セッションを選択してね');
-            return;
-        }
-
-        try {
-            await this.apiClient.sendKey(sessionId, key);
-        } catch (error) {
-            console.error(`Failed to send ${key} key:`, error);
-            showError(`${key}キーの送信に失敗したよ`);
-        }
     }
 
     bindFormatButtons(container) {
@@ -371,12 +352,17 @@ export class MobileInputUIController {
     }
 
     setDockExpanded(expanded) {
-        const { dock, dockMore } = this.elements;
+        const { dock, dockMore, dockInput } = this.elements;
         if (!dock || !dockMore) return;
         dock.classList.toggle('expanded', expanded);
         dock.classList.toggle('compact', !expanded);
         document.body.classList.toggle('mobile-input-expanded', expanded);
-        dockMore.textContent = expanded ? 'Less' : 'More';
+        dockMore.textContent = expanded ? '×' : '≡';
+
+        // expanded時: キーボードを強制的に閉じる
+        if (expanded && dockInput) {
+            dockInput.blur();
+        }
     }
 
     async handleSend(mode) {

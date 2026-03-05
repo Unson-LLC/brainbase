@@ -49,7 +49,11 @@ export class SessionService {
         sessions = sessions.map(session => {
             if (session.intendedState === 'stopped') {
                 migrationNeeded = true;
-                return { ...session, intendedState: 'paused' };
+                return {
+                    ...session,
+                    intendedState: 'paused',
+                    pausedReason: session.pausedReason || 'migrated_from_stopped'
+                };
             }
             return session;
         });
@@ -73,18 +77,14 @@ export class SessionService {
      * @param {string} params.initialCommand - 初期コマンド
      * @param {boolean} params.useWorktree - worktreeを使用するか
      * @param {string} params.engine - AI Engine ('claude' or 'codex')
-     * @param {string} params.sessionId - セッションID（オプション、指定しない場合は自動生成）
      * @returns {Promise<Object>} 作成されたセッション
      */
     async createSession(params) {
         const { project, initialCommand = '', useWorktree = false, engine = 'claude' } = params;
-        let { name, sessionId } = params;
+        let { name } = params;
 
         const repoPath = getProjectPath(project);
-        // sessionIdが指定されていない場合は自動生成
-        if (!sessionId) {
-            sessionId = createSessionId('session');
-        }
+        const sessionId = createSessionId('session');
 
         // 名前が空の場合、自動生成: {project}-{MMDD}-{連番}
         if (!name || !name.trim()) {
@@ -226,56 +226,6 @@ export class SessionService {
     }
 
     /**
-     * プログレス取得
-     * @param {string} sessionId - セッションID
-     * @param {number} currentPercent - 現在の進捗率
-     * @returns {Promise<{phase: string, percent: number, message: string, timestamp: number}>}
-     */
-    async getProgress(sessionId, currentPercent = 0) {
-        const res = await this.httpClient.get(`/api/sessions/${sessionId}/progress?current=${currentPercent}`);
-        return res;
-    }
-
-    /**
-     * セッションコンテキスト取得
-     * @param {string} sessionId - セッションID
-     * @returns {Promise<Object|null>}
-     */
-    async getSessionContext(sessionId) {
-        try {
-            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
-        } catch (error) {
-            console.error('Failed to get session context:', error);
-            return null;
-        }
-    }
-
-    /**
-     * セッションのフォルダツリーを取得
-     * @param {string} sessionId - セッションID
-     * @param {string} query - クエリ文字列（例: ?path=public&depth=1）
-     * @returns {Promise<Object>}
-     */
-    async getSessionFolderTree(sessionId, query = '') {
-        const suffix = typeof query === 'string' ? query : '';
-        return await this.httpClient.get(`/api/sessions/${sessionId}/folder-tree${suffix}`);
-    }
-
-    /**
-     * ファイルをデフォルトアプリで開く
-     * @param {string} relativePath - セッションCWDからの相対パス
-     * @param {string|null} cwd - セッションの作業ディレクトリ
-     * @returns {Promise<Object>}
-     */
-    async openFileInDefaultApp(relativePath, cwd = null) {
-        return await this.httpClient.post('/api/open-file', {
-            path: relativePath,
-            mode: 'file',
-            cwd
-        });
-    }
-
-    /**
      * セッション更新
      * @param {string} sessionId - セッションID
      * @param {Object} updates - 更新内容
@@ -309,11 +259,27 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async deleteSession(sessionId) {
+        // 削除前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const state = await this.httpClient.get('/api/state');
         const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
         await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
         await this.loadSessions();
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
+
+        // 現在表示中のセッションを削除した場合、次のアクティブセッションに切り替え
+        if (wasCurrentSession) {
+            const activeSessions = this.getFilteredSessions()
+                .filter(s => s.intendedState !== 'archived');
+            if (activeSessions.length > 0) {
+                await this.switchSession(activeSessions[0].id);
+            } else {
+                this.store.setState({ currentSessionId: null });
+            }
+        }
+
         return { success: true, sessionId, eventResult };
     }
 
@@ -414,6 +380,20 @@ export class SessionService {
     }
 
     /**
+     * セッションコンテキスト取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object|null>}
+     */
+    async getSessionContext(sessionId) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
+        } catch (error) {
+            console.error('Failed to get session context:', error);
+            return null;
+        }
+    }
+
+    /**
      * Worktree状態取得
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object|null>}
@@ -446,6 +426,10 @@ export class SessionService {
     async archiveSession(sessionId, options = {}) {
         const { skipMergeCheck = false } = options;
 
+        // アーカイブ前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/archive`,
             { skipMergeCheck }
@@ -458,6 +442,19 @@ export class SessionService {
 
         await this.loadSessions();
         await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+        // 現在表示中のセッションをアーカイブした場合、次のアクティブセッションに切り替え
+        if (wasCurrentSession) {
+            const activeSessions = this.getFilteredSessions()
+                .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
+            if (activeSessions.length > 0) {
+                await this.switchSession(activeSessions[0].id);
+            } else {
+                // アクティブセッションがない場合はcurrentSessionIdをクリア
+                this.store.setState({ currentSessionId: null });
+            }
+        }
+
         return { success: true };
     }
 
@@ -468,6 +465,10 @@ export class SessionService {
      * @returns {Promise<{success?: boolean, error?: string, prUrl?: string}>}
      */
     async mergeSession(sessionId) {
+        // マージ前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/merge`
         );
@@ -475,22 +476,18 @@ export class SessionService {
         if (result.success) {
             await this.loadSessions();
             await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+            // 現在表示中のセッションをマージした場合、次のアクティブセッションに切り替え
+            if (wasCurrentSession) {
+                const activeSessions = this.getFilteredSessions()
+                    .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
+                if (activeSessions.length > 0) {
+                    await this.switchSession(activeSessions[0].id);
+                } else {
+                    this.store.setState({ currentSessionId: null });
+                }
+            }
         }
-
-        return result;
-    }
-
-    /**
-     * AIに統合確認と対処を依頼
-     * @param {string} sessionId - セッションID
-     * @param {Object} status - 統合ステータス情報
-     * @returns {Promise<Object>}
-     */
-    async askAiToResolveIntegration(sessionId, status) {
-        const result = await this.httpClient.post(
-            `/api/sessions/${sessionId}/ask-ai-integration`,
-            { status }
-        );
 
         return result;
     }
@@ -562,6 +559,7 @@ export class SessionService {
         // Phase 2: intendedState を paused に変更 + pausedAt タイムスタンプ設定
         await this.updateSession(sessionId, {
             intendedState: 'paused',
+            pausedReason: 'manual',
             pausedAt: new Date().toISOString()
         });
 
@@ -597,7 +595,10 @@ export class SessionService {
         }
 
         // intendedState を active に変更
-        await this.updateSession(sessionId, { intendedState: 'active' });
+        await this.updateSession(sessionId, {
+            intendedState: 'active',
+            pausedReason: null
+        });
 
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
         return { success: true, sessionId, eventResult };

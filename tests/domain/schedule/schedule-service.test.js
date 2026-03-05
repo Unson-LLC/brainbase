@@ -3,7 +3,6 @@ import { ScheduleService } from '../../../public/modules/domain/schedule/schedul
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
-import { sessionDataCache } from '../../../public/modules/core/session-data-cache.js';
 
 // モジュールをモック化
 vi.mock('../../../public/modules/core/http-client.js', () => ({
@@ -27,13 +26,7 @@ describe('ScheduleService', () => {
         };
 
         // ストア初期化
-        appStore.setState({
-            schedule: null,
-            currentSessionId: 'test-session'
-        });
-
-        // キャッシュクリア
-        sessionDataCache.clear();
+        appStore.setState({ schedule: null });
 
         // サービスインスタンス作成
         scheduleService = new ScheduleService();

@@ -3,7 +3,6 @@ import { TaskService } from '../../../public/modules/domain/task/task-service.js
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
-import { sessionDataCache } from '../../../public/modules/core/session-data-cache.js';
 
 // モジュールをモック化
 vi.mock('../../../public/modules/core/http-client.js', () => ({
@@ -30,12 +29,8 @@ describe('TaskService', () => {
         // ストア初期化
         appStore.setState({
             tasks: [],
-            currentSessionId: 'test-session',
             filters: { taskFilter: '', showAllTasks: false }
         });
-
-        // キャッシュクリア
-        sessionDataCache.clear();
 
         // サービスインスタンス作成
         taskService = new TaskService();
@@ -64,85 +59,6 @@ describe('TaskService', () => {
 
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.tasks).toEqual(mockTasks);
-        });
-
-        describe('caching', () => {
-            it('loadTasks初回呼び出し時_キャッシュミス_API呼び出しが実行される', async () => {
-                httpClient.get.mockResolvedValue(mockTasks);
-
-                await taskService.loadTasks();
-
-                expect(httpClient.get).toHaveBeenCalledWith('/api/tasks');
-                expect(httpClient.get).toHaveBeenCalledTimes(1);
-            });
-
-            it('loadTasks2回目呼び出し時_キャッシュヒット_API呼び出しなし', async () => {
-                httpClient.get.mockResolvedValue(mockTasks);
-
-                // 1回目: キャッシュミス → API呼び出し
-                await taskService.loadTasks();
-                expect(httpClient.get).toHaveBeenCalledTimes(1);
-
-                // 2回目: キャッシュヒット → API呼び出しなし
-                await taskService.loadTasks();
-                expect(httpClient.get).toHaveBeenCalledTimes(1); // 増えない
-            });
-
-            it('loadTasks呼び出し時_キャッシュヒット_Storeは更新される', async () => {
-                httpClient.get.mockResolvedValue(mockTasks);
-
-                // 1回目
-                await taskService.loadTasks();
-                expect(appStore.getState().tasks).toEqual(mockTasks);
-
-                // 2回目（キャッシュヒット）
-                await taskService.loadTasks();
-                expect(appStore.getState().tasks).toEqual(mockTasks);
-            });
-
-            it('completeTask呼び出し後_キャッシュ無効化_次回はAPI呼び出し', async () => {
-                httpClient.get.mockResolvedValue(mockTasks);
-                httpClient.put.mockResolvedValue({});
-
-                // 1回目: キャッシュミス → API呼び出し
-                await taskService.loadTasks();
-                expect(httpClient.get).toHaveBeenCalledTimes(1);
-
-                // 2回目: キャッシュヒット → API呼び出しなし
-                await taskService.loadTasks();
-                expect(httpClient.get).toHaveBeenCalledTimes(1);
-
-                // キャッシュクリア（別セッションに切り替えたと仮定）
-                sessionDataCache.clear();
-
-                // タスク完了 → キャッシュ無効化
-                await taskService.completeTask('task-123');
-                // completeTask内でloadTasksが呼ばれる（キャッシュクリア済みなのでAPI呼び出し）
-                expect(httpClient.get).toHaveBeenCalledTimes(2);
-            });
-
-            it('異なるセッションID_独立したキャッシュが保持される', async () => {
-                const mockTasksSession1 = [{ id: '1', name: 'Task 1' }];
-                const mockTasksSession2 = [{ id: '2', name: 'Task 2' }];
-
-                // Session 1
-                appStore.setState({ currentSessionId: 'session-1' });
-                httpClient.get.mockResolvedValue(mockTasksSession1);
-                await taskService.loadTasks();
-                expect(httpClient.get).toHaveBeenCalledTimes(1);
-
-                // Session 2
-                appStore.setState({ currentSessionId: 'session-2' });
-                httpClient.get.mockResolvedValue(mockTasksSession2);
-                await taskService.loadTasks();
-                expect(httpClient.get).toHaveBeenCalledTimes(2); // 別セッションなのでAPI呼び出し
-
-                // Session 1に戻る（キャッシュヒット）
-                appStore.setState({ currentSessionId: 'session-1' });
-                await taskService.loadTasks();
-                expect(httpClient.get).toHaveBeenCalledTimes(2); // キャッシュヒット
-                expect(appStore.getState().tasks).toEqual(mockTasksSession1);
-            });
         });
     });
 

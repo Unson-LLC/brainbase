@@ -58,7 +58,15 @@ export function createGoalSeekRouter({ goalStore, sessionMonitor, managerAI }) {
     });
 
     router.get('/goals', (req, res) => {
-        const goals = goalStore.getAllGoals();
+        const { sessionId } = req.query;
+
+        let goals = goalStore.getAllGoals();
+
+        // セッションIDが指定されている場合、そのセッションのゴールのみを返す
+        if (sessionId) {
+            goals = goals.filter(g => g.sessionId === sessionId);
+        }
+
         res.json(goals);
     });
 
