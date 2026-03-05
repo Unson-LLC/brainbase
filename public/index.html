@@ -10,7 +10,6 @@
     <title>brainbase UI</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="style.css?v=202601032345">
-    <link rel="stylesheet" href="styles/goal-seek.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,6 +41,17 @@
                 <button class="add-session-btn" id="add-session-btn" title="新規セッション">
                     <i data-lucide="plus"></i>
                     <span>New Session</span>
+                </button>
+            </div>
+
+            <div class="sidebar-primary-toggle" id="sidebar-primary-toggle" aria-label="Sidebar primary view">
+                <button class="sidebar-primary-btn" data-view="sessions" title="セッション表示">
+                    <i data-lucide="layers"></i>
+                    <span>Sessions</span>
+                </button>
+                <button class="sidebar-primary-btn" data-view="folders" title="フォルダ表示">
+                    <i data-lucide="folder-tree"></i>
+                    <span>Folders</span>
                 </button>
             </div>
 
@@ -105,15 +115,15 @@
 	        <!-- Left Panel Resize Handle -->
 	        <div class="panel-resize-handle panel-resize-handle-left" id="left-panel-resize-handle" title="ドラッグで幅を変更"></div>
 	
-        <!-- Main Content (Console) -->
-        <main class="main-content">
-            <div id="session-context-bar" class="session-context-bar" role="status" aria-live="polite">
-                <div class="session-context-bar-inner">
-                    <div class="session-context-empty">セッション未選択</div>
-                </div>
-            </div>
-            <div class="console-area" id="console-area">
-                <div class="console-toolbar">
+	        <!-- Main Content (Console) -->
+	        <main class="main-content">
+	            <div id="session-context-bar" class="session-context-bar" role="status" aria-live="polite">
+	                <div class="session-context-bar-inner">
+	                    <div class="session-context-empty">セッション未選択</div>
+	                </div>
+	            </div>
+	            <div class="console-area" id="console-area">
+	                <div class="console-toolbar">
 	                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
 	                        aria-label="クリップボードからペースト">
 	                        <i data-lucide="clipboard"></i>
@@ -133,8 +143,18 @@
 	                    </button>
 	                </div>
 	                <div id="session-goal-banner" class="session-goal-banner hidden"></div>
-                <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
+	                <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
 	                <iframe id="terminal-frame" src="about:blank"></iframe>
+
+	                <!-- Terminal Loading Overlay -->
+	                <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
+	                    <div class="loading-content">
+	                        <div class="spinner"></div>
+	                        <div class="loading-message">Claude起動中...</div>
+	                        <div class="loading-hint">まもなく使えるようになります</div>
+	                    </div>
+	                </div>
+
 	                <div id="menu-overlay" class="menu-overlay hidden"></div>
 	                <div id="drop-overlay" class="drop-overlay">
 	                    <div class="drop-overlay-content">
@@ -254,25 +274,25 @@
 
         <!-- Commit Tree Panel -->
         <div class="panel-resize-handle panel-resize-handle-commit-tree" id="commit-tree-resize-handle" title="ドラッグで幅を変更"></div>
-        <aside class="commit-tree-panel" id="commit-tree-panel">
-            <div class="section-header">
-                <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
-                <div class="commit-tree-header-actions">
-                    <button id="refresh-commit-tree" class="icon-btn" title="更新" aria-label="コミットツリーを更新">
-                        <i data-lucide="refresh-cw"></i>
-                    </button>
-                    <button id="toggle-commit-tree-panel" class="icon-btn" title="コミットパネルを閉じる" aria-label="コミットパネルを閉じる" aria-expanded="true">
-                        <i data-lucide="chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="commit-tree-list" id="commit-tree-list">
-                <div class="commit-tree-empty">セッションを選択してください</div>
-            </div>
-        </aside>
-        <button id="commit-tree-expand-btn" class="commit-tree-expand-btn hidden" title="コミットパネルを開く" aria-label="コミットパネルを開く">
-            <i data-lucide="chevron-left"></i>
-        </button>
+	        <aside class="commit-tree-panel" id="commit-tree-panel">
+	            <div class="section-header">
+	                <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
+	                <div class="commit-tree-header-actions">
+	                    <button id="refresh-commit-tree" class="icon-btn" title="更新" aria-label="コミットツリーを更新">
+	                        <i data-lucide="refresh-cw"></i>
+	                    </button>
+	                    <button id="toggle-commit-tree-panel" class="icon-btn" title="コミットパネルを閉じる" aria-label="コミットパネルを閉じる" aria-expanded="true">
+	                        <i data-lucide="chevron-right"></i>
+	                    </button>
+	                </div>
+	            </div>
+	            <div class="commit-tree-list" id="commit-tree-list">
+	                <div class="commit-tree-empty">セッションを選択してください</div>
+	            </div>
+	        </aside>
+	        <button id="commit-tree-expand-btn" class="commit-tree-expand-btn hidden" title="コミットパネルを開く" aria-label="コミットパネルを開く">
+	            <i data-lucide="chevron-left"></i>
+	        </button>
 
         <!-- Right Panel Resize Handle -->
         <div class="panel-resize-handle panel-resize-handle-right" id="right-panel-resize-handle" title="ドラッグで幅を変更"></div>
@@ -610,6 +630,20 @@
         </div>
     </div>
 
+    <!-- Session Progress Modal -->
+    <div id="session-progress-modal" class="modal">
+        <div class="modal-content progress-modal">
+            <h3>セッション作成中...</h3>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+                <div id="progress-message" class="progress-message">準備中...</div>
+                <div id="progress-percent" class="progress-percent">0%</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Focus Engine Modal -->
     <div id="focus-engine-modal" class="modal">
         <div class="modal-content">
@@ -696,6 +730,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" id="confirm-cancel-btn">キャンセル</button>
+                <button class="btn-info" id="confirm-ai-btn" style="display: none;">🤖 AIに確認して対処</button>
                 <button class="btn-info" id="confirm-action-btn" style="display: none;">アクション</button>
                 <button class="btn-danger" id="confirm-ok-btn">OK</button>
             </div>
@@ -918,7 +953,7 @@
     </div>
 
     <!-- Goal Seek V2 Modal (content rendered dynamically by GoalSeekModal) -->
-    <div id="goal-seek-modal" class="modal"></div>
+    <div id="goal-seek-modal" class="modal-overlay hidden"></div>
 
     <script type="module" src="app.js?v=1766798000"></script>
     <script>

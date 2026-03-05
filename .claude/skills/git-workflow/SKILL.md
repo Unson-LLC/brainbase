@@ -40,11 +40,53 @@ type(scope): summary
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
+## コミット・マージ方針（重要）
+
+**原則**: コミット・マージ対象は「今回のタスクで自分が触ったファイルのみ」。
+
+- 作業開始前から存在する未関連差分は含めない
+- 変更ファイルは `git add <file...>` で明示的に指定してステージする
+- `git add -A` / `git commit -a` のような全量ステージは使わない
+- 未関連差分が残っていても、対象ファイルのみでコミットして先に進める
+
+この方針により、別タスク差分の巻き込みを防ぎ、レビュー対象を明確化する。
+
+## PRマージ後のworkspace更新（必須フロー）
+
+**問題**: PRをマージしても、サーバーのworkspace（`default@`）は自動更新されない
+
+**必須手順**:
+
+```bash
+# 1. 最新を取得
+jj git fetch
+
+# 2. サーバーworkspaceを更新
+jj rebase -b default@ -d develop
+
+# 3. 変更内容を確認
+jj diff -r 'default@^::default@' --stat
+
+# 4. 再起動判定
+# - server/ 配下の変更 → 再起動必要
+# - public/ のみの変更 → 再起動不要（ブラウザリロード）
+
+# 5. 再起動（必要な場合のみ）
+launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
+```
+
+**コマンド**: `/deploy-merged-pr` を使用すると自動実行される
+
+**なぜ必要か**:
+- jjのworkspaceはGitのworktreeと同様、自動更新されない
+- サーバーは`default@`から起動しているため、手動更新が必須
+
 ## 参照
 
 - **CLAUDE.md**: `§6.5 Commit (Decision capture)`
 - **Skills**: git-commit-rules
+- **Commands**: `/deploy-merged-pr`
 
 ---
 
-最終更新: 2026-02-22
+最終更新: 2026-02-27

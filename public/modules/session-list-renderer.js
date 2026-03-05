@@ -32,6 +32,38 @@ function formatRelativeTime(isoString) {
   return `${months}mo ago`;
 }
 
+function getPausedStatusLabel(session, { isPaused, needsRestart }) {
+  if (!isPaused) {
+    return null;
+  }
+
+  if (session.pausedReason === 'manual') {
+    return {
+      text: '⏸ Manual pause',
+      title: 'Paused manually to save resources.'
+    };
+  }
+
+  if (session.pausedReason === 'tmux_missing_on_restore') {
+    return {
+      text: '⏸ Auto pause',
+      title: 'Paused automatically because TMUX session was missing during restore.'
+    };
+  }
+
+  if (session.pausedReason === 'migrated_from_stopped') {
+    return {
+      text: '⏸ Migrated',
+      title: 'Migrated from legacy stopped state.'
+    };
+  }
+
+  return {
+    text: '⏸ Paused',
+    title: 'Session is paused.'
+  };
+}
+
 /**
  * セッション行のHTMLを生成
  * @param {Object} session - セッションオブジェクト
@@ -59,9 +91,20 @@ export function renderSessionRowHTML(session, options = {}) {
   // 意図的な一時停止状態かどうか（intendedStateで判定）
   const isPaused = session.intendedState === 'paused';
   const pausedClass = (needsRestart || isPaused) ? ' paused' : '';
+  const pausedStatusLabel = getPausedStatusLabel(session, { isPaused, needsRestart });
+  const pausedLabelHTML = pausedStatusLabel
+    ? `<span class="paused-label" title="${escapeHtml(pausedStatusLabel.title)}">${escapeHtml(pausedStatusLabel.text)}</span>`
+    : '';
 
-  // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
-  const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
+  // goal-seek status
+  const goalSeekActive = session.goalSeek?.active || false;
+  const goalSeekIteration = session.goalSeek?.iteration || 0;
+  const goalSeekMaxIterations = session.goalSeek?.maxIterations || 0;
+
+  // セッションアイコン: goal-seek active→target、worktreeあり→git-merge、なし→terminal-square
+  const sessionIcon = goalSeekActive
+    ? 'target'
+    : (hasWorktree ? 'git-merge' : 'terminal-square');
 
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
@@ -74,6 +117,11 @@ export function renderSessionRowHTML(session, options = {}) {
   const projectLabel = escapeHtml(project);
   const projectEmojiBadge = showProjectEmoji && projectEmoji
     ? `<span class="session-project-emoji" title="${projectLabel}">${projectEmoji}</span>`
+    : '';
+
+  // goal-seek badge
+  const goalSeekBadge = goalSeekActive
+    ? `<span class="goal-seek-badge" title="Goal Seek: iteration ${goalSeekIteration} of ${goalSeekMaxIterations}">[${goalSeekIteration}/${goalSeekMaxIterations}]</span>`
     : '';
 
   // 会話ログ情報（conversationSummary - 軽量版）
@@ -133,6 +181,8 @@ export function renderSessionRowHTML(session, options = {}) {
         </span>
         ${projectEmojiBadge}
         <span class="session-name">${displayName}</span>
+        ${goalSeekBadge}
+        ${pausedLabelHTML}
         <span class="session-meta session-meta-right">
           ${convBadge}
           ${engineBadge}

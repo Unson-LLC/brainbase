@@ -27,7 +27,6 @@ import { SessionService } from './modules/domain/session/session-service.js';
 import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
-import { GoalSeekService } from './modules/domain/goal-seek/goal-seek-service.js';
 import { BrowserNotificationService } from './modules/domain/browser-notification/browser-notification-service.js';
 import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
 import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
@@ -38,7 +37,6 @@ import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
 import { SessionView } from './modules/ui/views/session-view.js';
 import { InboxView } from './modules/ui/views/inbox-view.js';
 import { NocoDBTasksView } from './modules/ui/views/nocodb-tasks-view.js';
-import { GoalSeekView } from './modules/ui/views/goal-seek-view.js';
 import { SessionContextBarView } from './modules/ui/views/session-context-bar-view.js';
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
@@ -55,7 +53,6 @@ import { TaskEditModal } from './modules/ui/modals/task-edit-modal.js';
 import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 import { RenameModal } from './modules/ui/modals/rename-modal.js';
-import { GoalSeekModal } from './modules/ui/modals/goal-seek-modal.js';
 
 /**
  * Terminal Reconnect Manager
@@ -142,6 +139,16 @@ class TerminalReconnectManager {
 
         // 正常切断（code 1000）は無視（セッション切り替え等）
         if (code === 1000) return;
+
+        // アーカイブ済みセッションの切断は再接続しない
+        const state = appStore.getState();
+        const session = (state.sessions || []).find(s => s.id === sessionId);
+        if (session?.intendedState === 'archived') {
+            console.log(`[reconnect] Ignoring disconnect for archived session ${sessionId}`);
+            this.wsConnected = false;
+            this._emitStatus();
+            return;
+        }
 
         // 最近接続成功した場合は無視（race condition防止）
         if (this.lastConnectTime && Date.now() - this.lastConnectTime < 3000) {
@@ -231,10 +238,18 @@ class TerminalReconnectManager {
             return;
         }
 
+        // アーカイブ済みセッションの再接続をスキップ（意図しない復活を防止）
+        const state = appStore.getState();
+        const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
+        if (currentSession?.intendedState === 'archived') {
+            console.log(`[reconnect] Skipping: session ${this.currentSessionId} is archived`);
+            this.isReconnecting = false;
+            this.retryCount = 0;
+            return;
+        }
+
         try {
             const payload = { sessionId: this.currentSessionId };
-            const state = appStore.getState();
-            const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
 
             const sessionCwd = currentSession?.worktree?.path || currentSession?.path;
             if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
@@ -661,7 +676,6 @@ export class App {
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
         this.container.register('browserNotificationService', () => new BrowserNotificationService());
-        this.container.register('goalSeekService', () => new GoalSeekService());
 
         this.container.register('commitTreeService', () => new CommitTreeService());
 
@@ -672,7 +686,6 @@ export class App {
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
         this.browserNotificationService = this.container.get('browserNotificationService');
-        this.goalSeekService = this.container.get('goalSeekService');
     }
 
     /**
@@ -969,11 +982,6 @@ export class App {
         this.modals.renameModal.mount();
 
         // Goal seek modal
-        this.modals.goalSeekModal = new GoalSeekModal({
-            goalSeekService: this.goalSeekService,
-            browserNotificationService: this.browserNotificationService
-        });
-        this.modals.goalSeekModal.mount();
     }
 
     /**
@@ -1121,10 +1129,6 @@ export class App {
                 this.showConsole();
             }
 
-            // Update session goal banner（セッション切り替え時は即座に非表示→再描画）
-            const banner = document.getElementById('session-goal-banner');
-            if (banner) banner.className = 'session-goal-banner hidden';
-            this._updateSessionGoalBanner(sessionId);
         });
 
         // Start task: create session and switch to it
@@ -1271,54 +1275,7 @@ export class App {
             this.modals.renameModal.open(session);
         });
 
-        // Goal seek: open goal seek modal
-        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
-            const { session } = event.detail;
-            this.modals.goalSeekModal.show(session?.id);
-        });
-
-        // Goal seek: update banner when goal is created/updated
-        const unsubGoalCreated = eventBus.on(EVENTS.GOAL_CREATED, () => {
-            const { currentSessionId } = appStore.getState();
-            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
-        });
-        const unsubGoalUpdated = eventBus.on(EVENTS.GOAL_UPDATED, () => {
-            const { currentSessionId } = appStore.getState();
-            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
-        });
-        const unsubGoalMonitoringStarted = eventBus.on(EVENTS.GOAL_MONITORING_STARTED, () => {
-            const { currentSessionId } = appStore.getState();
-            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
-        });
-        const unsubGoalMonitoringStopped = eventBus.on(EVENTS.GOAL_MONITORING_STOPPED, () => {
-            const { currentSessionId } = appStore.getState();
-            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
-        });
-        const unsubGoalProgressUpdate = eventBus.on(EVENTS.GOAL_PROGRESS_UPDATE, (event) => {
-            const sessionId = event.detail?.goal?.sessionId;
-            const { currentSessionId } = appStore.getState();
-            const targetSession = sessionId || currentSessionId;
-            if (targetSession === currentSessionId) {
-                // チェック時刻だけ軽量更新（再レンダリングなし）
-                const checkTimeEl = document.getElementById('sgb-check-time');
-                if (checkTimeEl) {
-                    const now = new Date();
-                    checkTimeEl.textContent = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')} チェック済`;
-                }
-                // ゴールのstatus変化があれば再レンダリング
-                const goal = event.detail?.goal;
-                if (goal && (goal.status === 'problem' || goal.status === 'escalation')) {
-                    this._updateSessionGoalBanner(targetSession);
-                }
-            }
-        });
-        const unsubGoalProblemDetected = eventBus.on(EVENTS.GOAL_PROBLEM_DETECTED, (event) => {
-            const sessionId = event.detail?.sessionId;
-            const { currentSessionId } = appStore.getState();
-            if (sessionId === currentSessionId) this._updateSessionGoalBanner(currentSessionId);
-        });
-
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -2098,67 +2055,6 @@ export class App {
     }
 
     /**
-     * セッションのゴールをバナーに表示
-     */
-    async _updateSessionGoalBanner(sessionId) {
-        const banner = document.getElementById('session-goal-banner');
-        if (!banner) return;
-
-        banner.dataset.sessionId = sessionId;
-
-        try {
-            const goals = await this.goalSeekService.getGoals();
-            const goal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
-
-            if (!goal) {
-                banner.classList.add('hidden');
-                banner.className = 'session-goal-banner hidden';
-                return;
-            }
-
-            const statusLabel = { active: '未開始', monitoring: '監視中', problem: '問題あり', escalation: 'エスカレーション' }[goal.status] || goal.status;
-            const btnLabel = goal.status === 'monitoring' || goal.status === 'problem' ? '監視停止' : '監視開始';
-            const btnAction = goal.status === 'monitoring' || goal.status === 'problem' ? 'stop' : 'start';
-
-            const isMonitoringActive = goal.status === 'monitoring' || goal.status === 'problem';
-            const checkTimeHtml = isMonitoringActive
-                ? `<span class="sgb-check-time" id="sgb-check-time">チェック中...</span>`
-                : '';
-
-            banner.innerHTML = `
-                <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
-                <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
-                <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
-                <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
-                ${checkTimeHtml}
-            `;
-
-            banner.className = `session-goal-banner status-${goal.status}`;
-
-            const btn = banner.querySelector('.sgb-btn');
-            if (btn) {
-                btn.addEventListener('click', async () => {
-                    try {
-                        if (btnAction === 'start') {
-                            await this.goalSeekService.startMonitoring(goal.id);
-                        } else {
-                            await this.goalSeekService.stopMonitoring(goal.id);
-                        }
-                        this._updateSessionGoalBanner(sessionId);
-                    } catch (err) {
-                        console.error('[GoalBanner] toggle error:', err);
-                        // ゴールが見つからない場合はバナーを更新（古いデータを消去）
-                        this._updateSessionGoalBanner(sessionId);
-                    }
-                });
-            }
-        } catch (err) {
-            console.error('[GoalBanner] fetch error:', err);
-            banner.classList.add('hidden');
-        }
-    }
-
-    /**
      * Switch to a session and update terminal frame
      */
     async switchSession(sessionId) {
@@ -2176,6 +2072,13 @@ export class App {
 
             if (!session) {
                 console.error('Session not found:', sessionId);
+                terminalFrame.src = 'about:blank';
+                return;
+            }
+
+            // アーカイブ済みセッションへの切り替えを防止
+            if (session.intendedState === 'archived') {
+                console.log(`[switchSession] Skipping archived session ${sessionId}`);
                 terminalFrame.src = 'about:blank';
                 return;
             }
@@ -2265,11 +2168,17 @@ export class App {
             }
 
             // Get current session from store
-            const { currentSessionId } = appStore.getState();
+            let { currentSessionId, sessions } = appStore.getState();
+
+            // If no current session, select the first session automatically
+            if (!currentSessionId && sessions && sessions.length > 0) {
+                currentSessionId = sessions[0].id;
+                console.log('Auto-selecting first session:', currentSessionId);
+                await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: currentSessionId });
+            }
 
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
-                this._updateSessionGoalBanner(currentSessionId);
             } else {
                 // Load default data (404エラーは許容)
                 try {
@@ -2321,16 +2230,6 @@ export class App {
 
         // 3. Initialize modals
         this.initModals();
-
-        // 3.1. Initialize Goal Seek View (depends on modals)
-        const goalSeekContainer = document.getElementById('goal-seek-section');
-        if (goalSeekContainer) {
-            this.views.goalSeekView = new GoalSeekView({
-                goalSeekService: this.goalSeekService,
-                modal: this.modals.goalSeekModal
-            });
-            this.views.goalSeekView.mount(goalSeekContainer);
-        }
 
         // 3.5. Initialize project select dropdown
         this.initProjectSelect();

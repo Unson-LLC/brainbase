@@ -215,6 +215,10 @@ export const EVENTS = {
     MERGE_SESSION: 'session:merge',
     RENAME_SESSION: 'session:rename',
     CREATE_SESSION: 'session:create',
+    FOLDER_TREE_LOADED: 'folder-tree:loaded',
+    FOLDER_TREE_NODE_TOGGLED: 'folder-tree:node-toggled',
+    FOLDER_TREE_FILE_OPENED: 'folder-tree:file-opened',
+    FOLDER_TREE_LOAD_FAILED: 'folder-tree:load-failed',
 
     // Schedule関連
     SCHEDULE_LOADED: 'schedule:loaded',
@@ -267,6 +271,7 @@ export const EVENTS = {
     // Goal Seek V2関連
     GOAL_CREATED: 'goal:created',
     GOAL_UPDATED: 'goal:updated',
+    GOAL_DELETED: 'goal:deleted',
     GOAL_MONITORING_STARTED: 'goal:monitoring-started',
     GOAL_MONITORING_STOPPED: 'goal:monitoring-stopped',
     GOAL_PROBLEM_DETECTED: 'goal:problem-detected',

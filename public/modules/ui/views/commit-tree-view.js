@@ -9,19 +9,19 @@ import { escapeHtml } from '../../ui-helpers.js';
 
 const LANE_W = 16;
 const DOT_R = 4;
-const ROW_H = 54;
+const ROW_H = 32;
 
 const COLORS = [
-    '#4a9eff', // blue
-    '#ff6b6b', // red
-    '#50c878', // green
-    '#ffa500', // orange
-    '#da70d6', // orchid
-    '#40e0d0', // turquoise
-    '#ffdf00', // yellow
-    '#ff69b4', // hot pink
-    '#87ceeb', // sky blue
-    '#deb887', // burlywood
+    '#7db3ff', // light blue (明るい青)
+    '#ff8a8a', // light red
+    '#6dd68f', // light green
+    '#ffb84d', // light orange
+    '#e68ae6', // light orchid
+    '#5ee5d5', // light turquoise
+    '#ffe866', // light yellow
+    '#ff8bc4', // light pink
+    '#a3dcf0', // lighter sky blue
+    '#e6c999', // lighter burlywood
 ];
 
 export class CommitTreeView {
@@ -96,24 +96,26 @@ export class CommitTreeView {
         // 1枚SVG
         const graphSvg = this._renderFullGraph(graphRows, maxCols, totalH);
 
-        // コミット情報行
+        // コミット情報行（2行表示 + 色分け）
         const rowsHtml = graphRows.map(row => {
             const c = row.commit;
             const cls = c.isWorkingCopy ? ' current' : '';
             const wcBadge = c.isWorkingCopy ? '<span class="commit-wc-badge">@</span>' : '';
-            const bm = c.bookmarks.length > 0
-                ? c.bookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join('')
+            // ブランチ（bookmark）は重要なもののみ表示
+            const importantBookmarks = c.bookmarks.filter(b =>
+                b === 'main' || b === 'develop' || b.startsWith('session/')
+            );
+            const bm = importantBookmarks.length > 0
+                ? importantBookmarks.map(b => `<span class="commit-bookmark">${escapeHtml(b)}</span>`).join(' ')
                 : '';
             const t = this._formatTime(c.timestamp);
-            return `<div class="commit-row${cls}">
-                <div class="commit-header">
-                    <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}${bm}
-                </div>
-                <div class="commit-desc">${escapeHtml(c.description)}</div>
-                <div class="commit-meta">
-                    <span class="commit-time">${escapeHtml(t)}</span>
-                    <span class="commit-author">${escapeHtml(c.author)}</span>
-                </div>
+            // グラフレーンの色を取得（COLORS配列）
+            const laneColor = COLORS[row.column % COLORS.length];
+            return `<div class="commit-row${cls}" style="color: ${laneColor}">
+                <span class="commit-desc">${escapeHtml(c.description)}</span>
+                <span class="commit-hash">${escapeHtml(c.hash)}</span>${wcBadge}${bm}
+                <span class="commit-author">${escapeHtml(c.author)}</span>
+                <span class="commit-time">${escapeHtml(t)}</span>
             </div>`;
         }).join('');
 
@@ -283,7 +285,11 @@ export class CommitTreeView {
         try {
             const d = new Date(ts);
             if (isNaN(d.getTime())) return ts;
-            return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const minute = String(d.getMinutes()).padStart(2, '0');
+            return `${month}-${day} ${hour}:${minute}`;
         } catch { return ts; }
     }
 

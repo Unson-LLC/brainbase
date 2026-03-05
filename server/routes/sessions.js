@@ -24,6 +24,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     // ========================================
     router.post('/report_activity', controller.reportActivity);
     router.get('/status', controller.getStatus);
+    router.post('/:id/clear-done', controller.clearDone);
     router.get('/:id', controller.get);
 
     // ========================================
@@ -114,16 +115,16 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     // Worktree Operations
     // ========================================
     router.post('/create-with-worktree', controller.createWithWorktree);
+    router.get('/:id/progress', controller.getProgress);
     router.get('/:id/worktree-status', controller.getWorktreeStatus);
     router.get('/:id/context', controller.getContext);
+    router.get('/:id/folder-tree', controller.getFolderTree);
     router.get('/:id/commit-log', controller.getCommitLog);
     router.post('/:id/commit-notify', controller.commitNotify);
     router.get('/:id/commit-notify', controller.getCommitNotify);
     router.post('/:id/update-local-main', controller.updateLocalMain);
     router.post('/:id/merge', controller.merge);
-    router.get('/:id/commit-log', controller.getCommitLog);
-    router.post('/:id/commit-notify', controller.commitNotify);
-    router.get('/:id/commit-notify', controller.getCommitNotify);
+    router.post('/:id/ask-ai-integration', controller.askAiIntegration);
     router.delete('/:id/worktree', controller.deleteWorktree);
 
     return router;

@@ -6,6 +6,7 @@ const confirmMessage = document.getElementById('confirm-modal-message');
 const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 const confirmActionBtn = document.getElementById('confirm-action-btn');
+const confirmAiBtn = document.getElementById('confirm-ai-btn');
 
 const hasConfirmModal = Boolean(
     confirmModal
@@ -34,6 +35,11 @@ if (hasConfirmModal) {
     if (confirmActionBtn) {
         confirmActionBtn.addEventListener('click', () => closeConfirm({ action: 'action' }));
     }
+
+    // AI button event listener (for archive with AI check)
+    if (confirmAiBtn) {
+        confirmAiBtn.addEventListener('click', () => closeConfirm({ action: 'ai' }));
+    }
 }
 
 function closeConfirm(result) {
@@ -42,6 +48,9 @@ function closeConfirm(result) {
     confirmModal.classList.remove('confirm-modal--action');
     if (confirmActionBtn) {
         confirmActionBtn.style.display = 'none';
+    }
+    if (confirmAiBtn) {
+        confirmAiBtn.style.display = 'none';
     }
 
     const resolver = resolvePromise;
@@ -113,15 +122,16 @@ export function showConfirm(message, options = {}) {
 }
 
 /**
- * Show a confirm dialog with an action button (3-button pattern)
+ * Show a confirm dialog with an action button (3-button or 4-button pattern)
  * @param {string} message - The message to display
  * @param {Object} options - Options
  * @param {string} options.title - Modal title (default: '確認')
  * @param {string} options.okText - OK button text (default: 'OK')
  * @param {string} options.cancelText - Cancel button text (default: 'キャンセル')
  * @param {string} options.actionText - Action button text (default: 'アクション')
+ * @param {string} options.aiActionText - AI action button text (optional, enables 4-button mode)
  * @param {boolean} options.danger - Use danger button style for OK (default: true)
- * @returns {Promise<{action: 'ok'|'cancel'|'action'}>} - Resolves to action type
+ * @returns {Promise<{action: 'ok'|'cancel'|'action'|'ai'}>} - Resolves to action type
  */
 export function showConfirmWithAction(message, options = {}) {
     if (!hasConfirmModal) {
@@ -138,6 +148,7 @@ export function showConfirmWithAction(message, options = {}) {
         okText = 'OK',
         cancelText = 'キャンセル',
         actionText = 'アクション',
+        aiActionText = null,
         danger = true
     } = options;
     confirmResponseMode = 'action';
@@ -153,6 +164,14 @@ export function showConfirmWithAction(message, options = {}) {
     confirmMessage.textContent = message;
     confirmOkBtn.textContent = okText;
     confirmCancelBtn.textContent = cancelText;
+
+    // AIボタンを表示（4ボタンモード）
+    if (aiActionText && confirmAiBtn) {
+        confirmAiBtn.textContent = aiActionText;
+        confirmAiBtn.style.display = 'inline-block';
+    } else if (confirmAiBtn) {
+        confirmAiBtn.style.display = 'none';
+    }
 
     // 3つ目のボタンを表示
     if (confirmActionBtn) {

@@ -92,4 +92,43 @@ describe('SessionManager', () => {
     expect(status.isWorking).toBe(false);
     expect(status.isDone).toBe(true); // タイムアウト時はisDone: true
   });
+
+  // Phase 2: working報告優先化のテスト
+  it('working報告受信時_lastDoneAtがリセットされる', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    // done報告を先に送る（Hook報告の順序が逆転するケース）
+    manager.reportActivity('session-1', 'done', now - 2000);
+    manager.reportActivity('session-1', 'working', now - 1000);
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.isDone).toBe(false);
+    expect(status.lastDoneAt).toBe(0); // lastDoneAtがリセットされていることを確認
+  });
+
+  it('clearWorking関数_working状態をクリアする', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now);
+    manager.clearWorking('session-1');
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status).toBeUndefined(); // working状態がクリアされている
+  });
+
+  it('clearWorking関数_done状態は維持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now - 2000);
+    manager.reportActivity('session-1', 'done', now - 1000);
+    manager.clearWorking('session-1');
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isDone).toBe(true); // done状態は維持される
+    expect(status.isWorking).toBe(false);
+  });
 });
