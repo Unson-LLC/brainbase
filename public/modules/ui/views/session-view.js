@@ -499,6 +499,7 @@ export class SessionView {
                                 okText: 'そのままアーカイブ',
                                 cancelText: 'キャンセル',
                                 actionText: 'pushして統合',
+                                aiActionText: '🤖 AIに確認して対処',
                                 danger: true
                             }
                         );
@@ -506,12 +507,29 @@ export class SessionView {
                             ? confirmResult.action
                             : (confirmResult ? 'ok' : 'cancel');
 
+                        if (selectedAction === 'ai') {
+                            // AIに確認して対処
+                            try {
+                                const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
+                                if (aiResult?.success) {
+                                    showSuccess(aiResult.message || 'AIに統合確認を依頼しました');
+                                } else {
+                                    showError(aiResult?.error || 'AI依頼に失敗しました');
+                                }
+                            } catch (aiErr) {
+                                console.error('Failed to ask AI:', aiErr);
+                                showError('AI依頼に失敗しました');
+                            }
+                            return;
+                        }
+
                         if (selectedAction === 'action') {
                             // pushして統合
                             try {
                                 const mergeResult = await this.sessionService.mergeSession(session.id);
                                 if (mergeResult?.success) {
                                     showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
+                                    this._switchToNextActiveSession(session.id);
                                 } else {
                                     showError(mergeResult?.error || 'pushに失敗しました');
                                 }

@@ -34,6 +34,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     router.post('/:id/stop', controller.stop);
     router.post('/:id/archive', controller.archive);
     router.post('/:id/restore', controller.restore);
+    router.post('/:id/ask-ai-integration', controller.askAiIntegration);
 
     // ========================================
     // Terminal I/O

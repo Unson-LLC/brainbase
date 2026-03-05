@@ -492,6 +492,15 @@ export class SessionService {
         return result;
     }
 
+    async askAiToResolveIntegration(sessionId, status) {
+        const result = await this.httpClient.post(
+            `/api/sessions/${sessionId}/ask-ai-integration`,
+            { status }
+        );
+
+        return result;
+    }
+
     /**
      * セッションをアンアーカイブ（復元）
      * restore APIを呼び出し、ttydを再起動してセッションのengineで復元する
