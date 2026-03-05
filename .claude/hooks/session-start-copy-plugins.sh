@@ -1,13 +1,10 @@
 #!/bin/bash
 
-# SessionStart Hook: L2（brainbase-unson）とL3（brainbase-config）の.claude/を自動コピー
-# - plugins/: プラグイン（goal-seek等）
-# - hooks/: このスクリプト自体も含む
-# - settings.json: SessionStart Hook定義（次回実行のため必須）
+# SessionStart Hook: L2とL3の.claude/を標準構造でコピー
+# L3が優先（L2 → L3の順で上書き）
 
 set -e
 
-# brainbaseプロジェクトかどうかをチェック
 L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
 L3_CLAUDE="/Users/ksato/workspace/brainbase-config/.claude"
 
@@ -16,25 +13,36 @@ if [ ! -d "$L2_CLAUDE" ] && [ ! -d "$L3_CLAUDE" ]; then
   exit 0
 fi
 
-echo "🚀 SessionStart Hook: .claude/ をコピー中..."
+echo "🚀 SessionStart Hook: .claude/ をセットアップ中..."
 
 # .claude/ ディレクトリを作成
-mkdir -p .claude/plugins
+mkdir -p .claude/commands
 mkdir -p .claude/hooks
+mkdir -p .claude/scripts
+mkdir -p .claude/skills
 
-# L2（brainbase-unson）からコピー
-L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
+# L2からコピー
 if [ -d "$L2_CLAUDE" ]; then
-  echo "  📦 L2（brainbase-unson）からコピー中..."
+  echo "  📦 L2（brainbase）からコピー中..."
 
-  # plugins/
-  if [ -d "$L2_CLAUDE/plugins" ]; then
-    cp -r "$L2_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
+  # commands/
+  if [ -d "$L2_CLAUDE/commands" ]; then
+    cp -r "$L2_CLAUDE/commands"/* .claude/commands/ 2>/dev/null || true
   fi
 
   # hooks/
   if [ -d "$L2_CLAUDE/hooks" ]; then
     cp -r "$L2_CLAUDE/hooks"/* .claude/hooks/ 2>/dev/null || true
+  fi
+
+  # scripts/
+  if [ -d "$L2_CLAUDE/scripts" ]; then
+    cp -r "$L2_CLAUDE/scripts"/* .claude/scripts/ 2>/dev/null || true
+  fi
+
+  # skills/
+  if [ -d "$L2_CLAUDE/skills" ]; then
+    cp -r "$L2_CLAUDE/skills"/* .claude/skills/ 2>/dev/null || true
   fi
 
   # settings.json
@@ -45,19 +53,28 @@ if [ -d "$L2_CLAUDE" ]; then
   echo "  ✅ L2コピー完了"
 fi
 
-# L3（brainbase-config）で上書き（優先度が高い）
-L3_CLAUDE="/Users/ksato/workspace/brainbase-config/.claude"
+# L3で上書き（優先度が高い）
 if [ -d "$L3_CLAUDE" ]; then
   echo "  📦 L3（brainbase-config）で上書き中..."
 
-  # plugins/
-  if [ -d "$L3_CLAUDE/plugins" ]; then
-    cp -r "$L3_CLAUDE/plugins"/* .claude/plugins/ 2>/dev/null || true
+  # commands/
+  if [ -d "$L3_CLAUDE/commands" ]; then
+    cp -r "$L3_CLAUDE/commands"/* .claude/commands/ 2>/dev/null || true
   fi
 
   # hooks/
   if [ -d "$L3_CLAUDE/hooks" ]; then
     cp -r "$L3_CLAUDE/hooks"/* .claude/hooks/ 2>/dev/null || true
+  fi
+
+  # scripts/
+  if [ -d "$L3_CLAUDE/scripts" ]; then
+    cp -r "$L3_CLAUDE/scripts"/* .claude/scripts/ 2>/dev/null || true
+  fi
+
+  # skills/
+  if [ -d "$L3_CLAUDE/skills" ]; then
+    cp -r "$L3_CLAUDE/skills"/* .claude/skills/ 2>/dev/null || true
   fi
 
   # settings.json
@@ -68,4 +85,4 @@ if [ -d "$L3_CLAUDE" ]; then
   echo "  ✅ L3上書き完了"
 fi
 
-echo "✅ .claude/ コピー完了！（plugins, hooks, settings.json）"
+echo "✅ .claude/ セットアップ完了！"
