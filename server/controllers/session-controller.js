@@ -128,7 +128,7 @@ export class SessionController {
             return res.status(400).json({ error: 'Missing sessionId or status' });
         }
 
-        this.sessionManager.reportActivity(sessionId, status, reportedAt);
+        await this.sessionManager.reportActivity(sessionId, status, reportedAt);
         res.json({ success: true });
     };
 
@@ -597,38 +597,32 @@ export class SessionController {
 
             this._updateProgress(sessionId, 'starting_terminal', 60, 'ターミナル起動中...');
 
-            // state更新とttyd起動を並列実行
-            const [stateResult, ttydResult] = await Promise.allSettled([
-                this.stateStore.update({
-                    ...currentState,
-                    sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
-                }),
-                this.sessionManager.startTtyd({
+            // state更新を先に実行（ttyd起動前に必須）
+            await this.stateStore.update({
+                ...currentState,
+                sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
+            });
+
+            // ttyd起動（state更新完了後）
+            let result;
+            try {
+                result = await this.sessionManager.startTtyd({
                     sessionId,
                     cwd: worktreePath,
                     initialCommand,
                     engine
-                })
-            ]);
-
-            // ttyd起動失敗時はロールバック
-            if (ttydResult.status === 'rejected') {
-                console.error('[createWithWorktree] ttyd start failed:', ttydResult.reason);
+                });
+            } catch (error) {
+                // ttyd起動失敗時はロールバック
+                console.error('[createWithWorktree] ttyd start failed:', error);
                 const rollbackState = this.stateStore.get();
                 await this.stateStore.update({
                     ...rollbackState,
                     sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
                 });
                 this.worktreeService.remove(sessionId, repoPath).catch(() => {});
-                throw ttydResult.reason;
+                throw error;
             }
-
-            // state更新失敗時は警告のみ
-            if (stateResult.status === 'rejected') {
-                console.warn('[createWithWorktree] state update failed (session is usable):', stateResult.reason);
-            }
-
-            const result = ttydResult.value;
 
             this._updateProgress(sessionId, 'starting_claude', 80, 'Claude起動中...');
 
@@ -891,12 +885,11 @@ export class SessionController {
 
         try {
             // jj状態を取得
-            const { execSync } = require('child_process');
             const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
 
-            const jjStatus = execSync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
-            const jjLog = execSync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
-            const jjBookmarks = execSync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
+            const { stdout: jjStatus } = await execAsync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
+            const { stdout: jjLog } = await execAsync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
+            const { stdout: jjBookmarks } = await execAsync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
 
             // Claude Codeに送信するメッセージを構築
             const message = `[システム自動送信]
@@ -925,8 +918,7 @@ ${jjBookmarks}
 この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
 
             // メッセージをクリップボードにコピー（macOS）
-            const { execSync: exec } = require('child_process');
-            exec(`echo "${message.replace(/"/g, '\\"')}" | pbcopy`, { encoding: 'utf-8' });
+            await execAsync(`echo ${JSON.stringify(message)} | pbcopy`, { encoding: 'utf-8' });
 
             res.json({
                 success: true,
