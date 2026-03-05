@@ -111,6 +111,56 @@ launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
 - jjのworkspaceはGitのworktreeと同様、自動更新されない
 - サーバーは`default@`から起動しているため、手動更新が必須
 
+## jj git push と gh pr create のトラブルシューティング
+
+**問題**: `gh pr create` が "No commits between base and head" エラーを出す
+
+**原因**: jj git push と gh pr create が**異なるリポジトリ**を参照している
+
+### デバッグ手順
+
+1. **git remote を確認**
+   ```bash
+   git remote -v
+   # origin  https://github.com/Unson-LLC/brainbase-unson.git (fetch)
+   # origin  https://github.com/Unson-LLC/brainbase-unson.git (push)
+   ```
+
+2. **GitHub API でブランチの存在を確認**
+   ```bash
+   # gh pr create が参照するリポジトリで確認
+   curl -s \
+     -H "Authorization: Bearer $(gh auth token)" \
+     "https://api.github.com/repos/Unson-LLC/brainbase/git/refs/heads/<branch>" | jq
+
+   # 実際に push されたリポジトリで確認
+   curl -s \
+     -H "Authorization: Bearer $(gh auth token)" \
+     "https://api.github.com/repos/Unson-LLC/brainbase-unson/git/refs/heads/<branch>" | jq
+   ```
+
+3. **git ls-remote だけでなく GitHub API でも確認**
+   - `git ls-remote` はローカルキャッシュを見る可能性がある
+   - GitHub API の方が信頼できる
+
+### 解決方法
+
+**方法1**: `--repo` オプションで明示的にリポジトリを指定
+```bash
+gh pr create --repo Unson-LLC/brainbase-unson --base develop --title "..." --body "..."
+```
+
+**方法2**: git remote を正しいリポジトリに設定し直す
+```bash
+git remote set-url origin https://github.com/Unson-LLC/brainbase.git
+```
+
+### 予防策
+
+- PR作成前に `git remote -v` で remote URL を確認する習慣をつける
+- gh CLI のデフォルトリポジトリを確認する: `gh repo view`
+- リポジトリ名が複数ある場合（brainbase vs brainbase-unson）は特に注意
+
 ## 参照
 
 - **CLAUDE.md**: `§6.5 Commit (Decision capture)`
@@ -119,4 +169,4 @@ launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
 
 ---
 
-最終更新: 2026-03-04
+最終更新: 2026-03-05
