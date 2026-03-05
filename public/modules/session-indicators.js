@@ -3,8 +3,8 @@
  *
  * Simple logic:
  * - Orange (working): Hook reports 'working' (AI started)
- * - Green (done): Hook reports 'done' (AI stopped) AND not current session
- * - Hidden: Current session (when done) OR no hook status
+ * - Green (done): Hook reports 'done' (AI stopped)
+ * - Hidden: No hook status
  */
 
 import { eventBus, EVENTS } from './core/event-bus.js';
@@ -28,40 +28,6 @@ export function clearDone(sessionId) {
     if (status) {
         status.isDone = false;
         sessionStatusMap.set(sessionId, status);
-    }
-}
-
-// Clear working status when session is switched
-export function clearWorking(sessionId) {
-    const status = sessionStatusMap.get(sessionId);
-    if (status) {
-        status.isWorking = false;
-        sessionStatusMap.set(sessionId, status);
-    }
-}
-
-/**
- * Mark done indicator as read for a session.
- * Local state is updated first for immediate UI response, then server sync is attempted.
- * @param {string} sessionId - Session to clear done status for
- * @param {string|null} currentSessionId - Current active session id for indicator rendering
- */
-export async function markDoneAsRead(sessionId, currentSessionId = null) {
-    if (!sessionId) return;
-
-    clearDone(sessionId);
-    updateSessionIndicators(currentSessionId);
-    await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates: { doneRead: true } });
-
-    try {
-        const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/clear-done`, {
-            method: 'POST'
-        });
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
-    } catch (error) {
-        console.warn(`[Session Indicators] Failed to persist done-read for ${sessionId}:`, error);
     }
 }
 
@@ -110,30 +76,27 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         const status = await res.json();
-        const previousStatuses = new Map(sessionStatusMap);
-        let hasStatusChange = false;
+        const entries = Object.entries(status || {});
+        let hasStatusChange = entries.length !== sessionStatusMap.size;
 
-        // Debug log: 取得した状態を可視化
-        const workingSessions = Object.entries(status).filter(([, s]) => s.isWorking);
-        const doneSessions = Object.entries(status).filter(([, s]) => s.isDone && !s.isWorking);
-        if (workingSessions.length > 0 || doneSessions.length > 0) {
-            console.log('[Session Indicators] Status update:', {
-                working: workingSessions.map(([id]) => id),
-                done: doneSessions.map(([id]) => id)
-            });
-        }
-
-        // Update map
-        for (const [sessionId, newStatus] of Object.entries(status)) {
-            const prev = previousStatuses.get(sessionId);
+        for (const [sessionId, newStatus] of entries) {
+            const prev = sessionStatusMap.get(sessionId);
             if (!prev ||
                 prev.isWorking !== newStatus.isWorking ||
                 prev.isDone !== newStatus.isDone ||
                 prev.lastWorkingAt !== newStatus.lastWorkingAt ||
-                prev.lastDoneAt !== newStatus.lastDoneAt
+                prev.lastDoneAt !== newStatus.lastDoneAt ||
+                prev.running !== newStatus.running ||
+                prev.proxyPath !== newStatus.proxyPath ||
+                prev.port !== newStatus.port
             ) {
                 hasStatusChange = true;
             }
+        }
+
+        // 常に最新スナップショットへ置き換え（削除済みセッションを反映）
+        sessionStatusMap.clear();
+        for (const [sessionId, newStatus] of entries) {
             sessionStatusMap.set(sessionId, newStatus);
         }
 
@@ -159,15 +122,11 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         consecutiveErrors++;
         console.error('Failed to poll session status:', error);
 
-        // 即座にエラー表示（初回エラー時）
-        if (consecutiveErrors === 1) {
-            showError('サーバーとの接続エラー（リトライ中）');
-            updateConnectionStatus(false);
-        }
-
-        // 連続エラー時の追加通知（3回目）
+        // 連続エラー時のユーザー通知（初回のみ）
         if (consecutiveErrors === MAX_CONSECUTIVE_ERRORS) {
-            showError('サーバーとの接続が不安定です（自動リトライ継続中）');
+            showError('サーバーとの接続が不安定です');
+            // 接続状態を更新（切断）
+            updateConnectionStatus(false);
         }
     }
 }
@@ -203,7 +162,7 @@ export function updateSessionIndicators(currentSessionId) {
             } else {
                 item.appendChild(indicator);
             }
-        } else if (status?.isDone && currentSessionId !== sessionId) {
+        } else if (status?.isDone) {
             const indicator = document.createElement('div');
             indicator.className = 'session-activity-indicator done';
             // drag-handleの後に挿入（左側に配置）

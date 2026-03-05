@@ -14,11 +14,9 @@ import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
-import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
+import { pollSessionStatus, updateSessionIndicators, startPolling } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
-import { createSessionId } from './modules/session-manager.js';
-import { showConfirm, showConfirmWithAction } from './modules/confirm-modal.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
@@ -34,6 +32,11 @@ import { GoalSeekService } from './modules/domain/goal-seek/goal-seek-service.js
 import { BrowserNotificationService } from './modules/domain/browser-notification/browser-notification-service.js';
 import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
 import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
+
+// Skills (Phase 1: Data Collection)
+import { SessionMonitor } from './modules/skills/session-monitor.js';
+import { UsageTracker } from './modules/skills/usage-tracker.js';
+import { SuccessClassifier } from './modules/skills/success-classifier.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -425,6 +428,9 @@ export class App {
         const lastCode = this.reconnectManager?.lastDisconnectCode;
         const recentlyNavigated = this._terminalLastNavigateAt && Date.now() - this._terminalLastNavigateAt < 2500;
 
+        // モバイルではMobile Input Dockから入力するため、iframeフォーカスは不要
+        const isMobile = window.innerWidth <= 768;
+
         let stateClass = 'blocked';
         let text = '入力: 不明';
         let title = `session=${sessionId}`;
@@ -465,7 +471,9 @@ export class App {
                 text = '入力: 切断';
                 title = `session=${sessionId} disconnected${typeof lastCode === 'number' ? ` (code ${lastCode})` : ''}`;
             }
-        } else if (!isFocused) {
+        } else if (!isFocused && !isMobile) {
+            // デスクトップのみ: フォーカスが外れていたらクリックを促す
+            // モバイルではMobile Input Dockから入力するためフォーカス不要
             stateClass = 'needs-focus';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;
@@ -576,7 +584,13 @@ export class App {
             if (!this.reconnectManager?.wsConnected && !this.reconnectManager?.isReconnecting) {
                 this.reconnectManager?.handleDisconnect?.();
             }
-            this.focusTerminal('status-click');
+
+            // モバイルでは focusTerminal を呼ばない（iframe.focus() でキーボードが閉じる問題を回避）
+            const isMobile = window.innerWidth <= 768;
+            if (!isMobile) {
+                this.focusTerminal('status-click');
+            }
+
             this._updateTerminalInputStatus();
         };
         this.terminalInputStatusEl?.addEventListener('click', onStatusClick);
@@ -702,11 +716,15 @@ export class App {
      * Initialize UI plugins
      */
     async initPlugins() {
-        this.pluginManager = new PluginManager({ eventBus, store: appStore });
-        this.pluginManager.registerSlotsFromDOM();
-        this._registerUIPlugins();
-        await this.pluginManager.loadConfig();
-        await this.pluginManager.enableConfiguredPlugins();
+        try {
+            this.pluginManager = new PluginManager({ eventBus, store: appStore });
+            this.pluginManager.registerSlotsFromDOM();
+            this._registerUIPlugins();
+            await this.pluginManager.loadConfig();
+            await this.pluginManager.enableConfiguredPlugins();
+        } catch (error) {
+            console.warn('Plugin initialization failed, continuing without plugins:', error.message);
+        }
     }
 
     /**
@@ -1109,6 +1127,11 @@ export class App {
             if (this.showConsole) {
                 this.showConsole();
             }
+
+            // Update session goal banner（セッション切り替え時は即座に非表示→再描画）
+            const banner = document.getElementById('session-goal-banner');
+            if (banner) banner.className = 'session-goal-banner hidden';
+            this._updateSessionGoalBanner(sessionId);
         });
 
         // Start task: create session and switch to it
@@ -1255,54 +1278,54 @@ export class App {
             this.modals.renameModal.open(session);
         });
 
-        // Merge session: send /merge command to Claude Code
-        const unsub6 = eventBus.on(EVENTS.MERGE_SESSION, async (event) => {
-            const { sessionId } = event.detail;
-            const { sessions } = appStore.getState();
-            const session = sessions.find(s => s.id === sessionId);
-            const displayName = session?.name || sessionId;
-
-            const confirmed = await showConfirm(
-                `「${displayName}」の変更をmainブランチにマージしますか？\n\nClaude Codeで /merge コマンドを実行します。`,
-                {
-                    title: 'Merge to main',
-                    okText: 'マージ実行',
-                    cancelText: 'キャンセル',
-                    danger: false
-                }
-            );
-            if (!confirmed) {
-                return;
-            }
-
-            try {
-                // Send /merge command to Claude Code via tmux
-                await fetch(`/api/sessions/${sessionId}/input`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input: '/merge', type: 'text' })
-                });
-                // Send Enter key to execute the command
-                await fetch(`/api/sessions/${sessionId}/input`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input: 'Enter', type: 'key' })
-                });
-
-                showSuccess('/merge コマンドを送信しました。ターミナルで進捗を確認してください。');
-            } catch (err) {
-                console.error('Failed to send merge command', err);
-                showError('/merge コマンドの送信に失敗しました');
-            }
-        });
-
         // Goal seek: open goal seek modal
         const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
             const { session } = event.detail;
             this.modals.goalSeekModal.show(session?.id);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsub6, unsubGoalSeek);
+        // Goal seek: update banner when goal is created/updated
+        const unsubGoalCreated = eventBus.on(EVENTS.GOAL_CREATED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalUpdated = eventBus.on(EVENTS.GOAL_UPDATED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalMonitoringStarted = eventBus.on(EVENTS.GOAL_MONITORING_STARTED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalMonitoringStopped = eventBus.on(EVENTS.GOAL_MONITORING_STOPPED, () => {
+            const { currentSessionId } = appStore.getState();
+            if (currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+        const unsubGoalProgressUpdate = eventBus.on(EVENTS.GOAL_PROGRESS_UPDATE, (event) => {
+            const sessionId = event.detail?.goal?.sessionId;
+            const { currentSessionId } = appStore.getState();
+            const targetSession = sessionId || currentSessionId;
+            if (targetSession === currentSessionId) {
+                // チェック時刻だけ軽量更新（再レンダリングなし）
+                const checkTimeEl = document.getElementById('sgb-check-time');
+                if (checkTimeEl) {
+                    const now = new Date();
+                    checkTimeEl.textContent = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')} チェック済`;
+                }
+                // ゴールのstatus変化があれば再レンダリング
+                const goal = event.detail?.goal;
+                if (goal && (goal.status === 'problem' || goal.status === 'escalation')) {
+                    this._updateSessionGoalBanner(targetSession);
+                }
+            }
+        });
+        const unsubGoalProblemDetected = eventBus.on(EVENTS.GOAL_PROBLEM_DETECTED, (event) => {
+            const sessionId = event.detail?.sessionId;
+            const { currentSessionId } = appStore.getState();
+            if (sessionId === currentSessionId) this._updateSessionGoalBanner(currentSessionId);
+        });
+
+        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5, unsubGoalSeek, unsubGoalCreated, unsubGoalUpdated, unsubGoalMonitoringStarted, unsubGoalMonitoringStopped, unsubGoalProgressUpdate, unsubGoalProblemDetected);
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -1380,8 +1403,8 @@ export class App {
         await this.initSettingsWithExtensions();
 
         const cleanupSessionViewToggle = setupSessionViewToggle({ store: appStore });
-        this.unsubscribers.push(cleanupSessionViewToggle);
         const cleanupSidebarPrimaryToggle = setupSidebarPrimaryToggle({ store: appStore });
+        this.unsubscribers.push(cleanupSessionViewToggle);
         this.unsubscribers.push(cleanupSidebarPrimaryToggle);
 
         // Auth button (sidebar)
@@ -1390,8 +1413,8 @@ export class App {
         // Archive toggle button
         const toggleArchivedBtn = document.getElementById('toggle-archived-btn');
         if (toggleArchivedBtn) {
-            toggleArchivedBtn.onclick = () => {
-                this.modals.archiveModal.open();
+            toggleArchivedBtn.onclick = async () => {
+                await this.modals.archiveModal.open();
             };
         }
 
@@ -2021,8 +2044,8 @@ export class App {
         // Mobile archive toggle button
         const mobileToggleArchivedBtn = document.getElementById('mobile-toggle-archived-btn');
         if (mobileToggleArchivedBtn) {
-            mobileToggleArchivedBtn.addEventListener('click', () => {
-                this.modals.archiveModal.open();
+            mobileToggleArchivedBtn.addEventListener('click', async () => {
+                await this.modals.archiveModal.open();
                 closeSessionsSheet();
             });
         }
@@ -2081,6 +2104,67 @@ export class App {
         const sessionsBottomSheet = document.getElementById('sessions-bottom-sheet');
         sessionsSheetOverlay?.classList.remove('active');
         sessionsBottomSheet?.classList.remove('active');
+    }
+
+    /**
+     * セッションのゴールをバナーに表示
+     */
+    async _updateSessionGoalBanner(sessionId) {
+        const banner = document.getElementById('session-goal-banner');
+        if (!banner) return;
+
+        banner.dataset.sessionId = sessionId;
+
+        try {
+            const goals = await this.goalSeekService.getGoals();
+            const goal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
+
+            if (!goal) {
+                banner.classList.add('hidden');
+                banner.className = 'session-goal-banner hidden';
+                return;
+            }
+
+            const statusLabel = { active: '未開始', monitoring: '監視中', problem: '問題あり', escalation: 'エスカレーション' }[goal.status] || goal.status;
+            const btnLabel = goal.status === 'monitoring' || goal.status === 'problem' ? '監視停止' : '監視開始';
+            const btnAction = goal.status === 'monitoring' || goal.status === 'problem' ? 'stop' : 'start';
+
+            const isMonitoringActive = goal.status === 'monitoring' || goal.status === 'problem';
+            const checkTimeHtml = isMonitoringActive
+                ? `<span class="sgb-check-time" id="sgb-check-time">チェック中...</span>`
+                : '';
+
+            banner.innerHTML = `
+                <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
+                <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
+                <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
+                <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
+                ${checkTimeHtml}
+            `;
+
+            banner.className = `session-goal-banner status-${goal.status}`;
+
+            const btn = banner.querySelector('.sgb-btn');
+            if (btn) {
+                btn.addEventListener('click', async () => {
+                    try {
+                        if (btnAction === 'start') {
+                            await this.goalSeekService.startMonitoring(goal.id);
+                        } else {
+                            await this.goalSeekService.stopMonitoring(goal.id);
+                        }
+                        this._updateSessionGoalBanner(sessionId);
+                    } catch (err) {
+                        console.error('[GoalBanner] toggle error:', err);
+                        // ゴールが見つからない場合はバナーを更新（古いデータを消去）
+                        this._updateSessionGoalBanner(sessionId);
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('[GoalBanner] fetch error:', err);
+            banner.classList.add('hidden');
+        }
     }
 
     /**
@@ -2197,6 +2281,7 @@ export class App {
 
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
+                this._updateSessionGoalBanner(currentSessionId);
             } else {
                 // Load default data (404エラーは許容)
                 try {
@@ -2262,8 +2347,8 @@ export class App {
         // 3.5. Initialize project select dropdown
         this.initProjectSelect();
 
-        // 3.8. Initialize UI plugins
-        await this.initPlugins();
+        // 3.8. Initialize UI plugins (non-blocking to prevent session load delay)
+        this.initPlugins();
 
         // 3.9. Initialize panel resize
         this.cleanupPanelResize = initPanelResize();
@@ -2290,6 +2375,23 @@ export class App {
             this.reconnectManager = new TerminalReconnectManager();
             this.reconnectManager.init(terminalFrame);
             this.setupTerminalInputUx();
+        }
+
+        // 6.7. Initialize Skills tracking (SessionMonitor)
+        try {
+            const usageTracker = new UsageTracker();
+            const successClassifier = new SuccessClassifier();
+
+            this.sessionMonitor = new SessionMonitor({
+                usageTracker,
+                successClassifier
+            });
+
+            this.sessionMonitor.start();
+            console.log('[SessionMonitor] initialized and listening to SESSION_ARCHIVED');
+        } catch (error) {
+            console.warn('[SessionMonitor] initialization failed (non-critical):', error.message);
+            // Graceful degradation: アプリケーション起動継続
         }
 
         // 7. Start session status polling (every 3 seconds)
@@ -2503,39 +2605,21 @@ export class App {
     async createSession(project, name, initialCommand, useWorktree, engine) {
         console.log('Creating session:', { project, name, useWorktree, engine });
 
-        // useWorktreeの場合、sessionIdを事前に生成してプログレスポーリングを開始
-        let sessionId;
-        if (useWorktree) {
-            sessionId = createSessionId('session');
-            this.showProgressModal();
-            this._pollProgress(sessionId);
-        }
-
         try {
             const result = await this.sessionService.createSession({
                 project,
                 name,
                 initialCommand,
                 useWorktree,
-                engine,
-                sessionId  // 事前生成したsessionIdを渡す
+                engine
             });
 
             console.log('Session created successfully:', result);
-
-            if (useWorktree) {
-                this.hideProgressModal();
-            }
 
             // Switch to the newly created session
             if (result.sessionId) {
                 appStore.setState({ currentSessionId: result.sessionId });
                 eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: result.sessionId });
-
-                if (useWorktree) {
-                    this.showTerminalLoadingOverlay();
-                    this._waitForClaudeInitialization(result.sessionId);
-                }
             }
 
             this.closeMobileSessionsSheet();
@@ -2548,140 +2632,8 @@ export class App {
 
         } catch (error) {
             console.error('Failed to create session:', error);
-            if (useWorktree) {
-                this.hideProgressModal();
-            }
             this.showError('セッションの作成に失敗しました');
         }
-    }
-
-    /**
-     * プログレスモーダル表示
-     */
-    showProgressModal() {
-        const modal = document.getElementById('session-progress-modal');
-        if (!modal) return;
-        modal.classList.add('active');
-    }
-
-    /**
-     * プログレスモーダル非表示
-     */
-    hideProgressModal() {
-        const modal = document.getElementById('session-progress-modal');
-        if (!modal) return;
-        modal.classList.remove('active');
-        this._stopProgressPolling();
-    }
-
-    /**
-     * プログレスポーリング
-     * @param {string} sessionId - セッションID
-     */
-    _pollProgress(sessionId) {
-        this._progressSessionId = sessionId;
-        this._progressPollingActive = true;
-        this._currentPercent = 0;
-
-        const poll = async () => {
-            if (!this._progressPollingActive) return;
-
-            try {
-                const progress = await this.sessionService.getProgress(this._progressSessionId, this._currentPercent || 0);
-
-                if (progress) {
-                    this._currentPercent = progress.percent;
-                    this._updateProgressUI(progress);
-
-                    if (progress.percent >= 100 || progress.phase === 'error') {
-                        this._stopProgressPolling();
-                        return;
-                    }
-                }
-
-                setTimeout(poll, 500);
-            } catch (error) {
-                console.error('[Progress Poll] Error:', error);
-                setTimeout(poll, 1000);
-            }
-        };
-
-        poll();
-    }
-
-    /**
-     * プログレスポーリング停止
-     */
-    _stopProgressPolling() {
-        this._progressPollingActive = false;
-    }
-
-    /**
-     * プログレスUI更新
-     * @param {Object} progress - プログレス情報
-     */
-    _updateProgressUI(progress) {
-        const fill = document.getElementById('progress-fill');
-        const message = document.getElementById('progress-message');
-        const percent = document.getElementById('progress-percent');
-
-        if (fill) fill.style.width = `${progress.percent}%`;
-        if (message) message.textContent = progress.message;
-        if (percent) percent.textContent = `${progress.percent}%`;
-    }
-
-    /**
-     * ターミナルローディングオーバーレイ表示
-     */
-    showTerminalLoadingOverlay() {
-        const overlay = document.getElementById('terminal-loading-overlay');
-        if (!overlay) return;
-        overlay.classList.remove('hidden');
-    }
-
-    /**
-     * ターミナルローディングオーバーレイ非表示
-     */
-    hideTerminalLoadingOverlay() {
-        const overlay = document.getElementById('terminal-loading-overlay');
-        if (!overlay) return;
-        overlay.classList.add('hidden');
-    }
-
-    /**
-     * Claude初期化待機
-     * @param {string} sessionId - セッションID
-     */
-    async _waitForClaudeInitialization(sessionId) {
-        const maxWaitTime = 60000;
-        const pollInterval = 1000;
-        const startTime = Date.now();
-
-        const checkInitialization = async () => {
-            try {
-                const status = await this.httpClient.get('/api/sessions/status');
-                const sessionStatus = status[sessionId];
-
-                if (sessionStatus?.isWorking || sessionStatus?.isDone) {
-                    console.log(`[Claude Init] Session ${sessionId} initialized`);
-                    this.hideTerminalLoadingOverlay();
-                    return;
-                }
-
-                if (Date.now() - startTime > maxWaitTime) {
-                    console.warn(`[Claude Init] Timeout for session ${sessionId}`);
-                    this.hideTerminalLoadingOverlay();
-                    return;
-                }
-
-                setTimeout(checkInitialization, pollInterval);
-            } catch (error) {
-                console.error('[Claude Init] Status check failed:', error);
-                setTimeout(checkInitialization, pollInterval);
-            }
-        };
-
-        checkInitialization();
     }
 
     /**
@@ -2867,6 +2819,9 @@ export class App {
         // Cleanup mobile input controller
         this.mobileInputController?.destroy();
 
+        // Cleanup SessionMonitor
+        this.sessionMonitor?.stop();
+
         console.log('brainbase-ui destroyed');
     }
 }
@@ -2888,4 +2843,40 @@ if (shouldAutoStart) {
 
     // Expose for debugging
     window.brainbaseApp = app;
+
+    // バックグラウンドから復帰時のボトムナビ表示復元
+    // iOS Safariでページがキャッシュから復元された時にCSSが正しく適用されない問題の対策
+    const ensureBottomNavVisibility = () => {
+        // モバイルのみ処理
+        if (window.innerWidth > 768) return;
+
+        const bottomNav = document.getElementById('mobile-bottom-nav');
+        if (!bottomNav) return;
+
+        // キーボード表示中は非表示のまま（要件通り）
+        const keyboardOpen = document.body.classList.contains('keyboard-open');
+        if (keyboardOpen) {
+            bottomNav.style.display = 'none';
+        } else {
+            // キーボード非表示の場合は必ず表示
+            bottomNav.style.display = 'flex';
+        }
+    };
+
+    // ページが visible になった時（バックグラウンドから復帰）
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            ensureBottomNavVisibility();
+        }
+    });
+
+    // iOS Safari でページがキャッシュから復元された時
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            ensureBottomNavVisibility();
+        }
+    });
+
+    // 初回ロード時も実行
+    ensureBottomNavVisibility();
 }

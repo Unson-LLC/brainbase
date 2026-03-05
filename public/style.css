@@ -137,10 +137,6 @@ body::after {
     min-height: 38px;
     padding: 6px 10px;
     white-space: normal;
-    font-size: 13px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-    flex-direction: column;
 }
 
 .session-context-empty {
@@ -148,91 +144,62 @@ body::after {
     font-size: 12px;
 }
 
-.context-primary {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-}
-
-.session-context-bar-inner .engine-svg-icon {
-    width: 14px;
-    height: 14px;
-    vertical-align: middle;
-    margin: 0 2px;
-}
-
-.context-separator {
-    color: var(--text-tertiary);
-    margin: 0 6px;
-    opacity: 0.5;
-}
-
-.context-alert {
+.session-context-pill {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    padding: 2px 6px;
-    border-radius: 4px;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 2px 8px;
     background: rgba(255, 255, 255, 0.04);
+    max-width: 260px;
 }
 
-.context-alert.is-warning {
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.1);
-}
-
-.context-alert.is-ok {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.1);
-}
-
-.context-expand-btn {
-    background: none;
-    border: none;
-    color: var(--text-tertiary);
-    font-size: 10px;
-    cursor: pointer;
-    padding: 4px 8px;
-    margin-left: auto;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-}
-
-.context-expand-btn:hover {
-    opacity: 1;
-}
-
-.context-details {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 12px;
-    width: 100%;
-}
-
-.context-detail-item {
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-}
-
-.context-detail-label {
+.session-context-label {
     color: var(--text-tertiary);
     font-size: 11px;
-    min-width: 80px;
-    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
-.context-detail-value {
+.session-context-value {
     color: var(--text-secondary);
-    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    font-size: 12px;
+    display: inline-block;
+    max-width: 180px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+}
+
+.session-context-value[data-full]:hover::after {
+    content: attr(data-full);
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 120;
+    width: max-content;
+    max-width: min(72vw, 760px);
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(8, 12, 22, 0.96);
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.35;
+    white-space: normal;
     word-break: break-all;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+}
+
+.session-context-value.is-ok {
+    color: #23c18f;
+}
+
+.session-context-value.is-warning {
+    color: #f5c242;
 }
 
 /* Pane 3: Right Context (Schedule & Tasks) */
@@ -453,19 +420,18 @@ body::after {
     width: 100%;
     border: none;
     background: transparent;
-    color: var(--text-secondary);
+    color: inherit;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 6px;
+    padding: 5px 4px;
     border-radius: 6px;
     cursor: pointer;
     text-align: left;
 }
 
 .folder-tree-node:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .folder-tree-chev {
@@ -479,8 +445,8 @@ body::after {
 
 .folder-tree-chev i,
 .folder-tree-icon i {
-    width: 12px;
-    height: 12px;
+    width: 13px;
+    height: 13px;
 }
 
 .folder-tree-chev.spacer {
@@ -493,50 +459,50 @@ body::after {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: var(--text-secondary);
 }
 
 .folder-tree-item.directory .folder-tree-icon {
-    color: #f7c948;
+    color: #f4b740;
 }
 
 .folder-tree-item.file .folder-tree-icon {
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
 }
 
 .folder-tree-name {
     flex: 1;
     min-width: 0;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 12px;
+    color: var(--text-primary);
 }
 
 .folder-tree-loading,
 .folder-tree-empty,
 .folder-tree-error {
-    color: var(--text-secondary);
+    padding: 8px 6px;
     font-size: 12px;
-    padding: 8px 4px;
+    color: var(--text-secondary);
 }
 
 .folder-tree-error {
-    color: #ef4444;
+    color: #fca5a5;
 }
 
 .folder-tree-loading-node,
 .folder-tree-empty-node {
-    color: var(--text-tertiary);
+    margin-left: 24px;
+    padding: 4px 0 6px;
     font-size: 11px;
-    padding: 2px 6px 4px 32px;
+    color: var(--text-tertiary);
 }
 
 .folder-tree-truncated {
-    margin-top: 8px;
-    color: var(--text-tertiary);
     font-size: 11px;
-    padding: 0 6px;
+    color: var(--warning-color);
+    padding: 0 4px;
 }
 
 /* Filter Section */
@@ -1240,10 +1206,10 @@ body::after {
 
 /* Terminal input status (focus/connection visibility) */
 .terminal-input-status {
-    position: absolute;
+    position: fixed;  /* absolute → fixed に変更（mobile-input-dock と同じ座標系で確実に上に表示）*/
     bottom: 50px;
     left: 8px;
-    z-index: 101;
+    z-index: 1003;  /* mobile-bottom-nav (1001) と mobile-input-dock (1002) より上に表示 */
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -2001,6 +1967,7 @@ body::after {
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
 }
 
@@ -2018,7 +1985,6 @@ body::after {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-left: auto;
 }
 
 .commit-tree-repo-badge {
@@ -2073,20 +2039,17 @@ body::after {
 
 .commit-tree-rows {
     position: relative;
-    overflow-x: auto;
-    overflow-y: hidden;
 }
 
 .commit-row {
-    height: 32px;
+    height: 54px;
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    padding: 0 4px 0 2px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 6px 4px 2px;
     box-sizing: border-box;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    min-width: max-content;
+    overflow: hidden;
 }
 
 .commit-row.current {
@@ -2095,49 +2058,39 @@ body::after {
 }
 
 .commit-wc-badge {
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
-    padding: 0 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.15);
+    padding: 0 5px;
+    border-radius: 3px;
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--accent-blue);
     flex-shrink: 0;
+}
+
+.commit-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: nowrap;
+    overflow: hidden;
 }
 
 .commit-hash {
     font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 10px;
-    flex-shrink: 0;
-    width: 60px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    opacity: 0.7;
-}
-
-.commit-author {
-    font-size: 10px;
-    flex-shrink: 0;
-    width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    opacity: 0.7;
-}
-
-.commit-time {
-    font-size: 10px;
-    flex-shrink: 0;
-    width: 75px;
-    text-align: right;
-    opacity: 0.6;
+    font-size: 11px;
+    color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.1);
+    padding: 1px 5px;
+    border-radius: 3px;
 }
 
 .commit-bookmark {
     font-size: 10px;
     font-weight: 500;
-    padding: 2px 6px;
+    padding: 1px 5px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(34, 197, 94, 0.15);
+    color: rgb(34, 197, 94);
     max-width: 120px;
     white-space: nowrap;
     overflow: hidden;
@@ -2146,24 +2099,9 @@ body::after {
 }
 
 .commit-desc {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    flex-shrink: 0;
-    width: 400px;
-    min-width: 0;
-}
-
-.commit-desc-prefix {
-    display: inline-flex;
-    gap: 4px;
-    min-width: 0;
-}
-
-.commit-desc-text {
-    min-width: 0;
+    font-size: 12px;
+    color: var(--text-primary);
+    margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2171,6 +2109,14 @@ body::after {
 
 .commit-row.current .commit-desc {
     font-weight: 500;
+}
+
+.commit-meta {
+    display: flex;
+    gap: 8px;
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-tertiary);
 }
 
 .panel-resize-handle-commit-tree {
@@ -2183,13 +2129,13 @@ body::after {
     color: var(--text-secondary);
     width: 26px;
     height: 42px;
-    border-radius: 6px 0 0 6px;
-    position: fixed;
-    right: 350px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 55;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
     cursor: pointer;
+    margin: 0 4px 0 2px;
+    flex-shrink: 0;
 }
 
 .commit-tree-expand-btn:hover {
@@ -5799,6 +5745,24 @@ body.resizing iframe {
         --mobile-input-offset: 120px;
     }
 
+    /* Session Context Bar: モバイルで横スクロール */
+    .session-context-bar-inner {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox */
+    }
+
+    .session-context-bar-inner::-webkit-scrollbar {
+        display: none; /* Chrome, Safari */
+    }
+
+    /* Terminal Input Status: モバイルでは mobile-input-dock のすぐ上に表示 */
+    .terminal-input-status {
+        bottom: calc(56px + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px) + var(--mobile-input-offset, 120px) + 8px);
+        /* mobile-bottom-nav (56px) + safe-area + keyboard-offset + mobile-input-dock (120px) + マージン8px */
+    }
+
     /* Mobile Input Dock */
     .mobile-input-dock {
         display: block;
@@ -5872,9 +5836,10 @@ body.resizing iframe {
         display: none;
     }
 
-    body.keyboard-open .mobile-bottom-nav {
+    /* 修正: モバイル下メニューバーを常に表示（キーボード開いてても表示） */
+    /* body.keyboard-open .mobile-bottom-nav {
         display: none;
-    }
+    } */
 
     body.keyboard-open .mobile-input-dock {
         bottom: calc(env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
@@ -6048,9 +6013,10 @@ body.resizing iframe {
         flex-wrap: wrap;
     }
 
-    body.mobile-composer-open .mobile-bottom-nav {
+    /* 修正: モバイル下メニューバーを常に表示（Composer開いてても表示） */
+    /* body.mobile-composer-open .mobile-bottom-nav {
         display: none;
-    }
+    } */
 
     /* Mobile Input Sheets */
     .mobile-input-sheet-overlay {
@@ -6159,30 +6125,15 @@ body.resizing iframe {
         visibility: hidden !important;
     }
 
-    .commit-tree-panel {
+    .commit-tree-panel,
+    .commit-tree-expand-btn {
         display: none !important;
         width: 0 !important;
         visibility: hidden !important;
     }
 
-    .commit-tree-expand-btn {
-        display: none !important;
-        width: 0 !important;
-    }
-
     .panel-resize-handle-commit-tree {
         display: none !important;
-    }
-
-    .session-context-bar-inner {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-    }
-
-    .session-context-bar-inner::-webkit-scrollbar {
-        display: none;
     }
 
     /* Main content takes full width */
@@ -8103,105 +8054,4 @@ flex-wrap: wrap;
 .intervention-option label {
     cursor: pointer;
     color: var(--text-primary);
-}
-
-/* ========================================
-   Session Progress Modal
-   ======================================== */
-
-.progress-modal {
-    width: 90%;
-    max-width: 500px;
-    padding: 2rem;
-}
-
-.progress-container {
-    margin-top: 1.5rem;
-}
-
-.progress-bar {
-    width: 100%;
-    height: 24px;
-    background: var(--bg-tertiary, #2a2a2a);
-    border-radius: 12px;
-    overflow: hidden;
-    position: relative;
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent-primary, #4CAF50) 0%, var(--accent-secondary, #66BB6A) 100%);
-    border-radius: 12px;
-    transition: width 0.3s ease;
-    width: 0%;
-}
-
-.progress-message {
-    margin-top: 1rem;
-    font-size: 0.9rem;
-    color: var(--text-secondary, #999);
-    text-align: center;
-}
-
-.progress-percent {
-    margin-top: 0.5rem;
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: var(--text-primary, #fff);
-    text-align: center;
-}
-
-/* ========================================
-   Terminal Loading Overlay
-   ======================================== */
-
-.terminal-loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    transition: opacity 0.3s ease;
-}
-
-.terminal-loading-overlay.hidden {
-    opacity: 0;
-    pointer-events: none;
-}
-
-.loading-content {
-    text-align: center;
-    padding: 2rem;
-}
-
-.spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid rgba(255, 255, 255, 0.1);
-    border-top-color: var(--accent-primary, #4CAF50);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.loading-message {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: var(--text-primary, #fff);
-    margin-bottom: 0.5rem;
-}
-
-.loading-hint {
-    font-size: 0.9rem;
-    color: var(--text-secondary, #999);
 }

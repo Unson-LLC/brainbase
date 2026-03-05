@@ -1,9 +1,0 @@
-{
-  "hooks": [
-    {
-      "name": "goal-seek-stop-hook",
-      "type": "stop",
-      "path": "hooks/goal-seek-stop-hook.sh"
-    }
-  ]
-}

@@ -46,17 +46,8 @@ export class MobileInputUIController {
         this.bindTouchClickHandler(dockSend, 'dock', dockInput);
 
         // iOS Safari対応: touchstart + click で確実にタップ検出
-        this.bindTapHandler(dockMore, () => {
+        this.bindDockTapWithRefocus(dockMore, () => {
             this.toggleDockExpanded();
-
-            // compact時のみキーボードを再表示
-            const isCompact = this.elements.dock?.classList.contains('compact');
-            if (isCompact) {
-                const dockInput = this.elements.dockInput;
-                if (dockInput) {
-                    this.focusManager.refocusInput(dockInput);
-                }
-            }
         });
         this.bindTapHandler(dockSessions, () => {
             this.handleSessionsSheet();
@@ -352,17 +343,12 @@ export class MobileInputUIController {
     }
 
     setDockExpanded(expanded) {
-        const { dock, dockMore, dockInput } = this.elements;
+        const { dock, dockMore } = this.elements;
         if (!dock || !dockMore) return;
         dock.classList.toggle('expanded', expanded);
         dock.classList.toggle('compact', !expanded);
         document.body.classList.toggle('mobile-input-expanded', expanded);
-        dockMore.textContent = expanded ? '×' : '≡';
-
-        // expanded時: キーボードを強制的に閉じる
-        if (expanded && dockInput) {
-            dockInput.blur();
-        }
+        dockMore.textContent = expanded ? 'Less' : 'More';
     }
 
     async handleSend(mode) {

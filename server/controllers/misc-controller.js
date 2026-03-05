@@ -113,13 +113,13 @@ export class MiscController {
      * - filePath or path: ファイルパス（相対パスまたは絶対パス）
      * - line: 行番号（cursorモード時のみ）
      * - mode: 開き方 ('cursor' | 'file' | 'reveal')
-     *   - 'cursor': Cursorエディタで開く
+     *   - 'cursor': Cursorエディタで開く（既存の動作、デフォルト）
      *   - 'file': デフォルトアプリで開く
      *   - 'reveal': Finderで表示
      */
     openFile = async (req, res) => {
         try {
-            const { filePath, path: pathParam, line, mode = 'file', cwd } = req.body;
+            const { filePath, path: pathParam, line, mode = 'cursor', cwd } = req.body;
             const targetPath = pathParam || filePath;
 
             logger.debug('openFile request', { mode, line, hasPath: !!targetPath });

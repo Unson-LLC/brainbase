@@ -19,17 +19,8 @@ INITIAL_CMD_FILE=""
 STATE_JSON_PATH=""
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
-if [ -f "$STATE_JSON_PATH" ]; then
-    # 優先: jq（高速）
-    if command -v jq >/dev/null 2>&1; then
-        WORKTREE_PATH=$(jq -r --arg sid "$SESSION_NAME" '
-            .sessions[] |
-            select(.id == $sid) |
-            (.worktree.path // .path) // empty
-        ' "$STATE_JSON_PATH" 2>/dev/null)
-    # フォールバック: Python3（互換性）
-    elif command -v python3 >/dev/null 2>&1; then
-        WORKTREE_PATH=$(python3 -c "
+if [ -f "$STATE_JSON_PATH" ] && command -v python3 >/dev/null 2>&1; then
+    WORKTREE_PATH=$(python3 -c "
 import json, sys
 try:
     with open('$STATE_JSON_PATH') as f:
@@ -45,8 +36,6 @@ try:
 except Exception:
     pass
 " 2>/dev/null)
-    fi
-
     if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
         cd "$WORKTREE_PATH"
     fi
@@ -221,17 +210,40 @@ if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
 fi
 
+sync_codex_prompts_link() {
+    local codex_dir="$HOME/.codex"
+    local prompts_link="$codex_dir/prompts"
+    local project_prompts_dir="$PWD/.claude/commands"
+
+    if [ ! -d "$project_prompts_dir" ]; then
+        return 0
+    fi
+
+    mkdir -p "$codex_dir" 2>/dev/null || true
+
+    # Use the current project command directory as the single source for /prompts:*.
+    if [ -L "$prompts_link" ] || [ -e "$prompts_link" ]; then
+        rm -rf "$prompts_link" 2>/dev/null || true
+    fi
+    ln -s "$project_prompts_dir" "$prompts_link" 2>/dev/null || true
+}
+
 # Apply tmux settings first (before session creation/attachment)
 # These settings help prevent character duplication when typing fast over WebSocket (ttyd)
 tmux set -g escape-time 0 2>/dev/null || true
 tmux set -g default-terminal "screen-256color" 2>/dev/null || true
 tmux set -g mouse off 2>/dev/null || true
 
+if [ "$ENGINE" = "codex" ]; then
+    sync_codex_prompts_link
+fi
+
 # Check if session exists
 if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     # Create new session
     tmux new-session -d -s "$SESSION_NAME"
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
+    tmux set-environment -t "$SESSION_NAME" BRAINBASE_SERVER_PATH "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
     if [ "$ENGINE" = "codex" ]; then
         # Default Codex permissions: full filesystem + network, no approval prompts

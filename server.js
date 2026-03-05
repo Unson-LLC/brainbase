@@ -56,6 +56,7 @@ import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createSetupRouter } from './server/routes/setup.js';
 import { createGoalSeekRouter } from './server/routes/goal-seek.js';
+import skillsRouter from './server/routes/skills.js';
 
 // Import GoalSeek V2 services
 import { GoalSeekStore } from './server/services/goal-seek-store.js';
@@ -646,6 +647,7 @@ app.use('/api/goal-seek', createGoalSeekRouter({
     sessionMonitor,
     managerAI
 }));
+app.use('/api/skills', skillsRouter);
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================

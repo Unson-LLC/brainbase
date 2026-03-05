@@ -198,20 +198,10 @@ export class SessionView {
      */
     _getTimelineSessions(sessions) {
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
-        const currentSessionId = appStore.getState().currentSessionId;
-
-        return [...filtered].sort((a, b) => {
-            const aStatus = a?.id ? getSessionStatus(a.id) : null;
-            const bStatus = b?.id ? getSessionStatus(b.id) : null;
-            const aIsDonePriority = Boolean(aStatus?.isDone) && a.id !== currentSessionId;
-            const bIsDonePriority = Boolean(bStatus?.isDone) && b.id !== currentSessionId;
-
-            if (aIsDonePriority !== bIsDonePriority) {
-                return bIsDonePriority ? 1 : -1;
-            }
-
+        const sorted = [...filtered].sort((a, b) => {
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
+        return sorted;
     }
 
     /**
@@ -430,6 +420,10 @@ export class SessionView {
             if (dropdownMenu) {
                 dropdownMenu.classList.add('hidden');
             }
+            const overlay = document.getElementById('menu-overlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+            }
         };
 
         // Rename button
@@ -445,17 +439,39 @@ export class SessionView {
         // Delete button
         const deleteBtn = row.querySelector('.delete-session-btn');
         if (deleteBtn) {
+            console.log('[session-view] Delete button found for session:', session.id);
             deleteBtn.addEventListener('click', async (e) => {
+                console.log('[session-view] Delete button clicked for session:', session.id);
                 e.stopPropagation();
                 closeDropdown();
                 const displayName = session.name || session.id;
+                console.log('[session-view] Showing confirm dialog for:', displayName);
                 const confirmed = await showConfirm(
                     `セッション「${displayName}」を削除しますか？`,
                     { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
                 );
+                console.log('[session-view] Confirm result:', confirmed);
                 if (!confirmed) return;
-                await this.sessionService.deleteSession(session.id);
+                console.log('[session-view] Calling deleteSession for:', session.id);
+                try {
+                    await this.sessionService.deleteSession(session.id);
+                    console.log('[session-view] Delete succeeded for:', session.id);
+                    // 成功通知
+                    if (window.showToast) {
+                        window.showToast(`セッション「${displayName}」を削除しました`, 'success');
+                    }
+                } catch (error) {
+                    console.error('[session-view] Delete failed for:', session.id, error);
+                    // エラー通知
+                    if (window.showToast) {
+                        window.showToast(`削除に失敗しました: ${error.message}`, 'error');
+                    } else {
+                        alert(`削除に失敗しました: ${error.message}`);
+                    }
+                }
             });
+        } else {
+            console.warn('[session-view] Delete button NOT found for session:', session.id);
         }
 
         // Archive button
@@ -476,26 +492,20 @@ export class SessionView {
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
-                        const criticalDetails = [];
-                        const infoDetails = [];
+                        const details = [];
 
-                        // Jujutsu概念でステータス表示（重要な警告のみ）
+                        // Jujutsu概念でステータス表示
                         if (status.changesNotPushed > 0) {
-                            criticalDetails.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
+                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
+                        }
+                        if (!status.bookmarkPushed && status.bookmarkName) {
+                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
                         }
                         if (status.hasWorkingCopyChanges) {
-                            criticalDetails.push('working copyに未完了のchangeがあります');
+                            details.push('working copyに未完了のchangeがあります');
                         }
 
-                        // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
-                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges)) {
-                            infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
-                        }
-
-                        const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
-                        const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
-                        const detailText = criticalText + infoText;
-
+                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
                         const confirmResult = await showConfirmWithAction(
                             `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
@@ -516,8 +526,6 @@ export class SessionView {
                                 const mergeResult = await this.sessionService.mergeSession(session.id);
                                 if (mergeResult?.success) {
                                     showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
-                                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
-                                    this._switchToNextActiveSession(session.id);
                                 } else {
                                     showError(mergeResult?.error || 'pushに失敗しました');
                                 }
@@ -534,14 +542,10 @@ export class SessionView {
                         }
                         await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
                         showSuccess(`セッション「${displayName}」をアーカイブしました`);
-                        // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
-                        this._switchToNextActiveSession(session.id);
                         return;
                     }
 
                     showSuccess(`セッション「${displayName}」をアーカイブしました`);
-                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
-                    this._switchToNextActiveSession(session.id);
                 } catch (error) {
                     console.error('Failed to archive session:', error);
                     showError('アーカイブに失敗しました');
@@ -572,10 +576,31 @@ export class SessionView {
         // Merge button
         const mergeBtn = row.querySelector('.merge-session-btn');
         if (mergeBtn) {
-            mergeBtn.addEventListener('click', (e) => {
+            mergeBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
+                const displayName = session.name || session.id;
+                const confirmed = await showConfirm(
+                    `「${displayName}」の変更をmainへマージしますか？`,
+                    {
+                        title: 'Merge to main',
+                        okText: 'マージ実行',
+                        cancelText: 'キャンセル'
+                    }
+                );
+                if (!confirmed) return;
+
+                try {
+                    const mergeResult = await this.sessionService.mergeSession(session.id);
+                    if (mergeResult?.success) {
+                        showSuccess(`セッション「${displayName}」をマージしました`);
+                    } else {
+                        showError(mergeResult?.error || 'マージに失敗しました');
+                    }
+                } catch (error) {
+                    console.error('Failed to merge session:', error);
+                    showError('マージに失敗しました');
+                }
             });
         }
 
@@ -754,45 +779,6 @@ export class SessionView {
         inputEl.focus();
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
         return true;
-    }
-
-    /**
-     * アーカイブしたセッションがアクティブだった場合、別のアクティブセッションに切り替え
-     * @param {string} archivedSessionId - アーカイブしたセッションID
-     */
-    _switchToNextActiveSession(archivedSessionId) {
-        const currentSessionId = this.store.getState().currentSessionId;
-
-        // アーカイブしたセッションが現在のアクティブセッションでない場合はスキップ
-        if (currentSessionId !== archivedSessionId) {
-            return;
-        }
-
-        // 他のアクティブセッションを取得（archived以外）
-        const sessions = this.store.getState().sessions || [];
-        const activeSessions = sessions.filter(s =>
-            s.intendedState !== 'archived' && s.id !== archivedSessionId
-        );
-
-        if (activeSessions.length === 0) {
-            // アクティブセッションがない場合、currentSessionIdをnullに
-            this.store.setState({ currentSessionId: null });
-            this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: null });
-            return;
-        }
-
-        // 最新のアクティブセッション（createdAt降順）を選択
-        const sortedSessions = activeSessions.sort((a, b) => {
-            const dateA = new Date(a.createdAt || 0);
-            const dateB = new Date(b.createdAt || 0);
-            return dateB - dateA;  // 降順
-        });
-
-        const nextSession = sortedSessions[0];
-        this.store.setState({ currentSessionId: nextSession.id });
-        this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: nextSession.id });
-
-        console.log(`[Archive] Switched from ${archivedSessionId} to ${nextSession.id}`);
     }
 
     /**

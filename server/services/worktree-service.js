@@ -58,12 +58,9 @@ export class WorktreeService {
      * 新しいJujutsu workspaceを作成
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
-     * @param {Object} options - オプション
-     * @param {boolean} options.skipFetch - git fetchをスキップするか（デフォルト: false）
      * @returns {Promise<{worktreePath: string, branchName: string, repoPath: string}|null>}
      */
-    async create(sessionId, repoPath, options = {}) {
-        const { skipFetch = false } = options;
+    async create(sessionId, repoPath) {
         await this.ensureWorktreesDir();
 
         const repoName = path.basename(repoPath);
@@ -82,7 +79,14 @@ export class WorktreeService {
             // Check if Jujutsu is available
             const isJujutsu = await this._isJujutsuRepo(repoPath);
             if (!isJujutsu) {
-                throw new Error(`Not a Jujutsu repository: ${repoPath}. Run 'jj git init' in the repository first.`);
+                console.log(`[workspace] Not a jj repo, auto-initializing at ${repoPath}...`);
+                try {
+                    await this.execPromise(`cd "${repoPath}" && jj git init --colocate`);
+                    console.log(`[workspace] jj git init --colocate succeeded at ${repoPath}`);
+                    this.isJujutsuRepo = null; // キャッシュリセット
+                } catch (initErr) {
+                    throw new Error(`jj git init failed at ${repoPath}: ${initErr.message}`);
+                }
             }
 
             // Check if workspace already exists
@@ -102,19 +106,43 @@ export class WorktreeService {
             }
 
             // Fetch latest from remote
-            if (!skipFetch) {
-                try {
-                    await this.execPromise(`jj -R "${repoPath}" git fetch`);
-                } catch (fetchErr) {
-                    console.log(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
-                }
-            } else {
-                console.log(`[workspace] git fetch skipped (skipFetch=true)`);
+            try {
+                await this.execPromise(`jj -R "${repoPath}" git fetch`);
+            } catch (fetchErr) {
+                console.log(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
             }
 
             // Create workspace
             await this.execPromise(`jj -R "${repoPath}" workspace add --name "${workspaceName}" "${workspacePath}"`);
             console.log(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
+
+            // Register as git worktree (for git command compatibility)
+            try {
+                const gitWorktreePath = path.join(repoPath, '.git', 'worktrees', workspaceName);
+                await fs.mkdir(gitWorktreePath, { recursive: true });
+
+                // .git/worktrees/{workspace}/gitdir
+                await fs.writeFile(
+                    path.join(gitWorktreePath, 'gitdir'),
+                    path.join(workspacePath, '.git') + '\n'
+                );
+
+                // .git/worktrees/{workspace}/commondir
+                await fs.writeFile(
+                    path.join(gitWorktreePath, 'commondir'),
+                    '../..\n'
+                );
+
+                // worktree/.git file
+                await fs.writeFile(
+                    path.join(workspacePath, '.git'),
+                    `gitdir: ${gitWorktreePath}\n`
+                );
+
+                console.log(`[workspace] Registered git worktree at ${gitWorktreePath}`);
+            } catch (gitErr) {
+                console.log(`[workspace] Git worktree registration failed (non-critical): ${gitErr.message}`);
+            }
 
             // Create bookmark
             try {
@@ -235,11 +263,13 @@ export class WorktreeService {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
 
-            // Get changes not pushed (main..@)
+            // Get changes not pushed (startCommit..@ if available, else main..@)
+            // startCommitを使うことでセッション開始後のcommitのみカウント（他セッションのcommitを除外）
             let changesNotPushed = 0;
             try {
+                const baseRef = startCommit || mainBranchName;
                 const { stdout: aheadCount } = await this.execPromise(
-                    `jj -R "${workspacePath}" log -r "${mainBranchName}..@" -T '"x\n"' --no-pager 2>/dev/null | wc -l`
+                    `jj -R "${workspacePath}" log -r "${baseRef}..@-" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
                 );
                 changesNotPushed = parseInt(aheadCount.trim()) || 0;
             } catch {
@@ -252,29 +282,21 @@ export class WorktreeService {
                 const { stdout: statusOutput } = await this.execPromise(
                     `jj -R "${workspacePath}" status --no-pager`
                 );
-                hasWorkingCopyChanges = statusOutput.trim().length > 0;
+                hasWorkingCopyChanges = statusOutput.includes('Working copy changes:');
             } catch {
                 hasWorkingCopyChanges = false;
             }
 
             // Check if bookmark exists and is pushed to remote
-            // リモートの最新状態を取得
-            try {
-                await this.execPromise(`jj -R "${repoPath}" git fetch`);
-            } catch (fetchErr) {
-                console.log(`[getStatus] git fetch failed, continuing: ${fetchErr.message}`);
-            }
-
             // bookmark名はsessionId or session/sessionIdの両方を試す
             let bookmarkPushed = false;
             const bookmarkCandidates = [bookmarkName, `session/${bookmarkName}`];
             for (const candidate of bookmarkCandidates) {
                 try {
                     const { stdout: bookmarkList } = await this.execPromise(
-                        `jj -R "${repoPath}" bookmark list "${candidate}" --all-remotes --no-pager`
+                        `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager`
                     );
-                    // リモートのbookmarkが存在するかチェック（@origin: または origin: を含む）
-                    if (bookmarkList.includes('@origin:') || bookmarkList.includes('origin:')) {
+                    if (bookmarkList.includes('origin') || bookmarkList.includes('@origin')) {
                         bookmarkPushed = true;
                         break;
                     }
@@ -284,7 +306,9 @@ export class WorktreeService {
             }
 
             // Determine if integration (push) is needed
-            const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges || !bookmarkPushed;
+            // !bookmarkPushed は除外: 何も作業していないセッションでもbookmarkはremoteにない（false positive）
+            // commitがあれば changesNotPushed > 0 が補足するので !bookmarkPushed は不要
+            const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges;
 
             return {
                 exists: true,
@@ -443,18 +467,19 @@ EOF
      * @returns {Promise<{commits: Array, repoType: string, repoName: string, worktreePath: string}>}
      */
     async getCommitLog(sessionId, repoPath, limit = 50) {
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
+        const dirName = path.basename(repoPath);
+        const workspaceName = `${sessionId}-${dirName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
 
         // Check if workspace exists
         try {
             await fs.access(workspacePath);
         } catch {
-            return { commits: [], repoType: 'unknown', repoName, worktreePath: workspacePath };
+            return { commits: [], repoType: 'unknown', repoName: dirName, worktreePath: workspacePath };
         }
 
         const isJujutsu = await this._isJujutsuRepo(repoPath);
+        const repoName = await this._getRemoteRepoName(repoPath, isJujutsu) || dirName;
 
         if (isJujutsu) {
             const result = await this._getJujutsuCommitLog(workspacePath, limit);
@@ -552,6 +577,37 @@ EOF
                     parents: parentStr ? parentStr.split(' ').filter(Boolean) : []
                 };
             });
+    }
+
+    /**
+     * origin remoteのURLからリポジトリ名を取得
+     * @private
+     * @param {string} repoPath - リポジトリパス
+     * @param {boolean} isJujutsu - jjリポジトリかどうか
+     * @returns {Promise<string|null>}
+     */
+    async _getRemoteRepoName(repoPath, isJujutsu) {
+        try {
+            let url;
+            if (isJujutsu) {
+                const { stdout } = await this.execPromise(
+                    `jj -R "${repoPath}" git remote list --no-pager 2>/dev/null`
+                );
+                const originLine = stdout.split('\n').find(l => l.startsWith('origin '));
+                url = originLine?.split(/\s+/)[1];
+            } else {
+                const { stdout } = await this.execPromise(
+                    `git -C "${repoPath}" remote get-url origin 2>/dev/null`
+                );
+                url = stdout.trim();
+            }
+            if (!url) return null;
+            // Extract repo name from URL: https://github.com/Org/repo-name.git → repo-name
+            const match = url.match(/\/([^/]+?)(?:\.git)?$/);
+            return match ? match[1] : null;
+        } catch {
+            return null;
+        }
     }
 
     /**

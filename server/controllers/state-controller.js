@@ -12,7 +12,7 @@ const ALLOWED_SESSION_FIELDS = [
     'engine', 'intendedState', 'createdAt', 'archivedAt', 'merged', 'mergedAt',
     'updatedAt',
     // Schema v2 追加フィールド
-    'lastAccessedAt', 'pausedAt', 'pausedReason', 'tmuxMissingAt', 'tmuxCleanedAt',
+    'lastAccessedAt', 'pausedAt', 'tmuxCleanedAt',
     // Schema v3 追加フィールド
     'ttydProcess',
     // 状態管理フィールド

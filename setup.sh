@@ -99,53 +99,6 @@ if [ ! -d "$DATA_DIR/_codex" ]; then
     echo "   (You can create your own _codex later)"
 fi
 
-# Setup .claude/hooks/ and settings.json for SessionStart Hook
-echo "🪝 Setting up SessionStart Hook..."
-mkdir -p "$REPO_ROOT/.claude/hooks"
-
-if [ ! -f "$REPO_ROOT/.claude/hooks/session-start-copy-plugins.sh" ]; then
-    if [ -f "$REPO_ROOT/.claude/hooks/session-start-copy-plugins.sh.sample" ]; then
-        cp "$REPO_ROOT/.claude/hooks/session-start-copy-plugins.sh.sample" "$REPO_ROOT/.claude/hooks/session-start-copy-plugins.sh"
-        chmod +x "$REPO_ROOT/.claude/hooks/session-start-copy-plugins.sh"
-        echo "   ✅ SessionStart Hook script created"
-    fi
-fi
-
-if [ ! -f "$REPO_ROOT/.claude/settings.json" ]; then
-    if [ -f "$REPO_ROOT/.claude/settings.json.sample" ]; then
-        cp "$REPO_ROOT/.claude/settings.json.sample" "$REPO_ROOT/.claude/settings.json"
-        echo "   ✅ .claude/settings.json created"
-    fi
-fi
-
-# Setup global Claude Code settings
-GLOBAL_CLAUDE_SETTINGS="$HOME/.claude/settings.json"
-if [ -f "$GLOBAL_CLAUDE_SETTINGS" ]; then
-    # Check if SessionStart hook is already configured
-    if ! grep -q "session-start-copy-plugins.sh" "$GLOBAL_CLAUDE_SETTINGS" 2>/dev/null; then
-        echo "   📝 Adding SessionStart Hook to global Claude Code settings..."
-        echo "   ⚠️  Manual step required:"
-        echo "      Add the following to $GLOBAL_CLAUDE_SETTINGS under \"hooks\" section:"
-        echo ""
-        echo "      \"SessionStart\": ["
-        echo "        {"
-        echo "          \"hooks\": ["
-        echo "            {"
-        echo "              \"type\": \"command\","
-        echo "              \"command\": \"$REPO_ROOT/.claude/hooks/session-start-copy-plugins.sh\""
-        echo "            }"
-        echo "          ]"
-        echo "        }"
-        echo "      ]"
-        echo ""
-    else
-        echo "   ✅ SessionStart Hook already configured in global settings"
-    fi
-else
-    echo "   ⚠️  $GLOBAL_CLAUDE_SETTINGS not found"
-    echo "      SessionStart Hook will not work automatically for new sessions"
-fi
-
 echo ""
 echo "✅ Setup complete!"
 echo ""

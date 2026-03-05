@@ -18,7 +18,6 @@ describe('SessionController (Server)', () => {
     mockSessionManager = {
       stopTtyd: vi.fn(),
       cleanupSessionResources: vi.fn(),
-      clearDoneStatus: vi.fn(),
       activeSessions: new Map()
     };
 
@@ -125,31 +124,6 @@ describe('SessionController (Server)', () => {
 
       // Verify archive() doesn't call execPromise directly (tmux cleanup is delegated to stopTtyd)
       expect(execPromiseMock).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('clearDone', () => {
-    it('clearDone呼び出し時_clearDoneStatusが実行される', async () => {
-      const req = {
-        params: { id: 'session-1' }
-      };
-
-      await sessionController.clearDone(req, mockRes);
-
-      expect(mockSessionManager.clearDoneStatus).toHaveBeenCalledWith('session-1');
-      expect(mockRes.json).toHaveBeenCalledWith({ success: true });
-    });
-
-    it('clearDone呼び出し時_id未指定_400を返す', async () => {
-      const req = {
-        params: { id: '' }
-      };
-
-      await sessionController.clearDone(req, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Session ID is required' });
-      expect(mockSessionManager.clearDoneStatus).not.toHaveBeenCalled();
     });
   });
 

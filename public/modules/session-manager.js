@@ -161,7 +161,7 @@ export function buildSessionObject(params) {
     initialCommand = null,
     taskId = null,
     worktree = null,
-    intendedState = 'running',
+    intendedState = 'paused',
     engine = 'claude'
   } = params;
 
