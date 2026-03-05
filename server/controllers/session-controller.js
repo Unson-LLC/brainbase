@@ -875,6 +875,71 @@ export class SessionController {
     };
 
     /**
+     * POST /api/sessions/:id/ask-ai-integration
+     * AIに統合確認と対処を依頼
+     */
+    askAiIntegration = async (req, res) => {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        try {
+            // jj状態を取得
+            const { execSync } = require('child_process');
+            const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
+
+            const jjStatus = execSync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
+            const jjLog = execSync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
+            const jjBookmarks = execSync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
+
+            // Claude Codeに送信するメッセージを構築
+            const message = `[システム自動送信]
+
+ユーザーがアーカイブしようとしたが、以下の警告が出ました：
+
+${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
+${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
+${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
+
+現在の状態：
+=== jj status ===
+${jjStatus}
+
+=== jj log ===
+${jjLog}
+
+=== jj bookmark list ===
+${jjBookmarks}
+
+セッション情報：
+- session-id: ${id}
+- プロジェクト: ${session.name || 'unson'}
+- パス: ${workspacePath}
+
+この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
+
+            // メッセージをクリップボードにコピー（macOS）
+            const { execSync: exec } = require('child_process');
+            exec(`echo "${message.replace(/"/g, '\\"')}" | pbcopy`, { encoding: 'utf-8' });
+
+            res.json({
+                success: true,
+                message: 'AIへの依頼内容をクリップボードにコピーしました。Claude Codeのチャット画面でペーストして送信してください。',
+                clipboardContent: message
+            });
+        } catch (error) {
+            console.error('Failed to ask AI for integration:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
      * GET /api/sessions/:id/commit-log
      * コミットログを取得
      */
