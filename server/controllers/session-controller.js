@@ -246,6 +246,14 @@ export class SessionController {
             return res.status(400).json({ error: 'sessionId is required' });
         }
 
+        // アーカイブ済みセッションの起動を拒否（自動再接続による意図しない復活を防止）
+        const currentState = this.stateStore.get();
+        const targetSession = (currentState.sessions || []).find(s => s.id === sessionId);
+        if (targetSession?.intendedState === 'archived') {
+            console.log(`[start] Rejected: session ${sessionId} is archived`);
+            return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+
         try {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
