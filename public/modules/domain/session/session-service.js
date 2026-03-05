@@ -481,6 +481,21 @@ export class SessionService {
     }
 
     /**
+     * AIに統合確認と対処を依頼
+     * @param {string} sessionId - セッションID
+     * @param {Object} status - 統合ステータス情報
+     * @returns {Promise<Object>}
+     */
+    async askAiToResolveIntegration(sessionId, status) {
+        const result = await this.httpClient.post(
+            `/api/sessions/${sessionId}/ask-ai-integration`,
+            { status }
+        );
+
+        return result;
+    }
+
+    /**
      * セッションをアンアーカイブ（復元）
      * restore APIを呼び出し、ttydを再起動してセッションのengineで復元する
      * @param {string} sessionId - 復元するセッションのID

@@ -2,7 +2,7 @@
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { promisify } from 'util';
@@ -151,7 +151,7 @@ export class SessionController {
             return res.status(400).json({ error: 'Missing sessionId or status' });
         }
 
-        this.sessionManager.reportActivity(sessionId, status, reportedAt);
+        await this.sessionManager.reportActivity(sessionId, status, reportedAt);
         res.json({ success: true });
     };
 
@@ -563,14 +563,37 @@ export class SessionController {
                 sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
             }));
 
+<<<<<<< HEAD
             let result;
             try {
                 // Start ttyd session with worktree as cwd
+=======
+            // state更新を先に実行（ttyd起動前に必須）
+            await this.stateStore.update({
+                ...currentState,
+                sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
+            });
+
+            // ttyd起動（state更新完了後）
+            let result;
+            try {
+>>>>>>> temp-ai-integration-fix
                 result = await this.sessionManager.startTtyd({
                     sessionId,
                     cwd: worktreePath,
                     initialCommand,
                     engine
+<<<<<<< HEAD
+=======
+                });
+            } catch (error) {
+                // ttyd起動失敗時はロールバック
+                console.error('[createWithWorktree] ttyd start failed:', error);
+                const rollbackState = this.stateStore.get();
+                await this.stateStore.update({
+                    ...rollbackState,
+                    sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
+>>>>>>> temp-ai-integration-fix
                 });
             } catch (error) {
                 // Roll back state + workspace on failure (best-effort)
@@ -585,6 +608,10 @@ export class SessionController {
                 this.worktreeService.remove(sessionId, repoPath).catch(() => {});
                 throw error;
             }
+
+            this._updateProgress(sessionId, 'starting_claude', 80, 'Claude起動中...');
+
+            this._updateProgress(sessionId, 'initializing', 90, '初期化中...');
 
             res.json({
                 success: true,
@@ -827,6 +854,94 @@ export class SessionController {
             res.json(result);
         } catch (error) {
             console.error('Failed to merge worktree:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
+     * POST /api/sessions/:id/ask-ai-integration
+     * AIに統合確認と対処を依頼
+     */
+    askAiIntegration = async (req, res) => {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        try {
+            // jj状態を取得
+            const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
+
+            const { stdout: jjStatus } = await execAsync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
+            const { stdout: jjLog } = await execAsync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
+            const { stdout: jjBookmarks } = await execAsync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
+
+            // Claude Codeに送信するメッセージを構築
+            const message = `[システム自動送信]
+
+ユーザーがアーカイブしようとしたが、以下の警告が出ました：
+
+${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
+${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
+${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
+
+現在の状態：
+=== jj status ===
+${jjStatus}
+
+=== jj log ===
+${jjLog}
+
+=== jj bookmark list ===
+${jjBookmarks}
+
+セッション情報：
+- session-id: ${id}
+- プロジェクト: ${session.name || 'unson'}
+- パス: ${workspacePath}
+
+この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
+
+            // メッセージをクリップボードにコピー（macOS）
+            console.log('[askAiIntegration] Message length:', message.length);
+            console.log('[askAiIntegration] Message preview:', message.substring(0, 200));
+
+            await new Promise((resolve, reject) => {
+                const pbcopy = spawn('pbcopy');
+
+                pbcopy.stdin.write(message, 'utf8');
+                pbcopy.stdin.end();
+
+                pbcopy.on('close', (code) => {
+                    console.log('[askAiIntegration] pbcopy closed with code:', code);
+                    if (code === 0) resolve();
+                    else reject(new Error(`pbcopy failed with code ${code}`));
+                });
+
+                pbcopy.on('error', (err) => {
+                    console.error('[askAiIntegration] pbcopy error:', err);
+                    reject(err);
+                });
+
+                pbcopy.stderr.on('data', (data) => {
+                    console.error('[askAiIntegration] pbcopy stderr:', data.toString());
+                });
+            });
+
+            console.log('[askAiIntegration] Clipboard copy completed');
+
+            res.json({
+                success: true,
+                message: 'AIへの依頼内容をクリップボードにコピーしました。Claude Codeのチャット画面でペーストして送信してください。',
+                clipboardContent: message
+            });
+        } catch (error) {
+            console.error('Failed to ask AI for integration:', error);
             res.status(500).json({ error: error.message });
         }
     };
