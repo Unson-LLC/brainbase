@@ -587,10 +587,6 @@ export class SessionController {
                 throw error;
             }
 
-            this._updateProgress(sessionId, 'starting_claude', 80, 'Claude起動中...');
-
-            this._updateProgress(sessionId, 'initializing', 90, '初期化中...');
-
             res.json({
                 success: true,
                 port: result.port,
