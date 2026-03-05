@@ -41,7 +41,7 @@ export class SessionManager {
         this.outputParser = new TerminalOutputParser();
 
         // 許可されたキー
-        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Tab', 'S-Tab', 'BTab'];
+        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab'];
     }
 
     /**
