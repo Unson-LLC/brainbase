@@ -1141,9 +1141,15 @@ export class App {
             const duration = performance.now() - startTime;
             console.log(`[SessionSwitch] Completed in ${duration.toFixed(2)}ms`);
 
-            // Auto-return to console view if available
+            // Auto-return to console view
             if (this.showConsole) {
                 this.showConsole();
+            } else {
+                // Fallback: showConsole未初期化時（ダッシュボード未訪問）でもconsole viewに戻す
+                const consoleArea = document.getElementById('console-area');
+                const dashboardPanel = document.getElementById('dashboard-panel');
+                if (consoleArea) consoleArea.style.display = 'flex';
+                if (dashboardPanel) dashboardPanel.style.display = 'none';
             }
 
             // Update session goal banner（セッション切り替え時は即座に非表示→再描画）
