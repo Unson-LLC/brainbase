@@ -563,40 +563,18 @@ export class SessionController {
                 sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
             }));
 
-<<<<<<< HEAD
-            let result;
-            try {
-                // Start ttyd session with worktree as cwd
-=======
-            // state更新を先に実行（ttyd起動前に必須）
-            await this.stateStore.update({
-                ...currentState,
-                sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
-            });
-
             // ttyd起動（state更新完了後）
             let result;
             try {
->>>>>>> temp-ai-integration-fix
                 result = await this.sessionManager.startTtyd({
                     sessionId,
                     cwd: worktreePath,
                     initialCommand,
                     engine
-<<<<<<< HEAD
-=======
                 });
             } catch (error) {
                 // ttyd起動失敗時はロールバック
                 console.error('[createWithWorktree] ttyd start failed:', error);
-                const rollbackState = this.stateStore.get();
-                await this.stateStore.update({
-                    ...rollbackState,
-                    sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
->>>>>>> temp-ai-integration-fix
-                });
-            } catch (error) {
-                // Roll back state + workspace on failure (best-effort)
                 try {
                     await this._updateStateWithRetry((currentState) => ({
                         ...currentState,
