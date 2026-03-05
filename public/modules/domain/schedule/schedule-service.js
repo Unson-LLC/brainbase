@@ -1,7 +1,6 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { sessionDataCache } from '../../core/session-data-cache.js';
 
 /**
  * スケジュールのビジネスロジック
@@ -26,26 +25,7 @@ export class ScheduleService {
      * @returns {Promise<Object>} スケジュールデータ
      */
     async loadSchedule() {
-        const sessionId = this.store.getState().currentSessionId;
-
-        // キャッシュチェック
-        const cached = sessionDataCache.get('schedule', sessionId);
-        if (cached) {
-            console.log('[ScheduleService] Cache hit');
-            this.store.setState({ schedule: cached });
-            await this.eventBus.emit(EVENTS.SCHEDULE_LOADED, cached);
-            return cached;
-        }
-
-        // キャッシュミス: API呼び出し
-        const startTime = performance.now();
         const schedule = await this.httpClient.get('/api/schedule/today');
-        const duration = performance.now() - startTime;
-        console.log(`[ScheduleService] API loaded in ${duration.toFixed(2)}ms`);
-
-        // キャッシュに保存（TTL: 1時間）
-        sessionDataCache.set('schedule', sessionId, schedule);
-
         this.store.setState({ schedule });
         await this.eventBus.emit(EVENTS.SCHEDULE_LOADED, schedule);
         return schedule;

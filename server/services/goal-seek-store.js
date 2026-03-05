@@ -102,7 +102,7 @@ export class GoalSeekStore {
         const idx = this.data.goals.findIndex(g => g.id === id);
         if (idx === -1) return null;
 
-        const allowed = ['title', 'description', 'criteria', 'status', 'managerConfig'];
+        const allowed = ['title', 'description', 'criteria', 'status', 'managerConfig', 'completedAt'];
         for (const key of allowed) {
             if (updates[key] !== undefined) {
                 this.data.goals[idx][key] = updates[key];

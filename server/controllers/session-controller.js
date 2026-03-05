@@ -2,7 +2,7 @@
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { promisify } from 'util';
@@ -151,7 +151,7 @@ export class SessionController {
             return res.status(400).json({ error: 'Missing sessionId or status' });
         }
 
-        await this.sessionManager.reportActivity(sessionId, status, reportedAt);
+        this.sessionManager.reportActivity(sessionId, status, reportedAt);
         res.json({ success: true });
     };
 
@@ -162,6 +162,20 @@ export class SessionController {
     getStatus = (req, res) => {
         const status = this.sessionManager.getSessionStatus();
         res.json(status);
+    };
+
+    /**
+     * POST /api/sessions/:id/clear-done
+     * セッションのdoneステータスをクリア（既読化）
+     */
+    clearDone = (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        this.sessionManager.clearDoneStatus(id);
+        res.json({ success: true });
     };
 
     /**
@@ -205,14 +219,6 @@ export class SessionController {
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
-        }
-
-        // アーカイブ済みセッションの起動を拒否（自動再接続による意図しない復活を防止）
-        const currentState = this.stateStore.get();
-        const targetSession = (currentState.sessions || []).find(s => s.id === sessionId);
-        if (targetSession?.intendedState === 'archived') {
-            console.log(`[start] Rejected: session ${sessionId} is archived`);
-            return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
         }
 
         try {
@@ -272,7 +278,13 @@ export class SessionController {
                     await this._updateStateWithRetry((currentState) => {
                         const updatedSessions = (currentState.sessions || []).map(session =>
                             session.id === id
-                                ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
+                                ? {
+                                    ...session,
+                                    intendedState: 'paused',
+                                    pausedReason: 'manual',
+                                    pausedAt: now,
+                                    updatedAt: now
+                                }
                                 : session
                         );
                         return { ...currentState, sessions: updatedSessions };
@@ -571,9 +583,9 @@ export class SessionController {
                 sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
             }));
 
-            // ttyd起動（state更新完了後）
             let result;
             try {
+                // Start ttyd session with worktree as cwd
                 result = await this.sessionManager.startTtyd({
                     sessionId,
                     cwd: worktreePath,
@@ -581,8 +593,7 @@ export class SessionController {
                     engine
                 });
             } catch (error) {
-                // ttyd起動失敗時はロールバック
-                console.error('[createWithWorktree] ttyd start failed:', error);
+                // Roll back state + workspace on failure (best-effort)
                 try {
                     await this._updateStateWithRetry((currentState) => ({
                         ...currentState,
@@ -836,94 +847,6 @@ export class SessionController {
             res.json(result);
         } catch (error) {
             console.error('Failed to merge worktree:', error);
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    /**
-     * POST /api/sessions/:id/ask-ai-integration
-     * AIに統合確認と対処を依頼
-     */
-    askAiIntegration = async (req, res) => {
-        const { id } = req.params;
-        const { status } = req.body;
-
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-
-        try {
-            // jj状態を取得
-            const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
-
-            const { stdout: jjStatus } = await execAsync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
-            const { stdout: jjLog } = await execAsync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
-            const { stdout: jjBookmarks } = await execAsync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
-
-            // Claude Codeに送信するメッセージを構築
-            const message = `[システム自動送信]
-
-ユーザーがアーカイブしようとしたが、以下の警告が出ました：
-
-${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
-${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
-${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
-
-現在の状態：
-=== jj status ===
-${jjStatus}
-
-=== jj log ===
-${jjLog}
-
-=== jj bookmark list ===
-${jjBookmarks}
-
-セッション情報：
-- session-id: ${id}
-- プロジェクト: ${session.name || 'unson'}
-- パス: ${workspacePath}
-
-この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
-
-            // メッセージをクリップボードにコピー（macOS）
-            console.log('[askAiIntegration] Message length:', message.length);
-            console.log('[askAiIntegration] Message preview:', message.substring(0, 200));
-
-            await new Promise((resolve, reject) => {
-                const pbcopy = spawn('pbcopy');
-
-                pbcopy.stdin.write(message, 'utf8');
-                pbcopy.stdin.end();
-
-                pbcopy.on('close', (code) => {
-                    console.log('[askAiIntegration] pbcopy closed with code:', code);
-                    if (code === 0) resolve();
-                    else reject(new Error(`pbcopy failed with code ${code}`));
-                });
-
-                pbcopy.on('error', (err) => {
-                    console.error('[askAiIntegration] pbcopy error:', err);
-                    reject(err);
-                });
-
-                pbcopy.stderr.on('data', (data) => {
-                    console.error('[askAiIntegration] pbcopy stderr:', data.toString());
-                });
-            });
-
-            console.log('[askAiIntegration] Clipboard copy completed');
-
-            res.json({
-                success: true,
-                message: 'AIへの依頼内容をクリップボードにコピーしました。Claude Codeのチャット画面でペーストして送信してください。',
-                clipboardContent: message
-            });
-        } catch (error) {
-            console.error('Failed to ask AI for integration:', error);
             res.status(500).json({ error: error.message });
         }
     };

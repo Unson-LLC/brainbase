@@ -8,13 +8,12 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
-import { sessionDataCache } from './modules/core/session-data-cache.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
-import { pollSessionStatus, updateSessionIndicators, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
@@ -33,11 +32,6 @@ import { BrowserNotificationService } from './modules/domain/browser-notificatio
 import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
 import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
 
-// Skills (Phase 1: Data Collection)
-import { SessionMonitor } from './modules/skills/session-monitor.js';
-import { UsageTracker } from './modules/skills/usage-tracker.js';
-import { SuccessClassifier } from './modules/skills/success-classifier.js';
-
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
@@ -49,7 +43,6 @@ import { SessionContextBarView } from './modules/ui/views/session-context-bar-vi
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
-import { setupSidebarPrimaryToggle } from './modules/ui/sidebar-primary-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
@@ -150,16 +143,6 @@ class TerminalReconnectManager {
         // 正常切断（code 1000）は無視（セッション切り替え等）
         if (code === 1000) return;
 
-        // アーカイブ済みセッションの切断は再接続しない
-        const state = appStore.getState();
-        const session = (state.sessions || []).find(s => s.id === sessionId);
-        if (session?.intendedState === 'archived') {
-            console.log(`[reconnect] Ignoring disconnect for archived session ${sessionId}`);
-            this.wsConnected = false;
-            this._emitStatus();
-            return;
-        }
-
         // 最近接続成功した場合は無視（race condition防止）
         if (this.lastConnectTime && Date.now() - this.lastConnectTime < 3000) {
             console.log('[reconnect] Ignoring disconnect within 3s of connect');
@@ -248,18 +231,10 @@ class TerminalReconnectManager {
             return;
         }
 
-        // アーカイブ済みセッションの再接続をスキップ（意図しない復活を防止）
-        const state = appStore.getState();
-        const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
-        if (currentSession?.intendedState === 'archived') {
-            console.log(`[reconnect] Skipping: session ${this.currentSessionId} is archived`);
-            this.isReconnecting = false;
-            this.retryCount = 0;
-            return;
-        }
-
         try {
             const payload = { sessionId: this.currentSessionId };
+            const state = appStore.getState();
+            const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
 
             const sessionCwd = currentSession?.worktree?.path || currentSession?.path;
             if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
@@ -1119,27 +1094,22 @@ export class App {
         // Session change: reload related data and switch terminal
         const unsub1 = eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
-            console.log('[SessionSwitch] Starting for:', sessionId);
+            console.log('Session changed:', sessionId);
             const previousSessionId = appStore.getState().currentSessionId;
-
-            // セッション切り替え時は古いセッションのキャッシュを無効化
-            if (previousSessionId && previousSessionId !== sessionId) {
-                sessionDataCache.invalidate(previousSessionId);
-                // セッション離脱時に前セッションのdoneインジケータを既読化
-                void markDoneAsRead(previousSessionId, sessionId);
-            }
 
             // Update currentSessionId in store
             appStore.setState({ currentSessionId: sessionId });
 
-            // 並列実行: switchSession と loadSessionData
-            const startTime = performance.now();
-            await Promise.all([
-                this.switchSession(sessionId),
-                this.loadSessionData(sessionId)
-            ]);
-            const duration = performance.now() - startTime;
-            console.log(`[SessionSwitch] Completed in ${duration.toFixed(2)}ms`);
+            // Mark previous session's green indicator as read when leaving it
+            if (previousSessionId && previousSessionId !== sessionId) {
+                void markDoneAsRead(previousSessionId, sessionId);
+            }
+
+            // Switch terminal frame
+            await this.switchSession(sessionId);
+
+            // Load session-specific data
+            await this.loadSessionData(sessionId);
 
             // Auto-return to console view
             if (this.showConsole) {
@@ -1303,9 +1273,22 @@ export class App {
         });
 
         // Goal seek: open goal seek modal
-        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, (event) => {
+        const unsubGoalSeek = eventBus.on(EVENTS.GOAL_SEEK_OPEN, async (event) => {
             const { session } = event.detail;
-            this.modals.goalSeekModal.show(session?.id);
+            const sessionId = session?.id;
+            if (!sessionId) return;
+
+            // 既存ゴールを確認
+            const goals = await this.goalSeekService.getGoals();
+            const existingGoal = goals.find(g => g.sessionId === sessionId && g.status !== 'completed' && g.status !== 'failed');
+
+            if (existingGoal) {
+                // UPDATE mode
+                this.modals.goalSeekModal.show(sessionId, existingGoal.id);
+            } else {
+                // CREATE mode
+                this.modals.goalSeekModal.show(sessionId, null);
+            }
         });
 
         // Goal seek: update banner when goal is created/updated
@@ -1427,9 +1410,7 @@ export class App {
         await this.initSettingsWithExtensions();
 
         const cleanupSessionViewToggle = setupSessionViewToggle({ store: appStore });
-        const cleanupSidebarPrimaryToggle = setupSidebarPrimaryToggle({ store: appStore });
         this.unsubscribers.push(cleanupSessionViewToggle);
-        this.unsubscribers.push(cleanupSidebarPrimaryToggle);
 
         // Auth button (sidebar)
         this.setupAuthControls();
@@ -2162,13 +2143,25 @@ export class App {
                 <span class="sgb-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>
                 <span class="sgb-title">ゴール: ${goal.title.replace(/</g, '&lt;')}</span>
                 <span class="sgb-badge badge-${goal.status}">${statusLabel}</span>
+                <button class="sgb-btn sgb-btn-edit" data-goal-id="${goal.id}">
+                    <i data-lucide="edit-2"></i>編集
+                </button>
                 <button class="sgb-btn" data-goal-id="${goal.id}" data-action="${btnAction}">${btnLabel}</button>
                 ${checkTimeHtml}
             `;
 
             banner.className = `session-goal-banner status-${goal.status}`;
 
-            const btn = banner.querySelector('.sgb-btn');
+            // 編集ボタンのイベントリスナー
+            const editBtn = banner.querySelector('.sgb-btn-edit');
+            if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                    this.modals.goalSeekModal.show(sessionId, goal.id);
+                });
+            }
+
+            // 監視開始/停止ボタンのイベントリスナー
+            const btn = banner.querySelector('.sgb-btn[data-action]');
             if (btn) {
                 btn.addEventListener('click', async () => {
                     try {
@@ -2209,13 +2202,6 @@ export class App {
 
             if (!session) {
                 console.error('Session not found:', sessionId);
-                terminalFrame.src = 'about:blank';
-                return;
-            }
-
-            // アーカイブ済みセッションへの切り替えを防止
-            if (session.intendedState === 'archived') {
-                console.log(`[switchSession] Skipping archived session ${sessionId}`);
                 terminalFrame.src = 'about:blank';
                 return;
             }
@@ -2280,14 +2266,11 @@ export class App {
      */
     async loadSessionData(sessionId) {
         try {
-            // 並列実行: loadTasks と loadSchedule
-            const startTime = performance.now();
-            await Promise.all([
-                this.taskService.loadTasks(),
-                this.scheduleService.loadSchedule()
-            ]);
-            const duration = performance.now() - startTime;
-            console.log(`[SessionSwitch] Data loaded in ${duration.toFixed(2)}ms`);
+            // Load tasks for the session
+            await this.taskService.loadTasks();
+
+            // Load schedule for the session
+            await this.scheduleService.loadSchedule();
 
             console.log('Session data loaded for:', sessionId);
         } catch (error) {
@@ -2308,7 +2291,14 @@ export class App {
             }
 
             // Get current session from store
-            const { currentSessionId } = appStore.getState();
+            let { currentSessionId, sessions } = appStore.getState();
+
+            // If no current session, select the first session automatically
+            if (!currentSessionId && sessions && sessions.length > 0) {
+                currentSessionId = sessions[0].id;
+                console.log('Auto-selecting first session:', currentSessionId);
+                await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: currentSessionId });
+            }
 
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
@@ -2406,23 +2396,6 @@ export class App {
             this.reconnectManager = new TerminalReconnectManager();
             this.reconnectManager.init(terminalFrame);
             this.setupTerminalInputUx();
-        }
-
-        // 6.7. Initialize Skills tracking (SessionMonitor)
-        try {
-            const usageTracker = new UsageTracker();
-            const successClassifier = new SuccessClassifier();
-
-            this.sessionMonitor = new SessionMonitor({
-                usageTracker,
-                successClassifier
-            });
-
-            this.sessionMonitor.start();
-            console.log('[SessionMonitor] initialized and listening to SESSION_ARCHIVED');
-        } catch (error) {
-            console.warn('[SessionMonitor] initialization failed (non-critical):', error.message);
-            // Graceful degradation: アプリケーション起動継続
         }
 
         // 7. Start session status polling (every 3 seconds)
@@ -2849,9 +2822,6 @@ export class App {
 
         // Cleanup mobile input controller
         this.mobileInputController?.destroy();
-
-        // Cleanup SessionMonitor
-        this.sessionMonitor?.stop();
 
         console.log('brainbase-ui destroyed');
     }

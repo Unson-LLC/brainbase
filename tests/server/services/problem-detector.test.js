@@ -13,55 +13,92 @@ describe('ProblemDetector', () => {
     // ========== Error Detection ==========
 
     describe('Error Detection', () => {
-        it('detects Error pattern', () => {
+        // ✅ Goal Seek V2で絞り込まれたエラーパターンに基づくテスト
+
+        it('does not detect generic Error pattern (reduced false positives)', () => {
+            // 一般的な "Error:" は誤検知が多いため検知しない
             const problems = detector.analyze(['Error: something failed'], goal, sessionId);
-            expect(problems.some(p => p.type === 'error')).toBe(true);
+            expect(problems.some(p => p.type === 'error')).toBe(false);
         });
 
-        it('detects TypeError', () => {
+        it('does not detect generic TypeError (reduced false positives)', () => {
+            // 一般的な "TypeError:" も検知しない
             const problems = detector.analyze(['TypeError: Cannot read properties of undefined'], goal, sessionId);
-            expect(problems.some(p => p.type === 'error')).toBe(true);
+            expect(problems.some(p => p.type === 'error')).toBe(false);
         });
 
-        it('detects FAIL pattern', () => {
+        it('does not detect FAIL pattern (reduced false positives)', () => {
+            // FAIL パターンも検知しない（テスト失敗は別の方法で検知）
             const problems = detector.analyze(['FAIL src/foo.js'], goal, sessionId);
-            expect(problems.some(p => p.type === 'error')).toBe(true);
+            expect(problems.some(p => p.type === 'error')).toBe(false);
         });
 
-        it('detects stack trace', () => {
+        it('does not detect generic stack trace (reduced false positives)', () => {
+            // 一般的なスタックトレースは検知しない
             const lines = [
                 'Error: oops',
                 '    at Object.<anonymous> (/foo/bar.js:10:5)',
                 '    at Module._compile (node:internal/modules/cjs/loader:1241:14)'
             ];
             const problems = detector.analyze(lines, goal, sessionId);
-            expect(problems.some(p => p.type === 'error')).toBe(true);
+            expect(problems.some(p => p.type === 'error')).toBe(false);
         });
 
-        it('detects fatal as critical severity', () => {
-            const problems = detector.analyze(['fatal: remote origin already exists'], goal, sessionId);
+        it('detects fatal error as critical severity', () => {
+            const problems = detector.analyze(['fatal error: something went wrong'], goal, sessionId);
             const errorProblem = problems.find(p => p.type === 'error');
+            expect(errorProblem).toBeDefined();
             expect(errorProblem.severity).toBe('critical');
         });
 
         it('detects UnhandledPromiseRejection as critical', () => {
             const problems = detector.analyze(['UnhandledPromiseRejection: something went wrong'], goal, sessionId);
             const errorProblem = problems.find(p => p.type === 'error');
+            expect(errorProblem).toBeDefined();
             expect(errorProblem.severity).toBe('critical');
         });
 
-        it('detects exit code error', () => {
+        it('does not detect exit code 1 (only 2+)', () => {
+            // exit code 1 は正常な終了でも出るため検知しない
             const problems = detector.analyze(['Process exited with exit code 1'], goal, sessionId);
+            expect(problems.some(p => p.type === 'error')).toBe(false);
+        });
+
+        it('detects exit code 2+ as error', () => {
+            // exit code 2以上は検知する
+            const problems = detector.analyze(['Process exited with exit code 2'], goal, sessionId);
             expect(problems.some(p => p.type === 'error')).toBe(true);
         });
 
-        it('detects ENOENT', () => {
+        it('does not detect generic ENOENT (reduced false positives)', () => {
+            // 一般的なENOENTは検知しない
             const problems = detector.analyze(['ENOENT: no such file or directory'], goal, sessionId);
+            expect(problems.some(p => p.type === 'error')).toBe(false);
+        });
+
+        it('does not detect generic permission denied (reduced false positives)', () => {
+            // 一般的なpermission deniedは検知しない
+            const problems = detector.analyze(['Permission denied: /etc/shadow'], goal, sessionId);
+            expect(problems.some(p => p.type === 'error')).toBe(false);
+        });
+
+        it('detects ECONNREFUSED', () => {
+            const problems = detector.analyze(['Error: ECONNREFUSED connection failed'], goal, sessionId);
             expect(problems.some(p => p.type === 'error')).toBe(true);
         });
 
-        it('detects permission denied', () => {
-            const problems = detector.analyze(['Permission denied: /etc/shadow'], goal, sessionId);
+        it('detects segmentation fault', () => {
+            const problems = detector.analyze(['segmentation fault: core dumped'], goal, sessionId);
+            expect(problems.some(p => p.type === 'error')).toBe(true);
+        });
+
+        it('detects panic', () => {
+            const problems = detector.analyze(['panic: runtime error'], goal, sessionId);
+            expect(problems.some(p => p.type === 'error')).toBe(true);
+        });
+
+        it('detects Python Traceback', () => {
+            const problems = detector.analyze(['Traceback (most recent call last):'], goal, sessionId);
             expect(problems.some(p => p.type === 'error')).toBe(true);
         });
 
@@ -81,9 +118,16 @@ describe('ProblemDetector', () => {
         });
 
         it('error problem has suggestedActions', () => {
-            const problems = detector.analyze(['Error: fail'], goal, sessionId);
+            const problems = detector.analyze(['fatal error: fail'], goal, sessionId);
             const p = problems.find(p => p.type === 'error');
+            expect(p).toBeDefined();
             expect(p.suggestedActions.length).toBeGreaterThan(0);
+        });
+
+        it('ignores Claude Code UI markers', () => {
+            // Claude CodeのUI出力は無視する
+            const problems = detector.analyze(['● Running tests...', '✓ Test passed'], goal, sessionId);
+            expect(problems.filter(p => p.type === 'error')).toHaveLength(0);
         });
     });
 
@@ -127,7 +171,9 @@ describe('ProblemDetector', () => {
     // ========== Question Detection ==========
 
     describe('Question Detection', () => {
-        it('detects y/n prompt', () => {
+        // ✅ Goal Seek V2で絞り込まれた質問パターンに基づくテスト
+
+        it('detects (y/n) prompt', () => {
             const problems = detector.analyze(['Proceed? (y/n)'], goal, sessionId);
             expect(problems.some(p => p.type === 'escalation')).toBe(true);
         });
@@ -137,29 +183,43 @@ describe('ProblemDetector', () => {
             expect(problems.some(p => p.type === 'escalation')).toBe(true);
         });
 
-        it('detects "Do you want to" pattern', () => {
-            const problems = detector.analyze(['Do you want to continue?'], goal, sessionId);
+        it('detects [yes/no] prompt', () => {
+            const problems = detector.analyze(['Confirm? [yes/no]'], goal, sessionId);
             expect(problems.some(p => p.type === 'escalation')).toBe(true);
         });
 
-        it('detects "Would you like to" pattern', () => {
-            const problems = detector.analyze(['Would you like to install?'], goal, sessionId);
-            expect(problems.some(p => p.type === 'escalation')).toBe(true);
-        });
-
-        it('detects "Press Enter" pattern', () => {
+        it('detects "Press Enter to continue" pattern', () => {
             const problems = detector.analyze(['Press Enter to continue'], goal, sessionId);
             expect(problems.some(p => p.type === 'escalation')).toBe(true);
         });
 
-        it('detects "Please choose" pattern', () => {
-            const problems = detector.analyze(['Please choose an option:'], goal, sessionId);
+        it('detects "Press any key to continue" pattern', () => {
+            const problems = detector.analyze(['Press any key to continue'], goal, sessionId);
             expect(problems.some(p => p.type === 'escalation')).toBe(true);
+        });
+
+        it('does not detect generic "Do you want to" pattern (removed in V2)', () => {
+            // Goal Seek V2で削除されたパターン（AIの質問と区別困難）
+            const problems = detector.analyze(['Do you want to continue?'], goal, sessionId);
+            expect(problems.some(p => p.type === 'escalation')).toBe(false);
+        });
+
+        it('does not detect generic "Would you like to" pattern (removed in V2)', () => {
+            // Goal Seek V2で削除されたパターン
+            const problems = detector.analyze(['Would you like to install?'], goal, sessionId);
+            expect(problems.some(p => p.type === 'escalation')).toBe(false);
+        });
+
+        it('does not detect generic "Please choose" pattern (removed in V2)', () => {
+            // Goal Seek V2で削除されたパターン
+            const problems = detector.analyze(['Please choose an option:'], goal, sessionId);
+            expect(problems.some(p => p.type === 'escalation')).toBe(false);
         });
 
         it('escalation has info severity', () => {
             const problems = detector.analyze(['Continue? (y/n)'], goal, sessionId);
             const q = problems.find(p => p.type === 'escalation');
+            expect(q).toBeDefined();
             expect(q.severity).toBe('info');
         });
 
