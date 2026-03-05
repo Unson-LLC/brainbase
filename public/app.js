@@ -32,6 +32,11 @@ import { BrowserNotificationService } from './modules/domain/browser-notificatio
 import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
 import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
 
+// Skills (Phase 1: Data Collection)
+import { SessionMonitor } from './modules/skills/session-monitor.js';
+import { UsageTracker } from './modules/skills/usage-tracker.js';
+import { SuccessClassifier } from './modules/skills/success-classifier.js';
+
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
 import { NextTasksView } from './modules/ui/views/next-tasks-view.js';
@@ -2357,6 +2362,23 @@ export class App {
             this.setupTerminalInputUx();
         }
 
+        // 6.7. Initialize Skills tracking (SessionMonitor)
+        try {
+            const usageTracker = new UsageTracker();
+            const successClassifier = new SuccessClassifier();
+
+            this.sessionMonitor = new SessionMonitor({
+                usageTracker,
+                successClassifier
+            });
+
+            this.sessionMonitor.start();
+            console.log('[SessionMonitor] initialized and listening to SESSION_ARCHIVED');
+        } catch (error) {
+            console.warn('[SessionMonitor] initialization failed (non-critical):', error.message);
+            // Graceful degradation: アプリケーション起動継続
+        }
+
         // 7. Start session status polling (every 3 seconds)
         this.pollingIntervalId = startPolling(
             () => appStore.getState().currentSessionId,
@@ -2781,6 +2803,9 @@ export class App {
 
         // Cleanup mobile input controller
         this.mobileInputController?.destroy();
+
+        // Cleanup SessionMonitor
+        this.sessionMonitor?.stop();
 
         console.log('brainbase-ui destroyed');
     }
