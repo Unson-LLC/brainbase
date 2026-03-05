@@ -4,6 +4,7 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
+import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -15,6 +16,7 @@ import { escapeHtml } from '../../ui-helpers.js';
 export class SessionView {
     constructor({ sessionService }) {
         this.sessionService = sessionService;
+        this.folderTreeView = new FolderTreeView({ sessionService });
         this.container = null;
         this._unsubscribers = [];
         // Drag and drop state
@@ -48,7 +50,16 @@ export class SessionView {
             () => this.render()
         );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7);
+        const unsub8 = appStore.subscribeToSelector(
+            state => state.ui?.sidebarPrimaryView,
+            () => this.render()
+        );
+        const unsub9 = appStore.subscribeToSelector(
+            state => state.folderTree,
+            () => this.render()
+        );
+
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -96,7 +107,13 @@ export class SessionView {
         this.container.innerHTML = '';
 
         const { sessions, currentSessionId, ui } = appStore.getState();
+        const sidebarPrimaryView = ui?.sidebarPrimaryView || 'sessions';
         const sessionListView = ui?.sessionListView || 'timeline';
+
+        if (sidebarPrimaryView === 'folders') {
+            this.folderTreeView.render(this.container);
+            return;
+        }
 
         if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
@@ -456,7 +473,19 @@ export class SessionView {
                     { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
                 );
                 if (!confirmed) return;
-                await this.sessionService.deleteSession(session.id);
+                try {
+                    await this.sessionService.deleteSession(session.id);
+                    if (window.showToast) {
+                        window.showToast(`セッション「${displayName}」を削除しました`, 'success');
+                    }
+                } catch (error) {
+                    console.error('[session-view] Delete failed for:', session.id, error);
+                    if (window.showToast) {
+                        window.showToast(`削除に失敗しました: ${error.message}`, 'error');
+                    } else {
+                        alert(`削除に失敗しました: ${error.message}`);
+                    }
+                }
             });
         }
 
@@ -580,10 +609,31 @@ export class SessionView {
         // Merge button
         const mergeBtn = row.querySelector('.merge-session-btn');
         if (mergeBtn) {
-            mergeBtn.addEventListener('click', (e) => {
+            mergeBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 closeDropdown();
-                eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
+                const displayName = session.name || session.id;
+                const confirmed = await showConfirm(
+                    `「${displayName}」の変更をmainへマージしますか？`,
+                    {
+                        title: 'Merge to main',
+                        okText: 'マージ実行',
+                        cancelText: 'キャンセル'
+                    }
+                );
+                if (!confirmed) return;
+
+                try {
+                    const mergeResult = await this.sessionService.mergeSession(session.id);
+                    if (mergeResult?.success) {
+                        showSuccess(`セッション「${displayName}」をマージしました`);
+                    } else {
+                        showError(mergeResult?.error || 'マージに失敗しました');
+                    }
+                } catch (error) {
+                    console.error('Failed to merge session:', error);
+                    showError('マージに失敗しました');
+                }
             });
         }
 

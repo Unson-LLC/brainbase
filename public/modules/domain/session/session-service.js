@@ -77,14 +77,18 @@ export class SessionService {
      * @param {string} params.initialCommand - 初期コマンド
      * @param {boolean} params.useWorktree - worktreeを使用するか
      * @param {string} params.engine - AI Engine ('claude' or 'codex')
+     * @param {string} params.sessionId - セッションID（オプション、指定しない場合は自動生成）
      * @returns {Promise<Object>} 作成されたセッション
      */
     async createSession(params) {
         const { project, initialCommand = '', useWorktree = false, engine = 'claude' } = params;
-        let { name } = params;
+        let { name, sessionId } = params;
 
         const repoPath = getProjectPath(project);
-        const sessionId = createSessionId('session');
+        // sessionIdが指定されていない場合は自動生成
+        if (!sessionId) {
+            sessionId = createSessionId('session');
+        }
 
         // 名前が空の場合、自動生成: {project}-{MMDD}-{連番}
         if (!name || !name.trim()) {
@@ -223,6 +227,17 @@ export class SessionService {
         await this.eventBus.emit(EVENTS.SESSION_CREATED, { session });
 
         return { sessionId, session, proxyPath: res.proxyPath };
+    }
+
+    /**
+     * プログレス取得
+     * @param {string} sessionId - セッションID
+     * @param {number} currentPercent - 現在の進捗率
+     * @returns {Promise<{phase: string, percent: number, message: string, timestamp: number}>}
+     */
+    async getProgress(sessionId, currentPercent = 0) {
+        const res = await this.httpClient.get(`/api/sessions/${sessionId}/progress?current=${currentPercent}`);
+        return res;
     }
 
     /**
@@ -391,6 +406,31 @@ export class SessionService {
             console.error('Failed to get session context:', error);
             return null;
         }
+    }
+
+    /**
+     * セッションのフォルダツリーを取得
+     * @param {string} sessionId - セッションID
+     * @param {string} query - クエリ文字列（例: ?path=public&depth=1）
+     * @returns {Promise<Object>}
+     */
+    async getSessionFolderTree(sessionId, query = '') {
+        const suffix = typeof query === 'string' ? query : '';
+        return await this.httpClient.get(`/api/sessions/${sessionId}/folder-tree${suffix}`);
+    }
+
+    /**
+     * ファイルをデフォルトアプリで開く
+     * @param {string} relativePath - セッションCWDからの相対パス
+     * @param {string|null} cwd - セッションの作業ディレクトリ
+     * @returns {Promise<Object>}
+     */
+    async openFileInDefaultApp(relativePath, cwd = null) {
+        return await this.httpClient.post('/api/open-file', {
+            path: relativePath,
+            mode: 'file',
+            cwd
+        });
     }
 
     /**

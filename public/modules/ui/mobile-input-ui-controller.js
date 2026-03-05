@@ -202,12 +202,40 @@ export class MobileInputUIController {
                 if (action === 'enter') {
                     this.sendEnterKey();
                     this.focusManager.refocusInput(inputEl);
+                } else if (inputEl === this.elements.dockInput && ['up', 'down', 'left', 'right'].includes(action)) {
+                    this.sendDockCursorKey(action);
+                    this.focusManager.refocusInput(inputEl);
                 } else {
                     this.moveCursor(inputEl, action);
                     this.focusManager.refocusInput(inputEl);
                 }
             });
         });
+    }
+
+    async sendDockCursorKey(action) {
+        const keyMap = {
+            up: 'Up',
+            down: 'Down',
+            left: 'Left',
+            right: 'Right'
+        };
+
+        const key = keyMap[action];
+        if (!key) return;
+
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            showInfo('セッションを選択してね');
+            return;
+        }
+
+        try {
+            await this.apiClient.sendKey(sessionId, key);
+        } catch (error) {
+            console.error(`Failed to send ${key} key:`, error);
+            showError(`${key}キーの送信に失敗したよ`);
+        }
     }
 
     bindFormatButtons(container) {
