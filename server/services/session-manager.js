@@ -6,6 +6,7 @@ import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import net from 'net';
 import path from 'path';
+import yaml from 'js-yaml';
 import { TerminalOutputParser } from './terminal-output-parser.js';
 
 export class SessionManager {
@@ -266,14 +267,17 @@ export class SessionManager {
             const lines = stdout.trim().split('\n');
             console.log(`[cleanupOrphans] Found ${lines.length} ttyd process(es)`);
 
-            // 2. 保護対象: state.json の intendedState === 'active' または 'paused'
+            // 2. 保護対象: state.json の intendedState === 'active' または 'paused' + activeSessions内のセッション
             const state = this.stateStore.get();
-            const protectedSessionIds = new Set(
-                (state.sessions || [])
+            const protectedSessionIds = new Set([
+                // state.jsonの保護対象セッション
+                ...(state.sessions || [])
                     .filter(s => s.intendedState === 'active' || s.intendedState === 'paused')
-                    .map(s => s.id)
-            );
-            console.log(`[cleanupOrphans] Found ${protectedSessionIds.size} active/paused session(s) in state.json`);
+                    .map(s => s.id),
+                // activeSessions内のセッションも保護（再起動中のセッション対応）
+                ...this.activeSessions.keys()
+            ]);
+            console.log(`[cleanupOrphans] Found ${protectedSessionIds.size} protected session(s) (state.json + activeSessions)`);
 
             // 3. state.json / in-memory の正PIDマップ
             const statePidBySessionId = new Map();
@@ -394,14 +398,56 @@ export class SessionManager {
     }
 
     /**
-     * セッション状態を取得（Hook報告ベース）
+     * goal-seek.local.mdを読み取り、goalSeek情報を返す
+     * @param {string} worktreePath - worktreeのパス
+     * @returns {Object} { active: boolean, iteration: number, maxIterations: number }
+     */
+    _readGoalSeekStatus(worktreePath) {
+        if (!worktreePath) {
+            return { active: false };
+        }
+
+        const goalSeekPath = path.join(worktreePath, '.claude', 'goal-seek.local.md');
+        if (!fs.existsSync(goalSeekPath)) {
+            return { active: false };
+        }
+
+        try {
+            const content = fs.readFileSync(goalSeekPath, 'utf-8');
+
+            // YAMLフロントマター抽出（--- ... --- 形式）
+            const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+            if (!frontmatterMatch) {
+                return { active: false };
+            }
+
+            const frontmatter = yaml.load(frontmatterMatch[1]);
+
+            return {
+                active: frontmatter.active === true,
+                iteration: frontmatter.iteration || 0,
+                maxIterations: frontmatter.max_iterations || 0
+            };
+        } catch (error) {
+            console.error(`[Goal-Seek] Failed to read ${goalSeekPath}:`, error.message);
+            return { active: false };
+        }
+    }
+
+    /**
+     * セッション状態を取得（Hook報告ベース + goal-seek情報）
      * ハートビートタイムアウト: 10分以上working報告がなければisWorking=falseとする
-     * @returns {Object} sessionId -> {isWorking, isDone}
+     * @returns {Object} sessionId -> {isWorking, isDone, goalSeek}
      */
     getSessionStatus() {
         const status = {};
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
+
+        // stateStoreからsessions取得（goal-seek情報取得用）
+        const state = this.stateStore.get();
+        const sessions = state.sessions || [];
+        const sessionMap = new Map(sessions.map(s => [s.id, s]));
 
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
@@ -417,13 +463,38 @@ export class SessionManager {
             const isWorking = !isStale && normalized.lastWorkingAt > normalized.lastDoneAt;
             const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
 
+            // goal-seek情報を追加
+            const session = sessionMap.get(sessionId);
+            const worktreePath = session?.worktree?.path || session?.path;
+            const goalSeek = this._readGoalSeekStatus(worktreePath);
+
             status[sessionId] = {
                 isWorking,
                 isDone,
                 lastWorkingAt: normalized.lastWorkingAt,
                 lastDoneAt: normalized.lastDoneAt,
-                timestamp: normalized.timestamp
+                timestamp: normalized.timestamp,
+                goalSeek
             };
+        }
+
+        // hookStatusに存在しないセッションでもgoal-seekがactiveなら追加
+        for (const session of sessions) {
+            if (status[session.id]) continue; // 既に追加済み
+
+            const worktreePath = session.worktree?.path || session.path;
+            const goalSeek = this._readGoalSeekStatus(worktreePath);
+
+            if (goalSeek.active) {
+                status[session.id] = {
+                    isWorking: false,
+                    isDone: false,
+                    lastWorkingAt: 0,
+                    lastDoneAt: 0,
+                    timestamp: 0,
+                    goalSeek
+                };
+            }
         }
 
         return status;
@@ -1348,9 +1419,9 @@ export class SessionManager {
 
     /**
      * PTY Watchdog: 定期的にPTY使用状況を監視し、閾値超過時に警告
-     * @param {number} intervalMs - 監視間隔（デフォルト: 600000ms = 10分）
+     * @param {number} intervalMs - 監視間隔（デフォルト: 1800000ms = 30分）
      */
-    startPtyWatchdog(intervalMs = 600000) {
+    startPtyWatchdog(intervalMs = 1800000) {
         if (this._ptyWatchdogTimer) return;
         console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
 

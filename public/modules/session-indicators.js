@@ -105,7 +105,10 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
                 prev.isWorking !== newStatus.isWorking ||
                 prev.isDone !== newStatus.isDone ||
                 prev.lastWorkingAt !== newStatus.lastWorkingAt ||
-                prev.lastDoneAt !== newStatus.lastDoneAt
+                prev.lastDoneAt !== newStatus.lastDoneAt ||
+                prev.goalSeek?.active !== newStatus.goalSeek?.active ||
+                prev.goalSeek?.iteration !== newStatus.goalSeek?.iteration ||
+                prev.goalSeek?.maxIterations !== newStatus.goalSeek?.maxIterations
             ) {
                 hasStatusChange = true;
             }

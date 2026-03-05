@@ -4,6 +4,7 @@ import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
 import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
+import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -15,6 +16,7 @@ import { escapeHtml } from '../../ui-helpers.js';
 export class SessionView {
     constructor({ sessionService }) {
         this.sessionService = sessionService;
+        this.folderTreeView = new FolderTreeView({ sessionService });
         this.container = null;
         this._unsubscribers = [];
         // Drag and drop state
@@ -47,8 +49,16 @@ export class SessionView {
             state => state.ui?.sessionListView,
             () => this.render()
         );
+        const unsub8 = appStore.subscribeToSelector(
+            state => state.ui?.sidebarPrimaryView,
+            () => this.render()
+        );
+        const unsub9 = appStore.subscribeToSelector(
+            state => state.folderTree,
+            () => this.render()
+        );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -96,7 +106,13 @@ export class SessionView {
         this.container.innerHTML = '';
 
         const { sessions, currentSessionId, ui } = appStore.getState();
+        const sidebarPrimaryView = ui?.sidebarPrimaryView || 'sessions';
         const sessionListView = ui?.sessionListView || 'timeline';
+
+        if (sidebarPrimaryView === 'folders') {
+            this.folderTreeView.render(this.container);
+            return;
+        }
 
         if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
@@ -178,38 +194,24 @@ export class SessionView {
 
     /**
      * 時系列表示用のセッション一覧を取得
-     *
-     * ソート優先度:
-     * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
-     *    - 条件: isDone=true AND currentSessionIdではない
-     * 2. 残りのセッションは時系列順（最新が上）
-     *
-     * @param {Array} sessions - セッション一覧
-     * @returns {Array} ソート済みセッション一覧（アーカイブ済み除外）
      * @private
      */
     _getTimelineSessions(sessions) {
-        const { currentSessionId } = appStore.getState();
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
+        const currentSessionId = appStore.getState().currentSessionId;
 
-        const sorted = [...filtered].sort((a, b) => {
-            // インジケータステータスを取得
-            const statusA = getSessionStatus(a.id);
-            const statusB = getSessionStatus(b.id);
+        return [...filtered].sort((a, b) => {
+            const aStatus = a?.id ? getSessionStatus(a.id) : null;
+            const bStatus = b?.id ? getSessionStatus(b.id) : null;
+            const aIsDonePriority = Boolean(aStatus?.isDone) && a.id !== currentSessionId;
+            const bIsDonePriority = Boolean(bStatus?.isDone) && b.id !== currentSessionId;
 
-            // 緑インジケータ判定（isDone=true AND 現在のセッションではない）
-            const isGreenA = statusA?.isDone && currentSessionId !== a.id;
-            const isGreenB = statusB?.isDone && currentSessionId !== b.id;
+            if (aIsDonePriority !== bIsDonePriority) {
+                return bIsDonePriority ? 1 : -1;
+            }
 
-            // 優先度1: 緑セッションを最上部に配置
-            if (isGreenA && !isGreenB) return -1;
-            if (!isGreenA && isGreenB) return 1;
-
-            // 優先度2: 緑セッション同士 or 通常セッション同士は時系列順（最新が上）
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
-
-        return sorted;
     }
 
     /**
@@ -428,10 +430,6 @@ export class SessionView {
             if (dropdownMenu) {
                 dropdownMenu.classList.add('hidden');
             }
-            const overlay = document.getElementById('menu-overlay');
-            if (overlay) {
-                overlay.classList.add('hidden');
-            }
         };
 
         // Rename button
@@ -478,20 +476,26 @@ export class SessionView {
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
-                        const details = [];
+                        const criticalDetails = [];
+                        const infoDetails = [];
 
-                        // Jujutsu概念でステータス表示
+                        // Jujutsu概念でステータス表示（重要な警告のみ）
                         if (status.changesNotPushed > 0) {
-                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
-                        }
-                        if (!status.bookmarkPushed && status.bookmarkName) {
-                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
+                            criticalDetails.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
                         }
                         if (status.hasWorkingCopyChanges) {
-                            details.push('working copyに未完了のchangeがあります');
+                            criticalDetails.push('working copyに未完了のchangeがあります');
                         }
 
-                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
+                        // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
+                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges)) {
+                            infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
+                        }
+
+                        const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
+                        const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
+                        const detailText = criticalText + infoText;
+
                         const confirmResult = await showConfirmWithAction(
                             `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
@@ -499,6 +503,7 @@ export class SessionView {
                                 okText: 'そのままアーカイブ',
                                 cancelText: 'キャンセル',
                                 actionText: 'pushして統合',
+                                aiActionText: '🤖 AIに確認して対処',
                                 danger: true
                             }
                         );
@@ -506,12 +511,30 @@ export class SessionView {
                             ? confirmResult.action
                             : (confirmResult ? 'ok' : 'cancel');
 
+                        if (selectedAction === 'ai') {
+                            // AIに確認して対処
+                            try {
+                                const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
+                                if (aiResult?.success) {
+                                    showSuccess(aiResult.message || 'AIに統合確認を依頼しました');
+                                } else {
+                                    showError(aiResult?.error || 'AI依頼に失敗しました');
+                                }
+                            } catch (aiErr) {
+                                console.error('Failed to ask AI:', aiErr);
+                                showError('AI依頼に失敗しました');
+                            }
+                            return;
+                        }
+
                         if (selectedAction === 'action') {
                             // pushして統合
                             try {
                                 const mergeResult = await this.sessionService.mergeSession(session.id);
                                 if (mergeResult?.success) {
                                     showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
+                                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
+                                    this._switchToNextActiveSession(session.id);
                                 } else {
                                     showError(mergeResult?.error || 'pushに失敗しました');
                                 }
@@ -528,10 +551,14 @@ export class SessionView {
                         }
                         await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
                         showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                        // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
+                        this._switchToNextActiveSession(session.id);
                         return;
                     }
 
                     showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
+                    this._switchToNextActiveSession(session.id);
                 } catch (error) {
                     console.error('Failed to archive session:', error);
                     showError('アーカイブに失敗しました');
@@ -744,6 +771,45 @@ export class SessionView {
         inputEl.focus();
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
         return true;
+    }
+
+    /**
+     * アーカイブしたセッションがアクティブだった場合、別のアクティブセッションに切り替え
+     * @param {string} archivedSessionId - アーカイブしたセッションID
+     */
+    _switchToNextActiveSession(archivedSessionId) {
+        const currentSessionId = this.store.getState().currentSessionId;
+
+        // アーカイブしたセッションが現在のアクティブセッションでない場合はスキップ
+        if (currentSessionId !== archivedSessionId) {
+            return;
+        }
+
+        // 他のアクティブセッションを取得（archived以外）
+        const sessions = this.store.getState().sessions || [];
+        const activeSessions = sessions.filter(s =>
+            s.intendedState !== 'archived' && s.id !== archivedSessionId
+        );
+
+        if (activeSessions.length === 0) {
+            // アクティブセッションがない場合、currentSessionIdをnullに
+            this.store.setState({ currentSessionId: null });
+            this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: null });
+            return;
+        }
+
+        // 最新のアクティブセッション（createdAt降順）を選択
+        const sortedSessions = activeSessions.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;  // 降順
+        });
+
+        const nextSession = sortedSessions[0];
+        this.store.setState({ currentSessionId: nextSession.id });
+        this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: nextSession.id });
+
+        console.log(`[Archive] Switched from ${archivedSessionId} to ${nextSession.id}`);
     }
 
     /**

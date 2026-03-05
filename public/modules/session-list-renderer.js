@@ -33,13 +33,6 @@ function formatRelativeTime(isoString) {
 }
 
 function getPausedStatusLabel(session, { isPaused, needsRestart }) {
-  if (needsRestart && !isPaused) {
-    return {
-      text: 'Restart pending',
-      title: 'ttyd process is not running. Resume session to restart.'
-    };
-  }
-
   if (!isPaused) {
     return null;
   }
@@ -103,8 +96,15 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="paused-label" title="${escapeHtml(pausedStatusLabel.title)}">${escapeHtml(pausedStatusLabel.text)}</span>`
     : '';
 
-  // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
-  const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
+  // goal-seek status
+  const goalSeekActive = session.goalSeek?.active || false;
+  const goalSeekIteration = session.goalSeek?.iteration || 0;
+  const goalSeekMaxIterations = session.goalSeek?.maxIterations || 0;
+
+  // セッションアイコン: goal-seek active→target、worktreeあり→git-merge、なし→terminal-square
+  const sessionIcon = goalSeekActive
+    ? 'target'
+    : (hasWorktree ? 'git-merge' : 'terminal-square');
 
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
@@ -117,6 +117,11 @@ export function renderSessionRowHTML(session, options = {}) {
   const projectLabel = escapeHtml(project);
   const projectEmojiBadge = showProjectEmoji && projectEmoji
     ? `<span class="session-project-emoji" title="${projectLabel}">${projectEmoji}</span>`
+    : '';
+
+  // goal-seek badge
+  const goalSeekBadge = goalSeekActive
+    ? `<span class="goal-seek-badge" title="Goal Seek: iteration ${goalSeekIteration} of ${goalSeekMaxIterations}">[${goalSeekIteration}/${goalSeekMaxIterations}]</span>`
     : '';
 
   // 会話ログ情報（conversationSummary - 軽量版）
@@ -176,6 +181,7 @@ export function renderSessionRowHTML(session, options = {}) {
         </span>
         ${projectEmojiBadge}
         <span class="session-name">${displayName}</span>
+        ${goalSeekBadge}
         ${pausedLabelHTML}
         <span class="session-meta session-meta-right">
           ${convBadge}

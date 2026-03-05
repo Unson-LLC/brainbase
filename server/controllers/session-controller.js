@@ -18,7 +18,8 @@ export class SessionController {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
-        this._commitNotifyMap = new Map(); // sessionId → timestamp
+        this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
+        this._commitNotifyMap = new Map(); // sessionId -> timestamp
     }
 
     _parseTreeDepth(rawDepth) {
@@ -113,30 +114,6 @@ export class SessionController {
         return { nodes, truncated };
     }
 
-    /**
-     * State更新をリトライ付きで実行
-     * @param {Function} updateFn - 状態更新関数（currentState => newState）
-     * @param {number} maxRetries - 最大リトライ回数
-     * @returns {Promise<Object>} - 更新後の状態
-     */
-    async _updateStateWithRetry(updateFn, maxRetries = 3) {
-        for (let i = 0; i < maxRetries; i++) {
-            try {
-                const currentState = this.stateStore.get();
-                const newState = updateFn(currentState);
-                await this.stateStore.update(newState);
-                return newState;
-            } catch (err) {
-                if (err.message.includes('State conflict') && i < maxRetries - 1) {
-                    console.warn(`[SessionController] Retry ${i + 1}/${maxRetries} due to conflict`);
-                    await new Promise(resolve => setTimeout(resolve, 100 * (i + 1))); // Exponential backoff
-                    continue;
-                }
-                throw err;
-            }
-        }
-    }
-
     // ========================================
     // Activity & Status
     // ========================================
@@ -165,6 +142,20 @@ export class SessionController {
     };
 
     /**
+     * POST /api/sessions/:id/clear-done
+     * セッションのdoneステータスをクリア（既読化）
+     */
+    clearDone = (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        this.sessionManager.clearDoneStatus(id);
+        res.json({ success: true });
+    };
+
+    /**
      * GET /api/sessions/:id
      * 特定セッションの情報を取得
      */
@@ -181,13 +172,61 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        // Add runtime status
         const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
-
         res.json({
             ...session,
             runtimeStatus
         });
+    };
+
+    /**
+     * プログレス更新
+     * @param {string} sessionId - セッションID
+     * @param {string} phase - フェーズ名
+     * @param {number} percent - 進捗率（0-100）
+     * @param {string} message - メッセージ
+     */
+    _updateProgress(sessionId, phase, percent, message) {
+        this.progressMap.set(sessionId, {
+            phase,
+            percent,
+            message,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * GET /api/sessions/:id/progress
+     * プログレス取得（Long Polling）
+     */
+    getProgress = async (req, res) => {
+        const { id } = req.params;
+        const currentPercent = parseInt(req.query.current) || 0;
+
+        const startTime = Date.now();
+        const timeout = 30000;
+        const interval = 100;
+
+        const checkProgress = () => {
+            const progress = this.progressMap.get(id);
+
+            if (progress && progress.percent > currentPercent) {
+                return res.json(progress);
+            }
+
+            if (progress && progress.percent >= 100) {
+                this.progressMap.delete(id);
+                return res.json(progress);
+            }
+
+            if (Date.now() - startTime > timeout) {
+                return res.json({ phase: 'timeout', percent: currentPercent, message: 'Timeout' });
+            }
+
+            setTimeout(checkProgress, interval);
+        };
+
+        checkProgress();
     };
 
     // ========================================
@@ -225,17 +264,16 @@ export class SessionController {
             // ttydプロセス起動
             const result = await this.sessionManager.startTtyd(startOptions);
 
-            // intendedState を active に更新（engine も反映）（リトライ付き）
-            await this._updateStateWithRetry((currentState) => {
-                const updatedSessions = (currentState.sessions || []).map(session => {
-                    if (session.id !== sessionId) return session;
-                    const updates = { ...session, intendedState: 'active', updatedAt: new Date().toISOString() };
-                    if (startOptions.engine) {
-                        updates.engine = startOptions.engine;
-                    }
-                    return updates;
-                });
-                return { ...currentState, sessions: updatedSessions };
+            // intendedState を active に更新（restore と同様）
+            const currentState = this.stateStore.get();
+            const updatedSessions = (currentState.sessions || []).map(session =>
+                session.id === sessionId
+                    ? { ...session, intendedState: 'active', updatedAt: new Date().toISOString() }
+                    : session
+            );
+            await this.stateStore.update({
+                ...currentState,
+                sessions: updatedSessions
             });
 
             res.json(result);
@@ -254,36 +292,28 @@ export class SessionController {
         const { id } = req.params;
         const { preserveTmux = false } = req.body || {};
 
-        try {
-            const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
+        const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
 
-            if (stopped) {
-                // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
-                if (!preserveTmux) {
-                    const now = new Date().toISOString();
-                    await this._updateStateWithRetry((currentState) => {
-                        const updatedSessions = (currentState.sessions || []).map(session =>
-                            session.id === id
-                                ? {
-                                    ...session,
-                                    intendedState: 'paused',
-                                    pausedReason: 'manual',
-                                    pausedAt: now,
-                                    updatedAt: now
-                                }
-                                : session
-                        );
-                        return { ...currentState, sessions: updatedSessions };
-                    });
-                }
+        if (stopped) {
+            // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
+            if (!preserveTmux) {
+                const currentState = this.stateStore.get();
+                const now = new Date().toISOString();
+                const updatedSessions = (currentState.sessions || []).map(session =>
+                    session.id === id
+                        ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
+                        : session
+                );
 
-                res.json({ success: true });
-            } else {
-                res.status(404).json({ error: 'Session not found or already stopped' });
+                await this.stateStore.update({
+                    ...currentState,
+                    sessions: updatedSessions
+                });
             }
-        } catch (error) {
-            console.error(`[stop] Error stopping session ${id}:`, error);
-            res.status(500).json({ error: 'Failed to stop session', detail: error.message });
+
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Session not found or already stopped' });
         }
     };
 
@@ -295,50 +325,43 @@ export class SessionController {
         const { id } = req.params;
         const { skipMergeCheck } = req.body;
 
-        try {
-            const state = this.stateStore.get();
-            const session = state.sessions?.find(s => s.id === id);
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
 
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
-
-            // Check if workspace needs integration (Jujutsu: push needed)
-            if (session.worktree?.repo && !skipMergeCheck) {
-                const status = await this.worktreeService.getStatus(
-                    id,
-                    session.worktree.repo,
-                    session.worktree.startCommit || null
-                );
-                if (status.needsIntegration || status.needsMerge) {
-                    return res.json({
-                        needsConfirmation: true,
-                        status,
-                        message: 'Workspace has changes not pushed to remote'
-                    });
-                }
-            }
-
-            // Stop ttyd process first (release port)
-            try {
-                await this.sessionManager.stopTtyd(id);
-            } catch (ttydError) {
-                console.error(`[archive] Failed to stop ttyd for ${id}:`, ttydError.message);
-            }
-
-            // Archive: Update intendedState to archived (リトライ付き)
-            await this._updateStateWithRetry((currentState) => {
-                const updatedSessions = currentState.sessions.map(s =>
-                    s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
-                );
-                return { ...currentState, sessions: updatedSessions };
-            });
-
-            res.json({ success: true });
-        } catch (error) {
-            console.error(`[archive] Error archiving session ${id}:`, error);
-            res.status(500).json({ error: 'Failed to archive session', detail: error.message });
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
         }
+
+        // Check if workspace needs integration (Jujutsu: push needed)
+        if (session.worktree && !skipMergeCheck) {
+            const status = await this.worktreeService.getStatus(
+                id,
+                session.worktree.repo,
+                session.worktree.startCommit || null
+            );
+            if (status.needsIntegration || status.needsMerge) {
+                return res.json({
+                    needsConfirmation: true,
+                    status,
+                    message: 'Workspace has changes not pushed to remote'
+                });
+            }
+        }
+
+        // Stop ttyd process first (release port)
+        await this.sessionManager.stopTtyd(id);
+
+        // Archive: Update intendedState to archived
+        const updatedSessions = state.sessions.map(s =>
+            s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
+        );
+
+        const newState = await this.stateStore.update({
+            ...state,
+            sessions: updatedSessions
+        });
+
+        res.json({ success: true, state: newState });
     };
 
     /**
@@ -365,7 +388,7 @@ export class SessionController {
 
         try {
             // Restore worktree if it existed
-            if (session.worktree?.repo) {
+            if (session.worktree) {
                 const worktreeResult = await this.worktreeService.create(id, session.worktree.repo);
                 if (!worktreeResult) {
                     return res.status(500).json({
@@ -387,14 +410,14 @@ export class SessionController {
                 engine
             });
 
-            // Update state to active (archivedAt も除去、engine も反映)（リトライ付き）
-            await this._updateStateWithRetry((currentState) => {
-                const updatedSessions = currentState.sessions.map(s => {
-                    if (s.id !== id) return s;
-                    const { archivedAt, ...rest } = s;
-                    return { ...rest, intendedState: 'active', engine };
-                });
-                return { ...currentState, sessions: updatedSessions };
+            // Update state to active
+            const updatedSessions = state.sessions.map(s =>
+                s.id === id ? { ...s, intendedState: 'active' } : s
+            );
+
+            await this.stateStore.update({
+                ...state,
+                sessions: updatedSessions
             });
 
             res.json({
@@ -531,8 +554,13 @@ export class SessionController {
         }
 
         try {
+            // skipFetchオプション（デフォルト: true）
+            const skipFetch = req.body.skipFetch !== undefined ? req.body.skipFetch : true;
+
+            this._updateProgress(sessionId, 'creating_workspace', 10, 'Workspace作成中...');
+
             // Create worktree
-            const worktreeResult = await this.worktreeService.create(sessionId, repoPath);
+            const worktreeResult = await this.worktreeService.create(sessionId, repoPath, { skipFetch });
 
             if (!worktreeResult) {
                 return res.status(500).json({ error: 'Failed to create worktree. Is this a git repository?' });
@@ -540,12 +568,15 @@ export class SessionController {
 
             const { worktreePath, branchName } = worktreeResult;
 
+            this._updateProgress(sessionId, 'setup_environment', 40, '環境セットアップ中...');
+
             // セッション作成時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
             // Update state BEFORE starting ttyd.
             // This allows ttyd start to persist pid/port and login_script.sh to resolve correct CWD.
             const now = new Date().toISOString();
+            const currentState = this.stateStore.get();
             const newSession = {
                 id: sessionId,
                 name: name || sessionId,
@@ -564,33 +595,44 @@ export class SessionController {
                 updatedAt: now
             };
 
-            await this._updateStateWithRetry((currentState) => ({
-                ...currentState,
-                sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
-            }));
+            this._updateProgress(sessionId, 'starting_terminal', 60, 'ターミナル起動中...');
 
-            let result;
-            try {
-                // Start ttyd session with worktree as cwd
-                result = await this.sessionManager.startTtyd({
+            // state更新とttyd起動を並列実行
+            const [stateResult, ttydResult] = await Promise.allSettled([
+                this.stateStore.update({
+                    ...currentState,
+                    sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
+                }),
+                this.sessionManager.startTtyd({
                     sessionId,
                     cwd: worktreePath,
                     initialCommand,
                     engine
+                })
+            ]);
+
+            // ttyd起動失敗時はロールバック
+            if (ttydResult.status === 'rejected') {
+                console.error('[createWithWorktree] ttyd start failed:', ttydResult.reason);
+                const rollbackState = this.stateStore.get();
+                await this.stateStore.update({
+                    ...rollbackState,
+                    sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
                 });
-            } catch (error) {
-                // Roll back state + workspace on failure (best-effort)
-                try {
-                    await this._updateStateWithRetry((currentState) => ({
-                        ...currentState,
-                        sessions: (currentState.sessions || []).filter(s => s.id !== sessionId)
-                    }));
-                } catch (rollbackError) {
-                    console.error(`[createWithWorktree] Rollback failed:`, rollbackError);
-                }
                 this.worktreeService.remove(sessionId, repoPath).catch(() => {});
-                throw error;
+                throw ttydResult.reason;
             }
+
+            // state更新失敗時は警告のみ
+            if (stateResult.status === 'rejected') {
+                console.warn('[createWithWorktree] state update failed (session is usable):', stateResult.reason);
+            }
+
+            const result = ttydResult.value;
+
+            this._updateProgress(sessionId, 'starting_claude', 80, 'Claude起動中...');
+
+            this._updateProgress(sessionId, 'initializing', 90, '初期化中...');
 
             res.json({
                 success: true,
@@ -600,6 +642,7 @@ export class SessionController {
                 branchName
             });
         } catch (error) {
+            this._updateProgress(sessionId, 'error', 0, error.message);
             console.error('Failed to create session with worktree:', error);
             res.status(500).json({ error: error.message });
         }
@@ -620,7 +663,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree?.repo) {
+        if (!session.worktree) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -777,7 +820,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree?.repo) {
+        if (!session.worktree) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -805,7 +848,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree?.repo) {
+        if (!session.worktree) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -813,26 +856,85 @@ export class SessionController {
             const result = await this.worktreeService.merge(id, session.worktree.repo, session.name);
 
             if (result.success) {
-                const mergedAt = result.mergedAt || new Date().toISOString();
-                // Update session to mark as merged (リトライ付き)
-                await this._updateStateWithRetry((currentState) => {
-                    const updatedSessions = (currentState.sessions || []).map(s =>
-                        s.id === id
-                            ? {
-                                ...s,
-                                merged: true,
-                                mergedAt,
-                                mergedPrUrl: result.prUrl || null
-                            }
-                            : s
-                    );
-                    return { ...currentState, sessions: updatedSessions };
+                // Update session to mark as merged
+                const updatedSessions = state.sessions.map(s =>
+                    s.id === id ? { ...s, merged: true, mergedAt: new Date().toISOString() } : s
+                );
+
+                await this.stateStore.update({
+                    ...state,
+                    sessions: updatedSessions
                 });
             }
 
             res.json(result);
         } catch (error) {
             console.error('Failed to merge worktree:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
+     * POST /api/sessions/:id/ask-ai-integration
+     * AIに統合確認と対処を依頼
+     */
+    askAiIntegration = async (req, res) => {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        try {
+            // jj状態を取得
+            const { execSync } = require('child_process');
+            const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
+
+            const jjStatus = execSync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
+            const jjLog = execSync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
+            const jjBookmarks = execSync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
+
+            // Claude Codeに送信するメッセージを構築
+            const message = `[システム自動送信]
+
+ユーザーがアーカイブしようとしたが、以下の警告が出ました：
+
+${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
+${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
+${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
+
+現在の状態：
+=== jj status ===
+${jjStatus}
+
+=== jj log ===
+${jjLog}
+
+=== jj bookmark list ===
+${jjBookmarks}
+
+セッション情報：
+- session-id: ${id}
+- プロジェクト: ${session.name || 'unson'}
+- パス: ${workspacePath}
+
+この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
+
+            // メッセージをクリップボードにコピー（macOS）
+            const { execSync: exec } = require('child_process');
+            exec(`echo "${message.replace(/"/g, '\\"')}" | pbcopy`, { encoding: 'utf-8' });
+
+            res.json({
+                success: true,
+                message: 'AIへの依頼内容をクリップボードにコピーしました。Claude Codeのチャット画面でペーストして送信してください。',
+                clipboardContent: message
+            });
+        } catch (error) {
+            console.error('Failed to ask AI for integration:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -852,22 +954,16 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
+        if (!session.worktree) {
+            return res.status(400).json({ error: 'Session does not have a worktree' });
+        }
+
         try {
-            let result;
-            if (session.worktree?.repo) {
-                result = await this.worktreeService.getCommitLog(
-                    id,
-                    session.worktree.repo,
-                    limit
-                );
-            } else if (session.path) {
-                result = await this.worktreeService.getCommitLogByPath(
-                    session.path,
-                    limit
-                );
-            } else {
-                return res.status(400).json({ error: 'Session does not have a repository path' });
-            }
+            const result = await this.worktreeService.getCommitLog(
+                id,
+                session.worktree.repo,
+                limit
+            );
             res.json(result);
         } catch (error) {
             console.error('Failed to get commit log:', error);
@@ -908,7 +1004,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree?.repo) {
+        if (!session.worktree) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -916,16 +1012,18 @@ export class SessionController {
             const success = await this.worktreeService.remove(id, session.worktree.repo);
 
             if (success) {
-                // Remove worktree info from session state (リトライ付き)
-                await this._updateStateWithRetry((currentState) => {
-                    const updatedSessions = currentState.sessions.map(s => {
-                        if (s.id === id) {
-                            const { worktree, ...rest } = s;
-                            return rest;
-                        }
-                        return s;
-                    });
-                    return { ...currentState, sessions: updatedSessions };
+                // Remove worktree info from session state
+                const updatedSessions = state.sessions.map(s => {
+                    if (s.id === id) {
+                        const { worktree, ...rest } = s;
+                        return rest;
+                    }
+                    return s;
+                });
+
+                await this.stateStore.update({
+                    ...state,
+                    sessions: updatedSessions
                 });
 
                 res.json({ success: true });
