@@ -14,6 +14,8 @@ export class SessionContextBarView {
         this._requestId = 0;
         this._unsubscribers = [];
         this._pollTimer = null;
+        this._expanded = false;
+        this._currentContext = null;
     }
 
     mount(container) {
@@ -82,34 +84,85 @@ export class SessionContextBarView {
     _renderContext(context) {
         if (!this.container) return;
 
+        const sessionName = context.sessionName || context.sessionId || '-';
         const sessionId = context.sessionId || '-';
-        const engine = context.engine || '-';
+        const engine = context.engine || 'claude';
         const repo = context.repo || '-';
+        const baseBranch = context.baseBranch || '-';
+        const repoPath = context.repoPath || '-';
         const workspacePath = context.workspacePath || '-';
-        const bookmark = context.bookmark || '-';
-        const dirtyLabel = context.dirty ? 'dirty' : 'clean';
-        const dirtyClass = context.dirty ? 'is-warning' : 'is-ok';
+        const dirty = context.dirty;
         const changesNotPushed = Number(context.changesNotPushed || 0);
         const prStatus = context.prStatus || 'none';
-        const prText = prStatus === 'merged' ? 'merged' : prStatus === 'open_or_pending' ? 'pending' : 'none';
-        const prClass = prStatus === 'merged' ? 'is-ok' : (prStatus === 'open_or_pending' ? 'is-warning' : '');
 
-        const repoPath = context.repoPath || '-';
-        const baseBranch = context.baseBranch || '-';
-        const items = [
-            this._renderItem('Session', sessionId),
-            this._renderItem('Engine', engine),
-            this._renderItem('Repo', repo, { title: context.repoPath || repo }),
-            this._renderItem('Clone', this._shortPath(repoPath), { title: repoPath, full: repoPath }),
-            this._renderItem('Workspace', this._shortPath(workspacePath), { title: workspacePath, full: workspacePath }),
-            this._renderItem('Bookmark', bookmark),
-            this._renderItem('From', baseBranch),
-            this._renderItem('Dirty', dirtyLabel, { valueClass: dirtyClass }),
-            this._renderItem('Ahead', `${changesNotPushed}`),
-            this._renderItem('PR', prText, { valueClass: prClass })
-        ];
+        // Engine icon (既存のSVGアイコンを使用)
+        const engineMeta = engine === 'codex'
+            ? { title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
+            : { title: 'Claude Code', className: 'engine-icon engine-claude' };
+        const engineIcon = `<img src="/icons/${engine}.svg" class="engine-svg-icon" alt="${engineMeta.title}" title="${engineMeta.title}">`;
 
-        this.container.innerHTML = `<div class="session-context-bar-inner">${items.join('')}</div>`;
+        // 常時表示項目
+        const primaryInfo = `${escapeHtml(sessionName)} ${engineIcon} @ ${escapeHtml(repo)}/${escapeHtml(baseBranch)}`;
+
+        // 異常時のみ表示（アクションが必要な情報）
+        const alerts = [];
+        if (dirty) {
+            alerts.push('<span class="context-alert is-warning" title="Uncommitted changes">⚠️ dirty</span>');
+        }
+        if (changesNotPushed > 0) {
+            alerts.push(`<span class="context-alert is-warning" title="${changesNotPushed} commits not pushed">↑ ${changesNotPushed}</span>`);
+        }
+        if (prStatus === 'merged') {
+            alerts.push('<span class="context-alert is-ok" title="PR merged">🔀 merged</span>');
+        } else if (prStatus === 'open_or_pending') {
+            alerts.push('<span class="context-alert is-warning" title="PR pending">🔀 pending</span>');
+        }
+
+        const alertsHtml = alerts.length > 0 ? ` <span class="context-separator">|</span> ${alerts.join(' ')}` : '';
+
+        // 展開ボタン
+        const expandIcon = this._expanded ? '▲' : '▼';
+        const expandBtn = `<button class="context-expand-btn" title="詳細を${this._expanded ? '折りたたむ' : '展開'}">${expandIcon}</button>`;
+
+        // 詳細情報（展開時のみ表示）
+        const detailsHtml = this._expanded ? `
+            <div class="context-details">
+                <div class="context-detail-item">
+                    <span class="context-detail-label">Clone:</span>
+                    <span class="context-detail-value" title="${escapeHtml(repoPath)}">${escapeHtml(repoPath)}</span>
+                </div>
+                <div class="context-detail-item">
+                    <span class="context-detail-label">Workspace:</span>
+                    <span class="context-detail-value" title="${escapeHtml(workspacePath)}">${escapeHtml(this._shortPath(workspacePath))}</span>
+                </div>
+                <div class="context-detail-item">
+                    <span class="context-detail-label">Session:</span>
+                    <span class="context-detail-value">${escapeHtml(sessionId)}</span>
+                </div>
+            </div>
+        ` : '';
+
+        this.container.innerHTML = `
+            <div class="session-context-bar-inner">
+                <div class="context-primary">
+                    ${primaryInfo}${alertsHtml}
+                    ${expandBtn}
+                </div>
+                ${detailsHtml}
+            </div>
+        `;
+
+        // contextを保存（展開/折りたたみ時に再利用）
+        this._currentContext = context;
+
+        // 展開ボタンのイベントリスナー
+        const expandButton = this.container.querySelector('.context-expand-btn');
+        if (expandButton) {
+            expandButton.addEventListener('click', () => {
+                this._expanded = !this._expanded;
+                this._renderContext(this._currentContext);
+            });
+        }
     }
 
     async refresh(options = {}) {
