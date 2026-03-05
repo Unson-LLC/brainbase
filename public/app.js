@@ -150,6 +150,16 @@ class TerminalReconnectManager {
         // 正常切断（code 1000）は無視（セッション切り替え等）
         if (code === 1000) return;
 
+        // アーカイブ済みセッションの切断は再接続しない
+        const state = appStore.getState();
+        const session = (state.sessions || []).find(s => s.id === sessionId);
+        if (session?.intendedState === 'archived') {
+            console.log(`[reconnect] Ignoring disconnect for archived session ${sessionId}`);
+            this.wsConnected = false;
+            this._emitStatus();
+            return;
+        }
+
         // 最近接続成功した場合は無視（race condition防止）
         if (this.lastConnectTime && Date.now() - this.lastConnectTime < 3000) {
             console.log('[reconnect] Ignoring disconnect within 3s of connect');
@@ -238,10 +248,18 @@ class TerminalReconnectManager {
             return;
         }
 
+        // アーカイブ済みセッションの再接続をスキップ（意図しない復活を防止）
+        const state = appStore.getState();
+        const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
+        if (currentSession?.intendedState === 'archived') {
+            console.log(`[reconnect] Skipping: session ${this.currentSessionId} is archived`);
+            this.isReconnecting = false;
+            this.retryCount = 0;
+            return;
+        }
+
         try {
             const payload = { sessionId: this.currentSessionId };
-            const state = appStore.getState();
-            const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
 
             const sessionCwd = currentSession?.worktree?.path || currentSession?.path;
             if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
@@ -2185,6 +2203,13 @@ export class App {
 
             if (!session) {
                 console.error('Session not found:', sessionId);
+                terminalFrame.src = 'about:blank';
+                return;
+            }
+
+            // アーカイブ済みセッションへの切り替えを防止
+            if (session.intendedState === 'archived') {
+                console.log(`[switchSession] Skipping archived session ${sessionId}`);
                 terminalFrame.src = 'about:blank';
                 return;
             }
