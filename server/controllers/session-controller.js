@@ -918,16 +918,32 @@ ${jjBookmarks}
 この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
 
             // メッセージをクリップボードにコピー（macOS）
+            console.log('[askAiIntegration] Message length:', message.length);
+            console.log('[askAiIntegration] Message preview:', message.substring(0, 200));
+
             await new Promise((resolve, reject) => {
                 const pbcopy = spawn('pbcopy');
-                pbcopy.stdin.write(message);
+
+                pbcopy.stdin.write(message, 'utf8');
                 pbcopy.stdin.end();
+
                 pbcopy.on('close', (code) => {
+                    console.log('[askAiIntegration] pbcopy closed with code:', code);
                     if (code === 0) resolve();
                     else reject(new Error(`pbcopy failed with code ${code}`));
                 });
-                pbcopy.on('error', reject);
+
+                pbcopy.on('error', (err) => {
+                    console.error('[askAiIntegration] pbcopy error:', err);
+                    reject(err);
+                });
+
+                pbcopy.stderr.on('data', (data) => {
+                    console.error('[askAiIntegration] pbcopy stderr:', data.toString());
+                });
             });
+
+            console.log('[askAiIntegration] Clipboard copy completed');
 
             res.json({
                 success: true,
