@@ -2,7 +2,7 @@
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { promisify } from 'util';
@@ -918,7 +918,16 @@ ${jjBookmarks}
 この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
 
             // メッセージをクリップボードにコピー（macOS）
-            await execAsync(`echo ${JSON.stringify(message)} | pbcopy`, { encoding: 'utf-8' });
+            await new Promise((resolve, reject) => {
+                const pbcopy = spawn('pbcopy');
+                pbcopy.stdin.write(message);
+                pbcopy.stdin.end();
+                pbcopy.on('close', (code) => {
+                    if (code === 0) resolve();
+                    else reject(new Error(`pbcopy failed with code ${code}`));
+                });
+                pbcopy.on('error', reject);
+            });
 
             res.json({
                 success: true,
