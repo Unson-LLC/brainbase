@@ -3,6 +3,7 @@
  */
 import { skillsUsageService } from '../services/skills-usage-service.js';
 import { skillsEvaluationService } from '../services/skills-evaluation-service.js';
+import { skillsUpdateService } from '../services/skills-update-service.js';
 
 export class SkillsController {
   /**
@@ -222,6 +223,116 @@ export class SkillsController {
       res.json({ score });
     } catch (error) {
       console.error('[SkillsController] Consistency check failed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Skillを更新
+   * POST /api/skills/update
+   */
+  async updateSkill(req, res) {
+    try {
+      const { skillName, newContent, metadata } = req.body;
+
+      if (!skillName || !newContent) {
+        return res.status(400).json({ error: 'Missing required fields: skillName, newContent' });
+      }
+
+      const result = await skillsUpdateService.updateSkill(skillName, newContent, metadata);
+      res.json(result);
+    } catch (error) {
+      console.error('[SkillsController] Update failed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * バックアップ一覧を取得
+   * GET /api/skills/backups/:skillName
+   */
+  async listBackups(req, res) {
+    try {
+      const { skillName } = req.params;
+      const backups = await skillsUpdateService.listBackups(skillName);
+      res.json({ backups });
+    } catch (error) {
+      console.error('[SkillsController] Failed to list backups:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * バックアップコンテンツを取得
+   * GET /api/skills/backups/:skillName/:timestamp
+   */
+  async getBackup(req, res) {
+    try {
+      const { skillName, timestamp } = req.params;
+      const content = await skillsUpdateService.getBackup(skillName, timestamp);
+      res.json({ content });
+    } catch (error) {
+      console.error('[SkillsController] Failed to get backup:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 現在のコンテンツを取得
+   * GET /api/skills/content/:skillName
+   */
+  async getCurrentContent(req, res) {
+    try {
+      const { skillName } = req.params;
+      const content = await skillsUpdateService.getCurrentContent(skillName);
+      res.json({ content });
+    } catch (error) {
+      console.error('[SkillsController] Failed to get current content:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 履歴を記録
+   * POST /api/skills/history
+   */
+  async logHistory(req, res) {
+    try {
+      const entry = req.body;
+      const result = await skillsUpdateService.logHistory(entry);
+      res.json(result);
+    } catch (error) {
+      console.error('[SkillsController] Failed to log history:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * 履歴を取得
+   * GET /api/skills/history/:skillName
+   */
+  async getHistory(req, res) {
+    try {
+      const { skillName } = req.params;
+      const history = await skillsUpdateService.getHistory(skillName);
+      res.json(history);
+    } catch (error) {
+      console.error('[SkillsController] Failed to get history:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  /**
+   * Skill実行をシミュレーション
+   * POST /api/skills/simulate
+   */
+  async simulate(req, res) {
+    try {
+      const { skill, testCase } = req.body;
+      const result = await skillsUpdateService.simulateExecution(skill, testCase);
+      res.json(result);
+    } catch (error) {
+      console.error('[SkillsController] Simulation failed:', error);
       res.status(500).json({ error: error.message });
     }
   }

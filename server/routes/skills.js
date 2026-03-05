@@ -28,4 +28,17 @@ router.post('/evaluate/conciseness', (req, res) => skillsController.checkConcise
 router.post('/evaluate/kernel', (req, res) => skillsController.checkKERNEL(req, res));
 router.post('/evaluate/consistency', (req, res) => skillsController.checkConsistency(req, res));
 
+// Skill更新・バックアップ
+router.post('/update', (req, res) => skillsController.updateSkill(req, res));
+router.get('/backups/:skillName', (req, res) => skillsController.listBackups(req, res));
+router.get('/backups/:skillName/:timestamp', (req, res) => skillsController.getBackup(req, res));
+router.get('/content/:skillName', (req, res) => skillsController.getCurrentContent(req, res));
+
+// 履歴管理
+router.post('/history', (req, res) => skillsController.logHistory(req, res));
+router.get('/history/:skillName', (req, res) => skillsController.getHistory(req, res));
+
+// シミュレーション
+router.post('/simulate', (req, res) => skillsController.simulate(req, res));
+
 export default router;
