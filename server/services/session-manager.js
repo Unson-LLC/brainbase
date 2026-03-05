@@ -512,7 +512,7 @@ export class SessionManager {
      * @param {string} status - ステータス（'working' | 'done'）
      * @param {number} reportedAt - 報告時刻（ms）
      */
-    reportActivity(sessionId, status, reportedAt) {
+    async reportActivity(sessionId, status, reportedAt) {
         if (status !== 'working' && status !== 'done') {
             console.warn(`[Hook] Ignoring invalid status for ${sessionId}: ${status}`);
             return;
@@ -567,7 +567,7 @@ export class SessionManager {
                 : session
         );
 
-        this.stateStore.update({
+        await this.stateStore.update({
             ...currentState,
             sessions: updatedSessions
         });
