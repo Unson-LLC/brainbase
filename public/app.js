@@ -1099,8 +1099,19 @@ export class App {
             // Update currentSessionId in store
             appStore.setState({ currentSessionId: sessionId });
 
+            // セッション離脱時に前セッションのdoneインジケータを既読化
+            if (previousSessionId && previousSessionId !== sessionId) {
+                void markDoneAsRead(previousSessionId, sessionId);
+            }
+
+            // Show terminal loading overlay
+            this.showTerminalLoadingOverlay();
+
             // Switch terminal frame
             await this.switchSession(sessionId);
+
+            // Wait for Claude initialization
+            await this._waitForClaudeInitialization(sessionId);
 
             // Load session-specific data
             await this.loadSessionData(sessionId);
