@@ -1096,13 +1096,10 @@ export class App {
         // Session change: reload related data and switch terminal
         const unsub1 = eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
-            console.log('Session changed:', sessionId);
+            console.log('[SessionSwitch] Starting for:', sessionId);
             const previousSessionId = appStore.getState().currentSessionId;
 
-            // Update currentSessionId in store
-            appStore.setState({ currentSessionId: sessionId });
-
-            // Invalidate cache for previous session
+            // セッション切り替え時は古いセッションのキャッシュを無効化
             if (previousSessionId && previousSessionId !== sessionId) {
                 sessionDataCache.invalidate(previousSessionId);
             }
@@ -1112,11 +1109,17 @@ export class App {
                 void markDoneAsRead(previousSessionId, sessionId);
             }
 
-            // Switch terminal frame
-            await this.switchSession(sessionId);
+            // Update currentSessionId in store
+            appStore.setState({ currentSessionId: sessionId });
 
-            // Load session-specific data
-            await this.loadSessionData(sessionId);
+            // 並列実行: switchSession と loadSessionData
+            const startTime = performance.now();
+            await Promise.all([
+                this.switchSession(sessionId),
+                this.loadSessionData(sessionId)
+            ]);
+            const duration = performance.now() - startTime;
+            console.log(`[SessionSwitch] Completed in ${duration.toFixed(2)}ms`);
 
             // Auto-return to console view
             if (this.showConsole) {
@@ -2275,11 +2278,14 @@ export class App {
      */
     async loadSessionData(sessionId) {
         try {
-            // Load tasks for the session
-            await this.taskService.loadTasks();
-
-            // Load schedule for the session
-            await this.scheduleService.loadSchedule();
+            // 並列実行: loadTasks と loadSchedule
+            const startTime = performance.now();
+            await Promise.all([
+                this.taskService.loadTasks(),
+                this.scheduleService.loadSchedule()
+            ]);
+            const duration = performance.now() - startTime;
+            console.log(`[SessionSwitch] Data loaded in ${duration.toFixed(2)}ms`);
 
             console.log('Session data loaded for:', sessionId);
         } catch (error) {
