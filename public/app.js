@@ -8,6 +8,7 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { sessionDataCache } from './modules/core/session-data-cache.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
@@ -1100,6 +1101,11 @@ export class App {
 
             // Update currentSessionId in store
             appStore.setState({ currentSessionId: sessionId });
+
+            // Invalidate cache for previous session
+            if (previousSessionId && previousSessionId !== sessionId) {
+                sessionDataCache.invalidate(previousSessionId);
+            }
 
             // Mark previous session's green indicator as read when leaving it
             if (previousSessionId && previousSessionId !== sessionId) {

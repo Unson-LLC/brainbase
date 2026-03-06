@@ -166,8 +166,13 @@ export class SessionView {
 
         timelineSessions.forEach(session => {
             const project = getProjectFromSession(session);
+            // goalSeekデータをstatus pollingからマージ
+            const liveStatus = getSessionStatus(session.id);
+            const enrichedSession = liveStatus?.goalSeek
+                ? { ...session, goalSeek: liveStatus.goalSeek }
+                : session;
             const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
+            wrapper.innerHTML = renderSessionRowHTML(enrichedSession, {
                 isActive: currentSessionId === session.id,
                 project,
                 showProjectEmoji: true,
@@ -368,8 +373,13 @@ export class SessionView {
 
         // 各セッションをレンダリング
         sessions.forEach(session => {
+            // goalSeekデータをstatus pollingからマージ
+            const liveStatus = getSessionStatus(session.id);
+            const enrichedSession = liveStatus?.goalSeek
+                ? { ...session, goalSeek: liveStatus.goalSeek }
+                : session;
             const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
+            wrapper.innerHTML = renderSessionRowHTML(enrichedSession, {
                 isActive: currentSessionId === session.id,
                 project
             });

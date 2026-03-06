@@ -92,14 +92,26 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="paused-label" title="${escapeHtml(pausedStatusLabel.title)}">${escapeHtml(pausedStatusLabel.text)}</span>`
     : '';
 
-  // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
-  const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
+  // goal-seek status
+  const goalSeekActive = session.goalSeek?.active || false;
+  const goalSeekIteration = session.goalSeek?.iteration || 0;
+  const goalSeekMaxIterations = session.goalSeek?.maxIterations || 0;
+
+  // セッションアイコン: goal-seek active→target、worktreeあり→git-merge、なし→terminal-square
+  const sessionIcon = goalSeekActive
+    ? 'target'
+    : (hasWorktree ? 'git-merge' : 'terminal-square');
 
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
     ? { title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
     : { title: 'Claude Code', className: 'engine-icon engine-claude' };
   const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><img src="/icons/${engine}.svg" class="engine-svg-icon" alt="${engineMeta.title}"></span>`;
+
+  // goal-seek badge
+  const goalSeekBadge = goalSeekActive
+    ? `<span class="goal-seek-badge" title="Goal Seek: iteration ${goalSeekIteration} of ${goalSeekMaxIterations}">[${goalSeekIteration}/${goalSeekMaxIterations}]</span>`
+    : '';
 
   const projectConfig = showProjectEmoji ? getProjectConfig(project) : null;
   const projectEmoji = projectConfig?.emoji ? escapeHtml(projectConfig.emoji) : '';
@@ -165,6 +177,7 @@ export function renderSessionRowHTML(session, options = {}) {
         </span>
         ${projectEmojiBadge}
         <span class="session-name">${displayName}</span>
+        ${goalSeekBadge}
         ${pausedLabelHTML}
         <span class="session-meta session-meta-right">
           ${convBadge}
