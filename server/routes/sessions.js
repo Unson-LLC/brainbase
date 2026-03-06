@@ -116,6 +116,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     // Worktree Operations
     // ========================================
     router.post('/create-with-worktree', controller.createWithWorktree);
+    router.get('/:id/progress', controller.getProgress);
     router.get('/:id/worktree-status', controller.getWorktreeStatus);
     router.get('/:id/context', controller.getContext);
     router.get('/:id/folder-tree', controller.getFolderTree);

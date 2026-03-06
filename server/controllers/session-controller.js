@@ -19,6 +19,7 @@ export class SessionController {
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
+        this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
     }
 
     _parseTreeDepth(rawDepth) {
@@ -601,8 +602,59 @@ ${jjBookmarks}
      * POST /api/sessions/create-with-worktree
      * worktreeを作成してセッションを開始
      */
+    /**
+     * プログレス更新
+     * @param {string} sessionId - セッションID
+     * @param {string} phase - フェーズ名
+     * @param {number} percent - 進捗率（0-100）
+     * @param {string} message - メッセージ
+     */
+    _updateProgress(sessionId, phase, percent, message) {
+        this.progressMap.set(sessionId, {
+            phase,
+            percent,
+            message,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * GET /api/sessions/:id/progress
+     * プログレス取得（Long Polling）
+     */
+    getProgress = async (req, res) => {
+        const { id } = req.params;
+        const currentPercent = parseInt(req.query.current) || 0;
+
+        const startTime = Date.now();
+        const timeout = 30000;
+        const interval = 100;
+
+        const checkProgress = () => {
+            const progress = this.progressMap.get(id);
+
+            if (progress && progress.percent > currentPercent) {
+                return res.json(progress);
+            }
+
+            if (progress && progress.percent >= 100) {
+                this.progressMap.delete(id);
+                return res.json(progress);
+            }
+
+            if (Date.now() - startTime > timeout) {
+                return res.json({ phase: 'timeout', percent: currentPercent, message: 'Timeout' });
+            }
+
+            setTimeout(checkProgress, interval);
+        };
+
+        checkProgress();
+    };
+
     createWithWorktree = async (req, res) => {
         const { sessionId, repoPath, name, initialCommand, engine = 'claude', project } = req.body;
+        const skipFetch = req.body.skipFetch !== undefined ? req.body.skipFetch : true;
 
         if (!sessionId || !repoPath) {
             return res.status(400).json({ error: 'sessionId and repoPath are required' });
@@ -614,12 +666,17 @@ ${jjBookmarks}
         }
 
         try {
-            // Create worktree
-            const worktreeResult = await this.worktreeService.create(sessionId, repoPath);
+            this._updateProgress(sessionId, 'worktree', 10, 'ワークスペースを作成中...');
+
+            // Create worktree (skipFetch=trueで2-3秒短縮)
+            const worktreeResult = await this.worktreeService.create(sessionId, repoPath, { skipFetch });
 
             if (!worktreeResult) {
+                this._updateProgress(sessionId, 'error', 0, 'ワークスペース作成に失敗');
                 return res.status(500).json({ error: 'Failed to create worktree. Is this a git repository?' });
             }
+
+            this._updateProgress(sessionId, 'worktree', 40, 'ワークスペース作成完了');
 
             const { worktreePath, branchName } = worktreeResult;
 
@@ -647,22 +704,28 @@ ${jjBookmarks}
                 updatedAt: now
             };
 
-            await this._updateStateWithRetry((currentState) => ({
-                ...currentState,
-                sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
-            }));
+            this._updateProgress(sessionId, 'state', 60, 'セッション状態を更新中...');
 
-            let result;
-            try {
-                // Start ttyd session with worktree as cwd
-                result = await this.sessionManager.startTtyd({
-                    sessionId,
-                    cwd: worktreePath,
-                    initialCommand,
-                    engine
-                });
-            } catch (error) {
-                // Roll back state + workspace on failure (best-effort)
+            // state更新とttyd起動を並列実行（Tier1高速化）
+            const [stateResult, ttydResult] = await Promise.allSettled([
+                this._updateStateWithRetry((currentState) => ({
+                    ...currentState,
+                    sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
+                })),
+                (async () => {
+                    this._updateProgress(sessionId, 'ttyd', 80, 'ターミナルを起動中...');
+                    return this.sessionManager.startTtyd({
+                        sessionId,
+                        cwd: worktreePath,
+                        initialCommand,
+                        engine
+                    });
+                })()
+            ]);
+
+            // ttyd起動失敗時はロールバック
+            if (ttydResult.status === 'rejected') {
+                this._updateProgress(sessionId, 'error', 0, 'ターミナル起動に失敗');
                 try {
                     await this._updateStateWithRetry((currentState) => ({
                         ...currentState,
@@ -672,8 +735,16 @@ ${jjBookmarks}
                     console.error(`[createWithWorktree] Rollback failed:`, rollbackError);
                 }
                 this.worktreeService.remove(sessionId, repoPath).catch(() => {});
-                throw error;
+                throw ttydResult.reason;
             }
+
+            // state更新失敗時は警告のみ（セッションは使える）
+            if (stateResult.status === 'rejected') {
+                console.warn('[createWithWorktree] state update failed (session is usable):', stateResult.reason);
+            }
+
+            const result = ttydResult.value;
+            this._updateProgress(sessionId, 'done', 100, 'セッション作成完了！');
 
             res.json({
                 success: true,

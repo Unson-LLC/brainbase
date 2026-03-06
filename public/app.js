@@ -17,6 +17,7 @@ import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
+import { createSessionId } from './modules/session-manager.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
@@ -2649,21 +2650,39 @@ export class App {
     async createSession(project, name, initialCommand, useWorktree, engine) {
         console.log('Creating session:', { project, name, useWorktree, engine });
 
+        // useWorktreeの場合、sessionIdを事前に生成してプログレスポーリングを開始
+        let sessionId;
+        if (useWorktree) {
+            sessionId = createSessionId('session');
+            this.showProgressModal();
+            this._pollProgress(sessionId);
+        }
+
         try {
             const result = await this.sessionService.createSession({
                 project,
                 name,
                 initialCommand,
                 useWorktree,
-                engine
+                engine,
+                sessionId
             });
 
             console.log('Session created successfully:', result);
+
+            if (useWorktree) {
+                this.hideProgressModal();
+            }
 
             // Switch to the newly created session
             if (result.sessionId) {
                 appStore.setState({ currentSessionId: result.sessionId });
                 eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: result.sessionId });
+
+                if (useWorktree) {
+                    this.showTerminalLoadingOverlay();
+                    this._waitForClaudeInitialization(result.sessionId);
+                }
             }
 
             this.closeMobileSessionsSheet();
@@ -2671,13 +2690,162 @@ export class App {
             // If worktree session, handle proxy path for terminal
             if (result.proxyPath) {
                 console.log('Worktree session created with proxy path:', result.proxyPath);
-                // TODO: Update terminal frame src if needed
             }
 
         } catch (error) {
             console.error('Failed to create session:', error);
+            if (useWorktree) {
+                this.hideProgressModal();
+            }
             this.showError('セッションの作成に失敗しました');
         }
+    }
+
+    /**
+     * プログレスモーダル表示
+     */
+    showProgressModal() {
+        const modal = document.getElementById('session-progress-modal');
+        if (!modal) return;
+        modal.classList.add('active');
+    }
+
+    /**
+     * プログレスモーダル非表示
+     */
+    hideProgressModal() {
+        const modal = document.getElementById('session-progress-modal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        this._stopProgressPolling();
+    }
+
+    /**
+     * プログレスポーリング
+     * @param {string} sessionId - セッションID
+     */
+    _pollProgress(sessionId) {
+        this._progressSessionId = sessionId;
+        this._progressPollingActive = true;
+        this._currentPercent = 0;
+
+        const poll = async () => {
+            if (!this._progressPollingActive) return;
+
+            try {
+                const progress = await this.sessionService.getProgress(this._progressSessionId, this._currentPercent || 0);
+
+                if (progress) {
+                    this._currentPercent = progress.percent;
+                    this._updateProgressUI(progress);
+
+                    if (progress.percent >= 100 || progress.phase === 'error') {
+                        this._stopProgressPolling();
+                        return;
+                    }
+                }
+
+                setTimeout(poll, 500);
+            } catch (error) {
+                console.error('[Progress Poll] Error:', error);
+                setTimeout(poll, 1000);
+            }
+        };
+
+        poll();
+    }
+
+    /**
+     * プログレスポーリング停止
+     */
+    _stopProgressPolling() {
+        this._progressPollingActive = false;
+    }
+
+    /**
+     * プログレスUI更新
+     * @param {Object} progress - プログレス情報
+     */
+    _updateProgressUI(progress) {
+        const fill = document.getElementById('progress-fill');
+        const message = document.getElementById('progress-message');
+        const percent = document.getElementById('progress-percent');
+
+        if (fill) fill.style.width = `${progress.percent}%`;
+        if (message) message.textContent = progress.message;
+        if (percent) percent.textContent = `${progress.percent}%`;
+    }
+
+    /**
+     * ターミナルローディングオーバーレイ表示
+     */
+    showTerminalLoadingOverlay() {
+        const overlay = document.getElementById('terminal-loading-overlay');
+        if (!overlay) return;
+        overlay.classList.remove('hidden');
+    }
+
+    /**
+     * ターミナルローディングオーバーレイ非表示
+     */
+    hideTerminalLoadingOverlay() {
+        const overlay = document.getElementById('terminal-loading-overlay');
+        if (!overlay) return;
+        overlay.classList.add('hidden');
+    }
+
+    /**
+     * Claude初期化待機
+     * @param {string} sessionId - セッションID
+     */
+    async _waitForClaudeInitialization(sessionId) {
+        const maxWaitTime = 30000;
+        const pollInterval = 500;
+        const startTime = Date.now();
+
+        const checkInitialization = async () => {
+            // 条件1: ターミナルiframeがロード済みならオーバーレイ解除
+            const iframe = document.getElementById('terminal-frame');
+            if (iframe && iframe.src && iframe.src !== 'about:blank') {
+                try {
+                    // iframeがロード済みか確認（srcが設定されていればttydが起動済み）
+                    console.log(`[Claude Init] Terminal iframe loaded for ${sessionId}`);
+                    this.hideTerminalLoadingOverlay();
+                    return;
+                } catch (e) {
+                    // cross-origin error is expected, means iframe is loaded
+                    console.log(`[Claude Init] Terminal iframe active for ${sessionId}`);
+                    this.hideTerminalLoadingOverlay();
+                    return;
+                }
+            }
+
+            // 条件2: hookStatusにisWorking/isDoneがあればオーバーレイ解除
+            try {
+                const status = await this.httpClient.get('/api/sessions/status');
+                const sessionStatus = status[sessionId];
+
+                if (sessionStatus?.isWorking || sessionStatus?.isDone) {
+                    console.log(`[Claude Init] Session ${sessionId} initialized (via status)`);
+                    this.hideTerminalLoadingOverlay();
+                    return;
+                }
+            } catch (error) {
+                console.error('[Claude Init] Status check failed:', error);
+            }
+
+            // タイムアウト
+            if (Date.now() - startTime > maxWaitTime) {
+                console.warn(`[Claude Init] Timeout for session ${sessionId}, removing overlay`);
+                this.hideTerminalLoadingOverlay();
+                return;
+            }
+
+            setTimeout(checkInitialization, pollInterval);
+        };
+
+        // 少し待ってからチェック開始（switchSessionがiframe srcを設定する時間を確保）
+        setTimeout(checkInitialization, 1000);
     }
 
     /**

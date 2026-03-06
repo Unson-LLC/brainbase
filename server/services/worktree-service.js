@@ -21,7 +21,7 @@ export class WorktreeService {
         this.worktreesDir = worktreesDir;
         this.canonicalRoot = canonicalRoot;
         this.execPromise = execPromise;
-        this.isJujutsuRepo = null;  // キャッシュ
+        this._jjRepoCache = new Map();  // repoPath単位のキャッシュ
     }
 
     /**
@@ -30,15 +30,15 @@ export class WorktreeService {
      * @returns {Promise<boolean>}
      */
     async _isJujutsuRepo(repoPath) {
-        if (this.isJujutsuRepo !== null) {
-            return this.isJujutsuRepo;
+        if (this._jjRepoCache.has(repoPath)) {
+            return this._jjRepoCache.get(repoPath);
         }
         try {
             await this.execPromise(`jj -R "${repoPath}" version`);
-            this.isJujutsuRepo = true;
+            this._jjRepoCache.set(repoPath, true);
             return true;
         } catch {
-            this.isJujutsuRepo = false;
+            this._jjRepoCache.set(repoPath, false);
             return false;
         }
     }
@@ -60,7 +60,8 @@ export class WorktreeService {
      * @param {string} repoPath - リポジトリパス
      * @returns {Promise<{worktreePath: string, branchName: string, repoPath: string}|null>}
      */
-    async create(sessionId, repoPath) {
+    async create(sessionId, repoPath, options = {}) {
+        const { skipFetch = false } = options;
         await this.ensureWorktreesDir();
 
         const repoName = path.basename(repoPath);
@@ -83,7 +84,7 @@ export class WorktreeService {
                 try {
                     await this.execPromise(`cd "${repoPath}" && jj git init --colocate`);
                     console.log(`[workspace] jj git init --colocate succeeded at ${repoPath}`);
-                    this.isJujutsuRepo = null; // キャッシュリセット
+                    this._jjRepoCache.set(repoPath, true); // 初期化成功をキャッシュ
                 } catch (initErr) {
                     throw new Error(`jj git init failed at ${repoPath}: ${initErr.message}`);
                 }
@@ -105,11 +106,15 @@ export class WorktreeService {
                 // Workspace doesn't exist, continue to create
             }
 
-            // Fetch latest from remote
-            try {
-                await this.execPromise(`jj -R "${repoPath}" git fetch`);
-            } catch (fetchErr) {
-                console.log(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
+            // Fetch latest from remote (skipFetch=trueで省略可能、2-3秒短縮)
+            if (!skipFetch) {
+                try {
+                    await this.execPromise(`jj -R "${repoPath}" git fetch`);
+                } catch (fetchErr) {
+                    console.log(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
+                }
+            } else {
+                console.log(`[workspace] git fetch skipped (skipFetch=true)`);
             }
 
             // Create workspace

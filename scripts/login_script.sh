@@ -19,8 +19,17 @@ INITIAL_CMD_FILE=""
 STATE_JSON_PATH=""
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
-if [ -f "$STATE_JSON_PATH" ] && command -v python3 >/dev/null 2>&1; then
-    WORKTREE_PATH=$(python3 -c "
+if [ -f "$STATE_JSON_PATH" ]; then
+    # 優先: jq（高速、0.3-0.5秒短縮）
+    if command -v jq >/dev/null 2>&1; then
+        WORKTREE_PATH=$(jq -r --arg sid "$SESSION_NAME" '
+            .sessions[] |
+            select(.id == $sid) |
+            (.worktree.path // .path) // empty
+        ' "$STATE_JSON_PATH" 2>/dev/null)
+    # フォールバック: Python3（互換性）
+    elif command -v python3 >/dev/null 2>&1; then
+        WORKTREE_PATH=$(python3 -c "
 import json, sys
 try:
     with open('$STATE_JSON_PATH') as f:
@@ -36,6 +45,7 @@ try:
 except Exception:
     pass
 " 2>/dev/null)
+    fi
     if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
         cd "$WORKTREE_PATH"
     fi
