@@ -1,10 +1,20 @@
 {
   "status": "skipped",
-  "reason": "no_eligible_areas",
-  "details": {},
-  "timestamp": "2026-03-06T00:33:56.930Z",
-  "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22743251750",
-  "runNumber": "186",
+  "reason": "refactor_not_performed",
+  "details": {
+    "attempt": 1,
+    "area": "server/services",
+    "failure": {
+      "reason": "refactor_area_error",
+      "details": {
+        "area": "server/services",
+        "message": "Unexpected non-whitespace character after JSON at position 383"
+      }
+    }
+  },
+  "timestamp": "2026-03-06T03:23:42.412Z",
+  "workflow": "ops-department-auto-refactoring-daily.yml",
+  "runId": "22747488666",
+  "runNumber": "34",
   "eventName": "schedule"
 }
