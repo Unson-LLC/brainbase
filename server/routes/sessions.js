@@ -124,9 +124,6 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     router.get('/:id/commit-notify', controller.getCommitNotify);
     router.post('/:id/update-local-main', controller.updateLocalMain);
     router.post('/:id/merge', controller.merge);
-    router.get('/:id/commit-log', controller.getCommitLog);
-    router.post('/:id/commit-notify', controller.commitNotify);
-    router.get('/:id/commit-notify', controller.getCommitNotify);
     router.delete('/:id/worktree', controller.deleteWorktree);
 
     return router;
