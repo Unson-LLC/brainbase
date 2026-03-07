@@ -168,8 +168,8 @@ export class SessionView {
             const project = getProjectFromSession(session);
             // goalSeekデータをstatus pollingからマージ
             const liveStatus = getSessionStatus(session.id);
-            const enrichedSession = liveStatus?.goalSeek
-                ? { ...session, goalSeek: liveStatus.goalSeek }
+            const enrichedSession = liveStatus
+                ? { ...session, goalSeek: liveStatus.goalSeek || { active: false } }
                 : session;
             const wrapper = document.createElement('div');
             wrapper.innerHTML = renderSessionRowHTML(enrichedSession, {
@@ -375,8 +375,8 @@ export class SessionView {
         sessions.forEach(session => {
             // goalSeekデータをstatus pollingからマージ
             const liveStatus = getSessionStatus(session.id);
-            const enrichedSession = liveStatus?.goalSeek
-                ? { ...session, goalSeek: liveStatus.goalSeek }
+            const enrichedSession = liveStatus
+                ? { ...session, goalSeek: liveStatus.goalSeek || { active: false } }
                 : session;
             const wrapper = document.createElement('div');
             wrapper.innerHTML = renderSessionRowHTML(enrichedSession, {
@@ -633,16 +633,6 @@ export class SessionView {
                     console.error('Failed to merge session:', error);
                     showError('マージに失敗しました');
                 }
-            });
-        }
-
-        // Goal setup button
-        const goalSetupBtn = row.querySelector('.goal-setup-btn');
-        if (goalSetupBtn) {
-            goalSetupBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                eventBus.emit(EVENTS.GOAL_SEEK_OPEN, { session });
             });
         }
 

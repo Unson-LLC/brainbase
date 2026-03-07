@@ -281,8 +281,6 @@ export const EVENTS = {
     GOAL_PROGRESS_UPDATE: 'goal:progress-update',
     GOAL_COMPLETED: 'goal:completed',
     GOAL_FAILED: 'goal:failed',
-    // Goal Seek UI
-    GOAL_SEEK_OPEN: 'goal-seek:open',
 
     // Browser Notification関連
     NOTIFICATION_PERMISSION_CHANGED: 'notification:permission-changed',

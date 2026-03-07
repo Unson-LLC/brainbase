@@ -10,7 +10,6 @@
     <title>brainbase UI</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="stylesheet" href="style.css?v=202601032345">
-    <link rel="stylesheet" href="styles/goal-seek.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,7 +142,6 @@
 	                        <i data-lucide="copy"></i>
 	                    </button>
 	                </div>
-	                <div id="session-goal-banner" class="session-goal-banner hidden"></div>
                 <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
 	                <iframe id="terminal-frame" src="about:blank"></iframe>
 
@@ -264,10 +262,6 @@
                         <!-- Section 5 content injected via renderSection5() -->
                     </section>
 
-                    <!-- Section 7: Goal Seek V2 (Session Autopilot) -->
-                    <section id="goal-seek-section" style="margin-top: 32px; margin-bottom: 40px; min-height: 400px;
-                        background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
-                    </section>
                 </div>
             </div>
 
@@ -952,9 +946,6 @@
             <div id="health-modal-content"></div>
         </div>
     </div>
-
-    <!-- Goal Seek V2 Modal (content rendered dynamically by GoalSeekModal) -->
-    <div id="goal-seek-modal" class="modal"></div>
 
     <script type="module" src="app.js?v=1766798000"></script>
     <script>
