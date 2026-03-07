@@ -61,6 +61,16 @@ export class SessionContextBarView {
         return `...${pathValue.slice(-49)}`;
     }
 
+    _normalizePath(pathValue) {
+        if (!pathValue || pathValue === '-') return '';
+        const normalized = String(pathValue).trim().replace(/[\\/]+$/, '');
+        if (!normalized) return '';
+        if (/^[A-Z]:/.test(normalized)) {
+            return `${normalized[0].toLowerCase()}${normalized.slice(1)}`;
+        }
+        return normalized;
+    }
+
     _renderItem(label, value, options = {}) {
         const { valueClass = '', title = '', full = '' } = options;
         const classAttr = valueClass ? ` session-context-value ${valueClass}` : 'session-context-value';
@@ -95,6 +105,7 @@ export class SessionContextBarView {
         const dirty = context.dirty;
         const changesNotPushed = Number(context.changesNotPushed || 0);
         const prStatus = context.prStatus || 'none';
+        const hasCwdMismatch = this._normalizePath(workspacePath) !== this._normalizePath(currentDirectory);
 
         // Engine icon (既存のSVGアイコンを使用)
         const engineMeta = engine === 'codex'
@@ -117,6 +128,9 @@ export class SessionContextBarView {
             alerts.push('<span class="context-alert is-ok" title="PR merged">🔀 merged</span>');
         } else if (prStatus === 'open_or_pending') {
             alerts.push('<span class="context-alert is-warning" title="PR pending">🔀 pending</span>');
+        }
+        if (hasCwdMismatch) {
+            alerts.push('<span class="context-alert is-cwd-mismatch" title="Current directory differs from workspace">⚠ cwd!=workspace</span>');
         }
 
         const alertsHtml = alerts.length > 0 ? ` <span class="context-separator">|</span> ${alerts.join(' ')}` : '';

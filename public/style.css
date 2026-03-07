@@ -238,6 +238,13 @@ body::after {
     background: rgba(245, 158, 11, 0.1);
 }
 
+.context-alert.is-cwd-mismatch {
+    color: #fb923c;
+    background: rgba(251, 146, 60, 0.16);
+    border: 1px solid rgba(251, 146, 60, 0.36);
+    font-weight: 700;
+}
+
 .context-alert.is-ok {
     color: #10b981;
     background: rgba(16, 185, 129, 0.1);
