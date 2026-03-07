@@ -66,6 +66,33 @@ describe('session-indicators', () => {
     );
   });
 
+  it('pollSessionStatus呼び出し時_currentSessionでも緑インジケータを表示する', async () => {
+    const fetchMock = vi.fn((input) => {
+      const url = typeof input === 'string' ? input : input?.url;
+      if (url === '/api/sessions/status') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            'session-1': {
+              isWorking: false,
+              isDone: true,
+              lastWorkingAt: 0,
+              lastDoneAt: 300,
+              timestamp: 300
+            }
+          })
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    globalThis.fetch = fetchMock;
+
+    await pollSessionStatus('session-1');
+
+    expect(getSessionStatus('session-1').isDone).toBe(true);
+    expect(document.querySelector('.session-activity-indicator.done')).toBeTruthy();
+  });
+
   it('markDoneAsRead呼び出し時_API失敗しても例外を投げない', async () => {
     const fetchMock = vi.fn((input) => {
       const url = typeof input === 'string' ? input : input?.url;

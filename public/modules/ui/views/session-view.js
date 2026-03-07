@@ -203,7 +203,7 @@ export class SessionView {
      *
      * ソート優先度:
      * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
-     *    - 条件: isDone=true AND currentSessionIdではない
+     *    - 条件: isDone=true
      * 2. 残りのセッションは時系列順（最新が上）
      *
      * @param {Array} sessions - セッション一覧
@@ -219,9 +219,9 @@ export class SessionView {
             const statusA = getSessionStatus(a.id);
             const statusB = getSessionStatus(b.id);
 
-            // 緑インジケータ判定（isDone=true AND 現在のセッションではない）
-            const isGreenA = statusA?.isDone && currentSessionId !== a.id;
-            const isGreenB = statusB?.isDone && currentSessionId !== b.id;
+            // 緑インジケータ判定（isDone=true）
+            const isGreenA = Boolean(statusA?.isDone);
+            const isGreenB = Boolean(statusB?.isDone);
 
             // 優先度1: 緑セッションを最上部に配置
             if (isGreenA && !isGreenB) return -1;

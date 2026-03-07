@@ -112,11 +112,11 @@ describe('SessionView', () => {
             expect(result[3].id).toBe('session-a'); // 通常・古い
         });
 
-        it('現在のセッションが緑インジケータの場合_優先されない', () => {
+        it('現在のセッションが緑インジケータの場合_優先される', () => {
             // Arrange
             const sessions = [
                 { id: 'session-a', intendedState: 'running', createdAt: 1000 },
-                { id: 'session-current', intendedState: 'running', createdAt: 2000 }, // 現在のセッション（緑だが優先しない）
+                { id: 'session-current', intendedState: 'running', createdAt: 2000 }, // 現在のセッション（緑）
                 { id: 'session-c', intendedState: 'running', createdAt: 3000 }
             ];
 
@@ -131,9 +131,9 @@ describe('SessionView', () => {
             // Act
             const result = sessionView._getTimelineSessions(sessions);
 
-            // Assert: session-current は緑インジケータだが、currentSessionIdなので優先されない
-            expect(result[0].id).toBe('session-c'); // 通常・最新
-            expect(result[1].id).toBe('session-current'); // 現在のセッション（緑だが優先しない）
+            // Assert: 現在のセッションでも緑インジケータなら優先される
+            expect(result[0].id).toBe('session-current');
+            expect(result[1].id).toBe('session-c');
             expect(result[2].id).toBe('session-a'); // 通常・古い
         });
 

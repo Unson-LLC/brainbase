@@ -453,7 +453,10 @@ describe('SessionService', () => {
             await sessionService.switchSession('session-2');
 
             expect(changedListener).toHaveBeenCalledWith(expect.objectContaining({
-                detail: expect.objectContaining({ sessionId: 'session-2' })
+                detail: expect.objectContaining({
+                    sessionId: 'session-2',
+                    previousSessionId: 'session-1'
+                })
             }));
         });
 

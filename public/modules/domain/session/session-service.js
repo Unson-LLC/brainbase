@@ -622,6 +622,7 @@ export class SessionService {
      */
     async switchSession(sessionId) {
         const { currentSessionId } = this.store.getState();
+        const previousSessionId = currentSessionId;
 
         // 同じセッションへの切り替えは何もしない
         if (currentSessionId === sessionId) {
@@ -632,7 +633,10 @@ export class SessionService {
         this.store.setState({ currentSessionId: sessionId });
 
         // SESSION_CHANGEDイベントを発火（app.jsでターミナルiframe切り替え用）
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_CHANGED, {
+            sessionId,
+            previousSessionId
+        });
         return { success: true, sessionId, eventResult };
     }
 

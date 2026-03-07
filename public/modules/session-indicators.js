@@ -3,8 +3,8 @@
  *
  * Simple logic:
  * - Orange (working): Hook reports 'working' (AI started)
- * - Green (done): Hook reports 'done' (AI stopped) AND not current session
- * - Hidden: Current session (when done) OR no hook status
+ * - Green (done): Hook reports 'done' (AI stopped)
+ * - Hidden: no hook status
  */
 
 import { eventBus, EVENTS } from './core/event-bus.js';
@@ -193,7 +193,7 @@ export function updateSessionIndicators(currentSessionId) {
 
         // Simple logic:
         // 1. Orange: isWorking (AI running)
-        // 2. Green: isDone AND not current session
+        // 2. Green: isDone
         // 3. Hidden: no status
 
         if (status?.isWorking) {
@@ -206,7 +206,7 @@ export function updateSessionIndicators(currentSessionId) {
             } else {
                 item.appendChild(indicator);
             }
-        } else if (status?.isDone && currentSessionId !== sessionId) {
+        } else if (status?.isDone) {
             const indicator = document.createElement('div');
             indicator.className = 'session-activity-indicator done';
             // drag-handleの後に挿入（左側に配置）
