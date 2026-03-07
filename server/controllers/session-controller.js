@@ -183,7 +183,7 @@ export class SessionController {
      * GET /api/sessions/:id
      * 特定セッションの情報を取得
      */
-    get = (req, res) => {
+    get = async (req, res) => {
         const { id } = req.params;
         if (!id) {
             return res.status(400).json({ error: 'Session ID is required' });
@@ -196,11 +196,17 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
+        const resolvedPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
+
         // Add runtime status
         const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
 
         res.json({
             ...session,
+            path: resolvedPath || session.path,
+            worktree: session.worktree
+                ? { ...session.worktree, path: resolvedPath || session.worktree.path }
+                : session.worktree,
             runtimeStatus
         });
     };
@@ -246,7 +252,13 @@ export class SessionController {
             }
 
             const startOptions = { sessionId };
-            if (typeof cwd === 'string' && cwd.trim()) {
+            const resolvedCwd = targetSession
+                ? await this.sessionManager.resolveSessionWorkspacePath(targetSession, { persist: true, preferTmux: true })
+                : null;
+
+            if (typeof resolvedCwd === 'string' && resolvedCwd.trim()) {
+                startOptions.cwd = resolvedCwd;
+            } else if (typeof cwd === 'string' && cwd.trim()) {
                 startOptions.cwd = cwd;
             }
             if (typeof initialCommand === 'string') {
@@ -841,7 +853,10 @@ ${jjBookmarks}
         }
 
         const repoPath = session.worktree?.repo || null;
-        const workspacePath = session.worktree?.path || session.path || null;
+        const workspacePath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            || session.worktree?.path
+            || session.path
+            || null;
         const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
         const currentDirectory = session.cwd || workspacePath || null;
         const context = {
@@ -915,7 +930,9 @@ ${jjBookmarks}
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        const rootPath = session.worktree?.path || session.path;
+        const rootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            || session.worktree?.path
+            || session.path;
         if (!rootPath) {
             return res.status(400).json({ error: 'Session does not have workspace path' });
         }

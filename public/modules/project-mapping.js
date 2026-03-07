@@ -172,8 +172,8 @@ export function getProjectFromPath(path) {
   const pathMap = getProjectPathMap();
   const coreProjects = Object.keys(pathMap);
 
-  // Worktreeパスの場合（.worktrees/session-xxx-workspace）
-  const worktreeMatch = path.match(/\.worktrees\/session-\d+-(.+?)(?:\/|$)/);
+  // Worktreeパスの場合（.worktrees/session-xxx-workspace or brainbase-worktrees/session-xxx-workspace）
+  const worktreeMatch = path.match(/(?:\.worktrees|brainbase-worktrees)\/session-\d+-(.+?)(?:\/|$)/);
   if (worktreeMatch) {
     const projectHint = worktreeMatch[1];
     // workspace -> general

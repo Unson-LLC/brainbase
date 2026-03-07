@@ -55,13 +55,6 @@ import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createSetupRouter } from './server/routes/setup.js';
-// import { createGoalSeekRouter } from './server/routes/goal-seek.js';
-
-// Import GoalSeek V2 services
-// import { GoalSeekStore } from './server/services/goal-seek-store.js';
-// import { ProblemDetector } from './server/services/problem-detector.js';
-// import { SessionMonitor } from './server/services/session-monitor.js';
-// import { ManagerAIService } from './server/services/manager-ai-service.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -473,25 +466,13 @@ const sessionManager = new SessionManager({
     uiPort: PORT
 });
 
-const conversationLinker = new ConversationLinker({ stateStore });
-
-// GoalSeek V2 Services (Session Autopilot)
-// const goalStore = new GoalSeekStore(VAR_DIR);
-// const problemDetector = new ProblemDetector();
-// const managerAI = new ManagerAIService();
-// const sessionMonitor = new SessionMonitor({
-//     sessionManager,
-//     problemDetector,
-//     managerAI,
-//     goalStore,
-//     eventBus: null
-// });
+const conversationLinker = new ConversationLinker({ stateStore, sessionManager });
 
 // Initialize State Store and restore session state
 (async () => {
     try {
         await stateStore.init();
-        // await goalStore.init();
+        await sessionManager.reconcileSessionWorkspacePaths();
         await sessionManager.restoreHookStatus();
 
         // Phase 3: activeセッションを復元してからcleanupを実行
@@ -641,11 +622,6 @@ app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
-// app.use('/api/goal-seek', createGoalSeekRouter({
-//     goalStore,
-//     sessionMonitor,
-//     managerAI
-// }));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
 
 // ========================================
@@ -695,10 +671,6 @@ async function gracefulShutdown(signal) {
     if (sessionManager.cleanup) {
         await sessionManager.cleanup();
     }
-
-    // 4. Cleanup GoalSeek SessionMonitor
-    // sessionMonitor.stopAll();
-    // console.log('✅ GoalSeek SessionMonitor stopped');
 
     console.log('✅ Graceful shutdown complete');
     process.exit(0);

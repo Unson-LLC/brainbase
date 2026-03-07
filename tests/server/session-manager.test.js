@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { describe, it, expect } from 'vitest';
 
 import { SessionManager } from '../../server/services/session-manager.js';
@@ -130,5 +133,42 @@ describe('SessionManager', () => {
     const status = manager.getSessionStatus()['session-1'];
     expect(status.isDone).toBe(true); // done状態は維持される
     expect(status.isWorking).toBe(false);
+  });
+
+  it('resolveSessionWorkspacePath_tmuxのcurrent_pathでstale pathを補正する', async () => {
+    const resolvedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-session-'));
+    let state = {
+      sessions: [{
+        id: 'session-1',
+        path: '/stale/worktree/path',
+        worktree: {
+          repo: '/repo/project-a',
+          path: '/stale/worktree/path'
+        }
+      }]
+    };
+
+    const stateStore = {
+      get: () => state,
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: `${resolvedDir}\n` }),
+      stateStore,
+      worktreeService: { worktreesDir: '/unused' }
+    });
+
+    const resolvedPath = await manager.resolveSessionWorkspacePath('session-1');
+
+    expect(resolvedPath).toBe(resolvedDir);
+    expect(state.sessions[0].path).toBe(resolvedDir);
+    expect(state.sessions[0].worktree.path).toBe(resolvedDir);
+
+    fs.rmSync(resolvedDir, { recursive: true, force: true });
   });
 });
