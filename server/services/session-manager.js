@@ -28,6 +28,7 @@ export class SessionManager {
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
         this.hookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp }
+        this.startLocks = new Map(); // sessionId -> Promise (並行起動防止ロック)
         // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
@@ -807,6 +808,22 @@ export class SessionManager {
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
     async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
+        // 並行起動防止ロック: 同じセッションに対する同時呼び出しを防止
+        if (this.startLocks.has(sessionId)) {
+            console.log(`[startTtyd] Lock active for ${sessionId}, waiting for existing start to complete`);
+            return await this.startLocks.get(sessionId);
+        }
+
+        const promise = this._doStartTtyd({ sessionId, cwd, initialCommand, engine, preferredPort });
+        this.startLocks.set(sessionId, promise);
+        try {
+            return await promise;
+        } finally {
+            this.startLocks.delete(sessionId);
+        }
+    }
+
+    async _doStartTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
         // Validate engine
         if (!['claude', 'codex'].includes(engine)) {
             throw new Error('engine must be "claude" or "codex"');

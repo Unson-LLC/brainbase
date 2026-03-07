@@ -234,6 +234,17 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
+            // テイクオーバー: 既存ttydが起動中なら再起動して新クライアントに接続を譲る
+            const existingSession = this.sessionManager.activeSessions.get(sessionId);
+            if (existingSession) {
+                const pid = existingSession.process?.pid || existingSession.pid;
+                if (pid && this.sessionManager._isProcessRunning(pid)) {
+                    console.log(`[takeover] Session ${sessionId}: restarting ttyd for new client (killing pid ${pid})`);
+                    await this.sessionManager.stopTtyd(sessionId, { preserveTmux: true });
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            }
+
             const startOptions = { sessionId };
             if (typeof cwd === 'string' && cwd.trim()) {
                 startOptions.cwd = cwd;
