@@ -2,7 +2,7 @@
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { promisify } from 'util';
@@ -436,7 +436,7 @@ export class SessionController {
      */
     askAiIntegration = async (req, res) => {
         const { id } = req.params;
-        const { status } = req.body;
+        const status = req.body?.status || {};
 
         const state = this.stateStore.get();
         const session = state.sessions?.find(s => s.id === id);
@@ -446,12 +446,25 @@ export class SessionController {
         }
 
         try {
-            const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
+            const workspacePath = session.worktree?.path || session.path || session.cwd || process.cwd();
+            const runCommand = async (command) => {
+                try {
+                    const { stdout, stderr } = await execAsync(command, { cwd: workspacePath, maxBuffer: 1024 * 1024 });
+                    return [stdout, stderr].filter(Boolean).join('\n').trim() || '(no output)';
+                } catch (cmdError) {
+                    const stdout = typeof cmdError?.stdout === 'string' ? cmdError.stdout : '';
+                    const stderr = typeof cmdError?.stderr === 'string' ? cmdError.stderr : '';
+                    const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+                    if (output) {
+                        return `${output}\n(command failed: ${cmdError.message})`;
+                    }
+                    return `(command failed: ${cmdError.message})`;
+                }
+            };
 
-            const { execSync } = await import('child_process');
-            const jjStatus = execSync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
-            const jjLog = execSync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
-            const jjBookmarks = execSync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
+            const jjStatus = await runCommand('jj status');
+            const jjLog = await runCommand('jj log -r @ -r @- -r @-- --limit 5');
+            const jjBookmarks = await runCommand('jj bookmark list');
 
             const message = `[システム自動送信]
 
@@ -478,11 +491,23 @@ ${jjBookmarks}
 
 この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
 
-            execSync(`echo ${JSON.stringify(message)} | pbcopy`, { encoding: 'utf-8' });
+            let copiedByServer = false;
+            try {
+                execSync('pbcopy', {
+                    input: message,
+                    stdio: ['pipe', 'ignore', 'ignore']
+                });
+                copiedByServer = true;
+            } catch (copyError) {
+                console.warn('Server-side clipboard copy failed:', copyError.message);
+            }
 
             res.json({
                 success: true,
-                message: 'AIへの依頼内容をクリップボードにコピーしました。Claude Codeのチャット画面でペーストして送信してください。',
+                message: copiedByServer
+                    ? 'AIへの依頼内容をコピーしました。チャットでペーストして送信してください。'
+                    : 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。',
+                copiedByServer,
                 clipboardContent: message
             });
         } catch (error) {

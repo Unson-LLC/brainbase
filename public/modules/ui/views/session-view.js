@@ -547,18 +547,7 @@ export class SessionView {
                             : (confirmResult ? 'ok' : 'cancel');
 
                         if (selectedAction === 'ai') {
-                            // AIに確認して対処
-                            try {
-                                const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
-                                if (aiResult?.success) {
-                                    showSuccess(aiResult.message || 'AIに統合確認を依頼しました');
-                                } else {
-                                    showError(aiResult?.error || 'AI依頼に失敗しました');
-                                }
-                            } catch (aiErr) {
-                                console.error('Failed to ask AI:', aiErr);
-                                showError('AI依頼に失敗しました');
-                            }
+                            await this._handleAiIntegrationAction(session, status);
                             return;
                         }
 
@@ -764,6 +753,33 @@ export class SessionView {
         });
     }
 
+    async _handleAiIntegrationAction(session, status) {
+        try {
+            const fallbackPrompt = this._generateInvestigationPrompt(status || {});
+            const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
+            if (!aiResult?.success) {
+                showError(aiResult?.error || 'AI依頼に失敗しました');
+                return;
+            }
+
+            const prompt = aiResult.clipboardContent || aiResult.prompt || fallbackPrompt;
+            const delivered = await this._deliverInvestigationPrompt(prompt);
+            if (delivered.mode === 'inserted') {
+                showSuccess('AIへの依頼文を入力欄に挿入しました');
+                return;
+            }
+            if (delivered.mode === 'clipboard') {
+                showSuccess('AIへの依頼文をクリップボードにコピーしました');
+                return;
+            }
+
+            showInfo('AIへの依頼文をコンソールへ出力しました');
+        } catch (aiErr) {
+            console.error('Failed to ask AI:', aiErr);
+            showError('AI依頼に失敗しました');
+        }
+    }
+
     /**
      * 調査プロンプトを利用可能な入力先に配信
      * @param {string} prompt
@@ -789,6 +805,17 @@ export class SessionView {
             }
         } catch (error) {
             console.warn('Failed to copy investigation prompt to clipboard:', error);
+        }
+
+        try {
+            if (typeof window.copyToClipboardMobile === 'function') {
+                const copied = await window.copyToClipboardMobile(prompt);
+                if (copied) {
+                    return { mode: 'clipboard' };
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to copy prompt with mobile fallback:', error);
         }
 
         console.log('[Archive Investigation Prompt]');

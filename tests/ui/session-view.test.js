@@ -153,4 +153,48 @@ describe('SessionView', () => {
             expect(result.find(s => s.id === 'session-archived')).toBeUndefined();
         });
     });
+
+    describe('AI integration prompt delivery', () => {
+        let sessionView;
+
+        beforeEach(() => {
+            vi.clearAllMocks();
+            sessionView = new SessionView({
+                sessionService: {
+                    askAiToResolveIntegration: vi.fn()
+                }
+            });
+            delete window.mobileInputController;
+            delete window.copyToClipboardMobile;
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard書き込み成功_clipboardモードを返す', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'clipboard' });
+            expect(writeText).toHaveBeenCalledWith('test prompt');
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_mobile fallback成功_clipboardモードを返す', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+            window.copyToClipboardMobile = vi.fn().mockResolvedValue(true);
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'clipboard' });
+            expect(window.copyToClipboardMobile).toHaveBeenCalledWith('test prompt');
+            warnSpy.mockRestore();
+        });
+    });
 });
