@@ -91,6 +91,7 @@ export class SessionContextBarView {
         const baseBranch = context.baseBranch || '-';
         const repoPath = context.repoPath || '-';
         const workspacePath = context.workspacePath || '-';
+        const currentDirectory = context.currentDirectory || context.cwd || workspacePath || '-';
         const dirty = context.dirty;
         const changesNotPushed = Number(context.changesNotPushed || 0);
         const prStatus = context.prStatus || 'none';
@@ -134,6 +135,10 @@ export class SessionContextBarView {
                 <div class="context-detail-item">
                     <span class="context-detail-label">Workspace:</span>
                     <span class="context-detail-value" title="${escapeHtml(workspacePath)}">${escapeHtml(this._shortPath(workspacePath))}</span>
+                </div>
+                <div class="context-detail-item">
+                    <span class="context-detail-label">Current:</span>
+                    <span class="context-detail-value" title="${escapeHtml(currentDirectory)}">${escapeHtml(this._shortPath(currentDirectory))}</span>
                 </div>
                 <div class="context-detail-item">
                     <span class="context-detail-label">Session:</span>
