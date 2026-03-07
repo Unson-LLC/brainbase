@@ -153,6 +153,74 @@ describe('SessionController (Server)', () => {
     });
   });
 
+  describe('getContext', () => {
+    it('worktreeセッション時_currentDirectoryを含むコンテキストを返す', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ctx',
+          name: 'Context Session',
+          engine: 'codex',
+          cwd: '/tmp/worktrees/session-ctx/project/src',
+          worktree: {
+            repo: '/Users/ksato/workspace/code/brainbase',
+            path: '/tmp/worktrees/session-ctx/project',
+            startCommit: 'abc123'
+          }
+        }]
+      });
+
+      mockWorktreeService.getStatus.mockResolvedValue({
+        repoName: 'brainbase',
+        bookmarkName: 'session-ctx',
+        changesNotPushed: 2,
+        hasWorkingCopyChanges: false,
+        bookmarkPushed: true,
+        mainBranch: 'develop',
+        worktreePath: '/tmp/worktrees/session-ctx/project'
+      });
+
+      const req = {
+        params: { id: 'session-ctx' }
+      };
+
+      await sessionController.getContext(req, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-ctx',
+        repoPath: '/Users/ksato/workspace/code/brainbase',
+        workspacePath: '/tmp/worktrees/session-ctx/project',
+        currentDirectory: '/tmp/worktrees/session-ctx/project/src',
+        dirty: true,
+        prStatus: 'open_or_pending',
+        baseBranch: 'develop'
+      }));
+    });
+
+    it('通常セッション時_currentDirectoryはworkspacePathへフォールバックする', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-plain',
+          name: 'Plain Session',
+          path: '/Users/ksato/workspace/code/brainbase'
+        }]
+      });
+
+      const req = {
+        params: { id: 'session-plain' }
+      };
+
+      await sessionController.getContext(req, mockRes);
+
+      expect(mockWorktreeService.getStatus).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-plain',
+        repoPath: null,
+        workspacePath: '/Users/ksato/workspace/code/brainbase',
+        currentDirectory: '/Users/ksato/workspace/code/brainbase'
+      }));
+    });
+  });
+
   describe('getFolderTree', () => {
     it('ルートフォルダ取得時_nodesを返す', async () => {
       await fs.mkdir(path.join(tempDir, 'src', 'ui'), { recursive: true });

@@ -807,6 +807,7 @@ ${jjBookmarks}
         const repoPath = session.worktree?.repo || null;
         const workspacePath = session.worktree?.path || session.path || null;
         const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
+        const currentDirectory = session.cwd || workspacePath || null;
         const context = {
             sessionId: session.id,
             sessionName: session.name || null,
@@ -814,6 +815,7 @@ ${jjBookmarks}
             repo: fallbackRepoName,
             repoPath,
             workspacePath,
+            currentDirectory,
             bookmark: session.id,
             dirty: false,
             changesNotPushed: 0,
@@ -853,7 +855,8 @@ ${jjBookmarks}
                 hasWorkingCopyChanges,
                 bookmarkPushed: Boolean(status.bookmarkPushed),
                 prStatus,
-                baseBranch: status.mainBranch || null
+                baseBranch: status.mainBranch || null,
+                currentDirectory: context.currentDirectory || status.worktreePath || null
             });
         } catch (error) {
             console.error('Failed to get session context:', error);
