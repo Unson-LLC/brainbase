@@ -23,6 +23,7 @@ export class SessionService {
         this.store = appStore;
         this.eventBus = eventBus;
         this.recoveryService = options.recoveryService || null;
+        this._pendingDeletes = new Map();
     }
 
     /**
@@ -274,28 +275,90 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async deleteSession(sessionId) {
-        // 削除前に現在表示中のセッションかチェック
-        const { currentSessionId } = this.store.getState();
-        const wasCurrentSession = currentSessionId === sessionId;
-
-        const state = await this.httpClient.get('/api/state');
-        const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
-        await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-        await this.loadSessions();
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
-
-        // 現在表示中のセッションを削除した場合、次のアクティブセッションに切り替え
-        if (wasCurrentSession) {
-            const activeSessions = this.getFilteredSessions()
-                .filter(s => s.intendedState !== 'archived');
-            if (activeSessions.length > 0) {
-                await this.switchSession(activeSessions[0].id);
-            } else {
-                this.store.setState({ currentSessionId: null });
-            }
+        if (this._pendingDeletes.has(sessionId)) {
+            return this._pendingDeletes.get(sessionId);
         }
 
-        return { success: true, sessionId, eventResult };
+        const deletePromise = (async () => {
+            const stateBeforeDelete = this.store.getState();
+            const previousSessions = stateBeforeDelete.sessions || [];
+            const previousCurrentSessionId = stateBeforeDelete.currentSessionId || null;
+            const previousFilters = stateBeforeDelete.filters || {};
+
+            const optimisticSessions = previousSessions.filter((session) => session.id !== sessionId);
+            const nextCurrentSessionId = this._resolveNextSessionIdAfterDelete(
+                optimisticSessions,
+                sessionId,
+                previousCurrentSessionId,
+                previousFilters
+            );
+
+            // 楽観的更新: 先にUIから削除して体感速度を上げる
+            this.store.setState({
+                sessions: optimisticSessions,
+                currentSessionId: nextCurrentSessionId
+            });
+
+            const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, {
+                sessionId,
+                optimistic: true
+            });
+
+            try {
+                const state = await this.httpClient.get('/api/state');
+                const updatedSessions = (state.sessions || []).filter((session) => session.id !== sessionId);
+                await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
+                await this.loadSessions();
+                return { success: true, sessionId, eventResult };
+            } catch (error) {
+                this.store.setState({
+                    sessions: previousSessions,
+                    currentSessionId: previousCurrentSessionId
+                });
+                await this.eventBus.emit(EVENTS.SESSION_LOADED, {
+                    sessions: previousSessions,
+                    rollback: true
+                });
+                throw error;
+            }
+        })();
+
+        this._pendingDeletes.set(sessionId, deletePromise);
+        try {
+            return await deletePromise;
+        } finally {
+            this._pendingDeletes.delete(sessionId);
+        }
+    }
+
+    _resolveNextSessionIdAfterDelete(sessions, deletingSessionId, currentSessionId, filters = {}) {
+        if (currentSessionId !== deletingSessionId) {
+            return currentSessionId;
+        }
+
+        const activeSessions = this._getFilteredSessionsForState(sessions, filters)
+            .filter((session) => session.intendedState !== 'archived');
+
+        return activeSessions.length > 0 ? activeSessions[0].id : null;
+    }
+
+    _getFilteredSessionsForState(sessions, filters = {}) {
+        const { sessionFilter = '', showArchivedSessions = false } = filters;
+        let filtered = sessions || [];
+
+        if (sessionFilter) {
+            filtered = filtered.filter((session) =>
+                session.name?.includes(sessionFilter) ||
+                session.project?.includes(sessionFilter) ||
+                session.path?.includes(sessionFilter)
+            );
+        }
+
+        if (!showArchivedSessions) {
+            filtered = filtered.filter((session) => session.intendedState !== 'archived');
+        }
+
+        return filtered;
     }
 
     /**
@@ -304,25 +367,7 @@ export class SessionService {
      */
     getFilteredSessions() {
         const { sessions, filters } = this.store.getState();
-        const { sessionFilter, showArchivedSessions } = filters;
-
-        let filtered = sessions || [];
-
-        // テキストフィルタ（名前、プロジェクト名で検索）
-        if (sessionFilter) {
-            filtered = filtered.filter(s =>
-                s.name?.includes(sessionFilter) ||
-                s.project?.includes(sessionFilter) ||
-                s.path?.includes(sessionFilter)
-            );
-        }
-
-        // アーカイブフィルタ
-        if (!showArchivedSessions) {
-            filtered = filtered.filter(s => s.intendedState !== 'archived');
-        }
-
-        return filtered;
+        return this._getFilteredSessionsForState(sessions, filters);
     }
 
     /**
