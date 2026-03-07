@@ -56,6 +56,21 @@ describe('session-list-renderer', () => {
 
       expect(html).toContain('fallback-id');
     });
+
+    it('should show manual paused label for paused session', () => {
+      const session = {
+        id: 'session-paused',
+        name: 'Paused Session',
+        intendedState: 'paused',
+        pausedReason: 'manual'
+      };
+
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
+
+      expect(html).toContain('⏸ Manual pause');
+      expect(html).toContain('session-child-row paused');
+    });
+
   });
 
   describe('renderSessionGroupHeaderHTML', () => {

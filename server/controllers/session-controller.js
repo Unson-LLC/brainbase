@@ -165,6 +165,20 @@ export class SessionController {
     };
 
     /**
+     * POST /api/sessions/:id/clear-done
+     * セッションのdoneステータスをクリア（既読化）
+     */
+    clearDone = (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        this.sessionManager.clearDoneStatus(id);
+        res.json({ success: true });
+    };
+
+    /**
      * GET /api/sessions/:id
      * 特定セッションの情報を取得
      */
@@ -205,6 +219,14 @@ export class SessionController {
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
+        }
+
+        // アーカイブ済みセッションの起動を拒否
+        const currentState = this.stateStore.get();
+        const targetSession = (currentState.sessions || []).find(s => s.id === sessionId);
+        if (targetSession?.intendedState === 'archived') {
+            console.log(`[start] Rejected: session ${sessionId} is archived`);
+            return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
         }
 
         try {
@@ -264,7 +286,13 @@ export class SessionController {
                     await this._updateStateWithRetry((currentState) => {
                         const updatedSessions = (currentState.sessions || []).map(session =>
                             session.id === id
-                                ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
+                                ? {
+                                    ...session,
+                                    intendedState: 'paused',
+                                    pausedReason: 'manual',
+                                    pausedAt: now,
+                                    updatedAt: now
+                                }
                                 : session
                         );
                         return { ...currentState, sessions: updatedSessions };
@@ -398,6 +426,67 @@ export class SessionController {
             });
         } catch (error) {
             console.error('Failed to restore session:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
+     * POST /api/sessions/:id/ask-ai-integration
+     * AIに統合確認と対処を依頼
+     */
+    askAiIntegration = async (req, res) => {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        try {
+            const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
+
+            const { execSync } = await import('child_process');
+            const jjStatus = execSync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
+            const jjLog = execSync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
+            const jjBookmarks = execSync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
+
+            const message = `[システム自動送信]
+
+ユーザーがアーカイブしようとしたが、以下の警告が出ました：
+
+${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
+${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
+${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
+
+現在の状態：
+=== jj status ===
+${jjStatus}
+
+=== jj log ===
+${jjLog}
+
+=== jj bookmark list ===
+${jjBookmarks}
+
+セッション情報：
+- session-id: ${id}
+- プロジェクト: ${session.name || 'unson'}
+- パス: ${workspacePath}
+
+この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
+
+            execSync(`echo ${JSON.stringify(message)} | pbcopy`, { encoding: 'utf-8' });
+
+            res.json({
+                success: true,
+                message: 'AIへの依頼内容をクリップボードにコピーしました。Claude Codeのチャット画面でペーストして送信してください。',
+                clipboardContent: message
+            });
+        } catch (error) {
+            console.error('Failed to ask AI for integration:', error);
             res.status(500).json({ error: error.message });
         }
     };

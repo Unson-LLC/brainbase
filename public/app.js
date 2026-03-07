@@ -8,12 +8,13 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { sessionDataCache } from './modules/core/session-data-cache.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
-import { pollSessionStatus, updateSessionIndicators, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
@@ -43,6 +44,7 @@ import { SessionContextBarView } from './modules/ui/views/session-context-bar-vi
 import { setupNocoDBFilters } from './modules/ui/nocodb-filters.js';
 import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
+import { setupSidebarPrimaryToggle } from './modules/ui/sidebar-primary-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
 import { renderViewToggle } from './modules/ui/view-toggle.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
@@ -143,6 +145,16 @@ class TerminalReconnectManager {
         // 正常切断（code 1000）は無視（セッション切り替え等）
         if (code === 1000) return;
 
+        // アーカイブ済みセッションの切断は再接続しない
+        const state = appStore.getState();
+        const session = (state.sessions || []).find(s => s.id === sessionId);
+        if (session?.intendedState === 'archived') {
+            console.log(`[reconnect] Ignoring disconnect for archived session ${sessionId}`);
+            this.wsConnected = false;
+            this._emitStatus();
+            return;
+        }
+
         // 最近接続成功した場合は無視（race condition防止）
         if (this.lastConnectTime && Date.now() - this.lastConnectTime < 3000) {
             console.log('[reconnect] Ignoring disconnect within 3s of connect');
@@ -231,10 +243,18 @@ class TerminalReconnectManager {
             return;
         }
 
+        // アーカイブ済みセッションの再接続をスキップ
+        const state = appStore.getState();
+        const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
+        if (currentSession?.intendedState === 'archived') {
+            console.log(`[reconnect] Skipping: session ${this.currentSessionId} is archived`);
+            this.isReconnecting = false;
+            this.retryCount = 0;
+            return;
+        }
+
         try {
             const payload = { sessionId: this.currentSessionId };
-            const state = appStore.getState();
-            const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
 
             const sessionCwd = currentSession?.worktree?.path || currentSession?.path;
             if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
@@ -1094,20 +1114,40 @@ export class App {
         // Session change: reload related data and switch terminal
         const unsub1 = eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
-            console.log('Session changed:', sessionId);
+            console.log('[SessionSwitch] Starting for:', sessionId);
+            const previousSessionId = appStore.getState().currentSessionId;
+
+            // セッション切り替え時は古いセッションのキャッシュを無効化
+            if (previousSessionId && previousSessionId !== sessionId) {
+                sessionDataCache.invalidate(previousSessionId);
+            }
+
+            // Mark previous session's green indicator as read when leaving it
+            if (previousSessionId && previousSessionId !== sessionId) {
+                void markDoneAsRead(previousSessionId, sessionId);
+            }
 
             // Update currentSessionId in store
             appStore.setState({ currentSessionId: sessionId });
 
-            // Switch terminal frame
-            await this.switchSession(sessionId);
+            // 並列実行: switchSession と loadSessionData
+            const startTime = performance.now();
+            await Promise.all([
+                this.switchSession(sessionId),
+                this.loadSessionData(sessionId)
+            ]);
+            const duration = performance.now() - startTime;
+            console.log(`[SessionSwitch] Completed in ${duration.toFixed(2)}ms`);
 
-            // Load session-specific data
-            await this.loadSessionData(sessionId);
-
-            // Auto-return to console view if available
+            // Auto-return to console view
             if (this.showConsole) {
                 this.showConsole();
+            } else {
+                // Fallback: showConsole未初期化時（ダッシュボード未訪問）でもconsole viewに戻す
+                const consoleArea = document.getElementById('console-area');
+                const dashboardPanel = document.getElementById('dashboard-panel');
+                if (consoleArea) consoleArea.style.display = 'flex';
+                if (dashboardPanel) dashboardPanel.style.display = 'none';
             }
 
             // Update session goal banner（セッション切り替え時は即座に非表示→再描画）
@@ -1399,6 +1439,8 @@ export class App {
 
         const cleanupSessionViewToggle = setupSessionViewToggle({ store: appStore });
         this.unsubscribers.push(cleanupSessionViewToggle);
+        const cleanupSidebarPrimaryToggle = setupSidebarPrimaryToggle({ store: appStore });
+        this.unsubscribers.push(cleanupSidebarPrimaryToggle);
 
         // Auth button (sidebar)
         this.setupAuthControls();
@@ -2194,6 +2236,13 @@ export class App {
                 return;
             }
 
+            // アーカイブ済みセッションへの切り替えを防止
+            if (session.intendedState === 'archived') {
+                console.log(`[switchSession] Skipping archived session ${sessionId}`);
+                terminalFrame.src = 'about:blank';
+                return;
+            }
+
             // Get session status to check if it's already running and get proxyPath
             const status = await httpClient.get('/api/sessions/status');
             const sessionStatus = status[sessionId];
@@ -2254,11 +2303,14 @@ export class App {
      */
     async loadSessionData(sessionId) {
         try {
-            // Load tasks for the session
-            await this.taskService.loadTasks();
-
-            // Load schedule for the session
-            await this.scheduleService.loadSchedule();
+            // 並列実行: loadTasks と loadSchedule
+            const startTime = performance.now();
+            await Promise.all([
+                this.taskService.loadTasks(),
+                this.scheduleService.loadSchedule()
+            ]);
+            const duration = performance.now() - startTime;
+            console.log(`[SessionSwitch] Data loaded in ${duration.toFixed(2)}ms`);
 
             console.log('Session data loaded for:', sessionId);
         } catch (error) {

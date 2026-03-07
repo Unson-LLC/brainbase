@@ -49,7 +49,11 @@ export class SessionService {
         sessions = sessions.map(session => {
             if (session.intendedState === 'stopped') {
                 migrationNeeded = true;
-                return { ...session, intendedState: 'paused' };
+                return {
+                    ...session,
+                    intendedState: 'paused',
+                    pausedReason: session.pausedReason || 'migrated_from_stopped'
+                };
             }
             return session;
         });
@@ -73,14 +77,18 @@ export class SessionService {
      * @param {string} params.initialCommand - 初期コマンド
      * @param {boolean} params.useWorktree - worktreeを使用するか
      * @param {string} params.engine - AI Engine ('claude' or 'codex')
+     * @param {string} params.sessionId - セッションID（オプション、指定しない場合は自動生成）
      * @returns {Promise<Object>} 作成されたセッション
      */
     async createSession(params) {
         const { project, initialCommand = '', useWorktree = false, engine = 'claude' } = params;
-        let { name } = params;
+        let { name, sessionId } = params;
 
         const repoPath = getProjectPath(project);
-        const sessionId = createSessionId('session');
+        // sessionIdが指定されていない場合は自動生成
+        if (!sessionId) {
+            sessionId = createSessionId('session');
+        }
 
         // 名前が空の場合、自動生成: {project}-{MMDD}-{連番}
         if (!name || !name.trim()) {
@@ -219,6 +227,17 @@ export class SessionService {
         await this.eventBus.emit(EVENTS.SESSION_CREATED, { session });
 
         return { sessionId, session, proxyPath: res.proxyPath };
+    }
+
+    /**
+     * プログレス取得
+     * @param {string} sessionId - セッションID
+     * @param {number} currentPercent - 現在の進捗率
+     * @returns {Promise<{phase: string, percent: number, message: string, timestamp: number}>}
+     */
+    async getProgress(sessionId, currentPercent = 0) {
+        const res = await this.httpClient.get(`/api/sessions/${sessionId}/progress?current=${currentPercent}`);
+        return res;
     }
 
     /**
@@ -376,6 +395,45 @@ export class SessionService {
     }
 
     /**
+     * セッションコンテキスト取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object|null>}
+     */
+    async getSessionContext(sessionId) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
+        } catch (error) {
+            console.error('Failed to get session context:', error);
+            return null;
+        }
+    }
+
+    /**
+     * セッションのフォルダツリーを取得
+     * @param {string} sessionId - セッションID
+     * @param {string} query - クエリ文字列（例: ?path=public&depth=1）
+     * @returns {Promise<Object>}
+     */
+    async getSessionFolderTree(sessionId, query = '') {
+        const suffix = typeof query === 'string' ? query : '';
+        return await this.httpClient.get(`/api/sessions/${sessionId}/folder-tree${suffix}`);
+    }
+
+    /**
+     * ファイルをデフォルトアプリで開く
+     * @param {string} relativePath - セッションCWDからの相対パス
+     * @param {string|null} cwd - セッションの作業ディレクトリ
+     * @returns {Promise<Object>}
+     */
+    async openFileInDefaultApp(relativePath, cwd = null) {
+        return await this.httpClient.post('/api/open-file', {
+            path: relativePath,
+            mode: 'file',
+            cwd
+        });
+    }
+
+    /**
      * Worktree状態取得
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object|null>}
@@ -474,6 +532,15 @@ export class SessionService {
         return result;
     }
 
+    async askAiToResolveIntegration(sessionId, status) {
+        const result = await this.httpClient.post(
+            `/api/sessions/${sessionId}/ask-ai-integration`,
+            { status }
+        );
+
+        return result;
+    }
+
     /**
      * セッションをアンアーカイブ（復元）
      * restore APIを呼び出し、ttydを再起動してセッションのengineで復元する
@@ -541,6 +608,7 @@ export class SessionService {
         // Phase 2: intendedState を paused に変更 + pausedAt タイムスタンプ設定
         await this.updateSession(sessionId, {
             intendedState: 'paused',
+            pausedReason: 'manual',
             pausedAt: new Date().toISOString()
         });
 
@@ -576,7 +644,10 @@ export class SessionService {
         }
 
         // intendedState を active に変更
-        await this.updateSession(sessionId, { intendedState: 'active' });
+        await this.updateSession(sessionId, {
+            intendedState: 'active',
+            pausedReason: null
+        });
 
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
         return { success: true, sessionId, eventResult };

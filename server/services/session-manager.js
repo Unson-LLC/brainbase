@@ -6,6 +6,7 @@ import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import net from 'net';
 import path from 'path';
+import yaml from 'js-yaml';
 import { TerminalOutputParser } from './terminal-output-parser.js';
 
 export class SessionManager {
@@ -41,7 +42,7 @@ export class SessionManager {
         this.outputParser = new TerminalOutputParser();
 
         // 許可されたキー
-        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Tab', 'S-Tab', 'BTab'];
+        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab'];
     }
 
     /**
@@ -212,6 +213,7 @@ export class SessionManager {
                     return {
                         ...session,
                         intendedState: 'paused',
+                        pausedReason: 'tmux_missing_on_restore',
                         pausedAt: now,
                         tmuxMissingAt: now,
                         ttydProcess: null,
@@ -393,14 +395,108 @@ export class SessionManager {
     }
 
     /**
-     * セッション状態を取得（Hook報告ベース）
+     * goal-seek.local.mdを読み取り、goalSeek情報を返す
+     * @param {string} worktreePath - worktreeのパス
+     * @returns {Object} { active: boolean, iteration: number, maxIterations: number }
+     */
+    _readGoalSeekStatus(worktreePath) {
+        if (!worktreePath) {
+            return { active: false };
+        }
+
+        const goalSeekPath = path.join(worktreePath, '.claude', 'goal-seek.local.md');
+        if (!fs.existsSync(goalSeekPath)) {
+            return { active: false };
+        }
+
+        try {
+            const content = fs.readFileSync(goalSeekPath, 'utf-8');
+
+            const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+            if (!frontmatterMatch) {
+                return { active: false };
+            }
+
+            const frontmatter = yaml.load(frontmatterMatch[1]);
+
+            return {
+                active: frontmatter.active === true,
+                iteration: frontmatter.iteration || 0,
+                maxIterations: frontmatter.max_iterations || 0
+            };
+        } catch (error) {
+            console.error(`[Goal-Seek] Failed to read ${goalSeekPath}:`, error.message);
+            return { active: false };
+        }
+    }
+
+    /**
+     * ttydがポートをリッスン状態になるまで待機
+     * @param {number} port - 監視対象ポート
+     * @param {number} timeoutMs - タイムアウト（デフォルト: 10000ms）
+     * @param {number} retryIntervalMs - リトライ間隔（デフォルト: 100ms）
+     * @returns {Promise<void>} - リッスン開始したらresolve、タイムアウトでreject
+     * @throws {Error} - タイムアウト時
+     */
+    async waitForTtydReady(port, timeoutMs = 10000, retryIntervalMs = 100) {
+        const startTime = Date.now();
+        const deadline = startTime + timeoutMs;
+
+        while (Date.now() < deadline) {
+            try {
+                await this._checkPortListening(port);
+                const elapsedMs = Date.now() - startTime;
+                console.log(`[ttyd] Port ${port} ready after ${elapsedMs}ms`);
+                return;
+            } catch (err) {
+                await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
+            }
+        }
+
+        const elapsedMs = Date.now() - startTime;
+        throw new Error(`ttyd port ${port} did not become ready within ${timeoutMs}ms (elapsed: ${elapsedMs}ms)`);
+    }
+
+    /**
+     * 指定ポートがリッスン状態かチェック（TCP接続試行）
+     * @private
+     * @param {number} port - チェック対象ポート
+     * @param {number} connectionTimeout - 接続タイムアウト（デフォルト: 100ms）
+     * @returns {Promise<void>} - リッスン中ならresolve、接続失敗でreject
+     */
+    _checkPortListening(port, connectionTimeout = 100) {
+        return new Promise((resolve, reject) => {
+            const socket = net.createConnection({ port, host: 'localhost', timeout: connectionTimeout });
+
+            socket.on('connect', () => {
+                socket.end();
+                resolve();
+            });
+
+            socket.on('timeout', () => {
+                socket.destroy();
+                reject(new Error('Connection timeout'));
+            });
+
+            socket.on('error', (err) => {
+                socket.destroy();
+                reject(err);
+            });
+        });
+    }
+
+    /**
+     * セッション状態を取得（Hook報告ベース + goal-seek情報）
      * ハートビートタイムアウト: 10分以上working報告がなければisWorking=falseとする
-     * @returns {Object} sessionId -> {isWorking, isDone}
+     * @returns {Object} sessionId -> {isWorking, isDone, goalSeek}
      */
     getSessionStatus() {
         const status = {};
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
+
+        const state = this.stateStore.get();
+        const sessions = state.sessions || [];
 
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
@@ -416,13 +512,38 @@ export class SessionManager {
             const isWorking = !isStale && normalized.lastWorkingAt > normalized.lastDoneAt;
             const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
 
+            // goal-seek情報を取得
+            const session = sessions.find(s => s.id === sessionId);
+            const worktreePath = session?.worktree?.path || session?.path;
+            const goalSeek = this._readGoalSeekStatus(worktreePath);
+
             status[sessionId] = {
                 isWorking,
                 isDone,
                 lastWorkingAt: normalized.lastWorkingAt,
                 lastDoneAt: normalized.lastDoneAt,
-                timestamp: normalized.timestamp
+                timestamp: normalized.timestamp,
+                goalSeek
             };
+        }
+
+        // hookStatusに存在しないセッションでもgoal-seekがactiveなら追加
+        for (const session of sessions) {
+            if (status[session.id]) continue;
+
+            const worktreePath = session.worktree?.path || session.path;
+            const goalSeek = this._readGoalSeekStatus(worktreePath);
+
+            if (goalSeek.active) {
+                status[session.id] = {
+                    isWorking: false,
+                    isDone: false,
+                    lastWorkingAt: 0,
+                    lastDoneAt: 0,
+                    timestamp: 0,
+                    goalSeek
+                };
+            }
         }
 
         return status;
@@ -647,6 +768,35 @@ export class SessionManager {
     }
 
     /**
+     * 単一セッションを取得（優先ロード用）
+     * @param {string} sessionId - セッションID
+     * @returns {Object|null} セッション情報（runtime status付き）
+     */
+    getSessionById(sessionId) {
+        const state = this.stateStore.get();
+        const session = (state.sessions || []).find(s => s.id === sessionId);
+        if (!session) return null;
+
+        const activeEntry = this.activeSessions.get(sessionId);
+        const activePid = activeEntry?.process?.pid || activeEntry?.pid;
+        const persistedPid = session?.ttydProcess?.pid;
+        const pidToCheck = activePid || persistedPid;
+        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
+        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+
+        return {
+            ...session,
+            ttydRunning,
+            runtimeStatus: {
+                ttydRunning,
+                needsRestart,
+                proxyPath: ttydRunning ? `/console/${sessionId}` : null,
+                port: activeEntry?.port || null
+            }
+        };
+    }
+
+    /**
      * ttydプロセスを起動
      * @param {Object} options - 起動オプション
      * @param {string} options.sessionId - セッションID
@@ -745,8 +895,10 @@ export class SessionManager {
         const args = [
             '-p', port.toString(),
             '-W',
-            // Exit on disconnect to avoid PTY FD leaks accumulating inside long-lived ttyd processes.
-            '-o',
+            // WebSocket ping interval to prevent timeout (especially over Cloudflare Zero Trust)
+            '-P', '3',
+            // Note: Removed '-o' (exit on disconnect) to allow reconnection on mobile/Cloudflare Zero Trust
+            // PTY leak prevention is now handled by session lifecycle management
         ];
 
         // Only use base path on non-Windows platforms
@@ -767,7 +919,7 @@ export class SessionManager {
 
         args.push(
             '-I', customIndexPath, // Custom HTML with keyboard shortcuts and mobile scroll support
-            '-m', '3',                         // Max 3 clients: allow browser reconnects and multiple tabs (prevent 1006 reconnect loop)
+            '-m', '1',                         // Max 1 client: prevent concurrent PTY allocation per session
             '-t', 'disableReconnect=true',   // Prevent PTY leak: disable ttyd built-in reconnect (brainbase TerminalReconnectManager handles it)
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
@@ -858,18 +1010,43 @@ export class SessionManager {
         // state.jsonにttydProcess情報を永続化
         await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
 
-        // Give ttyd a moment to bind to the port and verify it's still running
+        // 起動直後に短時間だけ生存確認して即返す（固定500ms待機を回避）
         await new Promise((resolve, reject) => {
-            setTimeout(() => {
-                if (this.activeSessions.has(sessionId)) {
-                    resolve();
-                } else {
+            const minStableMs = 120;
+            const timeoutMs = 500;
+            const stableAt = Date.now() + minStableMs;
+            const deadline = Date.now() + timeoutMs;
+
+            const check = () => {
+                if (!this.activeSessions.has(sessionId)) {
                     reject(new Error('Session failed to start (process exited)'));
+                    return;
                 }
-            }, 500);
+                if (Date.now() >= stableAt) {
+                    resolve();
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    reject(new Error('Session start verification timeout'));
+                    return;
+                }
+                setTimeout(check, 25);
+            };
+
+            check();
         });
 
-        return { port, proxyPath: basePath };
+        // Step 2: ttyd完全起動確認（ポートリッスン開始を待機）
+        try {
+            await this.waitForTtydReady(port, 10000, 100);
+            console.log(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
+        } catch (error) {
+            console.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
+            await this.stopTtyd(sessionId);
+            throw new Error(`ttyd startup timeout: ${error.message}`);
+        }
+
+        return { port, proxyPath: basePath, startedExisting: false };
     }
 
     /**

@@ -49,6 +49,7 @@ export class SessionView {
             state => state.ui?.sessionListView,
             () => this.render()
         );
+
         const unsub8 = appStore.subscribeToSelector(
             state => state.ui?.sidebarPrimaryView,
             () => this.render()
@@ -165,8 +166,13 @@ export class SessionView {
 
         timelineSessions.forEach(session => {
             const project = getProjectFromSession(session);
+            // goalSeekデータをstatus pollingからマージ
+            const liveStatus = getSessionStatus(session.id);
+            const enrichedSession = liveStatus?.goalSeek
+                ? { ...session, goalSeek: liveStatus.goalSeek }
+                : session;
             const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
+            wrapper.innerHTML = renderSessionRowHTML(enrichedSession, {
                 isActive: currentSessionId === session.id,
                 project,
                 showProjectEmoji: true,
@@ -194,13 +200,37 @@ export class SessionView {
 
     /**
      * 時系列表示用のセッション一覧を取得
+     *
+     * ソート優先度:
+     * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
+     *    - 条件: isDone=true AND currentSessionIdではない
+     * 2. 残りのセッションは時系列順（最新が上）
+     *
+     * @param {Array} sessions - セッション一覧
+     * @returns {Array} ソート済みセッション一覧（アーカイブ済み除外）
      * @private
      */
     _getTimelineSessions(sessions) {
+        const { currentSessionId } = appStore.getState();
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
+
         const sorted = [...filtered].sort((a, b) => {
+            // インジケータステータスを取得
+            const statusA = getSessionStatus(a.id);
+            const statusB = getSessionStatus(b.id);
+
+            // 緑インジケータ判定（isDone=true AND 現在のセッションではない）
+            const isGreenA = statusA?.isDone && currentSessionId !== a.id;
+            const isGreenB = statusB?.isDone && currentSessionId !== b.id;
+
+            // 優先度1: 緑セッションを最上部に配置
+            if (isGreenA && !isGreenB) return -1;
+            if (!isGreenA && isGreenB) return 1;
+
+            // 優先度2: 緑セッション同士 or 通常セッション同士は時系列順（最新が上）
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
+
         return sorted;
     }
 
@@ -343,8 +373,13 @@ export class SessionView {
 
         // 各セッションをレンダリング
         sessions.forEach(session => {
+            // goalSeekデータをstatus pollingからマージ
+            const liveStatus = getSessionStatus(session.id);
+            const enrichedSession = liveStatus?.goalSeek
+                ? { ...session, goalSeek: liveStatus.goalSeek }
+                : session;
             const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
+            wrapper.innerHTML = renderSessionRowHTML(enrichedSession, {
                 isActive: currentSessionId === session.id,
                 project
             });
@@ -439,30 +474,22 @@ export class SessionView {
         // Delete button
         const deleteBtn = row.querySelector('.delete-session-btn');
         if (deleteBtn) {
-            console.log('[session-view] Delete button found for session:', session.id);
             deleteBtn.addEventListener('click', async (e) => {
-                console.log('[session-view] Delete button clicked for session:', session.id);
                 e.stopPropagation();
                 closeDropdown();
                 const displayName = session.name || session.id;
-                console.log('[session-view] Showing confirm dialog for:', displayName);
                 const confirmed = await showConfirm(
                     `セッション「${displayName}」を削除しますか？`,
                     { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
                 );
-                console.log('[session-view] Confirm result:', confirmed);
                 if (!confirmed) return;
-                console.log('[session-view] Calling deleteSession for:', session.id);
                 try {
                     await this.sessionService.deleteSession(session.id);
-                    console.log('[session-view] Delete succeeded for:', session.id);
-                    // 成功通知
                     if (window.showToast) {
                         window.showToast(`セッション「${displayName}」を削除しました`, 'success');
                     }
                 } catch (error) {
                     console.error('[session-view] Delete failed for:', session.id, error);
-                    // エラー通知
                     if (window.showToast) {
                         window.showToast(`削除に失敗しました: ${error.message}`, 'error');
                     } else {
@@ -470,8 +497,6 @@ export class SessionView {
                     }
                 }
             });
-        } else {
-            console.warn('[session-view] Delete button NOT found for session:', session.id);
         }
 
         // Archive button
@@ -513,6 +538,7 @@ export class SessionView {
                                 okText: 'そのままアーカイブ',
                                 cancelText: 'キャンセル',
                                 actionText: 'pushして統合',
+                                aiActionText: '🤖 AIに確認して対処',
                                 danger: true
                             }
                         );
@@ -520,12 +546,29 @@ export class SessionView {
                             ? confirmResult.action
                             : (confirmResult ? 'ok' : 'cancel');
 
+                        if (selectedAction === 'ai') {
+                            // AIに確認して対処
+                            try {
+                                const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
+                                if (aiResult?.success) {
+                                    showSuccess(aiResult.message || 'AIに統合確認を依頼しました');
+                                } else {
+                                    showError(aiResult?.error || 'AI依頼に失敗しました');
+                                }
+                            } catch (aiErr) {
+                                console.error('Failed to ask AI:', aiErr);
+                                showError('AI依頼に失敗しました');
+                            }
+                            return;
+                        }
+
                         if (selectedAction === 'action') {
                             // pushして統合
                             try {
                                 const mergeResult = await this.sessionService.mergeSession(session.id);
                                 if (mergeResult?.success) {
                                     showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
+                                    this._switchToNextActiveSession(session.id);
                                 } else {
                                     showError(mergeResult?.error || 'pushに失敗しました');
                                 }
