@@ -201,8 +201,21 @@ describe('SessionService', () => {
     });
 
     describe('deleteSession', () => {
+        const createDeferred = () => {
+            let resolve;
+            let reject;
+            const promise = new Promise((res, rej) => {
+                resolve = res;
+                reject = rej;
+            });
+            return { promise, resolve, reject };
+        };
+
         it('should delete session via API and reload sessions', async () => {
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockResolvedValueOnce({ sessions: mockSessions })
+                .mockResolvedValueOnce({ sessions: persistedSessions });
             httpClient.post.mockResolvedValue({});
 
             await sessionService.deleteSession('session-1');
@@ -216,7 +229,10 @@ describe('SessionService', () => {
         });
 
         it('should emit SESSION_DELETED event', async () => {
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockResolvedValueOnce({ sessions: mockSessions })
+                .mockResolvedValueOnce({ sessions: persistedSessions });
             httpClient.post.mockResolvedValue({});
             const listener = vi.fn();
             eventBus.on(EVENTS.SESSION_DELETED, listener);
@@ -225,6 +241,95 @@ describe('SessionService', () => {
 
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.sessionId).toBe('session-1');
+            expect(listener.mock.calls[0][0].detail.optimistic).toBe(true);
+        });
+
+        it('should optimistically remove session before API completes', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: null,
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            const deferred = createDeferred();
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockReturnValueOnce(deferred.promise)
+                .mockResolvedValueOnce({ sessions: persistedSessions });
+            httpClient.post.mockResolvedValue({});
+
+            const deletePromise = sessionService.deleteSession('session-1');
+
+            expect(appStore.getState().sessions.map((session) => session.id)).toEqual(['session-2', 'session-3']);
+
+            deferred.resolve({ sessions: mockSessions });
+            await deletePromise;
+        });
+
+        it('should switch current session immediately when deleting current session', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            const deferred = createDeferred();
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockReturnValueOnce(deferred.promise)
+                .mockResolvedValueOnce({ sessions: persistedSessions });
+            httpClient.post.mockResolvedValue({});
+
+            const deletePromise = sessionService.deleteSession('session-1');
+
+            expect(appStore.getState().currentSessionId).toBe('session-3');
+
+            deferred.resolve({ sessions: mockSessions });
+            await deletePromise;
+        });
+
+        it('should rollback optimistic deletion when persistence fails', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            httpClient.get.mockResolvedValueOnce({ sessions: mockSessions });
+            httpClient.post.mockRejectedValueOnce(new Error('save failed'));
+            const loadedListener = vi.fn();
+            eventBus.on(EVENTS.SESSION_LOADED, loadedListener);
+
+            await expect(sessionService.deleteSession('session-1')).rejects.toThrow('save failed');
+
+            expect(appStore.getState().sessions).toEqual(mockSessions);
+            expect(appStore.getState().currentSessionId).toBe('session-1');
+            expect(loadedListener).toHaveBeenCalledWith(expect.objectContaining({
+                detail: expect.objectContaining({ rollback: true })
+            }));
+        });
+
+        it('should deduplicate same session delete requests', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: null,
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            const deferred = createDeferred();
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockReturnValueOnce(deferred.promise)
+                .mockResolvedValueOnce({ sessions: persistedSessions });
+            httpClient.post.mockResolvedValue({});
+
+            const p1 = sessionService.deleteSession('session-1');
+            const p2 = sessionService.deleteSession('session-1');
+
+            deferred.resolve({ sessions: mockSessions });
+            await Promise.all([p1, p2]);
+
+            expect(httpClient.post).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -348,7 +453,10 @@ describe('SessionService', () => {
             await sessionService.switchSession('session-2');
 
             expect(changedListener).toHaveBeenCalledWith(expect.objectContaining({
-                detail: expect.objectContaining({ sessionId: 'session-2' })
+                detail: expect.objectContaining({
+                    sessionId: 'session-2',
+                    previousSessionId: 'session-1'
+                })
             }));
         });
 

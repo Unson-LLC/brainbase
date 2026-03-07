@@ -112,11 +112,11 @@ describe('SessionView', () => {
             expect(result[3].id).toBe('session-a'); // 通常・古い
         });
 
-        it('現在のセッションが緑インジケータの場合_優先されない', () => {
+        it('現在のセッションが緑インジケータの場合_優先される', () => {
             // Arrange
             const sessions = [
                 { id: 'session-a', intendedState: 'running', createdAt: 1000 },
-                { id: 'session-current', intendedState: 'running', createdAt: 2000 }, // 現在のセッション（緑だが優先しない）
+                { id: 'session-current', intendedState: 'running', createdAt: 2000 }, // 現在のセッション（緑）
                 { id: 'session-c', intendedState: 'running', createdAt: 3000 }
             ];
 
@@ -131,9 +131,9 @@ describe('SessionView', () => {
             // Act
             const result = sessionView._getTimelineSessions(sessions);
 
-            // Assert: session-current は緑インジケータだが、currentSessionIdなので優先されない
-            expect(result[0].id).toBe('session-c'); // 通常・最新
-            expect(result[1].id).toBe('session-current'); // 現在のセッション（緑だが優先しない）
+            // Assert: 現在のセッションでも緑インジケータなら優先される
+            expect(result[0].id).toBe('session-current');
+            expect(result[1].id).toBe('session-c');
             expect(result[2].id).toBe('session-a'); // 通常・古い
         });
 
@@ -151,6 +151,50 @@ describe('SessionView', () => {
             // Assert: archived は除外される
             expect(result.length).toBe(2);
             expect(result.find(s => s.id === 'session-archived')).toBeUndefined();
+        });
+    });
+
+    describe('AI integration prompt delivery', () => {
+        let sessionView;
+
+        beforeEach(() => {
+            vi.clearAllMocks();
+            sessionView = new SessionView({
+                sessionService: {
+                    askAiToResolveIntegration: vi.fn()
+                }
+            });
+            delete window.mobileInputController;
+            delete window.copyToClipboardMobile;
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard書き込み成功_clipboardモードを返す', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'clipboard' });
+            expect(writeText).toHaveBeenCalledWith('test prompt');
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_mobile fallback成功_clipboardモードを返す', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+            window.copyToClipboardMobile = vi.fn().mockResolvedValue(true);
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'clipboard' });
+            expect(window.copyToClipboardMobile).toHaveBeenCalledWith('test prompt');
+            warnSpy.mockRestore();
         });
     });
 });

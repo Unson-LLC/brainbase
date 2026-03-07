@@ -1116,7 +1116,7 @@ export class App {
         const unsub1 = eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
             const { sessionId } = event.detail;
             console.log('[SessionSwitch] Starting for:', sessionId);
-            const previousSessionId = appStore.getState().currentSessionId;
+            const previousSessionId = event.detail?.previousSessionId ?? appStore.getState().currentSessionId;
 
             // セッション切り替え時は古いセッションのキャッシュを無効化
             if (previousSessionId && previousSessionId !== sessionId) {

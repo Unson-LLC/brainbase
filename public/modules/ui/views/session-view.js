@@ -203,7 +203,7 @@ export class SessionView {
      *
      * ソート優先度:
      * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
-     *    - 条件: isDone=true AND currentSessionIdではない
+     *    - 条件: isDone=true
      * 2. 残りのセッションは時系列順（最新が上）
      *
      * @param {Array} sessions - セッション一覧
@@ -219,9 +219,9 @@ export class SessionView {
             const statusA = getSessionStatus(a.id);
             const statusB = getSessionStatus(b.id);
 
-            // 緑インジケータ判定（isDone=true AND 現在のセッションではない）
-            const isGreenA = statusA?.isDone && currentSessionId !== a.id;
-            const isGreenB = statusB?.isDone && currentSessionId !== b.id;
+            // 緑インジケータ判定（isDone=true）
+            const isGreenA = Boolean(statusA?.isDone);
+            const isGreenB = Boolean(statusB?.isDone);
 
             // 優先度1: 緑セッションを最上部に配置
             if (isGreenA && !isGreenB) return -1;
@@ -547,18 +547,7 @@ export class SessionView {
                             : (confirmResult ? 'ok' : 'cancel');
 
                         if (selectedAction === 'ai') {
-                            // AIに確認して対処
-                            try {
-                                const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
-                                if (aiResult?.success) {
-                                    showSuccess(aiResult.message || 'AIに統合確認を依頼しました');
-                                } else {
-                                    showError(aiResult?.error || 'AI依頼に失敗しました');
-                                }
-                            } catch (aiErr) {
-                                console.error('Failed to ask AI:', aiErr);
-                                showError('AI依頼に失敗しました');
-                            }
+                            await this._handleAiIntegrationAction(session, status);
                             return;
                         }
 
@@ -764,6 +753,33 @@ export class SessionView {
         });
     }
 
+    async _handleAiIntegrationAction(session, status) {
+        try {
+            const fallbackPrompt = this._generateInvestigationPrompt(status || {});
+            const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
+            if (!aiResult?.success) {
+                showError(aiResult?.error || 'AI依頼に失敗しました');
+                return;
+            }
+
+            const prompt = aiResult.clipboardContent || aiResult.prompt || fallbackPrompt;
+            const delivered = await this._deliverInvestigationPrompt(prompt);
+            if (delivered.mode === 'inserted') {
+                showSuccess('AIへの依頼文を入力欄に挿入しました');
+                return;
+            }
+            if (delivered.mode === 'clipboard') {
+                showSuccess('AIへの依頼文をクリップボードにコピーしました');
+                return;
+            }
+
+            showInfo('AIへの依頼文をコンソールへ出力しました');
+        } catch (aiErr) {
+            console.error('Failed to ask AI:', aiErr);
+            showError('AI依頼に失敗しました');
+        }
+    }
+
     /**
      * 調査プロンプトを利用可能な入力先に配信
      * @param {string} prompt
@@ -789,6 +805,17 @@ export class SessionView {
             }
         } catch (error) {
             console.warn('Failed to copy investigation prompt to clipboard:', error);
+        }
+
+        try {
+            if (typeof window.copyToClipboardMobile === 'function') {
+                const copied = await window.copyToClipboardMobile(prompt);
+                if (copied) {
+                    return { mode: 'clipboard' };
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to copy prompt with mobile fallback:', error);
         }
 
         console.log('[Archive Investigation Prompt]');
