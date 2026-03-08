@@ -1,10 +1,21 @@
 {
   "status": "skipped",
-  "reason": "no_eligible_areas",
-  "details": {},
-  "timestamp": "2026-03-08T00:30:24.779Z",
-  "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22810436522",
-  "runNumber": "202",
+  "reason": "refactor_not_performed",
+  "details": {
+    "attempt": 1,
+    "area": "server/services",
+    "failure": {
+      "reason": "codex_timeout",
+      "details": {
+        "area": "server/services",
+        "message": "Codex CLI timed out after 1200000ms",
+        "timeoutMs": 1200000
+      }
+    }
+  },
+  "timestamp": "2026-03-08T03:40:48.842Z",
+  "workflow": "ops-department-auto-refactoring-daily.yml",
+  "runId": "22812892664",
+  "runNumber": "36",
   "eventName": "schedule"
 }
