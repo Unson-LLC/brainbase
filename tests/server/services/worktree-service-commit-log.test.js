@@ -30,7 +30,9 @@ describe('WorktreeService.getCommitLog', () => {
             'def987654321\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00false\x00parent2'
         ].join('\n');
 
-        mockExec.mockResolvedValueOnce({ stdout: jjOutput });
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'origin https://github.com/example/test-repo.git\n' })
+            .mockResolvedValueOnce({ stdout: jjOutput });
 
         const result = await service.getCommitLog('session-1', '/tmp/repo', 50);
 
@@ -55,7 +57,9 @@ describe('WorktreeService.getCommitLog', () => {
             'def9876\x00fix: bug\x002026-02-16T10:00:00+09:00\x00ksato\x00\x00'
         ].join('\n');
 
-        mockExec.mockResolvedValueOnce({ stdout: gitOutput });
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'https://github.com/example/test-repo.git\n' })
+            .mockResolvedValueOnce({ stdout: gitOutput });
 
         const result = await service.getCommitLog('session-1', '/tmp/repo', 50);
 
@@ -117,5 +121,57 @@ describe('WorktreeService._parseGitLog', () => {
         expect(result[0].hash).toBe('abc1234');
         expect(result[0].description).toBe('feat: test');
         expect(result[0].bookmarks).toContain('HEAD -> main');
+    });
+});
+
+describe('WorktreeService Git compatibility helpers', () => {
+    let service;
+    let mockExec;
+
+    beforeEach(() => {
+        mockExec = vi.fn();
+        service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
+    });
+
+    it('Git互換メタデータ作成時_HEADとindex初期化を行う', async () => {
+        const { promises: fs } = await import('fs');
+        const mkdirSpy = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+        const writeFileSpy = vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'abc123\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service._ensureGitCompatibility(
+            'session-1',
+            '/tmp/repo',
+            '/tmp/worktrees/session-1-repo'
+        );
+
+        expect(result.branchName).toBe('session/session-1');
+        expect(mkdirSpy).toHaveBeenCalledWith('/tmp/repo/.git/worktrees/session-1-repo', { recursive: true });
+        expect(writeFileSpy).toHaveBeenCalledWith(
+            '/tmp/repo/.git/worktrees/session-1-repo/HEAD',
+            'ref: refs/heads/session/session-1\n'
+        );
+        expect(writeFileSpy).toHaveBeenCalledWith(
+            '/tmp/worktrees/session-1-repo/.git',
+            'gitdir: /tmp/repo/.git/worktrees/session-1-repo\n'
+        );
+        expect(mockExec).toHaveBeenNthCalledWith(1, 'git -C "/tmp/repo" rev-parse HEAD');
+        expect(mockExec).toHaveBeenNthCalledWith(2, 'git -C "/tmp/repo" branch --force "session/session-1" "abc123"');
+        expect(mockExec).toHaveBeenNthCalledWith(3, 'git -C "/tmp/worktrees/session-1-repo" reset --mixed HEAD');
+    });
+
+    it('Git互換メタデータ削除時_worktree管理情報とbranchを掃除する', async () => {
+        const { promises: fs } = await import('fs');
+        const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined);
+        mockExec.mockResolvedValueOnce({ stdout: '' });
+
+        await service._removeGitCompatibility('session-1', '/tmp/repo');
+
+        expect(rmSpy).toHaveBeenCalledWith('/tmp/repo/.git/worktrees/session-1-repo', { recursive: true, force: true });
+        expect(mockExec).toHaveBeenCalledWith('git -C "/tmp/repo" branch -D "session/session-1"');
     });
 });

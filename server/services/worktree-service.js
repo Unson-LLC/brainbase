@@ -54,6 +54,77 @@ export class WorktreeService {
         }
     }
 
+    _getWorkspaceName(sessionId, repoPath) {
+        return `${sessionId}-${path.basename(repoPath)}`;
+    }
+
+    _getSessionBranchName(sessionId) {
+        return `session/${sessionId}`;
+    }
+
+    async _ensureGitCompatibility(sessionId, repoPath, workspacePath) {
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
+        const branchName = this._getSessionBranchName(sessionId);
+        const gitRoot = path.join(repoPath, '.git');
+        const gitWorktreePath = path.join(gitRoot, 'worktrees', workspaceName);
+
+        await fs.mkdir(gitWorktreePath, { recursive: true });
+
+        const { stdout: headCommit } = await this.execPromise(
+            `git -C "${repoPath}" rev-parse HEAD`
+        );
+        const commit = headCommit.trim();
+
+        if (!commit) {
+            throw new Error(`Failed to resolve HEAD commit for ${repoPath}`);
+        }
+
+        await this.execPromise(
+            `git -C "${repoPath}" branch --force "${branchName}" "${commit}"`
+        );
+
+        await fs.writeFile(
+            path.join(gitWorktreePath, 'gitdir'),
+            path.join(workspacePath, '.git') + '\n'
+        );
+        await fs.writeFile(
+            path.join(gitWorktreePath, 'commondir'),
+            '../..\n'
+        );
+        await fs.writeFile(
+            path.join(gitWorktreePath, 'HEAD'),
+            `ref: refs/heads/${branchName}\n`
+        );
+        await fs.writeFile(
+            path.join(workspacePath, '.git'),
+            `gitdir: ${gitWorktreePath}\n`
+        );
+
+        // Git needs an index for status/diff to avoid treating the workspace
+        // as "all deleted + all untracked" on first access.
+        await this.execPromise(`git -C "${workspacePath}" reset --mixed HEAD`);
+
+        return { workspaceName, branchName, gitWorktreePath };
+    }
+
+    async _removeGitCompatibility(sessionId, repoPath) {
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
+        const branchName = this._getSessionBranchName(sessionId);
+        const gitWorktreePath = path.join(repoPath, '.git', 'worktrees', workspaceName);
+
+        try {
+            await fs.rm(gitWorktreePath, { recursive: true, force: true });
+        } catch (err) {
+            console.log(`[workspace] Git metadata cleanup skipped: ${err.message}`);
+        }
+
+        try {
+            await this.execPromise(`git -C "${repoPath}" branch -D "${branchName}"`);
+        } catch (err) {
+            console.log(`[workspace] Git branch cleanup skipped: ${err.message}`);
+        }
+    }
+
     /**
      * 新しいJujutsu workspaceを作成
      * @param {string} sessionId - セッションID
@@ -64,8 +135,7 @@ export class WorktreeService {
         const { skipFetch = false } = options;
         await this.ensureWorktreesDir();
 
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
         const bookmarkName = sessionId;  // Jujutsu bookmark = sessionId
 
@@ -97,10 +167,17 @@ export class WorktreeService {
                 );
                 if (workspaceList.includes(`${workspaceName}:`)) {
                     console.log(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
+                    await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
                     const { stdout: startCommit } = await this.execPromise(
                         `jj -R "${workspacePath}" log -r @ -T 'commit_id' --no-pager`
                     );
-                    return { worktreePath: workspacePath, branchName: `session/${sessionId}`, repoPath, startCommit: startCommit.trim(), workspaceName };
+                    return {
+                        worktreePath: workspacePath,
+                        branchName: this._getSessionBranchName(sessionId),
+                        repoPath,
+                        startCommit: startCommit.trim(),
+                        workspaceName
+                    };
                 }
             } catch {
                 // Workspace doesn't exist, continue to create
@@ -123,27 +200,7 @@ export class WorktreeService {
 
             // Register as git worktree (for git command compatibility)
             try {
-                const gitWorktreePath = path.join(repoPath, '.git', 'worktrees', workspaceName);
-                await fs.mkdir(gitWorktreePath, { recursive: true });
-
-                // .git/worktrees/{workspace}/gitdir
-                await fs.writeFile(
-                    path.join(gitWorktreePath, 'gitdir'),
-                    path.join(workspacePath, '.git') + '\n'
-                );
-
-                // .git/worktrees/{workspace}/commondir
-                await fs.writeFile(
-                    path.join(gitWorktreePath, 'commondir'),
-                    '../..\n'
-                );
-
-                // worktree/.git file
-                await fs.writeFile(
-                    path.join(workspacePath, '.git'),
-                    `gitdir: ${gitWorktreePath}\n`
-                );
-
+                const { gitWorktreePath } = await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
                 console.log(`[workspace] Registered git worktree at ${gitWorktreePath}`);
             } catch (gitErr) {
                 console.log(`[workspace] Git worktree registration failed (non-critical): ${gitErr.message}`);
@@ -197,7 +254,13 @@ export class WorktreeService {
             );
 
             console.log(`Created Jujutsu workspace at ${workspacePath}`);
-            return { worktreePath: workspacePath, branchName: `session/${sessionId}`, repoPath, startCommit: startCommit.trim(), workspaceName };
+            return {
+                worktreePath: workspacePath,
+                branchName: this._getSessionBranchName(sessionId),
+                repoPath,
+                startCommit: startCommit.trim(),
+                workspaceName
+            };
         } catch (err) {
             console.error(`Failed to create workspace for ${sessionId}:`, err.message);
             return null;
@@ -211,8 +274,7 @@ export class WorktreeService {
      * @returns {Promise<boolean>}
      */
     async remove(sessionId, repoPath) {
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
+        const workspaceName = this._getWorkspaceName(sessionId, repoPath);
         const workspacePath = path.join(this.worktreesDir, workspaceName);
         const bookmarkName = sessionId;
 
@@ -240,6 +302,8 @@ export class WorktreeService {
             } catch (rmErr) {
                 console.log(`[workspace] Directory removal skipped: ${rmErr.message}`);
             }
+
+            await this._removeGitCompatibility(sessionId, repoPath);
 
             return true;
         } catch (err) {
