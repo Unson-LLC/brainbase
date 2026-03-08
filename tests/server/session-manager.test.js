@@ -223,6 +223,31 @@ describe('SessionManager', () => {
     expect(status.activeTurnCount).toBe(0);
   });
 
+  it('active turn中に_turnIdなしturn_completedを受けてもworkingを維持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 100, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-2'
+    });
+    manager.reportActivity('session-1', 'done', now + 200, {
+      lifecycle: 'turn_completed',
+      eventType: 'turn/completed'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.isDone).toBe(false);
+    expect(status.activeTurnCount).toBe(2);
+  });
+
   it('resolveSessionWorkspacePath_tmuxのcurrent_pathでstale pathを補正する', async () => {
     const resolvedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-session-'));
     let state = {

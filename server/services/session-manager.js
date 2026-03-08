@@ -643,7 +643,7 @@ export class SessionManager {
 
     /**
      * セッション状態を取得（Hook報告ベース + goal-seek情報）
-     * ハートビートタイムアウト: 10分以上working報告がなければisWorking=falseとする
+     * ハートビートタイムアウト: 60分以上working報告がなければisWorking=falseとする
      * @returns {Object} sessionId -> {isWorking, isDone, goalSeek}
      */
     getSessionStatus() {
@@ -754,11 +754,11 @@ export class SessionManager {
         } else if (lifecycle === 'turn_completed') {
             if (turnId) {
                 activeTurnIds.delete(turnId);
-            } else {
-                activeTurnIds.clear();
+            } else if (activeTurnIds.size > 0) {
+                console.warn(`[Hook] Ignoring ambiguous turn_completed without turnId for ${sessionId}; keeping ${activeTurnIds.size} active turn(s)`);
             }
 
-            if (activeTurnIds.size === 0) {
+            if (turnId || activeTurnIds.size === 0) {
                 lastDoneAt = Math.max(lastDoneAt, timestamp);
             }
         } else if (lifecycle === 'heartbeat') {
