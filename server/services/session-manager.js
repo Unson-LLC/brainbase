@@ -27,7 +27,7 @@ export class SessionManager {
 
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
-        this.hookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp }
+        this.hookStatus = new Map(); // sessionId -> { status, timestamp, lastWorkingAt, lastDoneAt, lastActivityAt, lastEventType, activeTurnIds }
         this.startLocks = new Map(); // sessionId -> Promise (並行起動防止ロック)
         // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
@@ -659,13 +659,15 @@ export class SessionManager {
             const normalized = this._normalizeHookData(hookData);
             if (!normalized) continue;
 
+            const activeTurnCount = normalized.activeTurnIds.length;
             const hasWorking = normalized.lastWorkingAt > 0;
             const hasDone = normalized.lastDoneAt > 0;
-            if (!hasWorking && !hasDone) continue;
+            if (!hasWorking && !hasDone && activeTurnCount === 0) continue;
 
             // タイムアウト判定: 最後のworking報告から10分経過したらisWorking: false
-            const isStale = now - normalized.lastWorkingAt > HEARTBEAT_TIMEOUT;
-            const isWorking = !isStale && normalized.lastWorkingAt > normalized.lastDoneAt;
+            const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
+            const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
+            const isWorking = !isStale && (activeTurnCount > 0 || normalized.lastWorkingAt > normalized.lastDoneAt);
             const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
 
             // goal-seek情報を取得
@@ -678,6 +680,9 @@ export class SessionManager {
                 isDone,
                 lastWorkingAt: normalized.lastWorkingAt,
                 lastDoneAt: normalized.lastDoneAt,
+                lastActivityAt: normalized.lastActivityAt,
+                lastEventType: normalized.lastEventType,
+                activeTurnCount,
                 timestamp: normalized.timestamp,
                 goalSeek
             };
@@ -696,6 +701,9 @@ export class SessionManager {
                     isDone: false,
                     lastWorkingAt: 0,
                     lastDoneAt: 0,
+                    lastActivityAt: 0,
+                    lastEventType: null,
+                    activeTurnCount: 0,
                     timestamp: 0,
                     goalSeek
                 };
@@ -711,58 +719,73 @@ export class SessionManager {
      * @param {string} status - ステータス（'working' | 'done'）
      * @param {number} reportedAt - 報告時刻（ms）
      */
-    reportActivity(sessionId, status, reportedAt) {
+    reportActivity(sessionId, status, reportedAt, metadata = {}) {
         if (status !== 'working' && status !== 'done') {
             console.warn(`[Hook] Ignoring invalid status for ${sessionId}: ${status}`);
             return;
         }
 
         const timestamp = this._coerceTimestamp(reportedAt);
-        console.log(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp}`);
+        const lifecycle = typeof metadata.lifecycle === 'string' ? metadata.lifecycle : '';
+        const eventType = typeof metadata.eventType === 'string' ? metadata.eventType : '';
+        const turnId = typeof metadata.turnId === 'string' ? metadata.turnId.trim() : '';
+        console.log(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp} (${lifecycle || 'legacy'}${turnId ? `:${turnId}` : ''})`);
 
         const currentHookData = this._normalizeHookData(this.hookStatus.get(sessionId)) || {
             lastWorkingAt: 0,
-            lastDoneAt: 0
+            lastDoneAt: 0,
+            lastActivityAt: 0,
+            lastEventType: null,
+            activeTurnIds: []
         };
 
         let lastWorkingAt = currentHookData.lastWorkingAt;
         let lastDoneAt = currentHookData.lastDoneAt;
+        let lastActivityAt = Math.max(currentHookData.lastActivityAt, timestamp);
+        let lastEventType = eventType || currentHookData.lastEventType || null;
+        const activeTurnIds = new Set(currentHookData.activeTurnIds);
 
-        if (status === 'working') {
+        if (lifecycle === 'turn_started') {
+            if (turnId) {
+                activeTurnIds.add(turnId);
+            }
+            lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            lastDoneAt = 0;
+        } else if (lifecycle === 'turn_completed') {
+            if (turnId) {
+                activeTurnIds.delete(turnId);
+            } else {
+                activeTurnIds.clear();
+            }
+
+            if (activeTurnIds.size === 0) {
+                lastDoneAt = Math.max(lastDoneAt, timestamp);
+            }
+        } else if (lifecycle === 'heartbeat') {
+            if (activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt) {
+                lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            }
+        } else if (status === 'working') {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             lastDoneAt = 0; // working報告を優先化（done報告をリセット）
         } else {
             lastDoneAt = Math.max(lastDoneAt, timestamp);
         }
 
-        const effectiveStatus = lastWorkingAt > lastDoneAt ? 'working' : 'done';
+        const effectiveStatus = activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt ? 'working' : 'done';
 
         const hookStatusData = {
             status: effectiveStatus,
             timestamp,
             lastWorkingAt,
-            lastDoneAt
+            lastDoneAt,
+            lastActivityAt,
+            lastEventType,
+            activeTurnIds: Array.from(activeTurnIds)
         };
 
         this.hookStatus.set(sessionId, hookStatusData);
-
-        // Update persisted state
-        const currentState = this.stateStore.get();
-        const updatedAt = new Date(timestamp).toISOString();
-        const updatedSessions = currentState.sessions.map(session =>
-            session.id === sessionId
-                ? {
-                    ...session,
-                    hookStatus: hookStatusData,
-                    updatedAt
-                }
-                : session
-        );
-
-        this.stateStore.update({
-            ...currentState,
-            sessions: updatedSessions
-        });
+        this._persistHookStatus(sessionId, hookStatusData, timestamp);
     }
 
     /**
@@ -771,23 +794,12 @@ export class SessionManager {
      */
     clearDoneStatus(sessionId) {
         const normalized = this._normalizeHookData(this.hookStatus.get(sessionId));
-        if (normalized && normalized.lastDoneAt >= normalized.lastWorkingAt && normalized.lastDoneAt > 0) {
+        if (normalized &&
+            normalized.activeTurnIds.length === 0 &&
+            normalized.lastDoneAt >= normalized.lastWorkingAt &&
+            normalized.lastDoneAt > 0) {
             this.hookStatus.delete(sessionId);
-
-            // Update persisted state
-            const currentState = this.stateStore.get();
-            const updatedSessions = currentState.sessions.map(session => {
-                if (session.id === sessionId) {
-                    const { hookStatus, ...rest } = session;
-                    return rest;
-                }
-                return session;
-            });
-
-            this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
-            });
+            this._persistHookStatus(sessionId, null);
         }
     }
 
@@ -797,23 +809,9 @@ export class SessionManager {
      */
     clearWorking(sessionId) {
         const normalized = this._normalizeHookData(this.hookStatus.get(sessionId));
-        if (normalized && normalized.lastWorkingAt > normalized.lastDoneAt && normalized.lastWorkingAt > 0) {
+        if (normalized && (normalized.activeTurnIds.length > 0 || (normalized.lastWorkingAt > normalized.lastDoneAt && normalized.lastWorkingAt > 0))) {
             this.hookStatus.delete(sessionId);
-
-            // Update persisted state
-            const currentState = this.stateStore.get();
-            const updatedSessions = currentState.sessions.map(session => {
-                if (session.id === sessionId) {
-                    const { hookStatus, ...rest } = session;
-                    return rest;
-                }
-                return session;
-            });
-
-            this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
-            });
+            this._persistHookStatus(sessionId, null);
         }
     }
 
@@ -832,14 +830,57 @@ export class SessionManager {
             : status === 'done'
                 ? timestamp
                 : 0;
+        const lastActivityAt = Number.isFinite(hookData.lastActivityAt)
+            ? hookData.lastActivityAt
+            : Math.max(lastWorkingAt, lastDoneAt, timestamp);
+        const lastEventType = typeof hookData.lastEventType === 'string' && hookData.lastEventType.trim()
+            ? hookData.lastEventType
+            : null;
+        const activeTurnIds = Array.isArray(hookData.activeTurnIds)
+            ? Array.from(new Set(
+                hookData.activeTurnIds
+                    .filter(turnId => typeof turnId === 'string')
+                    .map(turnId => turnId.trim())
+                    .filter(Boolean)
+            ))
+            : [];
 
         return {
             ...hookData,
             status,
             timestamp,
             lastWorkingAt,
-            lastDoneAt
+            lastDoneAt,
+            lastActivityAt,
+            lastEventType,
+            activeTurnIds
         };
+    }
+
+    _persistHookStatus(sessionId, hookStatusData, timestamp = Date.now()) {
+        const currentState = this.stateStore.get();
+        const updatedAt = new Date(timestamp).toISOString();
+        const updatedSessions = currentState.sessions.map(session => {
+            if (session.id !== sessionId) {
+                return session;
+            }
+
+            if (hookStatusData) {
+                return {
+                    ...session,
+                    hookStatus: hookStatusData,
+                    updatedAt
+                };
+            }
+
+            const { hookStatus, ...rest } = session;
+            return rest;
+        });
+
+        this.stateStore.update({
+            ...currentState,
+            sessions: updatedSessions
+        });
     }
 
     _coerceTimestamp(value) {

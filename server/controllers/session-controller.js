@@ -147,12 +147,16 @@ export class SessionController {
      * Hookからのactivity報告を受信
      */
     reportActivity = async (req, res) => {
-        const { sessionId, status, reportedAt } = req.body;
+        const { sessionId, status, reportedAt, lifecycle, eventType, turnId } = req.body;
         if (!sessionId || !status) {
             return res.status(400).json({ error: 'Missing sessionId or status' });
         }
 
-        this.sessionManager.reportActivity(sessionId, status, reportedAt);
+        this.sessionManager.reportActivity(sessionId, status, reportedAt, {
+            lifecycle,
+            eventType,
+            turnId
+        });
         res.json({ success: true });
     };
 

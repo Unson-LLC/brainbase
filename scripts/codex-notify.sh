@@ -106,6 +106,7 @@ PY
 
 event_type=""
 is_done_event=false
+lifecycle=""
 
 # If missing, derive session id from tmux session name
 if [ -z "$BRAINBASE_SESSION_ID" ] && [ -n "$TMUX" ] && command -v tmux >/dev/null 2>&1; then
@@ -175,12 +176,13 @@ PY
   fi
 
   if [ "$event_type" = "agent-turn-start" ] || [ "$event_type" = "agent-turn-begin" ]; then
+    lifecycle="turn_started"
     if [ -n "$TURN_STATE_FILE" ]; then
       echo "$REPORTED_AT" > "$TURN_STATE_FILE" 2>/dev/null || true
     fi
     curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
       -H "Content-Type: application/json" \
-      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT}" \
+      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
       --max-time 1 >/dev/null 2>&1 || true &
   fi
 
@@ -191,7 +193,18 @@ PY
     echo "$REPORTED_AT" > "$COMMIT_STATE_FILE" 2>/dev/null || true
   fi
 
-  if [ "$event_type" = "agent-turn-complete" ] || [ "$event_type" = "agent-turn-end" ] || [ "$event_type" = "assistant-message" ] || [ "$event_type" = "assistant-response" ] || [ "$event_type" = "assistant-message-complete" ] || [ "$event_type" = "assistant-response-complete" ]; then
+  if [ "$event_type" = "assistant-message" ] || [ "$event_type" = "assistant-response" ] || [ "$event_type" = "assistant-message-complete" ] || [ "$event_type" = "assistant-response-complete" ]; then
+    lifecycle="heartbeat"
+    if [ -z "$turn_id" ] || [ -f "$TURN_STATE_FILE" ]; then
+      curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
+        -H "Content-Type: application/json" \
+        -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
+        --max-time 1 >/dev/null 2>&1 || true &
+    fi
+  fi
+
+  if [ "$event_type" = "agent-turn-complete" ] || [ "$event_type" = "agent-turn-end" ]; then
+    lifecycle="turn_completed"
     is_done_event=true
   fi
 
@@ -201,7 +214,7 @@ PY
     fi
     curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
       -H "Content-Type: application/json" \
-      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"done\", \"reportedAt\": $REPORTED_AT}" \
+      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"done\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
       --max-time 1 >/dev/null 2>&1 || true &
 
     if [ -f "$COMMIT_STATE_FILE" ]; then

@@ -112,6 +112,7 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         const status = await res.json();
         const previousStatuses = new Map(sessionStatusMap);
         let hasStatusChange = false;
+        const incomingSessionIds = new Set(Object.keys(status));
 
         // Debug log: 取得した状態を可視化
         const workingSessions = Object.entries(status).filter(([, s]) => s.isWorking);
@@ -138,6 +139,13 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
                 hasStatusChange = true;
             }
             sessionStatusMap.set(sessionId, newStatus);
+        }
+
+        for (const sessionId of previousStatuses.keys()) {
+            if (!incomingSessionIds.has(sessionId)) {
+                hasStatusChange = true;
+                sessionStatusMap.delete(sessionId);
+            }
         }
 
         if (hasStatusChange) {

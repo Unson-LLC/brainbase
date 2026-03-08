@@ -18,13 +18,18 @@ import { eventBus, EVENTS } from '../../public/modules/core/event-bus.js';
 import { getSessionStatus, markDoneAsRead, pollSessionStatus } from '../../public/modules/session-indicators.js';
 
 describe('session-indicators', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     document.body.innerHTML = `
       <div class="session-child-row" data-id="session-1">
         <span class="drag-handle"></span>
       </div>
     `;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({})
+    });
+    await pollSessionStatus('session-1');
   });
 
   it('markDoneAsRead呼び出し時_緑インジケータが即時クリアされる', async () => {
@@ -125,5 +130,61 @@ describe('session-indicators', () => {
     expect(getSessionStatus('session-1').isDone).toBe(false);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it('pollSessionStatus呼び出し時_statusから消えたsessionはclient mapから除去される', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          'session-1': {
+            isWorking: true,
+            isDone: false,
+            lastWorkingAt: 100,
+            lastDoneAt: 0,
+            timestamp: 100
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({})
+      });
+
+    await pollSessionStatus('session-1');
+    expect(getSessionStatus('session-1').isWorking).toBe(true);
+    expect(document.querySelector('.session-activity-indicator.working')).toBeTruthy();
+
+    await pollSessionStatus('session-1');
+    expect(getSessionStatus('session-1')).toBeUndefined();
+    expect(document.querySelector('.session-activity-indicator')).toBeNull();
+  });
+
+  it('pollSessionStatus繰り返し時_DOM再生成後もworkingインジケータを維持する', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        'session-1': {
+          isWorking: true,
+          isDone: false,
+          lastWorkingAt: 200,
+          lastDoneAt: 0,
+          timestamp: 200
+        }
+      })
+    });
+    globalThis.fetch = fetchMock;
+
+    await pollSessionStatus('session-1');
+    expect(document.querySelector('.session-activity-indicator.working')).toBeTruthy();
+
+    document.body.innerHTML = `
+      <div class="session-child-row" data-id="session-1">
+        <span class="drag-handle"></span>
+      </div>
+    `;
+
+    await pollSessionStatus('session-1');
+    expect(document.querySelector('.session-activity-indicator.working')).toBeTruthy();
   });
 });
