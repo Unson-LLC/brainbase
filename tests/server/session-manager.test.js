@@ -135,6 +135,94 @@ describe('SessionManager', () => {
     expect(status.isWorking).toBe(false);
   });
 
+  it('turn_started後_assistant_message_heartbeatではworkingを維持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'assistant-message',
+      turnId: 'turn-1'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.isDone).toBe(false);
+    expect(status.activeTurnCount).toBe(1);
+  });
+
+  it('turn_started後_turn_completedまではassistant_response_completeでもdoneに倒れない', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'assistant-response-complete',
+      turnId: 'turn-1'
+    });
+
+    let status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.isDone).toBe(false);
+
+    manager.reportActivity('session-1', 'done', now + 2000, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: 'turn-1'
+    });
+
+    status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(false);
+    expect(status.isDone).toBe(true);
+    expect(status.activeTurnCount).toBe(0);
+  });
+
+  it('複数turnのうち1つだけ完了しても残りがあればworkingを維持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 100, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-2'
+    });
+    manager.reportActivity('session-1', 'done', now + 200, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: 'turn-1'
+    });
+
+    let status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.activeTurnCount).toBe(1);
+
+    manager.reportActivity('session-1', 'done', now + 300, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: 'turn-2'
+    });
+
+    status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(false);
+    expect(status.isDone).toBe(true);
+    expect(status.activeTurnCount).toBe(0);
+  });
+
   it('resolveSessionWorkspacePath_tmuxのcurrent_pathでstale pathを補正する', async () => {
     const resolvedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-session-'));
     let state = {

@@ -19,6 +19,15 @@ describe('SessionController (Server)', () => {
       stopTtyd: vi.fn(),
       cleanupSessionResources: vi.fn(),
       clearDoneStatus: vi.fn(),
+      reportActivity: vi.fn(),
+      resolveSessionWorkspacePath: vi.fn(async (sessionOrId) => {
+        if (typeof sessionOrId === 'string') {
+          const state = mockStateStore.get();
+          const session = state.sessions?.find(s => s.id === sessionOrId);
+          return session?.worktree?.path || session?.path || null;
+        }
+        return sessionOrId?.worktree?.path || sessionOrId?.path || null;
+      }),
       activeSessions: new Map()
     };
 
@@ -150,6 +159,35 @@ describe('SessionController (Server)', () => {
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Session ID is required' });
       expect(mockSessionManager.clearDoneStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reportActivity', () => {
+    it('reportActivity呼び出し時_lifecycle関連フィールドをSessionManagerへ渡す', async () => {
+      const req = {
+        body: {
+          sessionId: 'session-1',
+          status: 'working',
+          reportedAt: 1234567890,
+          lifecycle: 'turn_started',
+          eventType: 'agent-turn-start',
+          turnId: 'turn-1'
+        }
+      };
+
+      await sessionController.reportActivity(req, mockRes);
+
+      expect(mockSessionManager.reportActivity).toHaveBeenCalledWith(
+        'session-1',
+        'working',
+        1234567890,
+        {
+          lifecycle: 'turn_started',
+          eventType: 'agent-turn-start',
+          turnId: 'turn-1'
+        }
+      );
+      expect(mockRes.json).toHaveBeenCalledWith({ success: true });
     });
   });
 
