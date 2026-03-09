@@ -908,6 +908,11 @@ export class SessionManager {
         return this.activeSessions;
     }
 
+    getSession(sessionId) {
+        const state = this.stateStore.get();
+        return (state.sessions || []).find(session => session.id === sessionId) || null;
+    }
+
     /**
      * 起動準備完了フラグを設定
      */

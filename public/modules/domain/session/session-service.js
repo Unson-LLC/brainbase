@@ -470,11 +470,12 @@ export class SessionService {
      * @param {string|null} cwd - セッションの作業ディレクトリ
      * @returns {Promise<Object>}
      */
-    async openFileInDefaultApp(relativePath, cwd = null) {
+    async openFileInDefaultApp(relativePath, cwd = null, sessionId = null) {
         return await this.httpClient.post('/api/open-file', {
             path: relativePath,
             mode: 'file',
-            cwd
+            cwd,
+            sessionId
         });
     }
 

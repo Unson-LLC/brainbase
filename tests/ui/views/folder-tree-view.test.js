@@ -93,7 +93,7 @@ describe('FolderTreeView', () => {
         fileButton.click();
 
         await vi.waitFor(() => {
-            expect(sessionService.openFileInDefaultApp).toHaveBeenCalledWith('README.md', '/tmp/project');
+            expect(sessionService.openFileInDefaultApp).toHaveBeenCalledWith('README.md', '/tmp/project', 'session-1');
         });
         expect(listener).toHaveBeenCalled();
         unsubscribe();

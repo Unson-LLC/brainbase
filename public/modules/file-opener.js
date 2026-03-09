@@ -29,6 +29,7 @@ export async function openFile(path, mode = 'file', options = {}) {
     try {
         const body = { path, mode };
         if (options.cwd) body.cwd = options.cwd;
+        if (options.sessionId) body.sessionId = options.sessionId;
 
         const response = await fetch('/api/open-file', {
             method: 'POST',
@@ -54,8 +55,8 @@ export async function openFile(path, mode = 'file', options = {}) {
  * @param {string} path - ファイルパス
  * @returns {Promise<Object>} APIレスポンス
  */
-export async function revealInFinder(path) {
-    return openFile(path, 'reveal');
+export async function revealInFinder(path, options = {}) {
+    return openFile(path, 'reveal', options);
 }
 
 /**
@@ -70,6 +71,7 @@ export async function openInCursor(path, line, options = {}) {
     try {
         const body = { path, mode: 'cursor', line };
         if (options.cwd) body.cwd = options.cwd;
+        if (options.sessionId) body.sessionId = options.sessionId;
 
         const response = await fetch('/api/open-file', {
             method: 'POST',

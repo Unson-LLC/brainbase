@@ -538,7 +538,7 @@
                             fetch('/api/open-file', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ filePath, line: lineNum })
+                                body: JSON.stringify({ filePath, line: lineNum, sessionId })
                             })
                             .then(res => res.json())
                             .then(data => {

@@ -2,9 +2,8 @@
  * MiscController
  * その他のHTTPリクエスト処理（version, restart, upload, open-file）
  */
-import { exec, execFile } from 'child_process';
+import { execFile } from 'child_process';
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
 import { logger } from '../utils/logger.js';
 
@@ -17,6 +16,7 @@ export class MiscController {
         this.runtimeInfo = runtimeInfo;
         this.brainbaseRoot = paths.brainbaseRoot || null;
         this.projectsRoot = paths.projectsRoot || null;
+        this.sessionManager = paths.sessionManager || null;
     }
 
     /**
@@ -105,6 +105,131 @@ export class MiscController {
         return null;
     }
 
+    _normalizePath(candidate) {
+        if (!candidate || typeof candidate !== 'string') return null;
+
+        const resolved = path.resolve(candidate);
+        try {
+            return fs.realpathSync.native(resolved);
+        } catch {
+            return resolved;
+        }
+    }
+
+    _isWithinRoot(candidatePath, rootPath) {
+        if (!candidatePath || !rootPath) return false;
+        return candidatePath === rootPath || candidatePath.startsWith(`${rootPath}${path.sep}`);
+    }
+
+    _dedupePaths(candidates) {
+        const results = [];
+        const seen = new Set();
+
+        for (const candidate of candidates) {
+            const normalized = this._normalizePath(candidate);
+            if (!normalized || seen.has(normalized)) continue;
+            seen.add(normalized);
+            results.push(normalized);
+        }
+
+        return results;
+    }
+
+    async _getSessionContext(sessionId) {
+        if (!sessionId || !this.sessionManager) {
+            return { session: null, resolvedWorkspacePath: null };
+        }
+
+        const session = typeof this.sessionManager.getSession === 'function'
+            ? this.sessionManager.getSession(sessionId)
+            : null;
+        const resolvedWorkspacePath = typeof this.sessionManager.resolveSessionWorkspacePath === 'function'
+            ? await this.sessionManager.resolveSessionWorkspacePath(sessionId, { persist: false, preferTmux: true })
+            : null;
+
+        return { session, resolvedWorkspacePath };
+    }
+
+    async _getManagedRoots({ sessionId }) {
+        const { session, resolvedWorkspacePath } = await this._getSessionContext(sessionId);
+        return this._dedupePaths([
+            this.workspaceRoot,
+            this.brainbaseRoot,
+            this.projectsRoot,
+            resolvedWorkspacePath,
+            session?.path,
+            session?.worktree?.path
+        ]);
+    }
+
+    _buildResolutionBases({ managedRoots, sessionContext, cwd }) {
+        const bases = [];
+        const pushIfAllowed = (candidate) => {
+            const normalized = this._normalizePath(candidate);
+            if (!normalized) return;
+            if (!managedRoots.some(root => this._isWithinRoot(normalized, root))) return;
+            if (!bases.includes(normalized)) bases.push(normalized);
+        };
+
+        pushIfAllowed(sessionContext.resolvedWorkspacePath);
+        pushIfAllowed(sessionContext.session?.worktree?.path);
+        pushIfAllowed(sessionContext.session?.path);
+        pushIfAllowed(cwd);
+
+        const projectPath = this._resolveProjectPath(
+            sessionContext.resolvedWorkspacePath
+            || sessionContext.session?.worktree?.path
+            || sessionContext.session?.path
+            || cwd
+        );
+        pushIfAllowed(projectPath);
+
+        for (const root of managedRoots) {
+            pushIfAllowed(root);
+        }
+
+        return bases;
+    }
+
+    _resolveTargetPath({ targetPath, managedRoots, resolutionBases }) {
+        if (path.isAbsolute(targetPath)) {
+            const normalized = this._normalizePath(targetPath);
+            const matchedRoot = managedRoots.find(root => this._isWithinRoot(normalized, root)) || null;
+            if (!matchedRoot) {
+                return {
+                    error: 'Invalid path: outside managed roots',
+                    debug: { normalizedTarget: normalized, matchedRoot: null }
+                };
+            }
+
+            return { normalizedPath: normalized, matchedRoot };
+        }
+
+        let firstAllowed = null;
+        for (const base of resolutionBases) {
+            const candidate = this._normalizePath(path.join(base, targetPath));
+            const matchedRoot = managedRoots.find(root => this._isWithinRoot(candidate, root)) || null;
+            if (!matchedRoot) continue;
+
+            if (!firstAllowed) {
+                firstAllowed = { normalizedPath: candidate, matchedRoot };
+            }
+
+            if (fs.existsSync(candidate)) {
+                return { normalizedPath: candidate, matchedRoot };
+            }
+        }
+
+        if (firstAllowed) {
+            return firstAllowed;
+        }
+
+        return {
+            error: 'Invalid path: outside managed roots',
+            debug: { normalizedTarget: this._normalizePath(targetPath), matchedRoot: null }
+        };
+    }
+
     /**
      * POST /api/open-file
      * ファイルを開く/表示する
@@ -119,10 +244,10 @@ export class MiscController {
      */
     openFile = async (req, res) => {
         try {
-            const { filePath, path: pathParam, line, mode = 'file', cwd } = req.body;
+            const { filePath, path: pathParam, line, mode = 'file', cwd, sessionId } = req.body;
             const targetPath = pathParam || filePath;
 
-            logger.debug('openFile request', { mode, line, hasPath: !!targetPath });
+            logger.debug('openFile request', { mode, line, hasPath: !!targetPath, sessionId: sessionId || null });
 
             if (!targetPath) {
                 return res.status(400).json({ error: 'filePath or path is required' });
@@ -136,100 +261,27 @@ export class MiscController {
                 });
             }
 
-            // チルダ（~）で始まるパスはホームディレクトリ相対パスとして扱う
-            const isHomeDirPath = targetPath.startsWith('~/');
-            let expandedPath = targetPath;
-            if (isHomeDirPath) {
-                expandedPath = path.join(os.homedir(), targetPath.slice(2));
-            }
+            const managedRoots = await this._getManagedRoots({ sessionId });
+            const sessionContext = await this._getSessionContext(sessionId);
+            const resolutionBases = this._buildResolutionBases({ managedRoots, sessionContext, cwd });
+            const resolvedTarget = this._resolveTargetPath({ targetPath, managedRoots, resolutionBases });
 
-            // cwdのセキュリティチェック: ホームディレクトリ配下であることを確認
-            let resolveBase = this.workspaceRoot;
-            if (cwd) {
-                const resolvedCwd = path.resolve(cwd);
-                const homeDir = os.homedir();
-                if (resolvedCwd.startsWith(homeDir + '/')) {
-                    resolveBase = resolvedCwd;
-                } else {
-                    logger.warn('Invalid cwd: outside home directory', { cwd: resolvedCwd, homeDir });
-                }
-            }
-
-            // Resolve relative paths from cwd or workspace root
-            let absolutePath = path.isAbsolute(expandedPath)
-                ? expandedPath
-                : path.join(resolveBase, expandedPath);
-
-            // パスを正規化
-            let normalizedPath = path.resolve(absolutePath);
-
-            // パストラバーサル対策: ホームディレクトリからの相対パスは許可
-            // /workspace/ を含むパスであれば、workspace全体を許可範囲とする
-            // これにより、worktree環境でも通常環境でも、同じworkspace内のファイルにアクセス可能
-            let allowedRoot = this.workspaceRoot;
-            const workspaceIndex = this.workspaceRoot.indexOf('/workspace/');
-            if (workspaceIndex !== -1) {
-                // 例: /home/user/workspace/projects/app → /home/user/workspace/
-                allowedRoot = this.workspaceRoot.substring(0, workspaceIndex + '/workspace/'.length);
-            }
-
-            // ホームディレクトリ配下のパスかどうかをチェック
-            const homeDir = os.homedir();
-            const isUnderHomeDir = normalizedPath.startsWith(homeDir + '/');
-
-            logger.debug('Path validation', {
-                workspaceRoot: this.workspaceRoot,
-                normalizedPath,
-                allowedRoot,
-                homeDir,
-                isHomeDirPath,
-                isUnderHomeDir,
-                startsWithAllowed: normalizedPath.startsWith(allowedRoot)
-            });
-
-            // ホームディレクトリ配下、または許可されたワークスペース配下のみ許可
-            if (!isHomeDirPath && !isUnderHomeDir && !normalizedPath.startsWith(allowedRoot)) {
-                logger.warn('Path traversal attempt detected', { allowedRoot, normalizedPath });
+            if (resolvedTarget.error) {
+                logger.warn('Path validation failed', {
+                    targetPath,
+                    cwd: cwd || null,
+                    sessionId: sessionId || null,
+                    managedRoots,
+                    resolutionBases,
+                    ...resolvedTarget.debug
+                });
                 return res.status(400).json({
                     success: false,
-                    error: 'Invalid path: outside workspace'
+                    error: resolvedTarget.error
                 });
             }
 
-            // ファイルが存在しない場合、フォールバック検索
-            if (!fs.existsSync(normalizedPath) && !path.isAbsolute(targetPath) && !isHomeDirPath) {
-                logger.debug('File not found, searching in project directories');
-
-                // 1) cwdがworktreeの場合、project IDからプロジェクトリポジトリを検索
-                const projectPath = this._resolveProjectPath(cwd || resolveBase);
-                if (projectPath) {
-                    const candidatePath = path.join(projectPath, expandedPath);
-                    if (fs.existsSync(candidatePath)) {
-                        logger.debug('Found file in project repository', { projectPath });
-                        normalizedPath = path.resolve(candidatePath);
-                    }
-                }
-
-                // 2) まだ見つからなければ、workspaceRootのサブディレクトリを検索
-                if (!fs.existsSync(normalizedPath)) {
-                    try {
-                        const subdirs = fs.readdirSync(this.workspaceRoot, { withFileTypes: true })
-                            .filter(dirent => dirent.isDirectory())
-                            .map(dirent => dirent.name);
-
-                        for (const subdir of subdirs) {
-                            const candidatePath = path.join(this.workspaceRoot, subdir, expandedPath);
-                            if (fs.existsSync(candidatePath)) {
-                                logger.debug('Found file in workspace subdirectory');
-                                normalizedPath = path.resolve(candidatePath);
-                                break;
-                            }
-                        }
-                    } catch (searchError) {
-                        logger.error('Error searching project directories', { error: searchError });
-                    }
-                }
-            }
+            const normalizedPath = resolvedTarget.normalizedPath;
 
             let execProgram;
             let execArgs;

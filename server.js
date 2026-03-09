@@ -622,7 +622,11 @@ app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
-app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, { brainbaseRoot: BRAINBASE_ROOT, projectsRoot: PROJECTS_ROOT }));
+app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {
+    brainbaseRoot: BRAINBASE_ROOT,
+    projectsRoot: PROJECTS_ROOT,
+    sessionManager
+}));
 
 // ========================================
 // All API routes are now handled by routers:
