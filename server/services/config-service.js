@@ -28,6 +28,13 @@ export class ConfigService {
         await fs.writeFile(this.configPath, nextYaml, 'utf-8');
     }
 
+    async _mutateConfig(mutator) {
+        const { data } = await this._loadConfig();
+        const result = await mutator(data);
+        await this._saveConfig(data);
+        return result;
+    }
+
     _getProjects(data) {
         if (!Array.isArray(data.projects)) {
             data.projects = [];
@@ -37,6 +44,14 @@ export class ConfigService {
 
     _findProject(projects, projectId) {
         return projects.find(p => p.id === projectId);
+    }
+
+    _getProjectOrThrow(data, projectId) {
+        const project = this._findProject(this._getProjects(data), projectId);
+        if (!project) {
+            throw new Error(`Project not found: ${projectId}`);
+        }
+        return project;
     }
 
     _normalizeProjectPath(localPath, data) {
@@ -58,21 +73,15 @@ export class ConfigService {
             throw new Error('project_id, owner, repo are required');
         }
 
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, project_id);
-        if (!project) {
-            throw new Error(`Project not found: ${project_id}`);
-        }
-
-        project.github = {
-            owner,
-            repo,
-            branch: branch || 'main'
-        };
-
-        await this._saveConfig(data);
-        return project.github;
+        return this._mutateConfig((data) => {
+            const project = this._getProjectOrThrow(data, project_id);
+            project.github = {
+                owner,
+                repo,
+                branch: branch || 'main'
+            };
+            return project.github;
+        });
     }
 
     async deleteGitHubMapping(projectId) {
@@ -80,16 +89,11 @@ export class ConfigService {
             throw new Error('project_id is required');
         }
 
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, projectId);
-        if (!project) {
-            throw new Error(`Project not found: ${projectId}`);
-        }
-
-        delete project.github;
-        await this._saveConfig(data);
-        return true;
+        return this._mutateConfig((data) => {
+            const project = this._getProjectOrThrow(data, projectId);
+            delete project.github;
+            return true;
+        });
     }
 
     async upsertNocoDBMapping({ project_id, base_id, nocodb_project_id, base_name, url }) {
@@ -97,22 +101,16 @@ export class ConfigService {
             throw new Error('project_id, nocodb_project_id are required');
         }
 
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, project_id);
-        if (!project) {
-            throw new Error(`Project not found: ${project_id}`);
-        }
-
-        project.nocodb = {
-            base_id: base_id || '',
-            project_id: nocodb_project_id,
-            base_name: base_name || '',
-            url: url || ''
-        };
-
-        await this._saveConfig(data);
-        return project.nocodb;
+        return this._mutateConfig((data) => {
+            const project = this._getProjectOrThrow(data, project_id);
+            project.nocodb = {
+                base_id: base_id || '',
+                project_id: nocodb_project_id,
+                base_name: base_name || '',
+                url: url || ''
+            };
+            return project.nocodb;
+        });
     }
 
     async deleteNocoDBMapping(projectId) {
@@ -120,16 +118,11 @@ export class ConfigService {
             throw new Error('project_id is required');
         }
 
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, projectId);
-        if (!project) {
-            throw new Error(`Project not found: ${projectId}`);
-        }
-
-        delete project.nocodb;
-        await this._saveConfig(data);
-        return true;
+        return this._mutateConfig((data) => {
+            const project = this._getProjectOrThrow(data, projectId);
+            delete project.nocodb;
+            return true;
+        });
     }
 
     async upsertProject({ id, emoji, local_path, glob_include, archived }) {
@@ -137,34 +130,34 @@ export class ConfigService {
             throw new Error('id and local_path are required');
         }
 
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const existing = this._findProject(projects, id);
-        const normalizedPath = this._normalizeProjectPath(local_path, data);
-        const nextGlob = Array.isArray(glob_include) ? glob_include : [];
+        return this._mutateConfig((data) => {
+            const projects = this._getProjects(data);
+            const existing = this._findProject(projects, id);
+            const normalizedPath = this._normalizeProjectPath(local_path, data);
+            const nextGlob = Array.isArray(glob_include) ? glob_include : [];
 
-        if (existing) {
-            existing.emoji = emoji || existing.emoji || '';
-            existing.archived = Boolean(archived);
-            existing.local = {
-                ...(existing.local || {}),
-                path: normalizedPath,
-                glob_include: nextGlob
-            };
-        } else {
-            projects.push({
-                id,
-                emoji: emoji || '',
-                archived: Boolean(archived),
-                local: {
+            if (existing) {
+                existing.emoji = emoji || existing.emoji || '';
+                existing.archived = Boolean(archived);
+                existing.local = {
+                    ...(existing.local || {}),
                     path: normalizedPath,
                     glob_include: nextGlob
-                }
-            });
-        }
+                };
+            } else {
+                projects.push({
+                    id,
+                    emoji: emoji || '',
+                    archived: Boolean(archived),
+                    local: {
+                        path: normalizedPath,
+                        glob_include: nextGlob
+                    }
+                });
+            }
 
-        await this._saveConfig(data);
-        return { id };
+            return { id };
+        });
     }
 
     async deleteProject(projectId) {
@@ -172,15 +165,15 @@ export class ConfigService {
             throw new Error('id is required');
         }
 
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const next = projects.filter(p => p.id !== projectId);
-        if (next.length === projects.length) {
-            throw new Error(`Project not found: ${projectId}`);
-        }
-        data.projects = next;
-        await this._saveConfig(data);
-        return true;
+        return this._mutateConfig((data) => {
+            const projects = this._getProjects(data);
+            const next = projects.filter(p => p.id !== projectId);
+            if (next.length === projects.length) {
+                throw new Error(`Project not found: ${projectId}`);
+            }
+            data.projects = next;
+            return true;
+        });
     }
 
     async upsertOrganization({ id, name, ceo, projects }) {
@@ -188,28 +181,28 @@ export class ConfigService {
             throw new Error('id is required');
         }
 
-        const { data } = await this._loadConfig();
-        if (!Array.isArray(data.organizations)) {
-            data.organizations = [];
-        }
+        return this._mutateConfig((data) => {
+            if (!Array.isArray(data.organizations)) {
+                data.organizations = [];
+            }
 
-        const org = data.organizations.find(o => o.id === id);
-        const normalizedProjects = Array.isArray(projects) ? projects.filter(Boolean) : [];
-        const payload = {
-            id,
-            name: name || id,
-            ceo: ceo || '',
-            projects: normalizedProjects
-        };
+            const org = data.organizations.find(o => o.id === id);
+            const normalizedProjects = Array.isArray(projects) ? projects.filter(Boolean) : [];
+            const payload = {
+                id,
+                name: name || id,
+                ceo: ceo || '',
+                projects: normalizedProjects
+            };
 
-        if (org) {
-            Object.assign(org, payload);
-        } else {
-            data.organizations.push(payload);
-        }
+            if (org) {
+                Object.assign(org, payload);
+            } else {
+                data.organizations.push(payload);
+            }
 
-        await this._saveConfig(data);
-        return payload;
+            return payload;
+        });
     }
 
     async deleteOrganization(id) {
@@ -217,55 +210,55 @@ export class ConfigService {
             throw new Error('id is required');
         }
 
-        const { data } = await this._loadConfig();
-        if (!Array.isArray(data.organizations)) {
-            data.organizations = [];
-        }
+        return this._mutateConfig((data) => {
+            if (!Array.isArray(data.organizations)) {
+                data.organizations = [];
+            }
 
-        const next = data.organizations.filter(o => o.id !== id);
-        if (next.length === data.organizations.length) {
-            throw new Error(`Organization not found: ${id}`);
-        }
+            const next = data.organizations.filter(o => o.id !== id);
+            if (next.length === data.organizations.length) {
+                throw new Error(`Organization not found: ${id}`);
+            }
 
-        data.organizations = next;
-        await this._saveConfig(data);
-        return true;
+            data.organizations = next;
+            return true;
+        });
     }
 
     async updateNotifications({ channels = {}, dnd = {} }) {
-        const { data } = await this._loadConfig();
-        const current = data.notifications || {
-            channels: {},
-            dnd: {}
-        };
+        return this._mutateConfig((data) => {
+            const current = data.notifications || {
+                channels: {},
+                dnd: {}
+            };
 
-        const nextChannels = {
-            ...current.channels,
-            ...channels
-        };
+            const nextChannels = {
+                ...current.channels,
+                ...channels
+            };
 
-        const nextDnd = {
-            ...current.dnd,
-            ...dnd
-        };
+            const nextDnd = {
+                ...current.dnd,
+                ...dnd
+            };
 
-        const normalizedStart = Number.isFinite(Number(nextDnd.start))
-            ? Number(nextDnd.start)
-            : (Number.isFinite(Number(current.dnd?.start)) ? Number(current.dnd.start) : null);
-        const normalizedEnd = Number.isFinite(Number(nextDnd.end))
-            ? Number(nextDnd.end)
-            : (Number.isFinite(Number(current.dnd?.end)) ? Number(current.dnd.end) : null);
+            const normalizedStart = Number.isFinite(Number(nextDnd.start))
+                ? Number(nextDnd.start)
+                : (Number.isFinite(Number(current.dnd?.start)) ? Number(current.dnd.start) : null);
+            const normalizedEnd = Number.isFinite(Number(nextDnd.end))
+                ? Number(nextDnd.end)
+                : (Number.isFinite(Number(current.dnd?.end)) ? Number(current.dnd.end) : null);
 
-        data.notifications = {
-            channels: nextChannels,
-            dnd: {
-                enabled: Boolean(nextDnd.enabled),
-                start: normalizedStart,
-                end: normalizedEnd
-            }
-        };
+            data.notifications = {
+                channels: nextChannels,
+                dnd: {
+                    enabled: Boolean(nextDnd.enabled),
+                    start: normalizedStart,
+                    end: normalizedEnd
+                }
+            };
 
-        await this._saveConfig(data);
-        return data.notifications;
+            return data.notifications;
+        });
     }
 }
