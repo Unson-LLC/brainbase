@@ -3,7 +3,6 @@ import { WebSocketServer } from 'ws';
 const DEFAULT_SNAPSHOT_LINES = 200;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
-const MAX_SCROLL_STEPS = 8;
 
 function safeJsonParse(raw) {
     try {
@@ -212,21 +211,6 @@ export class TerminalTransportService {
                 if (Number.isFinite(rows) && rows > 0) {
                     connection.rows = rows;
                 }
-                await this._pollConnection(connection);
-                return;
-            }
-            case 'scroll': {
-                const safeDirection = message.direction === 'down' ? 'down' : message.direction === 'up' ? 'up' : null;
-                if (!safeDirection) return;
-                const safeSteps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Number(message.steps) || 1));
-                await this.sessionManager.scrollSession(sessionId, safeDirection, safeSteps);
-                this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
-                await this._pollConnection(connection);
-                return;
-            }
-            case 'exit_copy_mode': {
-                await this.sessionManager.exitCopyMode(sessionId);
-                this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
                 await this._pollConnection(connection);
                 return;
             }

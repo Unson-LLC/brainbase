@@ -245,5 +245,38 @@ export const appStore = new Store({
         disabled: [],
         active: [],
         failed: {}
+    },
+    lead: {
+        repository: null,
+        selection: {
+            buildingId: null,
+            anomalyId: null,
+            actorId: null,
+            decisionItemId: null,
+            optionId: null,
+            activeRightPanelMode: 'ops',
+            showAllActors: false
+        },
+        projections: {
+            map: null,
+            flowLane: {
+                items: []
+            },
+            decisionQueue: {
+                items: []
+            },
+            opsPanel: null,
+            briefingRoom: null,
+            actorStrip: {
+                featuredActors: [],
+                allActors: [],
+                selectedActor: null
+            }
+        },
+        records: {
+            decisionMemos: [],
+            escalationPackets: [],
+            artifactRequests: []
+        }
     }
 });

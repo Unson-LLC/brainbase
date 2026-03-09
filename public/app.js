@@ -3041,6 +3041,14 @@ export class App {
     }
 
     /**
+     * Keep legacy session goal banner hook alive.
+     * Current UI uses SessionContextBarView instead of a dedicated goal banner.
+     */
+    _updateSessionGoalBanner(_sessionId) {
+        this.views?.sessionContextBarView?.refresh?.({ forceLoading: false });
+    }
+
+    /**
      * Show error message
      */
     showError(message) {
