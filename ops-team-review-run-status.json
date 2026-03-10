@@ -1,10 +1,20 @@
 {
   "status": "skipped",
-  "reason": "no_eligible_areas",
-  "details": {},
-  "timestamp": "2026-03-10T00:27:12.112Z",
-  "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "22881236643",
-  "runNumber": "218",
+  "reason": "refactor_not_performed",
+  "details": {
+    "attempt": 1,
+    "area": "server/services",
+    "failure": {
+      "reason": "refactor_area_error",
+      "details": {
+        "area": "server/services",
+        "message": "No number after minus sign in JSON at position 1"
+      }
+    }
+  },
+  "timestamp": "2026-03-10T03:19:30.260Z",
+  "workflow": "ops-department-auto-refactoring-daily.yml",
+  "runId": "22885438290",
+  "runNumber": "38",
   "eventName": "schedule"
 }
