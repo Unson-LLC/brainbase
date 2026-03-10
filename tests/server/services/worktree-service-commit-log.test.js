@@ -175,3 +175,76 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(mockExec).toHaveBeenCalledWith('git -C "/tmp/repo" branch -D "session/session-1"');
     });
 });
+
+describe('WorktreeService.autoHealArchiveState', () => {
+    let service;
+    let mockExec;
+
+    beforeEach(() => {
+        mockExec = vi.fn();
+        service = new WorktreeService('/tmp/worktrees', '/tmp/repo', mockExec);
+    });
+
+    it('staleなworking copyを安全にself-healする', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({ stdout: 'Working copy changes:\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: test@origin\n' })
+            .mockResolvedValueOnce({ stdout: 'session-1: test\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: test@origin\n' })
+            .mockResolvedValueOnce({ stdout: 'session-1: test\n' })
+            .mockResolvedValueOnce({ stdout: 'refs/remotes/origin/session/session-1\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({ stdout: 'The working copy has no changes.\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: test@origin\n' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service.autoHealArchiveState(
+            'session-1',
+            '/tmp/repo',
+            '/tmp/worktrees/session-1-repo'
+        );
+
+        expect(result.healed).toBe(true);
+        expect(result.reason).toBe('healed');
+        expect(result.actions).toEqual([
+            'delete-bookmark:session-1',
+            'reset-working-copy:session/session-1',
+            'git-export'
+        ]);
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark delete "session-1"');
+        expect(mockExec).toHaveBeenCalledWith(
+            'jj -R "/tmp/worktrees/session-1-repo" new "session/session-1" -m "wip: archive clean working copy"'
+        );
+    });
+
+    it('unpushed changeがある場合はself-healしない', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: '2\n' })
+            .mockResolvedValueOnce({ stdout: 'Working copy changes:\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: test@origin\n' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service.autoHealArchiveState(
+            'session-1',
+            '/tmp/repo',
+            '/tmp/worktrees/session-1-repo'
+        );
+
+        expect(result.healed).toBe(false);
+        expect(result.reason).toBe('changes_not_pushed');
+        expect(result.actions).toEqual([]);
+    });
+});

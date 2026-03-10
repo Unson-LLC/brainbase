@@ -39,7 +39,8 @@ describe('SessionController (Server)', () => {
 
     // Mock WorktreeService
     mockWorktreeService = {
-      getStatus: vi.fn()
+      getStatus: vi.fn(),
+      autoHealArchiveState: vi.fn()
     };
 
     // Create SessionController instance
@@ -134,6 +135,114 @@ describe('SessionController (Server)', () => {
 
       // Verify archive() doesn't call execPromise directly (tmux cleanup is delegated to stopTtyd)
       expect(execPromiseMock).not.toHaveBeenCalled();
+    });
+
+    it('safeなself-heal後は確認なしでarchiveを続行する', async () => {
+      const sessionId = 'session-safe-heal';
+      const mockState = {
+        sessions: [
+          {
+            id: sessionId,
+            intendedState: 'active',
+            worktree: {
+              repo: '/tmp/repo',
+              path: '/tmp/worktrees/session-safe-heal-repo',
+              startCommit: 'abc123'
+            }
+          }
+        ]
+      };
+      mockStateStore.get.mockReturnValue(mockState);
+      mockStateStore.update.mockResolvedValue(mockState);
+      mockSessionManager.stopTtyd.mockResolvedValue(true);
+      mockWorktreeService.getStatus.mockResolvedValue({
+        needsIntegration: true,
+        needsMerge: true,
+        changesNotPushed: 0,
+        hasWorkingCopyChanges: true
+      });
+      mockWorktreeService.autoHealArchiveState.mockResolvedValue({
+        attempted: true,
+        healed: true,
+        reason: 'healed',
+        actions: ['reset-working-copy:session/session-safe-heal'],
+        statusAfter: {
+          needsIntegration: false,
+          needsMerge: false,
+          changesNotPushed: 0,
+          hasWorkingCopyChanges: false
+        }
+      });
+
+      const req = {
+        params: { id: sessionId },
+        body: {}
+      };
+
+      await sessionController.archive(req, mockRes);
+
+      expect(mockWorktreeService.autoHealArchiveState).toHaveBeenCalledWith(
+        sessionId,
+        '/tmp/repo',
+        '/tmp/worktrees/session-safe-heal-repo',
+        'abc123'
+      );
+      expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+    });
+
+    it('self-healで解消できない場合は従来どおり確認レスポンスを返す', async () => {
+      const sessionId = 'session-unsafe-heal';
+      mockStateStore.get.mockReturnValue({
+        sessions: [
+          {
+            id: sessionId,
+            intendedState: 'active',
+            worktree: {
+              repo: '/tmp/repo',
+              path: '/tmp/worktrees/session-unsafe-heal-repo',
+              startCommit: 'abc123'
+            }
+          }
+        ]
+      });
+      mockWorktreeService.getStatus.mockResolvedValue({
+        needsIntegration: true,
+        needsMerge: true,
+        changesNotPushed: 0,
+        hasWorkingCopyChanges: true,
+        bookmarkName: sessionId,
+        bookmarkPushed: false
+      });
+      mockWorktreeService.autoHealArchiveState.mockResolvedValue({
+        attempted: false,
+        healed: false,
+        reason: 'working_copy_differs',
+        actions: [],
+        statusAfter: {
+          needsIntegration: true,
+          needsMerge: true,
+          changesNotPushed: 0,
+          hasWorkingCopyChanges: true,
+          bookmarkName: sessionId,
+          bookmarkPushed: false
+        }
+      });
+
+      const req = {
+        params: { id: sessionId },
+        body: {}
+      };
+
+      await sessionController.archive(req, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        needsConfirmation: true,
+        status: expect.objectContaining({
+          autoHealApplied: false,
+          autoHealReason: 'working_copy_differs'
+        })
+      }));
+      expect(mockSessionManager.stopTtyd).not.toHaveBeenCalled();
     });
   });
 

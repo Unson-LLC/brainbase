@@ -62,6 +62,133 @@ export class WorktreeService {
         return `session/${sessionId}`;
     }
 
+    async _getBookmarkInfos(repoPath, sessionId) {
+        const bookmarkCandidates = [this._getSessionBranchName(sessionId), sessionId];
+        const infos = [];
+
+        for (const candidate of bookmarkCandidates) {
+            try {
+                const { stdout } = await this.execPromise(
+                    `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager`
+                );
+                const output = stdout.trim();
+                if (!output || output.includes('No matching bookmarks') || output.includes('(deleted)')) {
+                    continue;
+                }
+
+                infos.push({
+                    name: candidate,
+                    pushed: output.includes('@origin') || output.includes(' origin'),
+                    output
+                });
+            } catch {
+                // ignore missing bookmark candidate
+            }
+        }
+
+        return infos;
+    }
+
+    async _resolveGitRefForBookmark(workspacePath, bookmarkName) {
+        const refCandidates = [
+            `refs/remotes/origin/${bookmarkName}`,
+            `origin/${bookmarkName}`,
+            bookmarkName
+        ];
+
+        for (const candidate of refCandidates) {
+            try {
+                await this.execPromise(`git -C "${workspacePath}" rev-parse --verify "${candidate}"`);
+                return candidate;
+            } catch {
+                // try next ref
+            }
+        }
+
+        return null;
+    }
+
+    async _workspaceMatchesBookmark(workspacePath, bookmarkName) {
+        const gitRef = await this._resolveGitRefForBookmark(workspacePath, bookmarkName);
+        if (!gitRef) {
+            return false;
+        }
+
+        try {
+            await this.execPromise(`git -C "${workspacePath}" diff --quiet "${gitRef}" --`);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async _collectStatus(sessionId, repoPath, workspacePath, startCommit = null) {
+        const repoName = path.basename(repoPath);
+        const workspaceName = `${sessionId}-${repoName}`;
+        const bookmarkName = sessionId;
+
+        try {
+            await fs.access(workspacePath);
+
+            const mainBranchName = await this._getMainBranchName(repoPath);
+
+            let changesNotPushed = 0;
+            try {
+                const baseRef = startCommit || mainBranchName;
+                const { stdout: aheadCount } = await this.execPromise(
+                    `jj -R "${workspacePath}" log -r "${baseRef}..@-" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
+                );
+                changesNotPushed = parseInt(aheadCount.trim()) || 0;
+            } catch {
+                changesNotPushed = 0;
+            }
+
+            let hasWorkingCopyChanges = false;
+            try {
+                const { stdout: statusOutput } = await this.execPromise(
+                    `jj -R "${workspacePath}" status --no-pager`
+                );
+                hasWorkingCopyChanges = statusOutput.includes('Working copy changes:');
+            } catch {
+                hasWorkingCopyChanges = false;
+            }
+
+            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId);
+            const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
+            const bookmarkPushed = Boolean(officialBookmark);
+            const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges;
+
+            return {
+                exists: true,
+                repoName,
+                worktreePath: workspacePath,
+                workspaceName,
+                bookmarkName,
+                officialBookmarkName: officialBookmark?.name || null,
+                mainBranch: mainBranchName,
+                changesNotPushed,
+                hasWorkingCopyChanges,
+                bookmarkPushed,
+                needsIntegration,
+                commitsAhead: changesNotPushed,
+                hasUncommittedChanges: hasWorkingCopyChanges,
+                branchName: this._getSessionBranchName(sessionId),
+                needsMerge: needsIntegration
+            };
+        } catch {
+            return {
+                exists: false,
+                repoName,
+                worktreePath: workspacePath,
+                workspaceName,
+                bookmarkName,
+                officialBookmarkName: null,
+                needsIntegration: false,
+                needsMerge: false
+            };
+        }
+    }
+
     async _ensureGitCompatibility(sessionId, repoPath, workspacePath) {
         const workspaceName = this._getWorkspaceName(sessionId, repoPath);
         const branchName = this._getSessionBranchName(sessionId);
@@ -323,91 +450,71 @@ export class WorktreeService {
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = sessionId;
+        return await this._collectStatus(sessionId, repoPath, workspacePath, startCommit);
+    }
 
-        try {
-            // Check if workspace exists
-            await fs.access(workspacePath);
+    async autoHealArchiveState(sessionId, repoPath, workspacePath, startCommit = null) {
+        const statusBefore = await this._collectStatus(sessionId, repoPath, workspacePath, startCommit);
+        const result = {
+            attempted: false,
+            healed: false,
+            reason: 'nothing_to_fix',
+            actions: [],
+            statusBefore,
+            statusAfter: statusBefore
+        };
 
-            // Get main branch name
-            const mainBranchName = await this._getMainBranchName(repoPath);
+        if (!statusBefore.exists) {
+            return { ...result, reason: 'no_workspace' };
+        }
 
-            // Get changes not pushed (startCommit..@ if available, else main..@)
-            // startCommitを使うことでセッション開始後のcommitのみカウント（他セッションのcommitを除外）
-            let changesNotPushed = 0;
-            try {
-                const baseRef = startCommit || mainBranchName;
-                const { stdout: aheadCount } = await this.execPromise(
-                    `jj -R "${workspacePath}" log -r "${baseRef}..@-" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
-                );
-                changesNotPushed = parseInt(aheadCount.trim()) || 0;
-            } catch {
-                changesNotPushed = 0;
-            }
-
-            // Check for working copy changes (Jujutsu: working copy is always a commit)
-            let hasWorkingCopyChanges = false;
-            try {
-                const { stdout: statusOutput } = await this.execPromise(
-                    `jj -R "${workspacePath}" status --no-pager`
-                );
-                hasWorkingCopyChanges = statusOutput.includes('Working copy changes:');
-            } catch {
-                hasWorkingCopyChanges = false;
-            }
-
-            // Check if bookmark exists and is pushed to remote
-            // bookmark名はsessionId or session/sessionIdの両方を試す
-            let bookmarkPushed = false;
-            const bookmarkCandidates = [bookmarkName, `session/${bookmarkName}`];
-            for (const candidate of bookmarkCandidates) {
-                try {
-                    const { stdout: bookmarkList } = await this.execPromise(
-                        `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager`
-                    );
-                    if (bookmarkList.includes('origin') || bookmarkList.includes('@origin')) {
-                        bookmarkPushed = true;
-                        break;
-                    }
-                } catch {
-                    // continue to next candidate
-                }
-            }
-
-            // Determine if integration (push) is needed
-            // !bookmarkPushed は除外: 何も作業していないセッションでもbookmarkはremoteにない（false positive）
-            // commitがあれば changesNotPushed > 0 が補足するので !bookmarkPushed は不要
-            const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges;
-
+        if (!statusBefore.hasWorkingCopyChanges) {
             return {
-                exists: true,
-                worktreePath: workspacePath,
-                workspaceName,
-                bookmarkName,
-                mainBranch: mainBranchName,
-
-                // Jujutsu概念
-                changesNotPushed,        // remoteにないchange数
-                hasWorkingCopyChanges,   // working copyに変更があるか
-                bookmarkPushed,          // bookmarkがremoteにあるか
-                needsIntegration,        // 統合（push）が必要か
-
-                // 後方互換性（非推奨、将来的に削除）
-                commitsAhead: changesNotPushed,
-                hasUncommittedChanges: hasWorkingCopyChanges,
-                branchName: `session/${sessionId}`,
-                needsMerge: needsIntegration
-            };
-        } catch (err) {
-            return {
-                exists: false,
-                worktreePath: workspacePath,
-                workspaceName,
-                bookmarkName,
-                needsIntegration: false,
-                needsMerge: false
+                ...result,
+                reason: statusBefore.changesNotPushed > 0 ? 'changes_not_pushed' : 'already_clean'
             };
         }
+
+        if (statusBefore.changesNotPushed > 0) {
+            return { ...result, reason: 'changes_not_pushed' };
+        }
+
+        const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId);
+        const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
+        if (!officialBookmark) {
+            return { ...result, reason: 'missing_official_bookmark' };
+        }
+
+        const workspaceMatches = await this._workspaceMatchesBookmark(workspacePath, officialBookmark.name);
+        if (!workspaceMatches) {
+            return { ...result, reason: 'working_copy_differs' };
+        }
+
+        const staleLocalBookmarks = bookmarkInfos.filter(
+            info => info.name !== officialBookmark.name && !info.pushed
+        );
+
+        result.attempted = true;
+
+        for (const bookmark of staleLocalBookmarks) {
+            await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmark.name}"`);
+            result.actions.push(`delete-bookmark:${bookmark.name}`);
+        }
+
+        await this.execPromise(
+            `jj -R "${workspacePath}" new "${officialBookmark.name}" -m "wip: archive clean working copy"`
+        );
+        result.actions.push(`reset-working-copy:${officialBookmark.name}`);
+
+        await this.execPromise(`jj -R "${repoPath}" git export`);
+        result.actions.push('git-export');
+
+        const statusAfter = await this._collectStatus(sessionId, repoPath, workspacePath, startCommit);
+        result.statusAfter = statusAfter;
+        result.healed = !statusAfter.hasWorkingCopyChanges && statusAfter.changesNotPushed === 0;
+        result.reason = result.healed ? 'healed' : 'post_heal_still_dirty';
+
+        return result;
     }
 
     /**

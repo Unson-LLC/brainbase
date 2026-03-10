@@ -355,11 +355,28 @@ export class SessionController {
 
             // Check if workspace needs integration (Jujutsu: push needed)
             if (session.worktree?.repo && !skipMergeCheck) {
-                const status = await this.worktreeService.getStatus(
+                let status = await this.worktreeService.getStatus(
                     id,
                     session.worktree.repo,
                     session.worktree.startCommit || null
                 );
+                let autoHealResult = null;
+
+                if (status.needsIntegration || status.needsMerge) {
+                    autoHealResult = await this.worktreeService.autoHealArchiveState(
+                        id,
+                        session.worktree.repo,
+                        session.worktree.path,
+                        session.worktree.startCommit || null
+                    );
+
+                    status = autoHealResult.statusAfter || status;
+                    status.autoHealAttempted = Boolean(autoHealResult.attempted);
+                    status.autoHealApplied = Boolean(autoHealResult.healed && autoHealResult.actions?.length);
+                    status.autoHealReason = autoHealResult.reason || null;
+                    status.autoHealActions = autoHealResult.actions || [];
+                }
+
                 if (status.needsIntegration || status.needsMerge) {
                     return res.json({
                         needsConfirmation: true,
@@ -501,6 +518,7 @@ export class SessionController {
 ${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
 ${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
 ${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
+${status.autoHealReason && status.autoHealReason !== 'healed' ? `- 自動修復スキップ理由: ${status.autoHealReason}` : ''}
 
 現在の状態：
 === jj status ===
