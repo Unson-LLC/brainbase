@@ -108,6 +108,34 @@ export class WorktreeService {
         return null;
     }
 
+    async _ensureGitExclude(gitDirPath, pattern) {
+        const infoDir = path.join(gitDirPath, 'info');
+        const excludePath = path.join(infoDir, 'exclude');
+        let current = '';
+
+        await fs.mkdir(infoDir, { recursive: true });
+
+        try {
+            current = await fs.readFile(excludePath, 'utf8');
+        } catch (error) {
+            if (error?.code !== 'ENOENT') {
+                throw error;
+            }
+        }
+
+        const lines = current
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean);
+
+        if (!lines.includes(pattern)) {
+            const next = current && !current.endsWith('\n')
+                ? `${current}\n${pattern}\n`
+                : `${current}${pattern}\n`;
+            await fs.writeFile(excludePath, next);
+        }
+    }
+
     async _workspaceMatchesBookmark(workspacePath, bookmarkName) {
         const gitRef = await this._resolveGitRefForBookmark(workspacePath, bookmarkName);
         if (!gitRef) {
@@ -120,6 +148,67 @@ export class WorktreeService {
         } catch {
             return false;
         }
+    }
+
+    async _getCurrentGitBranch(workspacePath) {
+        try {
+            const { stdout } = await this.execPromise(`git -C "${workspacePath}" branch --show-current`);
+            const branch = stdout.trim();
+            return branch || null;
+        } catch {
+            return null;
+        }
+    }
+
+    async _isGitBranchPushed(workspacePath, branchName) {
+        if (!branchName) return false;
+
+        try {
+            await this.execPromise(
+                `git -C "${workspacePath}" rev-parse --verify "refs/remotes/origin/${branchName}"`
+            );
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async _workspaceMatchesGitHead(workspacePath) {
+        try {
+            await this.execPromise(`git -C "${workspacePath}" diff --quiet HEAD --`);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async _resolveArchiveTargetBookmark(sessionId, repoPath, workspacePath, bookmarkInfos) {
+        const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
+        if (officialBookmark) {
+            return {
+                bookmarkName: officialBookmark.name,
+                adoptSessionBookmark: false
+            };
+        }
+
+        const currentBranch = await this._getCurrentGitBranch(workspacePath);
+        if (!currentBranch) {
+            return null;
+        }
+
+        const [branchPushed, matchesHead] = await Promise.all([
+            this._isGitBranchPushed(workspacePath, currentBranch),
+            this._workspaceMatchesGitHead(workspacePath)
+        ]);
+
+        if (!branchPushed || !matchesHead) {
+            return null;
+        }
+
+        return {
+            bookmarkName: currentBranch,
+            adoptSessionBookmark: currentBranch !== this._getSessionBranchName(sessionId)
+        };
     }
 
     async _collectStatus(sessionId, repoPath, workspacePath, startCommit = null) {
@@ -226,6 +315,8 @@ export class WorktreeService {
             path.join(workspacePath, '.git'),
             `gitdir: ${gitWorktreePath}\n`
         );
+
+        await this._ensureGitExclude(gitWorktreePath, '.jj/');
 
         // Git needs an index for status/diff to avoid treating the workspace
         // as "all deleted + all untracked" on first access.
@@ -480,21 +571,36 @@ export class WorktreeService {
         }
 
         const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId);
-        const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
-        if (!officialBookmark) {
+        const archiveTarget = await this._resolveArchiveTargetBookmark(
+            sessionId,
+            repoPath,
+            workspacePath,
+            bookmarkInfos
+        );
+        if (!archiveTarget) {
             return { ...result, reason: 'missing_official_bookmark' };
         }
 
-        const workspaceMatches = await this._workspaceMatchesBookmark(workspacePath, officialBookmark.name);
+        const workspaceMatches = archiveTarget.adoptSessionBookmark
+            ? await this._workspaceMatchesGitHead(workspacePath)
+            : await this._workspaceMatchesBookmark(workspacePath, archiveTarget.bookmarkName);
         if (!workspaceMatches) {
             return { ...result, reason: 'working_copy_differs' };
         }
 
         const staleLocalBookmarks = bookmarkInfos.filter(
-            info => info.name !== officialBookmark.name && !info.pushed
+            info => info.name !== this._getSessionBranchName(sessionId) && !info.pushed
         );
 
         result.attempted = true;
+
+        if (archiveTarget.adoptSessionBookmark) {
+            const sessionBranchName = this._getSessionBranchName(sessionId);
+            await this.execPromise(
+                `jj -R "${repoPath}" bookmark set "${sessionBranchName}" -r "${archiveTarget.bookmarkName}"`
+            );
+            result.actions.push(`move-bookmark:${sessionBranchName}->${archiveTarget.bookmarkName}`);
+        }
 
         for (const bookmark of staleLocalBookmarks) {
             await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmark.name}"`);
@@ -502,9 +608,9 @@ export class WorktreeService {
         }
 
         await this.execPromise(
-            `jj -R "${workspacePath}" new "${officialBookmark.name}" -m "wip: archive clean working copy"`
+            `jj -R "${workspacePath}" new "${this._getSessionBranchName(sessionId)}" -m "wip: archive clean working copy"`
         );
-        result.actions.push(`reset-working-copy:${officialBookmark.name}`);
+        result.actions.push(`reset-working-copy:${this._getSessionBranchName(sessionId)}`);
 
         await this.execPromise(`jj -R "${repoPath}" git export`);
         result.actions.push('git-export');

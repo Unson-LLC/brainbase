@@ -137,6 +137,7 @@ describe('WorktreeService Git compatibility helpers', () => {
         const { promises: fs } = await import('fs');
         const mkdirSpy = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
         const writeFileSpy = vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'readFile').mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
 
         mockExec
             .mockResolvedValueOnce({ stdout: 'abc123\n' })
@@ -158,6 +159,10 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(writeFileSpy).toHaveBeenCalledWith(
             '/tmp/worktrees/session-1-repo/.git',
             'gitdir: /tmp/repo/.git/worktrees/session-1-repo\n'
+        );
+        expect(writeFileSpy).toHaveBeenCalledWith(
+            '/tmp/repo/.git/worktrees/session-1-repo/info/exclude',
+            '.jj/\n'
         );
         expect(mockExec).toHaveBeenNthCalledWith(1, 'git -C "/tmp/repo" rev-parse HEAD');
         expect(mockExec).toHaveBeenNthCalledWith(2, 'git -C "/tmp/repo" branch --force "session/session-1" "abc123"');
@@ -246,5 +251,49 @@ describe('WorktreeService.autoHealArchiveState', () => {
         expect(result.healed).toBe(false);
         expect(result.reason).toBe('changes_not_pushed');
         expect(result.actions).toEqual([]);
+    });
+
+    it('公式bookmarkが未pushでも現在branchがpush済みならself-healする', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({ stdout: 'Working copy changes:\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: local-only\n' })
+            .mockResolvedValueOnce({ stdout: 'session-1: stale-local\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: local-only\n' })
+            .mockResolvedValueOnce({ stdout: 'session-1: stale-local\n' })
+            .mockResolvedValueOnce({ stdout: 'fix/bug-131\n' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: 'main\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({ stdout: 'The working copy has no changes.\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: moved@origin\n' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        const result = await service.autoHealArchiveState(
+            'session-1',
+            '/tmp/repo',
+            '/tmp/worktrees/session-1-repo'
+        );
+
+        expect(result.healed).toBe(true);
+        expect(result.reason).toBe('healed');
+        expect(result.actions).toEqual([
+            'move-bookmark:session/session-1->fix/bug-131',
+            'delete-bookmark:session-1',
+            'reset-working-copy:session/session-1',
+            'git-export'
+        ]);
+        expect(mockExec).toHaveBeenCalledWith(
+            'jj -R "/tmp/repo" bookmark set "session/session-1" -r "fix/bug-131"'
+        );
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark delete "session-1"');
     });
 });
