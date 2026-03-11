@@ -4,6 +4,8 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { filterByPriority } from '../../utils/task-filters.js';
 import { sessionDataCache } from '../../core/session-data-cache.js';
 
+const TASKS_CACHE_SCOPE = 'global';
+
 /**
  * タスクのビジネスロジック
  * app.jsから抽出したタスク管理機能を集約
@@ -20,10 +22,8 @@ export class TaskService {
      * @returns {Promise<Array>} タスク配列
      */
     async loadTasks() {
-        const sessionId = this.store.getState().currentSessionId;
-
         // キャッシュチェック
-        const cached = sessionDataCache.get('tasks', sessionId);
+        const cached = sessionDataCache.get('tasks', TASKS_CACHE_SCOPE);
         if (cached) {
             console.log('[TaskService] Cache hit');
             this.store.setState({ tasks: cached });
@@ -38,7 +38,7 @@ export class TaskService {
         console.log(`[TaskService] API loaded in ${duration.toFixed(2)}ms`);
 
         // キャッシュに保存（TTL: 5分）
-        sessionDataCache.set('tasks', sessionId, tasks);
+        sessionDataCache.set('tasks', TASKS_CACHE_SCOPE, tasks);
 
         this.store.setState({ tasks });
         await this.eventBus.emit(EVENTS.TASK_LOADED, { tasks });
@@ -54,8 +54,7 @@ export class TaskService {
         await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'done' });
 
         // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
+        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
 
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_COMPLETED, { taskId });
@@ -79,8 +78,7 @@ export class TaskService {
         await this.httpClient.post(`/api/tasks/${taskId}/defer`, { priority: newPriority });
 
         // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
+        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
 
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
@@ -199,8 +197,7 @@ export class TaskService {
         await this.httpClient.put(`/api/tasks/${taskId}`, updates);
 
         // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
+        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
 
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_UPDATED, { taskId, updates });
@@ -216,8 +213,7 @@ export class TaskService {
         await this.httpClient.delete(`/api/tasks/${taskId}`);
 
         // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
+        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
 
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
@@ -238,8 +234,7 @@ export class TaskService {
         const task = await this.httpClient.post('/api/tasks', taskData);
 
         // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
+        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
 
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_CREATED, { task });
@@ -282,8 +277,7 @@ export class TaskService {
         await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'todo' });
 
         // キャッシュ無効化
-        const sessionId = this.store.getState().currentSessionId;
-        sessionDataCache.invalidate(sessionId);
+        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
 
         await this.loadTasks(); // リロード
         const eventResult = await this.eventBus.emit(EVENTS.TASK_RESTORED, { taskId });
