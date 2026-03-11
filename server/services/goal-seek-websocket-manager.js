@@ -193,26 +193,13 @@ export class GoalSeekWebSocketManager {
      * @returns {Promise<Object>} 処理結果
      */
     async handleInterventionResponseHTTP({ interventionId, goalId, choice, reason, userId }) {
-        const pending = this.pendingInterventions.get(interventionId);
+        const { pending, error } = this._consumePendingIntervention(interventionId, {
+            enforceOwnerId: userId
+        });
 
-        if (!pending) {
-            throw new Error('Intervention not found or expired');
+        if (error) {
+            throw new Error(error);
         }
-
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            throw new Error('Intervention expired');
-        }
-
-        // 所有者チェック
-        const connectionInfo = this.connections.get(pending.ws);
-        if (connectionInfo?.userId !== userId) {
-            throw new Error('Unauthorized: intervention belongs to another user');
-        }
-
-        // 介入を削除
-        this.pendingInterventions.delete(interventionId);
 
         // WebSocket経由で通知
         this._send(pending.ws, {
@@ -307,20 +294,11 @@ export class GoalSeekWebSocketManager {
     async _handleInterventionResponse(ws, correlationId, payload) {
         const { interventionId, choice } = payload;
 
-        const pending = this.pendingInterventions.get(interventionId);
-        if (!pending) {
-            this._sendError(ws, correlationId, 'Intervention not found or expired', null, 'INTERVENTION_EXPIRED');
+        const { pending, error, code } = this._consumePendingIntervention(interventionId);
+        if (error) {
+            this._sendError(ws, correlationId, error, null, code || 'INTERVENTION_EXPIRED');
             return;
         }
-
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            this._sendError(ws, correlationId, 'Intervention expired', null, 'INTERVENTION_EXPIRED');
-            return;
-        }
-
-        this.pendingInterventions.delete(interventionId);
 
         // 回答を確認
         this._send(ws, {
@@ -384,6 +362,42 @@ export class GoalSeekWebSocketManager {
         if (closeCode) {
             ws.close(closeCode);
         }
+    }
+
+    /**
+     * pendingInterventionsから有効な介入を取得し、必要に応じて削除
+     * @private
+     * @param {string} interventionId
+     * @param {Object} [options]
+     * @param {string} [options.enforceOwnerId]
+     * @param {boolean} [options.delete=true]
+     * @returns {{pending?: Object, error?: string, code?: string}}
+     */
+    _consumePendingIntervention(interventionId, options = {}) {
+        const { enforceOwnerId, delete: shouldDelete = true } = options;
+        const pending = this.pendingInterventions.get(interventionId);
+
+        if (!pending) {
+            return { error: 'Intervention not found or expired', code: 'INTERVENTION_EXPIRED' };
+        }
+
+        if (Date.now() > pending.expiresAt) {
+            this.pendingInterventions.delete(interventionId);
+            return { error: 'Intervention expired', code: 'INTERVENTION_EXPIRED' };
+        }
+
+        if (enforceOwnerId) {
+            const connectionInfo = this.connections.get(pending.ws);
+            if (connectionInfo?.userId !== enforceOwnerId) {
+                return { error: 'Unauthorized: intervention belongs to another user', code: 'INTERVENTION_FORBIDDEN' };
+            }
+        }
+
+        if (shouldDelete) {
+            this.pendingInterventions.delete(interventionId);
+        }
+
+        return { pending };
     }
 }
 
