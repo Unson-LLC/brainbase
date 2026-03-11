@@ -233,6 +233,30 @@ class TerminalReconnectManager {
         this._emitStatus();
     }
 
+    async _resolveRuntimeStatus(sessionId, fallbackSession) {
+        const state = await httpClient.get('/api/state');
+        const refreshedSession = (state?.sessions || []).find(s => s.id === sessionId);
+        return {
+            session: refreshedSession || fallbackSession || null,
+            runtimeStatus: refreshedSession?.runtimeStatus || fallbackSession?.runtimeStatus || null
+        };
+    }
+
+    _reloadTerminalFrame(proxyPath) {
+        if (!this.terminalFrame || !proxyPath) return;
+
+        const currentSrc = this.terminalFrame.src || '';
+        if (currentSrc.includes(proxyPath)) {
+            this.terminalFrame.src = 'about:blank';
+            setTimeout(() => {
+                this.terminalFrame.src = proxyPath;
+            }, 50);
+            return;
+        }
+
+        this.terminalFrame.src = proxyPath;
+    }
+
     async reconnect() {
         if (!this.currentSessionId) {
             this.isReconnecting = false;
@@ -241,7 +265,8 @@ class TerminalReconnectManager {
 
         // アーカイブ済みセッションの再接続をスキップ
         const state = appStore.getState();
-        const currentSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
+        const fallbackSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
+        const currentSession = fallbackSession;
         if (currentSession?.intendedState === 'archived') {
             console.log(`[reconnect] Skipping: session ${this.currentSessionId} is archived`);
             this.isReconnecting = false;
@@ -250,35 +275,34 @@ class TerminalReconnectManager {
         }
 
         try {
+            const { session, runtimeStatus } = await this._resolveRuntimeStatus(this.currentSessionId, fallbackSession);
+            const targetSession = session || fallbackSession;
+
+            if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
+                console.log('[reconnect] Reusing existing ttyd proxyPath:', runtimeStatus.proxyPath);
+                this._reloadTerminalFrame(runtimeStatus.proxyPath);
+                return;
+            }
+
             const payload = { sessionId: this.currentSessionId };
 
-            const sessionCwd = currentSession?.worktree?.path || currentSession?.path;
+            const sessionCwd = targetSession?.worktree?.path || targetSession?.path;
             if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
                 payload.cwd = sessionCwd;
             }
-            if (typeof currentSession?.initialCommand === 'string') {
-                payload.initialCommand = currentSession.initialCommand;
+            if (typeof targetSession?.initialCommand === 'string') {
+                payload.initialCommand = targetSession.initialCommand;
             }
-            if (typeof currentSession?.engine === 'string' && currentSession.engine.trim()) {
-                payload.engine = currentSession.engine;
+            if (typeof targetSession?.engine === 'string' && targetSession.engine.trim()) {
+                payload.engine = targetSession.engine;
             }
 
             const res = await httpClient.post('/api/sessions/start', payload);
 
             if (res?.proxyPath) {
-                const nextSrc = res.proxyPath;
-                const currentSrc = this.terminalFrame.src || '';
-
-                // Force reload even if the base path is the same. Proxy routing may have changed (new ttyd port).
-                if (currentSrc.includes(nextSrc)) {
-                    this.terminalFrame.src = 'about:blank';
-                    setTimeout(() => {
-                        this.terminalFrame.src = nextSrc;
-                    }, 50);
-                } else {
-                    this.terminalFrame.src = nextSrc;
-                }
+                this._reloadTerminalFrame(res.proxyPath);
             } else {
+                this.isReconnecting = false;
                 this.handleDisconnect();
             }
         } catch (error) {
