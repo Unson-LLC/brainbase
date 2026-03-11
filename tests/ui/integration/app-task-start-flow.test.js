@@ -109,7 +109,7 @@ describe('app task start flow (app.js integration)', () => {
     });
 
     await vi.waitFor(() => {
-      expect(app.switchSession).toHaveBeenCalledWith('session-1');
+      expect(app.switchSession).toHaveBeenCalledWith('session-1', { proxyPath: null });
     });
 
     await vi.waitFor(() => {

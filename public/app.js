@@ -1100,7 +1100,7 @@ export class App {
 
         // Session change: reload related data and switch terminal
         const unsub1 = eventBus.onAsync(EVENTS.SESSION_CHANGED, async (event) => {
-            const { sessionId } = event.detail;
+            const { sessionId, proxyPath = null } = event.detail;
             console.log('[SessionSwitch] Starting for:', sessionId);
             const previousSessionId = event.detail?.previousSessionId ?? appStore.getState().currentSessionId;
 
@@ -1120,7 +1120,7 @@ export class App {
             // 並列実行: switchSession と loadSessionData
             const startTime = performance.now();
             await Promise.all([
-                this.switchSession(sessionId),
+                this.switchSession(sessionId, { proxyPath }),
                 this.loadSessionData(sessionId)
             ]);
             const duration = performance.now() - startTime;
@@ -2064,10 +2064,21 @@ export class App {
         sessionsBottomSheet?.classList.remove('active');
     }
 
+    async _resolveSessionRuntime(sessionId, session) {
+        const currentRuntime = session?.runtimeStatus;
+        if (currentRuntime) {
+            return currentRuntime;
+        }
+
+        const state = await httpClient.get('/api/state');
+        const refreshedSession = (state?.sessions || []).find(s => s.id === sessionId);
+        return refreshedSession?.runtimeStatus || null;
+    }
+
     /**
      * Switch to a session and update terminal frame
      */
-    async switchSession(sessionId) {
+    async switchSession(sessionId, options = {}) {
         const terminalFrame = document.getElementById('terminal-frame');
         if (!terminalFrame) {
             console.warn('Terminal frame not found');
@@ -2093,17 +2104,21 @@ export class App {
                 return;
             }
 
-            // Get session status to check if it's already running and get proxyPath
-            const status = await httpClient.get('/api/sessions/status');
-            const sessionStatus = status[sessionId];
+            let proxyPath = typeof options.proxyPath === 'string' && options.proxyPath.trim()
+                ? options.proxyPath
+                : null;
 
-            let proxyPath = null;
-
-            if (sessionStatus && sessionStatus.running && sessionStatus.proxyPath) {
-                // Session is already running, use existing proxyPath
-                proxyPath = sessionStatus.proxyPath;
-                console.log('Session already running, using existing proxyPath:', proxyPath);
+            if (proxyPath) {
+                console.log('Using provided proxyPath for session switch:', proxyPath);
             } else {
+                const runtimeStatus = await this._resolveSessionRuntime(sessionId, session);
+                if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
+                    proxyPath = runtimeStatus.proxyPath;
+                    console.log('Session already running, using existing proxyPath:', proxyPath);
+                }
+            }
+
+            if (!proxyPath) {
                 // Session not running, start it
                 const res = await httpClient.post('/api/sessions/start', {
                     sessionId: session.id,
@@ -2516,7 +2531,10 @@ export class App {
             // Switch to the newly created session
             if (result.sessionId) {
                 appStore.setState({ currentSessionId: result.sessionId });
-                eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: result.sessionId });
+                eventBus.emit(EVENTS.SESSION_CHANGED, {
+                    sessionId: result.sessionId,
+                    proxyPath: result.proxyPath || null
+                });
 
                 if (useWorktree) {
                     this.showTerminalLoadingOverlay();

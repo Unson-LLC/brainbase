@@ -160,6 +160,8 @@ export class SessionService {
 
         await addSession(newSession);
 
+        let startResult = null;
+
         try {
             // Start terminal session
             const res = await this.httpClient.post('/api/sessions/start', {
@@ -172,6 +174,8 @@ export class SessionService {
             if (!res || res.error) {
                 throw new Error('Failed to start terminal session');
             }
+
+            startResult = res;
         } catch (error) {
             // Roll back state on failure (best-effort)
             try {
@@ -187,7 +191,7 @@ export class SessionService {
 
         await this.eventBus.emit(EVENTS.SESSION_CREATED, { session: newSession });
 
-        return { sessionId, session: newSession };
+        return { sessionId, session: newSession, proxyPath: startResult?.proxyPath || null };
     }
 
     /**
