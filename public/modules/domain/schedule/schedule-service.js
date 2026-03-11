@@ -3,6 +3,8 @@ import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { sessionDataCache } from '../../core/session-data-cache.js';
 
+const SCHEDULE_CACHE_SCOPE = 'global';
+
 /**
  * スケジュールのビジネスロジック
  */
@@ -26,10 +28,8 @@ export class ScheduleService {
      * @returns {Promise<Object>} スケジュールデータ
      */
     async loadSchedule() {
-        const sessionId = this.store.getState().currentSessionId;
-
         // キャッシュチェック
-        const cached = sessionDataCache.get('schedule', sessionId);
+        const cached = sessionDataCache.get('schedule', SCHEDULE_CACHE_SCOPE);
         if (cached) {
             console.log('[ScheduleService] Cache hit');
             this.store.setState({ schedule: cached });
@@ -44,7 +44,7 @@ export class ScheduleService {
         console.log(`[ScheduleService] API loaded in ${duration.toFixed(2)}ms`);
 
         // キャッシュに保存（TTL: 1時間）
-        sessionDataCache.set('schedule', sessionId, schedule);
+        sessionDataCache.set('schedule', SCHEDULE_CACHE_SCOPE, schedule);
 
         this.store.setState({ schedule });
         await this.eventBus.emit(EVENTS.SCHEDULE_LOADED, schedule);
@@ -97,6 +97,7 @@ export class ScheduleService {
             ...eventData,
             source: eventData.source || 'manual'
         });
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
         return event;
     }
@@ -110,6 +111,7 @@ export class ScheduleService {
     async updateEvent(eventId, updates) {
         const date = this._getTodayDate();
         const event = await this.httpClient.put(`/api/schedule/${date}/events/${eventId}`, updates);
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
         return event;
     }
@@ -122,6 +124,7 @@ export class ScheduleService {
     async deleteEvent(eventId) {
         const date = this._getTodayDate();
         await this.httpClient.delete(`/api/schedule/${date}/events/${eventId}`);
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
     }
 

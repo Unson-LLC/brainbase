@@ -3,6 +3,7 @@ import { TaskService } from '../../../public/modules/domain/task/task-service.js
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
+import { sessionDataCache } from '../../../public/modules/core/session-data-cache.js';
 
 // モジュールをモック化
 vi.mock('../../../public/modules/core/http-client.js', () => ({
@@ -29,8 +30,11 @@ describe('TaskService', () => {
         // ストア初期化
         appStore.setState({
             tasks: [],
+            currentSessionId: 'session-a',
             filters: { taskFilter: '', showAllTasks: false }
         });
+
+        sessionDataCache.clear();
 
         // サービスインスタンス作成
         taskService = new TaskService();
@@ -60,6 +64,18 @@ describe('TaskService', () => {
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.tasks).toEqual(mockTasks);
         });
+
+        it('should reuse global cache across session switches', async () => {
+            httpClient.get.mockResolvedValue(mockTasks);
+
+            await taskService.loadTasks();
+            appStore.setState({ currentSessionId: 'session-b' });
+            const result = await taskService.loadTasks();
+
+            expect(httpClient.get).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mockTasks);
+            expect(appStore.getState().tasks).toEqual(mockTasks);
+        });
     });
 
     describe('completeTask', () => {
@@ -83,6 +99,19 @@ describe('TaskService', () => {
 
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.taskId).toBe('task-123');
+        });
+
+        it('should invalidate cached tasks before reloading', async () => {
+            const refreshedTasks = [...mockTasks, { id: '4', name: 'Task 4', status: 'done', priority: 'low' }];
+            httpClient.get.mockResolvedValueOnce(mockTasks).mockResolvedValueOnce(refreshedTasks);
+            httpClient.put.mockResolvedValue({});
+
+            await taskService.loadTasks();
+            const result = await taskService.completeTask('task-123');
+
+            expect(httpClient.get).toHaveBeenCalledTimes(2);
+            expect(appStore.getState().tasks).toEqual(refreshedTasks);
+            expect(result.success).toBe(true);
         });
     });
 
@@ -518,6 +547,20 @@ describe('TaskService', () => {
             await taskService.restoreTask('task-123');
 
             expect(httpClient.get).toHaveBeenCalledWith('/api/tasks');
+        });
+
+        it('restoreTask呼び出し時_キャッシュ無効化後に最新タスク一覧を再取得する', async () => {
+            const refreshedTasks = mockTasks.map(task =>
+                task.id === '1' ? { ...task, status: 'todo' } : task
+            );
+            httpClient.get.mockResolvedValueOnce(mockTasks).mockResolvedValueOnce(refreshedTasks);
+            httpClient.put.mockResolvedValue({});
+
+            await taskService.loadTasks();
+            await taskService.restoreTask('task-123');
+
+            expect(httpClient.get).toHaveBeenCalledTimes(2);
+            expect(appStore.getState().tasks).toEqual(refreshedTasks);
         });
 
         it('restoreTask呼び出し時_TASK_RESTOREDイベントが発火される', async () => {
