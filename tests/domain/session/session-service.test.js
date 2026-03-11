@@ -116,10 +116,10 @@ describe('SessionService', () => {
                 path: '/path/new'
             };
             httpClient.get.mockResolvedValue({ sessions: [...mockSessions, newSession] });
-            httpClient.post.mockResolvedValue({});
+            httpClient.post.mockResolvedValue({ proxyPath: '/console/session-new' });
             addSession.mockResolvedValue();
 
-            await sessionService.createSession(newSession);
+            const result = await sessionService.createSession(newSession);
 
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
                 sessionId: expect.any(String),
@@ -128,6 +128,7 @@ describe('SessionService', () => {
             }));
             expect(addSession).toHaveBeenCalled();
             expect(httpClient.get).toHaveBeenCalledWith('/api/state');
+            expect(result.proxyPath).toBe('/console/session-new');
         });
 
         it('should emit SESSION_CREATED event', async () => {
