@@ -14,12 +14,17 @@ describe('SessionController (Server)', () => {
   let tempDir;
 
   beforeEach(async () => {
+    vi.useRealTimers();
+
     // Mock SessionManager
     mockSessionManager = {
       stopTtyd: vi.fn(),
+      startTtyd: vi.fn(),
       cleanupSessionResources: vi.fn(),
       clearDoneStatus: vi.fn(),
       reportActivity: vi.fn(),
+      getSessionById: vi.fn(),
+      _isProcessRunning: vi.fn(),
       resolveSessionWorkspacePath: vi.fn(async (sessionOrId) => {
         if (typeof sessionOrId === 'string') {
           const state = mockStateStore.get();
@@ -67,7 +72,118 @@ describe('SessionController (Server)', () => {
     if (tempDir) {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
+    vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  describe('start', () => {
+    it('短時間の連続start呼び出し時_takeoverせず既存proxyを返す', async () => {
+      const sessionId = 'session-hot';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{ id: sessionId, path: '/tmp/session-hot', intendedState: 'active' }]
+      });
+      mockSessionManager._isProcessRunning.mockReturnValue(true);
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40100,
+        proxyPath: `/console/${sessionId}`
+      });
+      mockSessionManager.activeSessions.set(sessionId, {
+        port: 40100,
+        pid: 99999,
+        process: { pid: 99999 }
+      });
+      sessionController._recentSessionStarts.set(sessionId, Date.now() - 1000);
+
+      const req = {
+        body: { sessionId },
+        headers: { referer: 'https://brain-base.work/', 'user-agent': 'Mozilla/5.0' }
+      };
+
+      await sessionController.start(req, mockRes);
+
+      expect(mockSessionManager.stopTtyd).not.toHaveBeenCalled();
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({
+        port: 40100,
+        proxyPath: `/console/${sessionId}`,
+        startedExisting: true,
+        takeoverSkipped: true
+      });
+    });
+
+    it('cooldown経過後のstart呼び出し時_takeoverして再起動する', async () => {
+      const sessionId = 'session-restart';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{ id: sessionId, path: '/tmp/session-restart', intendedState: 'active', engine: 'codex' }]
+      });
+      mockStateStore.update.mockResolvedValue({ sessions: [{ id: sessionId, intendedState: 'active', engine: 'codex' }] });
+      mockSessionManager._isProcessRunning.mockReturnValue(true);
+      mockSessionManager.stopTtyd.mockResolvedValue(true);
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40101,
+        proxyPath: `/console/${sessionId}`
+      });
+      mockSessionManager.activeSessions.set(sessionId, {
+        port: 40100,
+        pid: 99998,
+        process: { pid: 99998 }
+      });
+      sessionController._recentSessionStarts.set(sessionId, Date.now() - 6000);
+
+      const req = {
+        body: { sessionId, engine: 'codex' },
+        headers: { referer: 'http://localhost:31013/', 'user-agent': 'Mozilla/5.0' }
+      };
+
+      await sessionController.start(req, mockRes);
+
+      expect(mockSessionManager.stopTtyd).toHaveBeenCalledWith(sessionId, { preserveTmux: true });
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        cwd: '/tmp/session-restart',
+        engine: 'codex'
+      }));
+      expect(mockRes.json).toHaveBeenCalledWith({
+        port: 40101,
+        proxyPath: `/console/${sessionId}`
+      });
+    });
+  });
+
+  describe('getRuntime', () => {
+    it('稼働中セッションのruntimeStatusを返す', async () => {
+      const sessionId = 'session-runtime';
+      mockSessionManager.getSessionById.mockReturnValue({
+        id: sessionId,
+        runtimeStatus: {
+          ttydRunning: true,
+          needsRestart: false,
+          proxyPath: `/console/${sessionId}`,
+          port: 40123
+        }
+      });
+
+      await sessionController.getRuntime({ params: { id: sessionId } }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        sessionId,
+        runtimeStatus: {
+          ttydRunning: true,
+          needsRestart: false,
+          proxyPath: `/console/${sessionId}`,
+          port: 40123
+        }
+      });
+    });
+
+    it('存在しないセッションのruntime取得時_404を返す', async () => {
+      mockSessionManager.getSessionById.mockReturnValue(null);
+
+      await sessionController.getRuntime({ params: { id: 'missing' } }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Session not found' });
+    });
   });
 
   describe('archive', () => {

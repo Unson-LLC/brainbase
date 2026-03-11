@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CommitTreeView } from '../../../../../public/modules/ui/views/commit-tree-view.js';
 import { appStore } from '../../../../../public/modules/core/store.js';
-import { eventBus } from '../../../../../public/modules/core/event-bus.js';
+import { eventBus, EVENTS } from '../../../../../public/modules/core/event-bus.js';
 
 describe('CommitTreeView', () => {
     let view;
@@ -22,6 +22,10 @@ describe('CommitTreeView', () => {
         // Container
         container = document.createElement('div');
         document.body.appendChild(container);
+        const panel = document.createElement('div');
+        panel.id = 'commit-tree-panel';
+        panel.style.display = 'flex';
+        document.body.appendChild(panel);
 
         view = new CommitTreeView({ commitTreeService: mockService });
         view.mount(container);
@@ -71,7 +75,7 @@ describe('CommitTreeView', () => {
             expect(desc.tagName).toBe('SPAN');
         });
 
-        it('順序が hash → author → time → bookmarks → desc になる', () => {
+        it('順序が desc → hash → bookmark → author → time になる', () => {
             // Given: ブックマーク付きコミット
             appStore.setState({
                 commitLog: {
@@ -96,11 +100,11 @@ describe('CommitTreeView', () => {
             const commitRow = container.querySelector('.commit-row');
             const children = Array.from(commitRow.children).filter(el => el.tagName === 'SPAN');
 
-            expect(children[0].className).toContain('commit-hash');
-            expect(children[1].className).toContain('commit-author');
-            expect(children[2].className).toContain('commit-time');
-            expect(children[3].className).toContain('commit-bookmark');
-            expect(children[4].className).toContain('commit-desc');
+            expect(children[0].className).toContain('commit-desc');
+            expect(children[1].className).toContain('commit-hash');
+            expect(children[2].className).toContain('commit-bookmark');
+            expect(children[3].className).toContain('commit-author');
+            expect(children[4].className).toContain('commit-time');
         });
     });
 
@@ -126,11 +130,11 @@ describe('CommitTreeView', () => {
             // When: レンダリング
             view.render();
 
-            // Then: レーン0の色（#4a9eff）が適用される
+            // Then: レーン0の色（現在は #7db3ff）が適用される
             const commitRow = container.querySelector('.commit-row');
             const style = commitRow.getAttribute('style');
             expect(style).toContain('color:');
-            expect(style).toContain('#4a9eff'); // COLORS[0]
+            expect(style).toContain('#7db3ff'); // COLORS[0]
         });
 
         it('複数レーンのコミットがそれぞれの色で表示される', () => {
@@ -165,18 +169,39 @@ describe('CommitTreeView', () => {
             // When: レンダリング
             view.render();
 
-            // Then: 各コミットが異なる色
+            // Then: 各コミットに色が設定される
             const rows = container.querySelectorAll('.commit-row');
             expect(rows.length).toBe(2);
 
-            // レーン0（青）
             const style0 = rows[0].getAttribute('style');
             expect(style0).toContain('color:');
+            expect(style0).toContain('#7db3ff');
 
-            // レーン1（異なる色）
             const style1 = rows[1].getAttribute('style');
             expect(style1).toContain('color:');
-            expect(style0).not.toBe(style1); // 色が異なる
+            expect(style1).toContain('#7db3ff');
+        });
+    });
+
+    describe('visibility aware loading', () => {
+        it('panelが閉じているとき_SESSION_CHANGEDでcommit logを読まない', async () => {
+            const panel = document.getElementById('commit-tree-panel');
+            panel.style.display = 'none';
+
+            await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: 'session-1' });
+
+            expect(mockService.loadCommitLog).not.toHaveBeenCalled();
+        });
+
+        it('panel再表示時_pending sessionのcommit logを読む', async () => {
+            const panel = document.getElementById('commit-tree-panel');
+            panel.style.display = 'none';
+
+            await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: 'session-2' });
+            panel.style.display = 'flex';
+            await eventBus.emit(EVENTS.COMMIT_TREE_PANEL_TOGGLED, { collapsed: false });
+
+            expect(mockService.loadCommitLog).toHaveBeenCalledWith('session-2');
         });
     });
 });

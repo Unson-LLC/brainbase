@@ -956,16 +956,20 @@ export class SessionManager {
      * @returns {{ttydRunning: boolean, needsRestart: boolean}}
      */
     getRuntimeStatus(session) {
+        const sessionId = session?.id;
         const activeEntry = this.activeSessions.get(session.id);
         const activePid = activeEntry?.process?.pid || activeEntry?.pid;
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
         const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
         const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        const port = activeEntry?.port || session?.ttydProcess?.port || null;
 
         return {
             ttydRunning,
-            needsRestart
+            needsRestart,
+            proxyPath: ttydRunning && sessionId ? `/console/${sessionId}` : null,
+            port
         };
     }
 
@@ -978,23 +982,12 @@ export class SessionManager {
         const state = this.stateStore.get();
         const session = (state.sessions || []).find(s => s.id === sessionId);
         if (!session) return null;
-
-        const activeEntry = this.activeSessions.get(sessionId);
-        const activePid = activeEntry?.process?.pid || activeEntry?.pid;
-        const persistedPid = session?.ttydProcess?.pid;
-        const pidToCheck = activePid || persistedPid;
-        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
-        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        const runtimeStatus = this.getRuntimeStatus(session);
 
         return {
             ...session,
-            ttydRunning,
-            runtimeStatus: {
-                ttydRunning,
-                needsRestart,
-                proxyPath: ttydRunning ? `/console/${sessionId}` : null,
-                port: activeEntry?.port || null
-            }
+            ttydRunning: runtimeStatus.ttydRunning,
+            runtimeStatus
         };
     }
 

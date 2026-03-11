@@ -12,6 +12,7 @@ const MAX_TREE_DEPTH = 3;
 const DEFAULT_TREE_DEPTH = 2;
 const MAX_TREE_ENTRIES = 200;
 const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
+const TAKEOVER_COOLDOWN_MS = 5000;
 
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore) {
@@ -20,6 +21,7 @@ export class SessionController {
         this.stateStore = stateStore;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
+        this._recentSessionStarts = new Map(); // sessionId -> timestamp
     }
 
     _parseTreeDepth(rawDepth) {
@@ -215,6 +217,27 @@ export class SessionController {
         });
     };
 
+    /**
+     * GET /api/sessions/:id/runtime
+     * 特定セッションの軽量ランタイム状態を取得
+     */
+    getRuntime = (req, res) => {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        const session = this.sessionManager.getSessionById(id);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        res.json({
+            sessionId: id,
+            runtimeStatus: session.runtimeStatus
+        });
+    };
+
     // ========================================
     // Process Management
     // ========================================
@@ -249,6 +272,18 @@ export class SessionController {
             if (existingSession) {
                 const pid = existingSession.process?.pid || existingSession.pid;
                 if (pid && this.sessionManager._isProcessRunning(pid)) {
+                    const lastStartedAt = this._recentSessionStarts.get(sessionId) || 0;
+                    const startedAgoMs = Date.now() - lastStartedAt;
+                    if (startedAgoMs >= 0 && startedAgoMs < TAKEOVER_COOLDOWN_MS) {
+                        console.log(`[takeover] Session ${sessionId}: skipped restart during cooldown (${startedAgoMs}ms since last start)`);
+                        return res.json({
+                            port: existingSession.port,
+                            proxyPath: `/console/${sessionId}`,
+                            startedExisting: true,
+                            takeoverSkipped: true
+                        });
+                    }
+
                     console.log(`[takeover] Session ${sessionId}: restarting ttyd for new client (killing pid ${pid})`);
                     await this.sessionManager.stopTtyd(sessionId, { preserveTmux: true });
                     await new Promise(resolve => setTimeout(resolve, 300));
@@ -274,6 +309,7 @@ export class SessionController {
 
             // ttydプロセス起動
             const result = await this.sessionManager.startTtyd(startOptions);
+            this._recentSessionStarts.set(sessionId, Date.now());
 
             // intendedState を active に更新（engine も反映）（リトライ付き）
             await this._updateStateWithRetry((currentState) => {

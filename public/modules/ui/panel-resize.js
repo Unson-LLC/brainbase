@@ -2,6 +2,7 @@
  * Panel Resize Module
  * 左パネル（サイドバー）と右パネル（コンテキストサイドバー）の幅をドラッグで変更可能にする
  */
+import { eventBus, EVENTS } from '../core/event-bus.js';
 
 const STORAGE_KEYS = {
     LEFT: 'brainbase:left-panel-width',
@@ -132,6 +133,8 @@ function initCommitTreePanelToggle() {
         if (window.lucide) {
             window.lucide.createIcons();
         }
+
+        void eventBus.emit(EVENTS.COMMIT_TREE_PANEL_TOGGLED, { collapsed });
     };
 
     const onCollapseClick = () => {

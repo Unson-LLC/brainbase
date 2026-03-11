@@ -31,12 +31,20 @@ describe('app switchSession runtime handling', () => {
     const html = readFileSync(htmlPath, 'utf-8');
     const dom = new JSDOM(html, { url: 'http://localhost:31013/' });
     document.body.innerHTML = dom.window.document.body.innerHTML;
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: vi.fn(() => null),
+        setItem: vi.fn(),
+        removeItem: vi.fn()
+      },
+      configurable: true
+    });
 
     const { createApp } = await import('../../../public/app.js');
     app = createApp();
     app.focusTerminal = vi.fn();
 
-    vi.spyOn(httpClient, 'get').mockResolvedValue({ sessions: [] });
+    vi.spyOn(httpClient, 'get').mockResolvedValue({ runtimeStatus: null });
     vi.spyOn(httpClient, 'post').mockResolvedValue({ proxyPath: '/console/session-1' });
   });
 
@@ -87,18 +95,15 @@ describe('app switchSession runtime handling', () => {
     });
 
     httpClient.get.mockResolvedValue({
-      sessions: [{
-        id: 'session-1',
-        runtimeStatus: {
-          ttydRunning: false,
-          proxyPath: null
-        }
-      }]
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      }
     });
 
     await app.switchSession('session-1');
 
-    expect(httpClient.get).toHaveBeenCalledWith('/api/state');
+    expect(httpClient.get).toHaveBeenCalledWith('/api/sessions/session-1/runtime');
     expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
       sessionId: 'session-1',
       engine: 'codex'
@@ -108,6 +113,9 @@ describe('app switchSession runtime handling', () => {
   it('reconnect reuses existing proxyPath without triggering takeover', async () => {
     await app.start();
     app.focusTerminal = vi.fn();
+    vi.clearAllMocks();
+    httpClient.get.mockResolvedValue({ runtimeStatus: null });
+    httpClient.post.mockResolvedValue({ proxyPath: '/console/session-1' });
 
     appStore.setState({
       currentSessionId: 'session-1',
@@ -129,20 +137,10 @@ describe('app switchSession runtime handling', () => {
     app.reconnectManager.terminalFrame = terminalFrame;
     app.reconnectManager.setCurrentSession('session-1');
 
-    httpClient.get.mockResolvedValue({
-      sessions: [{
-        id: 'session-1',
-        runtimeStatus: {
-          ttydRunning: true,
-          proxyPath: '/console/session-1'
-        }
-      }]
-    });
-
     await app.reconnectManager.reconnect();
     await new Promise(resolve => setTimeout(resolve, 70));
 
-    expect(httpClient.get).toHaveBeenCalledWith('/api/state');
+    expect(httpClient.get).not.toHaveBeenCalledWith('/api/sessions/session-1/runtime');
     expect(httpClient.post).not.toHaveBeenCalled();
     expect(terminalFrame.src.endsWith('/console/session-1')).toBe(true);
   });
@@ -150,6 +148,9 @@ describe('app switchSession runtime handling', () => {
   it('reconnect starts ttyd only when runtimeStatus says it is down', async () => {
     await app.start();
     app.focusTerminal = vi.fn();
+    vi.clearAllMocks();
+    httpClient.get.mockResolvedValue({ runtimeStatus: null });
+    httpClient.post.mockResolvedValue({ proxyPath: '/console/session-1' });
 
     appStore.setState({
       currentSessionId: 'session-1',
@@ -167,23 +168,47 @@ describe('app switchSession runtime handling', () => {
     app.reconnectManager.setCurrentSession('session-1');
 
     httpClient.get.mockResolvedValue({
-      sessions: [{
-        id: 'session-1',
-        path: '/tmp/session-1',
-        engine: 'codex',
-        runtimeStatus: {
-          ttydRunning: false,
-          proxyPath: null
-        }
-      }]
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      }
     });
 
     await app.reconnectManager.reconnect();
 
-    expect(httpClient.get).toHaveBeenCalledWith('/api/state');
+    expect(httpClient.get).toHaveBeenCalledWith('/api/sessions/session-1/runtime');
     expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
       sessionId: 'session-1',
       engine: 'codex'
     }));
+  });
+
+  it('reconnect runtime lookup失敗時_startせず再接続嵐を増やさない', async () => {
+    await app.start();
+    app.focusTerminal = vi.fn();
+    vi.clearAllMocks();
+    httpClient.get.mockResolvedValue({ runtimeStatus: null });
+    httpClient.post.mockResolvedValue({ proxyPath: '/console/session-1' });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    app.reconnectManager.terminalFrame = terminalFrame;
+    app.reconnectManager.setCurrentSession('session-1');
+    httpClient.get.mockRejectedValue(new Error('runtime lookup failed'));
+
+    await app.reconnectManager.reconnect();
+
+    expect(httpClient.get).toHaveBeenCalledWith('/api/sessions/session-1/runtime');
+    expect(httpClient.post).not.toHaveBeenCalled();
   });
 });

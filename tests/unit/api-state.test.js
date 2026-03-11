@@ -32,7 +32,8 @@ describe('GET /api/state - Response Structure', () => {
       const state = stateStore.get();
 
       const sessionsWithStatus = (state.sessions || []).map(session => {
-        const ttydRunning = activeSessions.has(session.id);
+        const activeEntry = activeSessions.get(session.id);
+        const ttydRunning = Boolean(activeEntry);
         const needsRestart = session.intendedState === 'active' && !ttydRunning;
 
         return {
@@ -42,7 +43,9 @@ describe('GET /api/state - Response Structure', () => {
           // 新しいruntimeStatus
           runtimeStatus: {
             ttydRunning,
-            needsRestart
+            needsRestart,
+            proxyPath: ttydRunning ? `/console/${session.id}` : null,
+            port: activeEntry?.port || null
           }
         };
       });
@@ -87,6 +90,8 @@ describe('GET /api/state - Response Structure', () => {
     expect(response.body.sessions[0]).toHaveProperty('runtimeStatus');
     expect(response.body.sessions[0].runtimeStatus).toHaveProperty('ttydRunning');
     expect(response.body.sessions[0].runtimeStatus).toHaveProperty('needsRestart');
+    expect(response.body.sessions[0].runtimeStatus).toHaveProperty('proxyPath');
+    expect(response.body.sessions[0].runtimeStatus).toHaveProperty('port');
   });
 
   it('should set needsRestart=true when intendedState=active and ttyd not running', async () => {
@@ -137,6 +142,8 @@ describe('GET /api/state - Response Structure', () => {
     // Assert
     expect(response.body.sessions[0].runtimeStatus.ttydRunning).toBe(true);
     expect(response.body.sessions[0].runtimeStatus.needsRestart).toBe(false);
+    expect(response.body.sessions[0].runtimeStatus.proxyPath).toBe('/console/session-1');
+    expect(response.body.sessions[0].runtimeStatus.port).toBe(3001);
   });
 
   it('should set needsRestart=false when intendedState=stopped', async () => {

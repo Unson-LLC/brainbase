@@ -238,6 +238,7 @@ export const EVENTS = {
 
     // Commit Tree関連
     COMMIT_LOG_LOADED: 'commit-tree:loaded',
+    COMMIT_TREE_PANEL_TOGGLED: 'commit-tree:panel-toggled',
 
     // UI関連
     INBOX_TOGGLED: 'inbox:toggled',

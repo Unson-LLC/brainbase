@@ -55,6 +55,19 @@ import { ArchiveModal } from './modules/ui/modals/archive-modal.js';
 import { FocusEngineModal } from './modules/ui/modals/focus-engine-modal.js';
 import { RenameModal } from './modules/ui/modals/rename-modal.js';
 
+function scheduleAfterNextPaint(callback) {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                callback();
+            });
+        });
+        return;
+    }
+
+    setTimeout(callback, 0);
+}
+
 /**
  * Terminal Reconnect Manager
  * Handles iframe disconnection detection and automatic reconnection
@@ -234,11 +247,18 @@ class TerminalReconnectManager {
     }
 
     async _resolveRuntimeStatus(sessionId, fallbackSession) {
-        const state = await httpClient.get('/api/state');
-        const refreshedSession = (state?.sessions || []).find(s => s.id === sessionId);
+        const currentRuntime = fallbackSession?.runtimeStatus;
+        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath) {
+            return {
+                session: fallbackSession || null,
+                runtimeStatus: currentRuntime
+            };
+        }
+
+        const runtime = await httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/runtime`);
         return {
-            session: refreshedSession || fallbackSession || null,
-            runtimeStatus: refreshedSession?.runtimeStatus || fallbackSession?.runtimeStatus || null
+            session: fallbackSession || null,
+            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null
         };
     }
 
@@ -281,6 +301,15 @@ class TerminalReconnectManager {
             if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
                 console.log('[reconnect] Reusing existing ttyd proxyPath:', runtimeStatus.proxyPath);
                 this._reloadTerminalFrame(runtimeStatus.proxyPath);
+                return;
+            }
+
+            if (!runtimeStatus) {
+                console.warn(`[reconnect] Runtime lookup failed for session ${this.currentSessionId}, skipping restart`);
+                this.isReconnecting = false;
+                if (this.retryCount >= this.maxRetries) {
+                    showError('ターミナル接続に失敗しました。ページをリロードしてください。');
+                }
                 return;
             }
 
@@ -353,6 +382,7 @@ export class App {
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
+        this._sessionSwitchToken = 0;
     }
 
     _isConsoleVisible() {
@@ -411,6 +441,14 @@ export class App {
         }
 
         this._updateTerminalInputStatus();
+    }
+
+    _runDeferredSessionSwitchWork(sessionId, switchToken) {
+        if (switchToken !== this._sessionSwitchToken) return;
+        if (appStore.getState().currentSessionId !== sessionId) return;
+
+        void this.loadSessionData(sessionId);
+        updateSessionIndicators(sessionId);
     }
 
     _setTerminalInputStatus({ hidden, stateClass, text, title }) {
@@ -1126,6 +1164,7 @@ export class App {
             const { sessionId, proxyPath = null } = event.detail;
             console.log('[SessionSwitch] Starting for:', sessionId);
             const previousSessionId = event.detail?.previousSessionId ?? appStore.getState().currentSessionId;
+            const switchToken = ++this._sessionSwitchToken;
 
             // Mark previous session's green indicator as read when leaving it
             if (previousSessionId && previousSessionId !== sessionId) {
@@ -1135,14 +1174,14 @@ export class App {
             // Update currentSessionId in store
             appStore.setState({ currentSessionId: sessionId });
 
-            // 並列実行: switchSession と loadSessionData
             const startTime = performance.now();
-            await Promise.all([
-                this.switchSession(sessionId, { proxyPath }),
-                this.loadSessionData(sessionId)
-            ]);
-            const duration = performance.now() - startTime;
-            console.log(`[SessionSwitch] Completed in ${duration.toFixed(2)}ms`);
+            await this.switchSession(sessionId, { proxyPath });
+            const terminalDuration = performance.now() - startTime;
+            console.log(`[SessionSwitch] Terminal ready in ${terminalDuration.toFixed(2)}ms`);
+
+            if (switchToken !== this._sessionSwitchToken || appStore.getState().currentSessionId !== sessionId) {
+                return;
+            }
 
             // Auto-return to console view
             if (this.showConsole) {
@@ -1154,6 +1193,12 @@ export class App {
                 if (consoleArea) consoleArea.style.display = 'flex';
                 if (dashboardPanel) dashboardPanel.style.display = 'none';
             }
+
+            this.focusTerminal('session-changed');
+
+            scheduleAfterNextPaint(() => {
+                this._runDeferredSessionSwitchWork(sessionId, switchToken);
+            });
 
         });
 
@@ -2084,13 +2129,12 @@ export class App {
 
     async _resolveSessionRuntime(sessionId, session) {
         const currentRuntime = session?.runtimeStatus;
-        if (currentRuntime) {
+        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath) {
             return currentRuntime;
         }
 
-        const state = await httpClient.get('/api/state');
-        const refreshedSession = (state?.sessions || []).find(s => s.id === sessionId);
-        return refreshedSession?.runtimeStatus || null;
+        const runtime = await httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/runtime`);
+        return runtime?.runtimeStatus || currentRuntime || null;
     }
 
     /**
@@ -2171,9 +2215,6 @@ export class App {
                     row.classList.add('active');
                 }
             });
-
-            // Update session indicators (keep done status visible for current session too)
-            updateSessionIndicators(appStore.getState().currentSessionId);
 
         } catch (error) {
             console.error('Failed to switch session:', error);
