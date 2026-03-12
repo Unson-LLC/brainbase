@@ -281,6 +281,7 @@ app.use((req, res, next) => {
         "font-src 'self' https://fonts.gstatic.com",  // Google Fonts files
         "img-src 'self' data:",
         "connect-src 'self' ws: wss: https://unpkg.com https://bb.unson.jp",  // allow remote API
+        "frame-src 'self' http://127.0.0.1:* http://localhost:*",
         "frame-ancestors 'self'"
     ].join('; '));
     // Prevent MIME type sniffing
@@ -527,6 +528,29 @@ function getConsoleRequestInfo(req) {
     };
 }
 
+function getConsoleProxySessionId(req) {
+    const candidates = [
+        req.originalUrl,
+        req.baseUrl && req.url ? `${req.baseUrl}${req.url}` : null,
+        req.url
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+        const parsed = new URL(candidate, 'http://localhost');
+        const fullMatch = parsed.pathname.match(/^\/console\/([^/]+)/);
+        if (fullMatch) {
+            return fullMatch[1];
+        }
+
+        const mountedMatch = parsed.pathname.match(/^\/([^/]+)/);
+        if (mountedMatch) {
+            return mountedMatch[1];
+        }
+    }
+
+    return null;
+}
+
 function renderTerminalBlockedHtml(terminalAccess = {}) {
     const ownerLabel = terminalAccess?.ownerViewerLabel || '別の場所';
     return `<!DOCTYPE html>
@@ -559,10 +583,16 @@ function enforceTerminalOwnership(req, res, next) {
         return;
     }
 
-    const terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
-    if (terminalAccess.state === 'available') {
+    if (!viewerId) {
+        const terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
         res.status(409).type('html').send(renderTerminalBlockedHtml(terminalAccess));
         return;
+    }
+
+    let terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+    if (terminalAccess.state === 'available') {
+        sessionManager.claimTerminalOwnership(sessionId, viewerId);
+        terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
     }
 
     if (terminalAccess.state === 'blocked') {
@@ -575,6 +605,7 @@ function enforceTerminalOwnership(req, res, next) {
 }
 
 const ttydProxy = createProxyMiddleware({
+    target: 'http://127.0.0.1:1',
     ws: true, // Enable WebSocket proxying
     changeOrigin: true,
     pathRewrite: function (path, req) {
@@ -596,47 +627,25 @@ const ttydProxy = createProxyMiddleware({
         }
     },
     router: function (req) {
-        // Handle both full path (Upgrade) and stripped path (Express)
-        const url = req.url;
-        const originalUrl = req.originalUrl || url;
         const activeSessions = sessionManager.getActiveSessions();
-
-        // 1. Try full path match: /console/SESSION_ID/...
-        let match = originalUrl.match(/^\/console\/([^/]+)/);
-        if (match) {
-            const sessionId = match[1];
-            if (activeSessions.has(sessionId)) {
-                return `http://localhost:${activeSessions.get(sessionId).port}`;
-            }
+        const sessionId = getConsoleProxySessionId(req);
+        if (sessionId && activeSessions.has(sessionId)) {
+            return `http://127.0.0.1:${activeSessions.get(sessionId).port}`;
         }
 
-        // 2. Try stripped path match: /SESSION_ID/...
-        match = url.match(/^\/?([^/]+)/);
-        if (match) {
-            const sessionId = match[1];
-            if (activeSessions.has(sessionId)) {
-                return `http://localhost:${activeSessions.get(sessionId).port}`;
-            }
-        }
-
-        console.error(`[Proxy] No session found for ${url}`);
+        const debugUrl = req.originalUrl || req.url;
+        console.error(`[Proxy] No session found for ${debugUrl}`);
         // Return a dummy URL that will fail - http-proxy-middleware requires a valid target
         // The onError handler will catch this and return 404
         return 'http://127.0.0.1:1'; // Invalid port that will fail
     },
     onProxyReqWs: (proxyReq, req, socket, options, head) => {
         // Rewrite Origin to match the target (ttyd)
-        const url = req.url;
         const activeSessions = sessionManager.getActiveSessions();
-        let match = url.match(/^\/console\/([^/]+)/);
-        if (!match) match = url.match(/^\/?([^/]+)/); // Fallback
-
-        if (match) {
-            const sessionId = match[1];
-            if (activeSessions.has(sessionId)) {
-                const port = activeSessions.get(sessionId).port;
-                proxyReq.setHeader('Origin', `http://localhost:${port}`);
-            }
+        const sessionId = getConsoleProxySessionId(req);
+        if (sessionId && activeSessions.has(sessionId)) {
+            const port = activeSessions.get(sessionId).port;
+            proxyReq.setHeader('Origin', `http://127.0.0.1:${port}`);
         }
     },
     onError: (err, req, res) => {
@@ -709,8 +718,19 @@ const server = app.listen(PORT, async () => {
 // Handle WebSocket Upgrades
 server.on('upgrade', (request, socket, head) => {
     const { sessionId, viewerId } = getConsoleRequestInfo(request);
-    const terminalAccess = sessionId ? sessionManager.getTerminalAccessState(sessionId, viewerId) : null;
-    if (!sessionId || !terminalAccess || terminalAccess.state !== 'owner') {
+    if (!sessionId || !viewerId) {
+        socket.write('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+    }
+
+    let terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+    if (terminalAccess?.state === 'available') {
+        sessionManager.claimTerminalOwnership(sessionId, viewerId);
+        terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+    }
+
+    if (!terminalAccess || terminalAccess.state !== 'owner') {
         socket.write('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n');
         socket.destroy();
         return;

@@ -56,11 +56,16 @@ export class SessionController {
         if (typeof proxyPath !== 'string' || !proxyPath.trim() || typeof viewerId !== 'string' || !viewerId.trim()) {
             return proxyPath;
         }
-        if (proxyPath.includes('viewerId=')) {
-            return proxyPath;
+
+        const normalizedPath = /^\/console\/[^/?#]+$/.test(proxyPath)
+            ? `${proxyPath}/`
+            : proxyPath;
+
+        if (normalizedPath.includes('viewerId=')) {
+            return normalizedPath;
         }
-        const separator = proxyPath.includes('?') ? '&' : '?';
-        return `${proxyPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
+        const separator = normalizedPath.includes('?') ? '&' : '?';
+        return `${normalizedPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
     }
 
     _parseTreeDepth(rawDepth) {

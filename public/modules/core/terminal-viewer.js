@@ -1,5 +1,16 @@
 const VIEWER_ID_STORAGE_KEY = 'brainbase-terminal-viewer-id';
 
+function normalizeConsoleBasePath(proxyPath) {
+    if (typeof proxyPath !== 'string') return proxyPath;
+
+    const match = proxyPath.match(/^\/console\/[^/?#]+$/);
+    if (match) {
+        return `${proxyPath}/`;
+    }
+
+    return proxyPath;
+}
+
 function generateViewerId() {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
@@ -52,12 +63,13 @@ export function appendViewerIdToProxyPath(proxyPath, viewerId) {
         return proxyPath;
     }
 
-    const separator = proxyPath.includes('?') ? '&' : '?';
-    if (proxyPath.includes('viewerId=')) {
-        return proxyPath;
+    const normalizedPath = normalizeConsoleBasePath(proxyPath);
+    const separator = normalizedPath.includes('?') ? '&' : '?';
+    if (normalizedPath.includes('viewerId=')) {
+        return normalizedPath;
     }
 
-    return `${proxyPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
+    return `${normalizedPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
 }
 
 export function buildSessionRuntimeUrl(sessionId, viewerId, viewerLabel) {

@@ -74,6 +74,23 @@ function buildTerminalBlockedText(terminalAccess) {
     return `入力: ${ownerLabel} で表示中 (クリックで引継ぎ)`;
 }
 
+function isLoopbackHost(hostname) {
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function isTrustedTerminalOrigin(origin) {
+    if (!origin || origin === 'null') return false;
+
+    try {
+        const eventUrl = new URL(origin);
+        const currentUrl = new URL(window.location.origin);
+        if (eventUrl.origin === currentUrl.origin) return true;
+        return isLoopbackHost(eventUrl.hostname) && isLoopbackHost(currentUrl.hostname);
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Terminal Reconnect Manager
  * Handles iframe disconnection detection and automatic reconnection
@@ -140,8 +157,7 @@ class TerminalReconnectManager {
 
     initPostMessageListener() {
         window.addEventListener('message', (event) => {
-            // セキュリティ: 同一オリジンのみ許可
-            if (event.origin !== window.location.origin) return;
+            if (!isTrustedTerminalOrigin(event.origin)) return;
 
             const { type, sessionId, code, reason } = event.data || {};
 
@@ -288,8 +304,8 @@ class TerminalReconnectManager {
         };
     }
 
-    _reloadTerminalFrame(proxyPath) {
-        const nextProxyPath = appendViewerIdToProxyPath(proxyPath, this.viewerId);
+    _reloadTerminalFrame(proxyPath, port = null) {
+        const nextProxyPath = this._buildTerminalFrameUrl(proxyPath, port);
         if (!this.terminalFrame || !nextProxyPath) return;
 
         const currentSrc = this.terminalFrame.src || '';
@@ -346,7 +362,7 @@ class TerminalReconnectManager {
 
             if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
                 console.log('[reconnect] Reusing existing ttyd proxyPath:', runtimeStatus.proxyPath);
-                this._reloadTerminalFrame(runtimeStatus.proxyPath);
+                this._reloadTerminalFrame(runtimeStatus.proxyPath, runtimeStatus.port);
                 return;
             }
 
@@ -378,7 +394,7 @@ class TerminalReconnectManager {
 
             if (res?.proxyPath) {
                 this.terminalAccess = res.terminalAccess || this.terminalAccess;
-                this._reloadTerminalFrame(res.proxyPath);
+                this._reloadTerminalFrame(res.proxyPath, res.port);
             } else {
                 this.isReconnecting = false;
                 this.handleDisconnect();
@@ -512,8 +528,31 @@ export class App {
         updateSessionIndicators(sessionId);
     }
 
-    _getViewerProxyPath(proxyPath) {
-        return appendViewerIdToProxyPath(proxyPath, this.viewerId);
+    _getViewerProxyPath(proxyPath, port = null) {
+        if (!proxyPath) return proxyPath;
+
+        let nextProxyPath = appendViewerIdToProxyPath(proxyPath, this.viewerId);
+        if (!nextProxyPath) return nextProxyPath;
+
+        try {
+            const absoluteUrl = new URL(nextProxyPath);
+            if (this.viewerId && !absoluteUrl.searchParams.has('viewerId')) {
+                absoluteUrl.searchParams.set('viewerId', this.viewerId);
+            }
+            return absoluteUrl.toString();
+        } catch {
+            // Relative path: fall through and optionally rewrite to loopback ttyd.
+        }
+
+        if (port && isLoopbackHost(window.location.hostname)) {
+            return `http://127.0.0.1:${port}${nextProxyPath}`;
+        }
+
+        return nextProxyPath;
+    }
+
+    _buildTerminalFrameUrl(proxyPath, port = null) {
+        return this._getViewerProxyPath(proxyPath, port);
     }
 
     _buildTerminalStartPayload(session) {
@@ -2272,7 +2311,7 @@ export class App {
             return {
                 runtimeStatus: {
                     ...currentRuntime,
-                    proxyPath: this._getViewerProxyPath(currentRuntime.proxyPath)
+                    proxyPath: this._getViewerProxyPath(currentRuntime.proxyPath, currentRuntime.port)
                 },
                 terminalAccess: currentAccess
             };
@@ -2315,7 +2354,7 @@ export class App {
             }
 
             let proxyPath = typeof options.proxyPath === 'string' && options.proxyPath.trim()
-                ? this._getViewerProxyPath(options.proxyPath)
+                ? this._getViewerProxyPath(options.proxyPath, options.port)
                 : null;
 
             if (proxyPath) {
@@ -2337,7 +2376,7 @@ export class App {
                 }
 
                 if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
-                    proxyPath = this._getViewerProxyPath(runtimeStatus.proxyPath);
+                    proxyPath = this._getViewerProxyPath(runtimeStatus.proxyPath, runtimeStatus.port);
                     console.log('Session already running, using existing proxyPath:', proxyPath);
                 }
             }
@@ -2350,7 +2389,7 @@ export class App {
                     if (this.reconnectManager) {
                         this.reconnectManager.terminalAccess = res.terminalAccess || null;
                     }
-                    proxyPath = this._getViewerProxyPath(res.proxyPath);
+                    proxyPath = this._getViewerProxyPath(res.proxyPath, res.port);
                     console.log('Started session, got proxyPath:', proxyPath);
                 }
             }
