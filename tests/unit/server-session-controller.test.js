@@ -24,6 +24,10 @@ describe('SessionController (Server)', () => {
       clearDoneStatus: vi.fn(),
       reportActivity: vi.fn(),
       getSessionById: vi.fn(),
+      ensureTerminalOwnership: vi.fn(),
+      forceTerminalOwnership: vi.fn(),
+      getTerminalAccessState: vi.fn(),
+      releaseTerminalOwnership: vi.fn(),
       _isProcessRunning: vi.fn(),
       resolveSessionWorkspacePath: vi.fn(async (sessionOrId) => {
         if (typeof sessionOrId === 'string') {
@@ -87,6 +91,24 @@ describe('SessionController (Server)', () => {
         port: 40100,
         proxyPath: `/console/${sessionId}`
       });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+      mockSessionManager.forceTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
       mockSessionManager.activeSessions.set(sessionId, {
         port: 40100,
         pid: 99999,
@@ -95,7 +117,7 @@ describe('SessionController (Server)', () => {
       sessionController._recentSessionStarts.set(sessionId, Date.now() - 1000);
 
       const req = {
-        body: { sessionId },
+        body: { sessionId, viewerId: 'viewer-1' },
         headers: { referer: 'https://brain-base.work/', 'user-agent': 'Mozilla/5.0' }
       };
 
@@ -105,9 +127,15 @@ describe('SessionController (Server)', () => {
       expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
       expect(mockRes.json).toHaveBeenCalledWith({
         port: 40100,
-        proxyPath: `/console/${sessionId}`,
+        proxyPath: `/console/${sessionId}?viewerId=viewer-1`,
         startedExisting: true,
-        takeoverSkipped: true
+        takeoverSkipped: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
       });
     });
 
@@ -123,6 +151,24 @@ describe('SessionController (Server)', () => {
         port: 40101,
         proxyPath: `/console/${sessionId}`
       });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+      mockSessionManager.forceTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
       mockSessionManager.activeSessions.set(sessionId, {
         port: 40100,
         pid: 99998,
@@ -131,7 +177,7 @@ describe('SessionController (Server)', () => {
       sessionController._recentSessionStarts.set(sessionId, Date.now() - 6000);
 
       const req = {
-        body: { sessionId, engine: 'codex' },
+        body: { sessionId, engine: 'codex', viewerId: 'viewer-1', forceTakeover: true },
         headers: { referer: 'http://localhost:31013/', 'user-agent': 'Mozilla/5.0' }
       };
 
@@ -145,7 +191,49 @@ describe('SessionController (Server)', () => {
       }));
       expect(mockRes.json).toHaveBeenCalledWith({
         port: 40101,
-        proxyPath: `/console/${sessionId}`
+        proxyPath: `/console/${sessionId}?viewerId=viewer-1`,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+    });
+
+    it('別viewerのstart呼び出し時_409 blockedを返す', async () => {
+      const sessionId = 'session-blocked';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{ id: sessionId, path: '/tmp/session-blocked', intendedState: 'active' }]
+      });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: false,
+        terminalAccess: {
+          state: 'blocked',
+          ownerViewerLabel: 'Cloudflare / Mac',
+          ownerLastSeenAt: '2026-03-11T00:00:00.000Z',
+          canTakeover: true
+        }
+      });
+
+      const req = {
+        body: { sessionId, viewerId: 'viewer-2' },
+        headers: { referer: 'http://localhost:31013/', 'user-agent': 'Mozilla/5.0' }
+      };
+
+      await sessionController.start(req, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session is already open in another viewer',
+        code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+        terminalAccess: {
+          state: 'blocked',
+          ownerViewerLabel: 'Cloudflare / Mac',
+          ownerLastSeenAt: '2026-03-11T00:00:00.000Z',
+          canTakeover: true
+        }
       });
     });
   });
@@ -162,16 +250,35 @@ describe('SessionController (Server)', () => {
           port: 40123
         }
       });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
 
-      await sessionController.getRuntime({ params: { id: sessionId } }, mockRes);
+      await sessionController.getRuntime({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', viewerLabel: 'Local / Mac' },
+        headers: {}
+      }, mockRes);
 
       expect(mockRes.json).toHaveBeenCalledWith({
         sessionId,
         runtimeStatus: {
           ttydRunning: true,
           needsRestart: false,
-          proxyPath: `/console/${sessionId}`,
+          proxyPath: `/console/${sessionId}?viewerId=viewer-1`,
           port: 40123
+        },
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
         }
       });
     });
@@ -179,10 +286,45 @@ describe('SessionController (Server)', () => {
     it('存在しないセッションのruntime取得時_404を返す', async () => {
       mockSessionManager.getSessionById.mockReturnValue(null);
 
-      await sessionController.getRuntime({ params: { id: 'missing' } }, mockRes);
+      await sessionController.getRuntime({ params: { id: 'missing' }, query: { viewerId: 'viewer-1' }, headers: {} }, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Session not found' });
+    });
+
+    it('viewerIdなしのruntime取得時_400を返す', async () => {
+      await sessionController.getRuntime({ params: { id: 'session-1' }, query: {}, headers: {} }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'viewerId is required' });
+    });
+  });
+
+  describe('releaseTerminal', () => {
+    it('viewerId一致時_releaseTerminalOwnershipを呼ぶ', async () => {
+      mockSessionManager.releaseTerminalOwnership.mockReturnValue(true);
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'available',
+        ownerViewerLabel: null,
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+
+      await sessionController.releaseTerminal({
+        params: { id: 'session-1' },
+        body: { viewerId: 'viewer-1' }
+      }, mockRes);
+
+      expect(mockSessionManager.releaseTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1');
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        terminalAccess: {
+          state: 'available',
+          ownerViewerLabel: null,
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
     });
   });
 

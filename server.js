@@ -516,6 +516,64 @@ const upload = multer({ storage: storage });
 // On Windows, ttyd doesn't support base-path, so we strip /console/SESSION_ID prefix
 // On other platforms, ttyd uses base-path and expects the full path
 const isWindows = process.platform === 'win32';
+
+function getConsoleRequestInfo(req) {
+    const rawUrl = req.originalUrl || req.url || '';
+    const parsed = new URL(rawUrl, 'http://localhost');
+    const match = parsed.pathname.match(/^\/console\/([^/]+)/);
+    return {
+        sessionId: match ? match[1] : null,
+        viewerId: parsed.searchParams.get('viewerId') || null
+    };
+}
+
+function renderTerminalBlockedHtml(terminalAccess = {}) {
+    const ownerLabel = terminalAccess?.ownerViewerLabel || '別の場所';
+    return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal Blocked</title>
+  <style>
+    body { margin: 0; font-family: Menlo, Monaco, monospace; background: #0f172a; color: #e2e8f0; display: grid; place-items: center; min-height: 100vh; }
+    .card { max-width: 520px; padding: 24px; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 16px; background: rgba(15, 23, 42, 0.96); box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28); }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    p { margin: 0; line-height: 1.6; color: #cbd5e1; }
+    strong { color: #f8fafc; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>この terminal は別の viewer が使用中</h1>
+    <p><strong>${ownerLabel}</strong> がこのセッションを表示中。親画面に戻って <strong>Take over</strong> してね。</p>
+  </div>
+</body>
+</html>`;
+}
+
+function enforceTerminalOwnership(req, res, next) {
+    const { sessionId, viewerId } = getConsoleRequestInfo(req);
+    if (!sessionId) {
+        res.status(404).send('Session not found');
+        return;
+    }
+
+    const terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+    if (terminalAccess.state === 'available') {
+        res.status(409).type('html').send(renderTerminalBlockedHtml(terminalAccess));
+        return;
+    }
+
+    if (terminalAccess.state === 'blocked') {
+        res.status(409).type('html').send(renderTerminalBlockedHtml(terminalAccess));
+        return;
+    }
+
+    sessionManager.touchTerminalOwnership(sessionId, viewerId);
+    next();
+}
+
 const ttydProxy = createProxyMiddleware({
     ws: true, // Enable WebSocket proxying
     changeOrigin: true,
@@ -589,7 +647,7 @@ const ttydProxy = createProxyMiddleware({
     }
 });
 
-app.use('/console', ttydProxy);
+app.use('/console', enforceTerminalOwnership, ttydProxy);
 
 // ========================================
 // MVC Router Registration (Phase 3)
@@ -650,6 +708,15 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', (request, socket, head) => {
+    const { sessionId, viewerId } = getConsoleRequestInfo(request);
+    const terminalAccess = sessionId ? sessionManager.getTerminalAccessState(sessionId, viewerId) : null;
+    if (!sessionId || !terminalAccess || terminalAccess.state !== 'owner') {
+        socket.write('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+    }
+
+    sessionManager.touchTerminalOwnership(sessionId, viewerId);
     // TTYD console proxy
     ttydProxy.upgrade(request, socket, head);
 });

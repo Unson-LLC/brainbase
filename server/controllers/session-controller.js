@@ -24,6 +24,45 @@ export class SessionController {
         this._recentSessionStarts = new Map(); // sessionId -> timestamp
     }
 
+    _resolveViewerLabel(req, explicitLabel) {
+        if (typeof explicitLabel === 'string' && explicitLabel.trim()) {
+            return explicitLabel.trim();
+        }
+
+        const referer = String(req?.headers?.referer || '');
+        const ua = String(req?.headers?.['user-agent'] || '');
+
+        const originLabel = referer.includes('localhost') || referer.includes('127.0.0.1')
+            ? 'Local'
+            : 'Cloudflare';
+
+        let deviceLabel = 'Desktop';
+        if (/iPhone/i.test(ua)) {
+            deviceLabel = 'iPhone';
+        } else if (/iPad/i.test(ua)) {
+            deviceLabel = 'iPad';
+        } else if (/Mac/i.test(ua)) {
+            deviceLabel = 'Mac';
+        } else if (/Windows/i.test(ua)) {
+            deviceLabel = 'Windows';
+        } else if (/Android/i.test(ua)) {
+            deviceLabel = 'Android';
+        }
+
+        return `${originLabel} / ${deviceLabel}`;
+    }
+
+    _appendViewerIdToProxyPath(proxyPath, viewerId) {
+        if (typeof proxyPath !== 'string' || !proxyPath.trim() || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return proxyPath;
+        }
+        if (proxyPath.includes('viewerId=')) {
+            return proxyPath;
+        }
+        const separator = proxyPath.includes('?') ? '&' : '?';
+        return `${proxyPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
+    }
+
     _parseTreeDepth(rawDepth) {
         const parsed = Number.parseInt(rawDepth, 10);
         if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_TREE_DEPTH;
@@ -223,8 +262,13 @@ export class SessionController {
      */
     getRuntime = (req, res) => {
         const { id } = req.params;
+        const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
+        const viewerLabel = this._resolveViewerLabel(req, req.query?.viewerLabel);
         if (!id) {
             return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
         }
 
         const session = this.sessionManager.getSessionById(id);
@@ -232,10 +276,34 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
+        const ownership = this.sessionManager.ensureTerminalOwnership(id, viewerId, viewerLabel);
+        const runtimeStatus = {
+            ...(session.runtimeStatus || {}),
+            proxyPath: ownership.allowed
+                ? this._appendViewerIdToProxyPath(session.runtimeStatus?.proxyPath || null, viewerId)
+                : null
+        };
+
         res.json({
             sessionId: id,
-            runtimeStatus: session.runtimeStatus
+            runtimeStatus,
+            terminalAccess: ownership.terminalAccess
         });
+    };
+
+    releaseTerminal = (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.body?.viewerId === 'string' ? req.body.viewerId.trim() : '';
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
+
+        const released = this.sessionManager.releaseTerminalOwnership(id, viewerId);
+        const terminalAccess = this.sessionManager.getTerminalAccessState(id, viewerId);
+        res.json({ success: released, terminalAccess });
     };
 
     // ========================================
@@ -247,12 +315,16 @@ export class SessionController {
      * ttydプロセスを起動
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine } = req.body;
+        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false } = req.body;
+        const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
         console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
+        }
+        if (!viewerId || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return res.status(400).json({ error: 'viewerId is required' });
         }
 
         // アーカイブ済みセッションの起動を拒否
@@ -267,20 +339,43 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
+            const ownership = forceTakeover
+                ? this.sessionManager.forceTerminalOwnership(sessionId, viewerId, viewerLabel)
+                : this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+
+            if (!ownership.allowed) {
+                return res.status(409).json({
+                    error: 'Session is already open in another viewer',
+                    code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+                    terminalAccess: ownership.terminalAccess
+                });
+            }
+
             // テイクオーバー: 既存ttydが起動中なら再起動して新クライアントに接続を譲る
             const existingSession = this.sessionManager.activeSessions.get(sessionId);
             if (existingSession) {
                 const pid = existingSession.process?.pid || existingSession.pid;
                 if (pid && this.sessionManager._isProcessRunning(pid)) {
+                    if (!forceTakeover) {
+                        return res.json({
+                            port: existingSession.port,
+                            proxyPath: this._appendViewerIdToProxyPath(`/console/${sessionId}`, viewerId),
+                            startedExisting: true,
+                            takeoverSkipped: true,
+                            terminalAccess: ownership.terminalAccess
+                        });
+                    }
+
                     const lastStartedAt = this._recentSessionStarts.get(sessionId) || 0;
                     const startedAgoMs = Date.now() - lastStartedAt;
                     if (startedAgoMs >= 0 && startedAgoMs < TAKEOVER_COOLDOWN_MS) {
                         console.log(`[takeover] Session ${sessionId}: skipped restart during cooldown (${startedAgoMs}ms since last start)`);
                         return res.json({
                             port: existingSession.port,
-                            proxyPath: `/console/${sessionId}`,
+                            proxyPath: this._appendViewerIdToProxyPath(`/console/${sessionId}`, viewerId),
                             startedExisting: true,
-                            takeoverSkipped: true
+                            takeoverSkipped: true,
+                            terminalAccess: ownership.terminalAccess
                         });
                     }
 
@@ -324,7 +419,11 @@ export class SessionController {
                 return { ...currentState, sessions: updatedSessions };
             });
 
-            res.json(result);
+            res.json({
+                ...result,
+                proxyPath: this._appendViewerIdToProxyPath(result.proxyPath, viewerId),
+                terminalAccess: ownership.terminalAccess
+            });
         } catch (error) {
             console.error('Failed to start session:', error);
             res.status(500).json({ error: error.message || 'Failed to allocate port' });
@@ -759,11 +858,15 @@ ${jjBookmarks}
     };
 
     createWithWorktree = async (req, res) => {
-        const { sessionId, repoPath, name, initialCommand, engine = 'claude', project } = req.body;
+        const { sessionId, repoPath, name, initialCommand, engine = 'claude', project, viewerId } = req.body;
+        const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
         const skipFetch = req.body.skipFetch !== undefined ? req.body.skipFetch : true;
 
         if (!sessionId || !repoPath) {
             return res.status(400).json({ error: 'sessionId and repoPath are required' });
+        }
+        if (!viewerId || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return res.status(400).json({ error: 'viewerId is required' });
         }
 
         // Validate engine
@@ -850,12 +953,14 @@ ${jjBookmarks}
             }
 
             const result = ttydResult.value;
+            const ownership = this.sessionManager.forceTerminalOwnership(sessionId, viewerId, viewerLabel);
             this._updateProgress(sessionId, 'done', 100, 'セッション作成完了！');
 
             res.json({
                 success: true,
                 port: result.port,
-                proxyPath: result.proxyPath,
+                proxyPath: this._appendViewerIdToProxyPath(result.proxyPath, viewerId),
+                terminalAccess: ownership.terminalAccess,
                 worktreePath,
                 branchName
             });

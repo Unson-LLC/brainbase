@@ -872,6 +872,7 @@
 (function() {
     // Extract session ID from URL
     const sessionId = window.location.pathname.match(/\/console\/([^/]+)/)?.[1];
+    const viewerId = new URLSearchParams(window.location.search).get('viewerId');
     if (!sessionId) {
         console.warn('[ttyd-monitor] Could not extract session ID from URL');
         return;
@@ -883,7 +884,20 @@
     // Wrap WebSocket to monitor connection state
     window.WebSocket = class extends OriginalWebSocket {
         constructor(url, protocols) {
-            super(url, protocols);
+            const nextUrl = (() => {
+                if (!viewerId) return url;
+                try {
+                    const absolute = new URL(url, window.location.href);
+                    if (!absolute.searchParams.has('viewerId')) {
+                        absolute.searchParams.set('viewerId', viewerId);
+                    }
+                    return absolute.toString();
+                } catch {
+                    return url;
+                }
+            })();
+
+            super(nextUrl, protocols);
 
             this.addEventListener('open', () => {
                 console.log('[ttyd-monitor] WebSocket connected');

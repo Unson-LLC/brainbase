@@ -8,6 +8,7 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { appendViewerIdToProxyPath, buildSessionRuntimeUrl, getTerminalViewerId, getTerminalViewerLabel } from './modules/core/terminal-viewer.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
@@ -68,6 +69,11 @@ function scheduleAfterNextPaint(callback) {
     setTimeout(callback, 0);
 }
 
+function buildTerminalBlockedText(terminalAccess) {
+    const ownerLabel = terminalAccess?.ownerViewerLabel || '別の場所';
+    return `入力: ${ownerLabel} で表示中 (クリックで引継ぎ)`;
+}
+
 /**
  * Terminal Reconnect Manager
  * Handles iframe disconnection detection and automatic reconnection
@@ -86,6 +92,9 @@ class TerminalReconnectManager {
         this.lastDisconnectReason = null;
         this.lastDisconnectAt = null;
         this.lastErrorAt = null;
+        this.viewerId = null;
+        this.viewerLabel = null;
+        this.terminalAccess = null;
         this.onStatusChange = null;
     }
 
@@ -101,8 +110,14 @@ class TerminalReconnectManager {
             lastDisconnectCode: this.lastDisconnectCode,
             lastDisconnectReason: this.lastDisconnectReason,
             lastDisconnectAt: this.lastDisconnectAt,
-            lastErrorAt: this.lastErrorAt
+            lastErrorAt: this.lastErrorAt,
+            terminalAccess: this.terminalAccess
         });
+    }
+
+    setViewerContext({ viewerId, viewerLabel }) {
+        this.viewerId = viewerId || null;
+        this.viewerLabel = viewerLabel || null;
     }
 
     init(terminalFrame) {
@@ -171,6 +186,7 @@ class TerminalReconnectManager {
         }
 
         this.wsConnected = false;
+        this.terminalAccess = null;
         this.lastDisconnectCode = code;
         this.lastDisconnectReason = reason || null;
         this.lastDisconnectAt = Date.now();
@@ -188,6 +204,7 @@ class TerminalReconnectManager {
         if (sessionId !== this.currentSessionId) return;
 
         this.wsConnected = false;
+        this.terminalAccess = null;
         this.lastErrorAt = Date.now();
         this._emitStatus();
 
@@ -205,6 +222,12 @@ class TerminalReconnectManager {
         this.lastDisconnectReason = null;
         this.lastDisconnectAt = null;
         this.lastErrorAt = null;
+        this.terminalAccess = {
+            state: 'owner',
+            ownerViewerLabel: this.viewerLabel,
+            ownerLastSeenAt: new Date().toISOString(),
+            canTakeover: false
+        };
 
         // 接続成功時刻を記録（disconnect race condition防止用）
         this.lastConnectTime = Date.now();
@@ -248,33 +271,49 @@ class TerminalReconnectManager {
 
     async _resolveRuntimeStatus(sessionId, fallbackSession) {
         const currentRuntime = fallbackSession?.runtimeStatus;
-        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath) {
+        const currentAccess = this.terminalAccess;
+        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath && currentAccess?.state !== 'blocked') {
             return {
                 session: fallbackSession || null,
-                runtimeStatus: currentRuntime
+                runtimeStatus: currentRuntime,
+                terminalAccess: currentAccess || null
             };
         }
 
-        const runtime = await httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/runtime`);
+        const runtime = await httpClient.get(buildSessionRuntimeUrl(sessionId, this.viewerId, this.viewerLabel));
         return {
             session: fallbackSession || null,
-            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null
+            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null,
+            terminalAccess: runtime?.terminalAccess || currentAccess || null
         };
     }
 
     _reloadTerminalFrame(proxyPath) {
-        if (!this.terminalFrame || !proxyPath) return;
+        const nextProxyPath = appendViewerIdToProxyPath(proxyPath, this.viewerId);
+        if (!this.terminalFrame || !nextProxyPath) return;
 
         const currentSrc = this.terminalFrame.src || '';
-        if (currentSrc.includes(proxyPath)) {
+        if (currentSrc.includes(nextProxyPath)) {
             this.terminalFrame.src = 'about:blank';
             setTimeout(() => {
-                this.terminalFrame.src = proxyPath;
+                this.terminalFrame.src = nextProxyPath;
             }, 50);
             return;
         }
 
-        this.terminalFrame.src = proxyPath;
+        this.terminalFrame.src = nextProxyPath;
+    }
+
+    _setBlocked(terminalAccess) {
+        this.wsConnected = false;
+        this.isReconnecting = false;
+        this.terminalAccess = terminalAccess || {
+            state: 'blocked',
+            ownerViewerLabel: null,
+            ownerLastSeenAt: null,
+            canTakeover: true
+        };
+        this._emitStatus();
     }
 
     async reconnect() {
@@ -295,8 +334,15 @@ class TerminalReconnectManager {
         }
 
         try {
-            const { session, runtimeStatus } = await this._resolveRuntimeStatus(this.currentSessionId, fallbackSession);
+            const { session, runtimeStatus, terminalAccess } = await this._resolveRuntimeStatus(this.currentSessionId, fallbackSession);
             const targetSession = session || fallbackSession;
+            this.terminalAccess = terminalAccess || null;
+
+            if (terminalAccess?.state === 'blocked') {
+                console.warn(`[reconnect] Session ${this.currentSessionId} is owned by another viewer`);
+                this._setBlocked(terminalAccess);
+                return;
+            }
 
             if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
                 console.log('[reconnect] Reusing existing ttyd proxyPath:', runtimeStatus.proxyPath);
@@ -325,10 +371,13 @@ class TerminalReconnectManager {
             if (typeof targetSession?.engine === 'string' && targetSession.engine.trim()) {
                 payload.engine = targetSession.engine;
             }
+            payload.viewerId = this.viewerId;
+            payload.viewerLabel = this.viewerLabel;
 
             const res = await httpClient.post('/api/sessions/start', payload);
 
             if (res?.proxyPath) {
+                this.terminalAccess = res.terminalAccess || this.terminalAccess;
                 this._reloadTerminalFrame(res.proxyPath);
             } else {
                 this.isReconnecting = false;
@@ -337,6 +386,15 @@ class TerminalReconnectManager {
         } catch (error) {
             console.error('Reconnect failed:', error);
             this.isReconnecting = false;
+            if (error?.message?.includes('already open in another viewer')) {
+                this._setBlocked({
+                    state: 'blocked',
+                    ownerViewerLabel: null,
+                    ownerLastSeenAt: null,
+                    canTakeover: true
+                });
+                return;
+            }
             // 無限ループ防止: catchでは再試行せず、ユーザーにリロードを促す
             if (this.retryCount >= this.maxRetries) {
                 showError('ターミナル接続に失敗しました。ページをリロードしてください。');
@@ -353,6 +411,7 @@ class TerminalReconnectManager {
         this.lastDisconnectReason = null;
         this.lastDisconnectAt = null;
         this.lastErrorAt = null;
+        this.terminalAccess = null;
         this._emitStatus();
     }
 }
@@ -383,6 +442,8 @@ export class App {
         this.authManager = null;
         this.mobileInputController = null;
         this._sessionSwitchToken = 0;
+        this.viewerId = getTerminalViewerId();
+        this.viewerLabel = getTerminalViewerLabel();
     }
 
     _isConsoleVisible() {
@@ -451,6 +512,69 @@ export class App {
         updateSessionIndicators(sessionId);
     }
 
+    _getViewerProxyPath(proxyPath) {
+        return appendViewerIdToProxyPath(proxyPath, this.viewerId);
+    }
+
+    _buildTerminalStartPayload(session) {
+        const payload = {
+            sessionId: session.id,
+            initialCommand: session.initialCommand || '',
+            cwd: session.path,
+            engine: session.engine || 'claude',
+            viewerId: this.viewerId,
+            viewerLabel: this.viewerLabel
+        };
+        return payload;
+    }
+
+    async releaseTerminalOwnership(sessionId) {
+        if (!sessionId) return;
+        try {
+            await httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/release-terminal`, {
+                viewerId: this.viewerId
+            });
+        } catch (error) {
+            // best-effort only
+        }
+    }
+
+    async takeOverCurrentTerminal() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+
+        const { sessions } = appStore.getState();
+        const session = (sessions || []).find(item => item.id === sessionId);
+        if (!session) return;
+
+        const payload = {
+            ...this._buildTerminalStartPayload(session),
+            forceTakeover: true
+        };
+
+        try {
+            const res = await httpClient.post('/api/sessions/start', payload);
+            if (res?.proxyPath) {
+                this.reconnectManager?.setCurrentSession(sessionId);
+                if (this.reconnectManager) {
+                    this.reconnectManager.terminalAccess = res.terminalAccess || {
+                        state: 'owner',
+                        ownerViewerLabel: this.viewerLabel,
+                        ownerLastSeenAt: new Date().toISOString(),
+                        canTakeover: false
+                    };
+                }
+                this._terminalLastNavigateAt = Date.now();
+                this.terminalFrame.src = this._getViewerProxyPath(res.proxyPath);
+                this._updateTerminalInputStatus();
+                showInfo('ターミナルを引き継いだよ');
+            }
+        } catch (error) {
+            console.error('Failed to take over terminal:', error);
+            showError('ターミナルの引き継ぎに失敗した');
+        }
+    }
+
     _setTerminalInputStatus({ hidden, stateClass, text, title }) {
         const el = this.terminalInputStatusEl;
         if (!el) return;
@@ -493,6 +617,7 @@ export class App {
         const frameBlank = !frameSrcAttr || frameSrcAttr === 'about:blank';
         const wsConnected = Boolean(this.reconnectManager?.wsConnected);
         const isReconnecting = Boolean(this.reconnectManager?.isReconnecting);
+        const terminalAccess = this.reconnectManager?.terminalAccess || null;
         const isCopyMode = this._terminalCopyModeSessions.has(sessionId);
         const retryCount = this.reconnectManager?.retryCount ?? 0;
         const maxRetries = this.reconnectManager?.maxRetries ?? 3;
@@ -518,6 +643,12 @@ export class App {
                 text = '入力: メニュー表示中';
                 title = 'メニューを閉じるとターミナル入力できます';
             }
+        } else if (terminalAccess?.state === 'blocked') {
+            stateClass = 'blocked';
+            text = buildTerminalBlockedText(terminalAccess);
+            title = terminalAccess?.ownerViewerLabel
+                ? `${terminalAccess.ownerViewerLabel} がこのセッションを表示中。クリックで引き継ぎ`
+                : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
         } else if (isReconnecting) {
             stateClass = 'reconnecting';
             text = `入力: 再接続中 (${retryCount}/${maxRetries})`;
@@ -642,6 +773,11 @@ export class App {
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
 
+            if (this.reconnectManager?.terminalAccess?.state === 'blocked') {
+                void this.takeOverCurrentTerminal();
+                return;
+            }
+
             const sessionId = appStore.getState().currentSessionId;
             if (sessionId && this._terminalCopyModeSessions.has(sessionId)) {
                 // Best-effort: exit tmux copy-mode so input works again.
@@ -679,6 +815,7 @@ export class App {
             if (!sessionId) return;
             if (document.activeElement === this.terminalFrame) return;
             if (this.terminalFrame?.getAttribute?.('src') === 'about:blank') return;
+            if (this.reconnectManager?.terminalAccess?.state === 'blocked') return;
 
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
@@ -1169,6 +1306,7 @@ export class App {
             // Mark previous session's green indicator as read when leaving it
             if (previousSessionId && previousSessionId !== sessionId) {
                 void markDoneAsRead(previousSessionId, sessionId);
+                void this.releaseTerminalOwnership(previousSessionId);
             }
 
             // Update currentSessionId in store
@@ -2129,12 +2267,22 @@ export class App {
 
     async _resolveSessionRuntime(sessionId, session) {
         const currentRuntime = session?.runtimeStatus;
-        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath) {
-            return currentRuntime;
+        const currentAccess = this.reconnectManager?.terminalAccess || null;
+        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath && currentAccess?.state !== 'blocked') {
+            return {
+                runtimeStatus: {
+                    ...currentRuntime,
+                    proxyPath: this._getViewerProxyPath(currentRuntime.proxyPath)
+                },
+                terminalAccess: currentAccess
+            };
         }
 
-        const runtime = await httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/runtime`);
-        return runtime?.runtimeStatus || currentRuntime || null;
+        const runtime = await httpClient.get(buildSessionRuntimeUrl(sessionId, this.viewerId, this.viewerLabel));
+        return {
+            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null,
+            terminalAccess: runtime?.terminalAccess || currentAccess || null
+        };
     }
 
     /**
@@ -2167,30 +2315,42 @@ export class App {
             }
 
             let proxyPath = typeof options.proxyPath === 'string' && options.proxyPath.trim()
-                ? options.proxyPath
+                ? this._getViewerProxyPath(options.proxyPath)
                 : null;
 
             if (proxyPath) {
                 console.log('Using provided proxyPath for session switch:', proxyPath);
             } else {
-                const runtimeStatus = await this._resolveSessionRuntime(sessionId, session);
+                const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+
+                if (terminalAccess?.state === 'blocked') {
+                    console.warn(`[switchSession] Session ${sessionId} is owned by another viewer`);
+                    terminalFrame.src = 'about:blank';
+                    this.reconnectManager?.setCurrentSession(sessionId);
+                    this.reconnectManager._setBlocked?.(terminalAccess);
+                    this._updateTerminalInputStatus();
+                    return;
+                }
+
+                if (this.reconnectManager) {
+                    this.reconnectManager.terminalAccess = terminalAccess || null;
+                }
+
                 if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
-                    proxyPath = runtimeStatus.proxyPath;
+                    proxyPath = this._getViewerProxyPath(runtimeStatus.proxyPath);
                     console.log('Session already running, using existing proxyPath:', proxyPath);
                 }
             }
 
             if (!proxyPath) {
                 // Session not running, start it
-                const res = await httpClient.post('/api/sessions/start', {
-                    sessionId: session.id,
-                    initialCommand: session.initialCommand || '',
-                    cwd: session.path,
-                    engine: session.engine || 'claude'
-                });
+                const res = await httpClient.post('/api/sessions/start', this._buildTerminalStartPayload(session));
 
                 if (res && res.proxyPath) {
-                    proxyPath = res.proxyPath;
+                    if (this.reconnectManager) {
+                        this.reconnectManager.terminalAccess = res.terminalAccess || null;
+                    }
+                    proxyPath = this._getViewerProxyPath(res.proxyPath);
                     console.log('Started session, got proxyPath:', proxyPath);
                 }
             }
@@ -2201,6 +2361,14 @@ export class App {
 
                 // Update reconnect manager with current session
                 this.reconnectManager?.setCurrentSession(sessionId);
+                if (this.reconnectManager?.terminalAccess?.state !== 'blocked') {
+                    this.reconnectManager.terminalAccess = {
+                        state: 'owner',
+                        ownerViewerLabel: this.viewerLabel,
+                        ownerLastSeenAt: new Date().toISOString(),
+                        canTakeover: false
+                    };
+                }
                 this._terminalLastNavigateAt = Date.now();
                 this.focusTerminal('switchSession');
             } else {
@@ -2348,9 +2516,23 @@ export class App {
         if (terminalFrame) {
             this.terminalFrame = terminalFrame;
             this.reconnectManager = new TerminalReconnectManager();
+            this.reconnectManager.setViewerContext({
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
+            });
             this.reconnectManager.init(terminalFrame);
+            const currentSessionId = appStore.getState().currentSessionId;
+            if (currentSessionId) {
+                this.reconnectManager.setCurrentSession(currentSessionId);
+            }
             this.setupTerminalInputUx();
         }
+
+        const onPageHide = () => {
+            void this.releaseTerminalOwnership(appStore.getState().currentSessionId);
+        };
+        window.addEventListener('pagehide', onPageHide);
+        this._terminalInputUxCleanup.push(() => window.removeEventListener('pagehide', onPageHide));
 
         // 7. Start session status polling (every 3 seconds)
         this.pollingIntervalId = startPolling(
@@ -2946,6 +3128,10 @@ export class App {
 
         // Cleanup mobile input controller
         this.mobileInputController?.destroy();
+
+        void this.releaseTerminalOwnership(appStore.getState().currentSessionId);
+        this._terminalInputUxCleanup.forEach(cleanup => cleanup());
+        this._terminalInputUxCleanup = [];
 
         console.log('brainbase-ui destroyed');
     }
