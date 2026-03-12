@@ -22,7 +22,7 @@ if not DATABASE_URL:
     sys.exit(1)
 
 # Paths
-CODEX_BASE = os.path.expanduser('~/workspace/shared/_codex')
+CODEX_BASE = os.path.expanduser('~/workspace/_codex')
 CONTACTS_DIR = os.path.join(CODEX_BASE, 'common/meta/contacts/data')
 
 CSV_FILES = [
