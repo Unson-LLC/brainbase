@@ -1,14 +1,8 @@
 import { Pool } from 'pg';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
+import { normalizeRole, getRoleRank, assertValidRole } from './role-utils.js';
 
-const ROLE_RANK = {
-    member: 1,
-    gm: 2,
-    ceo: 3
-};
-
-const ROLE_VALUES = Object.keys(ROLE_RANK);
 const SENSITIVITY_VALUES = ['internal', 'restricted', 'finance', 'hr', 'contract'];
 const HIGH_SENSITIVITY_VALUES = ['finance', 'hr', 'contract'];
 
@@ -96,22 +90,8 @@ export class InfoSSOTService {
         );
     }
 
-    normalizeRole(role) {
-        return typeof role === 'string' ? role.toLowerCase() : '';
-    }
-
     normalizeSensitivity(value) {
         return typeof value === 'string' ? value.toLowerCase() : '';
-    }
-
-    getRoleRank(role) {
-        return ROLE_RANK[this.normalizeRole(role)] || 0;
-    }
-
-    assertValidRole(role) {
-        if (!ROLE_VALUES.includes(this.normalizeRole(role))) {
-            throw new Error(`Invalid role: ${role}`);
-        }
     }
 
     assertValidSensitivity(value) {
@@ -312,8 +292,8 @@ export class InfoSSOTService {
     }
 
     assertWriteAccess(access, { projectCode, roleMin, sensitivity }) {
-        this.assertValidRole(access.role);
-        this.assertValidRole(roleMin);
+        assertValidRole(access.role);
+        assertValidRole(roleMin);
         this.assertValidSensitivity(sensitivity);
 
         if (!access.projectCodes.includes(projectCode)) {
@@ -322,10 +302,10 @@ export class InfoSSOTService {
         if (!access.clearance.includes(sensitivity)) {
             throw new Error(`Access denied for sensitivity: ${sensitivity}`);
         }
-        if (HIGH_SENSITIVITY_VALUES.includes(sensitivity) && this.getRoleRank(roleMin) < this.getRoleRank('gm')) {
+        if (HIGH_SENSITIVITY_VALUES.includes(sensitivity) && getRoleRank(roleMin) < getRoleRank('gm')) {
             throw new Error('Sensitive data requires role_min gm or ceo');
         }
-        if (this.getRoleRank(access.role) < this.getRoleRank(roleMin)) {
+        if (getRoleRank(access.role) < getRoleRank(roleMin)) {
             throw new Error('Access denied for role');
         }
     }
@@ -370,7 +350,7 @@ export class InfoSSOTService {
     }
 
     async fetchGraphEntities(client, access, { projectCode, entityType, limit }) {
-        const roleRank = this.getRoleRank(access.role);
+        const roleRank = getRoleRank(access.role);
         const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
         const { rows } = await client.query(
             `SELECT ge.*, p.code AS project_code
@@ -414,7 +394,7 @@ export class InfoSSOTService {
     }
 
     async fetchGraphEdges(client, access, { projectCode, relType, fromId, toId, limit }) {
-        const roleRank = this.getRoleRank(access.role);
+        const roleRank = getRoleRank(access.role);
         const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
         const { rows } = await client.query(
             `SELECT ge.*, p.code AS project_code
@@ -435,7 +415,7 @@ export class InfoSSOTService {
     }
 
     async fetchGraphEntitiesByIds(client, access, { ids, projectCode }) {
-        const roleRank = this.getRoleRank(access.role);
+        const roleRank = getRoleRank(access.role);
         if (!ids?.length) return [];
         const { rows } = await client.query(
             `SELECT ge.*, p.code AS project_code
@@ -564,7 +544,7 @@ export class InfoSSOTService {
     }
 
     async createEvent(access, input) {
-        const roleMin = this.normalizeRole(input.roleMin);
+        const roleMin = normalizeRole(input.roleMin);
         const sensitivity = this.normalizeSensitivity(input.sensitivity);
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
@@ -613,7 +593,7 @@ export class InfoSSOTService {
     }
 
     async createDecision(access, input) {
-        const roleMin = this.normalizeRole(input.roleMin);
+        const roleMin = normalizeRole(input.roleMin);
         const sensitivity = this.normalizeSensitivity(input.sensitivity);
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
@@ -756,7 +736,7 @@ export class InfoSSOTService {
     }
 
     async createRaci(access, input) {
-        const roleMin = this.normalizeRole(input.roleMin || input.sensitivityMin || input.roleCode);
+        const roleMin = normalizeRole(input.roleMin || input.sensitivityMin || input.roleCode);
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
@@ -885,7 +865,7 @@ export class InfoSSOTService {
 
     async listDecisions(access, { projectCode, since }) {
         this.assertReady();
-        const roleRank = this.getRoleRank(access.role);
+        const roleRank = getRoleRank(access.role);
         return this.withAccessContext(access, async (client) => {
             const { rows } = await client.query(
                 `SELECT d.*, p.code AS project_code
@@ -906,7 +886,7 @@ export class InfoSSOTService {
 
     async listRaci(access, { projectCode }) {
         this.assertReady();
-        const roleRank = this.getRoleRank(access.role);
+        const roleRank = getRoleRank(access.role);
         return this.withAccessContext(access, async (client) => {
             const { rows } = await client.query(
                 `SELECT r.*, p.code AS project_code
@@ -926,7 +906,7 @@ export class InfoSSOTService {
 
     async listEvents(access, { projectCode, eventType }) {
         this.assertReady();
-        const roleRank = this.getRoleRank(access.role);
+        const roleRank = getRoleRank(access.role);
         return this.withAccessContext(access, async (client) => {
             const { rows } = await client.query(
                 `SELECT e.*, p.code AS project_code
@@ -1066,7 +1046,7 @@ export class InfoSSOTService {
                 throw new Error('Seed is not accessible');
             }
 
-            const roleRank = this.getRoleRank(access.role);
+            const roleRank = getRoleRank(access.role);
             const nodeRows = await client.query(
                 `WITH RECURSIVE node_walk(id, depth) AS (
                     SELECT $2::text AS id, 0 AS depth
@@ -1130,7 +1110,7 @@ export class InfoSSOTService {
         if (!input.term) {
             throw new Error('term is required');
         }
-        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const roleMin = normalizeRole(input.roleMin || 'member');
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
@@ -1212,7 +1192,7 @@ export class InfoSSOTService {
         if (!input.metricName) {
             throw new Error('metricName is required');
         }
-        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const roleMin = normalizeRole(input.roleMin || 'member');
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
@@ -1294,7 +1274,7 @@ export class InfoSSOTService {
         if (!input.title) {
             throw new Error('title is required');
         }
-        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const roleMin = normalizeRole(input.roleMin || 'member');
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
@@ -1395,7 +1375,7 @@ export class InfoSSOTService {
     }
 
     async createAiQuery(access, input) {
-        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const roleMin = normalizeRole(input.roleMin || 'member');
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
@@ -1536,7 +1516,7 @@ export class InfoSSOTService {
     }
 
     async createAiDecisionLog(access, input) {
-        const roleMin = this.normalizeRole(input.roleMin || 'member');
+        const roleMin = normalizeRole(input.roleMin || 'member');
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
             projectCode: input.projectCode,
