@@ -15,10 +15,16 @@ const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
 const TAKEOVER_COOLDOWN_MS = 5000;
 
 export class SessionController {
-    constructor(sessionManager, worktreeService, stateStore) {
+    constructor(sessionManager, worktreeService, stateStore, options = {}) {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
+        this.projectsRoot = typeof options.projectsRoot === 'string' && options.projectsRoot.trim()
+            ? options.projectsRoot
+            : null;
+        this.codeProjectsRoot = typeof options.codeProjectsRoot === 'string' && options.codeProjectsRoot.trim()
+            ? options.codeProjectsRoot
+            : (this.projectsRoot ? path.join(path.dirname(this.projectsRoot), 'code') : null);
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
         this._recentSessionStarts = new Map(); // sessionId -> timestamp
@@ -88,6 +94,94 @@ export class SessionController {
             throw new Error('Invalid path');
         }
         return normalized;
+    }
+
+    async _pathExists(candidatePath) {
+        if (typeof candidatePath !== 'string' || !candidatePath.trim()) {
+            return false;
+        }
+
+        try {
+            await fs.access(candidatePath);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _buildRepoPathCandidates(repoPath, project) {
+        const candidates = [];
+        const seen = new Set();
+        const addCandidate = (candidate) => {
+            if (typeof candidate !== 'string' || !candidate.trim()) return;
+            const normalized = path.normalize(candidate);
+            if (seen.has(normalized)) return;
+            seen.add(normalized);
+            candidates.push(normalized);
+        };
+
+        const normalizedProject = typeof project === 'string' && project.trim()
+            ? project.trim()
+            : null;
+        const normalizedRepoPath = typeof repoPath === 'string' && repoPath.trim()
+            ? path.normalize(repoPath)
+            : null;
+        const repoName = normalizedRepoPath ? path.basename(normalizedRepoPath) : null;
+        const rootCandidates = [this.projectsRoot, this.codeProjectsRoot].filter(Boolean);
+        const pathSegments = new Set();
+
+        const addSegmentVariants = (value) => {
+            if (typeof value !== 'string' || !value.trim()) return;
+            const trimmed = value.trim();
+            const hyphenated = trimmed.replace(/[_\s]+/g, '-');
+            const compact = hyphenated.replace(/-/g, '');
+
+            pathSegments.add(trimmed);
+            pathSegments.add(hyphenated);
+            pathSegments.add(compact);
+        };
+
+        addCandidate(normalizedRepoPath);
+        addSegmentVariants(normalizedProject);
+        addSegmentVariants(repoName);
+
+        if (normalizedRepoPath) {
+            addCandidate(normalizedRepoPath.replace(`${path.sep}projects${path.sep}`, `${path.sep}code${path.sep}`));
+            addCandidate(normalizedRepoPath.replace(`${path.sep}code${path.sep}`, `${path.sep}projects${path.sep}`));
+        }
+
+        for (const rootPath of rootCandidates) {
+            for (const segment of pathSegments) {
+                addCandidate(path.join(rootPath, segment));
+            }
+        }
+
+        return candidates;
+    }
+
+    async _resolveRepoPath(repoPath, project) {
+        const candidates = this._buildRepoPathCandidates(repoPath, project);
+        const existingCandidates = [];
+
+        for (const candidate of candidates) {
+            if (await this._pathExists(candidate)) {
+                existingCandidates.push(candidate);
+            }
+        }
+
+        if (existingCandidates.length === 0) {
+            return repoPath;
+        }
+
+        if (typeof this.worktreeService?._isJujutsuRepo === 'function') {
+            for (const candidate of existingCandidates) {
+                if (await this.worktreeService._isJujutsuRepo(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        return existingCandidates[0];
     }
 
     _isWithinRoot(rootPath, targetPath) {
@@ -571,14 +665,31 @@ export class SessionController {
         const engine = requestEngine || session.engine || 'claude';
 
         try {
+            let restoredWorkspacePath = session.worktree?.path || session.path || session.cwd;
+            const resolvedRepoPath = await this._resolveRepoPath(session.worktree?.repo || null, session.project);
+
             // Restore worktree if it existed
-            if (session.worktree?.repo) {
-                const worktreeResult = await this.worktreeService.create(id, session.worktree.repo);
-                if (!worktreeResult) {
-                    return res.status(500).json({
-                        error: 'Failed to restore worktree',
-                        detail: 'worktreeService.create returned null'
-                    });
+            if (resolvedRepoPath) {
+                try {
+                    const worktreeResult = await this.worktreeService.create(id, resolvedRepoPath);
+                    if (worktreeResult?.worktreePath) {
+                        restoredWorkspacePath = worktreeResult.worktreePath;
+                    } else {
+                        throw new Error('worktreeService.create returned null');
+                    }
+                } catch (worktreeError) {
+                    const fallbackPath = session.worktree?.path || session.path || session.cwd;
+                    if (await this._pathExists(fallbackPath)) {
+                        restoredWorkspacePath = fallbackPath;
+                        console.warn(
+                            `[restore] Failed to recreate worktree for ${id}, reusing existing workspace: ${fallbackPath}. ${worktreeError.message}`
+                        );
+                    } else {
+                        return res.status(500).json({
+                            error: 'Failed to restore worktree',
+                            detail: worktreeError.message
+                        });
+                    }
                 }
             }
 
@@ -586,7 +697,7 @@ export class SessionController {
             this.sessionManager.clearDoneStatus(id);
 
             // Start ttyd session
-            const cwd = session.worktree?.path || session.cwd;
+            const cwd = restoredWorkspacePath;
             const result = await this.sessionManager.startTtyd({
                 sessionId: id,
                 cwd,
@@ -599,7 +710,15 @@ export class SessionController {
                 const updatedSessions = currentState.sessions.map(s => {
                     if (s.id !== id) return s;
                     const { archivedAt, ...rest } = s;
-                    return { ...rest, intendedState: 'active', engine };
+                        return {
+                            ...rest,
+                            path: cwd,
+                            worktree: rest.worktree
+                            ? { ...rest.worktree, repo: resolvedRepoPath, path: cwd }
+                            : rest.worktree,
+                            intendedState: 'active',
+                            engine
+                    };
                 });
                 return { ...currentState, sessions: updatedSessions };
             });
@@ -881,9 +1000,14 @@ ${jjBookmarks}
 
         try {
             this._updateProgress(sessionId, 'worktree', 10, 'ワークスペースを作成中...');
+            const resolvedRepoPath = await this._resolveRepoPath(repoPath, project);
+
+            if (resolvedRepoPath !== repoPath) {
+                console.warn(`[createWithWorktree] Repo path fallback for ${sessionId}: ${repoPath} -> ${resolvedRepoPath}`);
+            }
 
             // Create worktree (skipFetch=trueで2-3秒短縮)
-            const worktreeResult = await this.worktreeService.create(sessionId, repoPath, { skipFetch });
+            const worktreeResult = await this.worktreeService.create(sessionId, resolvedRepoPath, { skipFetch });
 
             if (!worktreeResult) {
                 this._updateProgress(sessionId, 'error', 0, 'ワークスペース作成に失敗');
@@ -906,7 +1030,7 @@ ${jjBookmarks}
                 path: worktreePath,  // 追加: プロジェクト判定に必要
                 project,
                 worktree: {
-                    repo: repoPath,
+                    repo: resolvedRepoPath,
                     path: worktreePath,
                     branch: branchName,
                     startCommit: worktreeResult.startCommit
@@ -948,7 +1072,7 @@ ${jjBookmarks}
                 } catch (rollbackError) {
                     console.error(`[createWithWorktree] Rollback failed:`, rollbackError);
                 }
-                this.worktreeService.remove(sessionId, repoPath).catch(() => {});
+                this.worktreeService.remove(sessionId, resolvedRepoPath).catch(() => {});
                 throw ttydResult.reason;
             }
 

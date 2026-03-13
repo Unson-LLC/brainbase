@@ -13,11 +13,12 @@ import { retroactiveRename } from '../utils/session-name-generator.js';
  * @param {StateStore} stateStore - StateStoreインスタンス
  * @param {boolean} [testMode=false] - テストモードフラグ
  * @param {ConversationLinker} [conversationLinker] - ConversationLinkerインスタンス
+ * @param {Object} [pathOptions={}] - パス解決オプション
  * @returns {express.Router}
  */
-export function createSessionRouter(sessionManager, worktreeService, stateStore, testMode = false, conversationLinker = null) {
+export function createSessionRouter(sessionManager, worktreeService, stateStore, testMode = false, conversationLinker = null, pathOptions = {}) {
     const router = express.Router();
-    const controller = new SessionController(sessionManager, worktreeService, stateStore);
+    const controller = new SessionController(sessionManager, worktreeService, stateStore, pathOptions);
 
     // ========================================
     // Activity & Status

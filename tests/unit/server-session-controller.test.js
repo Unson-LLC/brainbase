@@ -48,8 +48,11 @@ describe('SessionController (Server)', () => {
 
     // Mock WorktreeService
     mockWorktreeService = {
+      create: vi.fn(),
+      remove: vi.fn(),
       getStatus: vi.fn(),
-      autoHealArchiveState: vi.fn()
+      autoHealArchiveState: vi.fn(),
+      _isJujutsuRepo: vi.fn()
     };
 
     // Create SessionController instance
@@ -127,7 +130,7 @@ describe('SessionController (Server)', () => {
       expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
       expect(mockRes.json).toHaveBeenCalledWith({
         port: 40100,
-        proxyPath: `/console/${sessionId}?viewerId=viewer-1`,
+        proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
         startedExisting: true,
         takeoverSkipped: true,
         terminalAccess: {
@@ -191,7 +194,7 @@ describe('SessionController (Server)', () => {
       }));
       expect(mockRes.json).toHaveBeenCalledWith({
         port: 40101,
-        proxyPath: `/console/${sessionId}?viewerId=viewer-1`,
+        proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
         terminalAccess: {
           state: 'owner',
           ownerViewerLabel: 'Local / Mac',
@@ -271,7 +274,7 @@ describe('SessionController (Server)', () => {
         runtimeStatus: {
           ttydRunning: true,
           needsRestart: false,
-          proxyPath: `/console/${sessionId}?viewerId=viewer-1`,
+          proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
           port: 40123
         },
         terminalAccess: {
@@ -297,6 +300,89 @@ describe('SessionController (Server)', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'viewerId is required' });
+    });
+  });
+
+  describe('createWithWorktree', () => {
+    it('staleなrepoPath時_jj repoを優先してfallbackする', async () => {
+      const projectsRoot = path.join(tempDir, 'projects');
+      const codeProjectsRoot = path.join(tempDir, 'code');
+      const staleRepoPath = path.join(projectsRoot, 'tech-knight');
+      const fallbackRepoPath = path.join(projectsRoot, 'techknight');
+      const gitOnlyRepoPath = path.join(codeProjectsRoot, 'tech-knight');
+      const controller = new SessionController(
+        mockSessionManager,
+        mockWorktreeService,
+        mockStateStore,
+        { projectsRoot, codeProjectsRoot }
+      );
+
+      await fs.mkdir(fallbackRepoPath, { recursive: true });
+      await fs.mkdir(gitOnlyRepoPath, { recursive: true });
+
+      mockStateStore.get.mockReturnValue({ sessions: [] });
+      mockStateStore.update.mockResolvedValue({ sessions: [] });
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40124,
+        proxyPath: '/console/session-new'
+      });
+      mockSessionManager.forceTerminalOwnership.mockReturnValue({
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+      mockWorktreeService._isJujutsuRepo.mockImplementation(async (candidate) => candidate === fallbackRepoPath);
+      mockWorktreeService.create.mockResolvedValue({
+        worktreePath: '/tmp/worktrees/session-new-techknight',
+        branchName: 'session/session-new',
+        startCommit: 'abc123'
+      });
+
+      const req = {
+        body: {
+          sessionId: 'session-new',
+          repoPath: staleRepoPath,
+          name: 'New Session',
+          engine: 'codex',
+          project: 'tech-knight',
+          viewerId: 'viewer-1'
+        },
+        headers: {
+          referer: 'http://localhost:31013/',
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+        }
+      };
+
+      await controller.createWithWorktree(req, mockRes);
+
+      expect(mockWorktreeService.create).toHaveBeenCalledWith(
+        'session-new',
+        fallbackRepoPath,
+        { skipFetch: true }
+      );
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-new',
+        cwd: '/tmp/worktrees/session-new-techknight',
+        engine: 'codex'
+      }));
+      expect(mockStateStore.update).toHaveBeenCalledWith(expect.objectContaining({
+        sessions: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'session-new',
+            worktree: expect.objectContaining({
+              repo: fallbackRepoPath,
+              path: '/tmp/worktrees/session-new-techknight'
+            })
+          })
+        ])
+      }));
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: true,
+        proxyPath: '/console/session-new/?viewerId=viewer-1'
+      }));
     });
   });
 
@@ -501,6 +587,61 @@ describe('SessionController (Server)', () => {
         })
       }));
       expect(mockSessionManager.stopTtyd).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('restore', () => {
+    it('repo再作成に失敗しても既存workspaceが残っていれば復元を継続する', async () => {
+      const sessionId = 'session-restore-fallback';
+      const workspacePath = path.join(tempDir, 'restore-workspace');
+      await fs.mkdir(workspacePath, { recursive: true });
+
+      mockStateStore.get.mockReturnValue({
+        sessions: [
+          {
+            id: sessionId,
+            path: workspacePath,
+            initialCommand: 'echo hi',
+            engine: 'claude',
+            intendedState: 'archived',
+            worktree: {
+              repo: '/missing/repo',
+              path: workspacePath
+            }
+          }
+        ]
+      });
+      mockWorktreeService.create = vi.fn().mockRejectedValue(new Error('Directory does not exist: /missing/repo'));
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40100,
+        proxyPath: `/console/${sessionId}`
+      });
+      mockStateStore.update.mockResolvedValue({
+        sessions: [
+          {
+            id: sessionId,
+            path: workspacePath,
+            intendedState: 'active'
+          }
+        ]
+      });
+
+      await sessionController.restore({
+        params: { id: sessionId },
+        body: {}
+      }, mockRes);
+
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith({
+        sessionId,
+        cwd: workspacePath,
+        initialCommand: 'echo hi',
+        engine: 'claude'
+      });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        port: 40100,
+        proxyPath: `/console/${sessionId}`
+      });
     });
   });
 

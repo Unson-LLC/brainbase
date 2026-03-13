@@ -677,7 +677,17 @@ app.use('/api/state', createStateRouter(stateStore, sessionManager, TEST_MODE));
 app.use('/api/config', createConfigRouter(configParser, configService));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser));
-app.use('/api/sessions', createSessionRouter(sessionManager, worktreeService, stateStore, TEST_MODE, conversationLinker));
+app.use('/api/sessions', createSessionRouter(
+    sessionManager,
+    worktreeService,
+    stateStore,
+    TEST_MODE,
+    conversationLinker,
+    {
+        projectsRoot: PROJECTS_ROOT,
+        codeProjectsRoot: path.join(path.dirname(PROJECTS_ROOT), 'code')
+    }
+));
 app.use('/api/brainbase', createBrainbaseRouter({
     taskParser,
     worktreeService,
