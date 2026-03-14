@@ -5,7 +5,7 @@ import argparse
 from pathlib import Path
 import yaml
 
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 POST_DRAFT_DIR = ROOT / "sns/x/05_posts/draft"
 
 

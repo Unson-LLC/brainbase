@@ -35,7 +35,7 @@ export function ensureArray(value) {
 }
 /**
  * Extract ID from file path
- * e.g., /path/to/sato_keigo.md -> sato_keigo
+ * e.g., /path/to/sample-person.md -> sample-person
  */
 export function extractIdFromPath(filePath) {
     const fileName = filePath.split('/').pop() || '';

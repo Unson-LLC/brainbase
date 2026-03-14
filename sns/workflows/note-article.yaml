@@ -18,7 +18,7 @@ steps:
       Save to `_codex/sns/log/dispatch_plan_YYYY-MM-DD.md` if scheduled.
 
   - name: structure_design
-    agent: /Users/ksato/workspace/.claude/skills/note-smart/agents/phase1_structure.md
+    agent: .claude/skills/note-smart/agents/phase1_structure.md
     edit: false
     rules:
       - condition: Structure complete
@@ -28,7 +28,7 @@ steps:
       Save to `_codex/sns/drafts/note_{story_id}_structure.md`.
 
   - name: draft_creation
-    agent: /Users/ksato/workspace/.claude/skills/note-smart/agents/phase2_draft.md
+    agent: .claude/skills/note-smart/agents/phase2_draft.md
     edit: false
     rules:
       - condition: Draft created
@@ -38,7 +38,7 @@ steps:
       Save to `_codex/sns/drafts/note_{story_id}_draft.md`.
 
   - name: editor_review
-    agent: /Users/ksato/workspace/.claude/skills/note-smart/agents/phase2_5_review.md
+    agent: .claude/skills/note-smart/agents/phase2_5_review.md
     edit: false
     rules:
       - condition: Score >= 80
@@ -50,7 +50,7 @@ steps:
       Save to `_codex/sns/drafts/note_{story_id}_reviewed.md`.
 
   - name: finalize
-    agent: /Users/ksato/workspace/.claude/skills/note-smart/agents/phase3_finalize.md
+    agent: .claude/skills/note-smart/agents/phase3_finalize.md
     edit: false
     rules:
       - condition: Finalized

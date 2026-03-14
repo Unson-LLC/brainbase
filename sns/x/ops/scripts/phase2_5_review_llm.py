@@ -139,7 +139,7 @@ def main():
     parser.add_argument("--model", default=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"))
     args = parser.parse_args()
 
-    api_key = os.getenv("ANTHROPIC_API_KEY") or load_env_key(Path("/Users/ksato/workspace/.env"))
+    api_key = os.getenv("ANTHROPIC_API_KEY") or load_env_key(Path.home() / "workspace/.env")
     if not api_key:
         print("Missing ANTHROPIC_API_KEY", file=sys.stderr)
         sys.exit(1)

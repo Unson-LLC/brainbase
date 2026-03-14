@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
 
-load_dotenv("/Users/ksato/workspace/.env")
+load_dotenv(Path.home() / "workspace/.env")
 JST = ZoneInfo("Asia/Tokyo")
 
 TRANSCRIPT_META_RE = re.compile(r"^(speaker\s*\d+(\s+\d{2}:\d{2}(:\d{2})?)?|[\d:]{4,8})\s*$", re.IGNORECASE)
@@ -637,7 +637,7 @@ def build_local_seed_rows(sources: list[tuple[Path, str]], count: int) -> list[d
 
 
 def default_meeting_roots() -> list[Path]:
-    base = Path("/Users/ksato/workspace/projects")
+    base = Path.home() / "workspace/projects"
     if not base.exists():
         return [base]
     roots = [p for p in base.glob("*/meetings") if p.is_dir()]
