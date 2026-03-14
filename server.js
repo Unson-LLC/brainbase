@@ -60,6 +60,7 @@ import { createSetupRouter } from './server/routes/setup.js';
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
 import { requireAuth } from './server/middleware/auth.js';
+import { errorHandler } from './server/middleware/error-handler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -717,6 +718,9 @@ app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRo
 // - SessionRouter: /api/sessions
 // - MiscRouter: /api (version, restart, upload, open-file)
 // ========================================
+
+// Centralized error handler (must be registered after all routes)
+app.use(errorHandler);
 
 // Start server
 const server = app.listen(PORT, async () => {
