@@ -471,6 +471,49 @@ export class SessionController {
         res.json({ success: released, terminalAccess });
     };
 
+    getTerminalSnapshot = async (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
+        const viewerLabel = this._resolveViewerLabel(req, req.query?.viewerLabel);
+        const lines = Math.max(50, Math.min(400, Number.parseInt(req.query?.lines, 10) || 200));
+
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
+
+        const session = this.sessionManager.getSessionById(id);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const ownership = this.sessionManager.ensureTerminalOwnership(id, viewerId, viewerLabel);
+        if (!ownership.allowed) {
+            return res.status(409).json({
+                error: 'Session is already open in another viewer',
+                code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+                terminalAccess: ownership.terminalAccess
+            });
+        }
+
+        try {
+            const text = await this.sessionManager.getContent(id, lines);
+            const copyMode = await this.sessionManager.getPaneMode(id).catch(() => false);
+            res.json({
+                sessionId: id,
+                text,
+                copyMode,
+                capturedAt: new Date().toISOString(),
+                terminalAccess: ownership.terminalAccess
+            });
+        } catch (error) {
+            console.error(`Failed to get terminal snapshot for ${id}:`, error.message);
+            res.status(500).json({ error: error.message || 'Failed to capture terminal snapshot' });
+        }
+    };
+
     // ========================================
     // Process Management
     // ========================================

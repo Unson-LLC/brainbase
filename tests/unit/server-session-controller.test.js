@@ -28,6 +28,9 @@ describe('SessionController (Server)', () => {
       forceTerminalOwnership: vi.fn(),
       getTerminalAccessState: vi.fn(),
       releaseTerminalOwnership: vi.fn(),
+      getContent: vi.fn(),
+      getPaneMode: vi.fn(),
+      isTmuxSessionRunning: vi.fn(),
       _isProcessRunning: vi.fn(),
       resolveSessionWorkspacePath: vi.fn(async (sessionOrId) => {
         if (typeof sessionOrId === 'string') {
@@ -300,6 +303,75 @@ describe('SessionController (Server)', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'viewerId is required' });
+    });
+  });
+
+  describe('getTerminalSnapshot', () => {
+    it('owner viewerのsnapshot取得時_terminal snapshotを返す', async () => {
+      const sessionId = 'session-snapshot';
+      mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+      mockSessionManager.getContent.mockResolvedValue('hello\nworld');
+      mockSessionManager.getPaneMode.mockResolvedValue(true);
+
+      await sessionController.getTerminalSnapshot({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', viewerLabel: 'Local / Mac', lines: '120' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.getContent).toHaveBeenCalledWith(sessionId, 120);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        text: 'hello\nworld',
+        copyMode: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      }));
+    });
+
+    it('blocked viewerのsnapshot取得時_409を返す', async () => {
+      const sessionId = 'session-snapshot-blocked';
+      mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: false,
+        terminalAccess: {
+          state: 'blocked',
+          ownerViewerLabel: 'Cloudflare / Mac',
+          ownerLastSeenAt: '2026-03-14T14:00:00.000Z',
+          canTakeover: true
+        }
+      });
+
+      await sessionController.getTerminalSnapshot({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-2' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(409);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session is already open in another viewer',
+        code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+        terminalAccess: {
+          state: 'blocked',
+          ownerViewerLabel: 'Cloudflare / Mac',
+          ownerLastSeenAt: '2026-03-14T14:00:00.000Z',
+          canTakeover: true
+        }
+      });
     });
   });
 
