@@ -320,6 +320,20 @@ export class TerminalTransportClient {
         this._emitStatus();
     }
 
+    /**
+     * セッション中断（CommandMateのInterruptButtonパターン）
+     * AI処理中にCtrl+Cを送信して中断する
+     */
+    async interrupt() {
+        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        await this._ensureInteractiveMode();
+        this.ws.send(JSON.stringify({
+            type: 'input',
+            inputType: 'key',
+            value: 'C-c'
+        }));
+    }
+
     async resize(cols, rows) {
         if (this.ws?.readyState !== WebSocket.OPEN) return;
         this.ws.send(JSON.stringify({

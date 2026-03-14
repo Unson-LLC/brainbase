@@ -31,6 +31,17 @@ export class MobileInputApiClient {
         });
     }
 
+    /**
+     * セッション中断（Ctrl+C送信）
+     * CommandMateのInterruptButtonパターン
+     */
+    async interruptSession(sessionId) {
+        await this.httpClient.post(`/api/sessions/${sessionId}/input`, {
+            input: 'C-c',
+            type: 'key'
+        });
+    }
+
     async fetchTerminalContent(sessionId, lines = 500) {
         const res = await fetch(`/api/sessions/${sessionId}/content?lines=${lines}`);
         if (!res.ok) throw new Error('Failed to fetch content');
