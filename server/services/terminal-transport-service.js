@@ -1,4 +1,5 @@
 import { WebSocketServer } from 'ws';
+import { detectCliState } from './cli-pattern-detector.js';
 
 const DEFAULT_SNAPSHOT_LINES = 200;
 const DEFAULT_POLL_INTERVAL_MS = 350;
@@ -91,6 +92,7 @@ export class TerminalTransportService {
             closed: false,
             lastSnapshot: null,
             lastCopyMode: null,
+            lastCliState: null,
             pollTimer: null
         };
 
@@ -173,12 +175,17 @@ export class TerminalTransportService {
             }));
         }
 
-        if (snapshot.copyMode !== connection.lastCopyMode) {
+        // CLI状態検出（CommandMateパターン）: ターミナル出力からCLI状態を推定
+        const cliState = detectCliState(snapshot.text);
+
+        if (snapshot.copyMode !== connection.lastCopyMode || cliState !== connection.lastCliState) {
             connection.lastCopyMode = snapshot.copyMode;
+            connection.lastCliState = cliState;
             ws.send(JSON.stringify({
                 type: 'status',
                 mode: 'live',
-                copyMode: snapshot.copyMode
+                copyMode: snapshot.copyMode,
+                cliState
             }));
         }
     }
