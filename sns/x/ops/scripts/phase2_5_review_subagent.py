@@ -12,7 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-load_dotenv("/Users/ksato/workspace/.env")
+load_dotenv(Path.home() / "workspace/.env")
 
 @dataclass
 class ReviewTarget:

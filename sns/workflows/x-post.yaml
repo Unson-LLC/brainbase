@@ -19,7 +19,7 @@ steps:
       Save seed log to `_codex/sns/x/04_ideas/YYYY-MM-DD_seed_sprout.md`.
 
   - name: target_analysis
-    agent: /Users/ksato/workspace/.claude/skills/sns-smart/agents/phase1_target_analysis.md
+    agent: .claude/skills/sns-smart/agents/phase1_target_analysis.md
     edit: false
     rules:
       - condition: Target analysis complete
@@ -29,7 +29,7 @@ steps:
       Save to `_codex/sns/analysis/{story_id}_x_post_target.md`.
 
   - name: draft_creation
-    agent: /Users/ksato/workspace/.claude/skills/sns-smart/agents/phase2_draft_creation.md
+    agent: .claude/skills/sns-smart/agents/phase2_draft_creation.md
     edit: false
     rules:
       - condition: Drafts created
@@ -39,7 +39,7 @@ steps:
       Save to `_codex/sns/drafts/{story_id}_x_post.md`.
 
   - name: style_review
-    agent: /Users/ksato/workspace/.claude/skills/sns-smart/agents/phase2_5_style_review.md
+    agent: .claude/skills/sns-smart/agents/phase2_5_style_review.md
     edit: false
     rules:
       - condition: Score >= 80

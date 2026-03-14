@@ -17,6 +17,6 @@ export declare function parseMarkdownString<T>(content: string): ParsedFile<T>;
 export declare function ensureArray(value: unknown): string[];
 /**
  * Extract ID from file path
- * e.g., /path/to/sato_keigo.md -> sato_keigo
+ * e.g., /path/to/sample-person.md -> sample-person
  */
 export declare function extractIdFromPath(filePath: string): string;

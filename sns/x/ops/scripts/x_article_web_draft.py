@@ -27,7 +27,7 @@ ARTICLE_LIST_URL = "https://x.com/i/articles"
 
 def load_env() -> None:
     env_paths = [
-        Path("/Users/ksato/workspace/.env"),
+        Path.home() / "workspace/.env",
         SCRIPT_DIR.parent.parent / ".env",
     ]
     for env_path in env_paths:

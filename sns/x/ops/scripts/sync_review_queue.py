@@ -16,11 +16,11 @@ try:
     from dotenv import load_dotenv
 
     load_dotenv()
-    load_dotenv("/Users/ksato/workspace/.env", override=False)
+    load_dotenv(Path.home() / "workspace/.env", override=False)
 except Exception:
     pass
 
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 REVIEW_DIR = ROOT / "sns/x/05_posts/review"
 SCHEDULED_DIR = ROOT / "sns/x/05_posts/scheduled"
 QC_DIR = ROOT / "sns/x/ops/qc"

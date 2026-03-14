@@ -14,7 +14,7 @@ import yaml
 
 JST = ZoneInfo("Asia/Tokyo")
 TOLERANCE_MINUTES = 20  # ±20分の範囲でマッチ
-PYTHON_PATH = Path("/Users/ksato/workspace/.venv/bin/python")
+PYTHON_PATH = Path.home() / "workspace/.venv/bin/python"
 SCRIPT_DIR = Path(__file__).parent
 
 
@@ -177,8 +177,10 @@ def execute_post(post: dict, dry_run: bool = False) -> dict:
 
     # 画像がある場合
     image_path = post.get("image")
-    if image_path and Path(image_path).exists():
-        cmd.extend(["--image", image_path])
+    if image_path:
+        resolved_image_path = Path(image_path).expanduser()
+        if resolved_image_path.exists():
+            cmd.extend(["--image", str(resolved_image_path)])
 
     if dry_run:
         cmd.append("--dry-run")

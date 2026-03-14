@@ -17,10 +17,10 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 import yaml
 
-load_dotenv("/Users/ksato/workspace/.env")
+load_dotenv(Path.home() / "workspace/.env")
 
 JST = ZoneInfo("Asia/Tokyo")
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 SEED_OUT_DIR = ROOT / "sns/x/04_ideas"
 DRAFT_DIR = ROOT / "sns/drafts"
 QC_DIR = ROOT / "sns/x/ops/qc"

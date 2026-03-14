@@ -34,8 +34,8 @@ export class ConversationLinker {
 
     /**
      * worktree パスから Claude Code のプロジェクトディレクトリ名を算出
-     * /Users/ksato/workspace/.worktrees/session-XXX-brainbase/
-     * → -Users-ksato-workspace--worktrees-session-XXX-brainbase
+     * /workspace/.worktrees/session-XXX-brainbase/
+     * → -workspace--worktrees-session-XXX-brainbase
      *
      * Claude Code のエンコーディング: / → - 、先頭 / は - に置換
      * 連続の - はそのまま（例: .worktrees → --worktrees は正常）

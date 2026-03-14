@@ -35,6 +35,7 @@ import { InboxParser } from './lib/inbox-parser.js';
 
 // Import services
 import { SessionManager } from './server/services/session-manager.js';
+import { TerminalTransportService } from './server/services/terminal-transport-service.js';
 import { WorktreeService } from './server/services/worktree-service.js';
 import { InfoSSOTService } from './server/services/info-ssot-service.js';
 import { AuthService } from './server/services/auth-service.js';
@@ -466,6 +467,7 @@ const sessionManager = new SessionManager({
     worktreeService,  // Phase 2: Archived session cleanup用
     uiPort: PORT
 });
+const terminalTransportService = new TerminalTransportService({ sessionManager });
 
 const conversationLinker = new ConversationLinker({ stateStore, sessionManager });
 
@@ -727,6 +729,11 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', (request, socket, head) => {
+    if (terminalTransportService.isTerminalTransportRequest(request)) {
+        terminalTransportService.handleUpgrade(request, socket, head);
+        return;
+    }
+
     const { sessionId, viewerId } = getConsoleRequestInfo(request);
     if (!sessionId || !viewerId) {
         socket.write('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n');

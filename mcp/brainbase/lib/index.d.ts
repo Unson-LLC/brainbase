@@ -7,6 +7,6 @@
  *
  * If codex_path is not provided, defaults to:
  *   - CODEX_PATH environment variable, or
- *   - /Users/ksato/workspace/_codex
+ *   - shared/_codex
  */
 export {};

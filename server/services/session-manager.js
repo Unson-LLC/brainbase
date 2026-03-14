@@ -1737,6 +1737,33 @@ export class SessionManager {
         }
     }
 
+    async isTmuxSessionRunning(sessionId) {
+        return await this._isTmuxSessionRunning(sessionId);
+    }
+
+    async getPaneMode(sessionId) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const { stdout } = await this.execPromise(`tmux display-message -p -t "${sessionId}" "#{pane_in_mode}" 2>/dev/null || echo "0"`);
+        return stdout.trim() === '1';
+    }
+
+    async resizeSessionWindow(sessionId, cols, rows) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const safeCols = Math.max(40, Math.min(300, Number(cols) || 0));
+        const safeRows = Math.max(12, Math.min(120, Number(rows) || 0));
+        if (!Number.isFinite(safeCols) || !Number.isFinite(safeRows)) {
+            throw new Error('Invalid terminal size');
+        }
+
+        await this.execPromise(`tmux resize-window -t "${sessionId}" -x ${safeCols} -y ${safeRows}`);
+    }
+
     /**
      * tmux copy-mode scroll
      * @param {string} sessionId - セッションID
