@@ -1,0 +1,338 @@
+# Cloudflare Tunnelでスマホから安全にアクセスする
+
+このガイドでは、Cloudflare Tunnel + Zero Trustを使って、インターネット経由でスマホから安全にBrainbaseにアクセスする方法を解説します。
+
+---
+
+## 📋 目次
+
+1. [前提条件](#前提条件)
+2. [ドメインの準備](#ドメインの準備)
+3. [Cloudflare Tunnel作成](#cloudflare-tunnel作成)
+4. [Zero Trust設定](#zero-trust設定)
+5. [スマホ側の設定](#スマホ側の設定)
+6. [トラブルシューティング](#トラブルシューティング)
+
+---
+
+## 🔑 前提条件
+
+### 必須
+
+- ✅ **独自ドメイン**（Cloudflareで管理されている必要あり）
+- ✅ **Cloudflareアカウント**（無料プランでOK）
+- ✅ **Brainbaseがローカルで起動中**（`npm start`実行済み）
+
+### 任意
+
+- スマホ（iOS/Android）
+
+---
+
+## 🌐 ドメインの準備
+
+Cloudflare Tunnelを使うには、**Cloudflareで管理されているドメイン**が必要です。
+
+### パターン1: Cloudflareで新規購入（推奨）
+
+最も簡単で、設定が自動化されます。
+
+#### メリット
+- ✅ ネームサーバー設定が自動
+- ✅ 原価で購入・更新（.com: 約800円/年）
+- ✅ 隠れた手数料なし
+- ✅ すべてCloudflareで一元管理
+
+#### 手順
+
+1. **Cloudflare Registrarにアクセス**
+   - [Cloudflare Registrar](https://dash.cloudflare.com/?to=/:account/domains/register) にログイン
+
+2. **ドメイン検索**
+   - 希望のドメイン名を検索（例: `your-brainbase.com`）
+   - `.com`, `.net`, `.io` など選択
+
+3. **購入**
+   - カート追加 → 支払い
+   - 自動的にCloudflare DNSに設定される ✅
+
+---
+
+### パターン2: 他社ドメインを移管
+
+すでにお名前.com、Xserver等で取得したドメインを使う場合。
+
+#### 手順
+
+1. **Cloudflareにドメイン追加**
+   - [Cloudflare Dashboard](https://dash.cloudflare.com/) にログイン
+   - "Add a Site" をクリック
+   - ドメイン名を入力（例: `yourdomain.com`）
+   - Freeプランを選択
+
+2. **Cloudflareのネームサーバーをメモ**
+   - 画面に表示される2つのネームサーバーをメモ
+   - 例:
+     ```
+     aliza.ns.cloudflare.com
+     mitch.ns.cloudflare.com
+     ```
+
+3. **元のレジストラでネームサーバー変更**
+
+   **お名前.comの場合**:
+   - お名前.com Naviにログイン
+   - ドメイン設定 → ネームサーバーの設定 → "その他"
+   - Cloudflareのネームサーバーを入力
+
+   **Xserverの場合**:
+   - Xserverアカウントにログイン
+   - ドメイン管理 → ネームサーバー設定 → "その他のサービスで利用する"
+   - Cloudflareのネームサーバーを入力
+
+4. **反映待ち**
+   - 通常5〜10分（最大24時間）
+   - Cloudflareダッシュボードで "Active" になるまで待つ
+
+---
+
+## 🚇 Cloudflare Tunnel作成
+
+### ステップ1: Zero Trustダッシュボードにアクセス
+
+1. [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) にログイン
+2. 初回の場合、**チーム名**を設定
+   - 例: `brainbase-dev`
+   - この名前は後でスマホアプリで使用します
+
+### ステップ2: Tunnelを作成
+
+1. **Tunnelページに移動**
+   - 左サイドバー: `Networks` → `Tunnels`
+   - "Create a tunnel" をクリック
+
+2. **Connectorタイプ選択**
+   - "Cloudflared" を選択
+   - "Next" をクリック
+
+3. **Tunnel名を入力**
+   - 例: `brainbase-local`
+   - "Save tunnel" をクリック
+
+### ステップ3: cloudflaredをインストール
+
+画面に表示されるインストールコマンドをコピー＆実行します。
+
+#### macOS
+
+```bash
+# Homebrewでインストール
+brew install cloudflared
+
+# トークンを使ってサービスをインストール
+sudo cloudflared service install <画面に表示されたトークン>
+```
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+# リポジトリ追加
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-archive-keyring.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-archive-keyring.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list
+
+# インストール
+sudo apt-get update
+sudo apt-get install cloudflared
+
+# サービスインストール
+sudo cloudflared service install <画面に表示されたトークン>
+```
+
+### ステップ4: Public Hostnameを設定
+
+1. **"Next" をクリック**（インストール完了後）
+
+2. **Public hostnameを追加**
+   - **Subdomain**: `brainbase`（任意の名前）
+   - **Domain**: `yourdomain.com`（取得したドメイン）
+   - **Path**: 空欄
+   - **Service**:
+     - Type: `HTTP`
+     - URL: `localhost:31013`
+
+3. **"Save tunnel" をクリック**
+
+✅ これでTunnelが作成されました！`https://brainbase.yourdomain.com` でアクセス可能になります。
+
+---
+
+## 🔒 Zero Trust設定（推奨）
+
+このままでは誰でもアクセス可能です。WARPアプリによる認証を追加します。
+
+### ステップ1: Access Applicationを作成
+
+1. **Accessページに移動**
+   - 左サイドバー: `Access` → `Applications`
+   - "Add an application" をクリック
+
+2. **Self-hostedを選択**
+   - "Self-hosted" をクリック
+
+3. **Application設定**
+   - **Application name**: `Brainbase`
+   - **Session Duration**: `24 hours`（お好みで）
+   - **Application domain**:
+     - Subdomain: `brainbase`
+     - Domain: `yourdomain.com`
+
+4. **"Next" をクリック**
+
+### ステップ2: Policyを設定
+
+1. **Policy名を入力**
+   - 例: `WARP Users Only`
+
+2. **Rule設定**
+   - **Selector**: `WARP`
+   - **Value**: （自動設定）
+
+   または、特定のメールアドレスのみ許可する場合：
+   - **Selector**: `Emails`
+   - **Value**: `your-email@example.com`
+
+3. **"Next" → "Add application" をクリック**
+
+✅ これで、WARPアプリで認証したユーザーのみがアクセス可能になりました！
+
+---
+
+## 📱 スマホ側の設定
+
+### ステップ1: WARPアプリをインストール
+
+- **iOS**: [1.1.1.1: Faster Internet](https://apps.apple.com/app/id1423538627)
+- **Android**: [1.1.1.1: Faster & Safer Internet](https://play.google.com/store/apps/details?id=com.cloudflare.onedotone)
+
+### ステップ2: Zero Trustに接続
+
+1. **アプリを起動**
+
+2. **設定に移動**
+   - 右下の歯車アイコン（設定）をタップ
+   - "Account" をタップ
+
+3. **Zero Trustにログイン**
+   - "Login to Cloudflare Zero Trust" をタップ
+   - **チーム名**を入力（例: `brainbase-dev`）
+   - "Next" をタップ
+
+4. **認証**
+   - メールアドレスを入力
+   - 送られてきたワンタイムコードを入力
+   - または、設定した認証方法でログイン
+
+5. **接続完了**
+   - アカウント名が表示されればOK
+
+### ステップ3: WARPをONにしてアクセス
+
+1. **WARPをON**
+   - ホーム画面のトグルをON
+   - VPNアイコンが表示される
+
+2. **Brainbaseにアクセス**
+   - Safari/Chromeを開く
+   - `https://brainbase.yourdomain.com` にアクセス
+   - 初回のみ認証画面が表示される
+   - 認証後、Brainbaseが表示される ✅
+
+---
+
+## 🔧 トラブルシューティング
+
+### Q1: `https://brainbase.yourdomain.com` にアクセスできない
+
+**確認事項**:
+1. **Brainbaseが起動しているか**
+   ```bash
+   # ローカルで確認
+   curl http://localhost:31013
+   ```
+
+2. **cloudflaredが動作しているか**
+   ```bash
+   # macOS/Linux
+   sudo cloudflared service status
+   ```
+
+3. **Public hostname設定が正しいか**
+   - Cloudflare Zero Trust → Networks → Tunnels
+   - Tunnelの "Configure" をクリック
+   - Service URLが `localhost:31013` になっているか確認
+
+### Q2: 認証画面が表示されない
+
+**原因**: Access Policyが設定されていない
+
+**解決策**:
+- Cloudflare Zero Trust → Access → Applications
+- Brainbaseアプリケーションを確認
+- Policy設定を見直す
+
+### Q3: WARPアプリで「接続できません」エラー
+
+**確認事項**:
+1. **チーム名が正しいか**
+   - WARPアプリ → Settings → Account
+   - チーム名を再入力
+
+2. **デバイスが登録されているか**
+   - Cloudflare Zero Trust → My Team → Devices
+   - デバイスが一覧に表示されているか確認
+
+### Q4: スマホで表示が崩れる
+
+**原因**: モバイル最適化の問題
+
+**解決策**:
+- ブラウザのキャッシュをクリア
+- デスクトップモード表示を試す
+
+### Q5: 接続が遅い
+
+**原因**: Cloudflareの無料プランでは帯域制限がある可能性
+
+**解決策**:
+- Quick Tunnelsを試す（テスト用）
+- または、ローカルネットワーク経由で接続
+
+---
+
+## 📊 比較表: 3つのアクセス方法
+
+| 項目 | ローカルネットワーク | Quick Tunnels | Cloudflare Tunnel + Zero Trust |
+|------|------------------|--------------|------------------------------|
+| **設定の簡単さ** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
+| **セキュリティ** | ⭐⭐ | ⭐ | ⭐⭐⭐ |
+| **外出先からアクセス** | ❌ | ✅ | ✅ |
+| **独自ドメイン** | ❌ | ❌ | ✅ |
+| **認証** | なし | なし | WARPアプリ必須 |
+| **コスト** | 無料 | 無料 | ドメイン代のみ（約800円/年〜） |
+| **用途** | 開発中の確認 | 一時的なテスト | 継続的・本番利用 |
+
+---
+
+## 🔗 参考リンク
+
+- [Cloudflare Tunnel公式ドキュメント](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
+- [Cloudflare Registrar](https://www.cloudflare.com/ja-jp/application-services/solutions/low-cost-domain-names/)
+- [WARP設定ガイド](https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/set-up-warp/)
+- [個人開発でドメイン取るなら Cloudflare Registrar にしておけ](https://izanami.dev/post/c61ac13b-56a5-4f21-af36-c0a04883e6cc)
+- [Cloudflare Tunnel 構築ガイド（日本語）](https://qiita.com/b-wind/items/d47eb0e9aef33a3b4327)
+
+---
+
+**作成日**: 2025-12-31
+**最終更新**: 2025-12-31
+**ステータス**: Active
