@@ -29,6 +29,7 @@ export class SessionManager {
         this.activeSessions = new Map(); // sessionId -> { port, process }
         this.hookStatus = new Map(); // sessionId -> { status, timestamp, lastWorkingAt, lastDoneAt, lastActivityAt, lastEventType, activeTurnIds }
         this.startLocks = new Map(); // sessionId -> Promise (並行起動防止ロック)
+        this.terminalOwners = new Map(); // sessionId -> { viewerId, viewerLabel, claimedAt, lastSeenAt }
         // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
@@ -44,6 +45,126 @@ export class SessionManager {
 
         // 許可されたキー
         this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab'];
+        this.TERMINAL_OWNER_TTL_MS = 10 * 60 * 1000;
+    }
+
+    _normalizeViewerId(viewerId) {
+        if (typeof viewerId !== 'string') return null;
+        const normalized = viewerId.trim();
+        return normalized || null;
+    }
+
+    _normalizeViewerLabel(viewerLabel) {
+        if (typeof viewerLabel !== 'string') return null;
+        const normalized = viewerLabel.trim();
+        return normalized || null;
+    }
+
+    _getTerminalOwnerEntry(sessionId) {
+        const owner = this.terminalOwners.get(sessionId);
+        if (!owner) return null;
+
+        if (Date.now() - owner.lastSeenAt > this.TERMINAL_OWNER_TTL_MS) {
+            this.terminalOwners.delete(sessionId);
+            return null;
+        }
+
+        return owner;
+    }
+
+    _buildTerminalAccessState(owner, viewerId) {
+        if (!owner) {
+            return {
+                state: 'available',
+                ownerViewerLabel: null,
+                ownerLastSeenAt: null,
+                canTakeover: false
+            };
+        }
+
+        const isOwner = owner.viewerId === viewerId;
+        return {
+            state: isOwner ? 'owner' : 'blocked',
+            ownerViewerLabel: owner.viewerLabel || null,
+            ownerLastSeenAt: new Date(owner.lastSeenAt).toISOString(),
+            canTakeover: !isOwner
+        };
+    }
+
+    getTerminalAccessState(sessionId, viewerId) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        return this._buildTerminalAccessState(owner, normalizedViewerId);
+    }
+
+    claimTerminalOwnership(sessionId, viewerId, viewerLabel) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) return null;
+
+        const now = Date.now();
+        const owner = {
+            viewerId: normalizedViewerId,
+            viewerLabel: this._normalizeViewerLabel(viewerLabel),
+            claimedAt: now,
+            lastSeenAt: now
+        };
+        this.terminalOwners.set(sessionId, owner);
+        return owner;
+    }
+
+    touchTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) return null;
+
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        if (!owner || owner.viewerId !== normalizedViewerId) {
+            return null;
+        }
+
+        owner.lastSeenAt = Date.now();
+        if (viewerLabel) {
+            owner.viewerLabel = this._normalizeViewerLabel(viewerLabel);
+        }
+        this.terminalOwners.set(sessionId, owner);
+        return owner;
+    }
+
+    ensureTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) {
+            return { allowed: false, terminalAccess: this._buildTerminalAccessState(this._getTerminalOwnerEntry(sessionId), normalizedViewerId) };
+        }
+
+        const currentOwner = this._getTerminalOwnerEntry(sessionId);
+        if (!currentOwner) {
+            const owner = this.claimTerminalOwnership(sessionId, normalizedViewerId, viewerLabel);
+            return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+        }
+
+        if (currentOwner.viewerId === normalizedViewerId) {
+            const owner = this.touchTerminalOwnership(sessionId, normalizedViewerId, viewerLabel) || currentOwner;
+            return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+        }
+
+        return { allowed: false, owner: currentOwner, terminalAccess: this._buildTerminalAccessState(currentOwner, normalizedViewerId) };
+    }
+
+    forceTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const owner = this.claimTerminalOwnership(sessionId, viewerId, viewerLabel);
+        return {
+            allowed: Boolean(owner),
+            owner,
+            terminalAccess: this._buildTerminalAccessState(owner, this._normalizeViewerId(viewerId))
+        };
+    }
+
+    releaseTerminalOwnership(sessionId, viewerId, { force = false } = {}) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        if (!owner) return false;
+        if (!force && owner.viewerId !== normalizedViewerId) return false;
+        this.terminalOwners.delete(sessionId);
+        return true;
     }
 
     /**
@@ -956,16 +1077,20 @@ export class SessionManager {
      * @returns {{ttydRunning: boolean, needsRestart: boolean}}
      */
     getRuntimeStatus(session) {
-        const activeEntry = this.activeSessions.get(session.id);
+        const sessionId = session?.id;
+        const activeEntry = this.activeSessions.get(session?.id);
         const activePid = activeEntry?.process?.pid || activeEntry?.pid;
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
         const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
         const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        const port = activeEntry?.port || session?.ttydProcess?.port || null;
 
         return {
             ttydRunning,
-            needsRestart
+            needsRestart,
+            proxyPath: ttydRunning && sessionId ? `/console/${sessionId}` : null,
+            port
         };
     }
 
@@ -978,23 +1103,12 @@ export class SessionManager {
         const state = this.stateStore.get();
         const session = (state.sessions || []).find(s => s.id === sessionId);
         if (!session) return null;
-
-        const activeEntry = this.activeSessions.get(sessionId);
-        const activePid = activeEntry?.process?.pid || activeEntry?.pid;
-        const persistedPid = session?.ttydProcess?.pid;
-        const pidToCheck = activePid || persistedPid;
-        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
-        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        const runtimeStatus = this.getRuntimeStatus(session);
 
         return {
             ...session,
-            ttydRunning,
-            runtimeStatus: {
-                ttydRunning,
-                needsRestart,
-                proxyPath: ttydRunning ? `/console/${sessionId}` : null,
-                port: activeEntry?.port || null
-            }
+            ttydRunning: runtimeStatus.ttydRunning,
+            runtimeStatus
         };
     }
 
@@ -1220,6 +1334,7 @@ export class SessionManager {
             // Preserve tmux on ttyd exit. tmux lifecycle is managed explicitly (archive/delete/TTL).
             await this._clearTtydProcessInfoIfMatches(sessionId, ttyd.pid);
             this.activeSessions.delete(sessionId);
+            this.releaseTerminalOwnership(sessionId, null, { force: true });
         });
 
         // activeSessionsにpidも保存（復旧時の型統一のため）
@@ -1345,6 +1460,7 @@ export class SessionManager {
             }
 
             this.activeSessions.delete(sessionId);
+            this.releaseTerminalOwnership(sessionId, null, { force: true });
             // hookStatusは保持（'done'ステータスを保持するため）
             // this.hookStatus.delete(sessionId);
             return true;

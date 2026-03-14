@@ -32,13 +32,28 @@ describe('app switchSession runtime handling', () => {
     const html = readFileSync(htmlPath, 'utf-8');
     const dom = new JSDOM(html, { url: 'http://localhost:31013/' });
     document.body.innerHTML = dom.window.document.body.innerHTML;
+    Object.defineProperty(window, 'localStorage', {
+      value: {
+        getItem: vi.fn(() => null),
+        setItem: vi.fn(),
+        removeItem: vi.fn()
+      },
+      configurable: true
+    });
+    Object.defineProperty(window, 'sessionStorage', {
+      value: {
+        getItem: vi.fn(() => 'viewer-test'),
+        setItem: vi.fn(),
+        removeItem: vi.fn()
+      },
+      configurable: true
+    });
 
     const { createApp } = await import('../../../public/app.js');
     app = createApp();
-    app.reconnectManager = { setCurrentSession: vi.fn() };
     app.focusTerminal = vi.fn();
 
-    vi.spyOn(httpClient, 'get').mockResolvedValue({ sessions: [] });
+    vi.spyOn(httpClient, 'get').mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
     vi.spyOn(httpClient, 'post').mockResolvedValue({ proxyPath: '/console/session-1' });
   });
 
@@ -48,6 +63,8 @@ describe('app switchSession runtime handling', () => {
   });
 
   it('uses runtimeStatus proxyPath without starting ttyd again', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+
     appStore.setState({
       currentSessionId: null,
       sessions: [{
@@ -58,7 +75,7 @@ describe('app switchSession runtime handling', () => {
         intendedState: 'active',
         runtimeStatus: {
           ttydRunning: true,
-          proxyPath: '/console/session-1'
+          proxyPath: '/console/session-1?viewerId=viewer-test'
         }
       }]
     });
@@ -68,11 +85,13 @@ describe('app switchSession runtime handling', () => {
     await app.switchSession('session-1');
 
     expect(httpClient.post).not.toHaveBeenCalled();
-    expect(terminalFrame.src.endsWith('/console/session-1')).toBe(true);
+    expect(terminalFrame.src.endsWith('/console/session-1?viewerId=viewer-test')).toBe(true);
     expect(app.reconnectManager.setCurrentSession).toHaveBeenCalledWith('session-1');
   });
 
   it('starts ttyd when runtimeStatus is missing', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+
     appStore.setState({
       currentSessionId: null,
       sessions: [{
@@ -85,22 +104,170 @@ describe('app switchSession runtime handling', () => {
     });
 
     httpClient.get.mockResolvedValue({
-      sessions: [{
-        id: 'session-1',
-        runtimeStatus: {
-          ttydRunning: false,
-          proxyPath: null
-        }
-      }]
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
     });
 
     await app.switchSession('session-1');
 
-    expect(httpClient.get).toHaveBeenCalledWith('/api/state');
+    expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
     expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
       sessionId: 'session-1',
-      engine: 'codex'
+      engine: 'codex',
+      viewerId: 'viewer-test'
     }));
+  });
+
+  it('reconnect reuses existing proxyPath without triggering takeover', async () => {
+    await app.start();
+    app.focusTerminal = vi.fn();
+    vi.clearAllMocks();
+    httpClient.get.mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    httpClient.post.mockResolvedValue({ proxyPath: '/console/session-1' });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active',
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: '/console/session-1?viewerId=viewer-test'
+        }
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    terminalFrame.src = 'http://localhost:31013/console/session-1?viewerId=viewer-test';
+    app.reconnectManager.terminalFrame = terminalFrame;
+    app.reconnectManager.setCurrentSession('session-1');
+
+    await app.reconnectManager.reconnect();
+    await new Promise(resolve => setTimeout(resolve, 70));
+
+    expect(httpClient.get).not.toHaveBeenCalledWith('/api/sessions/session-1/runtime');
+    expect(httpClient.post).not.toHaveBeenCalled();
+    expect(terminalFrame.src.endsWith('/console/session-1?viewerId=viewer-test')).toBe(true);
+  });
+
+  it('reconnect starts ttyd only when runtimeStatus says it is down', async () => {
+    await app.start();
+    app.focusTerminal = vi.fn();
+    vi.clearAllMocks();
+    httpClient.get.mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    httpClient.post.mockResolvedValue({ proxyPath: '/console/session-1' });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    app.reconnectManager.terminalFrame = terminalFrame;
+    app.reconnectManager.setCurrentSession('session-1');
+
+    httpClient.get.mockResolvedValue({
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
+    });
+
+    await app.reconnectManager.reconnect();
+
+    expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+      sessionId: 'session-1',
+      engine: 'codex',
+      viewerId: 'viewer-test'
+    }));
+  });
+
+  it('reconnect runtime lookup失敗時_startせず再接続嵐を増やさない', async () => {
+    await app.start();
+    app.focusTerminal = vi.fn();
+    vi.clearAllMocks();
+    httpClient.get.mockResolvedValue({ runtimeStatus: null, terminalAccess: null });
+    httpClient.post.mockResolvedValue({ proxyPath: '/console/session-1' });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    app.reconnectManager.terminalFrame = terminalFrame;
+    app.reconnectManager.setCurrentSession('session-1');
+    httpClient.get.mockRejectedValue(new Error('runtime lookup failed'));
+
+    await app.reconnectManager.reconnect();
+
+    expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
+    expect(httpClient.post).not.toHaveBeenCalled();
+  });
+
+  it('blocked runtime時_takeover前はstartせずabout:blankに留める', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null, _setBlocked: vi.fn() };
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    httpClient.get.mockResolvedValue({
+      runtimeStatus: {
+        ttydRunning: true,
+        proxyPath: null
+      },
+      terminalAccess: {
+        state: 'blocked',
+        ownerViewerLabel: 'Cloudflare / Mac',
+        ownerLastSeenAt: '2026-03-11T00:00:00.000Z',
+        canTakeover: true
+      }
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    await app.switchSession('session-1');
+
+    expect(httpClient.post).not.toHaveBeenCalled();
+    expect(terminalFrame.src).toBe('about:blank');
+    expect(app.reconnectManager._setBlocked).toHaveBeenCalled();
   });
 
   it('updates session UI state when attention changes while transport stays connected', async () => {

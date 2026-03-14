@@ -33,6 +33,7 @@ describe('app task start flow (app.js integration)', () => {
     const html = readFileSync(htmlPath, 'utf-8');
     const dom = new JSDOM(html);
     document.body.innerHTML = dom.window.document.body.innerHTML;
+    window.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
 
     const { createApp } = await import('../../../public/app.js');
     app = createApp();
@@ -59,7 +60,8 @@ describe('app task start flow (app.js integration)', () => {
       updateSession: vi.fn(async () => {}),
       deleteSession: vi.fn(async () => {}),
       pauseSession: vi.fn(async () => {}),
-      resumeSession: vi.fn(async () => {})
+      resumeSession: vi.fn(async () => {}),
+      refreshSessionUiSummaries: vi.fn(async () => ({}))
     };
 
     app.taskService = mockTaskService;
@@ -115,5 +117,32 @@ describe('app task start flow (app.js integration)', () => {
     await vi.waitFor(() => {
       expect(app.taskService.updateTask).toHaveBeenCalledWith('task-1', expect.any(Object));
     });
+  });
+
+  it('SESSION_CHANGED時_terminal切替をloadSessionData完了より先に返す', async () => {
+    let resolveLoadData;
+    app.switchSession = vi.fn(async () => {});
+    app.loadSessionData = vi.fn(() => new Promise((resolve) => {
+      resolveLoadData = resolve;
+    }));
+    app.showConsole = vi.fn();
+    app.focusTerminal = vi.fn();
+
+    const result = await Promise.race([
+      eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: 'session-1', proxyPath: null }),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 50))
+    ]);
+
+    expect(result).not.toBe('timeout');
+    expect(app.switchSession).toHaveBeenCalledWith('session-1', { proxyPath: null });
+    expect(app.showConsole).toHaveBeenCalled();
+    expect(app.focusTerminal).toHaveBeenCalledWith('session-changed');
+    expect(app.loadSessionData).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      expect(app.loadSessionData).toHaveBeenCalledWith('session-1');
+    });
+
+    resolveLoadData?.();
   });
 });

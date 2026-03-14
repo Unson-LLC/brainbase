@@ -10,10 +10,12 @@ export class SessionContextBarView {
     constructor({ sessionService, pollIntervalMs = 8000 }) {
         this.sessionService = sessionService;
         this.pollIntervalMs = pollIntervalMs;
+        this.switchDelayMs = 150;
         this.container = null;
         this._requestId = 0;
         this._unsubscribers = [];
         this._pollTimer = null;
+        this._refreshTimer = null;
         this._expanded = false;
         this._currentContext = null;
         this._refreshTimer = null;
@@ -30,7 +32,7 @@ export class SessionContextBarView {
     _setupEventListeners() {
         const unsub1 = appStore.subscribeToSelector(
             (state) => state.currentSessionId,
-            () => this._scheduleRefresh({ forceLoading: false, delayMs: 120 })
+            () => this._scheduleRefresh({ forceLoading: false, delayMs: this.switchDelayMs })
         );
 
         const refresh = () => this.refresh();
@@ -57,23 +59,16 @@ export class SessionContextBarView {
     }
 
     _scheduleRefresh(options = {}) {
-        const { delayMs = 0, forceLoading = false } = options;
+        const { forceLoading = false, delayMs = 0 } = options;
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
             this._refreshTimer = null;
         }
 
-        const run = () => {
+        this._refreshTimer = setTimeout(() => {
             this._refreshTimer = null;
-            this.refresh({ forceLoading });
-        };
-
-        if (delayMs <= 0) {
-            run();
-            return;
-        }
-
-        this._refreshTimer = setTimeout(run, delayMs);
+            void this.refresh({ forceLoading });
+        }, delayMs);
     }
 
     _shortPath(pathValue) {

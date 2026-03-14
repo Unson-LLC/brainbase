@@ -43,6 +43,15 @@ describe('SessionService', () => {
     let mockSessions;
 
     beforeEach(() => {
+        Object.defineProperty(window, 'sessionStorage', {
+            value: {
+                getItem: vi.fn(() => 'viewer-test'),
+                setItem: vi.fn(),
+                removeItem: vi.fn()
+            },
+            configurable: true
+        });
+
         // テストデータ準備
         mockSessions = [
             {
@@ -124,7 +133,8 @@ describe('SessionService', () => {
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
                 sessionId: expect.any(String),
                 cwd: expect.stringContaining('project-a'),
-                engine: 'claude'
+                engine: 'claude',
+                viewerId: 'viewer-test'
             }));
             expect(addSession).toHaveBeenCalled();
             expect(httpClient.get).toHaveBeenCalledWith('/api/state');
@@ -158,12 +168,14 @@ describe('SessionService', () => {
 
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/create-with-worktree', expect.objectContaining({
                 sessionId: expect.any(String),
-                repoPath: expect.stringContaining('project-a')
+                repoPath: expect.stringContaining('project-a'),
+                viewerId: 'viewer-test'
             }));
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
                 sessionId: expect.any(String),
                 cwd: expect.stringContaining('project-a'),
-                engine: 'claude'
+                engine: 'claude',
+                viewerId: 'viewer-test'
             }));
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.reason).toBe('Not a git repo');

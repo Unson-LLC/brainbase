@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionContextBarView } from '../../public/modules/ui/views/session-context-bar-view.js';
 
 vi.mock('../../public/modules/core/store.js', () => ({
@@ -40,11 +40,16 @@ describe('SessionContextBarView', () => {
     });
 
     beforeEach(() => {
+        vi.useFakeTimers();
         view = new SessionContextBarView({
             sessionService: { getSessionContext: vi.fn() }
         });
         container = document.createElement('div');
         view.container = container;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it('workspaceとcurrentが不一致のとき_常時警告バッジを表示する', () => {
@@ -68,5 +73,20 @@ describe('SessionContextBarView', () => {
         }));
 
         expect(container.innerHTML).not.toContain('cwd!=workspace');
+    });
+
+    it('session切替時_context取得を即時実行せず短く遅延させる', async () => {
+        const getSessionContext = vi.fn().mockResolvedValue(createContext());
+        view = new SessionContextBarView({ sessionService: { getSessionContext } });
+        view.container = container;
+
+        view._scheduleRefresh({ forceLoading: false, delayMs: view.switchDelayMs });
+        expect(getSessionContext).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(view.switchDelayMs - 1);
+        expect(getSessionContext).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(getSessionContext).toHaveBeenCalledWith('session-1');
     });
 });

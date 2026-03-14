@@ -13,15 +13,67 @@ const DEFAULT_TREE_DEPTH = 2;
 const MAX_TREE_ENTRIES = 200;
 const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
 const UI_SUMMARY_TTL_MS = 10_000;
+const TAKEOVER_COOLDOWN_MS = 5000;
 
 export class SessionController {
-    constructor(sessionManager, worktreeService, stateStore) {
+    constructor(sessionManager, worktreeService, stateStore, options = {}) {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
+        this.projectsRoot = typeof options.projectsRoot === 'string' && options.projectsRoot.trim()
+            ? options.projectsRoot
+            : null;
+        this.codeProjectsRoot = typeof options.codeProjectsRoot === 'string' && options.codeProjectsRoot.trim()
+            ? options.codeProjectsRoot
+            : (this.projectsRoot ? path.join(path.dirname(this.projectsRoot), 'code') : null);
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
         this._uiSummaryCache = new Map();
+        this._recentSessionStarts = new Map(); // sessionId -> timestamp
+    }
+
+    _resolveViewerLabel(req, explicitLabel) {
+        if (typeof explicitLabel === 'string' && explicitLabel.trim()) {
+            return explicitLabel.trim();
+        }
+
+        const referer = String(req?.headers?.referer || '');
+        const ua = String(req?.headers?.['user-agent'] || '');
+
+        const originLabel = referer.includes('localhost') || referer.includes('127.0.0.1')
+            ? 'Local'
+            : 'Cloudflare';
+
+        let deviceLabel = 'Desktop';
+        if (/iPhone/i.test(ua)) {
+            deviceLabel = 'iPhone';
+        } else if (/iPad/i.test(ua)) {
+            deviceLabel = 'iPad';
+        } else if (/Mac/i.test(ua)) {
+            deviceLabel = 'Mac';
+        } else if (/Windows/i.test(ua)) {
+            deviceLabel = 'Windows';
+        } else if (/Android/i.test(ua)) {
+            deviceLabel = 'Android';
+        }
+
+        return `${originLabel} / ${deviceLabel}`;
+    }
+
+    _appendViewerIdToProxyPath(proxyPath, viewerId) {
+        if (typeof proxyPath !== 'string' || !proxyPath.trim() || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return proxyPath;
+        }
+
+        const normalizedPath = /^\/console\/[^/?#]+$/.test(proxyPath)
+            ? `${proxyPath}/`
+            : proxyPath;
+
+        if (normalizedPath.includes('viewerId=')) {
+            return normalizedPath;
+        }
+        const separator = normalizedPath.includes('?') ? '&' : '?';
+        return `${normalizedPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
     }
 
     _parseTreeDepth(rawDepth) {
@@ -44,6 +96,94 @@ export class SessionController {
             throw new Error('Invalid path');
         }
         return normalized;
+    }
+
+    async _pathExists(candidatePath) {
+        if (typeof candidatePath !== 'string' || !candidatePath.trim()) {
+            return false;
+        }
+
+        try {
+            await fs.access(candidatePath);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _buildRepoPathCandidates(repoPath, project) {
+        const candidates = [];
+        const seen = new Set();
+        const addCandidate = (candidate) => {
+            if (typeof candidate !== 'string' || !candidate.trim()) return;
+            const normalized = path.normalize(candidate);
+            if (seen.has(normalized)) return;
+            seen.add(normalized);
+            candidates.push(normalized);
+        };
+
+        const normalizedProject = typeof project === 'string' && project.trim()
+            ? project.trim()
+            : null;
+        const normalizedRepoPath = typeof repoPath === 'string' && repoPath.trim()
+            ? path.normalize(repoPath)
+            : null;
+        const repoName = normalizedRepoPath ? path.basename(normalizedRepoPath) : null;
+        const rootCandidates = [this.projectsRoot, this.codeProjectsRoot].filter(Boolean);
+        const pathSegments = new Set();
+
+        const addSegmentVariants = (value) => {
+            if (typeof value !== 'string' || !value.trim()) return;
+            const trimmed = value.trim();
+            const hyphenated = trimmed.replace(/[_\s]+/g, '-');
+            const compact = hyphenated.replace(/-/g, '');
+
+            pathSegments.add(trimmed);
+            pathSegments.add(hyphenated);
+            pathSegments.add(compact);
+        };
+
+        addCandidate(normalizedRepoPath);
+        addSegmentVariants(normalizedProject);
+        addSegmentVariants(repoName);
+
+        if (normalizedRepoPath) {
+            addCandidate(normalizedRepoPath.replace(`${path.sep}projects${path.sep}`, `${path.sep}code${path.sep}`));
+            addCandidate(normalizedRepoPath.replace(`${path.sep}code${path.sep}`, `${path.sep}projects${path.sep}`));
+        }
+
+        for (const rootPath of rootCandidates) {
+            for (const segment of pathSegments) {
+                addCandidate(path.join(rootPath, segment));
+            }
+        }
+
+        return candidates;
+    }
+
+    async _resolveRepoPath(repoPath, project) {
+        const candidates = this._buildRepoPathCandidates(repoPath, project);
+        const existingCandidates = [];
+
+        for (const candidate of candidates) {
+            if (await this._pathExists(candidate)) {
+                existingCandidates.push(candidate);
+            }
+        }
+
+        if (existingCandidates.length === 0) {
+            return repoPath;
+        }
+
+        if (typeof this.worktreeService?._isJujutsuRepo === 'function') {
+            for (const candidate of existingCandidates) {
+                if (await this.worktreeService._isJujutsuRepo(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        return existingCandidates[0];
     }
 
     _isWithinRoot(rootPath, targetPath) {
@@ -281,6 +421,56 @@ export class SessionController {
         });
     };
 
+    /**
+     * GET /api/sessions/:id/runtime
+     * 特定セッションの軽量ランタイム状態を取得
+     */
+    getRuntime = (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
+        const viewerLabel = this._resolveViewerLabel(req, req.query?.viewerLabel);
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
+
+        const session = this.sessionManager.getSessionById(id);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const ownership = this.sessionManager.ensureTerminalOwnership(id, viewerId, viewerLabel);
+        const runtimeStatus = {
+            ...(session.runtimeStatus || {}),
+            proxyPath: ownership.allowed
+                ? this._appendViewerIdToProxyPath(session.runtimeStatus?.proxyPath || null, viewerId)
+                : null
+        };
+
+        res.json({
+            sessionId: id,
+            runtimeStatus,
+            terminalAccess: ownership.terminalAccess
+        });
+    };
+
+    releaseTerminal = (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.body?.viewerId === 'string' ? req.body.viewerId.trim() : '';
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
+
+        const released = this.sessionManager.releaseTerminalOwnership(id, viewerId);
+        const terminalAccess = this.sessionManager.getTerminalAccessState(id, viewerId);
+        res.json({ success: released, terminalAccess });
+    };
+
     // ========================================
     // Process Management
     // ========================================
@@ -290,12 +480,16 @@ export class SessionController {
      * ttydプロセスを起動
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine } = req.body;
+        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false } = req.body;
+        const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
         console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
+        }
+        if (!viewerId || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return res.status(400).json({ error: 'viewerId is required' });
         }
 
         // アーカイブ済みセッションの起動を拒否
@@ -310,11 +504,46 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
+            const ownership = forceTakeover
+                ? this.sessionManager.forceTerminalOwnership(sessionId, viewerId, viewerLabel)
+                : this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+
+            if (!ownership.allowed) {
+                return res.status(409).json({
+                    error: 'Session is already open in another viewer',
+                    code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+                    terminalAccess: ownership.terminalAccess
+                });
+            }
+
             // テイクオーバー: 既存ttydが起動中なら再起動して新クライアントに接続を譲る
             const existingSession = this.sessionManager.activeSessions.get(sessionId);
             if (existingSession) {
                 const pid = existingSession.process?.pid || existingSession.pid;
                 if (pid && this.sessionManager._isProcessRunning(pid)) {
+                    if (!forceTakeover) {
+                        return res.json({
+                            port: existingSession.port,
+                            proxyPath: this._appendViewerIdToProxyPath(`/console/${sessionId}`, viewerId),
+                            startedExisting: true,
+                            takeoverSkipped: true,
+                            terminalAccess: ownership.terminalAccess
+                        });
+                    }
+
+                    const lastStartedAt = this._recentSessionStarts.get(sessionId) || 0;
+                    const startedAgoMs = Date.now() - lastStartedAt;
+                    if (startedAgoMs >= 0 && startedAgoMs < TAKEOVER_COOLDOWN_MS) {
+                        console.log(`[takeover] Session ${sessionId}: skipped restart during cooldown (${startedAgoMs}ms since last start)`);
+                        return res.json({
+                            port: existingSession.port,
+                            proxyPath: this._appendViewerIdToProxyPath(`/console/${sessionId}`, viewerId),
+                            startedExisting: true,
+                            takeoverSkipped: true,
+                            terminalAccess: ownership.terminalAccess
+                        });
+                    }
+
                     console.log(`[takeover] Session ${sessionId}: restarting ttyd for new client (killing pid ${pid})`);
                     await this.sessionManager.stopTtyd(sessionId, { preserveTmux: true });
                     await new Promise(resolve => setTimeout(resolve, 300));
@@ -340,6 +569,7 @@ export class SessionController {
 
             // ttydプロセス起動
             const result = await this.sessionManager.startTtyd(startOptions);
+            this._recentSessionStarts.set(sessionId, Date.now());
 
             // intendedState を active に更新（engine も反映）（リトライ付き）
             await this._updateStateWithRetry((currentState) => {
@@ -354,7 +584,11 @@ export class SessionController {
                 return { ...currentState, sessions: updatedSessions };
             });
 
-            res.json(result);
+            res.json({
+                ...result,
+                proxyPath: this._appendViewerIdToProxyPath(result.proxyPath, viewerId),
+                terminalAccess: ownership.terminalAccess
+            });
         } catch (error) {
             console.error('Failed to start session:', error);
             res.status(500).json({ error: error.message || 'Failed to allocate port' });
@@ -497,14 +731,31 @@ export class SessionController {
         const engine = requestEngine || session.engine || 'claude';
 
         try {
+            let restoredWorkspacePath = session.worktree?.path || session.path || session.cwd;
+            const resolvedRepoPath = await this._resolveRepoPath(session.worktree?.repo || null, session.project);
+
             // Restore worktree if it existed
-            if (session.worktree?.repo) {
-                const worktreeResult = await this.worktreeService.create(id, session.worktree.repo);
-                if (!worktreeResult) {
-                    return res.status(500).json({
-                        error: 'Failed to restore worktree',
-                        detail: 'worktreeService.create returned null'
-                    });
+            if (resolvedRepoPath) {
+                try {
+                    const worktreeResult = await this.worktreeService.create(id, resolvedRepoPath);
+                    if (worktreeResult?.worktreePath) {
+                        restoredWorkspacePath = worktreeResult.worktreePath;
+                    } else {
+                        throw new Error('worktreeService.create returned null');
+                    }
+                } catch (worktreeError) {
+                    const fallbackPath = session.worktree?.path || session.path || session.cwd;
+                    if (await this._pathExists(fallbackPath)) {
+                        restoredWorkspacePath = fallbackPath;
+                        console.warn(
+                            `[restore] Failed to recreate worktree for ${id}, reusing existing workspace: ${fallbackPath}. ${worktreeError.message}`
+                        );
+                    } else {
+                        return res.status(500).json({
+                            error: 'Failed to restore worktree',
+                            detail: worktreeError.message
+                        });
+                    }
                 }
             }
 
@@ -512,7 +763,7 @@ export class SessionController {
             this.sessionManager.clearDoneStatus(id);
 
             // Start ttyd session
-            const cwd = session.worktree?.path || session.cwd;
+            const cwd = restoredWorkspacePath;
             const result = await this.sessionManager.startTtyd({
                 sessionId: id,
                 cwd,
@@ -525,7 +776,15 @@ export class SessionController {
                 const updatedSessions = currentState.sessions.map(s => {
                     if (s.id !== id) return s;
                     const { archivedAt, ...rest } = s;
-                    return { ...rest, intendedState: 'active', engine };
+                        return {
+                            ...rest,
+                            path: cwd,
+                            worktree: rest.worktree
+                            ? { ...rest.worktree, repo: resolvedRepoPath, path: cwd }
+                            : rest.worktree,
+                            intendedState: 'active',
+                            engine
+                    };
                 });
                 return { ...currentState, sessions: updatedSessions };
             });
@@ -789,11 +1048,15 @@ ${jjBookmarks}
     };
 
     createWithWorktree = async (req, res) => {
-        const { sessionId, repoPath, name, initialCommand, engine = 'claude', project } = req.body;
+        const { sessionId, repoPath, name, initialCommand, engine = 'claude', project, viewerId } = req.body;
+        const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
         const skipFetch = req.body.skipFetch !== undefined ? req.body.skipFetch : true;
 
         if (!sessionId || !repoPath) {
             return res.status(400).json({ error: 'sessionId and repoPath are required' });
+        }
+        if (!viewerId || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return res.status(400).json({ error: 'viewerId is required' });
         }
 
         // Validate engine
@@ -803,9 +1066,14 @@ ${jjBookmarks}
 
         try {
             this._updateProgress(sessionId, 'worktree', 10, 'ワークスペースを作成中...');
+            const resolvedRepoPath = await this._resolveRepoPath(repoPath, project);
+
+            if (resolvedRepoPath !== repoPath) {
+                console.warn(`[createWithWorktree] Repo path fallback for ${sessionId}: ${repoPath} -> ${resolvedRepoPath}`);
+            }
 
             // Create worktree (skipFetch=trueで2-3秒短縮)
-            const worktreeResult = await this.worktreeService.create(sessionId, repoPath, { skipFetch });
+            const worktreeResult = await this.worktreeService.create(sessionId, resolvedRepoPath, { skipFetch });
 
             if (!worktreeResult) {
                 this._updateProgress(sessionId, 'error', 0, 'ワークスペース作成に失敗');
@@ -828,7 +1096,7 @@ ${jjBookmarks}
                 path: worktreePath,  // 追加: プロジェクト判定に必要
                 project,
                 worktree: {
-                    repo: repoPath,
+                    repo: resolvedRepoPath,
                     path: worktreePath,
                     branch: branchName,
                     startCommit: worktreeResult.startCommit
@@ -870,7 +1138,7 @@ ${jjBookmarks}
                 } catch (rollbackError) {
                     console.error(`[createWithWorktree] Rollback failed:`, rollbackError);
                 }
-                this.worktreeService.remove(sessionId, repoPath).catch(() => {});
+                this.worktreeService.remove(sessionId, resolvedRepoPath).catch(() => {});
                 throw ttydResult.reason;
             }
 
@@ -880,12 +1148,14 @@ ${jjBookmarks}
             }
 
             const result = ttydResult.value;
+            const ownership = this.sessionManager.forceTerminalOwnership(sessionId, viewerId, viewerLabel);
             this._updateProgress(sessionId, 'done', 100, 'セッション作成完了！');
 
             res.json({
                 success: true,
                 port: result.port,
-                proxyPath: result.proxyPath,
+                proxyPath: this._appendViewerIdToProxyPath(result.proxyPath, viewerId),
+                terminalAccess: ownership.terminalAccess,
                 worktreePath,
                 branchName
             });

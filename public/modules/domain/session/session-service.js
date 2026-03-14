@@ -1,6 +1,7 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { getTerminalViewerId, getTerminalViewerLabel } from '../../core/terminal-viewer.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject, generateSessionName } from '../../session-manager.js';
 import { addSession, removeSession } from '../../state-api.js';
@@ -25,6 +26,8 @@ export class SessionService {
         this.eventBus = eventBus;
         this.recoveryService = options.recoveryService || null;
         this._pendingDeletes = new Map();
+        this.viewerId = getTerminalViewerId();
+        this.viewerLabel = getTerminalViewerLabel();
     }
 
     /**
@@ -192,7 +195,9 @@ export class SessionService {
                 sessionId,
                 initialCommand,
                 cwd: repoPath,
-                engine
+                engine,
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
             });
 
             if (!res || res.error) {
@@ -229,7 +234,9 @@ export class SessionService {
             name,
             initialCommand,
             engine,
-            project
+            project,
+            viewerId: this.viewerId,
+            viewerLabel: this.viewerLabel
         });
 
         if (!res || res.error) {
@@ -715,7 +722,9 @@ export class SessionService {
                 sessionId,
                 cwd: session.path,
                 initialCommand: session.initialCommand || '',
-                engine: session.engine || 'claude'
+                engine: session.engine || 'claude',
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
             });
         } catch (error) {
             console.error(`Failed to start ttyd for session ${sessionId}:`, error);

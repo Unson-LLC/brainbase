@@ -46,7 +46,6 @@ export class SessionDataCache {
             return null;
         }
 
-        // TTLチェック
         if (Date.now() > entry.expiresAt) {
             this._log('Cache expired', { key });
             this._cache.delete(key);
@@ -73,7 +72,7 @@ export class SessionDataCache {
     }
 
     /**
-     * 対象セッションのキャッシュを無効化
+     * 対象スコープのキャッシュを無効化
      * @param {string} scope - キャッシュスコープ
      */
     invalidateScope(scope) {
@@ -83,19 +82,19 @@ export class SessionDataCache {
                 keysToDelete.push(key);
             }
         }
-        keysToDelete.forEach(key => this._cache.delete(key));
-        this._log('Cache invalidated', { scope, count: keysToDelete.length });
+        keysToDelete.forEach((key) => this._cache.delete(key));
+        this._log('Cache scope invalidated', { scope, count: keysToDelete.length });
     }
 
     /**
-     * 特定typeのキャッシュを無効化
+     * 対象データ種別のキャッシュを無効化
      * @param {string} type - データ種別（tasks, schedule）
      * @param {string} [scope='global'] - キャッシュスコープ
      */
     invalidateType(type, scope = 'global') {
         const key = this._getKey(type, scope);
         const deleted = this._cache.delete(key);
-        this._log('Cache key invalidated', { key, deleted });
+        this._log('Cache type invalidated', { key, deleted });
     }
 
     /**
@@ -140,10 +139,8 @@ export class SessionDataCache {
     }
 }
 
-// シングルトンインスタンス
 export const sessionDataCache = new SessionDataCache();
 
-// デバッグモードフラグ（グローバル変数で制御）
 if (typeof window !== 'undefined' && window.__SESSION_CACHE_DEBUG__) {
     sessionDataCache.setDebugMode(true);
 }
