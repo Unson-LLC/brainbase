@@ -6,6 +6,7 @@
  *
  * CommandMateのcli-patterns.ts / prompt-detector.tsを統合・簡略化。
  */
+import { stripAnsi } from '../lib/ansi-sanitizer.js';
 
 /**
  * CLI状態の定数
@@ -63,8 +64,11 @@ export function detectCliState(output) {
         return CliState.UNKNOWN;
     }
 
+    // ANSIエスケープシーケンスを除去してからパターン検出
+    const cleaned = stripAnsi(output);
+
     // 末尾の空行を除去してから末尾N行を取得
-    const lines = output.split('\n');
+    const lines = cleaned.split('\n');
     const trimmedLines = [];
     let foundContent = false;
     for (let i = lines.length - 1; i >= 0 && trimmedLines.length < TAIL_LINES; i--) {
