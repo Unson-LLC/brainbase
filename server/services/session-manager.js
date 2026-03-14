@@ -9,6 +9,7 @@ import path from 'path';
 import yaml from 'js-yaml';
 import { TerminalOutputParser } from './terminal-output-parser.js';
 import { gracefulCleanup } from '../lib/graceful-cleanup.js';
+import { SessionHealthMonitor } from './session-health-monitor.js';
 
 export class SessionManager {
     /**
@@ -1912,6 +1913,17 @@ export class SessionManager {
         if (this._ptyWatchdogTimer) return;
         console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
 
+        // Session health monitor (CommandMate pattern): detect dead tmux sessions
+        this._healthMonitor = new SessionHealthMonitor(this, {
+            onDeadSession: (sessionId) => {
+                console.warn(`[PTY Watchdog] Dead session detected: ${sessionId}, cleaning up...`);
+                this.stopTtyd(sessionId).catch(err => {
+                    console.error(`[PTY Watchdog] Cleanup failed for ${sessionId}:`, err.message);
+                });
+            }
+        });
+        this._healthMonitor.start(intervalMs);
+
         this._ptyWatchdogTimer = setInterval(async () => {
             try {
                 // macOS: sysctl kern.tty.ptmx_max でPTY上限取得
@@ -1941,6 +1953,10 @@ export class SessionManager {
      * PTY Watchdogを停止
      */
     stopPtyWatchdog() {
+        if (this._healthMonitor) {
+            this._healthMonitor.stop();
+            this._healthMonitor = null;
+        }
         if (this._ptyWatchdogTimer) {
             clearInterval(this._ptyWatchdogTimer);
             this._ptyWatchdogTimer = null;
