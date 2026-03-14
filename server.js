@@ -61,6 +61,7 @@ import { createSetupRouter } from './server/routes/setup.js';
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
 import { requireAuth } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
+import { gracefulCleanup } from './server/lib/graceful-cleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -762,29 +763,44 @@ server.on('upgrade', (request, socket, head) => {
     ttydProxy.upgrade(request, socket, head);
 });
 
-// Graceful shutdown
+// Graceful shutdown (CommandMate partial cleanup pattern)
 async function gracefulShutdown(signal) {
     console.log(`\n${signal} received. Shutting down gracefully...`);
 
-    // 1. Stop accepting new connections
-    server.close(() => {
-        console.log('✅ HTTP server closed');
-    });
+    const result = await gracefulCleanup('server-shutdown', [
+        {
+            name: 'close-http-server',
+            fn: () => new Promise((resolve) => {
+                server.close(() => {
+                    console.log('HTTP server closed');
+                    resolve();
+                });
+                // Timeout after 5s to not hang forever
+                setTimeout(resolve, 5000);
+            })
+        },
+        {
+            name: 'cleanup-state-store',
+            fn: async () => {
+                if (stateStore.cleanup) await stateStore.cleanup();
+            }
+        },
+        {
+            name: 'stop-conversation-linker',
+            fn: () => { conversationLinker.stopPeriodicLink(); }
+        },
+        {
+            name: 'cleanup-session-manager',
+            fn: async () => {
+                if (sessionManager.cleanup) await sessionManager.cleanup();
+            }
+        }
+    ]);
 
-    // 2. Cleanup StateStore lock (if cleanup method exists)
-    if (stateStore.cleanup) {
-        await stateStore.cleanup();
+    if (result.warnings.length > 0) {
+        console.warn('Shutdown warnings:', result.warnings);
     }
-
-    // 3. Cleanup ConversationLinker
-    conversationLinker.stopPeriodicLink();
-
-    // 4. Cleanup SessionManager (if cleanup method exists)
-    if (sessionManager.cleanup) {
-        await sessionManager.cleanup();
-    }
-
-    console.log('✅ Graceful shutdown complete');
+    console.log(`Graceful shutdown complete (${result.completed.length}/${result.completed.length + result.warnings.length} steps)`);
     process.exit(0);
 }
 
