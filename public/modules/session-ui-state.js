@@ -1,4 +1,5 @@
 import { appStore } from './core/store.js';
+import { deriveActivityState } from './core/session-activity-state.js';
 
 const RECENT_FILES_STORAGE_KEY = 'bb:session-recent-files:v1';
 const MAX_STORED_RECENT_FILES = 10;
@@ -193,11 +194,7 @@ export function deriveSessionUiState(sessionId, options = {}) {
             ? 'paused'
             : 'active';
 
-    const activity = hookStatus?.isWorking
-        ? 'working'
-        : hookStatus?.isDone
-            ? 'done-unread'
-            : 'idle';
+    const activity = deriveActivityState(hookStatus);
 
     let transport = session?.runtimeStatus?.ttydRunning ? 'connected' : 'disconnected';
     if (isCurrent && entry.transport) {
