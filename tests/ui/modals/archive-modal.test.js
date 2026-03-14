@@ -4,12 +4,17 @@ import { SessionService } from '../../../public/modules/domain/session/session-s
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
 
+vi.mock('../../../public/modules/confirm-modal.js', () => ({
+    showConfirm: vi.fn(async () => true)
+}));
+
 // SessionServiceをモック化
 vi.mock('../../../public/modules/domain/session/session-service.js', () => {
     return {
         SessionService: class MockSessionService {
             constructor() {
                 this.getArchivedSessions = vi.fn(() => []);
+                this.loadSessions = vi.fn(async () => []);
                 this.unarchiveSession = vi.fn();
                 this.deleteSession = vi.fn();
                 this.getUniqueProjects = vi.fn(() => []);
@@ -80,19 +85,19 @@ describe('ArchiveModal', () => {
             modal.mount();
         });
 
-        it('should open modal', () => {
-            modal.open();
+        it('should open modal', async () => {
+            await modal.open();
             expect(modalElement.classList.contains('active')).toBe(true);
         });
 
-        it('should populate project filter options from archived sessions', () => {
+        it('should populate project filter options from archived sessions', async () => {
             const archivedSessions = [
-                { id: 'session-1', name: 'Archived 1', project: 'brainbase', archived: true, path: '.worktrees/session-1-brainbase' },
-                { id: 'session-2', name: 'Archived 2', project: 'unson', archived: true, path: '.worktrees/session-2-unson' }
+                { id: 'session-1', name: 'Archived 1', archived: true, path: '/tmp/.worktrees/session-1-brainbase' },
+                { id: 'session-2', name: 'Archived 2', archived: true, path: '/tmp/.worktrees/session-2-unson' }
             ];
             mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
 
-            modal.open();
+            await modal.open();
 
             const projectFilter = document.getElementById('archive-project-filter');
             const options = Array.from(projectFilter.options).map(opt => opt.value);
@@ -101,34 +106,34 @@ describe('ArchiveModal', () => {
             expect(options).toContain('unson');
         });
 
-        it('should render archived sessions', () => {
+        it('should render archived sessions', async () => {
             const archivedSessions = [
-                { id: 'session-1', name: 'Archived 1', project: 'project-a', archived: true },
-                { id: 'session-2', name: 'Archived 2', project: 'project-b', archived: true }
+                { id: 'session-1', name: 'Archived 1', archived: true, path: '/tmp/.worktrees/session-1-brainbase' },
+                { id: 'session-2', name: 'Archived 2', archived: true, path: '/tmp/.worktrees/session-2-unson' }
             ];
             mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
 
-            modal.open();
+            await modal.open();
 
             const archiveList = document.getElementById('archive-list');
             expect(archiveList.innerHTML).toContain('Archived 1');
             expect(archiveList.innerHTML).toContain('Archived 2');
         });
 
-        it('should display empty state when no archived sessions', () => {
+        it('should display empty state when no archived sessions', async () => {
             mockSessionService.getArchivedSessions.mockReturnValue([]);
 
-            modal.open();
+            await modal.open();
 
             const emptyState = document.getElementById('archive-empty');
             expect(emptyState.style.display).not.toBe('none');
         });
 
-        it('should clear search input on open', () => {
+        it('should clear search input on open', async () => {
             const searchInput = document.getElementById('archive-search');
             searchInput.value = 'previous search';
 
-            modal.open();
+            await modal.open();
 
             expect(searchInput.value).toBe('');
         });
@@ -139,16 +144,16 @@ describe('ArchiveModal', () => {
             modal.mount();
         });
 
-        it('should close modal', () => {
-            modal.open();
+        it('should close modal', async () => {
+            await modal.open();
             expect(modalElement.classList.contains('active')).toBe(true);
 
             modal.close();
             expect(modalElement.classList.contains('active')).toBe(false);
         });
 
-        it('should close on X button click', () => {
-            modal.open();
+        it('should close on X button click', async () => {
+            await modal.open();
 
             const closeBtn = modalElement.querySelector('.close-modal-btn');
             closeBtn.click();
@@ -156,8 +161,8 @@ describe('ArchiveModal', () => {
             expect(modalElement.classList.contains('active')).toBe(false);
         });
 
-        it('should close on backdrop click', () => {
-            modal.open();
+        it('should close on backdrop click', async () => {
+            await modal.open();
 
             const event = new MouseEvent('click', { bubbles: true });
             Object.defineProperty(event, 'target', { value: modalElement });
@@ -170,9 +175,9 @@ describe('ArchiveModal', () => {
     describe('search and filter', () => {
         beforeEach(() => {
             const allSessions = [
-                { id: 'session-1', name: 'Test Session', project: 'brainbase', archived: true, path: '.worktrees/session-1-brainbase' },
-                { id: 'session-2', name: 'Another Session', project: 'unson', archived: true, path: '.worktrees/session-2-unson' },
-                { id: 'session-3', name: 'Test Task', project: 'brainbase', archived: true, path: '.worktrees/session-3-brainbase' }
+                { id: 'session-1', name: 'Test Session', project: 'brainbase', archived: true, path: '/tmp/.worktrees/session-1-brainbase' },
+                { id: 'session-2', name: 'Another Session', project: 'unson', archived: true, path: '/tmp/.worktrees/session-2-unson' },
+                { id: 'session-3', name: 'Test Task', project: 'brainbase', archived: true, path: '/tmp/.worktrees/session-3-brainbase' }
             ];
 
             // ストアにセッションを設定
@@ -200,7 +205,7 @@ describe('ArchiveModal', () => {
             mockSessionService.getUniqueProjects.mockReturnValue(['brainbase', 'unson']);
 
             modal.mount();
-            modal.open();
+            return modal.open();
         });
 
         it('should filter by search term', () => {
@@ -243,11 +248,11 @@ describe('ArchiveModal', () => {
     describe('unarchive session', () => {
         beforeEach(() => {
             const archivedSessions = [
-                { id: 'session-1', name: 'Archived Session', project: 'project-a', archived: true }
+                { id: 'session-1', name: 'Archived Session', project: 'brainbase', archived: true, path: '/tmp/.worktrees/session-1-brainbase' }
             ];
             mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
             modal.mount();
-            modal.open();
+            return modal.open();
         });
 
         it('should unarchive session on button click', async () => {
@@ -265,16 +270,15 @@ describe('ArchiveModal', () => {
     describe('delete session', () => {
         beforeEach(() => {
             const archivedSessions = [
-                { id: 'session-1', name: 'Archived Session', project: 'project-a', archived: true }
+                { id: 'session-1', name: 'Archived Session', project: 'brainbase', archived: true, path: '/tmp/.worktrees/session-1-brainbase' }
             ];
             mockSessionService.getArchivedSessions.mockReturnValue(archivedSessions);
             modal.mount();
-            modal.open();
+            return modal.open();
         });
 
         it('should delete session on confirm', async () => {
             mockSessionService.deleteSession.mockResolvedValue();
-            global.confirm = vi.fn(() => true);
 
             const deleteBtn = modalElement.querySelector('[data-action="delete"]');
             deleteBtn.click();
@@ -285,7 +289,8 @@ describe('ArchiveModal', () => {
         });
 
         it('should not delete if user cancels', async () => {
-            global.confirm = vi.fn(() => false);
+            const { showConfirm } = await import('../../../public/modules/confirm-modal.js');
+            showConfirm.mockResolvedValue(false);
 
             const deleteBtn = modalElement.querySelector('[data-action="delete"]');
             deleteBtn.click();

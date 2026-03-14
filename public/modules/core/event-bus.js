@@ -210,6 +210,7 @@ export const EVENTS = {
     SESSION_PAUSED: 'session:paused',
     SESSION_RESUMED: 'session:resumed',
     SESSION_WORKTREE_FALLBACK: 'session:worktree-fallback',
+    SESSION_UI_STATE_CHANGED: 'session:ui-state-changed',
     RESTART_SESSION: 'session:restart',
     STOP_SESSION: 'session:stop',
     MERGE_SESSION: 'session:merge',

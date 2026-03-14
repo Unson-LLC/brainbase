@@ -22,6 +22,7 @@ import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
+import { getSessionUiEntry, hydrateSessionRecentFiles, mergeSessionUiEntry, recordRecentFileOpen } from './modules/session-ui-state.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -135,6 +136,33 @@ class TerminalReconnectManager {
     setViewerContext({ viewerId, viewerLabel }) {
         this.viewerId = viewerId || null;
         this.viewerLabel = viewerLabel || null;
+    }
+
+    _getViewerProxyPath(proxyPath, port = null) {
+        if (!proxyPath) return proxyPath;
+
+        let nextProxyPath = appendViewerIdToProxyPath(proxyPath, this.viewerId);
+        if (!nextProxyPath) return nextProxyPath;
+
+        try {
+            const absoluteUrl = new URL(nextProxyPath);
+            if (this.viewerId && !absoluteUrl.searchParams.has('viewerId')) {
+                absoluteUrl.searchParams.set('viewerId', this.viewerId);
+            }
+            return absoluteUrl.toString();
+        } catch {
+            // Relative path: fall through and optionally rewrite to loopback ttyd.
+        }
+
+        if (port && isLoopbackHost(window.location.hostname)) {
+            return `http://127.0.0.1:${port}${nextProxyPath}`;
+        }
+
+        return nextProxyPath;
+    }
+
+    _buildTerminalFrameUrl(proxyPath, port = null) {
+        return this._getViewerProxyPath(proxyPath, port);
     }
 
     init(terminalFrame) {
@@ -444,6 +472,7 @@ export class App {
         this.pollingIntervalId = null;
         this.refreshIntervalId = null;
         this.choiceCheckInterval = null;
+        this.sessionUiSummaryIntervalId = null;
         this.lastChoiceHash = null;
         this.settingsCore = null; // Settings Plugin Architecture
         this.reconnectManager = null; // Terminal Reconnect Manager
@@ -518,6 +547,23 @@ export class App {
         }
 
         this._updateTerminalInputStatus();
+    }
+
+    _setCurrentSessionUiState(updates = {}, options = {}) {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+        const { emit = false } = options;
+        const previous = getSessionUiEntry(sessionId) || {};
+        const changed = Object.entries(updates).some(([key, value]) => previous?.[key] !== value);
+        if (!changed) return;
+        mergeSessionUiEntry(sessionId, updates);
+        if (emit) {
+            void eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: [sessionId] });
+        }
+    }
+
+    async refreshSessionUiSummaries(sessionIds = []) {
+        return await this.sessionService.refreshSessionUiSummaries(sessionIds);
     }
 
     _runDeferredSessionSwitchWork(sessionId, switchToken) {
@@ -613,7 +659,6 @@ export class App {
             showError('ターミナルの引き継ぎに失敗した');
         }
     }
-
     _setTerminalInputStatus({ hidden, stateClass, text, title }) {
         const el = this.terminalInputStatusEl;
         if (!el) return;
@@ -669,9 +714,12 @@ export class App {
         let stateClass = 'blocked';
         let text = '入力: 不明';
         let title = `session=${sessionId}`;
+        let transportState = 'blocked';
+        let attentionState = 'none';
 
         if (overlayState.any) {
             stateClass = 'blocked';
+            transportState = 'blocked';
             if (overlayState.choiceActive) {
                 text = '入力: 選択中';
                 title = '選択UIが開いている間はターミナル入力できません';
@@ -690,25 +738,30 @@ export class App {
                 : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
         } else if (isReconnecting) {
             stateClass = 'reconnecting';
+            transportState = 'reconnecting';
             text = `入力: 再接続中 (${retryCount}/${maxRetries})`;
             title = `session=${sessionId} reconnecting`;
         } else if (frameBlank) {
             if (recentlyNavigated) {
                 stateClass = 'reconnecting';
+                transportState = 'reconnecting';
                 text = '入力: 接続中...';
                 title = `session=${sessionId} connecting`;
             } else {
                 stateClass = 'disconnected';
+                transportState = 'disconnected';
                 text = '入力: 未接続';
                 title = `session=${sessionId} iframe=about:blank`;
             }
         } else if (!wsConnected) {
             if (recentlyNavigated) {
                 stateClass = 'reconnecting';
+                transportState = 'reconnecting';
                 text = '入力: 接続中...';
                 title = `session=${sessionId} connecting`;
             } else {
                 stateClass = 'disconnected';
+                transportState = 'disconnected';
                 text = '入力: 切断';
                 title = `session=${sessionId} disconnected${typeof lastCode === 'number' ? ` (code ${lastCode})` : ''}`;
             }
@@ -716,19 +769,33 @@ export class App {
             // デスクトップのみ: フォーカスが外れていたらクリックを促す
             // モバイルではMobile Input Dockから入力するためフォーカス不要
             stateClass = 'needs-focus';
+            transportState = 'connected';
+            attentionState = 'needs-focus';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;
         } else if (isCopyMode) {
             stateClass = 'copy-mode';
+            transportState = 'connected';
+            attentionState = 'copy-mode';
             text = '入力: スクロール中 (クリックで戻る)';
             title = `session=${sessionId} copy-mode (click to exit)`;
         } else {
             stateClass = 'ready';
+            transportState = 'connected';
             text = '入力: OK';
             title = `session=${sessionId} connected`;
         }
 
         this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
+        const previous = getSessionUiEntry(sessionId) || {};
+        const shouldEmit = previous.transport !== transportState || previous.attention !== attentionState;
+        this._setCurrentSessionUiState(
+            {
+                transport: transportState,
+                attention: attentionState
+            },
+            { emit: shouldEmit }
+        );
     }
 
     setupTerminalInputUx() {
@@ -1353,8 +1420,8 @@ export class App {
 
             const startTime = performance.now();
             await this.switchSession(sessionId, { proxyPath });
-            const terminalDuration = performance.now() - startTime;
-            console.log(`[SessionSwitch] Terminal ready in ${terminalDuration.toFixed(2)}ms`);
+            const duration = performance.now() - startTime;
+            console.log(`[SessionSwitch] Terminal ready in ${duration.toFixed(2)}ms`);
 
             if (switchToken !== this._sessionSwitchToken || appStore.getState().currentSessionId !== sessionId) {
                 return;
@@ -1375,9 +1442,35 @@ export class App {
 
             scheduleAfterNextPaint(() => {
                 this._runDeferredSessionSwitchWork(sessionId, switchToken);
+                void this.refreshSessionUiSummaries([sessionId]);
+                const rowUpdateIds = previousSessionId && previousSessionId !== sessionId
+                    ? [previousSessionId, sessionId]
+                    : [sessionId];
+                void eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: rowUpdateIds });
             });
 
         });
+
+        const unsub1b = eventBus.onAsync(EVENTS.FOLDER_TREE_FILE_OPENED, async (event) => {
+            const { sessionId, relativePath } = event.detail || {};
+            if (!sessionId || !relativePath) return;
+            recordRecentFileOpen(sessionId, relativePath);
+            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: [sessionId] });
+        });
+
+        const refreshUiSummaries = () => {
+            const sessions = appStore.getState().sessions || [];
+            const activeIds = sessions
+                .filter((session) => session.intendedState !== 'archived')
+                .map((session) => session.id);
+            if (activeIds.length === 0) return;
+            void this.refreshSessionUiSummaries(activeIds);
+        };
+
+        const unsub1d = eventBus.on(EVENTS.SESSION_CREATED, refreshUiSummaries);
+        const unsub1e = eventBus.on(EVENTS.SESSION_ARCHIVED, refreshUiSummaries);
+        const unsub1f = eventBus.on(EVENTS.SESSION_PAUSED, refreshUiSummaries);
+        const unsub1g = eventBus.on(EVENTS.SESSION_RESUMED, refreshUiSummaries);
 
         // Start task: create session and switch to it
         const unsub2 = eventBus.onAsync(EVENTS.START_TASK, async (event) => {
@@ -1523,7 +1616,19 @@ export class App {
             this.modals.renameModal.open(session);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5);
+        this.unsubscribers.push(
+            unsub1,
+            unsub1b,
+            unsub1d,
+            unsub1e,
+            unsub1f,
+            unsub1g,
+            unsub2,
+            unsub3,
+            unsub4,
+            unsubWorktreeFallback,
+            unsub5
+        );
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -2409,10 +2514,18 @@ export class App {
                     };
                 }
                 this._terminalLastNavigateAt = Date.now();
+                this._setCurrentSessionUiState({
+                    transport: 'reconnecting',
+                    attention: 'none'
+                });
                 this.focusTerminal('switchSession');
             } else {
                 console.error('No proxyPath available for session:', sessionId);
                 terminalFrame.src = 'about:blank';
+                this._setCurrentSessionUiState({
+                    transport: 'disconnected',
+                    attention: 'none'
+                });
             }
 
             // Update active state in UI (handled by SessionView re-render, but keep for now)
@@ -2422,10 +2535,13 @@ export class App {
                     row.classList.add('active');
                 }
             });
-
         } catch (error) {
             console.error('Failed to switch session:', error);
             terminalFrame.src = 'about:blank';
+            this._setCurrentSessionUiState({
+                transport: 'disconnected',
+                attention: 'none'
+            });
         }
     }
 
@@ -2471,6 +2587,14 @@ export class App {
                 await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: currentSessionId });
             }
 
+            if (sessions && sessions.length > 0) {
+                void this.refreshSessionUiSummaries(
+                    sessions
+                        .filter((session) => session.intendedState !== 'archived')
+                        .map((session) => session.id)
+                );
+            }
+
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
                 this._updateSessionGoalBanner(currentSessionId);
@@ -2510,6 +2634,7 @@ export class App {
      */
     async start() {
         console.log('Starting brainbase-ui...');
+        hydrateSessionRecentFiles();
 
         // 0. Initialize auth (load token before API calls)
         await this.initAuth();
@@ -2584,6 +2709,7 @@ export class App {
 
         // 8. Start periodic refresh (every 5 minutes)
         this.startPeriodicRefresh();
+        this.startSessionUiSummaryRefresh();
 
         // 9. Setup choice detection (mobile only)
         this.setupResponsiveChoiceDetection();
@@ -2985,6 +3111,22 @@ export class App {
         setTimeout(checkInitialization, 1000);
     }
 
+    startSessionUiSummaryRefresh() {
+        if (this.sessionUiSummaryIntervalId) {
+            clearInterval(this.sessionUiSummaryIntervalId);
+        }
+
+        this.sessionUiSummaryIntervalId = setInterval(() => {
+            const state = appStore.getState();
+            if (state.ui?.sidebarPrimaryView !== 'sessions') return;
+            const activeIds = (state.sessions || [])
+                .filter((session) => session.intendedState !== 'archived')
+                .map((session) => session.id);
+            if (activeIds.length === 0) return;
+            void this.refreshSessionUiSummaries(activeIds);
+        }, 15_000);
+    }
+
     /**
      * Start periodic refresh (every 5 minutes)
      */
@@ -3146,6 +3288,11 @@ export class App {
         if (this.refreshIntervalId) {
             clearInterval(this.refreshIntervalId);
             this.refreshIntervalId = null;
+        }
+
+        if (this.sessionUiSummaryIntervalId) {
+            clearInterval(this.sessionUiSummaryIntervalId);
+            this.sessionUiSummaryIntervalId = null;
         }
 
         // Stop choice detection

@@ -767,6 +767,63 @@ describe('SessionController (Server)', () => {
     });
   });
 
+  describe('getUiSummaries', () => {
+    it('session ごとの lightweight summary map を返す', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ui',
+          cwd: '/tmp/worktrees/session-ui/project/src',
+          worktree: {
+            repo: '/tmp/repo',
+            path: '/tmp/worktrees/session-ui/project',
+            startCommit: 'abc123'
+          }
+        }]
+      });
+      mockWorktreeService.getStatus.mockResolvedValue({
+        repoName: 'brainbase',
+        changesNotPushed: 3,
+        hasWorkingCopyChanges: true,
+        bookmarkPushed: true,
+        mainBranch: 'develop',
+        worktreePath: '/tmp/worktrees/session-ui/project'
+      });
+
+      const req = {
+        query: {}
+      };
+
+      await sessionController.getUiSummaries(req, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        'session-ui': expect.objectContaining({
+          repo: 'brainbase',
+          baseBranch: 'develop',
+          dirty: true,
+          changesNotPushed: 3,
+          prStatus: 'open_or_pending',
+          currentDirectory: '/tmp/worktrees/session-ui/project/src'
+        })
+      });
+    });
+
+    it('TTL 内は cached summary を再利用する', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ui',
+          path: '/tmp/project'
+        }]
+      });
+
+      const req = { query: {} };
+
+      await sessionController.getUiSummaries(req, mockRes);
+      await sessionController.getUiSummaries(req, mockRes);
+
+      expect(mockSessionManager.resolveSessionWorkspacePath).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('getFolderTree', () => {
     it('ルートフォルダ取得時_nodesを返す', async () => {
       await fs.mkdir(path.join(tempDir, 'src', 'ui'), { recursive: true });

@@ -1,5 +1,5 @@
 /**
- * セッションデータのクライアント側キャッシュ
+ * クライアント側データキャッシュ
  * Map-based TTL管理
  */
 export class SessionDataCache {
@@ -23,7 +23,7 @@ export class SessionDataCache {
     /**
      * キャッシュキー生成
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} scope - キャッシュスコープ
+     * @param {string} [scope='global'] - キャッシュスコープ
      * @returns {string} キャッシュキー
      * @private
      */
@@ -34,7 +34,7 @@ export class SessionDataCache {
     /**
      * キャッシュから値を取得
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} scope - キャッシュスコープ
+     * @param {string} [scope='global'] - キャッシュスコープ
      * @returns {*|null} キャッシュヒット時は値、ミス時はnull
      */
     get(type, scope = 'global') {
@@ -46,7 +46,6 @@ export class SessionDataCache {
             return null;
         }
 
-        // TTLチェック
         if (Date.now() > entry.expiresAt) {
             this._log('Cache expired', { key });
             this._cache.delete(key);
@@ -60,7 +59,7 @@ export class SessionDataCache {
     /**
      * キャッシュに値を保存
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} scope - キャッシュスコープ
+     * @param {string} [scope='global'] - キャッシュスコープ
      * @param {*} value - 保存する値
      */
     set(type, scope = 'global', value) {
@@ -83,19 +82,29 @@ export class SessionDataCache {
                 keysToDelete.push(key);
             }
         }
-        keysToDelete.forEach(key => this._cache.delete(key));
+        keysToDelete.forEach((key) => this._cache.delete(key));
         this._log('Cache scope invalidated', { scope, count: keysToDelete.length });
     }
 
     /**
      * 対象データ種別のキャッシュを無効化
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} scope - キャッシュスコープ
+     * @param {string} [scope='global'] - キャッシュスコープ
      */
     invalidateType(type, scope = 'global') {
         const key = this._getKey(type, scope);
         const deleted = this._cache.delete(key);
         this._log('Cache type invalidated', { key, deleted });
+    }
+
+    /**
+     * 後方互換API
+     * 旧呼び出し: invalidate(sessionId)
+     * 現在はscope単位invalidateとして扱う
+     * @param {string} scope - キャッシュスコープ
+     */
+    invalidate(scope) {
+        this.invalidateScope(scope);
     }
 
     /**
@@ -130,10 +139,8 @@ export class SessionDataCache {
     }
 }
 
-// シングルトンインスタンス
 export const sessionDataCache = new SessionDataCache();
 
-// デバッグモードフラグ（グローバル変数で制御）
 if (typeof window !== 'undefined' && window.__SESSION_CACHE_DEBUG__) {
     sessionDataCache.setDebugMode(true);
 }

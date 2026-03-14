@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { JSDOM } from 'jsdom';
 import { appStore } from '../../../public/modules/core/store.js';
 import { httpClient } from '../../../public/modules/core/http-client.js';
+import { eventBus } from '../../../public/modules/core/event-bus.js';
 
 vi.mock('../../../public/modules/session-indicators.js', async () => {
   const actual = await vi.importActual('../../../public/modules/session-indicators.js');
@@ -267,5 +268,52 @@ describe('app switchSession runtime handling', () => {
     expect(httpClient.post).not.toHaveBeenCalled();
     expect(terminalFrame.src).toBe('about:blank');
     expect(app.reconnectManager._setBlocked).toHaveBeenCalled();
+  });
+
+  it('updates session UI state when attention changes while transport stays connected', async () => {
+    const emitSpy = vi.spyOn(eventBus, 'emit');
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active',
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: '/console/session-1'
+        }
+      }],
+      sessionUi: {
+        byId: {
+          'session-1': {
+            transport: 'connected',
+            attention: 'none'
+          }
+        }
+      }
+    });
+
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.terminalInputStatusEl = document.createElement('div');
+    document.body.appendChild(app.terminalInputStatusEl);
+    app.reconnectManager = {
+      wsConnected: true,
+      isReconnecting: false,
+      retryCount: 0,
+      maxRetries: 3,
+      lastDisconnectCode: null
+    };
+
+    Object.defineProperty(document, 'activeElement', {
+      configurable: true,
+      get: () => document.body
+    });
+
+    app._updateTerminalInputStatus();
+
+    expect(emitSpy).toHaveBeenCalledWith('session:ui-state-changed', { sessionIds: ['session-1'] });
   });
 });

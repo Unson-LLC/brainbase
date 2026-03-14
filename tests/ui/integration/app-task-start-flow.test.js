@@ -60,7 +60,8 @@ describe('app task start flow (app.js integration)', () => {
       updateSession: vi.fn(async () => {}),
       deleteSession: vi.fn(async () => {}),
       pauseSession: vi.fn(async () => {}),
-      resumeSession: vi.fn(async () => {})
+      resumeSession: vi.fn(async () => {}),
+      refreshSessionUiSummaries: vi.fn(async () => ({}))
     };
 
     app.taskService = mockTaskService;

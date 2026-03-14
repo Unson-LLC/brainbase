@@ -47,4 +47,14 @@ describe('SessionDataCache', () => {
 
         expect(cache.get('tasks')).toBeNull();
     });
+
+    it('invalidate() は scope invalidate の後方互換として動く', () => {
+        cache.set('tasks', 'session-1', [{ id: 1 }]);
+        cache.set('schedule', 'session-1', { ok: true });
+
+        cache.invalidate('session-1');
+
+        expect(cache.get('tasks', 'session-1')).toBeNull();
+        expect(cache.get('schedule', 'session-1')).toBeNull();
+    });
 });

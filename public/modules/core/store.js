@@ -220,6 +220,9 @@ export const appStore = new Store({
         loading: false,
         error: null
     },
+    sessionUi: {
+        byId: {}
+    },
     // Auto-Claude RecoveryManager pattern
     recovery: {
         hints: null,
