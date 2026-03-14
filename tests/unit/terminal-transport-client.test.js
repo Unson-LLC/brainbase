@@ -3,6 +3,7 @@ import { TerminalTransportClient, shouldUseDesktopXtermTransport } from '../../p
 
 describe('terminal-transport-client', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -98,5 +99,96 @@ describe('terminal-transport-client', () => {
       cols: 98,
       rows: 32
     });
+  });
+
+  it('live + alternate buffer の wheel で tmux scroll message を送る', async () => {
+    vi.useFakeTimers();
+
+    const sentMessages = [];
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = {
+      contains: () => true
+    };
+    client.status.mode = 'live';
+    const alternateBuffer = {};
+    client.terminal = {
+      buffer: {
+        active: alternateBuffer,
+        alternate: alternateBuffer
+      }
+    };
+    client.ws = {
+      readyState: 1,
+      send(message) {
+        sentMessages.push(JSON.parse(message));
+      }
+    };
+
+    expect(client._shouldInterceptTmuxScroll({})).toBe(true);
+    client._queueWheelDelta(96);
+    vi.advanceTimersByTime(16);
+    await vi.runAllTimersAsync();
+
+    expect(sentMessages).toContainEqual({
+      type: 'scroll',
+      direction: 'down',
+      steps: 2
+    });
+  });
+
+  it('normal buffer の wheel は tmux scroll を送らない', () => {
+    vi.useFakeTimers();
+
+    const sentMessages = [];
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.hostEl = {
+      contains: () => true
+    };
+    client.status.mode = 'live';
+    client.terminal = {
+      buffer: {
+        active: {},
+        alternate: {}
+      }
+    };
+    client.ws = {
+      readyState: 1,
+      send(message) {
+        sentMessages.push(JSON.parse(message));
+      }
+    };
+
+    expect(client._shouldInterceptTmuxScroll({})).toBe(false);
+    vi.advanceTimersByTime(16);
+    expect(sentMessages).toHaveLength(0);
+  });
+
+  it('copy-mode 中の sendText は先に exit_copy_mode を送る', async () => {
+    const sentMessages = [];
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.status.copyMode = true;
+    client.ws = {
+      readyState: 1,
+      send(message) {
+        sentMessages.push(JSON.parse(message));
+      }
+    };
+
+    await client.sendText('ls');
+
+    expect(sentMessages).toEqual([
+      { type: 'exit_copy_mode' },
+      { type: 'input', inputType: 'text', value: 'ls' }
+    ]);
+    expect(client.status.copyMode).toBe(false);
   });
 });

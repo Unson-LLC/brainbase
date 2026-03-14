@@ -206,6 +206,16 @@
 // Wheel scroll support when tmux mouse is off (delegate to parent -> tmux copy-mode)
 (function() {
     'use strict';
+    const SCROLL_MIN_DELTA_PX = 12;
+    const SCROLL_STEP_PX = 40;
+    const MAX_SCROLL_STEPS = 8;
+    const SCROLL_FLUSH_MS = 16;
+    const TOUCH_STEP_PX = 18;
+    const TOUCH_FLUSH_MS = 30;
+    let wheelAccum = 0;
+    let wheelFlushTimer = null;
+    let touchAccum = 0;
+    let touchFlushTimer = null;
 
     function isAlternateBuffer(term) {
         try {
@@ -238,6 +248,39 @@
         return true;
     }
 
+    function queueScroll(delta, options) {
+        const accumulatorKey = options.touch ? 'touch' : 'wheel';
+        if (!Number.isFinite(delta) || delta === 0) return;
+
+        if (accumulatorKey === 'touch') {
+            touchAccum += delta;
+            if (Math.abs(touchAccum) < TOUCH_STEP_PX) return;
+            if (touchFlushTimer) return;
+            touchFlushTimer = setTimeout(function() {
+                touchFlushTimer = null;
+                const pending = touchAccum;
+                touchAccum = 0;
+                const steps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Math.round(Math.abs(pending) / TOUCH_STEP_PX)));
+                const direction = pending > 0 ? 'up' : 'down';
+                window.__bbTouchDidScroll = true;
+                postScroll(direction, steps);
+            }, TOUCH_FLUSH_MS);
+            return;
+        }
+
+        wheelAccum += delta;
+        if (Math.abs(wheelAccum) < SCROLL_MIN_DELTA_PX) return;
+        if (wheelFlushTimer) return;
+        wheelFlushTimer = setTimeout(function() {
+            wheelFlushTimer = null;
+            const pending = wheelAccum;
+            wheelAccum = 0;
+            const steps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Math.round(Math.abs(pending) / SCROLL_STEP_PX)));
+            const direction = pending > 0 ? 'down' : 'up';
+            postScroll(direction, steps);
+        }, SCROLL_FLUSH_MS);
+    }
+
     document.addEventListener('wheel', function(e) {
         const term = window.term;
         if (!term) return;
@@ -251,17 +294,12 @@
         e.stopPropagation();
         e.stopImmediatePropagation();
 
-        const delta = e.deltaY || 0;
-        const steps = Math.min(3, Math.max(1, Math.round(Math.abs(delta) / 80)));
-        const direction = delta > 0 ? 'down' : 'up';
-        postScroll(direction, steps);
+        queueScroll(e.deltaY || 0, { touch: false });
     }, { passive: false, capture: true });
 
     const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     if (isTouchDevice) {
         let touchY = 0;
-        let touchAccum = 0;
-        const touchThreshold = 24;
         window.__bbTouchDidScroll = false;
 
         document.addEventListener('touchstart', function(e) {
@@ -284,20 +322,16 @@
             const currentY = e.touches[0].clientY;
             const delta = currentY - touchY;
             touchY = currentY;
-            touchAccum += delta;
 
-            if (Math.abs(touchAccum) < touchThreshold) return;
-
-            const steps = Math.min(3, Math.max(1, Math.round(Math.abs(touchAccum) / touchThreshold)));
-            // Touch: finger down should reveal older content (scroll up in tmux copy-mode)
-            const direction = touchAccum > 0 ? 'up' : 'down';
-            touchAccum = 0;
-            window.__bbTouchDidScroll = true;
-            postScroll(direction, steps);
+            queueScroll(delta, { touch: true });
         }, { passive: false, capture: true });
 
         document.addEventListener('touchend', function() {
             touchAccum = 0;
+            if (touchFlushTimer) {
+                clearTimeout(touchFlushTimer);
+                touchFlushTimer = null;
+            }
             // Keep scroll flag for touchend consumer; it will reset after handling.
         }, { passive: true, capture: true });
     }
