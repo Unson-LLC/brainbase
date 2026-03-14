@@ -10,6 +10,18 @@ const SCROLL_FLUSH_MS = 16;
 const TOUCH_STEP_PX = 18;
 const TOUCH_FLUSH_MS = 30;
 
+// WebSocket reconnection settings (CommandMate pattern)
+const MAX_RECONNECT_RETRIES = 10;
+const BASE_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+const KEEPALIVE_INTERVAL_MS = 30000;
+
+// Expected close codes that should NOT trigger reconnection
+const EXPECTED_CLOSE_CODES = new Set([
+    1000, // Normal Closure
+    1001, // Going Away (browser navigation)
+]);
+
 function isLoopbackHost(hostname) {
     return hostname === 'localhost' || hostname === '127.0.0.1';
 }
@@ -47,6 +59,7 @@ export class TerminalTransportClient {
         this._retryCount = 0;
         this._manualClose = false;
         this._connectToken = 0;
+        this._keepaliveTimer = null;
         this._wheelDelta = 0;
         this._touchDelta = 0;
         this._wheelFlushTimer = null;
@@ -108,6 +121,7 @@ export class TerminalTransportClient {
     }
 
     destroy() {
+        this._stopKeepalive();
         this.disconnect();
         if (this._resizeHandler) {
             window.removeEventListener('resize', this._resizeHandler);
@@ -120,7 +134,7 @@ export class TerminalTransportClient {
     }
 
     getStatus() {
-        return { ...this.status };
+        return { ...this.status, reconnectAttempts: this._retryCount };
     }
 
     isActiveForSession(sessionId) {
@@ -181,6 +195,7 @@ export class TerminalTransportClient {
                         this.status.mode = 'live';
                         this.status.connected = true;
                         this._emitStatus();
+                        this._startKeepalive();
                         void this.syncViewportSize();
                         resolve({ mode: 'live' });
                         break;
@@ -221,15 +236,19 @@ export class TerminalTransportClient {
                 }
             });
 
-            ws.addEventListener('close', () => {
+            ws.addEventListener('close', (closeEvent) => {
                 cleanup();
+                this._stopKeepalive();
                 this.status.connected = false;
                 if (this.status.mode !== 'blocked') {
                     this.status.mode = this.status.lastSnapshotAt ? 'snapshot' : 'disconnected';
                 }
                 this._emitStatus();
 
-                if (!this._manualClose && this.sessionId === sessionId && this.status.mode !== 'blocked') {
+                const closeCode = closeEvent?.code;
+                const isExpected = closeCode != null && this._isExpectedClose(closeCode);
+
+                if (!this._manualClose && !isExpected && this.sessionId === sessionId && this.status.mode !== 'blocked') {
                     void this._refreshSnapshot();
                     this._scheduleReconnect(sessionId);
                 }
@@ -244,6 +263,7 @@ export class TerminalTransportClient {
     disconnect({ preserveView = false } = {}) {
         this._manualClose = true;
         this._clearReconnectTimer();
+        this._stopKeepalive();
         this._closeWs();
         this.status.connected = false;
         this.status.copyMode = false;
@@ -337,14 +357,65 @@ export class TerminalTransportClient {
     }
 
     _scheduleReconnect(sessionId) {
-        if (this._retryCount >= 3) return;
+        if (!this._shouldRetry()) return;
+        const delay = this._getReconnectDelay(this._retryCount);
         this._retryCount += 1;
         this.status.mode = 'reconnecting';
         this._emitStatus();
         this._reconnectTimer = setTimeout(() => {
             if (this.sessionId !== sessionId) return;
             void this.connect(sessionId).catch(() => {});
-        }, 1500 * this._retryCount);
+        }, delay);
+    }
+
+    /**
+     * 指数バックオフ + ジッター（CommandMateパターン）
+     * base * 2^attempt + random jitter (0-50% of base delay)
+     */
+    _getReconnectDelay(attempt) {
+        const exponential = Math.min(
+            BASE_RECONNECT_DELAY_MS * Math.pow(2, attempt),
+            MAX_RECONNECT_DELAY_MS
+        );
+        const jitter = exponential * 0.5 * Math.random();
+        return exponential + jitter;
+    }
+
+    /**
+     * リトライ可能かどうか判定
+     */
+    _shouldRetry() {
+        return this._retryCount < MAX_RECONNECT_RETRIES;
+    }
+
+    /**
+     * Expected close codeかどうか判定
+     * 正常クローズやブラウザナビゲーションではリトライしない
+     */
+    _isExpectedClose(code) {
+        return EXPECTED_CLOSE_CODES.has(code);
+    }
+
+    /**
+     * Keepalive pingの開始
+     */
+    _startKeepalive() {
+        this._stopKeepalive();
+        this._keepaliveTimer = setInterval(() => {
+            if (this.ws?.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, KEEPALIVE_INTERVAL_MS);
+    }
+
+    /**
+     * Keepalive pingの停止
+     */
+    _stopKeepalive() {
+        if (this._keepaliveTimer) {
+            clearInterval(this._keepaliveTimer);
+            this._keepaliveTimer = null;
+        }
     }
 
     _clearReconnectTimer() {
