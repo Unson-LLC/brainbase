@@ -120,6 +120,7 @@ export class HttpClient {
         const {
             traceId: providedTraceId,
             allowNotModified = false,
+            timeout: requestTimeout,
             ...fetchOptions
         } = options;
         const fullURL = `${this.baseURL}${url}`;
@@ -151,13 +152,20 @@ export class HttpClient {
             }
         }
 
+        // Request timeout with AbortController (CommandMate pattern)
+        const timeoutMs = requestTimeout || this.defaultTimeout || 30000;
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
         try {
             const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
             const response = await fetch(fullURL, {
                 ...fetchOptions,
-                headers
+                headers,
+                ...(controller ? { signal: controller.signal } : {})
             });
             const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt;
+            if (timeoutId) clearTimeout(timeoutId);
 
             if (allowNotModified && response.status === 304) {
                 return {
@@ -239,7 +247,14 @@ export class HttpClient {
             }
             return response.json();
         } catch (error) {
-            if (error.message.startsWith('HTTP Error:') || error.message.includes('Failed to')) {
+            if (timeoutId) clearTimeout(timeoutId);
+
+            // AbortController timeout
+            if (error.name === 'AbortError') {
+                throw new Error(`Request timeout after ${timeoutMs}ms: ${method} ${url}`);
+            }
+
+            if (error.message.startsWith('HTTP Error:') || error.message.includes('Failed to') || error.message.includes('Authentication required')) {
                 throw error;
             }
             throw new Error(`Network Error: ${error.message}`);

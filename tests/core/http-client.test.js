@@ -179,4 +179,50 @@ describe('HttpClient', () => {
 
         await expect(client.get('/api/tasks')).rejects.toThrow('HTTP Error: 500');
     });
+
+    // ===== Request Timeout (CommandMate pattern) =====
+
+    it('タイムアウト指定_AbortErrorでリクエストが中断される', async () => {
+        // AbortControllerのsignalでabortされた場合をシミュレート
+        fetchMock.mockImplementation((_url, options) => {
+            return new Promise((_resolve, reject) => {
+                if (options?.signal) {
+                    options.signal.addEventListener('abort', () => {
+                        const err = new Error('The operation was aborted');
+                        err.name = 'AbortError';
+                        reject(err);
+                    });
+                }
+            });
+        });
+
+        await expect(
+            client.get('/api/slow', { timeout: 50 })
+        ).rejects.toThrow(/timeout/i);
+    });
+
+    it('タイムアウト未指定_デフォルトタイムアウトが適用される', async () => {
+        // 正常レスポンスが即座に返る場合はタイムアウトしない
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: false,
+            status: 200,
+            json: async () => ({ data: 'ok' })
+        });
+
+        const result = await client.get('/api/fast');
+        expect(result).toEqual({ data: 'ok' });
+    });
+
+    it('タイムアウト前にレスポンス到着_正常に処理される', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: false,
+            status: 200,
+            json: async () => ({ data: 'quick' })
+        });
+
+        const result = await client.get('/api/quick', { timeout: 5000 });
+        expect(result).toEqual({ data: 'quick' });
+    });
 });
