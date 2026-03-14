@@ -167,6 +167,27 @@ export class HttpClient {
                 };
             }
 
+            // Auth redirect detection (CommandMate pattern):
+            // Cloudflare Zero Trust / reverse proxy may redirect API calls to login page
+            // returning 200 OK with text/html instead of expected JSON
+            if (response.redirected) {
+                const contentType = typeof response.headers?.get === 'function'
+                    ? response.headers.get('content-type') || ''
+                    : '';
+                const isHtml = contentType.includes('text/html');
+                const isLoginUrl = response.url && /login|auth|signin/i.test(response.url);
+
+                if (isHtml || isLoginUrl) {
+                    const authError = new Error('Authentication required');
+                    authError.status = 401;
+                    authError.redirectUrl = response.url;
+                    if (typeof this._onUnauthorized === 'function') {
+                        try { this._onUnauthorized(); } catch (_) {}
+                    }
+                    throw authError;
+                }
+            }
+
             if (!response.ok) {
                 if (response.status === 401 && typeof this._onUnauthorized === 'function') {
                     try {

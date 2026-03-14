@@ -124,4 +124,59 @@ describe('HttpClient', () => {
             }
         });
     });
+
+    // ===== Auth Redirect Detection (CommandMate pattern) =====
+
+    it('リダイレクト+HTMLレスポンス_認証エラーをスローする', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: true,
+            url: 'https://login.example.com/auth',
+            status: 200,
+            headers: new Map([['content-type', 'text/html']]),
+            json: async () => { throw new Error('not JSON'); }
+        });
+
+        await expect(client.get('/api/tasks')).rejects.toThrow('Authentication required');
+    });
+
+    it('リダイレクト+JSONレスポンス_正常に処理される', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: false,
+            url: 'https://api.example.com/api/tasks',
+            status: 200,
+            headers: new Map([['content-type', 'application/json']]),
+            json: async () => ({ tasks: [] })
+        });
+
+        const result = await client.get('/api/tasks');
+        expect(result).toEqual({ tasks: [] });
+    });
+
+    it('リダイレクト+login URL_認証エラーをスローする', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: true,
+            url: 'https://example.com/login?redirect=/api/tasks',
+            status: 200,
+            headers: new Map([['content-type', 'text/html; charset=utf-8']]),
+            json: async () => { throw new Error('not JSON'); }
+        });
+
+        await expect(client.get('/api/tasks')).rejects.toThrow('Authentication required');
+    });
+
+    it('非リダイレクト+HTMLエラーレスポンス_通常のエラー処理', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            redirected: false,
+            status: 500,
+            statusText: 'Internal Server Error',
+            headers: new Map([['content-type', 'text/html']]),
+            json: async () => { throw new Error('not JSON'); }
+        });
+
+        await expect(client.get('/api/tasks')).rejects.toThrow('HTTP Error: 500');
+    });
 });
