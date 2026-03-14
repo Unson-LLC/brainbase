@@ -1,5 +1,6 @@
 import { httpClient } from './http-client.js';
 import { loadXterm } from './xterm-loader.js';
+import { MessageQueue } from './message-queue.js';
 
 const SNAPSHOT_LINES = 200;
 const CONNECT_TIMEOUT_MS = 4000;
@@ -60,6 +61,7 @@ export class TerminalTransportClient {
         this._manualClose = false;
         this._connectToken = 0;
         this._keepaliveTimer = null;
+        this._messageQueue = new MessageQueue();
         this._wheelDelta = 0;
         this._touchDelta = 0;
         this._wheelFlushTimer = null;
@@ -196,6 +198,7 @@ export class TerminalTransportClient {
                         this.status.connected = true;
                         this._emitStatus();
                         this._startKeepalive();
+                        this._flushMessageQueue();
                         void this.syncViewportSize();
                         resolve({ mode: 'live' });
                         break;
@@ -264,6 +267,7 @@ export class TerminalTransportClient {
         this._manualClose = true;
         this._clearReconnectTimer();
         this._stopKeepalive();
+        this._messageQueue.clear();
         this._closeWs();
         this.status.connected = false;
         this.status.copyMode = false;
@@ -278,24 +282,25 @@ export class TerminalTransportClient {
 
     async sendText(value) {
         if (!value) return;
-        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        const message = { type: 'input', inputType: 'text', value };
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+            // Queue for later (CommandMate pattern)
+            this._messageQueue.enqueue(message);
+            return;
+        }
         await this._ensureInteractiveMode();
-        this.ws.send(JSON.stringify({
-            type: 'input',
-            inputType: 'text',
-            value
-        }));
+        this.ws.send(JSON.stringify(message));
     }
 
     async sendKey(value) {
         if (!value) return;
-        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        const message = { type: 'input', inputType: 'key', value };
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+            this._messageQueue.enqueue(message);
+            return;
+        }
         await this._ensureInteractiveMode();
-        this.ws.send(JSON.stringify({
-            type: 'input',
-            inputType: 'key',
-            value
-        }));
+        this.ws.send(JSON.stringify(message));
     }
 
     async scroll(direction, steps) {
@@ -420,6 +425,19 @@ export class TerminalTransportClient {
                 this.ws.send(JSON.stringify({ type: 'ping' }));
             }
         }, KEEPALIVE_INTERVAL_MS);
+    }
+
+    /**
+     * キューに保存されたメッセージを再接続後に送信
+     */
+    _flushMessageQueue() {
+        if (this._messageQueue.isEmpty()) return;
+        const messages = this._messageQueue.drain();
+        for (const msg of messages) {
+            if (this.ws?.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify(msg));
+            }
+        }
     }
 
     /**
