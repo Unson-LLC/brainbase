@@ -997,7 +997,9 @@ export class App {
             }
 
             const sessionId = appStore.getState().currentSessionId;
-            if (sessionId && this._terminalCopyModeSessions.has(sessionId)) {
+            if (xtermActive && this._terminalTransportStatus?.copyMode) {
+                void this.terminalTransportClient?.exitCopyMode().catch(() => {});
+            } else if (sessionId && this._terminalCopyModeSessions.has(sessionId)) {
                 // Best-effort: exit tmux copy-mode so input works again.
                 fetch(`/api/sessions/${sessionId}/exit_copy_mode`, {
                     method: 'POST',
