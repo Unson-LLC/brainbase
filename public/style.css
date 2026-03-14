@@ -782,14 +782,14 @@ body::after {
 .session-child-row {
     display: flex;
     align-items: center;
-    padding: 6px 10px 6px 10px;
+    padding: 7px 10px;
     /* Indent for child items */
     cursor: pointer;
     border-left: 2px solid transparent;
     transition: background-color 0.15s;
-    height: 32px;
-    /* Fixed height for consistency */
+    min-height: 44px;
     touch-action: manipulation;
+    gap: 0;
 }
 
 .session-child-row:hover {
@@ -822,11 +822,24 @@ body::after {
 .session-name-container {
     display: flex;
     align-items: center;
-    flex: 1;
-    /* Grow to fill space */
     min-width: 0;
-    /* Allow truncation */
     gap: 8px;
+}
+
+.session-row-main {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.session-summary-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-height: 18px;
 }
 
 .session-meta {
@@ -1199,6 +1212,10 @@ body::after {
     flex-shrink: 0;
 }
 
+.session-activity-indicator.idle {
+    opacity: 0;
+}
+
 .session-activity-indicator.working {
     background-color: var(--warning-color);
     box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
@@ -1208,6 +1225,92 @@ body::after {
 .session-activity-indicator.done {
     background-color: var(--success-color);
     box-shadow: 0 0 4px var(--success-color);
+}
+
+.session-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    font-size: 0.66rem;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-summary-chip.chip-repo {
+    color: var(--text-primary);
+}
+
+.session-summary-chip.chip-dirty {
+    background: rgba(245, 158, 11, 0.14);
+    color: var(--warning-color);
+}
+
+.session-summary-chip.chip-push {
+    background: rgba(59, 130, 246, 0.16);
+    color: #93c5fd;
+}
+
+.session-summary-chip.chip-pr-ok {
+    background: rgba(16, 185, 129, 0.14);
+    color: var(--success-color);
+}
+
+.session-summary-chip.chip-pr-pending {
+    background: rgba(251, 191, 36, 0.14);
+    color: #fbbf24;
+}
+
+.session-summary-chip.chip-file {
+    max-width: 200px;
+}
+
+.session-summary-chip.session-transport-badge.transport-ok {
+    background: rgba(16, 185, 129, 0.14);
+    color: var(--success-color);
+}
+
+.session-summary-chip.session-transport-badge.transport-warn {
+    background: rgba(245, 158, 11, 0.14);
+    color: var(--warning-color);
+}
+
+.session-summary-chip.session-transport-badge.transport-muted {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+}
+
+.session-summary-chip.session-transport-badge.transport-danger {
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171;
+}
+
+.session-summary-chip.session-attention-badge.attention-focus {
+    background: rgba(59, 130, 246, 0.16);
+    color: #93c5fd;
+}
+
+.session-summary-chip.session-attention-badge.attention-copy {
+    background: rgba(168, 85, 247, 0.14);
+    color: #d8b4fe;
+}
+
+.session-child-row.transport-reconnecting {
+    background-image: linear-gradient(90deg, rgba(245, 158, 11, 0.08), transparent 55%);
+}
+
+.session-child-row.transport-disconnected {
+    opacity: 0.9;
+}
+
+.session-child-row.transport-blocked {
+    background-image: linear-gradient(90deg, rgba(239, 68, 68, 0.08), transparent 55%);
 }
 
 @keyframes pulse {

@@ -12,6 +12,7 @@ const MAX_TREE_DEPTH = 3;
 const DEFAULT_TREE_DEPTH = 2;
 const MAX_TREE_ENTRIES = 200;
 const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
+const UI_SUMMARY_TTL_MS = 10_000;
 
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore) {
@@ -20,6 +21,7 @@ export class SessionController {
         this.stateStore = stateStore;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
+        this._uiSummaryCache = new Map();
     }
 
     _parseTreeDepth(rawDepth) {
@@ -112,6 +114,70 @@ export class SessionController {
         }
 
         return { nodes, truncated };
+    }
+
+    async _buildSessionUiSummary(session) {
+        const repoPath = session.worktree?.repo || null;
+        const workspacePath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            || session.worktree?.path
+            || session.path
+            || null;
+        const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
+        const currentDirectory = session.cwd || workspacePath || null;
+        const baseSummary = {
+            repo: fallbackRepoName,
+            baseBranch: null,
+            dirty: false,
+            changesNotPushed: 0,
+            prStatus: session.merged ? 'merged' : 'none',
+            workspacePath,
+            currentDirectory,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (!repoPath) {
+            return baseSummary;
+        }
+
+        try {
+            const status = await this.worktreeService.getStatus(
+                session.id,
+                repoPath,
+                session.worktree?.startCommit || null
+            );
+            const changesNotPushed = status.changesNotPushed || 0;
+            const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
+
+            return {
+                repo: status.repoName || baseSummary.repo,
+                baseBranch: status.mainBranch || null,
+                dirty: hasWorkingCopyChanges || changesNotPushed > 0,
+                changesNotPushed,
+                prStatus: session.merged
+                    ? 'merged'
+                    : (changesNotPushed > 0 || status.bookmarkPushed ? 'open_or_pending' : 'none'),
+                workspacePath: workspacePath || status.worktreePath || null,
+                currentDirectory: currentDirectory || status.worktreePath || null,
+                updatedAt: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('Failed to build session UI summary:', error);
+            return baseSummary;
+        }
+    }
+
+    async _getCachedSessionUiSummary(session) {
+        const cached = this._uiSummaryCache.get(session.id);
+        if (cached && Date.now() - cached.cachedAt < UI_SUMMARY_TTL_MS) {
+            return cached.summary;
+        }
+
+        const summary = await this._buildSessionUiSummary(session);
+        this._uiSummaryCache.set(session.id, {
+            cachedAt: Date.now(),
+            summary
+        });
+        return summary;
     }
 
     /**
@@ -935,6 +1001,26 @@ ${jjBookmarks}
             console.error('Failed to get session context:', error);
             res.json(context);
         }
+    };
+
+    getUiSummaries = async (req, res) => {
+        const state = this.stateStore.get();
+        const requestedIds = typeof req.query.ids === 'string' && req.query.ids.trim()
+            ? req.query.ids.split(',').map((id) => id.trim()).filter(Boolean)
+            : null;
+        const sessions = (state.sessions || []).filter((session) => {
+            if (!requestedIds) return true;
+            return requestedIds.includes(session.id);
+        });
+
+        const entries = await Promise.all(
+            sessions.map(async (session) => {
+                const summary = await this._getCachedSessionUiSummary(session);
+                return [session.id, summary];
+            })
+        );
+
+        res.json(Object.fromEntries(entries));
     };
 
     /**

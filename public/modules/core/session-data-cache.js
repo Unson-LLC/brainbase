@@ -1,5 +1,5 @@
 /**
- * セッションデータのクライアント側キャッシュ
+ * クライアント側データキャッシュ
  * Map-based TTL管理
  */
 export class SessionDataCache {
@@ -23,22 +23,22 @@ export class SessionDataCache {
     /**
      * キャッシュキー生成
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} sessionId - セッションID
+     * @param {string} [scope='global'] - キャッシュスコープ
      * @returns {string} キャッシュキー
      * @private
      */
-    _getKey(type, sessionId) {
-        return `${sessionId}:${type}`;
+    _getKey(type, scope = 'global') {
+        return `${scope}:${type}`;
     }
 
     /**
      * キャッシュから値を取得
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} sessionId - セッションID
+     * @param {string} [scope='global'] - キャッシュスコープ
      * @returns {*|null} キャッシュヒット時は値、ミス時はnull
      */
-    get(type, sessionId) {
-        const key = this._getKey(type, sessionId);
+    get(type, scope = 'global') {
+        const key = this._getKey(type, scope);
         const entry = this._cache.get(key);
 
         if (!entry) {
@@ -60,11 +60,11 @@ export class SessionDataCache {
     /**
      * キャッシュに値を保存
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} sessionId - セッションID
+     * @param {string} [scope='global'] - キャッシュスコープ
      * @param {*} value - 保存する値
      */
-    set(type, sessionId, value) {
-        const key = this._getKey(type, sessionId);
+    set(type, scope = 'global', value) {
+        const key = this._getKey(type, scope);
         const ttl = this._ttls[type];
         const expiresAt = Date.now() + ttl;
 
@@ -74,17 +74,38 @@ export class SessionDataCache {
 
     /**
      * 対象セッションのキャッシュを無効化
-     * @param {string} sessionId - セッションID
+     * @param {string} scope - キャッシュスコープ
      */
-    invalidate(sessionId) {
+    invalidateScope(scope) {
         const keysToDelete = [];
         for (const key of this._cache.keys()) {
-            if (key.startsWith(`${sessionId}:`)) {
+            if (key.startsWith(`${scope}:`)) {
                 keysToDelete.push(key);
             }
         }
         keysToDelete.forEach(key => this._cache.delete(key));
-        this._log('Cache invalidated', { sessionId, count: keysToDelete.length });
+        this._log('Cache invalidated', { scope, count: keysToDelete.length });
+    }
+
+    /**
+     * 特定typeのキャッシュを無効化
+     * @param {string} type - データ種別（tasks, schedule）
+     * @param {string} [scope='global'] - キャッシュスコープ
+     */
+    invalidateType(type, scope = 'global') {
+        const key = this._getKey(type, scope);
+        const deleted = this._cache.delete(key);
+        this._log('Cache key invalidated', { key, deleted });
+    }
+
+    /**
+     * 後方互換API
+     * 旧呼び出し: invalidate(sessionId)
+     * 現在はscope単位invalidateとして扱う
+     * @param {string} scope - キャッシュスコープ
+     */
+    invalidate(scope) {
+        this.invalidateScope(scope);
     }
 
     /**

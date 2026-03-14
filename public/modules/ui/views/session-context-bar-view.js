@@ -16,6 +16,7 @@ export class SessionContextBarView {
         this._pollTimer = null;
         this._expanded = false;
         this._currentContext = null;
+        this._refreshTimer = null;
     }
 
     mount(container) {
@@ -29,7 +30,7 @@ export class SessionContextBarView {
     _setupEventListeners() {
         const unsub1 = appStore.subscribeToSelector(
             (state) => state.currentSessionId,
-            () => this.refresh({ forceLoading: true })
+            () => this._scheduleRefresh({ forceLoading: false, delayMs: 120 })
         );
 
         const refresh = () => this.refresh();
@@ -53,6 +54,26 @@ export class SessionContextBarView {
             clearInterval(this._pollTimer);
             this._pollTimer = null;
         }
+    }
+
+    _scheduleRefresh(options = {}) {
+        const { delayMs = 0, forceLoading = false } = options;
+        if (this._refreshTimer) {
+            clearTimeout(this._refreshTimer);
+            this._refreshTimer = null;
+        }
+
+        const run = () => {
+            this._refreshTimer = null;
+            this.refresh({ forceLoading });
+        };
+
+        if (delayMs <= 0) {
+            run();
+            return;
+        }
+
+        this._refreshTimer = setTimeout(run, delayMs);
     }
 
     _shortPath(pathValue) {
@@ -211,6 +232,10 @@ export class SessionContextBarView {
 
     unmount() {
         this._stopPolling();
+        if (this._refreshTimer) {
+            clearTimeout(this._refreshTimer);
+            this._refreshTimer = null;
+        }
         this._unsubscribers.forEach((unsub) => unsub());
         this._unsubscribers = [];
         if (this.container) {
