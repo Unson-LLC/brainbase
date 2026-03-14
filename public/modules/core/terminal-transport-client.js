@@ -136,7 +136,8 @@ export class TerminalTransportClient {
         this._clearReconnectTimer();
         this._closeWs();
 
-        const wsUrl = this._buildWsUrl(sessionId);
+        const initialDimensions = this._measureViewport();
+        const wsUrl = this._buildWsUrl(sessionId, initialDimensions);
         const ws = new WebSocket(wsUrl);
         this.ws = ws;
 
@@ -162,6 +163,7 @@ export class TerminalTransportClient {
                         this.status.mode = 'live';
                         this.status.connected = true;
                         this._emitStatus();
+                        void this.syncViewportSize();
                         resolve({ mode: 'live' });
                         break;
                     case 'snapshot':
@@ -265,6 +267,12 @@ export class TerminalTransportClient {
         }));
     }
 
+    async syncViewportSize() {
+        const dims = this._measureViewport();
+        if (!dims) return;
+        await this.resize(dims.cols, dims.rows);
+    }
+
     async reconnect() {
         if (!this.sessionId) return;
         await this.connect(this.sessionId);
@@ -319,6 +327,15 @@ export class TerminalTransportClient {
         this.fitAddon?.fit();
     }
 
+    _measureViewport() {
+        this.fitAddon?.fit();
+        const dims = this._getDimensions();
+        if (!dims) return null;
+        if (!Number.isFinite(dims.cols) || !Number.isFinite(dims.rows)) return null;
+        if (dims.cols <= 0 || dims.rows <= 0) return null;
+        return dims;
+    }
+
     _getDimensions() {
         if (!this.terminal) return null;
         return {
@@ -327,11 +344,15 @@ export class TerminalTransportClient {
         };
     }
 
-    _buildWsUrl(sessionId) {
+    _buildWsUrl(sessionId, dimensions = null) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const url = new URL(`${protocol}//${window.location.host}/api/sessions/${encodeURIComponent(sessionId)}/terminal/ws`);
         url.searchParams.set('viewerId', this.viewerId);
         url.searchParams.set('viewerLabel', this.viewerLabel);
+        if (dimensions?.cols && dimensions?.rows) {
+            url.searchParams.set('cols', String(dimensions.cols));
+            url.searchParams.set('rows', String(dimensions.rows));
+        }
         return url.toString();
     }
 

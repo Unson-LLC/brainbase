@@ -666,6 +666,7 @@ export class App {
             if (firstAttempt?.mode === 'blocked') {
                 return { ok: false, blocked: true, terminalAccess: firstAttempt.terminalAccess || null };
             }
+            this.hideTerminalLoadingOverlay();
             return { ok: true };
         } catch (error) {
             if (error?.code === 'SESSION_NOT_RUNNING') {
@@ -674,6 +675,7 @@ export class App {
                 if (retry?.mode === 'blocked') {
                     return { ok: false, blocked: true, terminalAccess: retry.terminalAccess || null };
                 }
+                this.hideTerminalLoadingOverlay();
                 return { ok: true };
             }
             console.warn('Xterm transport unavailable, falling back to ttyd:', error);
@@ -2588,6 +2590,7 @@ export class App {
                 if (transportResult.ok) {
                     this.reconnectManager?.setCurrentSession(sessionId);
                     this._terminalLastNavigateAt = Date.now();
+                    this.hideTerminalLoadingOverlay();
                     this._setCurrentSessionUiState({
                         transport: 'reconnecting',
                         attention: 'none'
@@ -3223,6 +3226,18 @@ export class App {
         overlay.classList.add('hidden');
     }
 
+    _isXtermSessionReady(sessionId) {
+        if (!sessionId || appStore.getState().currentSessionId !== sessionId) {
+            return false;
+        }
+        if (!this._isXtermTransportActive()) {
+            return false;
+        }
+        const status = this._terminalTransportStatus || this.terminalTransportClient?.getStatus?.() || null;
+        const mode = status?.mode || null;
+        return mode === 'live' || mode === 'snapshot';
+    }
+
     /**
      * Claude初期化待機
      * @param {string} sessionId - セッションID
@@ -3233,6 +3248,12 @@ export class App {
         const startTime = Date.now();
 
         const checkInitialization = async () => {
+            if (this._isXtermSessionReady(sessionId)) {
+                console.log(`[Claude Init] Xterm transport ready for ${sessionId}`);
+                this.hideTerminalLoadingOverlay();
+                return;
+            }
+
             // 条件1: ターミナルiframeがロード済みならオーバーレイ解除
             const iframe = document.getElementById('terminal-frame');
             if (iframe && iframe.src && iframe.src !== 'about:blank') {
@@ -3273,8 +3294,7 @@ export class App {
             setTimeout(checkInitialization, pollInterval);
         };
 
-        // 少し待ってからチェック開始（switchSessionがiframe srcを設定する時間を確保）
-        setTimeout(checkInitialization, 1000);
+        void checkInitialization();
     }
 
     startSessionUiSummaryRefresh() {

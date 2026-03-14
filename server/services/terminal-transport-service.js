@@ -17,10 +17,14 @@ function buildTerminalWsMatch(urlString = '') {
         const parsed = new URL(urlString, 'http://localhost');
         const match = parsed.pathname.match(/^\/api\/sessions\/([^/]+)\/terminal\/ws$/);
         if (!match) return null;
+        const cols = Number(parsed.searchParams.get('cols'));
+        const rows = Number(parsed.searchParams.get('rows'));
         return {
             sessionId: decodeURIComponent(match[1]),
             viewerId: parsed.searchParams.get('viewerId') || '',
-            viewerLabel: parsed.searchParams.get('viewerLabel') || ''
+            viewerLabel: parsed.searchParams.get('viewerLabel') || '',
+            cols: Number.isFinite(cols) && cols > 0 ? cols : null,
+            rows: Number.isFinite(rows) && rows > 0 ? rows : null
         };
     } catch {
         return null;
@@ -55,7 +59,7 @@ export class TerminalTransportService {
     }
 
     async _handleConnection(ws, request, clientInfo) {
-        const { sessionId, viewerId, viewerLabel } = clientInfo;
+        const { sessionId, viewerId, viewerLabel, cols, rows } = clientInfo;
         if (!sessionId || !viewerId) {
             ws.send(JSON.stringify({ type: 'error', code: 'INVALID_REQUEST', message: 'sessionId and viewerId are required' }));
             ws.close();
@@ -81,6 +85,8 @@ export class TerminalTransportService {
             sessionId,
             viewerId,
             viewerLabel,
+            cols: cols || 120,
+            rows: rows || 40,
             closed: false,
             lastSnapshot: null,
             lastCopyMode: null,
@@ -102,6 +108,9 @@ export class TerminalTransportService {
             void this._handleMessage(connection, raw.toString());
         });
 
+        if (cols && rows) {
+            await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
+        }
         await this._sendReady(connection);
         connection.pollTimer = setInterval(() => {
             void this._pollConnection(connection);
@@ -109,7 +118,7 @@ export class TerminalTransportService {
     }
 
     async _sendReady(connection) {
-        const { sessionId, viewerId, viewerLabel, ws } = connection;
+        const { sessionId, viewerId, viewerLabel, ws, cols, rows } = connection;
         this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
         const snapshot = await this._getSnapshotPayload(sessionId);
         connection.lastSnapshot = snapshot.text;
@@ -118,8 +127,8 @@ export class TerminalTransportService {
         ws.send(JSON.stringify({
             type: 'ready',
             sessionId,
-            cols: 120,
-            rows: 40
+            cols,
+            rows
         }));
         ws.send(JSON.stringify({
             type: 'snapshot',
@@ -196,6 +205,12 @@ export class TerminalTransportService {
                 const cols = Number(message.cols);
                 const rows = Number(message.rows);
                 await this.sessionManager.resizeSessionWindow(sessionId, cols, rows);
+                if (Number.isFinite(cols) && cols > 0) {
+                    connection.cols = cols;
+                }
+                if (Number.isFinite(rows) && rows > 0) {
+                    connection.rows = rows;
+                }
                 await this._pollConnection(connection);
                 return;
             }

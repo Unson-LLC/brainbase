@@ -206,6 +206,49 @@ describe('app switchSession runtime handling', () => {
     }));
   });
 
+  it('xterm transport成功時はterminal loading overlayを即時に閉じる', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const overlay = document.getElementById('terminal-loading-overlay');
+    overlay.classList.remove('hidden');
+
+    await app.switchSession('session-1');
+
+    expect(app._connectXtermTransport).toHaveBeenCalled();
+    expect(overlay.classList.contains('hidden')).toBe(true);
+  });
+
+  it('xterm activeなら初期化待機でiframe待ちせずoverlayを閉じる', async () => {
+    vi.useFakeTimers();
+    appStore.setState({ currentSessionId: 'session-1' });
+    app.terminalTransportClient = { getStatus: vi.fn(() => ({ mode: 'live' })), destroy: vi.fn() };
+    app._terminalTransportStatus = { mode: 'live', connected: true };
+    app._isXtermTransportActive = vi.fn(() => true);
+
+    const overlay = document.getElementById('terminal-loading-overlay');
+    overlay.classList.remove('hidden');
+
+    await app._waitForClaudeInitialization('session-1');
+    await vi.runAllTimersAsync();
+
+    expect(overlay.classList.contains('hidden')).toBe(true);
+    vi.useRealTimers();
+  });
+
   it('reconnect runtime lookup失敗時_startせず再接続嵐を増やさない', async () => {
     await app.start();
     app.focusTerminal = vi.fn();

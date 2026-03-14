@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { shouldUseDesktopXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
+import { TerminalTransportClient, shouldUseDesktopXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
 
 describe('terminal-transport-client', () => {
   afterEach(() => {
@@ -34,5 +34,69 @@ describe('terminal-transport-client', () => {
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' });
 
     expect(shouldUseDesktopXtermTransport()).toBe(false);
+  });
+
+  it('connect時に初期viewportサイズをws queryへ含めてready後もresizeを送る', async () => {
+    const sentMessages = [];
+    let openedUrl = null;
+
+    class MockWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+
+      constructor(url) {
+        openedUrl = url;
+        this.url = url;
+        this.readyState = MockWebSocket.OPEN;
+        this.listeners = new Map();
+        queueMicrotask(() => {
+          this._emit('message', {
+            data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
+          });
+        });
+      }
+
+      addEventListener(type, listener) {
+        const current = this.listeners.get(type) || [];
+        current.push(listener);
+        this.listeners.set(type, current);
+      }
+
+      send(message) {
+        sentMessages.push(JSON.parse(message));
+      }
+
+      close() {}
+
+      _emit(type, event) {
+        for (const listener of this.listeners.get(type) || []) {
+          listener(event);
+        }
+      }
+    }
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', host: 'localhost:31013', hostname: 'localhost' }
+    });
+    vi.stubGlobal('WebSocket', MockWebSocket);
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.fitAddon = { fit: vi.fn() };
+    client.terminal = { cols: 98, rows: 32 };
+
+    await client.connect('session-1');
+
+    const url = new URL(openedUrl);
+    expect(url.searchParams.get('cols')).toBe('98');
+    expect(url.searchParams.get('rows')).toBe('32');
+    expect(client.fitAddon.fit).toHaveBeenCalled();
+    expect(sentMessages).toContainEqual({
+      type: 'resize',
+      cols: 98,
+      rows: 32
+    });
   });
 });
