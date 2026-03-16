@@ -29,7 +29,7 @@ posts:
     明日はDay 12、Google Driveの自動整理に挑戦
 
     '
-  image: /Users/ksato/workspace/brainbase-config/sns/images/incident_20260112_091154.jpg
+  image: ~/workspace/brainbase-config/sns/images/incident_20260112_091154.jpg
   sns_smart_completed: true
   posted_url: https://x.com/i/web/status/2010594583462420631
   posted_at: '2026-01-12T10:55:00+09:00'
@@ -75,7 +75,7 @@ posts:
     お前はまだ21時まで働いてんの？
 
     '
-  image: /Users/ksato/workspace/brainbase-config/sns/images/confession_20260112_090309.jpg
+  image: ~/workspace/brainbase-config/sns/images/confession_20260112_090309.jpg
   sns_smart_completed: true
   status: skipped
   skipped_at: '2026-02-11T12:09:24.634590+09:00'
@@ -111,7 +111,7 @@ posts:
     みんなはどう決めてる？
 
     '
-  image: /Users/ksato/workspace/brainbase-config/sns/images/gap_20260112_091630.jpg
+  image: ~/workspace/brainbase-config/sns/images/gap_20260112_091630.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-12T21:15:11.166896+09:00'
@@ -140,7 +140,7 @@ posts:
     → 俺がボトルネックになりたくないから
 
 
-    「佐藤さんに聞かないとわからない」を撲滅する
+    「担当者に聞かないとわからない」を撲滅する
 
 
     累計: 18個/100個完了
@@ -151,7 +151,7 @@ posts:
     チームで依存関係どう管理してる？
 
     '
-  image: /Users/ksato/workspace/brainbase-config/sns/drafts/batch_2026-01-12/images/01_day12_framework.jpg
+  image: ~/workspace/brainbase-config/sns/drafts/batch_2026-01-12/images/01_day12_framework.jpg
   posted_url: https://x.com/i/web/status/2011066304321765884
   posted_at: '2026-01-13T22:22:24+09:00'
   status: posted
@@ -460,7 +460,7 @@ posts:
     「自分がボトルネックになってしまう」
 
 
-    佐藤がいないと判断ができない
+    担当者がいないと判断ができない
 
     自分しか知らない情報がある
 
@@ -519,7 +519,7 @@ posts:
     会議準備、どれくらい時間かけてる？
 
     '
-  image: /Users/ksato/workspace/brainbase-config/sns/images/100day_day15.jpg
+  image: ~/workspace/brainbase-config/sns/images/100day_day15.jpg
   status: posted
   posted_at: '2026-01-18T21:26:00+09:00'
   posted_url: https://x.com/i/web/status/2012869898712887412
@@ -880,7 +880,7 @@ posts:
     この1行がないと
 
     現場は軽くならない'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/gap_20260125_085712.jpg
+  image: ~/workspace/brainbase-config/sns/images/gap_20260125_085712.jpg
   sns_smart_completed: true
   status: skipped
   skipped_at: '2026-02-11T12:09:24.634590+09:00'
@@ -914,7 +914,7 @@ posts:
     入口だけ広げても詰まる
 
     再配信を回したら反応が戻った'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/mystery_20260125_090201.jpg
+  image: ~/workspace/brainbase-config/sns/images/mystery_20260125_090201.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-25T12:41:06.315972+09:00'
@@ -948,7 +948,7 @@ posts:
 
 
     でも速度で先に出す方を選んだ'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/confession_20260125_085754.jpg
+  image: ~/workspace/brainbase-config/sns/images/confession_20260125_085754.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-25T15:46:19.826415+09:00'
@@ -978,7 +978,7 @@ posts:
     チーム単位で作り直す
 
     日程表データで検証中'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/whiteboard_20260125_092157.jpg
+  image: ~/workspace/brainbase-config/sns/images/whiteboard_20260125_092157.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-25T19:08:37.856302+09:00'
@@ -1006,7 +1006,7 @@ posts:
     入れ替え前提の体制を作る
 
     1人完結に寄せるのも怖い'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/incident_20260125_085833.jpg
+  image: ~/workspace/brainbase-config/sns/images/incident_20260125_085833.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-25T21:48:16.204878+09:00'
@@ -1035,7 +1035,7 @@ posts:
     技術じゃなく
 
     体制の穴だった'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/mystery_20260125_085851.jpg
+  image: ~/workspace/brainbase-config/sns/images/mystery_20260125_085851.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-26T01:08:40.178239+09:00'
@@ -1065,7 +1065,7 @@ posts:
 
 
     そこから設計を変えて、3ヶ月で残高が戻った'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/graphrec_x-20260125-020.jpg
+  image: ~/workspace/brainbase-config/sns/images/graphrec_x-20260125-020.jpg
   sns_smart_completed: true
   status: skipped
   skipped_at: '2026-02-11T12:09:24.634590+09:00'
@@ -1095,7 +1095,7 @@ posts:
 
 
     そこから設計を変えて、3ヶ月で残高が戻った'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/framework_x-20260125-021.jpg
+  image: ~/workspace/brainbase-config/sns/images/framework_x-20260125-021.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-26T07:07:40.315408+09:00'
@@ -1133,7 +1133,7 @@ posts:
 
 
     PLじゃなくてCFで会社は死ぬ、って身体で覚えた'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/confession_x-20260126-001.jpg
+  image: ~/workspace/brainbase-config/sns/images/confession_x-20260126-001.jpg
   sns_smart_completed: true
   status: skipped
   skipped_at: '2026-02-11T12:09:24.634590+09:00'
@@ -1208,7 +1208,7 @@ posts:
 
 
     なくなった'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/graphrec_x-20260126-012.jpg
+  image: ~/workspace/brainbase-config/sns/images/graphrec_x-20260126-012.jpg
   sns_smart_completed: true
   status: skipped
   skipped_at: '2026-02-11T12:09:24.634590+09:00'
@@ -1252,7 +1252,7 @@ posts:
 
 
     3ヶ月で残高が戻った'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/incident_x-20260126-010.jpg
+  image: ~/workspace/brainbase-config/sns/images/incident_x-20260126-010.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-26T18:45:44.384880+09:00'
@@ -1285,7 +1285,7 @@ posts:
 
 
     3ヶ月で残高が戻った'
-  image: /Users/ksato/workspace/brainbase-config/sns/images/progress_x-20260126-011.jpg
+  image: ~/workspace/brainbase-config/sns/images/progress_x-20260126-011.jpg
   sns_smart_completed: true
   status: posted
   posted_at: '2026-01-26T21:48:49.260615+09:00'
@@ -1618,7 +1618,7 @@ posts:
 
     ・会議の議事録はZoomチャット、Slackメッセージ、メールに散っていた
 
-    ・RACIが曖昧で、佐藤が決めるべきことと、メンバーが決めるべきことが混在
+    ・RACIが曖昧で、担当者が決めるべきことと、メンバーが決めるべきことが混在
 
 
     この状態でAIに会議の議事録から自動でタスク生成させようとした
@@ -2284,6 +2284,6 @@ posts:
 
 
     短期で見えるものばかり最適化していると、長期の選択肢がなくなる'
-  image: /Users/ksato/workspace/sns/images/graphrec_x-20260227-001.jpg
+  image: ~/workspace/sns/images/graphrec_x-20260227-001.jpg
   sns_smart_completed: true
   status: ready

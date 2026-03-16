@@ -358,7 +358,7 @@ function setupKeyHandling() {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {
                 const direction = event.data.direction === 'down' ? 'down' : 'up';
-                const steps = Math.min(5, Math.max(1, Number(event.data.steps) || 1));
+                const steps = Math.min(8, Math.max(1, Number(event.data.steps) || 1));
                 try {
                     await httpClient.post(`/api/sessions/${currentSessionId}/scroll`, {
                         direction,

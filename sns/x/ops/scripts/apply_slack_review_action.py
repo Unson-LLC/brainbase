@@ -15,7 +15,7 @@ import yaml
 
 from dispatch_logs import upsert_dispatch_entry
 
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 SCHEDULE_PATH = ROOT / "sns/scheduled_posts.yml"
 POSTS_SCHEDULED_DIR = ROOT / "sns/x/05_posts/scheduled"
 RUN_LEDGER_SCRIPT = ROOT / "common/ops/scripts/run_ledger.py"

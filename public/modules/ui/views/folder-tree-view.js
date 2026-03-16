@@ -3,9 +3,12 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { escapeHtml } from '../../ui-helpers.js';
 
+const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
+
 export class FolderTreeView {
-    constructor({ sessionService }) {
+    constructor({ sessionService, fileViewerService }) {
         this.sessionService = sessionService;
+        this.fileViewerService = fileViewerService || null;
         this.store = appStore;
         this.eventBus = eventBus;
         this._loadingPaths = new Set();
@@ -176,7 +179,37 @@ export class FolderTreeView {
         }
     }
 
+    _isMarkdownFile(fileName) {
+        if (!fileName) return false;
+        const dot = fileName.lastIndexOf('.');
+        if (dot < 0) return false;
+        return MARKDOWN_EXTENSIONS.has(fileName.slice(dot).toLowerCase());
+    }
+
     async _openFile(sessionId, relativePath) {
+        const fileName = relativePath.split('/').pop() || relativePath;
+        if (this.fileViewerService && this._isMarkdownFile(fileName)) {
+            try {
+                await this.fileViewerService.openFile(sessionId, relativePath);
+                await this.eventBus.emit(EVENTS.FOLDER_TREE_FILE_OPENED, {
+                    sessionId,
+                    relativePath
+                });
+            } catch (error) {
+                const folderTree = this._getFolderTreeState();
+                this._setFolderTreeState({
+                    ...folderTree,
+                    error: error.message || 'ファイルオープンに失敗'
+                });
+                await this.eventBus.emit(EVENTS.FOLDER_TREE_LOAD_FAILED, {
+                    sessionId,
+                    relativePath,
+                    error: error.message || 'Failed to open file'
+                });
+            }
+            return;
+        }
+
         const cwd = this._getSessionCwd(sessionId);
         try {
             await this.sessionService.openFileInDefaultApp(relativePath, cwd, sessionId);

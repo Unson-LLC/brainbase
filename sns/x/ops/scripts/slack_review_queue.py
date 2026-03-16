@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import requests
 import yaml
 
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 SCHEDULE_PATH = ROOT / "sns/scheduled_posts.yml"
 STATE_PATH = ROOT / "sns/log/slack_review_state.json"
 JST = ZoneInfo("Asia/Tokyo")

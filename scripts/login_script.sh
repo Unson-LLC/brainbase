@@ -198,9 +198,13 @@ if command -v tmux >/dev/null 2>&1; then
     tmux set-environment -g PATH "$PATH" 2>/dev/null || true
 fi
 
-# nvm fails if npm_config_prefix is set; clear it before tmux/session creation
-unset npm_config_prefix NPM_CONFIG_PREFIX
+# Environment sanitization (CommandMate pattern):
+# 1. CLAUDECODE/CLAUDE_CODE_ENTRYPOINT: Prevents Claude Code from detecting nested session
+# 2. npm_config_prefix: nvm compatibility
+unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT npm_config_prefix NPM_CONFIG_PREFIX
 if command -v tmux >/dev/null 2>&1; then
+    tmux set-environment -g -u CLAUDECODE 2>/dev/null || true
+    tmux set-environment -g -u CLAUDE_CODE_ENTRYPOINT 2>/dev/null || true
     tmux set-environment -g -u npm_config_prefix 2>/dev/null || true
     tmux set-environment -g -u NPM_CONFIG_PREFIX 2>/dev/null || true
 fi

@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 SNS_DIR = ROOT / "sns"
 LOG_DIR = SNS_DIR / "log"
 DISPATCH_TEMPLATE_PATH = LOG_DIR / "dispatch_plan_template.md"

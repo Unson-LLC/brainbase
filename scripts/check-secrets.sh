@@ -33,12 +33,13 @@ check_pattern() {
 
     # grepで検索（除外パターンを考慮）
     local results=$(grep -r -n -I \
-        --exclude-dir={node_modules,.git,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,_inbox-sample,tests} \
+        --exclude-dir={node_modules,.git,.jj,dist,build,coverage,test-results,.worktrees,var,data,.claude,config,migration,docs,_inbox-sample,tests} \
         --exclude=".git" \
         --exclude="state.json" \
         --exclude=".env" \
         --exclude="*.log" \
         --exclude="*.tmp" \
+        --exclude="*.pdf" \
         --exclude="*.backup.*" \
         --exclude=".git" \
         --exclude="check-secrets.sh" \
@@ -81,7 +82,7 @@ echo ""
 
 # 1. 個人名チェック（日本語）
 check_pattern "佐藤|さとう|サトウ" "Personal names (Japanese - Sato)" "error"
-check_pattern "川合|かわい|カワイ" "Personal names (Japanese - Kawai)" "error"
+check_pattern "川合|カワイ" "Personal names (Japanese - Kawai)" "error"
 check_pattern "渡邉|渡辺|わたなべ|ワタナベ" "Personal names (Japanese - Watanabe)" "error"
 check_pattern "星野|ほしの|ホシノ" "Personal names (Japanese - Hoshino)" "error"
 

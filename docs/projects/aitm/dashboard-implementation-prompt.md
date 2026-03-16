@@ -84,7 +84,7 @@
 │               └── brainbase-service.js  ← 既存（使用可）
 ├── server.js                         ← サーバー（既に稼働中）
 └── docs/
-    └── dashboard-wireframe.md        ← 詳細仕様（必読）
+    └── docs/projects/aitm/dashboard-wireframe.md  ← 詳細仕様（必読）
 ```
 
 ### 既存のAPI（利用可能）
@@ -146,7 +146,7 @@ export class BrainbaseService {
 
 ### Step 1: ワイヤーフレーム確認
 
-**必読**: `/Users/ksato/workspace/projects/brainbase/docs/dashboard-wireframe.md`
+**必読**: `/Users/ksato/workspace/projects/brainbase/docs/projects/aitm/dashboard-wireframe.md`
 
 特に以下のセクションを熟読：
 - Section 1-3の詳細仕様
@@ -640,7 +640,7 @@ Phase 1完了時に以下が動作する状態：
 ## 9. 参考資料
 
 ### 必読ドキュメント
-1. **ワイヤーフレーム詳細**: `/Users/ksato/workspace/projects/brainbase/docs/dashboard-wireframe.md`
+1. **ワイヤーフレーム詳細**: `/Users/ksato/workspace/projects/brainbase/docs/projects/aitm/dashboard-wireframe.md`
 2. **デザインパターン**: `.claude/skills/modern-saas-design-patterns/`（カラーシステム、コンポーネント）
 
 ### 参考画像

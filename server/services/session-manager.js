@@ -8,6 +8,8 @@ import net from 'net';
 import path from 'path';
 import yaml from 'js-yaml';
 import { TerminalOutputParser } from './terminal-output-parser.js';
+import { gracefulCleanup } from '../lib/graceful-cleanup.js';
+import { SessionHealthMonitor } from './session-health-monitor.js';
 
 export class SessionManager {
     /**
@@ -29,6 +31,7 @@ export class SessionManager {
         this.activeSessions = new Map(); // sessionId -> { port, process }
         this.hookStatus = new Map(); // sessionId -> { status, timestamp, lastWorkingAt, lastDoneAt, lastActivityAt, lastEventType, activeTurnIds }
         this.startLocks = new Map(); // sessionId -> Promise (並行起動防止ロック)
+        this.terminalOwners = new Map(); // sessionId -> { viewerId, viewerLabel, claimedAt, lastSeenAt }
         // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
@@ -44,6 +47,128 @@ export class SessionManager {
 
         // 許可されたキー
         this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab'];
+        this.TERMINAL_OWNER_TTL_MS = 10 * 60 * 1000;
+    }
+
+    _normalizeViewerId(viewerId) {
+        if (typeof viewerId !== 'string') return null;
+        const normalized = viewerId.trim();
+        return normalized || null;
+    }
+
+    _normalizeViewerLabel(viewerLabel) {
+        if (typeof viewerLabel !== 'string') return null;
+        const normalized = viewerLabel.trim();
+        return normalized || null;
+    }
+
+    _getTerminalOwnerEntry(sessionId) {
+        const owner = this.terminalOwners.get(sessionId);
+        if (!owner) return null;
+
+        if (Date.now() - owner.lastSeenAt > this.TERMINAL_OWNER_TTL_MS) {
+            this.terminalOwners.delete(sessionId);
+            return null;
+        }
+
+        return owner;
+    }
+
+    _buildTerminalAccessState(owner, viewerId) {
+        if (!owner) {
+            return {
+                state: 'available',
+                ownerViewerLabel: null,
+                ownerLastSeenAt: null,
+                canTakeover: false
+            };
+        }
+
+        const isOwner = owner.viewerId === viewerId;
+        return {
+            state: isOwner ? 'owner' : 'blocked',
+            ownerViewerLabel: owner.viewerLabel || null,
+            ownerLastSeenAt: new Date(owner.lastSeenAt).toISOString(),
+            canTakeover: !isOwner
+        };
+    }
+
+    getTerminalAccessState(sessionId, viewerId) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        return this._buildTerminalAccessState(owner, normalizedViewerId);
+    }
+
+    claimTerminalOwnership(sessionId, viewerId, viewerLabel) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) return null;
+
+        const now = Date.now();
+        const owner = {
+            viewerId: normalizedViewerId,
+            viewerLabel: this._normalizeViewerLabel(viewerLabel),
+            claimedAt: now,
+            lastSeenAt: now
+        };
+        this.terminalOwners.set(sessionId, owner);
+        return owner;
+    }
+
+    touchTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) return null;
+
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        if (!owner || owner.viewerId !== normalizedViewerId) {
+            return null;
+        }
+
+        owner.lastSeenAt = Date.now();
+        if (viewerLabel) {
+            owner.viewerLabel = this._normalizeViewerLabel(viewerLabel);
+        }
+        this.terminalOwners.set(sessionId, owner);
+        return owner;
+    }
+
+    ensureTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) {
+            return { allowed: false, terminalAccess: this._buildTerminalAccessState(this._getTerminalOwnerEntry(sessionId), normalizedViewerId) };
+        }
+
+        const currentOwner = this._getTerminalOwnerEntry(sessionId);
+        if (!currentOwner) {
+            const owner = this.claimTerminalOwnership(sessionId, normalizedViewerId, viewerLabel);
+            return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+        }
+
+        if (currentOwner.viewerId === normalizedViewerId) {
+            const owner = this.touchTerminalOwnership(sessionId, normalizedViewerId, viewerLabel) || currentOwner;
+            return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+        }
+
+        // Auto-takeover: last accessor wins (no concurrent viewing expected)
+        const owner = this.claimTerminalOwnership(sessionId, normalizedViewerId, viewerLabel);
+        return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+    }
+
+    forceTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const owner = this.claimTerminalOwnership(sessionId, viewerId, viewerLabel);
+        return {
+            allowed: Boolean(owner),
+            owner,
+            terminalAccess: this._buildTerminalAccessState(owner, this._normalizeViewerId(viewerId))
+        };
+    }
+
+    releaseTerminalOwnership(sessionId, viewerId, { force = false } = {}) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        if (!owner) return false;
+        if (!force && owner.viewerId !== normalizedViewerId) return false;
+        this.terminalOwners.delete(sessionId);
+        return true;
     }
 
     /**
@@ -957,7 +1082,7 @@ export class SessionManager {
      */
     getRuntimeStatus(session) {
         const sessionId = session?.id;
-        const activeEntry = this.activeSessions.get(session.id);
+        const activeEntry = this.activeSessions.get(session?.id);
         const activePid = activeEntry?.process?.pid || activeEntry?.pid;
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
@@ -1213,6 +1338,7 @@ export class SessionManager {
             // Preserve tmux on ttyd exit. tmux lifecycle is managed explicitly (archive/delete/TTL).
             await this._clearTtydProcessInfoIfMatches(sessionId, ttyd.pid);
             this.activeSessions.delete(sessionId);
+            this.releaseTerminalOwnership(sessionId, null, { force: true });
         });
 
         // activeSessionsにpidも保存（復旧時の型統一のため）
@@ -1297,52 +1423,73 @@ export class SessionManager {
      * @returns {Promise<boolean>} 停止成功時true
      */
     async stopTtyd(sessionId, { preserveTmux = false } = {}) {
-        if (this.activeSessions.has(sessionId)) {
-            const sessionData = this.activeSessions.get(sessionId);
-            // PIDを取得（新規起動時はprocess.pid、復旧時はpid直接）
-            const pid = sessionData.process?.pid || sessionData.pid;
-            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
+        if (!this.activeSessions.has(sessionId)) {
+            return false;
+        }
 
-            if (pid) {
-                try {
-                    // PIDベースでkill（ChildProcessオブジェクトがなくても動作）
-                    process.kill(pid, 'SIGTERM');
-                    // Give it a moment to terminate gracefully
-                    await new Promise(resolve => setTimeout(resolve, 500));
+        const sessionData = this.activeSessions.get(sessionId);
+        const pid = sessionData.process?.pid || sessionData.pid;
+        console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
 
-                    // プロセスがまだ存在するか確認
-                    if (this._isProcessRunning(pid)) {
-                        // Force kill if still running
-                        process.kill(pid, 'SIGKILL');
-                    }
-                } catch (err) {
-                    // ESRCH: プロセスが既に存在しない場合は正常
-                    if (err.code !== 'ESRCH') {
-                        console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
+        // Graceful Partial Cleanup: 各ステップが失敗しても後続を続行
+        const steps = [];
+
+        // Step 1: ttydプロセスのkill
+        if (pid) {
+            steps.push({
+                name: 'kill-ttyd-process',
+                fn: async () => {
+                    try {
+                        process.kill(pid, 'SIGTERM');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        if (this._isProcessRunning(pid)) {
+                            process.kill(pid, 'SIGKILL');
+                        }
+                    } catch (err) {
+                        if (err.code !== 'ESRCH') throw err;
                     }
                 }
-            }
-
-            // Cleanup TMUX session and MCP processes (skip if preserveTmux)
-            if (!preserveTmux) {
-                await this.cleanupSessionResources(sessionId);
-            } else {
-                console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
-            }
-
-            // ttydProcess情報をクリア (only if it still points to this pid)
-            if (pid) {
-                await this._clearTtydProcessInfoIfMatches(sessionId, pid);
-            } else {
-                await this._clearTtydProcessInfo(sessionId);
-            }
-
-            this.activeSessions.delete(sessionId);
-            // hookStatusは保持（'done'ステータスを保持するため）
-            // this.hookStatus.delete(sessionId);
-            return true;
+            });
         }
-        return false;
+
+        // Step 2: TMUX/MCPクリーンアップ
+        if (!preserveTmux) {
+            steps.push({
+                name: 'cleanup-session-resources',
+                fn: () => this.cleanupSessionResources(sessionId)
+            });
+        }
+
+        // Step 3: ttydProcess情報クリア
+        steps.push({
+            name: 'clear-ttyd-process-info',
+            fn: async () => {
+                if (pid) {
+                    await this._clearTtydProcessInfoIfMatches(sessionId, pid);
+                } else {
+                    await this._clearTtydProcessInfo(sessionId);
+                }
+            }
+        });
+
+        // Step 4: activeSessionsから削除
+        steps.push({
+            name: 'delete-active-session',
+            fn: () => { this.activeSessions.delete(sessionId); }
+        });
+
+        // Step 5: terminal ownershipリリース
+        steps.push({
+            name: 'release-terminal-ownership',
+            fn: () => { this.releaseTerminalOwnership(sessionId, null, { force: true }); }
+        });
+
+        const result = await gracefulCleanup(sessionId, steps);
+        if (result.warnings.length > 0) {
+            console.warn(`[stopTtyd] Partial cleanup for ${sessionId}:`, result.warnings);
+        }
+
+        return true;
     }
 
     /**
@@ -1614,6 +1761,33 @@ export class SessionManager {
         }
     }
 
+    async isTmuxSessionRunning(sessionId) {
+        return await this._isTmuxSessionRunning(sessionId);
+    }
+
+    async getPaneMode(sessionId) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const { stdout } = await this.execPromise(`tmux display-message -p -t "${sessionId}" "#{pane_in_mode}" 2>/dev/null || echo "0"`);
+        return stdout.trim() === '1';
+    }
+
+    async resizeSessionWindow(sessionId, cols, rows) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const safeCols = Math.max(40, Math.min(300, Number(cols) || 0));
+        const safeRows = Math.max(12, Math.min(120, Number(rows) || 0));
+        if (!Number.isFinite(safeCols) || !Number.isFinite(safeRows)) {
+            throw new Error('Invalid terminal size');
+        }
+
+        await this.execPromise(`tmux resize-window -t "${sessionId}" -x ${safeCols} -y ${safeRows}`);
+    }
+
     /**
      * tmux copy-mode scroll
      * @param {string} sessionId - セッションID
@@ -1716,6 +1890,20 @@ export class SessionManager {
     }
 
     /**
+     * ANSI色情報付きでターミナル出力を取得
+     * tmux capture-pane -e でエスケープシーケンスを保持したまま取得
+     * @param {string} sessionId - セッションID
+     * @param {number} lines - 取得行数
+     * @returns {Promise<string>} ANSI色付きテキスト
+     */
+    async getContentWithColors(sessionId, lines = 10) {
+        const { stdout } = await this.execPromise(
+            `tmux capture-pane -e -t "${sessionId}" -p -S -${lines}`
+        );
+        return stdout;
+    }
+
+    /**
      * ターミナル出力と選択肢を取得
      * @param {string} sessionId - セッションID
      * @returns {Promise<{output: string, choices: Array, hasChoices: boolean}>}
@@ -1740,6 +1928,17 @@ export class SessionManager {
     startPtyWatchdog(intervalMs = 600000) {
         if (this._ptyWatchdogTimer) return;
         console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
+
+        // Session health monitor (CommandMate pattern): detect dead tmux sessions
+        this._healthMonitor = new SessionHealthMonitor(this, {
+            onDeadSession: (sessionId) => {
+                console.warn(`[PTY Watchdog] Dead session detected: ${sessionId}, cleaning up...`);
+                this.stopTtyd(sessionId).catch(err => {
+                    console.error(`[PTY Watchdog] Cleanup failed for ${sessionId}:`, err.message);
+                });
+            }
+        });
+        this._healthMonitor.start(intervalMs);
 
         this._ptyWatchdogTimer = setInterval(async () => {
             try {
@@ -1770,6 +1969,10 @@ export class SessionManager {
      * PTY Watchdogを停止
      */
     stopPtyWatchdog() {
+        if (this._healthMonitor) {
+            this._healthMonitor.stop();
+            this._healthMonitor = null;
+        }
         if (this._ptyWatchdogTimer) {
             clearInterval(this._ptyWatchdogTimer);
             this._ptyWatchdogTimer = null;

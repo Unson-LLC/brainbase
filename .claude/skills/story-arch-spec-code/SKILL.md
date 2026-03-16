@@ -26,6 +26,62 @@ description: "Enforce the story-driven pipeline with a TDD gate: Story -> Archit
 - **TDD**: `tdd-workflow` に準拠（Red/Green/Refactorを通過）。
 - **Code**: Specに沿って実装。TDD未完なら止める。
 
+## docs フォルダ構成ルール
+
+Story駆動開発で `docs/` を使う場合は、次の役割分担を正本とする。
+
+- `docs/frames/`
+  - 全体の世界観、前提、設計思想、語彙、判断軸を固定する
+  - 複数ストーリーの親になる文書を置く
+- `docs/stories/`
+  - ユーザーストーリー、通しシナリオ、受け入れ条件を置く
+  - 「誰が・何を・なぜ」を書く
+  - 仕様や実装詳細は書かない
+- `docs/architecture/`
+  - レイヤー、境界、投影、責務、正本、制御面を置く
+  - UI 名があってもよいが、 backend 側の責務と混同しない
+  - 具体 API / DB schema / 実装コードは書かない
+- `docs/specs/`
+  - object、event、command、state、API、schema、受け入れ条件の接続を書く
+  - 実装に必要な詳細をここで初めて確定する
+
+## ファイル構成と命名ルール
+
+- 1つの主題につき、基本は次の順で文書を作る
+  1. `docs/frames/<topic>.md` （必要な場合のみ）
+  2. `docs/stories/<topic>-story.md`
+  3. `docs/architecture/<topic>.md`
+  4. `docs/specs/<topic>.md`
+- 既存のファイル名を変えるより、関連文書を追加してリンクでつなぐ方を優先する
+- ファイル名は `kebab-case`
+- 表示名は日本語でよいが、ファイル名は英語ベースの識別子でそろえる
+- 同じ主題で複数文書に分かれる場合は、接尾辞で役割を分ける
+  - 例: `-story`, `-scenario`, `-ui-concept`, `-runtime-architecture`, `-adapter-spike`
+- 同じ主題が `stories / architecture / specs` をまたぐ場合、**同名ファイルを避ける**
+  - 例: `customer-onboarding-story.md`, `customer-onboarding-architecture.md`, `customer-onboarding-spec.md`
+
+## 文書の親子関係
+
+- `Frame` は複数の `Story` の親になってよい
+- `Story` は 1つ以上の `Architecture` の親になる
+- `Architecture` は 1つ以上の `Spec` の親になる
+- `Spec` を飛ばして `Code` に行かない
+- `Story` を飛ばして `Architecture` に行かない
+
+## 文書間リンクのルール
+
+- 新しい `Story` を作ったら、対応する `Frame` か親文書から参照できるようにする
+- 新しい `Architecture` を作ったら、元になった `Story` を文中で参照する
+- 新しい `Spec` を作ったら、元になった `Architecture` と `Story` を参照する
+- `UI Concept` と `Runtime Architecture` がある場合は、必要なら **整合性マトリクス** を別紙で作る
+
+## 判断に迷ったときの docs 分類
+
+- 世界観、原則、語彙、ポジショニング → `frames`
+- 誰が何を達成したいか、どういう体験か → `stories`
+- どの責務がどこにあるか、正本は何か、どう投影するか → `architecture`
+- 何が保存され、どう遷移し、どの command / event があるか → `specs`
+
 ## ガードレール
 - ストーリーに仕様を混ぜない
 - アーキに実装詳細を混ぜない

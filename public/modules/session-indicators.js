@@ -9,6 +9,7 @@
 
 import { httpClient } from './core/http-client.js';
 import { eventBus, EVENTS } from './core/event-bus.js';
+import { replaceSessionHookStatuses, getSessionStatus as getStoreSessionStatus } from './session-ui-state.js';
 import { showError, showInfo } from './toast.js';
 
 // --- Module State ---
@@ -20,7 +21,7 @@ const MAX_CONSECUTIVE_ERRORS = 3;
 
 // --- State Accessors ---
 export function getSessionStatus(sessionId) {
-    return sessionStatusMap.get(sessionId);
+    return getStoreSessionStatus(sessionId) || sessionStatusMap.get(sessionId);
 }
 
 // Clear done status when session is opened
@@ -29,6 +30,7 @@ export function clearDone(sessionId) {
     if (status) {
         status.isDone = false;
         sessionStatusMap.set(sessionId, status);
+        replaceSessionHookStatuses(Object.fromEntries(sessionStatusMap));
     }
 }
 
@@ -38,6 +40,7 @@ export function clearWorking(sessionId) {
     if (status) {
         status.isWorking = false;
         sessionStatusMap.set(sessionId, status);
+        replaceSessionHookStatuses(Object.fromEntries(sessionStatusMap));
     }
 }
 
@@ -145,10 +148,14 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         if (hasStatusChange) {
+            replaceSessionHookStatuses(status);
             if (typeof onStatusChange === 'function') {
                 await onStatusChange(status);
             }
             await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId: null, updates: { hookStatus: status } });
+            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
+                sessionIds: Object.keys(status)
+            });
         }
 
         updateSessionIndicators(currentSessionId);
@@ -184,44 +191,7 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
  * @param {string|null} currentSessionId - Currently active session ID
  */
 export function updateSessionIndicators(currentSessionId) {
-    const sessionItems = document.querySelectorAll('.session-child-row');
-    sessionItems.forEach(item => {
-        const sessionId = item.dataset.id;
-        const status = sessionStatusMap.get(sessionId);
-
-        // Remove existing indicator
-        const existingIndicator = item.querySelector('.session-activity-indicator');
-        if (existingIndicator) {
-            existingIndicator.remove();
-        }
-
-        // Simple logic:
-        // 1. Orange: isWorking (AI running)
-        // 2. Green: isDone
-        // 3. Hidden: no status
-
-        if (status?.isWorking) {
-            const indicator = document.createElement('div');
-            indicator.className = 'session-activity-indicator working';
-            // drag-handleの後に挿入（左側に配置）
-            const dragHandle = item.querySelector('.drag-handle');
-            if (dragHandle && dragHandle.nextSibling) {
-                item.insertBefore(indicator, dragHandle.nextSibling);
-            } else {
-                item.appendChild(indicator);
-            }
-        } else if (status?.isDone) {
-            const indicator = document.createElement('div');
-            indicator.className = 'session-activity-indicator done';
-            // drag-handleの後に挿入（左側に配置）
-            const dragHandle = item.querySelector('.drag-handle');
-            if (dragHandle && dragHandle.nextSibling) {
-                item.insertBefore(indicator, dragHandle.nextSibling);
-            } else {
-                item.appendChild(indicator);
-            }
-        }
-    });
+    return currentSessionId;
 }
 
 /**

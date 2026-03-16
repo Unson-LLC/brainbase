@@ -8,6 +8,8 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { appendViewerIdToProxyPath, buildSessionRuntimeUrl, getTerminalViewerId, getTerminalViewerLabel } from './modules/core/terminal-viewer.js';
+import { TerminalTransportClient, shouldUseDesktopXtermTransport } from './modules/core/terminal-transport-client.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
@@ -21,6 +23,8 @@ import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
+import { ansiToHtml } from './modules/utils/ansi-to-html.js';
+import { getSessionUiEntry, hydrateSessionRecentFiles, mergeSessionUiEntry, recordRecentFileOpen } from './modules/session-ui-state.js';
 
 // Services
 import { TaskService } from './modules/domain/task/task-service.js';
@@ -29,7 +33,9 @@ import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
 import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
+import { FileViewerService } from './modules/domain/file-viewer/file-viewer-service.js';
 import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
+import { FileViewerView } from './modules/ui/views/file-viewer-view.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -68,6 +74,40 @@ function scheduleAfterNextPaint(callback) {
     setTimeout(callback, 0);
 }
 
+function buildTerminalBlockedText(terminalAccess) {
+    const ownerLabel = terminalAccess?.ownerViewerLabel || '別の場所';
+    return `入力: ${ownerLabel} で表示中 (クリックで引継ぎ)`;
+}
+
+function formatTerminalTimestamp(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('ja-JP', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(date);
+}
+
+function isLoopbackHost(hostname) {
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function isTrustedTerminalOrigin(origin) {
+    if (!origin || origin === 'null') return false;
+
+    try {
+        const eventUrl = new URL(origin);
+        const currentUrl = new URL(window.location.origin);
+        if (eventUrl.origin === currentUrl.origin) return true;
+        return isLoopbackHost(eventUrl.hostname) && isLoopbackHost(currentUrl.hostname);
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Terminal Reconnect Manager
  * Handles iframe disconnection detection and automatic reconnection
@@ -86,6 +126,9 @@ class TerminalReconnectManager {
         this.lastDisconnectReason = null;
         this.lastDisconnectAt = null;
         this.lastErrorAt = null;
+        this.viewerId = null;
+        this.viewerLabel = null;
+        this.terminalAccess = null;
         this.onStatusChange = null;
     }
 
@@ -101,8 +144,41 @@ class TerminalReconnectManager {
             lastDisconnectCode: this.lastDisconnectCode,
             lastDisconnectReason: this.lastDisconnectReason,
             lastDisconnectAt: this.lastDisconnectAt,
-            lastErrorAt: this.lastErrorAt
+            lastErrorAt: this.lastErrorAt,
+            terminalAccess: this.terminalAccess
         });
+    }
+
+    setViewerContext({ viewerId, viewerLabel }) {
+        this.viewerId = viewerId || null;
+        this.viewerLabel = viewerLabel || null;
+    }
+
+    _getViewerProxyPath(proxyPath, port = null) {
+        if (!proxyPath) return proxyPath;
+
+        let nextProxyPath = appendViewerIdToProxyPath(proxyPath, this.viewerId);
+        if (!nextProxyPath) return nextProxyPath;
+
+        try {
+            const absoluteUrl = new URL(nextProxyPath);
+            if (this.viewerId && !absoluteUrl.searchParams.has('viewerId')) {
+                absoluteUrl.searchParams.set('viewerId', this.viewerId);
+            }
+            return absoluteUrl.toString();
+        } catch {
+            // Relative path: fall through and optionally rewrite to loopback ttyd.
+        }
+
+        if (port && isLoopbackHost(window.location.hostname)) {
+            return `http://127.0.0.1:${port}${nextProxyPath}`;
+        }
+
+        return nextProxyPath;
+    }
+
+    _buildTerminalFrameUrl(proxyPath, port = null) {
+        return this._getViewerProxyPath(proxyPath, port);
     }
 
     init(terminalFrame) {
@@ -125,8 +201,7 @@ class TerminalReconnectManager {
 
     initPostMessageListener() {
         window.addEventListener('message', (event) => {
-            // セキュリティ: 同一オリジンのみ許可
-            if (event.origin !== window.location.origin) return;
+            if (!isTrustedTerminalOrigin(event.origin)) return;
 
             const { type, sessionId, code, reason } = event.data || {};
 
@@ -171,6 +246,7 @@ class TerminalReconnectManager {
         }
 
         this.wsConnected = false;
+        this.terminalAccess = null;
         this.lastDisconnectCode = code;
         this.lastDisconnectReason = reason || null;
         this.lastDisconnectAt = Date.now();
@@ -188,6 +264,7 @@ class TerminalReconnectManager {
         if (sessionId !== this.currentSessionId) return;
 
         this.wsConnected = false;
+        this.terminalAccess = null;
         this.lastErrorAt = Date.now();
         this._emitStatus();
 
@@ -205,6 +282,12 @@ class TerminalReconnectManager {
         this.lastDisconnectReason = null;
         this.lastDisconnectAt = null;
         this.lastErrorAt = null;
+        this.terminalAccess = {
+            state: 'owner',
+            ownerViewerLabel: this.viewerLabel,
+            ownerLastSeenAt: new Date().toISOString(),
+            canTakeover: false
+        };
 
         // 接続成功時刻を記録（disconnect race condition防止用）
         this.lastConnectTime = Date.now();
@@ -248,33 +331,49 @@ class TerminalReconnectManager {
 
     async _resolveRuntimeStatus(sessionId, fallbackSession) {
         const currentRuntime = fallbackSession?.runtimeStatus;
-        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath) {
+        const currentAccess = this.terminalAccess;
+        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath && currentAccess?.state !== 'blocked') {
             return {
                 session: fallbackSession || null,
-                runtimeStatus: currentRuntime
+                runtimeStatus: currentRuntime,
+                terminalAccess: currentAccess || null
             };
         }
 
-        const runtime = await httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/runtime`);
+        const runtime = await httpClient.get(buildSessionRuntimeUrl(sessionId, this.viewerId, this.viewerLabel));
         return {
             session: fallbackSession || null,
-            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null
+            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null,
+            terminalAccess: runtime?.terminalAccess || currentAccess || null
         };
     }
 
-    _reloadTerminalFrame(proxyPath) {
-        if (!this.terminalFrame || !proxyPath) return;
+    _reloadTerminalFrame(proxyPath, port = null) {
+        const nextProxyPath = this._buildTerminalFrameUrl(proxyPath, port);
+        if (!this.terminalFrame || !nextProxyPath) return;
 
         const currentSrc = this.terminalFrame.src || '';
-        if (currentSrc.includes(proxyPath)) {
+        if (currentSrc.includes(nextProxyPath)) {
             this.terminalFrame.src = 'about:blank';
             setTimeout(() => {
-                this.terminalFrame.src = proxyPath;
+                this.terminalFrame.src = nextProxyPath;
             }, 50);
             return;
         }
 
-        this.terminalFrame.src = proxyPath;
+        this.terminalFrame.src = nextProxyPath;
+    }
+
+    _setBlocked(terminalAccess) {
+        this.wsConnected = false;
+        this.isReconnecting = false;
+        this.terminalAccess = terminalAccess || {
+            state: 'blocked',
+            ownerViewerLabel: null,
+            ownerLastSeenAt: null,
+            canTakeover: true
+        };
+        this._emitStatus();
     }
 
     async reconnect() {
@@ -295,12 +394,19 @@ class TerminalReconnectManager {
         }
 
         try {
-            const { session, runtimeStatus } = await this._resolveRuntimeStatus(this.currentSessionId, fallbackSession);
+            const { session, runtimeStatus, terminalAccess } = await this._resolveRuntimeStatus(this.currentSessionId, fallbackSession);
             const targetSession = session || fallbackSession;
+            this.terminalAccess = terminalAccess || null;
+
+            if (terminalAccess?.state === 'blocked') {
+                console.warn(`[reconnect] Session ${this.currentSessionId} is owned by another viewer`);
+                this._setBlocked(terminalAccess);
+                return;
+            }
 
             if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
                 console.log('[reconnect] Reusing existing ttyd proxyPath:', runtimeStatus.proxyPath);
-                this._reloadTerminalFrame(runtimeStatus.proxyPath);
+                this._reloadTerminalFrame(runtimeStatus.proxyPath, runtimeStatus.port);
                 return;
             }
 
@@ -325,11 +431,14 @@ class TerminalReconnectManager {
             if (typeof targetSession?.engine === 'string' && targetSession.engine.trim()) {
                 payload.engine = targetSession.engine;
             }
+            payload.viewerId = this.viewerId;
+            payload.viewerLabel = this.viewerLabel;
 
             const res = await httpClient.post('/api/sessions/start', payload);
 
             if (res?.proxyPath) {
-                this._reloadTerminalFrame(res.proxyPath);
+                this.terminalAccess = res.terminalAccess || this.terminalAccess;
+                this._reloadTerminalFrame(res.proxyPath, res.port);
             } else {
                 this.isReconnecting = false;
                 this.handleDisconnect();
@@ -337,6 +446,15 @@ class TerminalReconnectManager {
         } catch (error) {
             console.error('Reconnect failed:', error);
             this.isReconnecting = false;
+            if (error?.message?.includes('already open in another viewer')) {
+                this._setBlocked({
+                    state: 'blocked',
+                    ownerViewerLabel: null,
+                    ownerLastSeenAt: null,
+                    canTakeover: true
+                });
+                return;
+            }
             // 無限ループ防止: catchでは再試行せず、ユーザーにリロードを促す
             if (this.retryCount >= this.maxRetries) {
                 showError('ターミナル接続に失敗しました。ページをリロードしてください。');
@@ -353,6 +471,7 @@ class TerminalReconnectManager {
         this.lastDisconnectReason = null;
         this.lastDisconnectAt = null;
         this.lastErrorAt = null;
+        this.terminalAccess = null;
         this._emitStatus();
     }
 }
@@ -369,13 +488,32 @@ export class App {
         this.pollingIntervalId = null;
         this.refreshIntervalId = null;
         this.choiceCheckInterval = null;
+        this.sessionUiSummaryIntervalId = null;
         this.lastChoiceHash = null;
         this.settingsCore = null; // Settings Plugin Architecture
         this.reconnectManager = null; // Terminal Reconnect Manager
+        this.terminalTransportClient = null;
+        this.terminalXtermHost = null;
+        this._terminalTransportStatus = null;
         this.terminalFrame = null;
+        this.terminalHeaderEl = null;
         this.terminalInputStatusEl = null;
+        this.terminalTransportPillEl = null;
+        this.terminalOwnerLabelEl = null;
+        this.terminalSnapshotMetaEl = null;
+        this.terminalSnapshotPanelEl = null;
+        this.terminalSnapshotTitleEl = null;
+        this.terminalSnapshotTimestampEl = null;
+        this.terminalSnapshotContentEl = null;
+        this.terminalReconnectBtn = null;
+        this.terminalTakeoverBtn = null;
+        this.terminalOpenFallbackBtn = null;
+        this.terminalMoreBtn = null;
+        this.terminalMoreActionsEl = null;
         this._terminalInputUxCleanup = [];
         this._terminalLastNavigateAt = 0;
+        this._terminalSnapshotCache = new Map();
+        this._terminalSnapshotRequestKey = null;
         // tmux copy-mode (pane_in_mode) blocks input. We can't reliably read it from the iframe,
         // so we track entry/exit based on TMUX_SCROLL / TERMINAL_INTERACT messages.
         this._terminalCopyModeSessions = new Set();
@@ -383,6 +521,26 @@ export class App {
         this.authManager = null;
         this.mobileInputController = null;
         this._sessionSwitchToken = 0;
+        this.viewerId = getTerminalViewerId();
+        this.viewerLabel = getTerminalViewerLabel();
+    }
+
+    _shouldUseXtermTransport() {
+        return shouldUseDesktopXtermTransport();
+    }
+
+    _isXtermTransportActive(sessionId = appStore.getState().currentSessionId) {
+        return Boolean(this._shouldUseXtermTransport() && this.terminalTransportClient?.isActiveForSession(sessionId));
+    }
+
+    _showXtermTransport() {
+        this.terminalXtermHost?.classList.remove('hidden');
+        this.terminalFrame?.classList.add('hidden');
+    }
+
+    _showTtydIframe() {
+        this.terminalXtermHost?.classList.add('hidden');
+        this.terminalFrame?.classList.remove('hidden');
     }
 
     _isConsoleVisible() {
@@ -420,6 +578,12 @@ export class App {
     focusTerminal(reason = 'unknown') {
         if (!this._isConsoleVisible()) return;
 
+        if (this._isXtermTransportActive()) {
+            this.terminalTransportClient?.focus();
+            this._updateTerminalInputStatus();
+            return;
+        }
+
         const frame = this.terminalFrame || document.getElementById('terminal-frame');
         if (!frame) return;
 
@@ -443,6 +607,23 @@ export class App {
         this._updateTerminalInputStatus();
     }
 
+    _setCurrentSessionUiState(updates = {}, options = {}) {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+        const { emit = false } = options;
+        const previous = getSessionUiEntry(sessionId) || {};
+        const changed = Object.entries(updates).some(([key, value]) => previous?.[key] !== value);
+        if (!changed) return;
+        mergeSessionUiEntry(sessionId, updates);
+        if (emit) {
+            void eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: [sessionId] });
+        }
+    }
+
+    async refreshSessionUiSummaries(sessionIds = []) {
+        return await this.sessionService.refreshSessionUiSummaries(sessionIds);
+    }
+
     _runDeferredSessionSwitchWork(sessionId, switchToken) {
         if (switchToken !== this._sessionSwitchToken) return;
         if (appStore.getState().currentSessionId !== sessionId) return;
@@ -451,6 +632,132 @@ export class App {
         updateSessionIndicators(sessionId);
     }
 
+    _getViewerProxyPath(proxyPath, port = null) {
+        if (!proxyPath) return proxyPath;
+
+        let nextProxyPath = appendViewerIdToProxyPath(proxyPath, this.viewerId);
+        if (!nextProxyPath) return nextProxyPath;
+
+        try {
+            const absoluteUrl = new URL(nextProxyPath);
+            if (this.viewerId && !absoluteUrl.searchParams.has('viewerId')) {
+                absoluteUrl.searchParams.set('viewerId', this.viewerId);
+            }
+            return absoluteUrl.toString();
+        } catch {
+            // Relative path: fall through and optionally rewrite to loopback ttyd.
+        }
+
+        if (port && isLoopbackHost(window.location.hostname)) {
+            return `http://127.0.0.1:${port}${nextProxyPath}`;
+        }
+
+        return nextProxyPath;
+    }
+
+    _buildTerminalFrameUrl(proxyPath, port = null) {
+        return this._getViewerProxyPath(proxyPath, port);
+    }
+
+    _buildTerminalStartPayload(session) {
+        const payload = {
+            sessionId: session.id,
+            initialCommand: session.initialCommand || '',
+            cwd: session.path,
+            engine: session.engine || 'claude',
+            viewerId: this.viewerId,
+            viewerLabel: this.viewerLabel
+        };
+        return payload;
+    }
+
+    async releaseTerminalOwnership(sessionId) {
+        if (!sessionId) return;
+        try {
+            await httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/release-terminal`, {
+                viewerId: this.viewerId
+            });
+        } catch (error) {
+            // best-effort only
+        }
+    }
+
+    async _connectXtermTransport(session) {
+        if (!this.terminalTransportClient || !session?.id) {
+            return { ok: false };
+        }
+
+        this._showXtermTransport();
+        this.terminalTransportClient.show();
+        this.terminalFrame?.classList.add('hidden');
+
+        try {
+            const firstAttempt = await this.terminalTransportClient.connect(session.id);
+            if (firstAttempt?.mode === 'blocked') {
+                return { ok: false, blocked: true, terminalAccess: firstAttempt.terminalAccess || null };
+            }
+            this.hideTerminalLoadingOverlay();
+            return { ok: true };
+        } catch (error) {
+            if (error?.code === 'SESSION_NOT_RUNNING') {
+                console.warn('Xterm transport reported SESSION_NOT_RUNNING, falling back to ttyd:', error);
+                this.terminalTransportClient.disconnect({ preserveView: false });
+                this.terminalTransportClient.hide();
+                this._showTtydIframe();
+                return { ok: false, fallback: true };
+            }
+            console.warn('Xterm transport unavailable, falling back to ttyd:', error);
+            this.terminalTransportClient.disconnect({ preserveView: false });
+            this.terminalTransportClient.hide();
+            this._showTtydIframe();
+            return { ok: false, fallback: true };
+        }
+    }
+
+    async takeOverCurrentTerminal() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+
+        const { sessions } = appStore.getState();
+        const session = (sessions || []).find(item => item.id === sessionId);
+        if (!session) return;
+
+        const payload = {
+            ...this._buildTerminalStartPayload(session),
+            forceTakeover: true
+        };
+
+        try {
+            const res = await httpClient.post('/api/sessions/start', payload);
+            if (this._shouldUseXtermTransport() && this.terminalTransportClient) {
+                const transportResult = await this._connectXtermTransport(session);
+                if (transportResult.ok) {
+                    this._updateTerminalInputStatus();
+                    showInfo('ターミナルを引き継いだよ');
+                    return;
+                }
+            }
+
+            if (res?.proxyPath) {
+                this.reconnectManager?.setCurrentSession(sessionId);
+                if (this.reconnectManager) {
+                    this.reconnectManager.terminalAccess = res.terminalAccess || {
+                        state: 'owner',
+                        ownerViewerLabel: this.viewerLabel,
+                        ownerLastSeenAt: new Date().toISOString(),
+                        canTakeover: false
+                    };
+                }
+                this._terminalLastNavigateAt = Date.now();
+                this.terminalFrame.src = this._getViewerProxyPath(res.proxyPath);
+                this._updateTerminalInputStatus();
+                showInfo('ターミナルを引き継いだよ');
+            }
+        } catch (error) {
+            console.error('Failed to take over terminal:', error);
+            showError('ターミナルの引き継ぎに失敗した');
+        }
+    }
     _setTerminalInputStatus({ hidden, stateClass, text, title }) {
         const el = this.terminalInputStatusEl;
         if (!el) return;
@@ -471,29 +778,168 @@ export class App {
         el.title = title || '';
     }
 
+    _setTerminalHeaderChip(el, { hidden = false, text = '', title = '' } = {}) {
+        if (!el) return;
+        if (hidden || !text) {
+            el.classList.add('hidden');
+            el.textContent = '';
+            el.title = '';
+            return;
+        }
+
+        el.classList.remove('hidden');
+        el.textContent = text;
+        el.title = title || '';
+    }
+
+    _setTerminalHeaderAction(button, visible) {
+        if (!button) return;
+        button.classList.toggle('hidden', !visible);
+    }
+
+    _resetTerminalChrome() {
+        this._setTerminalHeaderChip(this.terminalTransportPillEl, { hidden: true });
+        this._setTerminalHeaderChip(this.terminalOwnerLabelEl, { hidden: true });
+        this._setTerminalHeaderChip(this.terminalSnapshotMetaEl, { hidden: true });
+        this._setTerminalHeaderAction(this.terminalReconnectBtn, false);
+        this._setTerminalHeaderAction(this.terminalTakeoverBtn, false);
+        this._setTerminalHeaderAction(this.terminalOpenFallbackBtn, false);
+        this._renderTerminalSnapshotPanel({ visible: false });
+    }
+
+    async _loadTerminalSnapshot(sessionId, { force = false } = {}) {
+        if (!sessionId) return null;
+        const cached = this._terminalSnapshotCache.get(sessionId);
+        if (cached && !force) {
+            return cached;
+        }
+
+        const requestKey = `${sessionId}:${force ? 'force' : 'cached'}`;
+        this._terminalSnapshotRequestKey = requestKey;
+        const res = await httpClient.get(
+            `/api/sessions/${encodeURIComponent(sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}`
+        );
+
+        if (this._terminalSnapshotRequestKey !== requestKey) {
+            return this._terminalSnapshotCache.get(sessionId) || null;
+        }
+
+        const snapshot = {
+            text: typeof res?.text === 'string' ? res.text : '',
+            colorText: typeof res?.colorText === 'string' ? res.colorText : null,
+            capturedAt: res?.capturedAt || null
+        };
+        this._terminalSnapshotCache.set(sessionId, snapshot);
+        return snapshot;
+    }
+
+    _renderTerminalSnapshotPanel({ visible = false, snapshot = null, title = 'Snapshot fallback' } = {}) {
+        if (!this.terminalSnapshotPanelEl || !this.terminalSnapshotContentEl) return;
+
+        if (!visible) {
+            this.terminalSnapshotPanelEl.classList.add('hidden');
+            this.terminalSnapshotContentEl.textContent = '';
+            if (this.terminalSnapshotTimestampEl) {
+                this.terminalSnapshotTimestampEl.textContent = '';
+            }
+            return;
+        }
+
+        this.terminalSnapshotPanelEl.classList.remove('hidden');
+        if (this.terminalSnapshotTitleEl) {
+            this.terminalSnapshotTitleEl.textContent = title;
+        }
+        if (snapshot?.colorText) {
+            this.terminalSnapshotContentEl.innerHTML = ansiToHtml(snapshot.colorText);
+        } else {
+            this.terminalSnapshotContentEl.textContent = snapshot?.text || 'Snapshotを読み込み中...';
+        }
+        if (this.terminalSnapshotTimestampEl) {
+            this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
+        }
+    }
+
+    _syncTerminalSnapshotPanel({ sessionId, visible, title }) {
+        if (!visible || !sessionId) {
+            this._renderTerminalSnapshotPanel({ visible: false });
+            return;
+        }
+
+        const cached = this._terminalSnapshotCache.get(sessionId) || null;
+        this._renderTerminalSnapshotPanel({
+            visible: true,
+            snapshot: cached,
+            title
+        });
+
+        if (cached) return;
+
+        void this._loadTerminalSnapshot(sessionId)
+            .then((snapshot) => {
+                if (appStore.getState().currentSessionId !== sessionId) return;
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot,
+                    title
+                });
+                this._updateTerminalInputStatus();
+            })
+            .catch(() => {
+                if (appStore.getState().currentSessionId !== sessionId) return;
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot: {
+                        text: 'Snapshotの取得に失敗した',
+                        capturedAt: null
+                    },
+                    title
+                });
+            });
+    }
+
+    async openTerminalIframeFallback() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+        this._terminalSnapshotCache.delete(sessionId);
+        await this.switchSession(sessionId, { forceTtyd: true });
+    }
+
     _updateTerminalInputStatus() {
         if (!this.terminalInputStatusEl) return;
 
         if (!this._isConsoleVisible()) {
             this._setTerminalInputStatus({ hidden: true });
+            this._resetTerminalChrome();
             return;
         }
 
         const sessionId = appStore.getState().currentSessionId;
         const frame = this.terminalFrame || document.getElementById('terminal-frame');
+        const xtermStatus = this._terminalTransportStatus || null;
+        const xtermActive = this._isXtermTransportActive(sessionId);
 
-        if (!sessionId || !frame) {
+        if (!sessionId || (!frame && !xtermActive)) {
             this._setTerminalInputStatus({ hidden: true });
+            this._resetTerminalChrome();
             return;
         }
 
         const overlayState = this._getTerminalOverlayState();
-        const isFocused = document.activeElement === frame;
-        const frameSrcAttr = frame.getAttribute('src');
-        const frameBlank = !frameSrcAttr || frameSrcAttr === 'about:blank';
+        const isFocused = xtermActive
+            ? Boolean(xtermStatus?.isFocused)
+            : document.activeElement === frame;
+        const frameSrcAttr = frame?.getAttribute('src');
+        const frameBlank = xtermActive
+            ? false
+            : (!frameSrcAttr || frameSrcAttr === 'about:blank');
         const wsConnected = Boolean(this.reconnectManager?.wsConnected);
         const isReconnecting = Boolean(this.reconnectManager?.isReconnecting);
-        const isCopyMode = this._terminalCopyModeSessions.has(sessionId);
+        const terminalAccess = xtermActive
+            ? (xtermStatus?.blockedAccess || null)
+            : (this.reconnectManager?.terminalAccess || null);
+        const isCopyMode = xtermActive
+            ? Boolean(xtermStatus?.copyMode)
+            : this._terminalCopyModeSessions.has(sessionId);
         const retryCount = this.reconnectManager?.retryCount ?? 0;
         const maxRetries = this.reconnectManager?.maxRetries ?? 3;
         const lastCode = this.reconnectManager?.lastDisconnectCode;
@@ -505,9 +951,17 @@ export class App {
         let stateClass = 'blocked';
         let text = '入力: 不明';
         let title = `session=${sessionId}`;
+        let transportState = 'blocked';
+        let attentionState = 'none';
+        let presentationMode = 'blocked';
+        let snapshotVisible = false;
+        let snapshotTitle = 'Snapshot fallback';
+        let ownerLabel = '';
 
         if (overlayState.any) {
             stateClass = 'blocked';
+            transportState = 'blocked';
+            presentationMode = 'blocked';
             if (overlayState.choiceActive) {
                 text = '入力: 選択中';
                 title = '選択UIが開いている間はターミナル入力できません';
@@ -518,53 +972,167 @@ export class App {
                 text = '入力: メニュー表示中';
                 title = 'メニューを閉じるとターミナル入力できます';
             }
+        } else if (terminalAccess?.state === 'blocked') {
+            stateClass = 'blocked';
+            presentationMode = 'blocked';
+            text = buildTerminalBlockedText(terminalAccess);
+            title = terminalAccess?.ownerViewerLabel
+                ? `${terminalAccess.ownerViewerLabel} がこのセッションを表示中。クリックで引き継ぎ`
+                : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
+            ownerLabel = terminalAccess?.ownerViewerLabel || '';
+        } else if (xtermActive && xtermStatus?.mode === 'snapshot') {
+            stateClass = 'disconnected';
+            transportState = 'disconnected';
+            presentationMode = 'snapshot';
+            text = '入力: Snapshot表示中';
+            title = `session=${sessionId} snapshot fallback`;
+            snapshotVisible = true;
+        } else if (xtermActive && xtermStatus?.mode === 'reconnecting') {
+            stateClass = 'reconnecting';
+            transportState = 'reconnecting';
+            presentationMode = 'reconnecting';
+            text = '入力: 再接続中...';
+            title = `session=${sessionId} xterm reconnecting`;
+        } else if (xtermActive && xtermStatus?.mode === 'live') {
+            presentationMode = 'live';
+            if (!isFocused && !isMobile) {
+                stateClass = 'needs-focus';
+                transportState = 'connected';
+                attentionState = 'needs-focus';
+                text = '入力: クリックでフォーカス';
+                title = `session=${sessionId} (click to focus)`;
+            } else if (isCopyMode) {
+                stateClass = 'copy-mode';
+                transportState = 'connected';
+                attentionState = 'copy-mode';
+                text = '入力: スクロール中 (クリックで戻る)';
+                title = `session=${sessionId} copy-mode (click to exit)`;
+            } else {
+                stateClass = 'ready';
+                transportState = 'connected';
+                text = '入力: Live';
+                title = `session=${sessionId} xterm live`;
+            }
         } else if (isReconnecting) {
             stateClass = 'reconnecting';
+            transportState = 'reconnecting';
+            presentationMode = 'reconnecting';
             text = `入力: 再接続中 (${retryCount}/${maxRetries})`;
             title = `session=${sessionId} reconnecting`;
         } else if (frameBlank) {
             if (recentlyNavigated) {
                 stateClass = 'reconnecting';
+                transportState = 'reconnecting';
+                presentationMode = 'reconnecting';
                 text = '入力: 接続中...';
                 title = `session=${sessionId} connecting`;
             } else {
                 stateClass = 'disconnected';
+                transportState = 'disconnected';
+                presentationMode = 'snapshot';
                 text = '入力: 未接続';
                 title = `session=${sessionId} iframe=about:blank`;
+                snapshotVisible = true;
             }
         } else if (!wsConnected) {
             if (recentlyNavigated) {
                 stateClass = 'reconnecting';
+                transportState = 'reconnecting';
+                presentationMode = 'reconnecting';
                 text = '入力: 接続中...';
                 title = `session=${sessionId} connecting`;
             } else {
                 stateClass = 'disconnected';
+                transportState = 'disconnected';
+                presentationMode = 'snapshot';
                 text = '入力: 切断';
                 title = `session=${sessionId} disconnected${typeof lastCode === 'number' ? ` (code ${lastCode})` : ''}`;
+                snapshotVisible = true;
             }
         } else if (!isFocused && !isMobile) {
             // デスクトップのみ: フォーカスが外れていたらクリックを促す
             // モバイルではMobile Input Dockから入力するためフォーカス不要
             stateClass = 'needs-focus';
+            transportState = 'connected';
+            attentionState = 'needs-focus';
+            presentationMode = 'live';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;
         } else if (isCopyMode) {
             stateClass = 'copy-mode';
+            transportState = 'connected';
+            attentionState = 'copy-mode';
+            presentationMode = 'live';
             text = '入力: スクロール中 (クリックで戻る)';
             title = `session=${sessionId} copy-mode (click to exit)`;
         } else {
             stateClass = 'ready';
+            transportState = 'connected';
+            presentationMode = 'live';
             text = '入力: OK';
             title = `session=${sessionId} connected`;
         }
 
         this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
+        this._setTerminalHeaderChip(this.terminalTransportPillEl, {
+            hidden: false,
+            text: xtermActive ? 'xterm' : 'ttyd',
+            title: xtermActive ? 'xterm transport' : 'ttyd iframe fallback'
+        });
+        this._setTerminalHeaderChip(this.terminalOwnerLabelEl, {
+            hidden: !ownerLabel,
+            text: ownerLabel,
+            title: ownerLabel ? `現在のowner: ${ownerLabel}` : ''
+        });
+
+        const snapshotSource = this._terminalSnapshotCache.get(sessionId) || null;
+        this._setTerminalHeaderChip(this.terminalSnapshotMetaEl, {
+            hidden: presentationMode !== 'snapshot',
+            text: snapshotSource?.capturedAt ? `Snapshot ${formatTerminalTimestamp(snapshotSource.capturedAt)}` : 'Snapshot fallback',
+            title: snapshotSource?.capturedAt ? `Snapshot captured at ${snapshotSource.capturedAt}` : 'Snapshot fallback'
+        });
+
+        this._setTerminalHeaderAction(this.terminalReconnectBtn, presentationMode === 'snapshot' || presentationMode === 'reconnecting');
+        this._setTerminalHeaderAction(this.terminalTakeoverBtn, terminalAccess?.state === 'blocked');
+        this._setTerminalHeaderAction(
+            this.terminalOpenFallbackBtn,
+            xtermActive && shouldUseDesktopXtermTransport()
+        );
+
+        this._syncTerminalSnapshotPanel({
+            sessionId,
+            visible: snapshotVisible,
+            title: snapshotTitle
+        });
+
+        const previous = getSessionUiEntry(sessionId) || {};
+        const shouldEmit = previous.transport !== transportState || previous.attention !== attentionState;
+        this._setCurrentSessionUiState(
+            {
+                transport: transportState,
+                attention: attentionState
+            },
+            { emit: shouldEmit }
+        );
     }
 
     setupTerminalInputUx() {
         if (!this.terminalFrame) return;
 
+        this.terminalHeaderEl = document.getElementById('terminal-header');
         this.terminalInputStatusEl = document.getElementById('terminal-input-status');
+        this.terminalTransportPillEl = document.getElementById('terminal-transport-pill');
+        this.terminalOwnerLabelEl = document.getElementById('terminal-owner-label');
+        this.terminalSnapshotMetaEl = document.getElementById('terminal-snapshot-meta');
+        this.terminalSnapshotPanelEl = document.getElementById('terminal-snapshot-panel');
+        this.terminalSnapshotTitleEl = document.getElementById('terminal-snapshot-title');
+        this.terminalSnapshotTimestampEl = document.getElementById('terminal-snapshot-timestamp');
+        this.terminalSnapshotContentEl = document.getElementById('terminal-snapshot-content');
+        this.terminalReconnectBtn = document.getElementById('terminal-reconnect-btn');
+        this.terminalTakeoverBtn = document.getElementById('terminal-takeover-btn');
+        this.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
+        this.terminalMoreBtn = document.getElementById('terminal-more-btn');
+        this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
         const consoleArea = document.getElementById('console-area');
 
         // Keep status in sync with session selection, focus changes, overlay visibility, and WS events.
@@ -642,8 +1210,17 @@ export class App {
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
 
+            const xtermActive = this._isXtermTransportActive();
+            if ((xtermActive && this._terminalTransportStatus?.blockedAccess?.state === 'blocked')
+                || this.reconnectManager?.terminalAccess?.state === 'blocked') {
+                void this.takeOverCurrentTerminal();
+                return;
+            }
+
             const sessionId = appStore.getState().currentSessionId;
-            if (sessionId && this._terminalCopyModeSessions.has(sessionId)) {
+            if (xtermActive && this._terminalTransportStatus?.copyMode) {
+                void this.terminalTransportClient?.exitCopyMode().catch(() => {});
+            } else if (sessionId && this._terminalCopyModeSessions.has(sessionId)) {
                 // Best-effort: exit tmux copy-mode so input works again.
                 fetch(`/api/sessions/${sessionId}/exit_copy_mode`, {
                     method: 'POST',
@@ -652,7 +1229,9 @@ export class App {
                 this._terminalCopyModeSessions.delete(sessionId);
             }
 
-            if (!this.reconnectManager?.wsConnected && !this.reconnectManager?.isReconnecting) {
+            if (xtermActive && this._terminalTransportStatus?.mode === 'snapshot') {
+                void this.terminalTransportClient?.reconnect().catch(() => {});
+            } else if (!this.reconnectManager?.wsConnected && !this.reconnectManager?.isReconnecting) {
                 this.reconnectManager?.handleDisconnect?.();
             }
 
@@ -667,6 +1246,51 @@ export class App {
         this.terminalInputStatusEl?.addEventListener('click', onStatusClick);
         this._terminalInputUxCleanup.push(() => this.terminalInputStatusEl?.removeEventListener('click', onStatusClick));
 
+        const onReconnectClick = (e) => {
+            e.preventDefault();
+            if (this._isXtermTransportActive()) {
+                void this.terminalTransportClient?.reconnect().catch(() => {});
+                return;
+            }
+            if (!this.reconnectManager?.isReconnecting) {
+                this.reconnectManager?.handleDisconnect?.();
+            }
+        };
+        this.terminalReconnectBtn?.addEventListener('click', onReconnectClick);
+        this._terminalInputUxCleanup.push(() => this.terminalReconnectBtn?.removeEventListener('click', onReconnectClick));
+
+        const onTakeoverClick = (e) => {
+            e.preventDefault();
+            void this.takeOverCurrentTerminal();
+        };
+        this.terminalTakeoverBtn?.addEventListener('click', onTakeoverClick);
+        this._terminalInputUxCleanup.push(() => this.terminalTakeoverBtn?.removeEventListener('click', onTakeoverClick));
+
+        const onOpenFallbackClick = (e) => {
+            e.preventDefault();
+            void this.openTerminalIframeFallback();
+        };
+        this.terminalOpenFallbackBtn?.addEventListener('click', onOpenFallbackClick);
+        this._terminalInputUxCleanup.push(() => this.terminalOpenFallbackBtn?.removeEventListener('click', onOpenFallbackClick));
+
+        const closeMoreActions = () => {
+            this.terminalMoreActionsEl?.classList.remove('open');
+        };
+        const onMoreClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.terminalMoreActionsEl?.classList.toggle('open');
+        };
+        const onDocumentClick = (e) => {
+            if (!this.terminalHeaderEl?.contains(e.target)) {
+                closeMoreActions();
+            }
+        };
+        this.terminalMoreBtn?.addEventListener('click', onMoreClick);
+        document.addEventListener('click', onDocumentClick, true);
+        this._terminalInputUxCleanup.push(() => this.terminalMoreBtn?.removeEventListener('click', onMoreClick));
+        this._terminalInputUxCleanup.push(() => document.removeEventListener('click', onDocumentClick, true));
+
         // Type-to-focus: if user starts typing while terminal isn't focused, focus it and inject the first key.
         const onKeydownCapture = (e) => {
             if (!this._isConsoleVisible()) return;
@@ -679,6 +1303,8 @@ export class App {
             if (!sessionId) return;
             if (document.activeElement === this.terminalFrame) return;
             if (this.terminalFrame?.getAttribute?.('src') === 'about:blank') return;
+            if (this._isXtermTransportActive(sessionId)) return;
+            if (this.reconnectManager?.terminalAccess?.state === 'blocked') return;
 
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
@@ -711,6 +1337,7 @@ export class App {
         if (appStore.getState().currentSessionId) {
             this._terminalLastNavigateAt = Date.now();
         }
+        closeMoreActions();
         this._updateTerminalInputStatus();
     }
 
@@ -740,6 +1367,9 @@ export class App {
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());
+        this.container.register('fileViewerService', () => new FileViewerService({
+            sessionService: this.container.get('sessionService')
+        }));
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -747,6 +1377,7 @@ export class App {
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
+        this.fileViewerService = this.container.get('fileViewerService');
     }
 
     /**
@@ -764,7 +1395,10 @@ export class App {
         // Sessions (left sidebar)
         const sessionContainer = document.getElementById('session-list');
         if (sessionContainer) {
-            this.views.sessionView = new SessionView({ sessionService: this.sessionService });
+            this.views.sessionView = new SessionView({
+                sessionService: this.sessionService,
+                fileViewerService: this.fileViewerService
+            });
             this.views.sessionView.mount(sessionContainer);
         }
 
@@ -776,6 +1410,15 @@ export class App {
                 commitTreeService: this.commitTreeService
             });
             this.views.commitTreeView.mount(commitTreeContainer);
+        }
+
+        // File Viewer (main panel)
+        const fileViewerContainer = document.getElementById('file-viewer-panel');
+        if (fileViewerContainer) {
+            this.views.fileViewerView = new FileViewerView({
+                fileViewerService: this.fileViewerService
+            });
+            this.views.fileViewerView.mount(fileViewerContainer);
         }
     }
 
@@ -826,13 +1469,23 @@ export class App {
                             mobileDashboardBtn.style.display = '';
                         }
 
-                        const { cleanup, showConsole, showDashboard } = setupViewNavigation({
+                        const { cleanup, showConsole, showDashboard, showFileViewer } = setupViewNavigation({
                             onDashboardActivated: () => {
                                 this.dashboardController?.init();
                             }
                         });
                         this.showConsole = showConsole;
                         this.showDashboard = showDashboard;
+                        this.showFileViewer = showFileViewer;
+
+                        // Wire file viewer events to panel switching
+                        const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, () => {
+                            this.showFileViewer?.();
+                        });
+                        const unsubFileClose = eventBus.on(EVENTS.FILE_VIEWER_CLOSED, () => {
+                            this.showConsole?.();
+                        });
+                        this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();
 
                         return () => {
@@ -1169,6 +1822,7 @@ export class App {
             // Mark previous session's green indicator as read when leaving it
             if (previousSessionId && previousSessionId !== sessionId) {
                 void markDoneAsRead(previousSessionId, sessionId);
+                void this.releaseTerminalOwnership(previousSessionId);
             }
 
             // Update currentSessionId in store
@@ -1176,8 +1830,8 @@ export class App {
 
             const startTime = performance.now();
             await this.switchSession(sessionId, { proxyPath });
-            const terminalDuration = performance.now() - startTime;
-            console.log(`[SessionSwitch] Terminal ready in ${terminalDuration.toFixed(2)}ms`);
+            const duration = performance.now() - startTime;
+            console.log(`[SessionSwitch] Terminal ready in ${duration.toFixed(2)}ms`);
 
             if (switchToken !== this._sessionSwitchToken || appStore.getState().currentSessionId !== sessionId) {
                 return;
@@ -1190,17 +1844,45 @@ export class App {
                 // Fallback: showConsole未初期化時（ダッシュボード未訪問）でもconsole viewに戻す
                 const consoleArea = document.getElementById('console-area');
                 const dashboardPanel = document.getElementById('dashboard-panel');
+                const fileViewerPanel = document.getElementById('file-viewer-panel');
                 if (consoleArea) consoleArea.style.display = 'flex';
                 if (dashboardPanel) dashboardPanel.style.display = 'none';
+                if (fileViewerPanel) fileViewerPanel.style.display = 'none';
             }
 
             this.focusTerminal('session-changed');
 
             scheduleAfterNextPaint(() => {
                 this._runDeferredSessionSwitchWork(sessionId, switchToken);
+                void this.refreshSessionUiSummaries([sessionId]);
+                const rowUpdateIds = previousSessionId && previousSessionId !== sessionId
+                    ? [previousSessionId, sessionId]
+                    : [sessionId];
+                void eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: rowUpdateIds });
             });
 
         });
+
+        const unsub1b = eventBus.onAsync(EVENTS.FOLDER_TREE_FILE_OPENED, async (event) => {
+            const { sessionId, relativePath } = event.detail || {};
+            if (!sessionId || !relativePath) return;
+            recordRecentFileOpen(sessionId, relativePath);
+            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: [sessionId] });
+        });
+
+        const refreshUiSummaries = () => {
+            const sessions = appStore.getState().sessions || [];
+            const activeIds = sessions
+                .filter((session) => session.intendedState !== 'archived')
+                .map((session) => session.id);
+            if (activeIds.length === 0) return;
+            void this.refreshSessionUiSummaries(activeIds);
+        };
+
+        const unsub1d = eventBus.on(EVENTS.SESSION_CREATED, refreshUiSummaries);
+        const unsub1e = eventBus.on(EVENTS.SESSION_ARCHIVED, refreshUiSummaries);
+        const unsub1f = eventBus.on(EVENTS.SESSION_PAUSED, refreshUiSummaries);
+        const unsub1g = eventBus.on(EVENTS.SESSION_RESUMED, refreshUiSummaries);
 
         // Start task: create session and switch to it
         const unsub2 = eventBus.onAsync(EVENTS.START_TASK, async (event) => {
@@ -1346,7 +2028,19 @@ export class App {
             this.modals.renameModal.open(session);
         });
 
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsubWorktreeFallback, unsub5);
+        this.unsubscribers.push(
+            unsub1,
+            unsub1b,
+            unsub1d,
+            unsub1e,
+            unsub1f,
+            unsub1g,
+            unsub2,
+            unsub3,
+            unsub4,
+            unsubWorktreeFallback,
+            unsub5
+        );
 
         // Setup global UI button handlers
         await this.setupGlobalButtons();
@@ -2129,12 +2823,22 @@ export class App {
 
     async _resolveSessionRuntime(sessionId, session) {
         const currentRuntime = session?.runtimeStatus;
-        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath) {
-            return currentRuntime;
+        const currentAccess = this.reconnectManager?.terminalAccess || null;
+        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath && currentAccess?.state !== 'blocked') {
+            return {
+                runtimeStatus: {
+                    ...currentRuntime,
+                    proxyPath: this._getViewerProxyPath(currentRuntime.proxyPath, currentRuntime.port)
+                },
+                terminalAccess: currentAccess
+            };
         }
 
-        const runtime = await httpClient.get(`/api/sessions/${encodeURIComponent(sessionId)}/runtime`);
-        return runtime?.runtimeStatus || currentRuntime || null;
+        const runtime = await httpClient.get(buildSessionRuntimeUrl(sessionId, this.viewerId, this.viewerLabel));
+        return {
+            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null,
+            terminalAccess: runtime?.terminalAccess || currentAccess || null
+        };
     }
 
     /**
@@ -2142,11 +2846,13 @@ export class App {
      */
     async switchSession(sessionId, options = {}) {
         const terminalFrame = document.getElementById('terminal-frame');
+        const terminalXtermHost = document.getElementById('terminal-xterm-host');
         if (!terminalFrame) {
             console.warn('Terminal frame not found');
             return;
         }
         this.terminalFrame = terminalFrame;
+        this.terminalXtermHost = terminalXtermHost;
 
         try {
             // Get session info from store
@@ -2159,38 +2865,97 @@ export class App {
                 return;
             }
 
+            document.querySelectorAll('.session-child-row').forEach(row => {
+                row.classList.remove('active');
+                if (row.dataset.id === sessionId) {
+                    row.classList.add('active');
+                }
+            });
+
             // アーカイブ済みセッションへの切り替えを防止
             if (session.intendedState === 'archived') {
                 console.log(`[switchSession] Skipping archived session ${sessionId}`);
+                this.terminalTransportClient?.disconnect({ preserveView: false });
+                this.terminalTransportClient?.hide();
+                this._showTtydIframe();
                 terminalFrame.src = 'about:blank';
                 return;
             }
 
+            if (!options.forceTtyd && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+                const transportResult = await this._connectXtermTransport(session);
+                if (transportResult.ok) {
+                    this.reconnectManager?.setCurrentSession(sessionId);
+                    this._terminalLastNavigateAt = Date.now();
+                    this.hideTerminalLoadingOverlay();
+                    this._setCurrentSessionUiState({
+                        transport: 'reconnecting',
+                        attention: 'none'
+                    });
+                    this.focusTerminal('switchSession');
+
+                    return;
+                }
+
+                if (transportResult.blocked) {
+                    this.reconnectManager?.setCurrentSession(sessionId);
+                    this.terminalTransportClient.show();
+                    this._terminalTransportStatus = {
+                        mode: 'blocked',
+                        copyMode: false,
+                        blockedAccess: transportResult.terminalAccess || null,
+                        connected: false,
+                        isFocused: false,
+                        lastSnapshotAt: null
+                    };
+                    this._showXtermTransport();
+                    this._updateTerminalInputStatus();
+                    return;
+                }
+            }
+
+            this.terminalTransportClient?.disconnect({ preserveView: false });
+            this.terminalTransportClient?.hide();
+            this._terminalTransportStatus = null;
+            this._showTtydIframe();
+
             let proxyPath = typeof options.proxyPath === 'string' && options.proxyPath.trim()
-                ? options.proxyPath
+                ? this._getViewerProxyPath(options.proxyPath, options.port)
                 : null;
 
             if (proxyPath) {
                 console.log('Using provided proxyPath for session switch:', proxyPath);
             } else {
-                const runtimeStatus = await this._resolveSessionRuntime(sessionId, session);
+                const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+
+                if (terminalAccess?.state === 'blocked') {
+                    console.warn(`[switchSession] Session ${sessionId} is owned by another viewer`);
+                    terminalFrame.src = 'about:blank';
+                    this.reconnectManager?.setCurrentSession(sessionId);
+                    this.reconnectManager._setBlocked?.(terminalAccess);
+                    this._updateTerminalInputStatus();
+                    return;
+                }
+
+                if (this.reconnectManager) {
+                    this.reconnectManager.terminalAccess = terminalAccess || null;
+                }
+
                 if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
-                    proxyPath = runtimeStatus.proxyPath;
+                    proxyPath = this._getViewerProxyPath(runtimeStatus.proxyPath, runtimeStatus.port);
                     console.log('Session already running, using existing proxyPath:', proxyPath);
                 }
             }
 
             if (!proxyPath) {
                 // Session not running, start it
-                const res = await httpClient.post('/api/sessions/start', {
-                    sessionId: session.id,
-                    initialCommand: session.initialCommand || '',
-                    cwd: session.path,
-                    engine: session.engine || 'claude'
-                });
+                const res = await httpClient.post('/api/sessions/start', this._buildTerminalStartPayload(session));
 
                 if (res && res.proxyPath) {
-                    proxyPath = res.proxyPath;
+                    if (this.reconnectManager) {
+                        this.reconnectManager.terminalAccess = res.terminalAccess || null;
+                    }
+                    proxyPath = this._getViewerProxyPath(res.proxyPath, res.port);
                     console.log('Started session, got proxyPath:', proxyPath);
                 }
             }
@@ -2201,24 +2966,35 @@ export class App {
 
                 // Update reconnect manager with current session
                 this.reconnectManager?.setCurrentSession(sessionId);
+                if (this.reconnectManager?.terminalAccess?.state !== 'blocked') {
+                    this.reconnectManager.terminalAccess = {
+                        state: 'owner',
+                        ownerViewerLabel: this.viewerLabel,
+                        ownerLastSeenAt: new Date().toISOString(),
+                        canTakeover: false
+                    };
+                }
                 this._terminalLastNavigateAt = Date.now();
+                this._setCurrentSessionUiState({
+                    transport: 'reconnecting',
+                    attention: 'none'
+                });
                 this.focusTerminal('switchSession');
             } else {
                 console.error('No proxyPath available for session:', sessionId);
                 terminalFrame.src = 'about:blank';
+                this._setCurrentSessionUiState({
+                    transport: 'disconnected',
+                    attention: 'none'
+                });
             }
-
-            // Update active state in UI (handled by SessionView re-render, but keep for now)
-            document.querySelectorAll('.session-child-row').forEach(row => {
-                row.classList.remove('active');
-                if (row.dataset.id === sessionId) {
-                    row.classList.add('active');
-                }
-            });
-
         } catch (error) {
             console.error('Failed to switch session:', error);
             terminalFrame.src = 'about:blank';
+            this._setCurrentSessionUiState({
+                transport: 'disconnected',
+                attention: 'none'
+            });
         }
     }
 
@@ -2264,6 +3040,14 @@ export class App {
                 await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: currentSessionId });
             }
 
+            if (sessions && sessions.length > 0) {
+                void this.refreshSessionUiSummaries(
+                    sessions
+                        .filter((session) => session.intendedState !== 'archived')
+                        .map((session) => session.id)
+                );
+            }
+
             if (currentSessionId) {
                 await this.loadSessionData(currentSessionId);
                 this._updateSessionGoalBanner(currentSessionId);
@@ -2291,6 +3075,14 @@ export class App {
     }
 
     /**
+     * Keep legacy session goal banner hook alive.
+     * Current UI uses SessionContextBarView instead of a dedicated goal banner.
+     */
+    _updateSessionGoalBanner(_sessionId) {
+        this.views?.sessionContextBarView?.refresh?.({ forceLoading: false });
+    }
+
+    /**
      * Show error message
      */
     showError(message) {
@@ -2303,6 +3095,7 @@ export class App {
      */
     async start() {
         console.log('Starting brainbase-ui...');
+        hydrateSessionRecentFiles();
 
         // 0. Initialize auth (load token before API calls)
         await this.initAuth();
@@ -2345,12 +3138,39 @@ export class App {
 
         // 6.5. Initialize terminal reconnect manager
         const terminalFrame = document.getElementById('terminal-frame');
+        const terminalXtermHost = document.getElementById('terminal-xterm-host');
         if (terminalFrame) {
             this.terminalFrame = terminalFrame;
             this.reconnectManager = new TerminalReconnectManager();
+            this.reconnectManager.setViewerContext({
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
+            });
             this.reconnectManager.init(terminalFrame);
+            const currentSessionId = appStore.getState().currentSessionId;
+            if (currentSessionId) {
+                this.reconnectManager.setCurrentSession(currentSessionId);
+            }
+            if (terminalXtermHost && this._shouldUseXtermTransport()) {
+                this.terminalXtermHost = terminalXtermHost;
+                this.terminalTransportClient = new TerminalTransportClient({
+                    viewerId: this.viewerId,
+                    viewerLabel: this.viewerLabel,
+                    onStatusChange: (status) => {
+                        this._terminalTransportStatus = status;
+                        this._updateTerminalInputStatus();
+                    }
+                });
+                await this.terminalTransportClient.init(terminalXtermHost);
+            }
             this.setupTerminalInputUx();
         }
+
+        const onPageHide = () => {
+            void this.releaseTerminalOwnership(appStore.getState().currentSessionId);
+        };
+        window.addEventListener('pagehide', onPageHide);
+        this._terminalInputUxCleanup.push(() => window.removeEventListener('pagehide', onPageHide));
 
         // 7. Start session status polling (every 3 seconds)
         this.pollingIntervalId = startPolling(
@@ -2363,6 +3183,7 @@ export class App {
 
         // 8. Start periodic refresh (every 5 minutes)
         this.startPeriodicRefresh();
+        this.startSessionUiSummaryRefresh();
 
         // 9. Setup choice detection (mobile only)
         this.setupResponsiveChoiceDetection();
@@ -2710,6 +3531,18 @@ export class App {
         overlay.classList.add('hidden');
     }
 
+    _isXtermSessionReady(sessionId) {
+        if (!sessionId || appStore.getState().currentSessionId !== sessionId) {
+            return false;
+        }
+        if (!this._isXtermTransportActive()) {
+            return false;
+        }
+        const status = this._terminalTransportStatus || this.terminalTransportClient?.getStatus?.() || null;
+        const mode = status?.mode || null;
+        return mode === 'live' || mode === 'snapshot';
+    }
+
     /**
      * Claude初期化待機
      * @param {string} sessionId - セッションID
@@ -2720,6 +3553,12 @@ export class App {
         const startTime = Date.now();
 
         const checkInitialization = async () => {
+            if (this._isXtermSessionReady(sessionId)) {
+                console.log(`[Claude Init] Xterm transport ready for ${sessionId}`);
+                this.hideTerminalLoadingOverlay();
+                return;
+            }
+
             // 条件1: ターミナルiframeがロード済みならオーバーレイ解除
             const iframe = document.getElementById('terminal-frame');
             if (iframe && iframe.src && iframe.src !== 'about:blank') {
@@ -2760,8 +3599,23 @@ export class App {
             setTimeout(checkInitialization, pollInterval);
         };
 
-        // 少し待ってからチェック開始（switchSessionがiframe srcを設定する時間を確保）
-        setTimeout(checkInitialization, 1000);
+        void checkInitialization();
+    }
+
+    startSessionUiSummaryRefresh() {
+        if (this.sessionUiSummaryIntervalId) {
+            clearInterval(this.sessionUiSummaryIntervalId);
+        }
+
+        this.sessionUiSummaryIntervalId = setInterval(() => {
+            const state = appStore.getState();
+            if (state.ui?.sidebarPrimaryView !== 'sessions') return;
+            const activeIds = (state.sessions || [])
+                .filter((session) => session.intendedState !== 'archived')
+                .map((session) => session.id);
+            if (activeIds.length === 0) return;
+            void this.refreshSessionUiSummaries(activeIds);
+        }, 15_000);
     }
 
     /**
@@ -2927,6 +3781,11 @@ export class App {
             this.refreshIntervalId = null;
         }
 
+        if (this.sessionUiSummaryIntervalId) {
+            clearInterval(this.sessionUiSummaryIntervalId);
+            this.sessionUiSummaryIntervalId = null;
+        }
+
         // Stop choice detection
         this.stopChoiceDetection();
 
@@ -2946,6 +3805,11 @@ export class App {
 
         // Cleanup mobile input controller
         this.mobileInputController?.destroy();
+        this.terminalTransportClient?.destroy();
+
+        void this.releaseTerminalOwnership(appStore.getState().currentSessionId);
+        this._terminalInputUxCleanup.forEach(cleanup => cleanup());
+        this._terminalInputUxCleanup = [];
 
         console.log('brainbase-ui destroyed');
     }

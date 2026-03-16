@@ -21,12 +21,16 @@
 ├── CONTRIBUTING.md                 # コントリビューションガイド
 ├── CODE_OF_CONDUCT.md              # Contributor Covenant 2.1
 ├── CLAUDE.md                       # 開発標準・思考フレームワーク
-├── DESIGN.md                       # アーキテクチャ詳細
+├── docs/
+│   ├── architecture/
+│   │   └── DESIGN.md               # アーキテクチャ詳細
 ├── package.json                    # private: false, repository設定済み
 ├── docs/                           # ドキュメント
 │   ├── README.md
-│   ├── REFACTORING_PLAN.md
-│   ├── OSS_DIRECTORY_STRUCTURE.md  # このファイル
+│   ├── plans/
+│   │   └── REFACTORING_PLAN.md
+│   ├── reference/
+│   │   └── OSS_DIRECTORY_STRUCTURE.md  # このファイル
 │   └── ...
 ├── public/                         # フロントエンド
 │   ├── modules/
@@ -275,9 +279,9 @@ npm start
 
 - [README.md](../README.md): OSS用メインドキュメント
 - [CLAUDE.md](../CLAUDE.md): 開発標準・思考フレームワーク
-- [DESIGN.md](../DESIGN.md): アーキテクチャ詳細
+- [DESIGN.md](../architecture/DESIGN.md): アーキテクチャ詳細
 - [CONTRIBUTING.md](../CONTRIBUTING.md): コントリビューションガイド
-- [docs/REFACTORING_PLAN.md](./REFACTORING_PLAN.md): リファクタリング計画
+- [docs/REFACTORING_PLAN.md](../plans/REFACTORING_PLAN.md): リファクタリング計画
 
 ---
 

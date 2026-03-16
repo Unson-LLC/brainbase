@@ -336,9 +336,9 @@ lsof -ti:3000 | xargs kill -9
 ## 参照ドキュメント
 
 - **アーキテクチャ**: `/Users/ksato/workspace/projects/brainbase/CLAUDE.md`
-- **デザイン**: `/Users/ksato/workspace/projects/brainbase/DESIGN.md`
+- **デザイン**: `/Users/ksato/workspace/projects/brainbase/docs/architecture/DESIGN.md`
 - **引き継ぎ**: `/Users/ksato/workspace/projects/brainbase/HANDOFF.md`
-- **リファクタリング計画**: `/Users/ksato/workspace/projects/brainbase/docs/REFACTORING_PLAN.md`
+- **リファクタリング計画**: `/Users/ksato/workspace/projects/brainbase/docs/plans/REFACTORING_PLAN.md`
 
 ---
 

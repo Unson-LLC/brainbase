@@ -13,7 +13,7 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
-load_dotenv("/Users/ksato/workspace/.env")
+load_dotenv(Path.home() / "workspace/.env")
 
 NOCODB_URL = os.getenv("NOCODB_URL", "https://noco.unson.jp")
 NOCODB_TOKEN = os.getenv("NOCODB_TOKEN")
@@ -125,7 +125,7 @@ def ensure_claude_oauth_token() -> None:
         return
     refresh_token = os.environ.get("CLAUDE_REFRESH_TOKEN")
     if not refresh_token:
-        raise SyncError("CLAUDE_REFRESH_TOKEN is missing. Set it in /Users/ksato/workspace/.env")
+        raise SyncError("CLAUDE_REFRESH_TOKEN is missing. Set it in ~/workspace/.env")
     payload = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,

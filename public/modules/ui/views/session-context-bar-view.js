@@ -18,6 +18,7 @@ export class SessionContextBarView {
         this._refreshTimer = null;
         this._expanded = false;
         this._currentContext = null;
+        this._refreshTimer = null;
     }
 
     mount(container) {
