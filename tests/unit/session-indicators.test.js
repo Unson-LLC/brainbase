@@ -15,7 +15,14 @@ vi.mock('../../public/modules/toast.js', () => ({
     showInfo: vi.fn()
 }));
 
+vi.mock('../../public/modules/core/http-client.js', () => ({
+    httpClient: {
+        post: vi.fn()
+    }
+}));
+
 import { eventBus, EVENTS } from '../../public/modules/core/event-bus.js';
+import { httpClient } from '../../public/modules/core/http-client.js';
 import { appStore } from '../../public/modules/core/store.js';
 import { getSessionStatus, markDoneAsRead, pollSessionStatus } from '../../public/modules/session-indicators.js';
 import { getSessionUiEntry } from '../../public/modules/session-ui-state.js';
@@ -28,6 +35,7 @@ describe('session-indicators', () => {
             ok: true,
             json: async () => ({})
         });
+        httpClient.post.mockResolvedValue({ success: true });
     });
 
     it('markDoneAsRead呼び出し時_done状態が即時クリアされる', async () => {
@@ -47,9 +55,6 @@ describe('session-indicators', () => {
                     })
                 });
             }
-            if (url === '/api/sessions/session-1/clear-done') {
-                return Promise.resolve({ ok: true, json: async () => ({ success: true }) });
-            }
             return Promise.resolve({ ok: true, json: async () => ({}) });
         });
         globalThis.fetch = fetchMock;
@@ -62,7 +67,7 @@ describe('session-indicators', () => {
 
         expect(getSessionStatus('session-1').isDone).toBe(false);
         expect(getSessionUiEntry('session-1').hookStatus.isDone).toBe(false);
-        expect(fetchMock).toHaveBeenCalledWith('/api/sessions/session-1/clear-done', { method: 'POST' });
+        expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/clear-done', {});
         expect(eventBus.emit).toHaveBeenCalledWith(
             EVENTS.SESSION_UPDATED,
             expect.objectContaining({ sessionId: 'session-1' })
@@ -110,12 +115,10 @@ describe('session-indicators', () => {
                     })
                 });
             }
-            if (url === '/api/sessions/session-1/clear-done') {
-                return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
-            }
             return Promise.resolve({ ok: true, json: async () => ({}) });
         });
         globalThis.fetch = fetchMock;
+        httpClient.post.mockRejectedValue(new Error('HTTP 500'));
 
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         await pollSessionStatus('session-2');

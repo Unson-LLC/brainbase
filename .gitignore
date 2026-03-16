@@ -253,6 +253,7 @@ pr-body.txt
 refactoring-result.json
 .codex-last-message-*.txt
 .claude/skills/.system/
+.jj/
 node_modules
 
 # test state backups

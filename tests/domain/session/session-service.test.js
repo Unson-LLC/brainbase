@@ -159,7 +159,7 @@ describe('SessionService', () => {
             const unsubscribe = eventBus.on(EVENTS.SESSION_WORKTREE_FALLBACK, listener);
 
             httpClient.post
-                .mockResolvedValueOnce({ error: 'Not a git repo' })
+                .mockRejectedValueOnce(new Error('Failed to create worktree. Is this a git repository?'))
                 .mockResolvedValueOnce({});
             httpClient.get.mockResolvedValue({ sessions: mockSessions });
             addSession.mockResolvedValue();
@@ -178,7 +178,7 @@ describe('SessionService', () => {
                 viewerId: 'viewer-test'
             }));
             expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail.reason).toBe('Not a git repo');
+            expect(listener.mock.calls[0][0].detail.reason).toBe('Failed to create worktree. Is this a git repository?');
 
             unsubscribe();
         });

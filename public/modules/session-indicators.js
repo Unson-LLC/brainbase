@@ -7,6 +7,7 @@
  * - Hidden: no hook status
  */
 
+import { httpClient } from './core/http-client.js';
 import { eventBus, EVENTS } from './core/event-bus.js';
 import { replaceSessionHookStatuses, getSessionStatus as getStoreSessionStatus } from './session-ui-state.js';
 import { showError, showInfo } from './toast.js';
@@ -57,12 +58,7 @@ export async function markDoneAsRead(sessionId, currentSessionId = null) {
     await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates: { doneRead: true } });
 
     try {
-        const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/clear-done`, {
-            method: 'POST'
-        });
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
+        await httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/clear-done`, {});
     } catch (error) {
         console.warn(`[Session Indicators] Failed to persist done-read for ${sessionId}:`, error);
     }

@@ -1125,7 +1125,7 @@ ${jjBookmarks}
 
             if (!worktreeResult) {
                 this._updateProgress(sessionId, 'error', 0, 'ワークスペース作成に失敗');
-                return res.status(500).json({ error: 'Failed to create worktree. Is this a git repository?' });
+                return res.status(500).json({ error: 'Failed to create worktree' });
             }
 
             this._updateProgress(sessionId, 'worktree', 40, 'ワークスペース作成完了');
@@ -1209,7 +1209,8 @@ ${jjBookmarks}
             });
         } catch (error) {
             console.error('Failed to create session with worktree:', error);
-            res.status(500).json({ error: error.message });
+            this._updateProgress(sessionId, 'error', 0, 'セッション作成に失敗');
+            res.status(500).json({ error: error.message || 'Failed to create worktree' });
         }
     };
 
