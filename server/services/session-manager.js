@@ -148,7 +148,9 @@ export class SessionManager {
             return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
         }
 
-        return { allowed: false, owner: currentOwner, terminalAccess: this._buildTerminalAccessState(currentOwner, normalizedViewerId) };
+        // Auto-takeover: last accessor wins (no concurrent viewing expected)
+        const owner = this.claimTerminalOwnership(sessionId, normalizedViewerId, viewerLabel);
+        return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
     }
 
     forceTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
