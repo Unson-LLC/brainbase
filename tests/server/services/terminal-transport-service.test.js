@@ -37,6 +37,61 @@ describe('TerminalTransportService', () => {
         expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
     });
 
+    it('snapshotメッセージにcolorTextフィールドが含まれる', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getContentWithColors.mockResolvedValue('\x1b[32mgreen\x1b[0m');
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws,
+            lastSnapshot: null,
+            lastCopyMode: null,
+            lastCliState: null
+        };
+
+        await service._pollConnection(connection);
+
+        const snapshotCall = ws.send.mock.calls.find(call => {
+            const msg = JSON.parse(call[0]);
+            return msg.type === 'snapshot';
+        });
+        expect(snapshotCall).toBeTruthy();
+        const msg = JSON.parse(snapshotCall[0]);
+        expect(msg.colorText).toBe('\x1b[32mgreen\x1b[0m');
+        expect(msg.text).toBe('snapshot');
+    });
+
+    it('colorTextがnullの場合snapshotにcolorTextフィールドを含めない', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.getContentWithColors.mockResolvedValue(null);
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws,
+            lastSnapshot: null,
+            lastCopyMode: null,
+            lastCliState: null
+        };
+
+        await service._pollConnection(connection);
+
+        const snapshotCall = ws.send.mock.calls.find(call => {
+            const msg = JSON.parse(call[0]);
+            return msg.type === 'snapshot';
+        });
+        expect(snapshotCall).toBeTruthy();
+        const msg = JSON.parse(snapshotCall[0]);
+        expect(msg).not.toHaveProperty('colorText');
+    });
+
     it('resize message で sessionManager.resizeSessionWindow を呼ぶ', async () => {
         const { service, sessionManager } = buildService();
         const connection = {

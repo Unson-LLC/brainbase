@@ -23,6 +23,7 @@ import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
+import { ansiToHtml } from './modules/utils/ansi-to-html.js';
 import { getSessionUiEntry, hydrateSessionRecentFiles, mergeSessionUiEntry, recordRecentFileOpen } from './modules/session-ui-state.js';
 
 // Services
@@ -825,6 +826,7 @@ export class App {
 
         const snapshot = {
             text: typeof res?.text === 'string' ? res.text : '',
+            colorText: typeof res?.colorText === 'string' ? res.colorText : null,
             capturedAt: res?.capturedAt || null
         };
         this._terminalSnapshotCache.set(sessionId, snapshot);
@@ -847,7 +849,11 @@ export class App {
         if (this.terminalSnapshotTitleEl) {
             this.terminalSnapshotTitleEl.textContent = title;
         }
-        this.terminalSnapshotContentEl.textContent = snapshot?.text || 'Snapshotを読み込み中...';
+        if (snapshot?.colorText) {
+            this.terminalSnapshotContentEl.innerHTML = ansiToHtml(snapshot.colorText);
+        } else {
+            this.terminalSnapshotContentEl.textContent = snapshot?.text || 'Snapshotを読み込み中...';
+        }
         if (this.terminalSnapshotTimestampEl) {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }

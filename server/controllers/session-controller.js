@@ -499,15 +499,20 @@ export class SessionController {
         }
 
         try {
-            const text = await this.sessionManager.getContent(id, lines);
-            const copyMode = await this.sessionManager.getPaneMode(id).catch(() => false);
-            res.json({
+            const [text, colorText, copyMode] = await Promise.all([
+                this.sessionManager.getContent(id, lines),
+                this.sessionManager.getContentWithColors(id, lines).catch(() => null),
+                this.sessionManager.getPaneMode(id).catch(() => false),
+            ]);
+            const payload = {
                 sessionId: id,
                 text,
                 copyMode,
                 capturedAt: new Date().toISOString(),
                 terminalAccess: ownership.terminalAccess
-            });
+            };
+            if (colorText) payload.colorText = colorText;
+            res.json(payload);
         } catch (error) {
             console.error(`Failed to get terminal snapshot for ${id}:`, error.message);
             res.status(500).json({ error: error.message || 'Failed to capture terminal snapshot' });

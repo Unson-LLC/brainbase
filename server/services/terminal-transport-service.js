@@ -133,11 +133,13 @@ export class TerminalTransportService {
             cols,
             rows
         }));
-        ws.send(JSON.stringify({
+        const snapshotMsg = {
             type: 'snapshot',
             text: snapshot.text,
             capturedAt: snapshot.capturedAt
-        }));
+        };
+        if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
+        ws.send(JSON.stringify(snapshotMsg));
         ws.send(JSON.stringify({
             type: 'status',
             mode: 'live',
@@ -168,11 +170,13 @@ export class TerminalTransportService {
         const snapshot = await this._getSnapshotPayload(sessionId);
         if (snapshot.text !== connection.lastSnapshot) {
             connection.lastSnapshot = snapshot.text;
-            ws.send(JSON.stringify({
+            const pollSnapshotMsg = {
                 type: 'snapshot',
                 text: snapshot.text,
                 capturedAt: snapshot.capturedAt
-            }));
+            };
+            if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
+            ws.send(JSON.stringify(pollSnapshotMsg));
         }
 
         // CLI状態検出（色ベース優先、テキストフォールバック）
@@ -261,7 +265,7 @@ export class TerminalTransportService {
     async _getSnapshotPayload(sessionId) {
         const [text, colorText, copyMode] = await Promise.all([
             this.sessionManager.getContent(sessionId, DEFAULT_SNAPSHOT_LINES),
-            this.sessionManager.getContentWithColors(sessionId, 10).catch(() => null),
+            this.sessionManager.getContentWithColors(sessionId, DEFAULT_SNAPSHOT_LINES).catch(() => null),
             this.sessionManager.getPaneMode(sessionId).catch(() => false),
         ]);
         return {

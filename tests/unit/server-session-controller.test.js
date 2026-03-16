@@ -29,6 +29,7 @@ describe('SessionController (Server)', () => {
       getTerminalAccessState: vi.fn(),
       releaseTerminalOwnership: vi.fn(),
       getContent: vi.fn(),
+      getContentWithColors: vi.fn(async () => null),
       getPaneMode: vi.fn(),
       isTmuxSessionRunning: vi.fn(),
       _isProcessRunning: vi.fn(),
