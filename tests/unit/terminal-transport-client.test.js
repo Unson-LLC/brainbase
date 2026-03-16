@@ -143,7 +143,7 @@ describe('terminal-transport-client', () => {
     expect(client.sendKey).not.toHaveBeenCalled();
   });
 
-  it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', () => {
+  it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -157,8 +157,9 @@ describe('terminal-transport-client', () => {
         }
       },
       reset: vi.fn(),
-      write: vi.fn(() => {
+      write: vi.fn((text, callback) => {
         terminal.buffer.active.baseY = 160;
+        callback?.();
       }),
       scrollToLine
     };
@@ -167,13 +168,14 @@ describe('terminal-transport-client', () => {
     client.fitAddon = { fit: vi.fn() };
 
     client._applySnapshot('updated output');
+    await Promise.resolve();
 
     expect(terminal.reset).toHaveBeenCalled();
-    expect(terminal.write).toHaveBeenCalledWith('updated output');
+    expect(terminal.write).toHaveBeenCalledWith('updated output', expect.any(Function));
     expect(scrollToLine).toHaveBeenCalledWith(120);
   });
 
-  it('snapshot適用時_最下部を見ているなら最下部を維持する', () => {
+  it('snapshot適用時_最下部を見ているなら最下部を維持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
@@ -187,7 +189,9 @@ describe('terminal-transport-client', () => {
         }
       },
       reset: vi.fn(),
-      write: vi.fn(),
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
       scrollToBottom,
       scrollToLine: vi.fn()
     };
@@ -196,6 +200,7 @@ describe('terminal-transport-client', () => {
     client.fitAddon = { fit: vi.fn() };
 
     client._applySnapshot('latest output');
+    await Promise.resolve();
 
     expect(scrollToBottom).toHaveBeenCalled();
     expect(terminal.scrollToLine).not.toHaveBeenCalled();

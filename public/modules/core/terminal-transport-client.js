@@ -487,9 +487,10 @@ export class TerminalTransportClient {
         if (!this.terminal) return;
         const viewportState = this._captureViewportState();
         this.terminal.reset();
-        this.terminal.write(text || '');
-        this.fitAddon?.fit();
-        this._restoreViewportState(viewportState);
+        this.terminal.write(text || '', () => {
+            this.fitAddon?.fit();
+            this._restoreViewportState(viewportState);
+        });
     }
 
     _measureViewport() {
