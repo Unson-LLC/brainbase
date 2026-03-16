@@ -36,6 +36,10 @@ import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-serv
 import { FileViewerService } from './modules/domain/file-viewer/file-viewer-service.js';
 import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
 import { FileViewerView } from './modules/ui/views/file-viewer-view.js';
+import { WikiService } from './modules/domain/wiki/wiki-service.js';
+import { WikiView } from './modules/ui/views/wiki-view.js';
+import { LiveFeedService } from './modules/domain/live-feed/live-feed-service.js';
+import { LiveFeedView } from './modules/ui/views/live-feed-view.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -1403,6 +1407,8 @@ export class App {
         this.container.register('fileViewerService', () => new FileViewerService({
             sessionService: this.container.get('sessionService')
         }));
+        this.container.register('wikiService', () => new WikiService());
+        this.container.register('liveFeedService', () => new LiveFeedService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -1411,6 +1417,8 @@ export class App {
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
         this.fileViewerService = this.container.get('fileViewerService');
+        this.wikiService = this.container.get('wikiService');
+        this.liveFeedService = this.container.get('liveFeedService');
     }
 
     /**
@@ -1452,6 +1460,24 @@ export class App {
                 fileViewerService: this.fileViewerService
             });
             this.views.fileViewerView.mount(fileViewerContainer);
+        }
+
+        // Wiki (main panel)
+        const wikiContainer = document.getElementById('wiki-panel');
+        if (wikiContainer) {
+            this.views.wikiView = new WikiView({
+                wikiService: this.wikiService
+            });
+            this.views.wikiView.mount(wikiContainer);
+        }
+
+        // Live Feed (main panel)
+        const liveFeedContainer = document.getElementById('live-feed-panel');
+        if (liveFeedContainer) {
+            this.views.liveFeedView = new LiveFeedView({
+                liveFeedService: this.liveFeedService
+            });
+            this.views.liveFeedView.mount(liveFeedContainer);
         }
     }
 
@@ -1502,14 +1528,18 @@ export class App {
                             mobileDashboardBtn.style.display = '';
                         }
 
-                        const { cleanup, showConsole, showDashboard, showFileViewer } = setupViewNavigation({
+                        const { cleanup, showConsole, showDashboard, showFileViewer, showWiki } = setupViewNavigation({
                             onDashboardActivated: () => {
                                 this.dashboardController?.init();
+                            },
+                            onWikiActivated: () => {
+                                this.wikiService?.loadPages();
                             }
                         });
                         this.showConsole = showConsole;
                         this.showDashboard = showDashboard;
                         this.showFileViewer = showFileViewer;
+                        this.showWiki = showWiki;
 
                         // Wire file viewer events to panel switching
                         const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, () => {
@@ -2915,7 +2945,7 @@ export class App {
                 return;
             }
 
-            if (!options.forceTtyd && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+            if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
                 const transportResult = await this._connectXtermTransport(session);
                 if (transportResult.ok) {
                     this.reconnectManager?.setCurrentSession(sessionId);
