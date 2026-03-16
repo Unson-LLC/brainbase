@@ -179,6 +179,38 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(rmSpy).toHaveBeenCalledWith('/tmp/repo/.git/worktrees/session-1-repo', { recursive: true, force: true });
         expect(mockExec).toHaveBeenCalledWith('git -C "/tmp/repo" branch -D "session/session-1"');
     });
+
+    it('workspace作成時_stale working copyをself-healして再試行する', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+        vi.spyOn(fs, 'access').mockImplementation(async (targetPath) => {
+            if (targetPath === '/tmp/repo') {
+                return undefined;
+            }
+            throw Object.assign(new Error('not found'), { code: 'ENOENT' });
+        });
+        vi.spyOn(service, '_isJujutsuRepo').mockResolvedValue(true);
+        vi.spyOn(service, '_ensureGitCompatibility').mockResolvedValue({
+            gitWorktreePath: '/tmp/repo/.git/worktrees/session-1-repo'
+        });
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockRejectedValueOnce(new Error("Error: The working copy is stale\nHint: Run 'jj workspace update-stale'"))
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: '' })
+            .mockResolvedValueOnce({ stdout: 'abc123\n' });
+
+        const result = await service.create('session-1', '/tmp/repo', { skipFetch: true });
+
+        expect(result.worktreePath).toBe('/tmp/worktrees/session-1-repo');
+        expect(result.startCommit).toBe('abc123');
+        expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" workspace update-stale');
+        expect(mockExec).toHaveBeenCalledWith(
+            'jj -R "/tmp/repo" workspace add --name "session-1-repo" "/tmp/worktrees/session-1-repo"'
+        );
+    });
 });
 
 describe('WorktreeService.autoHealArchiveState', () => {

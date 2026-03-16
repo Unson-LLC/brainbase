@@ -62,6 +62,37 @@ export class WorktreeService {
         return `session/${sessionId}`;
     }
 
+    _isStaleWorkingCopyError(error) {
+        const message = [
+            error?.message,
+            error?.stderr,
+            error?.stdout
+        ]
+            .filter(Boolean)
+            .join('\n')
+            .toLowerCase();
+
+        return message.includes('working copy is stale')
+            || message.includes('workspace update-stale');
+    }
+
+    async _execJujutsuWithStaleRetry(repoPath, command, options = {}) {
+        const { retryStale = true } = options;
+        const fullCommand = `jj -R "${repoPath}" ${command}`;
+
+        try {
+            return await this.execPromise(fullCommand);
+        } catch (error) {
+            if (!retryStale || !this._isStaleWorkingCopyError(error)) {
+                throw error;
+            }
+
+            console.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
+            await this.execPromise(`jj -R "${repoPath}" workspace update-stale`);
+            return await this.execPromise(fullCommand);
+        }
+    }
+
     async _getBookmarkInfos(repoPath, sessionId) {
         const bookmarkCandidates = [this._getSessionBranchName(sessionId), sessionId];
         const infos = [];
@@ -380,14 +411,16 @@ export class WorktreeService {
 
             // Check if workspace already exists
             try {
-                const { stdout: workspaceList } = await this.execPromise(
-                    `jj -R "${repoPath}" workspace list`
+                const { stdout: workspaceList } = await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    'workspace list'
                 );
                 if (workspaceList.includes(`${workspaceName}:`)) {
                     console.log(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
                     await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
-                    const { stdout: startCommit } = await this.execPromise(
-                        `jj -R "${workspacePath}" log -r @ -T 'commit_id' --no-pager`
+                    const { stdout: startCommit } = await this._execJujutsuWithStaleRetry(
+                        workspacePath,
+                        `log -r @ -T 'commit_id' --no-pager`
                     );
                     return {
                         worktreePath: workspacePath,
@@ -404,7 +437,7 @@ export class WorktreeService {
             // Fetch latest from remote (skipFetch=trueで省略可能、2-3秒短縮)
             if (!skipFetch) {
                 try {
-                    await this.execPromise(`jj -R "${repoPath}" git fetch`);
+                    await this._execJujutsuWithStaleRetry(repoPath, 'git fetch');
                 } catch (fetchErr) {
                     console.log(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
                 }
@@ -413,7 +446,10 @@ export class WorktreeService {
             }
 
             // Create workspace
-            await this.execPromise(`jj -R "${repoPath}" workspace add --name "${workspaceName}" "${workspacePath}"`);
+            await this._execJujutsuWithStaleRetry(
+                repoPath,
+                `workspace add --name "${workspaceName}" "${workspacePath}"`
+            );
             console.log(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
 
             // Register as git worktree (for git command compatibility)
@@ -426,7 +462,10 @@ export class WorktreeService {
 
             // Create bookmark
             try {
-                await this.execPromise(`jj -R "${repoPath}" bookmark create -r main ${bookmarkName}`);
+                await this._execJujutsuWithStaleRetry(
+                    repoPath,
+                    `bookmark create -r main ${bookmarkName}`
+                );
                 console.log(`[workspace] Created bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
                 console.log(`[workspace] Bookmark creation skipped: ${bookmarkErr.message}`);
@@ -467,8 +506,9 @@ export class WorktreeService {
             }
 
             // Get current HEAD as startCommit
-            const { stdout: startCommit } = await this.execPromise(
-                `jj -R "${workspacePath}" log -r @ -T 'commit_id' --no-pager`
+            const { stdout: startCommit } = await this._execJujutsuWithStaleRetry(
+                workspacePath,
+                `log -r @ -T 'commit_id' --no-pager`
             );
 
             console.log(`Created Jujutsu workspace at ${workspacePath}`);
@@ -481,7 +521,7 @@ export class WorktreeService {
             };
         } catch (err) {
             console.error(`Failed to create workspace for ${sessionId}:`, err.message);
-            return null;
+            throw err;
         }
     }
 

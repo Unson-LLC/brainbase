@@ -199,14 +199,27 @@ export class SessionService {
      * @private
      */
     async _createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project) {
-        const res = await this.httpClient.post('/api/sessions/create-with-worktree', {
-            sessionId,
-            repoPath,
-            name,
-            initialCommand,
-            engine,
-            project
-        });
+        let res;
+        try {
+            res = await this.httpClient.post('/api/sessions/create-with-worktree', {
+                sessionId,
+                repoPath,
+                name,
+                initialCommand,
+                engine,
+                project
+            });
+        } catch (error) {
+            const reason = error?.message || 'Worktree creation failed';
+            console.warn('Worktree creation failed, falling back to regular session:', reason);
+            await this.eventBus.emit(EVENTS.SESSION_WORKTREE_FALLBACK, {
+                sessionId,
+                project,
+                repoPath,
+                reason
+            });
+            return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine, project);
+        }
 
         if (!res || res.error) {
             // Fallback to regular session
@@ -218,7 +231,7 @@ export class SessionService {
                 repoPath,
                 reason
             });
-            return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine);
+            return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine, project);
         }
 
         // サーバーサイドで既にセッションを追加しているため、
