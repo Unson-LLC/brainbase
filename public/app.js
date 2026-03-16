@@ -1317,6 +1317,13 @@ export class App {
             const key = e.key;
 
             // Only inject safe/simple keys.
+            if (key === 'Enter' && e.shiftKey) {
+                this.focusTerminal('type-to-focus');
+                httpClient.post(`/api/sessions/${sessionId}/input`, { input: 'M-Enter', type: 'key' }).catch(() => {});
+                e.preventDefault();
+                return;
+            }
+
             if (key === 'Enter') {
                 this.focusTerminal('type-to-focus');
                 httpClient.post(`/api/sessions/${sessionId}/input`, { input: 'Enter', type: 'key' }).catch(() => {});

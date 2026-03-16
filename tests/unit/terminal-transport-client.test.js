@@ -100,6 +100,49 @@ describe('terminal-transport-client', () => {
     });
   });
 
+  it('Shift+Enter押下時_M-Enterとして送信する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sendKey = vi.fn();
+
+    const preventDefault = vi.fn();
+    const handled = client._handleCustomKeyEvent({
+      type: 'keydown',
+      key: 'Enter',
+      shiftKey: true,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false,
+      preventDefault
+    });
+
+    expect(handled).toBe(false);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(client.sendKey).toHaveBeenCalledWith('M-Enter');
+  });
+
+  it('通常Enter押下時_カスタム処理せずxterm標準に任せる', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sendKey = vi.fn();
+
+    const handled = client._handleCustomKeyEvent({
+      type: 'keydown',
+      key: 'Enter',
+      shiftKey: false,
+      metaKey: false,
+      ctrlKey: false,
+      altKey: false
+    });
+
+    expect(handled).toBe(true);
+    expect(client.sendKey).not.toHaveBeenCalled();
+  });
+
   it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
