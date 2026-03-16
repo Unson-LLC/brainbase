@@ -509,7 +509,6 @@
 <script>
 // File path linkifier for Claude Code output
 (function() {
-    // Wait for terminal to be available
     function addFileLinkifier() {
         const term = window.term;
         if (!term) {
@@ -517,79 +516,81 @@
             return;
         }
 
-        console.log('[LinkProvider] Terminal found, registering link provider...');
+        // Check if registerLinkProvider is available
+        if (typeof term.registerLinkProvider !== 'function') {
+            console.warn('[LinkProvider] registerLinkProvider not available on this xterm version');
+            return;
+        }
 
-        // Pattern: path/to/file.ext:123 or /absolute/path/file.ext:456
-        const filePathRegex = /([a-zA-Z0-9_\-./]+\.(ts|js|tsx|jsx|md|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh)):(\d+)/g;
+        console.log('[LinkProvider] Registering...');
 
-        // Register link provider and store disposable
+        // Match file paths with or without :line_number
+        // e.g. "public/app.js:123", "README.md", "./src/index.ts", "/abs/path/file.py:42"
+        const FILE_EXTS = 'ts|js|tsx|jsx|md|mdx|markdown|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh|toml|cfg|ini|xml|svg';
+        const filePathRegex = new RegExp(
+            '(?:^|[\\s\'"(\\[{])' +                    // preceded by start/whitespace/quote/bracket
+            '((?:\\.{0,2}/)?[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))' +  // file path with extension
+            '(?::([0-9]+))?' +                           // optional :line_number
+            '(?=[\\s\'"\\])},;:|]|$)',                   // followed by end/whitespace/delimiter
+            'g'
+        );
+
         const disposable = term.registerLinkProvider({
             provideLinks: (y, callback) => {
-                console.log('[LinkProvider] provideLinks called for line:', y);
-
-                // Get the line text
                 const line = term.buffer.active.getLine(y);
-                if (!line) {
-                    console.log('[LinkProvider] No line object');
-                    callback(undefined);
-                    return;
-                }
+                if (!line) { callback(undefined); return; }
 
                 const lineText = line.translateToString(true);
-                console.log('[LinkProvider] Line text:', JSON.stringify(lineText));
-
-                if (!lineText) {
-                    console.log('[LinkProvider] Empty line text');
-                    callback(undefined);
-                    return;
-                }
+                if (!lineText) { callback(undefined); return; }
 
                 const links = [];
-
-                // Reset regex
                 filePathRegex.lastIndex = 0;
 
-                // Find all matches in the line
                 let match;
                 while ((match = filePathRegex.exec(lineText)) !== null) {
-                    const fullMatch = match[0];
-                    const startIndex = match.index;
-                    const length = fullMatch.length;
+                    const filePath = match[1];
+                    const lineNum = match[2] || null;
 
-                    const link = {
+                    // Find actual start index of the file path in the line
+                    const pathStart = lineText.indexOf(filePath, match.index);
+                    if (pathStart < 0) continue;
+
+                    // Include :lineNum in the clickable range if present
+                    const fullLen = lineNum ? filePath.length + 1 + lineNum.length : filePath.length;
+
+                    links.push({
                         range: {
-                            start: { x: startIndex + 1, y: y + 1 },
-                            end: { x: startIndex + length, y: y + 1 }
+                            start: { x: pathStart + 1, y: y + 1 },
+                            end: { x: pathStart + fullLen, y: y + 1 }
                         },
-                        text: fullMatch,
+                        text: lineNum ? filePath + ':' + lineNum : filePath,
                         activate: (event, text) => {
-                            const filePath = text.substring(0, text.lastIndexOf(':'));
-                            const lineNum = text.substring(text.lastIndexOf(':') + 1);
+                            const colonIdx = text.lastIndexOf(':');
+                            let fp = text;
+                            let ln = null;
+                            // Only split on colon if it's followed by digits at the end
+                            if (colonIdx > 0 && /^\d+$/.test(text.slice(colonIdx + 1))) {
+                                fp = text.slice(0, colonIdx);
+                                ln = text.slice(colonIdx + 1);
+                            }
 
-                            console.log('[LinkProvider] Link clicked:', text, 'File:', filePath, 'Line:', lineNum);
-
-                            // Send to parent window - let parent decide how to open
+                            console.log('[LinkProvider] Clicked:', fp, ln ? 'line:' + ln : '');
                             window.parent.postMessage({
                                 type: 'OPEN_FILE',
-                                filePath,
-                                line: lineNum,
+                                filePath: fp,
+                                line: ln,
                                 sessionId
                             }, '*');
                         }
-                    };
-
-                    console.log('[LinkProvider] Link found:', fullMatch, 'at index', startIndex, 'range:', link.range);
-                    links.push(link);
+                    });
                 }
 
-                console.log('[LinkProvider] Returning', links.length, 'links');
                 callback(links.length > 0 ? links : undefined);
             }
         });
 
-        // Store disposable globally for debugging
         window.linkProviderDisposable = disposable;
-        console.log('[LinkProvider] Registered successfully, disposable:', disposable);
+        console.log('[LinkProvider] Registered OK');
     }
 
     if (document.readyState === 'loading') {
