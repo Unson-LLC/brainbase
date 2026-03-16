@@ -33,7 +33,9 @@ import { ScheduleService } from './modules/domain/schedule/schedule-service.js';
 import { InboxService } from './modules/domain/inbox/inbox-service.js';
 import { NocoDBTaskService } from './modules/domain/nocodb-task/nocodb-task-service.js';
 import { CommitTreeService } from './modules/domain/commit-tree/commit-tree-service.js';
+import { FileViewerService } from './modules/domain/file-viewer/file-viewer-service.js';
 import { CommitTreeView } from './modules/ui/views/commit-tree-view.js';
+import { FileViewerView } from './modules/ui/views/file-viewer-view.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -1365,6 +1367,9 @@ export class App {
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());
+        this.container.register('fileViewerService', () => new FileViewerService({
+            sessionService: this.container.get('sessionService')
+        }));
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -1372,6 +1377,7 @@ export class App {
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
+        this.fileViewerService = this.container.get('fileViewerService');
     }
 
     /**
@@ -1389,7 +1395,10 @@ export class App {
         // Sessions (left sidebar)
         const sessionContainer = document.getElementById('session-list');
         if (sessionContainer) {
-            this.views.sessionView = new SessionView({ sessionService: this.sessionService });
+            this.views.sessionView = new SessionView({
+                sessionService: this.sessionService,
+                fileViewerService: this.fileViewerService
+            });
             this.views.sessionView.mount(sessionContainer);
         }
 
@@ -1401,6 +1410,15 @@ export class App {
                 commitTreeService: this.commitTreeService
             });
             this.views.commitTreeView.mount(commitTreeContainer);
+        }
+
+        // File Viewer (main panel)
+        const fileViewerContainer = document.getElementById('file-viewer-panel');
+        if (fileViewerContainer) {
+            this.views.fileViewerView = new FileViewerView({
+                fileViewerService: this.fileViewerService
+            });
+            this.views.fileViewerView.mount(fileViewerContainer);
         }
     }
 
@@ -1451,13 +1469,23 @@ export class App {
                             mobileDashboardBtn.style.display = '';
                         }
 
-                        const { cleanup, showConsole, showDashboard } = setupViewNavigation({
+                        const { cleanup, showConsole, showDashboard, showFileViewer } = setupViewNavigation({
                             onDashboardActivated: () => {
                                 this.dashboardController?.init();
                             }
                         });
                         this.showConsole = showConsole;
                         this.showDashboard = showDashboard;
+                        this.showFileViewer = showFileViewer;
+
+                        // Wire file viewer events to panel switching
+                        const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, () => {
+                            this.showFileViewer?.();
+                        });
+                        const unsubFileClose = eventBus.on(EVENTS.FILE_VIEWER_CLOSED, () => {
+                            this.showConsole?.();
+                        });
+                        this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();
 
                         return () => {
@@ -1816,8 +1844,10 @@ export class App {
                 // Fallback: showConsole未初期化時（ダッシュボード未訪問）でもconsole viewに戻す
                 const consoleArea = document.getElementById('console-area');
                 const dashboardPanel = document.getElementById('dashboard-panel');
+                const fileViewerPanel = document.getElementById('file-viewer-panel');
                 if (consoleArea) consoleArea.style.display = 'flex';
                 if (dashboardPanel) dashboardPanel.style.display = 'none';
+                if (fileViewerPanel) fileViewerPanel.style.display = 'none';
             }
 
             this.focusTerminal('session-changed');

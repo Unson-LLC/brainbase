@@ -14,6 +14,8 @@ const MAX_TREE_ENTRIES = 200;
 const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
 const UI_SUMMARY_TTL_MS = 10_000;
 const TAKEOVER_COOLDOWN_MS = 5000;
+const MAX_FILE_READ_SIZE = 512 * 1024;
+const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore, options = {}) {
@@ -1395,6 +1397,82 @@ ${jjBookmarks}
             }
             console.error('Failed to get folder tree:', error);
             res.status(500).json({ error: error.message || 'Failed to get folder tree' });
+        }
+    };
+
+    /**
+     * GET /api/sessions/:id/file-content
+     * ファイル内容を取得（Markdown等のプレビュー用）
+     */
+    getFileContent = async (req, res) => {
+        const { id } = req.params;
+        const rawPath = req.query.path || '';
+
+        if (!rawPath) {
+            return res.status(400).json({ error: 'path query parameter is required' });
+        }
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find((s) => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const rootPath = session.worktree?.path || session.path;
+        if (!rootPath) {
+            return res.status(400).json({ error: 'Session does not have workspace path' });
+        }
+
+        try {
+            const relativePath = this._normalizeRelativePath(rawPath);
+            const targetPath = path.resolve(rootPath, relativePath);
+
+            if (!this._isWithinRoot(rootPath, targetPath)) {
+                return res.status(400).json({ error: 'Invalid path: outside session workspace' });
+            }
+
+            const stat = await fs.stat(targetPath);
+            if (stat.size > MAX_FILE_READ_SIZE) {
+                return res.status(413).json({ error: 'File too large to preview' });
+            }
+
+            // Binary check: read first 8KB and look for null bytes
+            const fd = await fs.open(targetPath, 'r');
+            try {
+                const probeSize = Math.min(8192, stat.size);
+                const probeBuf = Buffer.alloc(probeSize);
+                const { bytesRead } = await fd.read(probeBuf, 0, probeSize, 0);
+                const probe = probeBuf.subarray(0, bytesRead);
+                if (probe.includes(0)) {
+                    return res.status(415).json({ error: 'Binary files cannot be previewed' });
+                }
+            } finally {
+                await fd.close();
+            }
+
+            const content = await fs.readFile(targetPath, 'utf-8');
+            const fileName = path.basename(targetPath);
+            const ext = path.extname(fileName).toLowerCase();
+            const isMarkdown = MARKDOWN_EXTENSIONS.has(ext);
+
+            res.json({
+                sessionId: id,
+                relativePath,
+                fileName,
+                content,
+                size: stat.size,
+                isMarkdown
+            });
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return res.status(404).json({ error: 'File not found' });
+            }
+            if (error.message === 'Invalid path') {
+                return res.status(400).json({ error: 'Invalid path' });
+            }
+            console.error('Failed to get file content:', error);
+            res.status(500).json({ error: error.message || 'Failed to read file' });
         }
     };
 

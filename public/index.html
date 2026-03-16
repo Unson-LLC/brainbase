@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="style.css?v=202601032345">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/marked@17/marked.min.js"></script>
+    <script src="https://unpkg.com/dompurify@3/dist/purify.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -210,6 +212,7 @@
             </div>
 
             <!-- Dashboard Panel (Phase 1) -->
+            <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
             <div class="main-panel" id="dashboard-panel" data-slot="view:dashboard" style="display: none;">
                 <div class="dashboard-container">
                     <!-- Section 1: Critical Alerts -->

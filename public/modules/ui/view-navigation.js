@@ -9,14 +9,21 @@ export function setupViewNavigation({
     const toggleContainer = root.querySelector?.('.view-toggle') ?? document.querySelector('.view-toggle');
     const consoleArea = getById('console-area');
     const dashboardPanel = getById('dashboard-panel');
+    const fileViewerPanel = getById('file-viewer-panel');
+
+    const hideAllPanels = () => {
+        if (consoleArea) consoleArea.style.display = 'none';
+        if (dashboardPanel) dashboardPanel.style.display = 'none';
+        if (fileViewerPanel) fileViewerPanel.style.display = 'none';
+    };
 
     const showConsole = () => {
         consoleBtn?.classList.add('active');
         dashboardBtn?.classList.remove('active');
         toggleContainer?.classList.remove('dashboard-active');
 
+        hideAllPanels();
         if (consoleArea) consoleArea.style.display = 'flex';
-        if (dashboardPanel) dashboardPanel.style.display = 'none';
 
         const frame = getById('terminal-frame');
         if (frame) {
@@ -32,11 +39,20 @@ export function setupViewNavigation({
         consoleBtn?.classList.remove('active');
         toggleContainer?.classList.add('dashboard-active');
 
-        if (consoleArea) consoleArea.style.display = 'none';
+        hideAllPanels();
         if (dashboardPanel) dashboardPanel.style.display = 'block';
 
         onDashboardActivated?.();
         window.dispatchEvent(new Event('resize'));
+    };
+
+    const showFileViewer = () => {
+        consoleBtn?.classList.remove('active');
+        dashboardBtn?.classList.remove('active');
+        toggleContainer?.classList.remove('dashboard-active');
+
+        hideAllPanels();
+        if (fileViewerPanel) fileViewerPanel.style.display = 'block';
     };
 
     if (consoleBtn && dashboardBtn) {
@@ -53,5 +69,5 @@ export function setupViewNavigation({
         }
     };
 
-    return { cleanup, showConsole, showDashboard };
+    return { cleanup, showConsole, showDashboard, showFileViewer };
 }

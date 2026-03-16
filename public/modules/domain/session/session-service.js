@@ -290,6 +290,16 @@ export class SessionService {
     }
 
     /**
+     * ファイル内容を取得（Markdownプレビュー等）
+     * @param {string} sessionId - セッションID
+     * @param {string} relativePath - セッションワークスペースからの相対パス
+     * @returns {Promise<Object>}
+     */
+    async getFileContent(sessionId, relativePath) {
+        return await this.httpClient.get(`/api/sessions/${sessionId}/file-content?path=${encodeURIComponent(relativePath)}`);
+    }
+
+    /**
      * セッション更新
      * @param {string} sessionId - セッションID
      * @param {Object} updates - 更新内容
