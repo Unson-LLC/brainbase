@@ -99,4 +99,62 @@ describe('terminal-transport-client', () => {
       rows: 32
     });
   });
+
+  it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const scrollToLine = vi.fn();
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 120,
+          viewportY: 80
+        }
+      },
+      reset: vi.fn(),
+      write: vi.fn(() => {
+        terminal.buffer.active.baseY = 160;
+      }),
+      scrollToLine
+    };
+
+    client.terminal = terminal;
+    client.fitAddon = { fit: vi.fn() };
+
+    client._applySnapshot('updated output');
+
+    expect(terminal.reset).toHaveBeenCalled();
+    expect(terminal.write).toHaveBeenCalledWith('updated output');
+    expect(scrollToLine).toHaveBeenCalledWith(120);
+  });
+
+  it('snapshot適用時_最下部を見ているなら最下部を維持する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const scrollToBottom = vi.fn();
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      reset: vi.fn(),
+      write: vi.fn(),
+      scrollToBottom,
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client.fitAddon = { fit: vi.fn() };
+
+    client._applySnapshot('latest output');
+
+    expect(scrollToBottom).toHaveBeenCalled();
+    expect(terminal.scrollToLine).not.toHaveBeenCalled();
+  });
 });
