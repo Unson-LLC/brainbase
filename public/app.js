@@ -1187,6 +1187,32 @@ export class App {
         window.addEventListener('message', onTerminalMessage);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onTerminalMessage));
 
+        // Handle OPEN_FILE from terminal link clicks
+        const MARKDOWN_EXTS = new Set(['.md', '.mdx', '.markdown']);
+        const onOpenFileMessage = (event) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data?.type !== 'OPEN_FILE') return;
+
+            const { filePath, line, sessionId: msgSessionId } = event.data;
+            if (!filePath) return;
+
+            const currentSessionId = msgSessionId || appStore.getState().currentSessionId;
+            const ext = filePath.lastIndexOf('.') >= 0 ? filePath.slice(filePath.lastIndexOf('.')).toLowerCase() : '';
+
+            if (MARKDOWN_EXTS.has(ext) && this.fileViewerService) {
+                this.fileViewerService.openFile(currentSessionId, filePath);
+            } else {
+                // Fallback: open in default app via API
+                fetch('/api/open-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: filePath, mode: 'cursor', line, sessionId: currentSessionId })
+                }).catch(err => console.error('[OPEN_FILE] Error:', err));
+            }
+        };
+        window.addEventListener('message', onOpenFileMessage);
+        this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onOpenFileMessage));
+
         // Click-to-focus: clicking on the console background (including the menu overlay) should restore focus.
         const onConsoleClick = (e) => {
             if (!this._isConsoleVisible()) return;

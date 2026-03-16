@@ -568,19 +568,13 @@
 
                             console.log('[LinkProvider] Link clicked:', text, 'File:', filePath, 'Line:', lineNum);
 
-                            // Call API to open file
-                            fetch('/api/open-file', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ filePath, line: lineNum, sessionId })
-                            })
-                            .then(res => res.json())
-                            .then(data => {
-                                console.log('[LinkProvider] File opened:', data.path);
-                            })
-                            .catch(err => {
-                                console.error('[LinkProvider] Error opening file:', err);
-                            });
+                            // Send to parent window - let parent decide how to open
+                            window.parent.postMessage({
+                                type: 'OPEN_FILE',
+                                filePath,
+                                line: lineNum,
+                                sessionId
+                            }, '*');
                         }
                     };
 
