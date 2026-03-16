@@ -83,6 +83,9 @@ export class TerminalTransportClient {
         }
         this.terminal.open(hostEl);
         this.fitAddon.fit();
+        if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
+            this.terminal.attachCustomKeyEventHandler((event) => this._handleCustomKeyEvent(event));
+        }
         this.terminal.onData((data) => {
             void this.sendText(data);
         });
@@ -140,6 +143,20 @@ export class TerminalTransportClient {
         this.terminal?.focus();
         this.status.isFocused = true;
         this._emitStatus();
+    }
+
+    _handleCustomKeyEvent(event) {
+        if (!event || event.type !== 'keydown') return true;
+
+        if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+            void this.sendKey('M-Enter');
+            if (typeof event.preventDefault === 'function') {
+                event.preventDefault();
+            }
+            return false;
+        }
+
+        return true;
     }
 
     async connect(sessionId) {
