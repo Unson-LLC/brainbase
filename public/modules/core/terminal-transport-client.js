@@ -4,12 +4,6 @@ import { MessageQueue } from './message-queue.js';
 
 const SNAPSHOT_LINES = 200;
 const CONNECT_TIMEOUT_MS = 4000;
-const SCROLL_MIN_DELTA_PX = 12;
-const SCROLL_STEP_PX = 40;
-const MAX_SCROLL_STEPS = 8;
-const SCROLL_FLUSH_MS = 16;
-const TOUCH_STEP_PX = 18;
-const TOUCH_FLUSH_MS = 30;
 
 // WebSocket reconnection settings (CommandMate pattern)
 const MAX_RECONNECT_RETRIES = 10;
@@ -62,16 +56,6 @@ export class TerminalTransportClient {
         this._connectToken = 0;
         this._keepaliveTimer = null;
         this._messageQueue = new MessageQueue();
-        this._wheelDelta = 0;
-        this._touchDelta = 0;
-        this._wheelFlushTimer = null;
-        this._touchFlushTimer = null;
-        this._lastTouchY = null;
-        this._boundPointerDownHandler = null;
-        this._boundWheelHandler = null;
-        this._boundTouchStartHandler = null;
-        this._boundTouchMoveHandler = null;
-        this._boundTouchEndHandler = null;
     }
 
     async init(hostEl) {
@@ -110,7 +94,6 @@ export class TerminalTransportClient {
             this.status.isFocused = false;
             this._emitStatus();
         });
-        this._attachScrollHandlers();
 
         this._resizeHandler = () => {
             this.fitAddon?.fit();
@@ -129,7 +112,6 @@ export class TerminalTransportClient {
             window.removeEventListener('resize', this._resizeHandler);
             this._resizeHandler = null;
         }
-        this._detachScrollHandlers();
         this.terminal?.dispose();
         this.terminal = null;
         this.fitAddon = null;
@@ -303,28 +285,6 @@ export class TerminalTransportClient {
         this.ws.send(JSON.stringify(message));
     }
 
-    async scroll(direction, steps) {
-        if (this.ws?.readyState !== WebSocket.OPEN) return;
-        const safeDirection = direction === 'down' ? 'down' : direction === 'up' ? 'up' : null;
-        if (!safeDirection) return;
-        const safeSteps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Number(steps) || 1));
-        this.ws.send(JSON.stringify({
-            type: 'scroll',
-            direction: safeDirection,
-            steps: safeSteps
-        }));
-        this.status.copyMode = true;
-        this._emitStatus();
-    }
-
-    async exitCopyMode() {
-        if (!this.status.copyMode) return;
-        if (this.ws?.readyState !== WebSocket.OPEN) return;
-        this.ws.send(JSON.stringify({ type: 'exit_copy_mode' }));
-        this.status.copyMode = false;
-        this._emitStatus();
-    }
-
     /**
      * セッション中断（CommandMateのInterruptButtonパターン）
      * AI処理中にCtrl+Cを送信して中断する
@@ -450,6 +410,14 @@ export class TerminalTransportClient {
         }
     }
 
+    async _ensureInteractiveMode() {
+        if (!this.status.copyMode) return;
+        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        this.ws.send(JSON.stringify({ type: 'exit_copy_mode' }));
+        this.status.copyMode = false;
+        this._emitStatus();
+    }
+
     _clearReconnectTimer() {
         if (!this._reconnectTimer) return;
         clearTimeout(this._reconnectTimer);
@@ -463,142 +431,6 @@ export class TerminalTransportClient {
         if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
             ws.close();
         }
-    }
-
-    async _ensureInteractiveMode() {
-        if (!this.status.copyMode) return;
-        await this.exitCopyMode();
-    }
-
-    _attachScrollHandlers() {
-        if (!this.hostEl) return;
-
-        this._boundPointerDownHandler = () => {
-            void this._ensureInteractiveMode();
-        };
-        this._boundWheelHandler = (event) => {
-            if (!this._shouldInterceptTmuxScroll(event.target)) return;
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation?.();
-            this._queueWheelDelta(event.deltaY || 0);
-        };
-        this._boundTouchStartHandler = (event) => {
-            if (!event.touches || event.touches.length !== 1) return;
-            this._lastTouchY = event.touches[0].clientY;
-            this._touchDelta = 0;
-        };
-        this._boundTouchMoveHandler = (event) => {
-            if (!this._shouldInterceptTmuxScroll(event.target)) return;
-            if (!event.touches || event.touches.length !== 1) return;
-            const currentY = event.touches[0].clientY;
-            const previousY = this._lastTouchY;
-            this._lastTouchY = currentY;
-            if (!Number.isFinite(previousY)) return;
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation?.();
-            this._queueTouchDelta(currentY - previousY);
-        };
-        this._boundTouchEndHandler = () => {
-            this._lastTouchY = null;
-            this._touchDelta = 0;
-            if (this._touchFlushTimer) {
-                clearTimeout(this._touchFlushTimer);
-                this._touchFlushTimer = null;
-            }
-        };
-
-        this.hostEl.addEventListener('pointerdown', this._boundPointerDownHandler, true);
-        this.hostEl.addEventListener('wheel', this._boundWheelHandler, { passive: false, capture: true });
-        this.hostEl.addEventListener('touchstart', this._boundTouchStartHandler, { passive: true, capture: true });
-        this.hostEl.addEventListener('touchmove', this._boundTouchMoveHandler, { passive: false, capture: true });
-        this.hostEl.addEventListener('touchend', this._boundTouchEndHandler, { passive: true, capture: true });
-        this.hostEl.addEventListener('touchcancel', this._boundTouchEndHandler, { passive: true, capture: true });
-    }
-
-    _detachScrollHandlers() {
-        if (!this.hostEl) return;
-        if (this._boundPointerDownHandler) {
-            this.hostEl.removeEventListener('pointerdown', this._boundPointerDownHandler, true);
-            this._boundPointerDownHandler = null;
-        }
-        if (this._boundWheelHandler) {
-            this.hostEl.removeEventListener('wheel', this._boundWheelHandler, true);
-            this._boundWheelHandler = null;
-        }
-        if (this._boundTouchStartHandler) {
-            this.hostEl.removeEventListener('touchstart', this._boundTouchStartHandler, true);
-            this._boundTouchStartHandler = null;
-        }
-        if (this._boundTouchMoveHandler) {
-            this.hostEl.removeEventListener('touchmove', this._boundTouchMoveHandler, true);
-            this._boundTouchMoveHandler = null;
-        }
-        if (this._boundTouchEndHandler) {
-            this.hostEl.removeEventListener('touchend', this._boundTouchEndHandler, true);
-            this.hostEl.removeEventListener('touchcancel', this._boundTouchEndHandler, true);
-            this._boundTouchEndHandler = null;
-        }
-    }
-
-    _shouldInterceptTmuxScroll(target) {
-        if (this.status.mode !== 'live') return false;
-        if (!this._isAlternateBufferActive()) return false;
-        return !target || !this.hostEl || this.hostEl.contains(target);
-    }
-
-    _isAlternateBufferActive() {
-        const terminal = this.terminal;
-        try {
-            return Boolean(
-                terminal
-                && terminal.buffer
-                && terminal.buffer.alternate
-                && terminal.buffer.active === terminal.buffer.alternate
-            );
-        } catch {
-            return false;
-        }
-    }
-
-    _queueWheelDelta(delta) {
-        if (!Number.isFinite(delta) || delta === 0) return;
-        this._wheelDelta += delta;
-        if (Math.abs(this._wheelDelta) < SCROLL_MIN_DELTA_PX) return;
-        if (this._wheelFlushTimer) return;
-        this._wheelFlushTimer = setTimeout(() => {
-            this._wheelFlushTimer = null;
-            const pendingDelta = this._wheelDelta;
-            this._wheelDelta = 0;
-            void this._flushScrollDelta(pendingDelta, {
-                thresholdPx: SCROLL_STEP_PX,
-                positiveDirection: 'down'
-            });
-        }, SCROLL_FLUSH_MS);
-    }
-
-    _queueTouchDelta(delta) {
-        if (!Number.isFinite(delta) || delta === 0) return;
-        this._touchDelta += delta;
-        if (Math.abs(this._touchDelta) < TOUCH_STEP_PX) return;
-        if (this._touchFlushTimer) return;
-        this._touchFlushTimer = setTimeout(() => {
-            this._touchFlushTimer = null;
-            const pendingDelta = this._touchDelta;
-            this._touchDelta = 0;
-            void this._flushScrollDelta(pendingDelta, {
-                thresholdPx: TOUCH_STEP_PX,
-                positiveDirection: 'up'
-            });
-        }, TOUCH_FLUSH_MS);
-    }
-
-    async _flushScrollDelta(delta, { thresholdPx, positiveDirection }) {
-        if (!Number.isFinite(delta) || delta === 0) return;
-        const steps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Math.round(Math.abs(delta) / thresholdPx)));
-        const direction = delta > 0 ? positiveDirection : (positiveDirection === 'down' ? 'up' : 'down');
-        await this.scroll(direction, steps);
     }
 
     _applySnapshot(text) {
