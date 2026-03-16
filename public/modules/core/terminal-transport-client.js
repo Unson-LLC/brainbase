@@ -56,6 +56,8 @@ export class TerminalTransportClient {
         this._connectToken = 0;
         this._keepaliveTimer = null;
         this._messageQueue = new MessageQueue();
+        this._isViewportPinnedToBottom = true;
+        this._pendingSnapshotText = null;
     }
 
     async init(hostEl) {
@@ -91,6 +93,9 @@ export class TerminalTransportClient {
         });
         this.terminal.onResize(({ cols, rows }) => {
             void this.resize(cols, rows);
+        });
+        this.terminal.onScroll(() => {
+            this._handleTerminalScroll();
         });
         this.hostEl.addEventListener('focusin', () => {
             this.status.isFocused = true;
@@ -205,7 +210,7 @@ export class TerminalTransportClient {
                         resolve({ mode: 'live' });
                         break;
                     case 'snapshot':
-                        this._applySnapshot(message.colorText || message.text || '');
+                        this._queueOrApplySnapshot(message.colorText || message.text || '');
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
                             this.status.mode = 'snapshot';
@@ -277,6 +282,8 @@ export class TerminalTransportClient {
             this.status.mode = 'idle';
             this.status.lastSnapshotAt = null;
             this.status.blockedAccess = null;
+            this._pendingSnapshotText = null;
+            this._isViewportPinnedToBottom = true;
             this.terminal?.reset();
         }
         this._emitStatus();
@@ -344,7 +351,7 @@ export class TerminalTransportClient {
         try {
             const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}`);
             if (typeof res?.text === 'string') {
-                this._applySnapshot(res.colorText || res.text);
+                this._queueOrApplySnapshot(res.colorText || res.text);
                 this.status.lastSnapshotAt = res.capturedAt || new Date().toISOString();
                 this.status.copyMode = Boolean(res.copyMode);
                 this.status.mode = 'snapshot';
@@ -467,6 +474,39 @@ export class TerminalTransportClient {
         };
     }
 
+    _computeIsViewportPinnedToBottom() {
+        const viewportState = this._captureViewportState();
+        return viewportState ? viewportState.wasPinnedToBottom : true;
+    }
+
+    _handleTerminalScroll() {
+        this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
+        if (!this._isViewportPinnedToBottom || !this._pendingSnapshotText) return;
+
+        const nextSnapshot = this._pendingSnapshotText;
+        this._pendingSnapshotText = null;
+        this._applySnapshot(nextSnapshot, {
+            forceViewportState: {
+                distanceFromBottom: 0,
+                wasPinnedToBottom: true
+            }
+        });
+    }
+
+    _queueOrApplySnapshot(text) {
+        if (!this.terminal) return;
+
+        if (!this._computeIsViewportPinnedToBottom()) {
+            this._isViewportPinnedToBottom = false;
+            this._pendingSnapshotText = text || '';
+            return;
+        }
+
+        this._isViewportPinnedToBottom = true;
+        this._pendingSnapshotText = null;
+        this._applySnapshot(text);
+    }
+
     _restoreViewportState(viewportState) {
         if (!viewportState || !this.terminal) return;
 
@@ -483,13 +523,14 @@ export class TerminalTransportClient {
         this.terminal.scrollToLine(targetLine);
     }
 
-    _applySnapshot(text) {
+    _applySnapshot(text, options = {}) {
         if (!this.terminal) return;
-        const viewportState = this._captureViewportState();
+        const viewportState = options.forceViewportState || this._captureViewportState();
         this.terminal.reset();
         this.terminal.write(text || '', () => {
             this.fitAddon?.fit();
             this._restoreViewportState(viewportState);
+            this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
         });
     }
 

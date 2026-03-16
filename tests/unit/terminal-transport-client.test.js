@@ -205,4 +205,63 @@ describe('terminal-transport-client', () => {
     expect(scrollToBottom).toHaveBeenCalled();
     expect(terminal.scrollToLine).not.toHaveBeenCalled();
   });
+
+  it('scroll中に新しいsnapshotが来たら適用を保留する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 120,
+          viewportY: 80
+        }
+      },
+      reset: vi.fn(),
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._queueOrApplySnapshot('new output');
+
+    expect(terminal.reset).not.toHaveBeenCalled();
+    expect(terminal.write).not.toHaveBeenCalled();
+    expect(client._pendingSnapshotText).toBe('new output');
+  });
+
+  it('scroll中に保留したsnapshotは最下部に戻った時だけ反映する', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const scrollToBottom = vi.fn();
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 120,
+          viewportY: 80
+        }
+      },
+      reset: vi.fn(),
+      write: vi.fn((text, callback) => {
+        terminal.buffer.active.viewportY = terminal.buffer.active.baseY;
+        callback?.();
+      }),
+      scrollToBottom
+    };
+
+    client.terminal = terminal;
+    client.fitAddon = { fit: vi.fn() };
+    client._pendingSnapshotText = 'queued output';
+
+    terminal.buffer.active.viewportY = terminal.buffer.active.baseY;
+    client._handleTerminalScroll();
+    await Promise.resolve();
+
+    expect(terminal.reset).toHaveBeenCalled();
+    expect(terminal.write).toHaveBeenCalledWith('queued output', expect.any(Function));
+    expect(scrollToBottom).toHaveBeenCalled();
+    expect(client._pendingSnapshotText).toBeNull();
+  });
 });
