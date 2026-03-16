@@ -200,3 +200,7 @@ export function startPolling(getCurrentSessionId, intervalMs = 3000, onStatusCha
         pollSessionStatus(getCurrentSessionId(), onStatusChange);
     }, intervalMs);
 }
+
+export function updateSessionIndicators(_currentSessionId) {
+    // no-op: indicators are now driven by session-ui-state events
+}
