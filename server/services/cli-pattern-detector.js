@@ -6,7 +6,7 @@
  *
  * CommandMateのcli-patterns.ts / prompt-detector.tsを統合・簡略化。
  */
-import { stripAnsi } from '../lib/ansi-sanitizer.js';
+import { stripAnsi, extractAnsiColors } from '../lib/ansi-sanitizer.js';
 
 /**
  * CLI状態の定数
@@ -106,6 +106,67 @@ export function detectCliState(output) {
     }
 
     return CliState.UNKNOWN;
+}
+
+/**
+ * ANSI 256色 → CLI状態マッピング
+ */
+const COLOR_STATE_MAP = {
+    114: CliState.THINKING,  // 緑: ツール実行中
+    231: CliState.THINKING,  // 白: AI応答中
+    211: CliState.WAITING,   // ピンク: 警告/確認
+    246: CliState.READY,     // 薄灰: ステータスバー（プロンプト付近）
+};
+
+/**
+ * 色情報付きCLI状態検出
+ * 色検出 → テキストフォールバック の2段階判定
+ *
+ * @param {string|null} plainText - サニタイズ済みテキスト（tmux capture-pane 通常出力）
+ * @param {string|null} colorText - ANSI色付きテキスト（tmux capture-pane -e 出力）
+ * @returns {{ state: string, confidence: number, source: string }}
+ */
+export function detectCliStateWithColors(plainText, colorText) {
+    const textState = detectCliState(plainText);
+
+    if (!colorText || typeof colorText !== 'string') {
+        if (textState === CliState.UNKNOWN) {
+            return { state: CliState.UNKNOWN, confidence: 0, source: 'none' };
+        }
+        return { state: textState, confidence: 0.5, source: 'text' };
+    }
+
+    // 色情報抽出（末尾数行を重視）
+    const colorLines = extractAnsiColors(colorText);
+    const tailColors = colorLines.slice(-TAIL_LINES);
+
+    // 末尾行から色ベースで状態を判定（逆順で最後の行を優先）
+    let colorState = null;
+    for (let i = tailColors.length - 1; i >= 0; i--) {
+        const line = tailColors[i];
+        if (line.text.trim() === '') continue;
+        for (const color of line.colors) {
+            if (COLOR_STATE_MAP[color]) {
+                colorState = COLOR_STATE_MAP[color];
+                break;
+            }
+        }
+        if (colorState) break;
+    }
+
+    if (!colorState) {
+        if (textState === CliState.UNKNOWN) {
+            return { state: CliState.UNKNOWN, confidence: 0, source: 'none' };
+        }
+        return { state: textState, confidence: 0.5, source: 'text' };
+    }
+
+    // 色とテキストが一致 → 高confidence
+    if (textState !== CliState.UNKNOWN && textState === colorState) {
+        return { state: colorState, confidence: 0.95, source: 'color' };
+    }
+
+    return { state: colorState, confidence: 0.7, source: 'color' };
 }
 
 function matchesAny(text, patterns) {

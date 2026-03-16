@@ -1888,6 +1888,20 @@ export class SessionManager {
     }
 
     /**
+     * ANSI色情報付きでターミナル出力を取得
+     * tmux capture-pane -e でエスケープシーケンスを保持したまま取得
+     * @param {string} sessionId - セッションID
+     * @param {number} lines - 取得行数
+     * @returns {Promise<string>} ANSI色付きテキスト
+     */
+    async getContentWithColors(sessionId, lines = 10) {
+        const { stdout } = await this.execPromise(
+            `tmux capture-pane -e -t "${sessionId}" -p -S -${lines}`
+        );
+        return stdout;
+    }
+
+    /**
      * ターミナル出力と選択肢を取得
      * @param {string} sessionId - セッションID
      * @returns {Promise<{output: string, choices: Array, hasChoices: boolean}>}
