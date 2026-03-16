@@ -278,7 +278,7 @@ app.use((req, res, next) => {
     res.setHeader('Content-Security-Policy', [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' https://unpkg.com",  // unpkg.com for Lucide icons CDN
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",  // Google Fonts CSS
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",  // Google Fonts CSS + xterm.css
         "font-src 'self' https://fonts.gstatic.com",  // Google Fonts files
         "img-src 'self' data:",
         "connect-src 'self' ws: wss: https://unpkg.com https://bb.unson.jp",  // allow remote API
