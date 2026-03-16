@@ -8,6 +8,8 @@ import net from 'net';
 import path from 'path';
 import yaml from 'js-yaml';
 import { TerminalOutputParser } from './terminal-output-parser.js';
+import { gracefulCleanup } from '../lib/graceful-cleanup.js';
+import { SessionHealthMonitor } from './session-health-monitor.js';
 
 export class SessionManager {
     /**
@@ -1419,53 +1421,73 @@ export class SessionManager {
      * @returns {Promise<boolean>} 停止成功時true
      */
     async stopTtyd(sessionId, { preserveTmux = false } = {}) {
-        if (this.activeSessions.has(sessionId)) {
-            const sessionData = this.activeSessions.get(sessionId);
-            // PIDを取得（新規起動時はprocess.pid、復旧時はpid直接）
-            const pid = sessionData.process?.pid || sessionData.pid;
-            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
+        if (!this.activeSessions.has(sessionId)) {
+            return false;
+        }
 
-            if (pid) {
-                try {
-                    // PIDベースでkill（ChildProcessオブジェクトがなくても動作）
-                    process.kill(pid, 'SIGTERM');
-                    // Give it a moment to terminate gracefully
-                    await new Promise(resolve => setTimeout(resolve, 500));
+        const sessionData = this.activeSessions.get(sessionId);
+        const pid = sessionData.process?.pid || sessionData.pid;
+        console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
 
-                    // プロセスがまだ存在するか確認
-                    if (this._isProcessRunning(pid)) {
-                        // Force kill if still running
-                        process.kill(pid, 'SIGKILL');
-                    }
-                } catch (err) {
-                    // ESRCH: プロセスが既に存在しない場合は正常
-                    if (err.code !== 'ESRCH') {
-                        console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
+        // Graceful Partial Cleanup: 各ステップが失敗しても後続を続行
+        const steps = [];
+
+        // Step 1: ttydプロセスのkill
+        if (pid) {
+            steps.push({
+                name: 'kill-ttyd-process',
+                fn: async () => {
+                    try {
+                        process.kill(pid, 'SIGTERM');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        if (this._isProcessRunning(pid)) {
+                            process.kill(pid, 'SIGKILL');
+                        }
+                    } catch (err) {
+                        if (err.code !== 'ESRCH') throw err;
                     }
                 }
-            }
-
-            // Cleanup TMUX session and MCP processes (skip if preserveTmux)
-            if (!preserveTmux) {
-                await this.cleanupSessionResources(sessionId);
-            } else {
-                console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
-            }
-
-            // ttydProcess情報をクリア (only if it still points to this pid)
-            if (pid) {
-                await this._clearTtydProcessInfoIfMatches(sessionId, pid);
-            } else {
-                await this._clearTtydProcessInfo(sessionId);
-            }
-
-            this.activeSessions.delete(sessionId);
-            this.releaseTerminalOwnership(sessionId, null, { force: true });
-            // hookStatusは保持（'done'ステータスを保持するため）
-            // this.hookStatus.delete(sessionId);
-            return true;
+            });
         }
-        return false;
+
+        // Step 2: TMUX/MCPクリーンアップ
+        if (!preserveTmux) {
+            steps.push({
+                name: 'cleanup-session-resources',
+                fn: () => this.cleanupSessionResources(sessionId)
+            });
+        }
+
+        // Step 3: ttydProcess情報クリア
+        steps.push({
+            name: 'clear-ttyd-process-info',
+            fn: async () => {
+                if (pid) {
+                    await this._clearTtydProcessInfoIfMatches(sessionId, pid);
+                } else {
+                    await this._clearTtydProcessInfo(sessionId);
+                }
+            }
+        });
+
+        // Step 4: activeSessionsから削除
+        steps.push({
+            name: 'delete-active-session',
+            fn: () => { this.activeSessions.delete(sessionId); }
+        });
+
+        // Step 5: terminal ownershipリリース
+        steps.push({
+            name: 'release-terminal-ownership',
+            fn: () => { this.releaseTerminalOwnership(sessionId, null, { force: true }); }
+        });
+
+        const result = await gracefulCleanup(sessionId, steps);
+        if (result.warnings.length > 0) {
+            console.warn(`[stopTtyd] Partial cleanup for ${sessionId}:`, result.warnings);
+        }
+
+        return true;
     }
 
     /**
@@ -1891,6 +1913,17 @@ export class SessionManager {
         if (this._ptyWatchdogTimer) return;
         console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
 
+        // Session health monitor (CommandMate pattern): detect dead tmux sessions
+        this._healthMonitor = new SessionHealthMonitor(this, {
+            onDeadSession: (sessionId) => {
+                console.warn(`[PTY Watchdog] Dead session detected: ${sessionId}, cleaning up...`);
+                this.stopTtyd(sessionId).catch(err => {
+                    console.error(`[PTY Watchdog] Cleanup failed for ${sessionId}:`, err.message);
+                });
+            }
+        });
+        this._healthMonitor.start(intervalMs);
+
         this._ptyWatchdogTimer = setInterval(async () => {
             try {
                 // macOS: sysctl kern.tty.ptmx_max でPTY上限取得
@@ -1920,6 +1953,10 @@ export class SessionManager {
      * PTY Watchdogを停止
      */
     stopPtyWatchdog() {
+        if (this._healthMonitor) {
+            this._healthMonitor.stop();
+            this._healthMonitor = null;
+        }
         if (this._ptyWatchdogTimer) {
             clearInterval(this._ptyWatchdogTimer);
             this._ptyWatchdogTimer = null;

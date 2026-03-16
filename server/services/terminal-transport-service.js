@@ -1,4 +1,6 @@
 import { WebSocketServer } from 'ws';
+import { detectCliState } from './cli-pattern-detector.js';
+import { detectPastedTextOverlay } from './pasted-text-detector.js';
 
 const DEFAULT_SNAPSHOT_LINES = 200;
 const DEFAULT_POLL_INTERVAL_MS = 350;
@@ -90,6 +92,7 @@ export class TerminalTransportService {
             closed: false,
             lastSnapshot: null,
             lastCopyMode: null,
+            lastCliState: null,
             pollTimer: null
         };
 
@@ -172,12 +175,17 @@ export class TerminalTransportService {
             }));
         }
 
-        if (snapshot.copyMode !== connection.lastCopyMode) {
+        // CLI状態検出（CommandMateパターン）: ターミナル出力からCLI状態を推定
+        const cliState = detectCliState(snapshot.text);
+
+        if (snapshot.copyMode !== connection.lastCopyMode || cliState !== connection.lastCliState) {
             connection.lastCopyMode = snapshot.copyMode;
+            connection.lastCliState = cliState;
             ws.send(JSON.stringify({
                 type: 'status',
                 mode: 'live',
-                copyMode: snapshot.copyMode
+                copyMode: snapshot.copyMode,
+                cliState
             }));
         }
     }
@@ -198,6 +206,13 @@ export class TerminalTransportService {
                 const inputType = message.inputType === 'key' ? 'key' : 'text';
                 await this.sessionManager.sendInput(sessionId, message.value, inputType);
                 this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
+
+                // Pasted text detection (CommandMate pattern):
+                // After sending text, check if terminal shows paste overlay and auto-dismiss
+                if (inputType === 'text' && message.value && message.value.includes('\n')) {
+                    await this._handlePastedTextOverlay(connection);
+                }
+
                 await this._pollConnection(connection);
                 return;
             }
@@ -216,6 +231,29 @@ export class TerminalTransportService {
             }
             default:
                 return;
+        }
+    }
+
+    /**
+     * ペーストテキストオーバーレイの検出＆自動解消（CommandMateパターン）
+     * マルチライン入力後にオーバーレイが表示されたらEnterで確定
+     * リトライ最大3回、500ms間隔
+     */
+    async _handlePastedTextOverlay(connection) {
+        const MAX_RETRIES = 3;
+        const DELAY_MS = 500;
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+
+            const snapshot = await this._getSnapshotPayload(connection.sessionId);
+            if (!detectPastedTextOverlay(snapshot.text)) {
+                return; // No overlay detected, done
+            }
+
+            // Send Enter to dismiss the overlay
+            console.log(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
+            await this.sessionManager.sendInput(connection.sessionId, 'C-m', 'key').catch(() => {});
         }
     }
 

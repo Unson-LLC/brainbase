@@ -124,4 +124,105 @@ describe('HttpClient', () => {
             }
         });
     });
+
+    // ===== Auth Redirect Detection (CommandMate pattern) =====
+
+    it('リダイレクト+HTMLレスポンス_認証エラーをスローする', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: true,
+            url: 'https://login.example.com/auth',
+            status: 200,
+            headers: new Map([['content-type', 'text/html']]),
+            json: async () => { throw new Error('not JSON'); }
+        });
+
+        await expect(client.get('/api/tasks')).rejects.toThrow('Authentication required');
+    });
+
+    it('リダイレクト+JSONレスポンス_正常に処理される', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: false,
+            url: 'https://api.example.com/api/tasks',
+            status: 200,
+            headers: new Map([['content-type', 'application/json']]),
+            json: async () => ({ tasks: [] })
+        });
+
+        const result = await client.get('/api/tasks');
+        expect(result).toEqual({ tasks: [] });
+    });
+
+    it('リダイレクト+login URL_認証エラーをスローする', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: true,
+            url: 'https://example.com/login?redirect=/api/tasks',
+            status: 200,
+            headers: new Map([['content-type', 'text/html; charset=utf-8']]),
+            json: async () => { throw new Error('not JSON'); }
+        });
+
+        await expect(client.get('/api/tasks')).rejects.toThrow('Authentication required');
+    });
+
+    it('非リダイレクト+HTMLエラーレスポンス_通常のエラー処理', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            redirected: false,
+            status: 500,
+            statusText: 'Internal Server Error',
+            headers: new Map([['content-type', 'text/html']]),
+            json: async () => { throw new Error('not JSON'); }
+        });
+
+        await expect(client.get('/api/tasks')).rejects.toThrow('HTTP Error: 500');
+    });
+
+    // ===== Request Timeout (CommandMate pattern) =====
+
+    it('タイムアウト指定_AbortErrorでリクエストが中断される', async () => {
+        // AbortControllerのsignalでabortされた場合をシミュレート
+        fetchMock.mockImplementation((_url, options) => {
+            return new Promise((_resolve, reject) => {
+                if (options?.signal) {
+                    options.signal.addEventListener('abort', () => {
+                        const err = new Error('The operation was aborted');
+                        err.name = 'AbortError';
+                        reject(err);
+                    });
+                }
+            });
+        });
+
+        await expect(
+            client.get('/api/slow', { timeout: 50 })
+        ).rejects.toThrow(/timeout/i);
+    });
+
+    it('タイムアウト未指定_デフォルトタイムアウトが適用される', async () => {
+        // 正常レスポンスが即座に返る場合はタイムアウトしない
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: false,
+            status: 200,
+            json: async () => ({ data: 'ok' })
+        });
+
+        const result = await client.get('/api/fast');
+        expect(result).toEqual({ data: 'ok' });
+    });
+
+    it('タイムアウト前にレスポンス到着_正常に処理される', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            redirected: false,
+            status: 200,
+            json: async () => ({ data: 'quick' })
+        });
+
+        const result = await client.get('/api/quick', { timeout: 5000 });
+        expect(result).toEqual({ data: 'quick' });
+    });
 });

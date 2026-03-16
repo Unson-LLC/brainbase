@@ -3,8 +3,6 @@ import { TerminalTransportService } from '../../../server/services/terminal-tran
 
 function buildService() {
     const sessionManager = {
-        scrollSession: vi.fn(async () => {}),
-        exitCopyMode: vi.fn(async () => {}),
         sendInput: vi.fn(async () => {}),
         resizeSessionWindow: vi.fn(async () => {}),
         touchTerminalOwnership: vi.fn(),
@@ -19,7 +17,7 @@ function buildService() {
 }
 
 describe('TerminalTransportService', () => {
-    it('scroll message で tmux scroll を呼ぶ', async () => {
+    it('input message で tmux sendInput を呼ぶ', async () => {
         const { service, sessionManager } = buildService();
         const connection = {
             sessionId: 'session-1',
@@ -29,29 +27,32 @@ describe('TerminalTransportService', () => {
         };
 
         await service._handleMessage(connection, JSON.stringify({
-            type: 'scroll',
-            direction: 'down',
-            steps: 99
+            type: 'input',
+            inputType: 'text',
+            value: 'hello'
         }));
 
-        expect(sessionManager.scrollSession).toHaveBeenCalledWith('session-1', 'down', 8);
+        expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
         expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
     });
 
-    it('exit_copy_mode message で tmux copy-mode を抜ける', async () => {
+    it('resize message で sessionManager.resizeSessionWindow を呼ぶ', async () => {
         const { service, sessionManager } = buildService();
         const connection = {
             sessionId: 'session-1',
             viewerId: 'viewer-1',
             viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
             ws: { readyState: 1, send: vi.fn() }
         };
 
         await service._handleMessage(connection, JSON.stringify({
-            type: 'exit_copy_mode'
+            type: 'resize',
+            cols: 120,
+            rows: 40
         }));
 
-        expect(sessionManager.exitCopyMode).toHaveBeenCalledWith('session-1');
-        expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
+        expect(sessionManager.resizeSessionWindow).toHaveBeenCalledWith('session-1', 120, 40);
     });
 });

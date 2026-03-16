@@ -120,6 +120,7 @@ export class HttpClient {
         const {
             traceId: providedTraceId,
             allowNotModified = false,
+            timeout: requestTimeout,
             ...fetchOptions
         } = options;
         const fullURL = `${this.baseURL}${url}`;
@@ -151,13 +152,20 @@ export class HttpClient {
             }
         }
 
+        // Request timeout with AbortController (CommandMate pattern)
+        const timeoutMs = requestTimeout || this.defaultTimeout || 30000;
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
         try {
             const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
             const response = await fetch(fullURL, {
                 ...fetchOptions,
-                headers
+                headers,
+                ...(controller ? { signal: controller.signal } : {})
             });
             const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt;
+            if (timeoutId) clearTimeout(timeoutId);
 
             if (allowNotModified && response.status === 304) {
                 return {
@@ -165,6 +173,27 @@ export class HttpClient {
                     status: 304,
                     headers: this._headersToObject(response.headers)
                 };
+            }
+
+            // Auth redirect detection (CommandMate pattern):
+            // Cloudflare Zero Trust / reverse proxy may redirect API calls to login page
+            // returning 200 OK with text/html instead of expected JSON
+            if (response.redirected) {
+                const contentType = typeof response.headers?.get === 'function'
+                    ? response.headers.get('content-type') || ''
+                    : '';
+                const isHtml = contentType.includes('text/html');
+                const isLoginUrl = response.url && /login|auth|signin/i.test(response.url);
+
+                if (isHtml || isLoginUrl) {
+                    const authError = new Error('Authentication required');
+                    authError.status = 401;
+                    authError.redirectUrl = response.url;
+                    if (typeof this._onUnauthorized === 'function') {
+                        try { this._onUnauthorized(); } catch (_) {}
+                    }
+                    throw authError;
+                }
             }
 
             if (!response.ok) {
@@ -218,7 +247,14 @@ export class HttpClient {
             }
             return response.json();
         } catch (error) {
-            if (error.message.startsWith('HTTP Error:') || error.message.includes('Failed to')) {
+            if (timeoutId) clearTimeout(timeoutId);
+
+            // AbortController timeout
+            if (error.name === 'AbortError') {
+                throw new Error(`Request timeout after ${timeoutMs}ms: ${method} ${url}`);
+            }
+
+            if (error.message.startsWith('HTTP Error:') || error.message.includes('Failed to') || error.message.includes('Authentication required')) {
                 throw error;
             }
             throw new Error(`Network Error: ${error.message}`);
