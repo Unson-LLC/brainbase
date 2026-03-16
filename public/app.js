@@ -698,13 +698,11 @@ export class App {
             return { ok: true };
         } catch (error) {
             if (error?.code === 'SESSION_NOT_RUNNING') {
-                await httpClient.post('/api/sessions/start', this._buildTerminalStartPayload(session));
-                const retry = await this.terminalTransportClient.connect(session.id);
-                if (retry?.mode === 'blocked') {
-                    return { ok: false, blocked: true, terminalAccess: retry.terminalAccess || null };
-                }
-                this.hideTerminalLoadingOverlay();
-                return { ok: true };
+                console.warn('Xterm transport reported SESSION_NOT_RUNNING, falling back to ttyd:', error);
+                this.terminalTransportClient.disconnect({ preserveView: false });
+                this.terminalTransportClient.hide();
+                this._showTtydIframe();
+                return { ok: false, fallback: true };
             }
             console.warn('Xterm transport unavailable, falling back to ttyd:', error);
             this.terminalTransportClient.disconnect({ preserveView: false });

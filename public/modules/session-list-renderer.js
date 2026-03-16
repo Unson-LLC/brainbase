@@ -149,11 +149,15 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="conversation-badge" title="${convCount} conversation(s)${convLastActivity ? ', last: ' + formatRelativeTime(convLastActivity) : ''}"><i data-lucide="message-square"></i>${convCount}</span>`
     : '';
 
-  const activityIndicator = activity === 'working'
-    ? '<span class="session-activity-indicator working" title="Agent working"></span>'
-    : activity === 'done-unread'
-      ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
-      : '<span class="session-activity-indicator idle" aria-hidden="true"></span>';
+  const activityIndicator = activity === 'goalseek'
+    ? '<span class="session-activity-indicator goalseek" title="Goal Seek running"></span>'
+    : activity === 'thinking'
+      ? '<span class="session-activity-indicator thinking" title="Agent thinking"></span>'
+      : activity === 'working'
+        ? '<span class="session-activity-indicator working" title="Agent working"></span>'
+        : activity === 'done-unread'
+          ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
+          : '<span class="session-activity-indicator idle" aria-hidden="true"></span>';
 
   const transportLabelMap = {
     connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
