@@ -1,0 +1,97 @@
+import { appStore } from '../../core/store.js';
+import { escapeHtml } from '../../ui-helpers.js';
+
+/**
+ * ファイルビューアのUIコンポーネント
+ * Markdownレンダリング / テキストプレビューを表示
+ */
+export class FileViewerView {
+    constructor({ fileViewerService }) {
+        this.fileViewerService = fileViewerService;
+        this.store = appStore;
+        this.container = null;
+        this._unsubscribers = [];
+    }
+
+    /**
+     * DOMコンテナにマウント
+     * @param {HTMLElement} container
+     */
+    mount(container) {
+        this.container = container;
+
+        const unsub = this.store.subscribeToSelector(
+            (state) => state.fileViewer,
+            () => this.render()
+        );
+        this._unsubscribers.push(unsub);
+
+        this.render();
+    }
+
+    /**
+     * クリーンアップ
+     */
+    unmount() {
+        this._unsubscribers.forEach((unsub) => unsub());
+        this._unsubscribers = [];
+        if (this.container) {
+            this.container.innerHTML = '';
+            this.container = null;
+        }
+    }
+
+    /**
+     * レンダリング
+     */
+    render() {
+        if (!this.container) return;
+
+        const fileViewer = this.store.getState().fileViewer;
+
+        if (!fileViewer) {
+            this.container.innerHTML = '';
+            return;
+        }
+
+        const { relativePath, fileName, content, renderedHtml, isMarkdown, loading, error } = fileViewer;
+
+        let bodyHtml = '';
+        if (loading) {
+            bodyHtml = '<div class="file-viewer-loading">Loading...</div>';
+        } else if (error) {
+            bodyHtml = `<div class="file-viewer-error">${escapeHtml(error)}</div>`;
+        } else if (isMarkdown && renderedHtml) {
+            bodyHtml = `<div class="file-viewer-markdown">${renderedHtml}</div>`;
+        } else if (content != null) {
+            bodyHtml = `<pre class="file-viewer-text"><code>${escapeHtml(content)}</code></pre>`;
+        }
+
+        this.container.innerHTML = `
+            <div class="file-viewer">
+                <div class="file-viewer-header">
+                    <button class="file-viewer-back" title="Back to console">
+                        <i data-lucide="arrow-left"></i>
+                        <span>Back</span>
+                    </button>
+                    <div class="file-viewer-path" title="${escapeHtml(relativePath || '')}">${escapeHtml(fileName || relativePath || '')}</div>
+                </div>
+                <div class="file-viewer-content">
+                    ${bodyHtml}
+                </div>
+            </div>
+        `;
+
+        // Bind back button
+        const backBtn = this.container.querySelector('.file-viewer-back');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                this.fileViewerService.close();
+            });
+        }
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+}

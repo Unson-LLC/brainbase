@@ -220,6 +220,9 @@ export const EVENTS = {
     FOLDER_TREE_NODE_TOGGLED: 'folder-tree:node-toggled',
     FOLDER_TREE_FILE_OPENED: 'folder-tree:file-opened',
     FOLDER_TREE_LOAD_FAILED: 'folder-tree:load-failed',
+    FILE_VIEWER_OPENED: 'file-viewer:opened',
+    FILE_VIEWER_CLOSED: 'file-viewer:closed',
+    FILE_VIEWER_LOAD_FAILED: 'file-viewer:load-failed',
 
     // Schedule関連
     SCHEDULE_LOADED: 'schedule:loaded',

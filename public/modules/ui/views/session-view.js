@@ -15,9 +15,9 @@ import { escapeHtml } from '../../ui-helpers.js';
  * 現行版と同じ構造でプロジェクトグループ表示
  */
 export class SessionView {
-    constructor({ sessionService }) {
+    constructor({ sessionService, fileViewerService }) {
         this.sessionService = sessionService;
-        this.folderTreeView = new FolderTreeView({ sessionService });
+        this.folderTreeView = new FolderTreeView({ sessionService, fileViewerService });
         this.container = null;
         this._unsubscribers = [];
         // Drag and drop state
