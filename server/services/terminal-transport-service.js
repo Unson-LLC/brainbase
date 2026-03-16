@@ -111,13 +111,21 @@ export class TerminalTransportService {
             void this._handleMessage(connection, raw.toString());
         });
 
-        if (cols && rows) {
-            await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
+        try {
+            if (cols && rows) {
+                await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
+            }
+            await this._sendReady(connection);
+            connection.pollTimer = setInterval(() => {
+                void this._pollConnection(connection);
+            }, this.pollIntervalMs);
+        } catch (err) {
+            console.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
+            if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'error', code: 'INTERNAL_ERROR', message: err.message }));
+            }
+            ws.close();
         }
-        await this._sendReady(connection);
-        connection.pollTimer = setInterval(() => {
-            void this._pollConnection(connection);
-        }, this.pollIntervalMs);
     }
 
     async _sendReady(connection) {
