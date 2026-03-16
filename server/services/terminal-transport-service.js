@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { detectCliState } from './cli-pattern-detector.js';
+import { detectCliState, detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';
 
 const DEFAULT_SNAPSHOT_LINES = 200;
@@ -175,8 +175,9 @@ export class TerminalTransportService {
             }));
         }
 
-        // CLI状態検出（CommandMateパターン）: ターミナル出力からCLI状態を推定
-        const cliState = detectCliState(snapshot.text);
+        // CLI状態検出（色ベース優先、テキストフォールバック）
+        const cliResult = detectCliStateWithColors(snapshot.text, snapshot.colorText);
+        const cliState = cliResult.state;
 
         if (snapshot.copyMode !== connection.lastCopyMode || cliState !== connection.lastCliState) {
             connection.lastCopyMode = snapshot.copyMode;
@@ -258,10 +259,14 @@ export class TerminalTransportService {
     }
 
     async _getSnapshotPayload(sessionId) {
-        const text = await this.sessionManager.getContent(sessionId, DEFAULT_SNAPSHOT_LINES);
-        const copyMode = await this.sessionManager.getPaneMode(sessionId).catch(() => false);
+        const [text, colorText, copyMode] = await Promise.all([
+            this.sessionManager.getContent(sessionId, DEFAULT_SNAPSHOT_LINES),
+            this.sessionManager.getContentWithColors(sessionId, 10).catch(() => null),
+            this.sessionManager.getPaneMode(sessionId).catch(() => false),
+        ]);
         return {
             text,
+            colorText,
             copyMode,
             capturedAt: new Date().toISOString()
         };

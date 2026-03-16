@@ -9,6 +9,7 @@ function buildService() {
         ensureTerminalOwnership: vi.fn(() => ({ allowed: true })),
         isTmuxSessionRunning: vi.fn(async () => true),
         getContent: vi.fn(async () => 'snapshot'),
+        getContentWithColors: vi.fn(async () => null),
         getPaneMode: vi.fn(async () => false)
     };
 

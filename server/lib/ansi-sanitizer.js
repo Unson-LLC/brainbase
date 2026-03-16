@@ -59,6 +59,42 @@ export function stripBoxDrawing(text) {
  * @param {string|null} text
  * @returns {string}
  */
+/**
+ * 256色パターン: \x1b[38;5;{n}m
+ */
+const COLOR_256_PATTERN = /\x1b\[38;5;(\d+)m/g;
+
+/**
+ * Bold/Dimスタイルパターン
+ */
+const BOLD_PATTERN = /\x1b\[1m/;
+const DIM_PATTERN = /\x1b\[2m/;
+
+/**
+ * ANSI色情報を行ごとに抽出
+ * @param {string|null} text - ANSIエスケープシーケンスを含むテキスト
+ * @returns {Array<{text: string, colors: number[], bold: boolean, dim: boolean}>}
+ */
+export function extractAnsiColors(text) {
+    if (!text || typeof text !== 'string') return [];
+
+    const lines = text.split('\n');
+    return lines.map(line => {
+        const colors = [];
+        let match;
+        const regex = new RegExp(COLOR_256_PATTERN.source, 'g');
+        while ((match = regex.exec(line)) !== null) {
+            colors.push(Number(match[1]));
+        }
+        return {
+            text: stripAnsi(line),
+            colors,
+            bold: BOLD_PATTERN.test(line),
+            dim: DIM_PATTERN.test(line),
+        };
+    });
+}
+
 export function sanitizeTerminalOutput(text) {
     if (!text || typeof text !== 'string') return '';
 
