@@ -436,11 +436,43 @@ export class TerminalTransportClient {
         }
     }
 
+    _captureViewportState() {
+        const buffer = this.terminal?.buffer?.active;
+        if (!buffer) return null;
+
+        const baseY = Number.isFinite(buffer.baseY) ? buffer.baseY : 0;
+        const viewportY = Number.isFinite(buffer.viewportY) ? buffer.viewportY : baseY;
+        const distanceFromBottom = Math.max(0, baseY - viewportY);
+
+        return {
+            distanceFromBottom,
+            wasPinnedToBottom: distanceFromBottom === 0
+        };
+    }
+
+    _restoreViewportState(viewportState) {
+        if (!viewportState || !this.terminal) return;
+
+        if (viewportState.wasPinnedToBottom) {
+            this.terminal.scrollToBottom?.();
+            return;
+        }
+
+        const buffer = this.terminal.buffer?.active;
+        if (!buffer || typeof this.terminal.scrollToLine !== 'function') return;
+
+        const nextBaseY = Number.isFinite(buffer.baseY) ? buffer.baseY : 0;
+        const targetLine = Math.max(0, nextBaseY - viewportState.distanceFromBottom);
+        this.terminal.scrollToLine(targetLine);
+    }
+
     _applySnapshot(text) {
         if (!this.terminal) return;
+        const viewportState = this._captureViewportState();
         this.terminal.reset();
         this.terminal.write(text || '');
         this.fitAddon?.fit();
+        this._restoreViewportState(viewportState);
     }
 
     _measureViewport() {
