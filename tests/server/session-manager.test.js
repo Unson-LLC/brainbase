@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { SessionManager } from '../../server/services/session-manager.js';
 
@@ -283,5 +283,42 @@ describe('SessionManager', () => {
     expect(state.sessions[0].worktree.path).toBe(resolvedDir);
 
     fs.rmSync(resolvedDir, { recursive: true, force: true });
+  });
+
+  it('sendInput呼び出し時_短文テキストはtmux send-keys -lを使う', async () => {
+    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise,
+      stateStore: createStateStore(),
+      worktreeService: {}
+    });
+
+    await manager.sendInput('session-1', 'hello world', 'text');
+
+    expect(execPromise).toHaveBeenCalledTimes(1);
+    expect(execPromise).toHaveBeenCalledWith('tmux send-keys -t "session-1" -l "hello world"');
+  });
+
+  it('sendInput呼び出し時_長文テキストはtemp file経由でpaste-bufferする', async () => {
+    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise,
+      stateStore: createStateStore(),
+      worktreeService: {}
+    });
+    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test');
+    const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
+
+    await manager.sendInput('session-1', 'a'.repeat(20000), 'text');
+
+    expect(mkdtempSpy).toHaveBeenCalled();
+    expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test/paste.txt', 'a'.repeat(20000), 'utf8');
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux load-buffer -b'));
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux paste-buffer -d -b'));
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux delete-buffer -b'));
+    expect(rmSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test', { recursive: true, force: true });
   });
 });

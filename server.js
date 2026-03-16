@@ -272,7 +272,7 @@ app.use(cors({
 }));
 
 // Increase body-parser limit to handle large state.json (default: 100kb -> 1mb)
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // Security Headers Middleware
 app.use((req, res, next) => {

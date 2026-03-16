@@ -5,11 +5,14 @@
 import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import net from 'net';
+import os from 'os';
 import path from 'path';
 import yaml from 'js-yaml';
 import { TerminalOutputParser } from './terminal-output-parser.js';
 import { gracefulCleanup } from '../lib/graceful-cleanup.js';
 import { SessionHealthMonitor } from './session-health-monitor.js';
+
+const INPUT_TEMPFILE_THRESHOLD_BYTES = 16 * 1024;
 
 export class SessionManager {
     /**
@@ -1856,8 +1859,13 @@ export class SessionManager {
             throw new Error('Input required');
         }
 
-        // DEBUG: ログ出力
-        console.log(`[session-manager] sendInput: sessionId="${sessionId}", type="${type}", input="${input}"`);
+        const inputBytes = Buffer.byteLength(input, 'utf8');
+        const preview = input.length > 120
+            ? `${input.slice(0, 120)}...`
+            : input;
+        console.log(
+            `[session-manager] sendInput: sessionId="${sessionId}", type="${type}", bytes=${inputBytes}, preview=${JSON.stringify(preview)}`
+        );
 
         if (type === 'key') {
             if (!this.ALLOWED_KEYS.includes(input)) {
@@ -1867,6 +1875,11 @@ export class SessionManager {
             console.log(`[session-manager] Executing: ${cmd}`);
             await this.execPromise(cmd);
         } else if (type === 'text') {
+            if (inputBytes > INPUT_TEMPFILE_THRESHOLD_BYTES) {
+                await this._pasteLargeInputFromTempFile(sessionId, input);
+                return;
+            }
+
             // Use -l for literal text (don't interpret special keys)
             // Escape double quotes in input
             const escaped = input.replace(/"/g, '\\"');
@@ -1875,6 +1888,30 @@ export class SessionManager {
             await this.execPromise(cmd);
         } else {
             throw new Error('Type must be key or text');
+        }
+    }
+
+    _shellQuote(value) {
+        return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+    }
+
+    async _pasteLargeInputFromTempFile(sessionId, input) {
+        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'brainbase-input-'));
+        const tempFile = path.join(tempDir, 'paste.txt');
+        const bufferName = `brainbase-${sessionId}-${Date.now()}`;
+
+        try {
+            await fs.promises.writeFile(tempFile, input, 'utf8');
+
+            const loadCommand = `tmux load-buffer -b ${this._shellQuote(bufferName)} ${this._shellQuote(tempFile)}`;
+            const pasteCommand = `tmux paste-buffer -d -b ${this._shellQuote(bufferName)} -t ${this._shellQuote(sessionId)}`;
+
+            console.log(`[session-manager] Executing large paste via temp file: ${tempFile}`);
+            await this.execPromise(loadCommand);
+            await this.execPromise(pasteCommand);
+        } finally {
+            await this.execPromise(`tmux delete-buffer -b ${this._shellQuote(bufferName)}`).catch(() => {});
+            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
         }
     }
 
