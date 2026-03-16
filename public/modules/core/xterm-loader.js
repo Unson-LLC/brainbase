@@ -1,6 +1,7 @@
 const XTERM_JS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js';
 const XTERM_CSS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css';
 const XTERM_FIT_URL = 'https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js';
+const XTERM_WEBLINKS_URL = 'https://unpkg.com/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js';
 
 let loadPromise = null;
 
@@ -47,14 +48,16 @@ export async function loadXterm() {
         ensureStyle(XTERM_CSS_URL);
         await loadScript(XTERM_JS_URL);
         await loadScript(XTERM_FIT_URL);
+        await loadScript(XTERM_WEBLINKS_URL);
 
         const Terminal = window.Terminal;
         const FitAddon = window.FitAddon?.FitAddon || window.FitAddon;
+        const WebLinksAddon = window.WebLinksAddon?.WebLinksAddon || window.WebLinksAddon;
         if (!Terminal || !FitAddon) {
             throw new Error('xterm.js globals are not available');
         }
 
-        return { Terminal, FitAddon };
+        return { Terminal, FitAddon, WebLinksAddon };
     })();
 
     return await loadPromise;

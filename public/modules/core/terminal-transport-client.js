@@ -60,7 +60,7 @@ export class TerminalTransportClient {
 
     async init(hostEl) {
         this.hostEl = hostEl;
-        const { Terminal, FitAddon } = await loadXterm();
+        const { Terminal, FitAddon, WebLinksAddon } = await loadXterm();
         if (this.terminal) return;
 
         this.terminal = new Terminal({
@@ -78,6 +78,9 @@ export class TerminalTransportClient {
         });
         this.fitAddon = new FitAddon();
         this.terminal.loadAddon(this.fitAddon);
+        if (WebLinksAddon) {
+            this.terminal.loadAddon(new WebLinksAddon());
+        }
         this.terminal.open(hostEl);
         this.fitAddon.fit();
         this.terminal.onData((data) => {
