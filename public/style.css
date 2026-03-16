@@ -9591,6 +9591,14 @@ flex-wrap: wrap;
 /* =========================================
    File Viewer Panel
    ========================================= */
+#file-viewer-panel {
+    flex: 1;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-primary);
+}
+
 .file-viewer {
     display: flex;
     flex-direction: column;
