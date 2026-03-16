@@ -185,7 +185,7 @@ export class TerminalTransportClient {
                         resolve({ mode: 'live' });
                         break;
                     case 'snapshot':
-                        this._applySnapshot(message.text || '');
+                        this._applySnapshot(message.colorText || message.text || '');
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
                             this.status.mode = 'snapshot';
@@ -324,7 +324,7 @@ export class TerminalTransportClient {
         try {
             const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}`);
             if (typeof res?.text === 'string') {
-                this._applySnapshot(res.text);
+                this._applySnapshot(res.colorText || res.text);
                 this.status.lastSnapshotAt = res.capturedAt || new Date().toISOString();
                 this.status.copyMode = Boolean(res.copyMode);
                 this.status.mode = 'snapshot';
