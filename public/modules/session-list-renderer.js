@@ -98,6 +98,7 @@ export function renderSessionRowHTML(session, options = {}) {
   const transport = uiState.transport || 'disconnected';
   const attention = uiState.attention || 'none';
   const recentFile = uiState.recentFile || null;
+  const goalSeek = uiState.goalSeek || null;
   const activeClass = isActive ? ' active' : '';
   const archivedClass = session.intendedState === 'archived' ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
@@ -114,9 +115,9 @@ export function renderSessionRowHTML(session, options = {}) {
     : '';
 
   // goal-seek status
-  const goalSeekActive = session.goalSeek?.active || false;
-  const goalSeekIteration = session.goalSeek?.iteration || 0;
-  const goalSeekMaxIterations = session.goalSeek?.maxIterations || 0;
+  const goalSeekActive = goalSeek?.active || false;
+  const goalSeekIteration = goalSeek?.iteration || 0;
+  const goalSeekMaxIterations = goalSeek?.maxIterations || 0;
 
   // セッションアイコン: goal-seek active→target、worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = goalSeekActive
@@ -152,7 +153,7 @@ export function renderSessionRowHTML(session, options = {}) {
   const activityIndicator = activity === 'goalseek'
     ? '<span class="session-activity-indicator goalseek" title="Goal Seek running"></span>'
     : activity === 'thinking'
-      ? '<span class="session-activity-indicator thinking" title="Agent thinking"></span>'
+      ? '<span class="session-activity-indicator working" title="Agent working"></span>'
       : activity === 'working'
         ? '<span class="session-activity-indicator working" title="Agent working"></span>'
         : activity === 'done-unread'

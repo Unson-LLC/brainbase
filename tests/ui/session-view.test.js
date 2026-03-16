@@ -3,14 +3,19 @@ import { SessionView } from '../../public/modules/ui/views/session-view.js';
 
 // モックStore（appStoreとして使う）
 let mockStoreState = { currentSessionId: 'session-current' };
+let mockUiStateBySessionId = {};
 
-// モックSessionIndicators
-vi.mock('../../public/modules/session-indicators.js', () => ({
-    getSessionStatus: vi.fn((sessionId) => {
-        // デフォルトではundefinedを返す（モック内で個別に設定する）
-        return undefined;
-    }),
-    updateSessionIndicators: vi.fn()
+vi.mock('../../public/modules/session-ui-state.js', () => ({
+    deriveSessionUiState: vi.fn((sessionId) => mockUiStateBySessionId[sessionId] || ({
+        activity: 'idle',
+        transport: 'disconnected',
+        attention: 'none',
+        goalSeek: null,
+        summary: null,
+        recentFile: null,
+        recentFiles: [],
+        hookStatus: null
+    }))
 }));
 
 // モックappStore
@@ -43,16 +48,13 @@ vi.mock('../../public/modules/core/event-bus.js', () => ({
 describe('SessionView', () => {
     describe('_getTimelineSessions', () => {
         let sessionView;
-        let getSessionStatus;
 
         beforeEach(async () => {
-            // モジュールをリセットしてモック関数を取得
-            const sessionIndicators = await import('../../public/modules/session-indicators.js');
-            getSessionStatus = sessionIndicators.getSessionStatus;
             vi.clearAllMocks();
 
             // mockStoreStateをリセット
             mockStoreState = { currentSessionId: 'session-current' };
+            mockUiStateBySessionId = {};
 
             // SessionViewインスタンス作成
             sessionView = new SessionView({
@@ -68,13 +70,10 @@ describe('SessionView', () => {
                 { id: 'session-c', intendedState: 'running', createdAt: 3000 }
             ];
 
-            // session-b を緑インジケータに設定（isDone=true, currentSessionIdと不一致）
-            getSessionStatus.mockImplementation((sessionId) => {
-                if (sessionId === 'session-b') {
-                    return { isDone: true, isWorking: false, lastDoneAt: 2500 };
-                }
-                return undefined;
-            });
+            mockUiStateBySessionId['session-b'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false, lastDoneAt: 2500 }
+            };
 
             // Act: ソート実行
             const result = sessionView._getTimelineSessions(sessions);
@@ -94,13 +93,14 @@ describe('SessionView', () => {
                 { id: 'session-d', intendedState: 'running', createdAt: 4000 }
             ];
 
-            // session-b, session-c を緑インジケータに設定
-            getSessionStatus.mockImplementation((sessionId) => {
-                if (sessionId === 'session-b' || sessionId === 'session-c') {
-                    return { isDone: true, isWorking: false };
-                }
-                return undefined;
-            });
+            mockUiStateBySessionId['session-b'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false }
+            };
+            mockUiStateBySessionId['session-c'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false }
+            };
 
             // Act
             const result = sessionView._getTimelineSessions(sessions);
@@ -120,13 +120,10 @@ describe('SessionView', () => {
                 { id: 'session-c', intendedState: 'running', createdAt: 3000 }
             ];
 
-            // session-current を緑インジケータに設定（isDone=true）
-            getSessionStatus.mockImplementation((sessionId) => {
-                if (sessionId === 'session-current') {
-                    return { isDone: true, isWorking: false };
-                }
-                return undefined;
-            });
+            mockUiStateBySessionId['session-current'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false }
+            };
 
             // Act
             const result = sessionView._getTimelineSessions(sessions);

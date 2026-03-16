@@ -146,6 +146,19 @@ export function getSessionStatus(sessionId) {
     return getSessionUiEntry(sessionId)?.hookStatus || null;
 }
 
+export function getSessionHookStatusMap() {
+    const byId = getSessionUiRoot().byId || {};
+    const hookStatusMap = {};
+
+    for (const [sessionId, entry] of Object.entries(byId)) {
+        if (entry?.hookStatus) {
+            hookStatusMap[sessionId] = entry.hookStatus;
+        }
+    }
+
+    return hookStatusMap;
+}
+
 export function recordRecentFileOpen(sessionId, relativePath) {
     if (!sessionId || !relativePath) return;
 
@@ -211,6 +224,7 @@ export function deriveSessionUiState(sessionId, options = {}) {
         activity,
         transport,
         attention,
+        goalSeek: hookStatus?.goalSeek || null,
         summary: entry.summary || null,
         recentFile: Array.isArray(entry.recentFiles) ? entry.recentFiles[0] || null : null,
         recentFiles: Array.isArray(entry.recentFiles) ? entry.recentFiles : [],

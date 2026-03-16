@@ -24,8 +24,8 @@ vi.mock('../../public/modules/core/http-client.js', () => ({
 import { eventBus, EVENTS } from '../../public/modules/core/event-bus.js';
 import { httpClient } from '../../public/modules/core/http-client.js';
 import { appStore } from '../../public/modules/core/store.js';
-import { getSessionStatus, markDoneAsRead, pollSessionStatus } from '../../public/modules/session-indicators.js';
-import { getSessionUiEntry } from '../../public/modules/session-ui-state.js';
+import { markDoneAsRead, pollSessionStatus } from '../../public/modules/session-indicators.js';
+import { getSessionStatus, getSessionUiEntry } from '../../public/modules/session-ui-state.js';
 
 describe('session-indicators', () => {
     beforeEach(() => {
@@ -69,6 +69,10 @@ describe('session-indicators', () => {
         expect(getSessionUiEntry('session-1').hookStatus.isDone).toBe(false);
         expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/clear-done', {});
         expect(eventBus.emit).toHaveBeenCalledWith(
+            EVENTS.SESSION_UI_STATE_CHANGED,
+            { sessionIds: ['session-1'], currentSessionId: 'session-2' }
+        );
+        expect(eventBus.emit).toHaveBeenCalledWith(
             EVENTS.SESSION_UPDATED,
             expect.objectContaining({ sessionId: 'session-1' })
         );
@@ -92,6 +96,36 @@ describe('session-indicators', () => {
 
         expect(getSessionStatus('session-1').isDone).toBe(true);
         expect(getSessionUiEntry('session-1').hookStatus.isDone).toBe(true);
+        expect(eventBus.emit).toHaveBeenCalledWith(
+            EVENTS.SESSION_UI_STATE_CHANGED,
+            { sessionIds: ['session-1'] }
+        );
+    });
+
+    it('pollSessionStatus呼び出し時_statusから消えたsessionもUI更新対象に含める', async () => {
+        globalThis.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    'session-1': {
+                        isWorking: true,
+                        isDone: false,
+                        lastWorkingAt: 100,
+                        lastDoneAt: 0,
+                        timestamp: 100
+                    }
+                })
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({})
+            });
+
+        await pollSessionStatus('session-1');
+        vi.clearAllMocks();
+
+        await pollSessionStatus('session-1');
+
         expect(eventBus.emit).toHaveBeenCalledWith(
             EVENTS.SESSION_UI_STATE_CHANGED,
             { sessionIds: ['session-1'] }
@@ -155,7 +189,7 @@ describe('session-indicators', () => {
         expect(getSessionUiEntry('session-1').hookStatus.isWorking).toBe(true);
 
         await pollSessionStatus('session-1');
-        expect(getSessionStatus('session-1')).toBeUndefined();
+        expect(getSessionStatus('session-1')).toBeNull();
         expect(getSessionUiEntry('session-1')).toEqual({ hookStatus: null });
     });
 

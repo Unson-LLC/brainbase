@@ -3,7 +3,6 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
-import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
 import { deriveSessionUiState } from '../../session-ui-state.js';
 import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
@@ -37,13 +36,9 @@ export class SessionView {
 
     _buildSessionRowElement(session, currentSessionId, options = {}) {
         const { project, showProjectEmoji = false, isDraggable = true, enableDrag = true } = options;
-        const liveStatus = getSessionStatus(session.id);
-        const enrichedSession = liveStatus
-            ? { ...session, goalSeek: liveStatus.goalSeek || { active: false } }
-            : session;
         const sessionUiState = deriveSessionUiState(session.id);
         const wrapper = document.createElement('div');
-        wrapper.innerHTML = renderSessionRowHTML(enrichedSession, {
+        wrapper.innerHTML = renderSessionRowHTML(session, {
             isActive: currentSessionId === session.id,
             project,
             showProjectEmoji,
@@ -218,9 +213,6 @@ export class SessionView {
         if (window.lucide) {
             window.lucide.createIcons();
         }
-
-        // セッションインジケーターを更新（緑・オレンジのステータス表示）
-        updateSessionIndicators(currentSessionId);
     }
 
     /**
@@ -253,7 +245,7 @@ export class SessionView {
      *
      * ソート優先度:
      * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
-     *    - 条件: isDone=true
+     *    - 条件: activity === 'done-unread'
      * 2. 残りのセッションは時系列順（最新が上）
      *
      * @param {Array} sessions - セッション一覧
@@ -261,17 +253,13 @@ export class SessionView {
      * @private
      */
     _getTimelineSessions(sessions) {
-        const { currentSessionId } = appStore.getState();
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
 
         const sorted = [...filtered].sort((a, b) => {
-            // インジケータステータスを取得
-            const statusA = getSessionStatus(a.id);
-            const statusB = getSessionStatus(b.id);
-
-            // 緑インジケータ判定（isDone=true）
-            const isGreenA = Boolean(statusA?.isDone);
-            const isGreenB = Boolean(statusB?.isDone);
+            const uiStateA = deriveSessionUiState(a.id);
+            const uiStateB = deriveSessionUiState(b.id);
+            const isGreenA = uiStateA.activity === 'done-unread';
+            const isGreenB = uiStateB.activity === 'done-unread';
 
             // 優先度1: 緑セッションを最上部に配置
             if (isGreenA && !isGreenB) return -1;
@@ -296,14 +284,11 @@ export class SessionView {
             return Number.isNaN(parsed) ? null : parsed;
         };
 
-        const liveStatus = session?.id ? getSessionStatus(session.id) : null;
+        const liveStatus = session?.id ? deriveSessionUiState(session.id).hookStatus : null;
         const statusTimestamp = Math.max(
             liveStatus?.lastWorkingAt || 0,
             liveStatus?.lastDoneAt || 0,
-            liveStatus?.timestamp || 0,
-            session?.hookStatus?.lastWorkingAt || 0,
-            session?.hookStatus?.lastDoneAt || 0,
-            session?.hookStatus?.timestamp || 0
+            liveStatus?.timestamp || 0
         );
         if (statusTimestamp > 0) {
             return statusTimestamp;
