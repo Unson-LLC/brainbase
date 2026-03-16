@@ -76,18 +76,6 @@ function buildTerminalBlockedText(terminalAccess) {
     return `入力: ${ownerLabel} で表示中 (クリックで引継ぎ)`;
 }
 
-function formatTerminalTimestamp(value) {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('ja-JP', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    }).format(date);
-}
-
 function isLoopbackHost(hostname) {
     return hostname === 'localhost' || hostname === '127.0.0.1';
 }
@@ -493,24 +481,9 @@ export class App {
         this.terminalXtermHost = null;
         this._terminalTransportStatus = null;
         this.terminalFrame = null;
-        this.terminalHeaderEl = null;
         this.terminalInputStatusEl = null;
-        this.terminalTransportPillEl = null;
-        this.terminalOwnerLabelEl = null;
-        this.terminalSnapshotMetaEl = null;
-        this.terminalSnapshotPanelEl = null;
-        this.terminalSnapshotTitleEl = null;
-        this.terminalSnapshotTimestampEl = null;
-        this.terminalSnapshotContentEl = null;
-        this.terminalReconnectBtn = null;
-        this.terminalTakeoverBtn = null;
-        this.terminalOpenFallbackBtn = null;
-        this.terminalMoreBtn = null;
-        this.terminalMoreActionsEl = null;
         this._terminalInputUxCleanup = [];
         this._terminalLastNavigateAt = 0;
-        this._terminalSnapshotCache = new Map();
-        this._terminalSnapshotRequestKey = null;
         // tmux copy-mode (pane_in_mode) blocks input. We can't reliably read it from the iframe,
         // so we track entry/exit based on TMUX_SCROLL / TERMINAL_INTERACT messages.
         this._terminalCopyModeSessions = new Set();
@@ -777,133 +750,11 @@ export class App {
         el.title = title || '';
     }
 
-    _setTerminalHeaderChip(el, { hidden = false, text = '', title = '' } = {}) {
-        if (!el) return;
-        if (hidden || !text) {
-            el.classList.add('hidden');
-            el.textContent = '';
-            el.title = '';
-            return;
-        }
-
-        el.classList.remove('hidden');
-        el.textContent = text;
-        el.title = title || '';
-    }
-
-    _setTerminalHeaderAction(button, visible) {
-        if (!button) return;
-        button.classList.toggle('hidden', !visible);
-    }
-
-    _resetTerminalChrome() {
-        this._setTerminalHeaderChip(this.terminalTransportPillEl, { hidden: true });
-        this._setTerminalHeaderChip(this.terminalOwnerLabelEl, { hidden: true });
-        this._setTerminalHeaderChip(this.terminalSnapshotMetaEl, { hidden: true });
-        this._setTerminalHeaderAction(this.terminalReconnectBtn, false);
-        this._setTerminalHeaderAction(this.terminalTakeoverBtn, false);
-        this._setTerminalHeaderAction(this.terminalOpenFallbackBtn, false);
-        this._renderTerminalSnapshotPanel({ visible: false });
-    }
-
-    async _loadTerminalSnapshot(sessionId, { force = false } = {}) {
-        if (!sessionId) return null;
-        const cached = this._terminalSnapshotCache.get(sessionId);
-        if (cached && !force) {
-            return cached;
-        }
-
-        const requestKey = `${sessionId}:${force ? 'force' : 'cached'}`;
-        this._terminalSnapshotRequestKey = requestKey;
-        const res = await httpClient.get(
-            `/api/sessions/${encodeURIComponent(sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}`
-        );
-
-        if (this._terminalSnapshotRequestKey !== requestKey) {
-            return this._terminalSnapshotCache.get(sessionId) || null;
-        }
-
-        const snapshot = {
-            text: typeof res?.text === 'string' ? res.text : '',
-            capturedAt: res?.capturedAt || null
-        };
-        this._terminalSnapshotCache.set(sessionId, snapshot);
-        return snapshot;
-    }
-
-    _renderTerminalSnapshotPanel({ visible = false, snapshot = null, title = 'Snapshot fallback' } = {}) {
-        if (!this.terminalSnapshotPanelEl || !this.terminalSnapshotContentEl) return;
-
-        if (!visible) {
-            this.terminalSnapshotPanelEl.classList.add('hidden');
-            this.terminalSnapshotContentEl.textContent = '';
-            if (this.terminalSnapshotTimestampEl) {
-                this.terminalSnapshotTimestampEl.textContent = '';
-            }
-            return;
-        }
-
-        this.terminalSnapshotPanelEl.classList.remove('hidden');
-        if (this.terminalSnapshotTitleEl) {
-            this.terminalSnapshotTitleEl.textContent = title;
-        }
-        this.terminalSnapshotContentEl.textContent = snapshot?.text || 'Snapshotを読み込み中...';
-        if (this.terminalSnapshotTimestampEl) {
-            this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
-        }
-    }
-
-    _syncTerminalSnapshotPanel({ sessionId, visible, title }) {
-        if (!visible || !sessionId) {
-            this._renderTerminalSnapshotPanel({ visible: false });
-            return;
-        }
-
-        const cached = this._terminalSnapshotCache.get(sessionId) || null;
-        this._renderTerminalSnapshotPanel({
-            visible: true,
-            snapshot: cached,
-            title
-        });
-
-        if (cached) return;
-
-        void this._loadTerminalSnapshot(sessionId)
-            .then((snapshot) => {
-                if (appStore.getState().currentSessionId !== sessionId) return;
-                this._renderTerminalSnapshotPanel({
-                    visible: true,
-                    snapshot,
-                    title
-                });
-                this._updateTerminalInputStatus();
-            })
-            .catch(() => {
-                if (appStore.getState().currentSessionId !== sessionId) return;
-                this._renderTerminalSnapshotPanel({
-                    visible: true,
-                    snapshot: {
-                        text: 'Snapshotの取得に失敗した',
-                        capturedAt: null
-                    },
-                    title
-                });
-            });
-    }
-
-    async openTerminalIframeFallback() {
-        const sessionId = appStore.getState().currentSessionId;
-        if (!sessionId) return;
-        this._terminalSnapshotCache.delete(sessionId);
-        await this.switchSession(sessionId, { forceTtyd: true });
-    }
-
     _updateTerminalInputStatus() {
         if (!this.terminalInputStatusEl) return;
 
         if (!this._isConsoleVisible()) {
             this._setTerminalInputStatus({ hidden: true });
-            this._resetTerminalChrome();
             return;
         }
 
@@ -914,7 +765,6 @@ export class App {
 
         if (!sessionId || (!frame && !xtermActive)) {
             this._setTerminalInputStatus({ hidden: true });
-            this._resetTerminalChrome();
             return;
         }
 
@@ -947,15 +797,10 @@ export class App {
         let title = `session=${sessionId}`;
         let transportState = 'blocked';
         let attentionState = 'none';
-        let presentationMode = 'blocked';
-        let snapshotVisible = false;
-        let snapshotTitle = 'Snapshot fallback';
-        let ownerLabel = '';
 
         if (overlayState.any) {
             stateClass = 'blocked';
             transportState = 'blocked';
-            presentationMode = 'blocked';
             if (overlayState.choiceActive) {
                 text = '入力: 選択中';
                 title = '選択UIが開いている間はターミナル入力できません';
@@ -968,27 +813,21 @@ export class App {
             }
         } else if (terminalAccess?.state === 'blocked') {
             stateClass = 'blocked';
-            presentationMode = 'blocked';
             text = buildTerminalBlockedText(terminalAccess);
             title = terminalAccess?.ownerViewerLabel
                 ? `${terminalAccess.ownerViewerLabel} がこのセッションを表示中。クリックで引き継ぎ`
                 : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
-            ownerLabel = terminalAccess?.ownerViewerLabel || '';
         } else if (xtermActive && xtermStatus?.mode === 'snapshot') {
             stateClass = 'disconnected';
             transportState = 'disconnected';
-            presentationMode = 'snapshot';
             text = '入力: Snapshot表示中';
             title = `session=${sessionId} snapshot fallback`;
-            snapshotVisible = true;
         } else if (xtermActive && xtermStatus?.mode === 'reconnecting') {
             stateClass = 'reconnecting';
             transportState = 'reconnecting';
-            presentationMode = 'reconnecting';
             text = '入力: 再接続中...';
             title = `session=${sessionId} xterm reconnecting`;
         } else if (xtermActive && xtermStatus?.mode === 'live') {
-            presentationMode = 'live';
             if (!isFocused && !isMobile) {
                 stateClass = 'needs-focus';
                 transportState = 'connected';
@@ -1010,38 +849,31 @@ export class App {
         } else if (isReconnecting) {
             stateClass = 'reconnecting';
             transportState = 'reconnecting';
-            presentationMode = 'reconnecting';
             text = `入力: 再接続中 (${retryCount}/${maxRetries})`;
             title = `session=${sessionId} reconnecting`;
         } else if (frameBlank) {
             if (recentlyNavigated) {
                 stateClass = 'reconnecting';
                 transportState = 'reconnecting';
-                presentationMode = 'reconnecting';
                 text = '入力: 接続中...';
                 title = `session=${sessionId} connecting`;
             } else {
                 stateClass = 'disconnected';
                 transportState = 'disconnected';
-                presentationMode = 'snapshot';
                 text = '入力: 未接続';
                 title = `session=${sessionId} iframe=about:blank`;
-                snapshotVisible = true;
             }
         } else if (!wsConnected) {
             if (recentlyNavigated) {
                 stateClass = 'reconnecting';
                 transportState = 'reconnecting';
-                presentationMode = 'reconnecting';
                 text = '入力: 接続中...';
                 title = `session=${sessionId} connecting`;
             } else {
                 stateClass = 'disconnected';
                 transportState = 'disconnected';
-                presentationMode = 'snapshot';
                 text = '入力: 切断';
                 title = `session=${sessionId} disconnected${typeof lastCode === 'number' ? ` (code ${lastCode})` : ''}`;
-                snapshotVisible = true;
             }
         } else if (!isFocused && !isMobile) {
             // デスクトップのみ: フォーカスが外れていたらクリックを促す
@@ -1049,56 +881,22 @@ export class App {
             stateClass = 'needs-focus';
             transportState = 'connected';
             attentionState = 'needs-focus';
-            presentationMode = 'live';
             text = '入力: クリックでフォーカス';
             title = `session=${sessionId} (click to focus)`;
         } else if (isCopyMode) {
             stateClass = 'copy-mode';
             transportState = 'connected';
             attentionState = 'copy-mode';
-            presentationMode = 'live';
             text = '入力: スクロール中 (クリックで戻る)';
             title = `session=${sessionId} copy-mode (click to exit)`;
         } else {
             stateClass = 'ready';
             transportState = 'connected';
-            presentationMode = 'live';
             text = '入力: OK';
             title = `session=${sessionId} connected`;
         }
 
         this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
-        this._setTerminalHeaderChip(this.terminalTransportPillEl, {
-            hidden: false,
-            text: xtermActive ? 'xterm' : 'ttyd',
-            title: xtermActive ? 'xterm transport' : 'ttyd iframe fallback'
-        });
-        this._setTerminalHeaderChip(this.terminalOwnerLabelEl, {
-            hidden: !ownerLabel,
-            text: ownerLabel,
-            title: ownerLabel ? `現在のowner: ${ownerLabel}` : ''
-        });
-
-        const snapshotSource = this._terminalSnapshotCache.get(sessionId) || null;
-        this._setTerminalHeaderChip(this.terminalSnapshotMetaEl, {
-            hidden: presentationMode !== 'snapshot',
-            text: snapshotSource?.capturedAt ? `Snapshot ${formatTerminalTimestamp(snapshotSource.capturedAt)}` : 'Snapshot fallback',
-            title: snapshotSource?.capturedAt ? `Snapshot captured at ${snapshotSource.capturedAt}` : 'Snapshot fallback'
-        });
-
-        this._setTerminalHeaderAction(this.terminalReconnectBtn, presentationMode === 'snapshot' || presentationMode === 'reconnecting');
-        this._setTerminalHeaderAction(this.terminalTakeoverBtn, terminalAccess?.state === 'blocked');
-        this._setTerminalHeaderAction(
-            this.terminalOpenFallbackBtn,
-            xtermActive && shouldUseDesktopXtermTransport()
-        );
-
-        this._syncTerminalSnapshotPanel({
-            sessionId,
-            visible: snapshotVisible,
-            title: snapshotTitle
-        });
-
         const previous = getSessionUiEntry(sessionId) || {};
         const shouldEmit = previous.transport !== transportState || previous.attention !== attentionState;
         this._setCurrentSessionUiState(
@@ -1113,20 +911,7 @@ export class App {
     setupTerminalInputUx() {
         if (!this.terminalFrame) return;
 
-        this.terminalHeaderEl = document.getElementById('terminal-header');
         this.terminalInputStatusEl = document.getElementById('terminal-input-status');
-        this.terminalTransportPillEl = document.getElementById('terminal-transport-pill');
-        this.terminalOwnerLabelEl = document.getElementById('terminal-owner-label');
-        this.terminalSnapshotMetaEl = document.getElementById('terminal-snapshot-meta');
-        this.terminalSnapshotPanelEl = document.getElementById('terminal-snapshot-panel');
-        this.terminalSnapshotTitleEl = document.getElementById('terminal-snapshot-title');
-        this.terminalSnapshotTimestampEl = document.getElementById('terminal-snapshot-timestamp');
-        this.terminalSnapshotContentEl = document.getElementById('terminal-snapshot-content');
-        this.terminalReconnectBtn = document.getElementById('terminal-reconnect-btn');
-        this.terminalTakeoverBtn = document.getElementById('terminal-takeover-btn');
-        this.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
-        this.terminalMoreBtn = document.getElementById('terminal-more-btn');
-        this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
         const consoleArea = document.getElementById('console-area');
 
         // Keep status in sync with session selection, focus changes, overlay visibility, and WS events.
@@ -1240,51 +1025,6 @@ export class App {
         this.terminalInputStatusEl?.addEventListener('click', onStatusClick);
         this._terminalInputUxCleanup.push(() => this.terminalInputStatusEl?.removeEventListener('click', onStatusClick));
 
-        const onReconnectClick = (e) => {
-            e.preventDefault();
-            if (this._isXtermTransportActive()) {
-                void this.terminalTransportClient?.reconnect().catch(() => {});
-                return;
-            }
-            if (!this.reconnectManager?.isReconnecting) {
-                this.reconnectManager?.handleDisconnect?.();
-            }
-        };
-        this.terminalReconnectBtn?.addEventListener('click', onReconnectClick);
-        this._terminalInputUxCleanup.push(() => this.terminalReconnectBtn?.removeEventListener('click', onReconnectClick));
-
-        const onTakeoverClick = (e) => {
-            e.preventDefault();
-            void this.takeOverCurrentTerminal();
-        };
-        this.terminalTakeoverBtn?.addEventListener('click', onTakeoverClick);
-        this._terminalInputUxCleanup.push(() => this.terminalTakeoverBtn?.removeEventListener('click', onTakeoverClick));
-
-        const onOpenFallbackClick = (e) => {
-            e.preventDefault();
-            void this.openTerminalIframeFallback();
-        };
-        this.terminalOpenFallbackBtn?.addEventListener('click', onOpenFallbackClick);
-        this._terminalInputUxCleanup.push(() => this.terminalOpenFallbackBtn?.removeEventListener('click', onOpenFallbackClick));
-
-        const closeMoreActions = () => {
-            this.terminalMoreActionsEl?.classList.remove('open');
-        };
-        const onMoreClick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.terminalMoreActionsEl?.classList.toggle('open');
-        };
-        const onDocumentClick = (e) => {
-            if (!this.terminalHeaderEl?.contains(e.target)) {
-                closeMoreActions();
-            }
-        };
-        this.terminalMoreBtn?.addEventListener('click', onMoreClick);
-        document.addEventListener('click', onDocumentClick, true);
-        this._terminalInputUxCleanup.push(() => this.terminalMoreBtn?.removeEventListener('click', onMoreClick));
-        this._terminalInputUxCleanup.push(() => document.removeEventListener('click', onDocumentClick, true));
-
         // Type-to-focus: if user starts typing while terminal isn't focused, focus it and inject the first key.
         const onKeydownCapture = (e) => {
             if (!this._isConsoleVisible()) return;
@@ -1331,7 +1071,6 @@ export class App {
         if (appStore.getState().currentSessionId) {
             this._terminalLastNavigateAt = Date.now();
         }
-        closeMoreActions();
         this._updateTerminalInputStatus();
     }
 
@@ -2848,7 +2587,7 @@ export class App {
                 return;
             }
 
-            if (!options.forceTtyd && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+            if (this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
                 const transportResult = await this._connectXtermTransport(session);
                 if (transportResult.ok) {
                     this.reconnectManager?.setCurrentSession(sessionId);
