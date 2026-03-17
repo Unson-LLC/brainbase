@@ -138,7 +138,7 @@ export class AuthController {
             const origin = typeof req.query.origin === 'string' ? req.query.origin : '';
             const codeChallenge = typeof req.query.code_challenge === 'string' ? req.query.code_challenge : '';
             const state = this.authService.createState({ origin, codeChallenge });
-            const url = this.authService.buildAuthorizeUrl(state);
+            const url = this.authService.buildAuthorizeUrl(state, req);
             if (String(req.query.json || '').toLowerCase() === 'true') {
                 return res.json({ url, state });
             }
@@ -166,7 +166,7 @@ export class AuthController {
                 this.authService.storeCodeChallenge(String(code), stateResult.codeChallenge);
             }
 
-            const tokenPayload = await this.authService.exchangeCode(String(code));
+            const tokenPayload = await this.authService.exchangeCode(String(code), req);
             let userInfo = null;
             if (this.authService.slackMode !== 'oauth') {
                 const accessToken = tokenPayload.access_token;
@@ -312,7 +312,7 @@ export class AuthController {
             }
 
             // Slack OAuth code exchangeでslackUserIdを取得
-            const tokenPayload = await this.authService.exchangeCode(String(code));
+            const tokenPayload = await this.authService.exchangeCode(String(code), req);
             let userInfo = null;
             if (this.authService.slackMode !== 'oauth') {
                 const accessToken = tokenPayload.access_token;

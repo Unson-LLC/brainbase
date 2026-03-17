@@ -26,6 +26,7 @@ export class AuthService {
         this.slackClientId = process.env.SLACK_CLIENT_ID || '';
         this.slackClientSecret = process.env.SLACK_CLIENT_SECRET || '';
         this.slackRedirectUri = process.env.SLACK_REDIRECT_URI || '';
+        this.slackCallbackPath = '/api/auth/slack/callback';
         this.slackScopes = process.env.SLACK_AUTH_SCOPES;
         if (this.slackScopes === undefined || this.slackScopes === null) {
             this.slackScopes = DEFAULT_SCOPES;
@@ -65,9 +66,24 @@ export class AuthService {
         if (!this.jwtSecret) {
             throw new Error('BRAINBASE_JWT_SECRET is not set');
         }
-        if (!this.slackClientId || !this.slackClientSecret || !this.slackRedirectUri) {
-            throw new Error('Slack OAuth configuration is missing');
+        if (!this.slackClientId || !this.slackClientSecret) {
+            throw new Error('Slack OAuth configuration is missing (SLACK_CLIENT_ID/SLACK_CLIENT_SECRET)');
         }
+    }
+
+    /**
+     * Resolve redirect_uri dynamically from request Host header.
+     * Falls back to SLACK_REDIRECT_URI env var.
+     */
+    resolveRedirectUri(req) {
+        if (req) {
+            const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+            const host = req.get('x-forwarded-host') || req.get('host');
+            if (host && !host.startsWith('localhost')) {
+                return `${proto}://${host}${this.slackCallbackPath}`;
+            }
+        }
+        return this.slackRedirectUri;
     }
 
     generateId(prefix) {
@@ -190,10 +206,10 @@ export class AuthService {
         return { ok: true, origin, codeChallenge };
     }
 
-    buildAuthorizeUrl(state) {
+    buildAuthorizeUrl(state, req) {
         const url = new URL(this.authorizeUrl);
         url.searchParams.set('client_id', this.slackClientId);
-        url.searchParams.set('redirect_uri', this.slackRedirectUri);
+        url.searchParams.set('redirect_uri', this.resolveRedirectUri(req));
         url.searchParams.set('state', state);
         if (this.slackScopes !== undefined && this.slackScopes !== null) {
             url.searchParams.set('scope', this.slackScopes);
@@ -205,11 +221,11 @@ export class AuthService {
         return url.toString();
     }
 
-    async exchangeCode(code) {
+    async exchangeCode(code, req) {
         const body = new URLSearchParams({
             client_id: this.slackClientId,
             client_secret: this.slackClientSecret,
-            redirect_uri: this.slackRedirectUri,
+            redirect_uri: this.resolveRedirectUri(req),
             code
         });
         if (this.slackMode !== 'oauth') {
