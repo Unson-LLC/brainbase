@@ -56,6 +56,8 @@ import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createSetupRouter } from './server/routes/setup.js';
+import { createWikiRouter } from './server/routes/wiki.js';
+import { WikiService } from './server/services/wiki-service.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -261,6 +263,14 @@ const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
 const inboxParser = new InboxParser(INBOX_FILE);
 const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
+
+// Wiki Service
+const WIKI_ROOT = process.env.BRAINBASE_WIKI_ROOT || path.join(BRAINBASE_ROOT, 'wiki');
+await ensureDir(WIKI_ROOT);
+const wikiService = new WikiService({
+    wikiRoot: WIKI_ROOT,
+    pool: infoSSOTService.pool  // 同じDB接続プールを共有
+});
 
 // Middleware
 // Enable CORS for local network access and remote auth/api calls (local UI -> bb.unson.jp)
@@ -610,7 +620,7 @@ function enforceTerminalOwnership(req, res, next) {
 
 const ttydProxy = createProxyMiddleware({
     target: 'http://127.0.0.1:1',
-    ws: true, // Enable WebSocket proxying
+    ws: false, // WebSocket upgrade is handled manually in server.on('upgrade')
     changeOrigin: true,
     pathRewrite: function (path, req) {
         if (isWindows) {
@@ -702,6 +712,7 @@ app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
+app.use('/api/wiki', requireAuth(authService), createWikiRouter(wikiService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {
     brainbaseRoot: BRAINBASE_ROOT,
