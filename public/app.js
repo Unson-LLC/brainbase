@@ -1438,7 +1438,8 @@ export class App {
         if (sessionContainer) {
             this.views.sessionView = new SessionView({
                 sessionService: this.sessionService,
-                fileViewerService: this.fileViewerService
+                fileViewerService: this.fileViewerService,
+                commitTreeService: this.container.get('commitTreeService')
             });
             this.views.sessionView.mount(sessionContainer);
         }

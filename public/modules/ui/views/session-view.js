@@ -14,8 +14,9 @@ import { escapeHtml } from '../../ui-helpers.js';
  * 現行版と同じ構造でプロジェクトグループ表示
  */
 export class SessionView {
-    constructor({ sessionService, fileViewerService }) {
+    constructor({ sessionService, fileViewerService, commitTreeService = null }) {
         this.sessionService = sessionService;
+        this.commitTreeService = commitTreeService;
         this.folderTreeView = new FolderTreeView({ sessionService, fileViewerService });
         this.container = null;
         this._unsubscribers = [];
@@ -427,6 +428,12 @@ export class SessionView {
      */
     _attachSessionActionHandlers(row, session, options = {}) {
         const { enableDrag = true } = options;
+        const bindActionButtons = (selector, handler) => {
+            row.querySelectorAll(selector).forEach((button) => {
+                button.addEventListener('click', handler);
+            });
+        };
+
         // Menu toggle button
         const menuToggle = row.querySelector('.session-menu-toggle');
         const dropdownMenu = row.querySelector('.session-dropdown-menu');
@@ -476,179 +483,180 @@ export class SessionView {
         };
 
         // Rename button
-        const renameBtn = row.querySelector('.rename-session-btn');
-        if (renameBtn) {
-            renameBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                eventBus.emit(EVENTS.RENAME_SESSION, { session });
-            });
-        }
+        bindActionButtons('.rename-session-btn', (e) => {
+            e.stopPropagation();
+            closeDropdown();
+            eventBus.emit(EVENTS.RENAME_SESSION, { session });
+        });
 
         // Delete button
-        const deleteBtn = row.querySelector('.delete-session-btn');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                const displayName = session.name || session.id;
-                const confirmed = await showConfirm(
-                    `セッション「${displayName}」を削除しますか？`,
-                    { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
-                );
-                if (!confirmed) return;
-                try {
-                    await this.sessionService.deleteSession(session.id);
-                    if (window.showToast) {
-                        window.showToast(`セッション「${displayName}」を削除しました`, 'success');
-                    }
-                } catch (error) {
-                    console.error('[session-view] Delete failed for:', session.id, error);
-                    if (window.showToast) {
-                        window.showToast(`削除に失敗しました: ${error.message}`, 'error');
-                    } else {
-                        alert(`削除に失敗しました: ${error.message}`);
-                    }
+        bindActionButtons('.delete-session-btn', async (e) => {
+            e.stopPropagation();
+            closeDropdown();
+            const displayName = session.name || session.id;
+            const confirmed = await showConfirm(
+                `セッション「${displayName}」を削除しますか？`,
+                { title: '削除確認', okText: '削除', cancelText: 'キャンセル', danger: true }
+            );
+            if (!confirmed) return;
+            try {
+                await this.sessionService.deleteSession(session.id);
+                if (window.showToast) {
+                    window.showToast(`セッション「${displayName}」を削除しました`, 'success');
                 }
-            });
-        }
+            } catch (error) {
+                console.error('[session-view] Delete failed for:', session.id, error);
+                if (window.showToast) {
+                    window.showToast(`削除に失敗しました: ${error.message}`, 'error');
+                } else {
+                    alert(`削除に失敗しました: ${error.message}`);
+                }
+            }
+        });
 
         // Archive button
-        const archiveBtn = row.querySelector('.archive-session-btn');
-        if (archiveBtn) {
-            archiveBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                const displayName = session.name || session.id;
+        bindActionButtons('.archive-session-btn', async (e) => {
+            e.stopPropagation();
+            closeDropdown();
+            const displayName = session.name || session.id;
 
-                try {
-                    if (session.intendedState === 'archived') {
-                        await this.sessionService.unarchiveSession(session.id);
-                        showSuccess(`セッション「${displayName}」を復元しました`);
-                        return;
-                    }
-
-                    const result = await this.sessionService.archiveSession(session.id);
-                    if (result?.needsConfirmation) {
-                        const status = result.status || {};
-                        const details = [];
-
-                        // Jujutsu概念でステータス表示
-                        if (status.changesNotPushed > 0) {
-                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
-                        }
-                        if (!status.bookmarkPushed && status.bookmarkName) {
-                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
-                        }
-                        if (status.hasWorkingCopyChanges) {
-                            details.push('working copyに未完了のchangeがあります');
-                        }
-
-                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
-                        const confirmResult = await showConfirmWithAction(
-                            `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
-                            {
-                                title: 'アーカイブ確認',
-                                okText: 'そのままアーカイブ',
-                                cancelText: 'キャンセル',
-                                actionText: 'pushして統合',
-                                aiActionText: '🤖 AIに確認して対処',
-                                danger: true
-                            }
-                        );
-                        const selectedAction = typeof confirmResult === 'object' && confirmResult !== null
-                            ? confirmResult.action
-                            : (confirmResult ? 'ok' : 'cancel');
-
-                        if (selectedAction === 'ai') {
-                            await this._handleAiIntegrationAction(session, status);
-                            return;
-                        }
-
-                        if (selectedAction === 'action') {
-                            // pushして統合
-                            try {
-                                const mergeResult = await this.sessionService.mergeSession(session.id);
-                                if (mergeResult?.success) {
-                                    showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
-                                    this._switchToNextActiveSession(session.id);
-                                } else {
-                                    showError(mergeResult?.error || 'pushに失敗しました');
-                                }
-                            } catch (mergeErr) {
-                                console.error('Failed to push session:', mergeErr);
-                                showError('pushに失敗しました');
-                            }
-                            return;
-                        }
-
-                        if (selectedAction !== 'ok') {
-                            showInfo('アーカイブをキャンセルしました');
-                            return;
-                        }
-                        await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
-                        showSuccess(`セッション「${displayName}」をアーカイブしました`);
-                        return;
-                    }
-
-                    showSuccess(`セッション「${displayName}」をアーカイブしました`);
-                } catch (error) {
-                    console.error('Failed to archive session:', error);
-                    showError('アーカイブに失敗しました');
+            try {
+                if (session.intendedState === 'archived') {
+                    await this.sessionService.unarchiveSession(session.id);
+                    showSuccess(`セッション「${displayName}」を復元しました`);
+                    return;
                 }
-            });
-        }
+
+                const result = await this.sessionService.archiveSession(session.id);
+                if (result?.needsConfirmation) {
+                    const status = result.status || {};
+                    const details = [];
+
+                    // Jujutsu概念でステータス表示
+                    if (status.changesNotPushed > 0) {
+                        details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
+                    }
+                    if (!status.bookmarkPushed && status.bookmarkName) {
+                        details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
+                    }
+                    if (status.hasWorkingCopyChanges) {
+                        details.push('working copyに未完了のchangeがあります');
+                    }
+
+                    const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
+                    const confirmResult = await showConfirmWithAction(
+                        `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
+                        {
+                            title: 'アーカイブ確認',
+                            okText: 'そのままアーカイブ',
+                            cancelText: 'キャンセル',
+                            actionText: 'pushして統合',
+                            aiActionText: '🤖 AIに確認して対処',
+                            danger: true
+                        }
+                    );
+                    const selectedAction = typeof confirmResult === 'object' && confirmResult !== null
+                        ? confirmResult.action
+                        : (confirmResult ? 'ok' : 'cancel');
+
+                    if (selectedAction === 'ai') {
+                        await this._handleAiIntegrationAction(session, status);
+                        return;
+                    }
+
+                    if (selectedAction === 'action') {
+                        // pushして統合
+                        try {
+                            const mergeResult = await this.sessionService.mergeSession(session.id);
+                            if (mergeResult?.success) {
+                                showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
+                                this._switchToNextActiveSession(session.id);
+                            } else {
+                                showError(mergeResult?.error || 'pushに失敗しました');
+                            }
+                        } catch (mergeErr) {
+                            console.error('Failed to push session:', mergeErr);
+                            showError('pushに失敗しました');
+                        }
+                        return;
+                    }
+
+                    if (selectedAction !== 'ok') {
+                        showInfo('アーカイブをキャンセルしました');
+                        return;
+                    }
+                    await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
+                    showSuccess(`セッション「${displayName}」をアーカイブしました`);
+                    return;
+                }
+
+                showSuccess(`セッション「${displayName}」をアーカイブしました`);
+            } catch (error) {
+                console.error('Failed to archive session:', error);
+                showError('アーカイブに失敗しました');
+            }
+        });
 
         // Pause button (for active sessions)
-        const pauseBtn = row.querySelector('.pause-session-btn');
-        if (pauseBtn) {
-            pauseBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                await this.sessionService.pauseSession(session.id);
-            });
-        }
+        bindActionButtons('.pause-session-btn', async (e) => {
+            e.stopPropagation();
+            closeDropdown();
+            await this.sessionService.pauseSession(session.id);
+        });
 
         // Resume button (for paused sessions)
-        const resumeBtn = row.querySelector('.resume-session-btn');
-        if (resumeBtn) {
-            resumeBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                await this.sessionService.resumeSession(session.id);
-            });
-        }
+        bindActionButtons('.resume-session-btn', async (e) => {
+            e.stopPropagation();
+            closeDropdown();
+            await this.sessionService.resumeSession(session.id);
+        });
 
         // Merge button
-        const mergeBtn = row.querySelector('.merge-session-btn');
-        if (mergeBtn) {
-            mergeBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                const displayName = session.name || session.id;
-                const confirmed = await showConfirm(
-                    `「${displayName}」の変更をmainへマージしますか？`,
-                    {
-                        title: 'Merge to main',
-                        okText: 'マージ実行',
-                        cancelText: 'キャンセル'
-                    }
-                );
-                if (!confirmed) return;
-
-                try {
-                    const mergeResult = await this.sessionService.mergeSession(session.id);
-                    if (mergeResult?.success) {
-                        showSuccess(`セッション「${displayName}」をマージしました`);
-                    } else {
-                        showError(mergeResult?.error || 'マージに失敗しました');
-                    }
-                } catch (error) {
-                    console.error('Failed to merge session:', error);
-                    showError('マージに失敗しました');
+        bindActionButtons('.merge-session-btn', async (e) => {
+            e.stopPropagation();
+            closeDropdown();
+            const displayName = session.name || session.id;
+            const confirmed = await showConfirm(
+                `「${displayName}」の変更をmainへマージしますか？`,
+                {
+                    title: 'Merge to main',
+                    okText: 'マージ実行',
+                    cancelText: 'キャンセル'
                 }
-            });
-        }
+            );
+            if (!confirmed) return;
+
+            try {
+                const mergeResult = await this.sessionService.mergeSession(session.id);
+                if (mergeResult?.success) {
+                    showSuccess(`セッション「${displayName}」をマージしました`);
+                } else {
+                    showError(mergeResult?.error || 'マージに失敗しました');
+                }
+            } catch (error) {
+                console.error('Failed to merge session:', error);
+                showError('マージに失敗しました');
+            }
+        });
+
+        bindActionButtons('.commit-tree-btn', async (e) => {
+            e.stopPropagation();
+            closeDropdown();
+            const switched = await this.sessionService.switchSession(session.id);
+            const panel = document.getElementById('commit-tree-panel');
+            const isCollapsed = !panel ||
+                panel.classList.contains('is-collapsed') ||
+                panel.style.display === 'none';
+
+            if (isCollapsed) {
+                document.getElementById('commit-tree-expand-btn')?.click();
+                return;
+            }
+
+            if (!switched && this.commitTreeService?.loadCommitLog) {
+                await this.commitTreeService.loadCommitLog(session.id);
+            }
+        });
 
         if (enableDrag) {
             // Drag and Drop handlers

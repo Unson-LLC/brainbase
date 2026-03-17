@@ -4,6 +4,17 @@ import { SessionService } from '../../../public/modules/domain/session/session-s
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
 
+vi.mock('../../../public/modules/confirm-modal.js', () => ({
+    showConfirm: vi.fn(async () => true),
+    showConfirmWithAction: vi.fn(async () => true)
+}));
+
+vi.mock('../../../public/modules/toast.js', () => ({
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showSuccess: vi.fn()
+}));
+
 // SessionServiceをモック化
 vi.mock('../../../public/modules/domain/session/session-service.js', () => {
     return {
@@ -15,6 +26,12 @@ vi.mock('../../../public/modules/domain/session/session-service.js', () => {
                 this.deleteSession = vi.fn();
                 this.getFilteredSessions = vi.fn(() => []);
                 this.getActiveSession = vi.fn(() => null);
+                this.pauseSession = vi.fn();
+                this.resumeSession = vi.fn();
+                this.archiveSession = vi.fn(async () => ({ success: true }));
+                this.unarchiveSession = vi.fn();
+                this.mergeSession = vi.fn(async () => ({ success: true }));
+                this.switchSession = vi.fn(async () => ({ success: true }));
             }
         }
     };
@@ -23,12 +40,24 @@ vi.mock('../../../public/modules/domain/session/session-service.js', () => {
 describe('SessionView', () => {
     let sessionView;
     let mockSessionService;
+    let mockCommitTreeService;
     let container;
 
     beforeEach(() => {
         // DOM準備
-        document.body.innerHTML = '<div id="test-container"></div>';
+        document.body.innerHTML = `
+            <div id="test-container"></div>
+            <div id="menu-overlay" class="hidden"></div>
+            <aside id="commit-tree-panel" class="commit-tree-panel is-collapsed" style="display: none;"></aside>
+            <button id="commit-tree-expand-btn" type="button"></button>
+        `;
         container = document.getElementById('test-container');
+        const expandBtn = document.getElementById('commit-tree-expand-btn');
+        const commitTreePanel = document.getElementById('commit-tree-panel');
+        expandBtn.addEventListener('click', () => {
+            commitTreePanel.classList.remove('is-collapsed');
+            commitTreePanel.style.display = 'flex';
+        });
 
         // window.confirm, window.prompt をモック
         global.confirm = vi.fn(() => true);
@@ -36,7 +65,13 @@ describe('SessionView', () => {
 
         // モックサービス
         mockSessionService = new SessionService();
-        sessionView = new SessionView({ sessionService: mockSessionService });
+        mockCommitTreeService = {
+            loadCommitLog: vi.fn()
+        };
+        sessionView = new SessionView({
+            sessionService: mockSessionService,
+            commitTreeService: mockCommitTreeService
+        });
 
         // ストア初期化
         appStore.setState({
@@ -223,6 +258,70 @@ describe('SessionView', () => {
                     expect(mockSessionService.createSession).toHaveBeenCalled();
                 });
             }
+        });
+
+        it('should pause session from child actions', async () => {
+            mockSessionService.pauseSession.mockResolvedValue();
+
+            const pauseButton = container.querySelector('.child-actions .pause-session-btn');
+            pauseButton.click();
+
+            await vi.waitFor(() => {
+                expect(mockSessionService.pauseSession).toHaveBeenCalledWith('session-1');
+            });
+        });
+
+        it('should archive session from child actions', async () => {
+            mockSessionService.archiveSession.mockResolvedValue({ success: true });
+
+            const archiveButton = container.querySelector('.child-actions .archive-session-btn');
+            archiveButton.click();
+
+            await vi.waitFor(() => {
+                expect(mockSessionService.archiveSession).toHaveBeenCalledWith('session-1');
+            });
+        });
+
+        it('should pause session from dropdown actions', async () => {
+            mockSessionService.pauseSession.mockResolvedValue();
+
+            const pauseButton = container.querySelector('.session-dropdown-menu .pause-session-btn');
+            pauseButton.click();
+
+            await vi.waitFor(() => {
+                expect(mockSessionService.pauseSession).toHaveBeenCalledWith('session-1');
+            });
+        });
+
+        it('should expand commit tree panel from session action', async () => {
+            mockSessionService.switchSession.mockResolvedValue({ success: true, sessionId: 'session-1' });
+
+            const commitTreeButton = container.querySelector('.session-dropdown-menu .commit-tree-btn');
+            commitTreeButton.click();
+
+            await vi.waitFor(() => {
+                expect(mockSessionService.switchSession).toHaveBeenCalledWith('session-1');
+                expect(document.getElementById('commit-tree-panel').classList.contains('is-collapsed')).toBe(false);
+            });
+        });
+
+        it('should refresh commit tree when clicking current session while panel is open', async () => {
+            mockSessionService.switchSession.mockResolvedValue(null);
+            const commitTreePanel = document.getElementById('commit-tree-panel');
+            commitTreePanel.classList.remove('is-collapsed');
+            commitTreePanel.style.display = 'flex';
+            appStore.setState({
+                sessions: [{ id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' }],
+                currentSessionId: 'session-1'
+            });
+            sessionView.render();
+
+            const commitTreeButton = container.querySelector('.child-actions .commit-tree-btn');
+            commitTreeButton.click();
+
+            await vi.waitFor(() => {
+                expect(mockCommitTreeService.loadCommitLog).toHaveBeenCalledWith('session-1');
+            });
         });
     });
 
