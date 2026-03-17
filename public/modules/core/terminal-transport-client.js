@@ -3,7 +3,7 @@ import { loadXterm } from './xterm-loader.js';
 import { MessageQueue } from './message-queue.js';
 
 const SNAPSHOT_LINES = 200;
-const CONNECT_TIMEOUT_MS = 4000;
+const CONNECT_TIMEOUT_MS = 15000;
 
 // WebSocket reconnection settings (CommandMate pattern)
 const MAX_RECONNECT_RETRIES = 10;
