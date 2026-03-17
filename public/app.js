@@ -9,7 +9,7 @@ import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { appendViewerIdToProxyPath, buildSessionRuntimeUrl, getTerminalViewerId, getTerminalViewerLabel } from './modules/core/terminal-viewer.js';
-import { TerminalTransportClient, shouldUseDesktopXtermTransport } from './modules/core/terminal-transport-client.js';
+import { TerminalTransportClient, shouldUseXtermTransport } from './modules/core/terminal-transport-client.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
@@ -530,7 +530,7 @@ export class App {
     }
 
     _shouldUseXtermTransport() {
-        return shouldUseDesktopXtermTransport();
+        return shouldUseXtermTransport();
     }
 
     _isXtermTransportActive(sessionId = appStore.getState().currentSessionId) {
@@ -1121,7 +1121,7 @@ export class App {
         this._setTerminalHeaderAction(this.terminalTakeoverBtn, terminalAccess?.state === 'blocked');
         this._setTerminalHeaderAction(
             this.terminalOpenFallbackBtn,
-            xtermActive && shouldUseDesktopXtermTransport()
+            xtermActive && shouldUseXtermTransport()
         );
 
         this._syncTerminalSnapshotPanel({

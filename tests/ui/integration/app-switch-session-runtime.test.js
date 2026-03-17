@@ -233,7 +233,116 @@ describe('app switchSession runtime handling', () => {
     expect(overlay.classList.contains('hidden')).toBe(true);
   });
 
+  it('mobile localhostでもswitchSessionはxterm transportを優先する', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    await app.switchSession('session-1');
+
+    expect(app._connectXtermTransport).toHaveBeenCalled();
+    expect(terminalFrame.src).toBe('about:blank');
+    expect(httpClient.post).not.toHaveBeenCalled();
+  });
+
+  it('mobile相当の表示でもswitchSessionはxterm transportを優先する', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    await app.switchSession('session-1');
+
+    expect(app._connectXtermTransport).toHaveBeenCalled();
+    expect(terminalFrame.src).toBe('about:blank');
+    expect(httpClient.post).not.toHaveBeenCalled();
+  });
+
+  it('mobileでもxterm transport失敗時はttyd iframeへfallbackする', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: false, fallback: true });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    await app.switchSession('session-1');
+
+    expect(app._connectXtermTransport).toHaveBeenCalled();
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+      sessionId: 'session-1',
+      engine: 'codex',
+      viewerId: 'viewer-test'
+    }));
+    expect(terminalFrame.src).toContain('/console/session-1/');
+    expect(terminalFrame.src).toContain('viewerId=viewer-test');
+  });
+
   it('start後にcurrent sessionをxtermへ昇格する', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    vi.spyOn(app, 'loadInitialData').mockImplementation(async () => {
+      appStore.setState({
+        currentSessionId: 'session-1',
+        sessions: [{
+          id: 'session-1',
+          name: 'Session 1',
+          path: '/tmp/session-1',
+          engine: 'codex',
+          intendedState: 'active'
+        }]
+      });
+      document.getElementById('terminal-frame').src = 'http://localhost:31013/console/session-1?viewerId=viewer-test';
+    });
+    vi.spyOn(TerminalTransportClient.prototype, 'init').mockResolvedValue();
+    vi.spyOn(TerminalTransportClient.prototype, 'destroy').mockImplementation(() => {});
+    vi.spyOn(TerminalTransportClient.prototype, 'isActiveForSession').mockReturnValue(false);
+    const switchSpy = vi.spyOn(app, 'switchSession').mockResolvedValue();
+
+    await app.start();
+
+    expect(switchSpy).toHaveBeenCalledWith('session-1');
+  });
+
+  it('mobile start後もcurrent sessionをxtermへ昇格する', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     app._shouldUseXtermTransport = vi.fn(() => true);
     vi.spyOn(app, 'loadInitialData').mockImplementation(async () => {
       appStore.setState({
