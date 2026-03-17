@@ -134,6 +134,17 @@ export class TerminalTransportClient {
         return this.sessionId === sessionId && (this.status.mode === 'live' || this.status.mode === 'snapshot' || this.status.mode === 'blocked');
     }
 
+    canSendInput(sessionId) {
+        return this.sessionId === sessionId
+            && this.status.mode !== 'blocked'
+            && this.ws?.readyState === WebSocket.OPEN;
+    }
+
+    isBlockedForSession(sessionId) {
+        return this.sessionId === sessionId
+            && (this.status.mode === 'blocked' || this.status.blockedAccess?.state === 'blocked');
+    }
+
     show() {
         this.hostEl?.classList.remove('hidden');
     }
@@ -347,6 +358,10 @@ export class TerminalTransportClient {
     async reconnect() {
         if (!this.sessionId) return;
         await this.connect(this.sessionId);
+    }
+
+    async refreshSnapshot() {
+        await this._refreshSnapshot();
     }
 
     async _refreshSnapshot() {

@@ -2,20 +2,18 @@ import { appStore } from '../core/store.js';
 import { MobileInputFocusManager } from './mobile-input-focus-manager.js';
 import { MobileInputDraftManager } from './mobile-input-draft-manager.js';
 import { MobileClipboardManager } from './mobile-clipboard-manager.js';
-import { MobileInputApiClient } from './mobile-input-api-client.js';
 import { MobileInputSheetManager } from './mobile-input-sheet-manager.js';
 import { MobileInputUIController } from './mobile-input-ui-controller.js';
 
 export class MobileInputController {
-    constructor({ httpClient, isMobile }) {
-        this.httpClient = httpClient;
+    constructor({ terminalInput, isMobile }) {
+        this.terminalInput = terminalInput;
         this.isMobile = isMobile;
         this.elements = {};
         this.unsubscribeSession = null;
         this.focusManager = null;
         this.draftManager = null;
         this.clipboardManager = null;
-        this.apiClient = null;
         this.sheetManager = null;
         this.uiController = null;
     }
@@ -31,7 +29,6 @@ export class MobileInputController {
         this.draftManager = new MobileInputDraftManager(this.elements);
         this.clipboardManager = new MobileClipboardManager(this.elements);
         this.clipboardManager.init();
-        this.apiClient = new MobileInputApiClient(this.httpClient);
 
         // UIコントローラーを先に初期化（sheetManagerのコールバックで使用するため）
         this.uiController = new MobileInputUIController(
@@ -40,7 +37,7 @@ export class MobileInputController {
                 focusManager: this.focusManager,
                 draftManager: this.draftManager,
                 clipboardManager: this.clipboardManager,
-                apiClient: this.apiClient,
+                terminalInput: this.terminalInput,
                 sheetManager: null  // 後で設定
             }
         );

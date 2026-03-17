@@ -257,6 +257,7 @@ describe('app switchSession runtime handling', () => {
     expect(app._connectXtermTransport).toHaveBeenCalled();
     expect(terminalFrame.src).toBe('about:blank');
     expect(httpClient.post).not.toHaveBeenCalled();
+    expect(app.focusTerminal).not.toHaveBeenCalled();
   });
 
   it('mobile相当の表示でもswitchSessionはxterm transportを優先する', async () => {
@@ -283,6 +284,7 @@ describe('app switchSession runtime handling', () => {
     expect(app._connectXtermTransport).toHaveBeenCalled();
     expect(terminalFrame.src).toBe('about:blank');
     expect(httpClient.post).not.toHaveBeenCalled();
+    expect(app.focusTerminal).not.toHaveBeenCalled();
   });
 
   it('mobileでもxterm transport失敗時はttyd iframeへfallbackする', async () => {

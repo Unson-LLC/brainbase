@@ -46,6 +46,32 @@ describe('terminal-transport-client', () => {
     expect(shouldUseXtermTransport()).toBe(false);
   });
 
+  it('同一sessionかつWebSocket openなら入力可能と判定する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'live';
+    client.ws = { readyState: 1 };
+
+    expect(client.canSendInput('session-1')).toBe(true);
+    expect(client.canSendInput('session-2')).toBe(false);
+  });
+
+  it('blocked sessionを判定できる', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'blocked';
+    client.status.blockedAccess = { state: 'blocked' };
+
+    expect(client.isBlockedForSession('session-1')).toBe(true);
+    expect(client.isBlockedForSession('session-2')).toBe(false);
+  });
+
   it('connect時に初期viewportサイズをws queryへ含めてready後もresizeを送る', async () => {
     const sentMessages = [];
     let openedUrl = null;

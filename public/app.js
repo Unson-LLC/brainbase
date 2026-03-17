@@ -8,6 +8,7 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { TerminalInteractionService } from './modules/core/terminal-interaction-service.js';
 import { appendViewerIdToProxyPath, buildSessionRuntimeUrl, getTerminalViewerId, getTerminalViewerLabel } from './modules/core/terminal-viewer.js';
 import { TerminalTransportClient, shouldUseXtermTransport } from './modules/core/terminal-transport-client.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
@@ -524,6 +525,7 @@ export class App {
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
+        this.terminalInteractionService = null;
         this._sessionSwitchToken = 0;
         this.viewerId = getTerminalViewerId();
         this.viewerLabel = getTerminalViewerLabel();
@@ -535,6 +537,10 @@ export class App {
 
     _isXtermTransportActive(sessionId = appStore.getState().currentSessionId) {
         return Boolean(this._shouldUseXtermTransport() && this.terminalTransportClient?.isActiveForSession(sessionId));
+    }
+
+    _shouldAutoFocusTerminalSurface() {
+        return !this.isMobile();
     }
 
     _showXtermTransport() {
@@ -1423,6 +1429,15 @@ export class App {
         this.container.register('scheduleService', () => new ScheduleService());
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
+        this.container.register('terminalInteractionService', () => new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => this.terminalTransportClient,
+            getFallbackTerminalAccess: (sessionId) => {
+                if (appStore.getState().currentSessionId !== sessionId) return null;
+                return this.reconnectManager?.terminalAccess || null;
+            },
+            shouldUseXtermTransport: () => this._shouldUseXtermTransport()
+        }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());
         this.container.register('fileViewerService', () => new FileViewerService({
@@ -1437,6 +1452,7 @@ export class App {
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
+        this.terminalInteractionService = this.container.get('terminalInteractionService');
         this.fileViewerService = this.container.get('fileViewerService');
         this.wikiService = this.container.get('wikiService');
         this.liveFeedService = this.container.get('liveFeedService');
@@ -1935,7 +1951,9 @@ export class App {
                 if (fileViewerPanel) fileViewerPanel.style.display = 'none';
             }
 
-            this.focusTerminal('session-changed');
+            if (this._shouldAutoFocusTerminalSurface()) {
+                this.focusTerminal('session-changed');
+            }
 
             scheduleAfterNextPaint(() => {
                 this._runDeferredSessionSwitchWork(sessionId, switchToken);
@@ -2399,7 +2417,7 @@ export class App {
      */
     initMobileInput() {
         this.mobileInputController = new MobileInputController({
-            httpClient,
+            terminalInput: this.terminalInteractionService,
             isMobile: () => this.isMobile()
         });
         this.mobileInputController.init();
@@ -2977,7 +2995,9 @@ export class App {
                         transport: 'reconnecting',
                         attention: 'none'
                     });
-                    this.focusTerminal('switchSession');
+                    if (this._shouldAutoFocusTerminalSurface()) {
+                        this.focusTerminal('switchSession');
+                    }
 
                     return;
                 }
@@ -3064,7 +3084,9 @@ export class App {
                     transport: 'reconnecting',
                     attention: 'none'
                 });
-                this.focusTerminal('switchSession');
+                if (this._shouldAutoFocusTerminalSurface()) {
+                    this.focusTerminal('switchSession');
+                }
             } else {
                 console.error('No proxyPath available for session:', sessionId);
                 terminalFrame.src = 'about:blank';
@@ -3281,7 +3303,7 @@ export class App {
         setupTerminalContextMenuListener();
 
         // 12. Setup mobile keyboard handling
-        initMobileKeyboard();
+        initMobileKeyboard({ terminalInput: this.terminalInteractionService });
 
         // 13. Setup mobile input UI (Dock/Composer)
         this.initMobileInput();

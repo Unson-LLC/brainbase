@@ -49,6 +49,17 @@ describe('MobileInputFocusManager focus tracking', () => {
         focusManager.inputFocused = true;
         expect(focusManager.isInputFocused()).toBe(true);
     });
+
+    it('terminal frameにfocusがあっても入力欄フォーカス扱いにしない', () => {
+        const terminalFrame = document.getElementById('terminal-frame');
+        Object.defineProperty(document, 'activeElement', {
+            configurable: true,
+            get: () => terminalFrame
+        });
+
+        focusManager.inputFocused = false;
+        expect(focusManager.isInputFocused()).toBe(false);
+    });
 });
 
 describe('MobileInputFocusManager visual viewport sync', () => {

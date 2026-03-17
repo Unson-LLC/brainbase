@@ -53,8 +53,7 @@ export class MobileInputFocusManager {
 
     isInputFocused() {
         const active = document.activeElement;
-        const terminalFrame = document.getElementById('terminal-frame');
-        return this.inputFocused || active === this.elements.dockInput || active === this.elements.composerInput || active === terminalFrame;
+        return this.inputFocused || active === this.elements.dockInput || active === this.elements.composerInput;
     }
 
     syncKeyboardState() {
