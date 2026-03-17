@@ -244,7 +244,7 @@ PY
   esac
 
   case "$event_type" in
-    user-input-requested|user_input_requested|request-user-input|request_input|waiting-for-user-input|waiting_for_user_input|agent-turn-complete|agent-turn-end|turn/completed|task_complete|codex/event/task_complete|turn/failed|turn/interrupted)
+    user-input-requested|user_input_requested|request-user-input|request_input|waiting-for-user-input|waiting_for_user_input|task_complete|codex/event/task_complete|turn/failed|turn/interrupted)
     lifecycle="turn_completed"
     is_done_event=true
     ;;

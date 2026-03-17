@@ -177,7 +177,6 @@ function handleNotification(method, params) {
   if (method === 'turn/completed') {
     inTurn = false;
     activeTurnId = null;
-    reportActivity('done');
     if (!sawDelta) {
       const items = params?.turn?.items || [];
       for (const item of items) {
@@ -185,6 +184,22 @@ function handleNotification(method, params) {
         if (text) process.stdout.write(text);
       }
     }
+    process.stdout.write('\n');
+    stdinReader.prompt();
+    return;
+  }
+
+  if (
+    method === 'user-input-requested' ||
+    method === 'user_input_requested' ||
+    method === 'request-user-input' ||
+    method === 'request_input' ||
+    method === 'waiting-for-user-input' ||
+    method === 'waiting_for_user_input'
+  ) {
+    inTurn = false;
+    activeTurnId = null;
+    reportActivity('done');
     process.stdout.write('\n');
     stdinReader.prompt();
     return;
