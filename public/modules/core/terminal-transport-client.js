@@ -17,6 +17,9 @@ const EXPECTED_CLOSE_CODES = new Set([
     1001, // Going Away (browser navigation)
 ]);
 
+// Custom close code: ownership was taken over by another viewer
+const WS_CLOSE_BLOCKED = 4001;
+
 function isLoopbackHost(hostname) {
     return hostname === 'localhost' || hostname === '127.0.0.1';
 }
@@ -228,12 +231,17 @@ export class TerminalTransportClient {
                 cleanup();
                 this._stopKeepalive();
                 this.status.connected = false;
-                if (this.status.mode !== 'blocked') {
+
+                const closeCode = closeEvent?.code;
+
+                // 4001 = ownership taken over: treat as blocked even if blocked message was missed
+                if (closeCode === WS_CLOSE_BLOCKED) {
+                    this.status.mode = 'blocked';
+                } else if (this.status.mode !== 'blocked') {
                     this.status.mode = this.status.lastSnapshotAt ? 'snapshot' : 'disconnected';
                 }
                 this._emitStatus();
 
-                const closeCode = closeEvent?.code;
                 const isExpected = closeCode != null && this._isExpectedClose(closeCode);
 
                 if (!this._manualClose && !isExpected && this.sessionId === sessionId && this.status.mode !== 'blocked') {
