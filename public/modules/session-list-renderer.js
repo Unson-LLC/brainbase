@@ -163,12 +163,7 @@ export function renderSessionRowHTML(session, options = {}) {
   const transportLabelMap = {
     connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
     reconnecting: { text: 'Reconnecting', className: 'transport-warn', title: 'Terminal reconnecting' },
-    disconnected: { text: 'Offline', className: 'transport-muted', title: 'Terminal disconnected' },
-    blocked: { text: 'Blocked', className: 'transport-danger', title: 'Terminal input blocked' }
-  };
-  const attentionLabelMap = {
-    'needs-focus': { text: 'Focus', className: 'attention-focus', title: 'Click terminal to focus input' },
-    'copy-mode': { text: 'Scroll', className: 'attention-copy', title: 'tmux copy-mode active' }
+    disconnected: { text: 'Offline', className: 'transport-muted', title: 'Terminal disconnected' }
   };
 
   const summaryChips = [];
@@ -209,12 +204,7 @@ export function renderSessionRowHTML(session, options = {}) {
     })
     : '';
 
-  const attentionBadge = isActive && attentionLabelMap[attention]
-    ? renderChip(attentionLabelMap[attention].text, {
-      className: `session-attention-badge ${attentionLabelMap[attention].className}`,
-      title: attentionLabelMap[attention].title
-    })
-    : '';
+  const attentionBadge = '';
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
   const mergeButton = hasWorktree && session.intendedState !== 'archived'
