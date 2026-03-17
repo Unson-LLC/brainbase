@@ -302,6 +302,7 @@ export class AuthService {
 
         const client = await this.pool.connect();
         try {
+            // Try users table first
             const { rows } = await client.query(
                 `SELECT *
                  FROM users
@@ -310,7 +311,30 @@ export class AuthService {
                  LIMIT 1`,
                 [slackUserId]
             );
-            return rows[0] || null;
+            if (rows[0]) return rows[0];
+
+            // Fallback to auth_grants table
+            const { rows: grantRows } = await client.query(
+                `SELECT person_id, person_name as name, slack_user_id, slack_workspace_id as workspace_id,
+                        role, project_codes, clearance, active as status
+                 FROM auth_grants
+                 WHERE slack_user_id = $1
+                   AND active = true
+                 LIMIT 1`,
+                [slackUserId]
+            );
+            if (grantRows[0]) {
+                const grant = grantRows[0];
+                const ROLE_TO_LEVEL = { ceo: 100, gm: 50, member: 10 };
+                return {
+                    ...grant,
+                    status: 'active',
+                    access_level: ROLE_TO_LEVEL[grant.role] || 10,
+                    employment_type: 'employee'
+                };
+            }
+
+            return null;
         } finally {
             client.release();
         }
@@ -714,12 +738,15 @@ export class AuthService {
                 return { error: 'access_denied', error_description: 'Access is not granted' };
             }
 
-            // Issue JWT
+            // Issue JWT (include wiki access fields from auth_grants)
             const token = this.issueToken({
                 sub: user.person_id,
                 slackUserId: user.slack_user_id,
                 level: user.access_level,
                 employmentType: user.employment_type,
+                role: user.role || 'member',
+                projectCodes: user.project_codes || [],
+                clearance: user.clearance || [],
                 tenantId: null,
                 slackWorkspaceId
             });
