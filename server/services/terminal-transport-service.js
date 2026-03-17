@@ -49,6 +49,7 @@ export class TerminalTransportService {
 
     handleUpgrade(request, socket, head) {
         const clientInfo = buildTerminalWsMatch(request?.url || request?.originalUrl || '');
+        console.log(`[TerminalTransport] handleUpgrade: url=${request?.url}, clientInfo=${JSON.stringify(clientInfo)}`);
         if (!clientInfo) {
             socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
             socket.destroy();
@@ -56,12 +57,14 @@ export class TerminalTransportService {
         }
 
         this.wss.handleUpgrade(request, socket, head, (ws) => {
+            console.log(`[TerminalTransport] WebSocket upgraded for ${clientInfo.sessionId}, viewerId=${clientInfo.viewerId}`);
             this.wss.emit('connection', ws, request, clientInfo);
         });
     }
 
     async _handleConnection(ws, request, clientInfo) {
         const { sessionId, viewerId, viewerLabel, cols, rows } = clientInfo;
+        console.log(`[TerminalTransport] _handleConnection: session=${sessionId}, viewer=${viewerId}, wsState=${ws.readyState}`);
         if (!sessionId || !viewerId) {
             ws.send(JSON.stringify({ type: 'error', code: 'INVALID_REQUEST', message: 'sessionId and viewerId are required' }));
             ws.close();
@@ -69,15 +72,22 @@ export class TerminalTransportService {
         }
 
         const ownership = this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+        console.log(`[TerminalTransport] ownership check: allowed=${ownership.allowed}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!ownership.allowed) {
             ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
             ws.close();
             return;
         }
 
+        if (ws.readyState !== 1) {
+            console.warn(`[TerminalTransport] WebSocket already closed before tmux check, session=${sessionId}`);
+            return;
+        }
+
         const tmuxRunning = await this.sessionManager.isTmuxSessionRunning(sessionId);
+        console.log(`[TerminalTransport] tmux check: running=${tmuxRunning}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!tmuxRunning) {
-            ws.send(JSON.stringify({ type: 'error', code: 'SESSION_NOT_RUNNING', message: 'tmux session not found' }));
+            if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'error', code: 'SESSION_NOT_RUNNING', message: 'tmux session not found' }));
             ws.close();
             return;
         }
