@@ -5,6 +5,7 @@ import { detectPastedTextOverlay } from './pasted-text-detector.js';
 const DEFAULT_SNAPSHOT_LINES = 200;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
+const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 
 function safeJsonParse(raw) {
     try {
@@ -37,6 +38,7 @@ export class TerminalTransportService {
     constructor({ sessionManager, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS }) {
         this.sessionManager = sessionManager;
         this.pollIntervalMs = pollIntervalMs;
+        this.activeConnections = new Map(); // sessionId → { viewerId, ws, connection }
         this.wss = new WebSocketServer({ noServer: true });
         this.wss.on('connection', (ws, request, clientInfo) => {
             void this._handleConnection(ws, request, clientInfo);
@@ -79,6 +81,13 @@ export class TerminalTransportService {
             return;
         }
 
+        // 同一セッションの既存接続を即切断（auto-takeover）
+        const existing = this.activeConnections.get(sessionId);
+        if (existing && existing.viewerId !== viewerId && existing.ws.readyState === 1) {
+            existing.ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
+            existing.ws.close(WS_CLOSE_BLOCKED, 'ownership_taken_over');
+        }
+
         if (ws.readyState !== 1) {
             console.warn(`[TerminalTransport] WebSocket already closed before tmux check, session=${sessionId}`);
             return;
@@ -106,12 +115,19 @@ export class TerminalTransportService {
             pollTimer: null
         };
 
+        this.activeConnections.set(sessionId, { viewerId, ws, connection });
+
         const closeConnection = () => {
             if (connection.closed) return;
             connection.closed = true;
             if (connection.pollTimer) {
                 clearInterval(connection.pollTimer);
                 connection.pollTimer = null;
+            }
+            // activeConnectionsから削除（自分の接続の場合のみ）
+            const current = this.activeConnections.get(sessionId);
+            if (current && current.ws === ws) {
+                this.activeConnections.delete(sessionId);
             }
         };
 
@@ -174,7 +190,7 @@ export class TerminalTransportService {
         const ownership = this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
         if (!ownership.allowed) {
             ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
-            ws.close();
+            ws.close(WS_CLOSE_BLOCKED, 'ownership_taken_over');
             return;
         }
 
@@ -299,4 +315,4 @@ export function getTerminalTransportRequestInfo(request) {
     return buildTerminalWsMatch(request?.url || request?.originalUrl || '');
 }
 
-export { READY_TIMEOUT_MS };
+export { READY_TIMEOUT_MS, WS_CLOSE_BLOCKED };
