@@ -1,9 +1,10 @@
+import crypto from 'crypto';
 import { getConfig, getAuth, saveAuth, clearAuth } from './config.js';
 
 /**
- * Device Code Flow authentication
- * 1. Request device code from server
- * 2. Display URL + code for user to authorize
+ * Device Code Flow authentication (with PKCE)
+ * 1. Generate code_verifier + request device code from server
+ * 2. Display URL + code for user to authorize via Slack
  * 3. Poll for token
  */
 export async function login() {
@@ -12,12 +13,16 @@ export async function login() {
 
     console.log(`Connecting to ${serverUrl}...`);
 
+    // Generate PKCE code_verifier
+    const codeVerifier = crypto.randomBytes(32).toString('base64url');
+
     // Step 1: Request device code
     let deviceResponse;
     try {
         const res = await fetch(`${serverUrl}/api/auth/device/code`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code_verifier: codeVerifier })
         });
         if (!res.ok) {
             // If device flow not implemented yet, fall back to manual token

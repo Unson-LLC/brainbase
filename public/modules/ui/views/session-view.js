@@ -228,7 +228,6 @@ export class SessionView {
 
         timelineSessions.forEach(session => {
             const project = getProjectFromSession(session);
-            // goalSeekデータをstatus pollingからマージ
             const childRow = this._buildSessionRowElement(session, currentSessionId, {
                 project,
                 showProjectEmoji: true,

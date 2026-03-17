@@ -98,7 +98,6 @@ export function renderSessionRowHTML(session, options = {}) {
   const transport = uiState.transport || 'disconnected';
   const attention = uiState.attention || 'none';
   const recentFile = uiState.recentFile || null;
-  const goalSeek = uiState.goalSeek || null;
   const activeClass = isActive ? ' active' : '';
   const archivedClass = session.intendedState === 'archived' ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
@@ -114,26 +113,13 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="paused-label" title="${escapeHtml(pausedStatusLabel.title)}">${escapeHtml(pausedStatusLabel.text)}</span>`
     : '';
 
-  // goal-seek status
-  const goalSeekActive = goalSeek?.active || false;
-  const goalSeekIteration = goalSeek?.iteration || 0;
-  const goalSeekMaxIterations = goalSeek?.maxIterations || 0;
-
-  // セッションアイコン: goal-seek active→target、worktreeあり→git-merge、なし→terminal-square
-  const sessionIcon = goalSeekActive
-    ? 'target'
-    : (hasWorktree ? 'git-merge' : 'terminal-square');
+  const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
 
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
   const engineMeta = engine === 'codex'
     ? { title: 'OpenAI Codex', className: 'engine-icon engine-codex' }
     : { title: 'Claude Code', className: 'engine-icon engine-claude' };
   const engineBadge = `<span class="${engineMeta.className}" title="${engineMeta.title}"><img src="/icons/${engine}.svg" class="engine-svg-icon" alt="${engineMeta.title}"></span>`;
-
-  // goal-seek badge
-  const goalSeekBadge = goalSeekActive
-    ? `<span class="goal-seek-badge" title="Goal Seek: iteration ${goalSeekIteration} of ${goalSeekMaxIterations}">[${goalSeekIteration}/${goalSeekMaxIterations}]</span>`
-    : '';
 
   const projectConfig = showProjectEmoji ? getProjectConfig(project) : null;
   const projectEmoji = projectConfig?.emoji ? escapeHtml(projectConfig.emoji) : '';
@@ -150,15 +136,11 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="conversation-badge" title="${convCount} conversation(s)${convLastActivity ? ', last: ' + formatRelativeTime(convLastActivity) : ''}"><i data-lucide="message-square"></i>${convCount}</span>`
     : '';
 
-  const activityIndicator = activity === 'goalseek'
-    ? '<span class="session-activity-indicator goalseek" title="Goal Seek running"></span>'
-    : activity === 'thinking'
-      ? '<span class="session-activity-indicator working" title="Agent working"></span>'
-      : activity === 'working'
-        ? '<span class="session-activity-indicator working" title="Agent working"></span>'
-        : activity === 'done-unread'
-          ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
-          : '<span class="session-activity-indicator idle" aria-hidden="true"></span>';
+  const activityIndicator = activity === 'working'
+    ? '<span class="session-activity-indicator working" title="Agent working"></span>'
+    : activity === 'done-unread'
+      ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
+      : '<span class="session-activity-indicator idle" aria-hidden="true"></span>';
 
   const transportLabelMap = {
     connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
@@ -254,7 +236,6 @@ export function renderSessionRowHTML(session, options = {}) {
           </span>
           ${projectEmojiBadge}
           <span class="session-name">${displayName}</span>
-          ${goalSeekBadge}
           ${pausedLabelHTML}
           <span class="session-meta session-meta-right">
             ${convBadge}

@@ -10,7 +10,6 @@ vi.mock('../../public/modules/session-ui-state.js', () => ({
         activity: 'idle',
         transport: 'disconnected',
         attention: 'none',
-        goalSeek: null,
         summary: null,
         recentFile: null,
         recentFiles: [],

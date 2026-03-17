@@ -679,42 +679,6 @@ export class SessionManager {
     }
 
     /**
-     * goal-seek.local.mdを読み取り、goalSeek情報を返す
-     * @param {string} worktreePath - worktreeのパス
-     * @returns {Object} { active: boolean, iteration: number, maxIterations: number }
-     */
-    _readGoalSeekStatus(worktreePath) {
-        if (!worktreePath) {
-            return { active: false };
-        }
-
-        const goalSeekPath = path.join(worktreePath, '.claude', 'goal-seek.local.md');
-        if (!fs.existsSync(goalSeekPath)) {
-            return { active: false };
-        }
-
-        try {
-            const content = fs.readFileSync(goalSeekPath, 'utf-8');
-
-            const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-            if (!frontmatterMatch) {
-                return { active: false };
-            }
-
-            const frontmatter = yaml.load(frontmatterMatch[1]);
-
-            return {
-                active: frontmatter.active === true,
-                iteration: frontmatter.iteration || 0,
-                maxIterations: frontmatter.max_iterations || 0
-            };
-        } catch (error) {
-            console.error(`[Goal-Seek] Failed to read ${goalSeekPath}:`, error.message);
-            return { active: false };
-        }
-    }
-
-    /**
      * ttydがポートをリッスン状態になるまで待機
      * @param {number} port - 監視対象ポート
      * @param {number} timeoutMs - タイムアウト（デフォルト: 10000ms）
@@ -770,17 +734,14 @@ export class SessionManager {
     }
 
     /**
-     * セッション状態を取得（Hook報告ベース + goal-seek情報）
+     * セッション状態を取得（Hook報告ベース）
      * ハートビートタイムアウト: 60分以上working報告がなければisWorking=falseとする
-     * @returns {Object} sessionId -> {isWorking, isDone, goalSeek}
+     * @returns {Object} sessionId -> {isWorking, isDone}
      */
     getSessionStatus() {
         const status = {};
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
-
-        const state = this.stateStore.get();
-        const sessions = state.sessions || [];
 
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
@@ -798,11 +759,6 @@ export class SessionManager {
             const isWorking = !isStale && (activeTurnCount > 0 || normalized.lastWorkingAt > normalized.lastDoneAt);
             const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
 
-            // goal-seek情報を取得
-            const session = sessions.find(s => s.id === sessionId);
-            const worktreePath = session?.worktree?.path || session?.path;
-            const goalSeek = this._readGoalSeekStatus(worktreePath);
-
             status[sessionId] = {
                 isWorking,
                 isDone,
@@ -811,31 +767,8 @@ export class SessionManager {
                 lastActivityAt: normalized.lastActivityAt,
                 lastEventType: normalized.lastEventType,
                 activeTurnCount,
-                timestamp: normalized.timestamp,
-                goalSeek
+                timestamp: normalized.timestamp
             };
-        }
-
-        // hookStatusに存在しないセッションでもgoal-seekがactiveなら追加
-        for (const session of sessions) {
-            if (status[session.id]) continue;
-
-            const worktreePath = session.worktree?.path || session.path;
-            const goalSeek = this._readGoalSeekStatus(worktreePath);
-
-            if (goalSeek.active) {
-                status[session.id] = {
-                    isWorking: false,
-                    isDone: false,
-                    lastWorkingAt: 0,
-                    lastDoneAt: 0,
-                    lastActivityAt: 0,
-                    lastEventType: null,
-                    activeTurnCount: 0,
-                    timestamp: 0,
-                    goalSeek
-                };
-            }
         }
 
         return status;

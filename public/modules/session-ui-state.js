@@ -224,7 +224,6 @@ export function deriveSessionUiState(sessionId, options = {}) {
         activity,
         transport,
         attention,
-        goalSeek: hookStatus?.goalSeek || null,
         summary: entry.summary || null,
         recentFile: Array.isArray(entry.recentFiles) ? entry.recentFiles[0] || null : null,
         recentFiles: Array.isArray(entry.recentFiles) ? entry.recentFiles : [],
