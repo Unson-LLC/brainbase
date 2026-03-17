@@ -6,6 +6,7 @@ import { JSDOM } from 'jsdom';
 import { appStore } from '../../../public/modules/core/store.js';
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { eventBus } from '../../../public/modules/core/event-bus.js';
+import { TerminalTransportClient } from '../../../public/modules/core/terminal-transport-client.js';
 
 vi.mock('../../../public/modules/session-indicators.js', async () => {
   const actual = await vi.importActual('../../../public/modules/session-indicators.js');
@@ -230,6 +231,56 @@ describe('app switchSession runtime handling', () => {
 
     expect(app._connectXtermTransport).toHaveBeenCalled();
     expect(overlay.classList.contains('hidden')).toBe(true);
+  });
+
+  it('start後にcurrent sessionをxtermへ昇格する', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    vi.spyOn(app, 'loadInitialData').mockImplementation(async () => {
+      appStore.setState({
+        currentSessionId: 'session-1',
+        sessions: [{
+          id: 'session-1',
+          name: 'Session 1',
+          path: '/tmp/session-1',
+          engine: 'codex',
+          intendedState: 'active'
+        }]
+      });
+      document.getElementById('terminal-frame').src = 'http://localhost:31013/console/session-1?viewerId=viewer-test';
+    });
+    vi.spyOn(TerminalTransportClient.prototype, 'init').mockResolvedValue();
+    vi.spyOn(TerminalTransportClient.prototype, 'destroy').mockImplementation(() => {});
+    vi.spyOn(TerminalTransportClient.prototype, 'isActiveForSession').mockReturnValue(false);
+    const switchSpy = vi.spyOn(app, 'switchSession').mockResolvedValue();
+
+    await app.start();
+
+    expect(switchSpy).toHaveBeenCalledWith('session-1');
+  });
+
+  it('current sessionが既にxterm activeなら再接続しない', async () => {
+    app._shouldUseXtermTransport = vi.fn(() => true);
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+    app.terminalXtermHost = document.getElementById('terminal-xterm-host');
+    app.terminalTransportClient = {
+      isActiveForSession: vi.fn(() => true),
+      destroy: vi.fn()
+    };
+    const switchSpy = vi.spyOn(app, 'switchSession').mockResolvedValue();
+
+    const upgraded = await app._preferXtermForCurrentSession();
+
+    expect(upgraded).toBe(false);
+    expect(switchSpy).not.toHaveBeenCalled();
   });
 
   it('xterm activeなら初期化待機でiframe待ちせずoverlayを閉じる', async () => {

@@ -718,6 +718,27 @@ export class App {
         }
     }
 
+    async _preferXtermForCurrentSession() {
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return false;
+        if (!this._shouldUseXtermTransport() || !this.terminalTransportClient || !this.terminalXtermHost) {
+            return false;
+        }
+
+        const { sessions } = appStore.getState();
+        const session = (sessions || []).find(item => item.id === sessionId);
+        if (!session || session.intendedState === 'archived') {
+            return false;
+        }
+
+        if (this._isXtermTransportActive(sessionId)) {
+            return false;
+        }
+
+        await this.switchSession(sessionId);
+        return true;
+    }
+
     async takeOverCurrentTerminal() {
         const sessionId = appStore.getState().currentSessionId;
         if (!sessionId) return;
@@ -3226,6 +3247,7 @@ export class App {
                     }
                 });
                 await this.terminalTransportClient.init(terminalXtermHost);
+                await this._preferXtermForCurrentSession();
             }
             this.setupTerminalInputUx();
         }
