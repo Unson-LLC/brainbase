@@ -264,43 +264,39 @@ describe('SessionView', () => {
             sessionView.mount(container);
         });
 
-        it('should re-render on SESSION_LOADED event', async () => {
-            const renderSpy = vi.spyOn(sessionView, 'render');
+        it('should schedule re-render on SESSION_LOADED event', async () => {
+            const scheduleSpy = vi.spyOn(sessionView, '_scheduleRender');
 
-            eventBus.emit(EVENTS.SESSION_LOADED, { sessions: [] });
-            await new Promise(resolve => queueMicrotask(resolve));
+            await eventBus.emit(EVENTS.SESSION_LOADED, { sessions: [] });
 
-            expect(renderSpy).toHaveBeenCalled();
+            expect(scheduleSpy).toHaveBeenCalled();
         });
 
-        it('should re-render on SESSION_CREATED event', async () => {
-            const renderSpy = vi.spyOn(sessionView, 'render');
+        it('should schedule re-render on SESSION_CREATED event', async () => {
+            const scheduleSpy = vi.spyOn(sessionView, '_scheduleRender');
 
-            eventBus.emit(EVENTS.SESSION_CREATED, { session: {} });
-            await new Promise(resolve => queueMicrotask(resolve));
+            await eventBus.emit(EVENTS.SESSION_CREATED, { session: {} });
 
-            expect(renderSpy).toHaveBeenCalled();
+            expect(scheduleSpy).toHaveBeenCalled();
         });
 
-        it('should re-render on SESSION_UPDATED event', async () => {
-            const renderSpy = vi.spyOn(sessionView, 'render');
+        it('should schedule re-render on SESSION_UPDATED event', async () => {
+            const scheduleSpy = vi.spyOn(sessionView, '_scheduleRender');
 
-            eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId: 'test' });
-            await new Promise(resolve => queueMicrotask(resolve));
+            await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId: 'test' });
 
-            expect(renderSpy).toHaveBeenCalled();
+            expect(scheduleSpy).toHaveBeenCalled();
         });
 
-        it('should re-render on SESSION_DELETED event', async () => {
-            const renderSpy = vi.spyOn(sessionView, 'render');
+        it('should schedule re-render on SESSION_DELETED event', async () => {
+            const scheduleSpy = vi.spyOn(sessionView, '_scheduleRender');
 
-            eventBus.emit(EVENTS.SESSION_DELETED, { sessionId: 'test' });
-            await new Promise(resolve => queueMicrotask(resolve));
+            await eventBus.emit(EVENTS.SESSION_DELETED, { sessionId: 'test' });
 
-            expect(renderSpy).toHaveBeenCalled();
+            expect(scheduleSpy).toHaveBeenCalled();
         });
 
-        it('should re-render on SESSION_UI_STATE_CHANGED in timeline view so list order can update', async () => {
+        it('should sort done-unread sessions to the top in timeline view', async () => {
             appStore.setState({
                 sessions: [
                     { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active', updatedAt: '2026-03-17T00:00:00.000Z' },
@@ -330,11 +326,65 @@ describe('SessionView', () => {
                 }
             });
 
-            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: ['session-1'] });
-            await new Promise(resolve => queueMicrotask(resolve));
+            sessionView.render();
 
             const after = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
             expect(after).toEqual(['session-1', 'session-2']);
+        });
+
+        it('should sort newer working sessions to the top in timeline view', async () => {
+            appStore.setState({
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active', updatedAt: '2026-03-17T00:00:00.000Z' },
+                    { id: 'session-2', name: 'Session 2', project: 'test', intendedState: 'active', updatedAt: '2026-03-17T00:00:01.000Z' }
+                ],
+                ui: {
+                    sessionListView: 'timeline'
+                },
+                sessionUi: {
+                    byId: {
+                        'session-1': { hookStatus: null },
+                        'session-2': { hookStatus: null }
+                    }
+                }
+            });
+            sessionView.render();
+
+            const before = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
+            expect(before).toEqual(['session-2', 'session-1']);
+
+            appStore.setState({
+                sessionUi: {
+                    byId: {
+                        'session-1': {
+                            hookStatus: {
+                                isWorking: true,
+                                lastWorkingAt: Date.parse('2026-03-17T00:00:02.000Z')
+                            }
+                        },
+                        'session-2': { hookStatus: null }
+                    }
+                }
+            });
+
+            sessionView.render();
+
+            const after = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
+            expect(after).toEqual(['session-1', 'session-2']);
+        });
+
+        it('should schedule full re-render on SESSION_UI_STATE_CHANGED in timeline view', async () => {
+            appStore.setState({
+                ui: {
+                    sessionListView: 'timeline'
+                }
+            });
+            await new Promise(resolve => queueMicrotask(resolve));
+            const scheduleSpy = vi.spyOn(sessionView, '_scheduleRender');
+
+            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: ['session-1'] });
+
+            expect(scheduleSpy).toHaveBeenCalled();
         });
 
         it('should only refresh affected rows on SESSION_UI_STATE_CHANGED in project view', async () => {

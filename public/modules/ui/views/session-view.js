@@ -17,17 +17,16 @@ export class SessionView {
         this.sessionService = sessionService;
         this.container = null;
         this._unsubscribers = [];
-        this._renderScheduled = false;
+        this._renderRafId = null;
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
     }
 
     _scheduleRender() {
-        if (this._renderScheduled) return;
-        this._renderScheduled = true;
-        queueMicrotask(() => {
-            this._renderScheduled = false;
+        if (this._renderRafId) return;
+        this._renderRafId = requestAnimationFrame(() => {
+            this._renderRafId = null;
             this.render();
         });
     }
@@ -91,10 +90,9 @@ export class SessionView {
                 enableDrag
             });
             currentRow.replaceWith(nextRow);
-        }
-
-        if (window.lucide) {
-            window.lucide.createIcons();
+            if (window.lucide) {
+                window.lucide.createIcons({ root: nextRow });
+            }
         }
     }
 
@@ -112,17 +110,9 @@ export class SessionView {
         const unsub6b = eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, (event) => {
             const sessionListView = appStore.getState().ui?.sessionListView || 'timeline';
             if (sessionListView === 'timeline') {
-                // ソート順に影響する状態変化かチェック
-                const sessionIds = event.detail?.sessionIds;
-                if (Array.isArray(sessionIds) && sessionIds.length > 0) {
-                    const needsReorder = this._checkSortOrderChanged(sessionIds);
-                    if (needsReorder) {
-                        this._scheduleRender();
-                    } else {
-                        this._refreshSessionRows(sessionIds);
-                    }
-                    return;
-                }
+                // Timeline は activity/timestamp 変化が並び順に直結するため常に全体再描画する。
+                // working / thinking / goalseek / done-unread の追加で部分更新判定が追随できず、
+                // AI activity 時の並び替えが再び壊れていたため保守性を優先する。
                 this._scheduleRender();
                 return;
             }
@@ -221,7 +211,7 @@ export class SessionView {
 
         // Lucideアイコンを初期化
         if (window.lucide) {
-            window.lucide.createIcons();
+            window.lucide.createIcons({ root: this.container });
         }
     }
 
@@ -324,40 +314,6 @@ export class SessionView {
         }
 
         return 0;
-    }
-
-    /**
-     * ソート順に影響する状態変化があったかチェック
-     * 緑インジケータ（done-unread）の付与/解除はソート順を変えるためフルrenderが必要
-     * @private
-     */
-    _checkSortOrderChanged(sessionIds) {
-        if (!this.container || !Array.isArray(sessionIds)) return true;
-
-        const { sessions } = appStore.getState();
-        const rows = this.container.querySelectorAll('.session-child-row');
-        if (rows.length === 0) return true;
-
-        for (const sessionId of sessionIds) {
-            const session = (sessions || []).find(s => s.id === sessionId);
-            if (!session) continue;
-
-            const uiState = deriveSessionUiState(sessionId);
-            const isGreen = uiState.activity === 'done-unread';
-            const row = this.container.querySelector(`.session-child-row[data-id="${sessionId}"]`);
-            if (!row) return true;
-
-            // Check if green state changed by comparing with current row position
-            const firstRow = rows[0];
-            const wasAtTop = row === firstRow || row.previousElementSibling === null;
-            if (isGreen && !wasAtTop) return true;
-            if (!isGreen && wasAtTop && rows.length > 1) {
-                // Check if there's another green above
-                const prevUiState = firstRow ? deriveSessionUiState(firstRow.dataset.id) : null;
-                if (prevUiState?.activity === 'done-unread' && firstRow.dataset.id === sessionId) return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -830,6 +786,10 @@ export class SessionView {
      * クリーンアップ
      */
     unmount() {
+        if (this._renderRafId) {
+            cancelAnimationFrame(this._renderRafId);
+            this._renderRafId = null;
+        }
         this._unsubscribers.forEach(unsub => unsub());
         this._unsubscribers = [];
 

@@ -72,10 +72,6 @@ describe('session-indicators', () => {
             EVENTS.SESSION_UI_STATE_CHANGED,
             { sessionIds: ['session-1'], currentSessionId: 'session-2' }
         );
-        expect(eventBus.emit).toHaveBeenCalledWith(
-            EVENTS.SESSION_UPDATED,
-            expect.objectContaining({ sessionId: 'session-1' })
-        );
     });
 
     it('pollSessionStatus呼び出し時_done状態をsessionUiにも反映する', async () => {

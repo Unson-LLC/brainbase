@@ -21,7 +21,7 @@ import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { createSessionId } from './modules/session-manager.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
-import { setupTerminalContextMenuListener } from './modules/iframe-contextmenu-handler.js';
+import { setupTerminalContextMenuListener, setupXtermContextMenu } from './modules/iframe-contextmenu-handler.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { ansiToHtml } from './modules/utils/ansi-to-html.js';
@@ -1130,6 +1130,14 @@ export class App {
         await this.switchSession(sessionId, { forceTtyd: true });
     }
 
+    _scheduleTerminalInputStatusUpdate() {
+        if (this._terminalStatusRafId) return;
+        this._terminalStatusRafId = requestAnimationFrame(() => {
+            this._terminalStatusRafId = null;
+            this._updateTerminalInputStatus();
+        });
+    }
+
     _updateTerminalInputStatus() {
         if (!this.terminalInputStatusEl) return;
 
@@ -1414,12 +1422,12 @@ export class App {
             () => {
                 // Mark navigation time to show "connecting..." briefly.
                 this._terminalLastNavigateAt = Date.now();
-                this._updateTerminalInputStatus();
+                this._scheduleTerminalInputStatusUpdate();
             }
         );
         this._terminalInputUxCleanup.push(unsub);
 
-        const onFocusChange = () => this._updateTerminalInputStatus();
+        const onFocusChange = () => this._scheduleTerminalInputStatusUpdate();
         document.addEventListener('focusin', onFocusChange, true);
         window.addEventListener('blur', onFocusChange);
         this._terminalInputUxCleanup.push(() => document.removeEventListener('focusin', onFocusChange, true));
@@ -1429,13 +1437,13 @@ export class App {
         const overlays = ['menu-overlay', 'drop-overlay', 'choice-overlay']
             .map(id => document.getElementById(id))
             .filter(Boolean);
-        const observer = new MutationObserver(() => this._updateTerminalInputStatus());
+        const observer = new MutationObserver(() => this._scheduleTerminalInputStatusUpdate());
         overlays.forEach(el => observer.observe(el, { attributes: true, attributeFilter: ['class'] }));
         this._terminalInputUxCleanup.push(() => observer.disconnect());
 
         // Reconnect manager status callback.
         if (this.reconnectManager) {
-            this.reconnectManager.onStatusChange = () => this._updateTerminalInputStatus();
+            this.reconnectManager.onStatusChange = () => this._scheduleTerminalInputStatusUpdate();
         }
 
         // Track tmux copy-mode (entered by TMUX_SCROLL; exited by TERMINAL_INTERACT).
@@ -1455,7 +1463,7 @@ export class App {
             } else if (type === 'TERMINAL_INTERACT') {
                 this._terminalCopyModeSessions.delete(sessionId);
             }
-            this._updateTerminalInputStatus();
+            this._scheduleTerminalInputStatusUpdate();
         };
         window.addEventListener('message', onTerminalMessage);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onTerminalMessage));
@@ -3700,6 +3708,9 @@ export class App {
                 });
                 await this.terminalTransportClient.init(terminalXtermHost);
                 await this._preferXtermForCurrentSession();
+                if (this.terminalTransportClient.terminal) {
+                    setupXtermContextMenu(this.terminalTransportClient.terminal);
+                }
             }
             this.setupTerminalInputUx();
             if (currentSessionId && this.isMobile()) {

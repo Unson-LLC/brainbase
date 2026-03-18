@@ -175,6 +175,25 @@ function showNotification(message, type = 'success') {
 }
 
 /**
+ * xterm.js直接レンダリング用コンテキストメニュー
+ * iframeを使わないxtermモードではDOMイベントを直接リスンする
+ */
+export function setupXtermContextMenu(terminal) {
+    if (!terminal?.element) {
+        console.warn('[XtermContextMenu] Terminal element not available');
+        return;
+    }
+    terminal.element.addEventListener('contextmenu', (e) => {
+        const selectedText = terminal.getSelection();
+        if (!shouldShowContextMenu(selectedText)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showContextMenu(e.clientX, e.clientY, selectedText);
+    });
+    console.log('[XtermContextMenu] Attached contextmenu listener to xterm element');
+}
+
+/**
  * postMessageハンドラー
  */
 export function handleTerminalContextMenu(event) {
