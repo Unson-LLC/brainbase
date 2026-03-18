@@ -3,6 +3,96 @@ import path from 'path';
 import crypto from 'crypto';
 import { getConfig, getAuth, getSyncState, saveSyncState } from './config.js';
 
+/**
+ * Show diff status between local and server (no changes made)
+ */
+export async function wikiStatus() {
+    const config = getConfig();
+    const auth = getAuth();
+    if (!auth) {
+        console.error('Not logged in. Run: brainbase auth login');
+        process.exit(1);
+    }
+
+    const serverUrl = auth.server_url || config.server_url;
+    const wikiDir = config.wiki_dir;
+    const headers = getHeaders(auth);
+
+    console.log(`Wiki status`);
+    console.log(`  Server: ${serverUrl}`);
+    console.log(`  Local:  ${wikiDir}`);
+
+    // Get server manifest
+    let serverManifest;
+    try {
+        const res = await fetch(`${serverUrl}/api/wiki/sync/manifest`, { headers });
+        if (res.status === 401) {
+            console.error('Authentication failed. Run: brainbase auth login');
+            process.exit(1);
+        }
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        serverManifest = await res.json();
+    } catch (error) {
+        console.error(`Failed to get manifest: ${error.message}`);
+        process.exit(1);
+    }
+
+    // Collect local files
+    const localFiles = collectLocalFiles(wikiDir);
+
+    const serverMap = new Map(serverManifest.map(p => [p.path, p]));
+    const localMap = new Map(localFiles.map(f => [f.path, f]));
+
+    const toPull = [];
+    const toPush = [];
+    const conflicts = [];
+    let unchanged = 0;
+
+    for (const [sPath, sFile] of serverMap) {
+        const local = localMap.get(sPath);
+        if (!local) {
+            toPull.push(sPath);
+        } else if (local.content_hash !== sFile.content_hash) {
+            const serverTime = new Date(sFile.updated_at).getTime();
+            const localTime = new Date(local.mtime).getTime();
+            if (localTime > serverTime) {
+                toPush.push(sPath);
+            } else {
+                toPull.push(sPath);
+            }
+        } else {
+            unchanged++;
+        }
+    }
+
+    for (const [lPath] of localMap) {
+        if (!serverMap.has(lPath)) {
+            toPush.push(lPath);
+        }
+    }
+
+    // Display results
+    console.log('');
+    if (toPull.length > 0) {
+        console.log(`  ↓ Pull (${toPull.length}):`);
+        for (const p of toPull) console.log(`    ${p}`);
+    }
+    if (toPush.length > 0) {
+        console.log(`  ↑ Push (${toPush.length}):`);
+        for (const p of toPush) console.log(`    ${p}`);
+    }
+    if (toPull.length === 0 && toPush.length === 0) {
+        console.log('  Everything up to date.');
+    }
+    console.log(`\n  Summary: ${toPull.length} to pull, ${toPush.length} to push, ${unchanged} unchanged`);
+
+    // Show last sync info
+    const syncState = getSyncState();
+    if (syncState.last_sync) {
+        console.log(`  Last sync: ${syncState.last_sync}`);
+    }
+}
+
 function getHeaders(auth) {
     if (auth.mode === 'insecure_header') {
         return {
