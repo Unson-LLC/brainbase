@@ -17,6 +17,7 @@
 import pg from 'pg';
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { ulid } from 'ulid';
 
@@ -31,9 +32,9 @@ const WIKI_ROOT = process.argv.find((_, i, a) => a[i - 1] === '--wiki-root')
     || process.env.BRAINBASE_WIKI_ROOT
     || path.resolve(__dirname, '..', '..', 'wiki');
 
-const DB_URL = process.env.DATABASE_URL
-    || process.env.INFO_SSOT_DATABASE_URL
+const DB_URL = process.env.INFO_SSOT_DATABASE_URL
     || process.env.INFO_SSOT_DB_URL
+    || process.env.DATABASE_URL
     || 'postgresql://localhost:5432/brainbase';
 
 // ─────────────────── Helpers ───────────────────
@@ -224,11 +225,15 @@ async function main() {
             }
         }
 
-        // Extract title from file content
+        // Extract title, content_hash, size_bytes from file content
         let title;
+        let contentHash = null;
+        let sizeBytes = null;
         try {
             const content = await fs.readFile(path.join(WIKI_ROOT, relPath), 'utf-8');
             title = extractTitle(content);
+            contentHash = crypto.createHash('sha256').update(content).digest('hex');
+            sizeBytes = Buffer.byteLength(content, 'utf-8');
         } catch {
             title = null;
         }
@@ -242,6 +247,8 @@ async function main() {
             roleMin: 'member',
             sensitivity,
             projectId: resolvedProjectId,
+            contentHash,
+            sizeBytes,
         });
     }
 
@@ -283,12 +290,14 @@ async function main() {
         for (const p of pages) {
             try {
                 const result = await client.query(
-                    `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id)
-                     VALUES ($1, $2, $3, $4, $5, $6)
+                    `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id, content_hash, size_bytes)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                      ON CONFLICT (path) DO UPDATE SET
                          title = EXCLUDED.title,
                          sensitivity = EXCLUDED.sensitivity,
                          project_id = EXCLUDED.project_id,
+                         content_hash = EXCLUDED.content_hash,
+                         size_bytes = EXCLUDED.size_bytes,
                          updated_at = NOW()
                      RETURNING (xmax = 0) AS is_insert`,
                     [
@@ -298,6 +307,8 @@ async function main() {
                         p.roleMin,
                         p.sensitivity,
                         p.projectId,
+                        p.contentHash,
+                        p.sizeBytes,
                     ]
                 );
                 if (result.rows[0]?.is_insert) {

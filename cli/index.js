@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { login, status, logout } from './auth.js';
-import { sync, pull, push } from './sync.js';
+import { sync, pull, push, wikiStatus } from './sync.js';
 
 const [,, command, subcommand] = process.argv;
 
@@ -15,6 +15,7 @@ Usage:
   brainbase wiki sync      Bidirectional wiki sync
   brainbase wiki pull      Download wiki from server
   brainbase wiki push      Upload local wiki to server
+  brainbase wiki status    Show sync diff (no changes)
   brainbase help           Show this help
 `;
 
@@ -36,8 +37,9 @@ async function main() {
                     case 'sync': await sync(); break;
                     case 'pull': await pull(); break;
                     case 'push': await push(); break;
+                    case 'status': await wikiStatus(); break;
                     default:
-                        console.log('Usage: brainbase wiki [sync|pull|push]');
+                        console.log('Usage: brainbase wiki [sync|pull|push|status]');
                 }
                 break;
 

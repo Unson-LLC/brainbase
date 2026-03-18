@@ -1832,6 +1832,12 @@ body::after {
     opacity: 0.7;
 }
 
+.section-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 /* === Inbox (Notification) - matches .settings-link style === */
 .inbox-trigger-container {
     position: relative;
@@ -2646,6 +2652,33 @@ body.resizing iframe {
     font-weight: 400;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     /* Better readability on glass */
+}
+
+.timeline-item.is-google-calendar {
+    border-left-color: rgba(59, 130, 246, 0.25);
+}
+
+.timeline-item.is-google-calendar::before {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(96, 165, 250, 0.9);
+    box-shadow: 0 0 8px rgba(96, 165, 250, 0.25);
+}
+
+.timeline-source-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.5rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    vertical-align: middle;
+}
+
+.timeline-source-badge.google-calendar {
+    background: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.22);
 }
 
 .timeline-item.past .timeline-content {
@@ -6322,7 +6355,7 @@ body.resizing iframe {
         overflow-y: scroll;
         touch-action: pan-y;
         /* スクロール領域を確保（キーボード分の余白を追加） */
-        max-height: calc(100vh - var(--keyboard-offset, 0px) - var(--mobile-input-offset, 120px));
+        max-height: calc(var(--vvh, 100dvh) - var(--mobile-input-offset, 120px));
     }
 
     .mobile-input-row {
@@ -6621,7 +6654,8 @@ body.resizing iframe {
     .console-area {
         padding-left: 0;
         padding-right: 0;
-        width: 100vw;
+        width: var(--vvw, 100vw);
+        max-width: 100%;
         /* BUG-002: height: 100dvhを削除し、flexで親を埋める */
         flex: 1;
         overflow: auto;
@@ -6633,7 +6667,7 @@ body.resizing iframe {
 
     /* Terminal iframe - full width, fill parent */
     .console-area iframe {
-        width: 100vw;
+        width: var(--vvw, 100vw);
         max-width: 100%;
         /* BUG-002: height: 100dvhを削除し、親の高さに従う */
         height: 100%;
@@ -6676,6 +6710,22 @@ body.resizing iframe {
         -webkit-backface-visibility: hidden;
     }
 
+    .console-area.using-snapshot iframe,
+    .console-area.using-snapshot #terminal-xterm-host {
+        display: none;
+    }
+
+    .console-area.using-snapshot .terminal-snapshot-panel {
+        inset: 10px 10px calc(10px + var(--mobile-input-offset, 120px));
+        display: flex;
+    }
+
+    .console-area.using-snapshot .terminal-snapshot-content {
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
     /* Modal adjustments for mobile */
     .modal-content {
         width: 95%;
@@ -6685,13 +6735,30 @@ body.resizing iframe {
 
     .modal-large,
     .modal-fullscreen {
-        width: 100%;
+        width: var(--vvw, 100vw);
         height: 100%;
         max-height: 100vh;
         /* fallback */
         max-height: 100dvh;
         margin: 0;
         border-radius: 0;
+    }
+
+    .mobile-live-terminal-view {
+        width: var(--vvw, 100vw);
+    }
+
+    .mobile-live-terminal-body {
+        padding: 0;
+        min-height: 0;
+    }
+
+    #mobile-live-terminal-frame {
+        width: var(--vvw, 100vw);
+        max-width: 100%;
+        height: 100%;
+        border: none;
+        background: #020617;
     }
 
     /* Settings modal - compact header and hide integrity summary on mobile */
@@ -8301,8 +8368,7 @@ body.resizing iframe {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 4px;
-    height: 48px;
-    /* Touch friendly */
+    height: 40px;
     isolation: isolate;
 }
 
@@ -8311,12 +8377,9 @@ body.resizing iframe {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    font-size: 13px;
-    font-weight: 600;
     cursor: pointer;
     z-index: 2;
     transition: color 0.3s ease;
@@ -8328,28 +8391,35 @@ body.resizing iframe {
 }
 
 .toggle-option i {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
 }
 
-/* Sliding Background Pill */
+/* Sliding Background Pill — uses JS-counted visible buttons */
 .toggle-bg-slider {
     position: absolute;
     top: 4px;
     left: 4px;
-    width: calc(50% - 4px);
+    width: calc(33.333% - 3px);
     height: calc(100% - 8px);
     background: var(--primary-color);
-    /* Use primary color for active state */
     border-radius: 6px;
     transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
     z-index: 1;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Slider position when dashboard is active */
-.view-toggle.dashboard-active .toggle-bg-slider {
+/* Slider positions: Console=0, Wiki=1, Feed=2, Dashboard=3 */
+.view-toggle.wiki-active .toggle-bg-slider {
     transform: translateX(100%);
+}
+
+.view-toggle.live-feed-active .toggle-bg-slider {
+    transform: translateX(200%);
+}
+
+.view-toggle.dashboard-active .toggle-bg-slider {
+    transform: translateX(300%);
 }
 
 .toggle-bg-slider::after {
@@ -9608,4 +9678,691 @@ flex-wrap: wrap;
     border: none;
     border-top: 1px solid var(--border-color);
     margin: 1.5em 0;
+}
+
+/* =========================================
+   Wiki Panel
+   ========================================= */
+
+#wiki-panel {
+    height: 100%;
+    overflow: hidden;
+}
+
+.wiki-layout {
+    display: flex;
+    height: 100%;
+}
+
+/* Wiki Sidebar */
+.wiki-sidebar {
+    width: 240px;
+    min-width: 200px;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-secondary);
+}
+
+.wiki-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.wiki-sidebar-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.wiki-new-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+}
+
+.wiki-new-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.wiki-new-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.wiki-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.wiki-loading,
+.wiki-empty-tree {
+    padding: 16px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+/* Wiki Tree Items */
+.wiki-tree-folder {
+    margin-bottom: 2px;
+}
+
+.wiki-tree-folder-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    border-radius: 4px;
+    transition: background 0.1s;
+}
+
+.wiki-tree-folder-toggle:hover {
+    background: var(--hover-bg);
+}
+
+.wiki-tree-chevron {
+    width: 12px;
+    height: 12px;
+    transition: transform 0.15s;
+}
+
+.wiki-tree-folder-toggle.collapsed .wiki-tree-chevron {
+    transform: rotate(-90deg);
+}
+
+.wiki-tree-folder-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--warning-color);
+}
+
+.wiki-tree-folder-name {
+    font-weight: 500;
+}
+
+.wiki-tree-children {
+    overflow: hidden;
+}
+
+.wiki-tree-children.collapsed {
+    display: none;
+}
+
+.wiki-tree-page {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    margin: 1px 4px;
+    transition: all 0.1s;
+}
+
+.wiki-tree-page:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.wiki-tree-page.active {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-color);
+}
+
+.wiki-tree-page-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.wiki-tree-page-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+
+.wiki-access-badge {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-color);
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+/* Wiki Main Content */
+.wiki-main {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.wiki-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 12px;
+    color: var(--text-secondary);
+}
+
+.wiki-empty-icon {
+    width: 48px;
+    height: 48px;
+    opacity: 0.3;
+}
+
+.wiki-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Wiki Toolbar */
+.wiki-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+}
+
+.wiki-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.wiki-breadcrumb-item.current {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.wiki-breadcrumb-sep {
+    color: var(--text-secondary);
+    opacity: 0.5;
+    margin: 0 4px;
+}
+
+.wiki-toolbar-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.wiki-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+}
+
+.wiki-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.wiki-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.wiki-edit-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.wiki-save-btn {
+    border-color: var(--success-color);
+    color: var(--success-color);
+}
+
+.wiki-save-btn:hover {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.wiki-delete-btn:hover {
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+
+/* Wiki Content Body (Markdown) */
+.wiki-content-body {
+    flex: 1;
+    padding: 24px 32px;
+    overflow-y: auto;
+    line-height: 1.7;
+    font-size: 0.88rem;
+}
+
+.wiki-content-body h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.wiki-content-body h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 12px;
+}
+
+.wiki-content-body h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-top: 20px;
+    margin-bottom: 8px;
+}
+
+.wiki-content-body p {
+    margin-bottom: 12px;
+}
+
+.wiki-content-body ul,
+.wiki-content-body ol {
+    margin-bottom: 12px;
+    padding-left: 24px;
+}
+
+.wiki-content-body li {
+    margin-bottom: 4px;
+}
+
+.wiki-content-body code {
+    background: rgba(148, 163, 184, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+}
+
+.wiki-content-body pre {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    margin-bottom: 16px;
+}
+
+.wiki-content-body pre code {
+    background: none;
+    padding: 0;
+}
+
+.wiki-content-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+}
+
+.wiki-content-body th,
+.wiki-content-body td {
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 0.82rem;
+}
+
+.wiki-content-body th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+}
+
+.wiki-content-body blockquote {
+    border-left: 3px solid var(--accent-color);
+    padding: 8px 16px;
+    margin: 12px 0;
+    color: var(--text-secondary);
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 0 6px 6px 0;
+}
+
+.wiki-content-body a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+.wiki-content-body a:hover {
+    text-decoration: underline;
+}
+
+.wiki-content-body img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.wiki-content-body hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1.5em 0;
+}
+
+/* Wiki Editor */
+.wiki-editor {
+    flex: 1;
+    width: 100%;
+    padding: 24px 32px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+/* Mobile Wiki */
+@media (max-width: 768px) {
+    .wiki-layout {
+        flex-direction: column;
+    }
+
+    .wiki-sidebar {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .wiki-content-body {
+        padding: 16px;
+    }
+
+    .wiki-editor {
+        padding: 16px;
+    }
+}
+
+/* =========================================
+   Live Feed
+   ========================================= */
+
+#live-feed-panel {
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.live-feed-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.live-feed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.live-feed-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.live-feed-title h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.live-feed-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--accent-color);
+}
+
+.live-feed-status {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+}
+
+.live-feed-status.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-color);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.live-feed-status.paused {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-color);
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.live-feed-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.feed-control-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.feed-control-btn:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.feed-control-btn.active {
+    color: var(--accent-color);
+}
+
+.feed-control-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.live-feed-filters {
+    display: flex;
+    gap: 4px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    overflow-x: auto;
+}
+
+.feed-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.feed-filter-btn:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
+.feed-filter-btn.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #fff;
+}
+
+.feed-filter-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+.feed-filter-count {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0 5px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.live-feed-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.feed-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+    transition: background 0.1s;
+    animation: feed-slide-in 0.2s ease-out;
+}
+
+@keyframes feed-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.feed-item:hover {
+    background: var(--hover-bg);
+}
+
+.feed-item-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.feed-item-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.feed-item-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.feed-item-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.feed-item-detail {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.feed-item-time {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    margin-top: 1px;
+}
+
+.live-feed-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 200px;
+    color: var(--text-secondary);
+    gap: 8px;
+}
+
+.live-feed-empty .empty-icon {
+    width: 48px;
+    height: 48px;
+    opacity: 0.3;
+}
+
+.live-feed-empty p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.live-feed-empty .empty-hint {
+    font-size: 12px;
+    opacity: 0.6;
 }

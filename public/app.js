@@ -8,8 +8,9 @@ import { DIContainer } from './modules/core/di-container.js';
 import { appStore } from './modules/core/store.js';
 import { httpClient } from './modules/core/http-client.js';
 import { eventBus, EVENTS } from './modules/core/event-bus.js';
+import { TerminalInteractionService } from './modules/core/terminal-interaction-service.js';
 import { appendViewerIdToProxyPath, buildSessionRuntimeUrl, getTerminalViewerId, getTerminalViewerLabel } from './modules/core/terminal-viewer.js';
-import { TerminalTransportClient, shouldUseDesktopXtermTransport } from './modules/core/terminal-transport-client.js';
+import { TerminalTransportClient, shouldUseXtermTransport } from './modules/core/terminal-transport-client.js';
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
@@ -514,37 +515,70 @@ export class App {
         this.terminalOpenFallbackBtn = null;
         this.terminalMoreBtn = null;
         this.terminalMoreActionsEl = null;
+        this.mobileLiveTerminalModalEl = null;
+        this.mobileLiveTerminalFrameEl = null;
         this._terminalInputUxCleanup = [];
         this._terminalLastNavigateAt = 0;
         this._terminalSnapshotCache = new Map();
         this._terminalSnapshotRequestKey = null;
+        this._mobileSnapshotPollTimer = null;
+        this._mobileSnapshotPollDelay = null;
+        this._mobileSnapshotInFlight = false;
+        this._mobileTerminalMode = 'display';
+        this._mobileLiveTerminalSessionId = null;
+        this._mobileTapTracking = null;
+        this._latestMobileViewportLayout = null;
+        this._terminalFrameLayoutSyncRaf = null;
         // tmux copy-mode (pane_in_mode) blocks input. We can't reliably read it from the iframe,
         // so we track entry/exit based on TMUX_SCROLL / TERMINAL_INTERACT messages.
         this._terminalCopyModeSessions = new Set();
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
+        this.terminalInteractionService = null;
         this._sessionSwitchToken = 0;
         this.viewerId = getTerminalViewerId();
         this.viewerLabel = getTerminalViewerLabel();
     }
 
     _shouldUseXtermTransport() {
-        return shouldUseDesktopXtermTransport();
+        return shouldUseXtermTransport();
     }
 
     _isXtermTransportActive(sessionId = appStore.getState().currentSessionId) {
         return Boolean(this._shouldUseXtermTransport() && this.terminalTransportClient?.isActiveForSession(sessionId));
     }
 
+    _shouldAutoFocusTerminalSurface() {
+        return !this.isMobile();
+    }
+
+    _isMobileTerminalDisplayMode() {
+        return this.isMobile() && this._mobileTerminalMode !== 'interactive';
+    }
+
     _showXtermTransport() {
         this.terminalXtermHost?.classList.remove('hidden');
         this.terminalFrame?.classList.add('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.add('using-xterm');
+        consoleArea?.classList.remove('using-snapshot');
     }
 
     _showTtydIframe() {
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.remove('using-xterm');
+        consoleArea?.classList.remove('using-snapshot');
+    }
+
+    _showMobileTerminalDisplay() {
+        this.terminalXtermHost?.classList.add('hidden');
+        this.terminalFrame?.classList.add('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.remove('using-xterm');
+        consoleArea?.classList.add('using-snapshot');
     }
 
     _isConsoleVisible() {
@@ -588,7 +622,9 @@ export class App {
             return;
         }
 
-        const frame = this.terminalFrame || document.getElementById('terminal-frame');
+        const frame = this._mobileTerminalMode === 'interactive'
+            ? this.mobileLiveTerminalFrameEl || document.getElementById('mobile-live-terminal-frame')
+            : this.terminalFrame || document.getElementById('terminal-frame');
         if (!frame) return;
 
         try {
@@ -609,6 +645,134 @@ export class App {
         }
 
         this._updateTerminalInputStatus();
+    }
+
+    _getSessionById(sessionId) {
+        const { sessions } = appStore.getState();
+        return (sessions || []).find(item => item.id === sessionId) || null;
+    }
+
+    _getMobileSnapshotPollInterval(sessionId) {
+        const session = this._getSessionById(sessionId);
+        return session?.hookStatus?.isWorking ? 1000 : 3000;
+    }
+
+    _setMobileSnapshotPoll(delay) {
+        if (this._mobileSnapshotPollTimer && this._mobileSnapshotPollDelay === delay) {
+            return;
+        }
+        this._stopMobileSnapshotPolling();
+        this._mobileSnapshotPollDelay = delay;
+        this._mobileSnapshotPollTimer = window.setTimeout(() => {
+            this._mobileSnapshotPollTimer = null;
+            void this._refreshMobileSnapshotDisplay();
+        }, delay);
+    }
+
+    _stopMobileSnapshotPolling() {
+        if (this._mobileSnapshotPollTimer) {
+            window.clearTimeout(this._mobileSnapshotPollTimer);
+            this._mobileSnapshotPollTimer = null;
+        }
+        this._mobileSnapshotPollDelay = null;
+    }
+
+    async _refreshMobileSnapshotDisplay({ force = false } = {}) {
+        if (!this._isMobileTerminalDisplayMode() || this._mobileSnapshotInFlight) return;
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            this._stopMobileSnapshotPolling();
+            return;
+        }
+
+        this._mobileSnapshotInFlight = true;
+        try {
+            await this._loadTerminalSnapshot(sessionId, { force });
+        } catch (error) {
+            console.warn('Failed to refresh mobile terminal snapshot:', error);
+        } finally {
+            this._mobileSnapshotInFlight = false;
+            if (this._isMobileTerminalDisplayMode() && appStore.getState().currentSessionId === sessionId) {
+                this._updateTerminalInputStatus();
+                this._setMobileSnapshotPoll(this._getMobileSnapshotPollInterval(sessionId));
+            }
+        }
+    }
+
+    _syncMobileSnapshotPolling({ immediate = false, force = false } = {}) {
+        if (!this._isMobileTerminalDisplayMode()) {
+            this._stopMobileSnapshotPolling();
+            return;
+        }
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            this._stopMobileSnapshotPolling();
+            return;
+        }
+        if (immediate) {
+            void this._refreshMobileSnapshotDisplay({ force });
+            return;
+        }
+        this._setMobileSnapshotPoll(this._getMobileSnapshotPollInterval(sessionId));
+    }
+
+    _closeMobileLiveTerminalModalDom() {
+        this.mobileLiveTerminalModalEl?.classList.remove('active');
+        if (this.mobileLiveTerminalFrameEl) {
+            this.mobileLiveTerminalFrameEl.src = 'about:blank';
+        }
+    }
+
+    closeMobileLiveTerminal() {
+        if (this._mobileTerminalMode !== 'interactive') return;
+        this._mobileTerminalMode = 'display';
+        this._mobileLiveTerminalSessionId = null;
+        this._closeMobileLiveTerminalModalDom();
+        this._showMobileTerminalDisplay();
+        this._syncMobileSnapshotPolling({ immediate: true, force: true });
+        this._updateTerminalInputStatus();
+    }
+
+    postTerminalFrameMessage(message, frameEl = null) {
+        if (!this.mobileLiveTerminalFrameEl) {
+            this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
+        }
+        const targetFrame = frameEl || (this._mobileTerminalMode === 'interactive'
+            ? this.mobileLiveTerminalFrameEl
+            : this.terminalFrame);
+        if (!targetFrame?.contentWindow) return;
+        try {
+            targetFrame.contentWindow.postMessage(message, window.location.origin);
+        } catch (error) {
+            // ignore
+        }
+    }
+
+    scheduleTerminalFrameLayoutSync(layout) {
+        this._latestMobileViewportLayout = layout || null;
+        if (!this.mobileLiveTerminalFrameEl) {
+            this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
+        }
+        if (!this.isMobile() || this._mobileTerminalMode !== 'interactive' || !this.mobileLiveTerminalFrameEl) {
+            return;
+        }
+        if (this._terminalFrameLayoutSyncRaf) {
+            window.cancelAnimationFrame(this._terminalFrameLayoutSyncRaf);
+        }
+        this._terminalFrameLayoutSyncRaf = window.requestAnimationFrame(() => {
+            this._terminalFrameLayoutSyncRaf = null;
+            if (!this._latestMobileViewportLayout || this._mobileTerminalMode !== 'interactive') return;
+            this.postTerminalFrameMessage({
+                type: 'bb-terminal-layout',
+                source: 'brainbase-mobile-keyboard',
+                ...this._latestMobileViewportLayout
+            }, this.mobileLiveTerminalFrameEl);
+        });
+    }
+
+    _handleMobileViewportChange(layout) {
+        this._latestMobileViewportLayout = layout || null;
+        this.scheduleTerminalFrameLayoutSync(layout);
     }
 
     _setCurrentSessionUiState(updates = {}, options = {}) {
@@ -774,7 +938,14 @@ export class App {
                     };
                 }
                 this._terminalLastNavigateAt = Date.now();
-                this.terminalFrame.src = this._getViewerProxyPath(res.proxyPath);
+                if (this._mobileTerminalMode === 'interactive' && this.mobileLiveTerminalFrameEl) {
+                    this.mobileLiveTerminalFrameEl.src = this._getViewerProxyPath(res.proxyPath);
+                    this.scheduleTerminalFrameLayoutSync(this._latestMobileViewportLayout);
+                } else if (!this.isMobile() && this.terminalFrame) {
+                    this.terminalFrame.src = this._getViewerProxyPath(res.proxyPath);
+                } else {
+                    this._syncMobileSnapshotPolling({ immediate: true, force: true });
+                }
                 this._updateTerminalInputStatus();
                 showInfo('ターミナルを引き継いだよ');
             }
@@ -939,9 +1110,13 @@ export class App {
         }
 
         const sessionId = appStore.getState().currentSessionId;
-        const frame = this.terminalFrame || document.getElementById('terminal-frame');
+        const frame = this._mobileTerminalMode === 'interactive'
+            ? this.mobileLiveTerminalFrameEl || document.getElementById('mobile-live-terminal-frame')
+            : this.terminalFrame || document.getElementById('terminal-frame');
         const xtermStatus = this._terminalTransportStatus || null;
         const xtermActive = this._isXtermTransportActive(sessionId);
+        const usingMobileDisplay = this._isMobileTerminalDisplayMode();
+        const session = this._getSessionById(sessionId);
 
         if (!sessionId || (!frame && !xtermActive)) {
             this._setTerminalInputStatus({ hidden: true });
@@ -983,7 +1158,41 @@ export class App {
         let snapshotTitle = 'Snapshot fallback';
         let ownerLabel = '';
 
-        if (overlayState.any) {
+        if (usingMobileDisplay) {
+            presentationMode = 'snapshot';
+            snapshotVisible = true;
+            snapshotTitle = 'Terminal display';
+            transportState = terminalAccess?.state === 'blocked' ? 'blocked' : 'connected';
+            if (overlayState.any) {
+                stateClass = 'blocked';
+                if (overlayState.choiceActive) {
+                    text = '入力: 選択中';
+                    title = '選択UIが開いている間はターミナル入力できません';
+                } else if (overlayState.dropActive) {
+                    text = '入力: ドロップ待ち';
+                    title = 'ファイルドロップ中はターミナル入力できません';
+                } else {
+                    text = '入力: メニュー表示中';
+                    title = 'メニューを閉じるとターミナル入力できます';
+                }
+            } else if (terminalAccess?.state === 'blocked') {
+                stateClass = 'blocked';
+                transportState = 'blocked';
+                text = buildTerminalBlockedText(terminalAccess);
+                title = terminalAccess?.ownerViewerLabel
+                    ? `${terminalAccess.ownerViewerLabel} がこのセッションを表示中。クリックで引き継ぎ`
+                    : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
+                ownerLabel = terminalAccess?.ownerViewerLabel || '';
+            } else if (session?.hookStatus?.isWorking) {
+                stateClass = 'ready';
+                text = '入力: 表示更新中';
+                title = `session=${sessionId} snapshot display`;
+            } else {
+                stateClass = 'ready';
+                text = '入力: 表示';
+                title = `session=${sessionId} snapshot display`;
+            }
+        } else if (overlayState.any) {
             stateClass = 'blocked';
             transportState = 'blocked';
             presentationMode = 'blocked';
@@ -1101,8 +1310,8 @@ export class App {
         this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
         this._setTerminalHeaderChip(this.terminalTransportPillEl, {
             hidden: false,
-            text: xtermActive ? 'xterm' : 'ttyd',
-            title: xtermActive ? 'xterm transport' : 'ttyd iframe fallback'
+            text: xtermActive ? 'xterm' : (usingMobileDisplay ? 'display' : 'ttyd'),
+            title: xtermActive ? 'xterm transport' : (usingMobileDisplay ? 'snapshot terminal display' : 'ttyd iframe fallback')
         });
         this._setTerminalHeaderChip(this.terminalOwnerLabelEl, {
             hidden: !ownerLabel,
@@ -1121,7 +1330,7 @@ export class App {
         this._setTerminalHeaderAction(this.terminalTakeoverBtn, terminalAccess?.state === 'blocked');
         this._setTerminalHeaderAction(
             this.terminalOpenFallbackBtn,
-            xtermActive && shouldUseDesktopXtermTransport()
+            xtermActive && shouldUseXtermTransport()
         );
 
         this._syncTerminalSnapshotPanel({
@@ -1158,7 +1367,10 @@ export class App {
         this.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
         this.terminalMoreBtn = document.getElementById('terminal-more-btn');
         this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
+        this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
+        this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
         const consoleArea = document.getElementById('console-area');
+        const closeMobileLiveTerminalBtn = document.getElementById('close-mobile-live-terminal-btn');
 
         // Keep status in sync with session selection, focus changes, overlay visibility, and WS events.
         const unsub = appStore.subscribeToSelector(
@@ -1212,6 +1424,13 @@ export class App {
         window.addEventListener('message', onTerminalMessage);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onTerminalMessage));
 
+        const onMobileInputSent = () => {
+            if (!this._isMobileTerminalDisplayMode()) return;
+            this._syncMobileSnapshotPolling({ immediate: true, force: true });
+        };
+        const unsubMobileInputSent = eventBus.on(EVENTS.MOBILE_INPUT_SENT, onMobileInputSent);
+        this._terminalInputUxCleanup.push(unsubMobileInputSent);
+
         // Handle OPEN_FILE from terminal link clicks
         const MARKDOWN_EXTS = new Set(['.md', '.mdx', '.markdown']);
         const onOpenFileMessage = (event) => {
@@ -1250,10 +1469,90 @@ export class App {
             // Don't steal focus when clicking toolbar buttons or other buttons.
             if (e.target?.closest?.('button')) return;
 
+            if (this._isMobileTerminalDisplayMode()) {
+                const snapshotContent = e.target?.closest?.('#terminal-snapshot-content');
+                if (snapshotContent) {
+                    return;
+                }
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+                return;
+            }
+
             this.focusTerminal('console-click');
         };
         consoleArea?.addEventListener('click', onConsoleClick, true);
         this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('click', onConsoleClick, true));
+
+        const onConsoleTouchStart = (event) => {
+            if (!this._isMobileTerminalDisplayMode()) return;
+            if (this._isEditableTarget(event.target)) return;
+            this._mobileTapTracking = {
+                startX: event.touches?.[0]?.clientX ?? 0,
+                startY: event.touches?.[0]?.clientY ?? 0,
+                moved: false
+            };
+        };
+        const onConsoleTouchMove = (event) => {
+            if (!this._mobileTapTracking) return;
+            const touch = event.touches?.[0];
+            if (!touch) return;
+            const dx = Math.abs(touch.clientX - this._mobileTapTracking.startX);
+            const dy = Math.abs(touch.clientY - this._mobileTapTracking.startY);
+            if (dx > 8 || dy > 8) {
+                this._mobileTapTracking.moved = true;
+            }
+        };
+        const onConsoleTouchEnd = (event) => {
+            if (!this._isMobileTerminalDisplayMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
+                this._mobileTapTracking = null;
+                return;
+            }
+            if (this._isEditableTarget(event.target)) {
+                this._mobileTapTracking = null;
+                return;
+            }
+            const overlayState = this._getTerminalOverlayState();
+            if (!overlayState.any) {
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+            }
+            this._mobileTapTracking = null;
+        };
+        consoleArea?.addEventListener('touchstart', onConsoleTouchStart, { passive: true });
+        consoleArea?.addEventListener('touchmove', onConsoleTouchMove, { passive: true });
+        consoleArea?.addEventListener('touchend', onConsoleTouchEnd, { passive: true });
+        this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchstart', onConsoleTouchStart, { passive: true }));
+        this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchmove', onConsoleTouchMove, { passive: true }));
+        this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchend', onConsoleTouchEnd, { passive: true }));
+
+        const onMobileLiveTerminalLoad = () => {
+            if (this._mobileTerminalMode !== 'interactive') return;
+            this.scheduleTerminalFrameLayoutSync(this._latestMobileViewportLayout);
+        };
+        this.mobileLiveTerminalFrameEl?.addEventListener('load', onMobileLiveTerminalLoad);
+        this._terminalInputUxCleanup.push(() => this.mobileLiveTerminalFrameEl?.removeEventListener('load', onMobileLiveTerminalLoad));
+
+        const onMobileLiveTerminalClose = (event) => {
+            event?.preventDefault?.();
+            this.closeMobileLiveTerminal();
+        };
+        closeMobileLiveTerminalBtn?.addEventListener('click', onMobileLiveTerminalClose);
+        this._terminalInputUxCleanup.push(() => closeMobileLiveTerminalBtn?.removeEventListener('click', onMobileLiveTerminalClose));
+
+        const onMobileLiveTerminalOverlayClick = (event) => {
+            if (event.target === this.mobileLiveTerminalModalEl) {
+                this.closeMobileLiveTerminal();
+            }
+        };
+        this.mobileLiveTerminalModalEl?.addEventListener('click', onMobileLiveTerminalOverlayClick);
+        this._terminalInputUxCleanup.push(() => this.mobileLiveTerminalModalEl?.removeEventListener('click', onMobileLiveTerminalOverlayClick));
+
+        const onEscapeClose = (event) => {
+            if (event.key === 'Escape' && this._mobileTerminalMode === 'interactive') {
+                this.closeMobileLiveTerminal();
+            }
+        };
+        document.addEventListener('keydown', onEscapeClose);
+        this._terminalInputUxCleanup.push(() => document.removeEventListener('keydown', onEscapeClose));
 
         // Status badge click: focus, and if disconnected, trigger reconnect.
         const onStatusClick = (e) => {
@@ -1423,6 +1722,15 @@ export class App {
         this.container.register('scheduleService', () => new ScheduleService());
         this.container.register('inboxService', () => new InboxService());
         this.container.register('nocodbTaskService', () => new NocoDBTaskService({ httpClient }));
+        this.container.register('terminalInteractionService', () => new TerminalInteractionService({
+            httpClient,
+            getTerminalTransportClient: () => this.terminalTransportClient,
+            getFallbackTerminalAccess: (sessionId) => {
+                if (appStore.getState().currentSessionId !== sessionId) return null;
+                return this.reconnectManager?.terminalAccess || null;
+            },
+            shouldUseXtermTransport: () => this._shouldUseXtermTransport()
+        }));
 
         this.container.register('commitTreeService', () => new CommitTreeService());
         this.container.register('fileViewerService', () => new FileViewerService({
@@ -1437,6 +1745,7 @@ export class App {
         this.scheduleService = this.container.get('scheduleService');
         this.inboxService = this.container.get('inboxService');
         this.nocodbTaskService = this.container.get('nocodbTaskService');
+        this.terminalInteractionService = this.container.get('terminalInteractionService');
         this.fileViewerService = this.container.get('fileViewerService');
         this.wikiService = this.container.get('wikiService');
         this.liveFeedService = this.container.get('liveFeedService');
@@ -1935,7 +2244,9 @@ export class App {
                 if (fileViewerPanel) fileViewerPanel.style.display = 'none';
             }
 
-            this.focusTerminal('session-changed');
+            if (this._shouldAutoFocusTerminalSurface()) {
+                this.focusTerminal('session-changed');
+            }
 
             scheduleAfterNextPaint(() => {
                 this._runDeferredSessionSwitchWork(sessionId, switchToken);
@@ -2399,8 +2710,9 @@ export class App {
      */
     initMobileInput() {
         this.mobileInputController = new MobileInputController({
-            httpClient,
-            isMobile: () => this.isMobile()
+            terminalInput: this.terminalInteractionService,
+            isMobile: () => this.isMobile(),
+            onViewportChange: (layout) => this._handleMobileViewportChange(layout)
         });
         this.mobileInputController.init();
     }
@@ -2926,6 +3238,104 @@ export class App {
         };
     }
 
+    async _resolveTtydProxyPath(sessionId, session, options = {}) {
+        let proxyPath = typeof options.proxyPath === 'string' && options.proxyPath.trim()
+            ? this._getViewerProxyPath(options.proxyPath, options.port)
+            : null;
+
+        if (proxyPath) {
+            return {
+                proxyPath,
+                terminalAccess: this.reconnectManager?.terminalAccess || null
+            };
+        }
+
+        const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+        if (terminalAccess?.state === 'blocked') {
+            return { proxyPath: null, terminalAccess };
+        }
+
+        if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
+            return {
+                proxyPath: this._getViewerProxyPath(runtimeStatus.proxyPath, runtimeStatus.port),
+                terminalAccess
+            };
+        }
+
+        const res = await httpClient.post('/api/sessions/start', this._buildTerminalStartPayload(session));
+        return {
+            proxyPath: res?.proxyPath ? this._getViewerProxyPath(res.proxyPath, res.port) : null,
+            terminalAccess: res?.terminalAccess || terminalAccess || null
+        };
+    }
+
+    async _openSessionInTtydFrame(sessionId, frameEl, options = {}) {
+        const session = this._getSessionById(sessionId);
+        if (!session) {
+            frameEl.src = 'about:blank';
+            return { ok: false, reason: 'missing-session' };
+        }
+
+        const { proxyPath, terminalAccess } = await this._resolveTtydProxyPath(sessionId, session, options);
+        if (terminalAccess?.state === 'blocked') {
+            frameEl.src = 'about:blank';
+            return { ok: false, blocked: true, terminalAccess };
+        }
+
+        if (!proxyPath) {
+            frameEl.src = 'about:blank';
+            return { ok: false, reason: 'no-proxy-path' };
+        }
+
+        frameEl.src = proxyPath;
+        return { ok: true, proxyPath, terminalAccess };
+    }
+
+    async openMobileLiveTerminal(sessionId) {
+        if (!this.mobileLiveTerminalModalEl) {
+            this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
+        }
+        if (!this.mobileLiveTerminalFrameEl) {
+            this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
+        }
+        if (!this.isMobile() || !this.mobileLiveTerminalModalEl || !this.mobileLiveTerminalFrameEl) return;
+
+        const session = this._getSessionById(sessionId);
+        if (!session || session.intendedState === 'archived') return;
+
+        this._mobileTerminalMode = 'interactive';
+        this._mobileLiveTerminalSessionId = sessionId;
+        this._stopMobileSnapshotPolling();
+        this.mobileLiveTerminalModalEl.classList.add('active');
+
+        const result = await this._openSessionInTtydFrame(sessionId, this.mobileLiveTerminalFrameEl);
+        if (!result.ok) {
+            if (result.blocked) {
+                this.reconnectManager?.setCurrentSession(sessionId);
+                if (typeof this.reconnectManager?._setBlocked === 'function') {
+                    this.reconnectManager._setBlocked(result.terminalAccess);
+                }
+                this._updateTerminalInputStatus();
+            } else {
+                this.closeMobileLiveTerminal();
+            }
+            return;
+        }
+
+        this.reconnectManager?.setCurrentSession(sessionId);
+        if (this.reconnectManager) {
+            this.reconnectManager.terminalAccess = result.terminalAccess || {
+                state: 'owner',
+                ownerViewerLabel: this.viewerLabel,
+                ownerLastSeenAt: new Date().toISOString(),
+                canTakeover: false
+            };
+        }
+        this._terminalLastNavigateAt = Date.now();
+        this.scheduleTerminalFrameLayoutSync(this._latestMobileViewportLayout);
+        this._updateTerminalInputStatus();
+    }
+
     /**
      * Switch to a session and update terminal frame
      */
@@ -2960,10 +3370,41 @@ export class App {
             // アーカイブ済みセッションへの切り替えを防止
             if (session.intendedState === 'archived') {
                 console.log(`[switchSession] Skipping archived session ${sessionId}`);
+                this.closeMobileLiveTerminal();
+                this._stopMobileSnapshotPolling();
                 this.terminalTransportClient?.disconnect({ preserveView: false });
                 this.terminalTransportClient?.hide();
                 this._showTtydIframe();
                 terminalFrame.src = 'about:blank';
+                return;
+            }
+
+            if (this.isMobile()) {
+                this.closeMobileLiveTerminal();
+                this.terminalTransportClient?.disconnect({ preserveView: false });
+                this.terminalTransportClient?.hide();
+                this._terminalTransportStatus = null;
+                this._mobileTerminalMode = 'display';
+                this._mobileLiveTerminalSessionId = null;
+                this._showMobileTerminalDisplay();
+                terminalFrame.src = 'about:blank';
+
+                const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+                if (this.reconnectManager) {
+                    this.reconnectManager.setCurrentSession(sessionId);
+                    this.reconnectManager.terminalAccess = terminalAccess || null;
+                    if (terminalAccess?.state === 'blocked') {
+                        this.reconnectManager._setBlocked?.(terminalAccess);
+                    }
+                }
+                if (runtimeStatus?.ttydRunning || runtimeStatus?.proxyPath || terminalAccess?.state === 'blocked') {
+                    this._terminalLastNavigateAt = Date.now();
+                }
+                this._syncMobileSnapshotPolling({ immediate: true, force: true });
+                this._setCurrentSessionUiState({
+                    transport: terminalAccess?.state === 'blocked' ? 'blocked' : 'connected',
+                    attention: 'none'
+                });
                 return;
             }
 
@@ -2977,7 +3418,9 @@ export class App {
                         transport: 'reconnecting',
                         attention: 'none'
                     });
-                    this.focusTerminal('switchSession');
+                    if (this._shouldAutoFocusTerminalSurface()) {
+                        this.focusTerminal('switchSession');
+                    }
 
                     return;
                 }
@@ -3003,54 +3446,24 @@ export class App {
             this.terminalTransportClient?.hide();
             this._terminalTransportStatus = null;
             this._showTtydIframe();
+            const result = await this._openSessionInTtydFrame(sessionId, terminalFrame, options);
 
-            let proxyPath = typeof options.proxyPath === 'string' && options.proxyPath.trim()
-                ? this._getViewerProxyPath(options.proxyPath, options.port)
-                : null;
-
-            if (proxyPath) {
-                console.log('Using provided proxyPath for session switch:', proxyPath);
-            } else {
-                const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
-
-                if (terminalAccess?.state === 'blocked') {
-                    console.warn(`[switchSession] Session ${sessionId} is owned by another viewer`);
-                    terminalFrame.src = 'about:blank';
-                    this.reconnectManager?.setCurrentSession(sessionId);
-                    this.reconnectManager._setBlocked?.(terminalAccess);
-                    this._updateTerminalInputStatus();
-                    return;
-                }
-
-                if (this.reconnectManager) {
-                    this.reconnectManager.terminalAccess = terminalAccess || null;
-                }
-
-                if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
-                    proxyPath = this._getViewerProxyPath(runtimeStatus.proxyPath, runtimeStatus.port);
-                    console.log('Session already running, using existing proxyPath:', proxyPath);
-                }
+            if (result.blocked) {
+                console.warn(`[switchSession] Session ${sessionId} is owned by another viewer`);
+                this.reconnectManager?.setCurrentSession(sessionId);
+                this.reconnectManager._setBlocked?.(result.terminalAccess);
+                this._updateTerminalInputStatus();
+                return;
             }
 
-            if (!proxyPath) {
-                // Session not running, start it
-                const res = await httpClient.post('/api/sessions/start', this._buildTerminalStartPayload(session));
-
-                if (res && res.proxyPath) {
-                    if (this.reconnectManager) {
-                        this.reconnectManager.terminalAccess = res.terminalAccess || null;
-                    }
-                    proxyPath = this._getViewerProxyPath(res.proxyPath, res.port);
-                    console.log('Started session, got proxyPath:', proxyPath);
-                }
-            }
-
-            if (proxyPath) {
-                terminalFrame.src = proxyPath;
-                console.log('Terminal switched to:', proxyPath);
+            if (result.ok) {
+                console.log('Terminal switched to:', result.proxyPath);
 
                 // Update reconnect manager with current session
                 this.reconnectManager?.setCurrentSession(sessionId);
+                if (this.reconnectManager) {
+                    this.reconnectManager.terminalAccess = result.terminalAccess || null;
+                }
                 if (this.reconnectManager?.terminalAccess?.state !== 'blocked') {
                     this.reconnectManager.terminalAccess = {
                         state: 'owner',
@@ -3064,7 +3477,9 @@ export class App {
                     transport: 'reconnecting',
                     attention: 'none'
                 });
-                this.focusTerminal('switchSession');
+                if (this._shouldAutoFocusTerminalSurface()) {
+                    this.focusTerminal('switchSession');
+                }
             } else {
                 console.error('No proxyPath available for session:', sessionId);
                 terminalFrame.src = 'about:blank';
@@ -3250,6 +3665,9 @@ export class App {
                 await this._preferXtermForCurrentSession();
             }
             this.setupTerminalInputUx();
+            if (currentSessionId && this.isMobile()) {
+                await this.switchSession(currentSessionId);
+            }
         }
 
         const onPageHide = () => {
@@ -3281,7 +3699,7 @@ export class App {
         setupTerminalContextMenuListener();
 
         // 12. Setup mobile keyboard handling
-        initMobileKeyboard();
+        initMobileKeyboard({ terminalInput: this.terminalInteractionService });
 
         // 13. Setup mobile input UI (Dock/Composer)
         this.initMobileInput();
@@ -3870,6 +4288,11 @@ export class App {
         if (this.sessionUiSummaryIntervalId) {
             clearInterval(this.sessionUiSummaryIntervalId);
             this.sessionUiSummaryIntervalId = null;
+        }
+        this._stopMobileSnapshotPolling();
+        if (this._terminalFrameLayoutSyncRaf) {
+            window.cancelAnimationFrame(this._terminalFrameLayoutSyncRaf);
+            this._terminalFrameLayoutSyncRaf = null;
         }
 
         // Stop choice detection

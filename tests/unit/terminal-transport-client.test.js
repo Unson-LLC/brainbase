@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { TerminalTransportClient, shouldUseDesktopXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
+import { TerminalTransportClient, shouldUseXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
 
 describe('terminal-transport-client', () => {
   afterEach(() => {
@@ -13,27 +13,63 @@ describe('terminal-transport-client', () => {
     });
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' });
 
-    expect(shouldUseDesktopXtermTransport()).toBe(true);
+    expect(shouldUseXtermTransport()).toBe(true);
   });
 
-  it('mobile環境ではttyd fallbackを使う', () => {
+  it('mobile環境でもxterm transportを使う', () => {
     vi.stubGlobal('window', {
       innerWidth: 390,
       location: { hostname: 'localhost' }
     });
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)' });
 
-    expect(shouldUseDesktopXtermTransport()).toBe(false);
+    expect(shouldUseXtermTransport()).toBe(true);
   });
 
-  it('Cloudflare hostnameではttyd fallbackを使う', () => {
+  it('Cloudflare hostnameでもxterm transportを使う', () => {
     vi.stubGlobal('window', {
       innerWidth: 1440,
       location: { hostname: 'brain-base.work' }
     });
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' });
 
-    expect(shouldUseDesktopXtermTransport()).toBe(false);
+    expect(shouldUseXtermTransport()).toBe(true);
+  });
+
+  it('jsdom環境ではxterm transportを使わない', () => {
+    vi.stubGlobal('window', {
+      innerWidth: 1280,
+      location: { hostname: 'localhost' }
+    });
+    vi.stubGlobal('navigator', { userAgent: 'jsdom/24.0.0' });
+
+    expect(shouldUseXtermTransport()).toBe(false);
+  });
+
+  it('同一sessionかつWebSocket openなら入力可能と判定する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'live';
+    client.ws = { readyState: 1 };
+
+    expect(client.canSendInput('session-1')).toBe(true);
+    expect(client.canSendInput('session-2')).toBe(false);
+  });
+
+  it('blocked sessionを判定できる', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'blocked';
+    client.status.blockedAccess = { state: 'blocked' };
+
+    expect(client.isBlockedForSession('session-1')).toBe(true);
+    expect(client.isBlockedForSession('session-2')).toBe(false);
   });
 
   it('connect時に初期viewportサイズをws queryへ含めてready後もresizeを送る', async () => {

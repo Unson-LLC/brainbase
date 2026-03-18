@@ -2,7 +2,7 @@ import { httpClient } from './http-client.js';
 import { loadXterm } from './xterm-loader.js';
 import { MessageQueue } from './message-queue.js';
 
-const SNAPSHOT_LINES = 200;
+const SNAPSHOT_LINES = 5000;
 const CONNECT_TIMEOUT_MS = 15000;
 
 // WebSocket reconnection settings (CommandMate pattern)
@@ -20,18 +20,13 @@ const EXPECTED_CLOSE_CODES = new Set([
 // Custom close code: ownership was taken over by another viewer
 const WS_CLOSE_BLOCKED = 4001;
 
-function isLoopbackHost(hostname) {
-    return hostname === 'localhost' || hostname === '127.0.0.1';
-}
-
-export function shouldUseDesktopXtermTransport() {
+export function shouldUseXtermTransport() {
     if (typeof window === 'undefined') return false;
     const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
     if (/jsdom/i.test(userAgent) || typeof window.__vitest_worker__ !== 'undefined') {
         return false;
     }
-    const isMobile = window.innerWidth <= 768;
-    return !isMobile && isLoopbackHost(window.location.hostname);
+    return true;
 }
 
 export class TerminalTransportClient {
@@ -138,6 +133,17 @@ export class TerminalTransportClient {
 
     isActiveForSession(sessionId) {
         return this.sessionId === sessionId && (this.status.mode === 'live' || this.status.mode === 'snapshot' || this.status.mode === 'blocked');
+    }
+
+    canSendInput(sessionId) {
+        return this.sessionId === sessionId
+            && this.status.mode !== 'blocked'
+            && this.ws?.readyState === WebSocket.OPEN;
+    }
+
+    isBlockedForSession(sessionId) {
+        return this.sessionId === sessionId
+            && (this.status.mode === 'blocked' || this.status.blockedAccess?.state === 'blocked');
     }
 
     show() {
@@ -353,6 +359,10 @@ export class TerminalTransportClient {
     async reconnect() {
         if (!this.sessionId) return;
         await this.connect(this.sessionId);
+    }
+
+    async refreshSnapshot() {
+        await this._refreshSnapshot();
     }
 
     async _refreshSnapshot() {

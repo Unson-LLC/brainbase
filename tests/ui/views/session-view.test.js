@@ -361,5 +361,59 @@ describe('SessionView', () => {
 
             expect(renderSpy).toHaveBeenCalled();
         });
+
+        it('should re-render on SESSION_UI_STATE_CHANGED in timeline view so list order can update', async () => {
+            appStore.setState({
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active', updatedAt: '2026-03-17T00:00:00.000Z' },
+                    { id: 'session-2', name: 'Session 2', project: 'test', intendedState: 'active', updatedAt: '2026-03-17T00:00:01.000Z' }
+                ],
+                ui: {
+                    sessionListView: 'timeline'
+                },
+                sessionUi: {
+                    byId: {
+                        'session-1': { hookStatus: null },
+                        'session-2': { hookStatus: null }
+                    }
+                }
+            });
+            sessionView.render();
+
+            const before = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
+            expect(before).toEqual(['session-2', 'session-1']);
+
+            appStore.setState({
+                sessionUi: {
+                    byId: {
+                        'session-1': { hookStatus: { isDone: true } },
+                        'session-2': { hookStatus: null }
+                    }
+                }
+            });
+
+            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: ['session-1'] });
+
+            const after = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
+            expect(after).toEqual(['session-1', 'session-2']);
+        });
+
+        it('should only refresh affected rows on SESSION_UI_STATE_CHANGED in project view', async () => {
+            appStore.setState({
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' }
+                ],
+                ui: {
+                    sessionListView: 'project'
+                }
+            });
+            sessionView.render();
+
+            const renderSpy = vi.spyOn(sessionView, 'render');
+
+            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: ['session-1'] });
+
+            expect(renderSpy).not.toHaveBeenCalled();
+        });
     });
 });

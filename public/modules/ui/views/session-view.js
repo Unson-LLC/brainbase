@@ -103,6 +103,12 @@ export class SessionView {
         const unsub5 = eventBus.on(EVENTS.SESSION_PAUSED, () => this.render());
         const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this.render());
         const unsub6b = eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, (event) => {
+            const sessionListView = appStore.getState().ui?.sessionListView || 'timeline';
+            if (sessionListView === 'timeline') {
+                this.render();
+                return;
+            }
+
             const sessionIds = event.detail?.sessionIds;
             if (Array.isArray(sessionIds) && sessionIds.length > 0) {
                 this._refreshSessionRows(sessionIds);
