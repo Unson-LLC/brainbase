@@ -79,6 +79,7 @@ function renderChip(text, { className = '', title = '' } = {}) {
  * @param {string} options.project - プロジェクト名
  * @param {boolean} options.showProjectEmoji - プロジェクト絵文字を表示するか
  * @param {boolean} options.isDraggable - ドラッグ可能か
+ * @param {Object} options.sessionUiState - セッションUI状態（deriveSessionUiStateから）
  * @returns {string} HTML文字列
  */
 export function renderSessionRowHTML(session, options = {}) {

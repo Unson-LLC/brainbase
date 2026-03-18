@@ -10,6 +10,7 @@ vi.mock('../../public/modules/session-ui-state.js', () => ({
         activity: 'idle',
         transport: 'disconnected',
         attention: 'none',
+        goalSeek: null,
         summary: null,
         recentFile: null,
         recentFiles: [],
@@ -177,20 +178,20 @@ describe('SessionView', () => {
             expect(writeText).toHaveBeenCalledWith('test prompt');
         });
 
-        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_mobile fallback成功_clipboardモードを返す', async () => {
+        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_consoleフォールバック', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
             const writeText = vi.fn().mockRejectedValue(new Error('denied'));
             Object.defineProperty(navigator, 'clipboard', {
                 value: { writeText },
                 configurable: true
             });
-            window.copyToClipboardMobile = vi.fn().mockResolvedValue(true);
 
             const result = await sessionView._deliverInvestigationPrompt('test prompt');
 
-            expect(result).toEqual({ mode: 'clipboard' });
-            expect(window.copyToClipboardMobile).toHaveBeenCalledWith('test prompt');
+            expect(result).toEqual({ mode: 'console' });
             warnSpy.mockRestore();
+            logSpy.mockRestore();
         });
     });
 });

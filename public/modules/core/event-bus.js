@@ -216,6 +216,7 @@ export const EVENTS = {
     MERGE_SESSION: 'session:merge',
     RENAME_SESSION: 'session:rename',
     CREATE_SESSION: 'session:create',
+    SESSION_UI_STATE_CHANGED: 'session:ui-state-changed',
     FOLDER_TREE_LOADED: 'folder-tree:loaded',
     FOLDER_TREE_NODE_TOGGLED: 'folder-tree:node-toggled',
     FOLDER_TREE_FILE_OPENED: 'folder-tree:file-opened',
