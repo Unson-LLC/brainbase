@@ -1082,6 +1082,7 @@ export class App {
         if (this.terminalSnapshotTimestampEl) {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
+        this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
     }
 
     _syncTerminalSnapshotPanel({ sessionId, visible, title }) {
