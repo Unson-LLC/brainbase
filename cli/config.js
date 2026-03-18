@@ -5,6 +5,7 @@ import os from 'os';
 const CONFIG_DIR = path.join(os.homedir(), '.brainbase');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const AUTH_FILE = path.join(CONFIG_DIR, 'auth.json');
+const TOKENS_FILE = path.join(CONFIG_DIR, 'tokens.json');
 const SYNC_STATE_FILE = path.join(CONFIG_DIR, 'sync-state.json');
 
 function ensureConfigDir() {
@@ -32,16 +33,28 @@ export function saveConfig(config) {
 }
 
 export function getAuth() {
-    if (!fs.existsSync(AUTH_FILE)) return null;
-    try {
-        const auth = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf-8'));
-        if (auth.expires_at && new Date(auth.expires_at) < new Date()) {
-            return null; // Token expired
-        }
-        return auth;
-    } catch {
-        return null;
+    // 1. Try auth.json (CLI login)
+    if (fs.existsSync(AUTH_FILE)) {
+        try {
+            const auth = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf-8'));
+            if (!auth.expires_at || new Date(auth.expires_at) >= new Date()) {
+                return auth;
+            }
+        } catch { /* fall through */ }
     }
+    // 2. Fallback to tokens.json (UI Slack login)
+    if (fs.existsSync(TOKENS_FILE)) {
+        try {
+            const tokens = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf-8'));
+            if (tokens.access_token) {
+                return {
+                    token: tokens.access_token,
+                    server_url: 'http://localhost:31013'
+                };
+            }
+        } catch { /* fall through */ }
+    }
+    return null;
 }
 
 export function saveAuth(auth) {
