@@ -65,6 +65,7 @@ describe('MobileInputFocusManager focus tracking', () => {
 describe('MobileInputFocusManager visual viewport sync', () => {
     let focusManager;
     let originalViewport;
+    let viewportSpy;
 
     beforeEach(() => {
         document.body.innerHTML = `
@@ -80,7 +81,10 @@ describe('MobileInputFocusManager visual viewport sync', () => {
             composer: document.getElementById('mobile-composer'),
             composerInput: document.getElementById('mobile-composer-input')
         };
-        focusManager = new MobileInputFocusManager(elements);
+        viewportSpy = vi.fn();
+        focusManager = new MobileInputFocusManager(elements, {
+            onViewportChange: viewportSpy
+        });
 
         originalViewport = window.visualViewport;
         window.visualViewport = {
@@ -96,17 +100,27 @@ describe('MobileInputFocusManager visual viewport sync', () => {
     afterEach(() => {
         window.visualViewport = originalViewport;
         document.documentElement.style.removeProperty('--vvh');
+        document.documentElement.style.removeProperty('--vvw');
         document.documentElement.style.removeProperty('--vv-top');
         document.documentElement.style.removeProperty('--vv-left');
         document.body.style.removeProperty('--keyboard-offset');
         document.body.classList.remove('keyboard-open');
     });
 
-    it('syncs --vvh/--vv-top/--vv-left from visualViewport', () => {
+    it('syncs visualViewport CSS variables and emits normalized layout payload', () => {
         focusManager.bindViewportResize();
 
         expect(document.documentElement.style.getPropertyValue('--vvh')).toBe('600px');
+        expect(document.documentElement.style.getPropertyValue('--vvw')).toBe('360px');
         expect(document.documentElement.style.getPropertyValue('--vv-top')).toBe('24px');
         expect(document.documentElement.style.getPropertyValue('--vv-left')).toBe('0px');
+        expect(viewportSpy).toHaveBeenCalledWith({
+            width: 360,
+            height: 600,
+            offsetTop: 24,
+            offsetLeft: 0,
+            keyboardOffset: 0,
+            keyboardOpen: false
+        });
     });
 });

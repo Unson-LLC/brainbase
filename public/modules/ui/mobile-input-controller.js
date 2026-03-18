@@ -6,9 +6,10 @@ import { MobileInputSheetManager } from './mobile-input-sheet-manager.js';
 import { MobileInputUIController } from './mobile-input-ui-controller.js';
 
 export class MobileInputController {
-    constructor({ terminalInput, isMobile }) {
+    constructor({ terminalInput, isMobile, onViewportChange = null }) {
         this.terminalInput = terminalInput;
         this.isMobile = isMobile;
+        this.onViewportChange = typeof onViewportChange === 'function' ? onViewportChange : null;
         this.elements = {};
         this.unsubscribeSession = null;
         this.focusManager = null;
@@ -24,7 +25,9 @@ export class MobileInputController {
         if (!this.elements.dock || !this.elements.composer) return;
 
         // マネージャーの初期化
-        this.focusManager = new MobileInputFocusManager(this.elements);
+        this.focusManager = new MobileInputFocusManager(this.elements, {
+            onViewportChange: this.onViewportChange
+        });
         this.focusManager.init();
         this.draftManager = new MobileInputDraftManager(this.elements);
         this.clipboardManager = new MobileClipboardManager(this.elements);

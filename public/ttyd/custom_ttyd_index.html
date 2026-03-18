@@ -537,7 +537,9 @@
 
         const disposable = term.registerLinkProvider({
             provideLinks: (y, callback) => {
-                const line = term.buffer.active.getLine(y);
+                // xterm LinkProvider passes a 1-based line number.
+                const lineIndex = y - 1;
+                const line = term.buffer.active.getLine(lineIndex);
                 if (!line) { callback(undefined); return; }
 
                 const lineText = line.translateToString(true);
@@ -560,8 +562,8 @@
 
                     links.push({
                         range: {
-                            start: { x: pathStart + 1, y: y + 1 },
-                            end: { x: pathStart + fullLen, y: y + 1 }
+                            start: { x: pathStart + 1, y },
+                            end: { x: pathStart + fullLen, y }
                         },
                         text: lineNum ? filePath + ':' + lineNum : filePath,
                         activate: (event, text) => {
@@ -977,6 +979,52 @@
         );
     }
 
+    let pendingLayout = null;
+    let layoutFrame = null;
+
+    function scheduleLayoutApply(payload) {
+        pendingLayout = payload;
+        if (layoutFrame) return;
+        layoutFrame = window.requestAnimationFrame(() => {
+            layoutFrame = null;
+            applyLayout(pendingLayout);
+        });
+    }
+
+    function applyLayout(payload) {
+        if (!payload) return;
+        const container = document.getElementById('terminal-container');
+        const width = Math.max(0, Number(payload.width) || window.innerWidth || 0);
+        const height = Math.max(0, Number(payload.height) || window.innerHeight || 0);
+
+        document.documentElement.style.setProperty('--bb-parent-width', `${width}px`);
+        document.documentElement.style.setProperty('--bb-parent-height', `${height}px`);
+        if (container) {
+            container.style.width = `${width}px`;
+            container.style.maxWidth = `${width}px`;
+            container.style.height = `${height}px`;
+        }
+
+        try {
+            if (window.fitAddon && typeof window.fitAddon.fit === 'function') {
+                window.fitAddon.fit();
+            } else if (window.term && typeof window.term.resize === 'function') {
+                const dimensions = window.term?._core?._renderService?.dimensions?.css?.cell || null;
+                const cellWidth = Number(dimensions?.width) || 0;
+                const cellHeight = Number(dimensions?.height) || 0;
+                if (cellWidth > 0 && cellHeight > 0) {
+                    const cols = Math.max(20, Math.floor(Math.max(0, width - 10) / cellWidth));
+                    const rows = Math.max(5, Math.floor(Math.max(0, height - 10) / cellHeight));
+                    window.term.resize(cols, rows);
+                }
+            }
+        } catch (error) {
+            console.warn('[Terminal] Failed to apply parent layout', error);
+        }
+
+        window.dispatchEvent(new Event('resize'));
+    }
+
     function focusXterm() {
         try {
             if (window.term && typeof window.term.focus === 'function') {
@@ -1001,10 +1049,20 @@
     }
 
     window.addEventListener('message', function(event) {
-        if (!isTrustedOrigin(event.origin)) return;
         const data = event.data || {};
+        if (!isTrustedOrigin(event.origin) && data.source !== 'brainbase-mobile-keyboard') return;
         if (data.type === 'bb-terminal-focus') {
             focusXterm();
+            return;
+        }
+        if (data.type === 'bb-terminal-layout') {
+            scheduleLayoutApply(data);
+        }
+    });
+
+    window.addEventListener('load', function() {
+        if (pendingLayout) {
+            scheduleLayoutApply(pendingLayout);
         }
     });
 })();
