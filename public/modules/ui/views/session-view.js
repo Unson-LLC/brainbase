@@ -3,7 +3,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
-import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
+import { deriveSessionUiState } from '../../session-ui-state.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -32,6 +32,62 @@ export class SessionView {
         this.render();
     }
 
+    _buildSessionRowElement(session, currentSessionId, options = {}) {
+        const { project, showProjectEmoji = false, isDraggable = true, enableDrag = true } = options;
+        const sessionUiState = deriveSessionUiState(session.id);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = renderSessionRowHTML(session, {
+            isActive: currentSessionId === session.id,
+            project,
+            showProjectEmoji,
+            isDraggable,
+            sessionUiState
+        });
+        const childRow = wrapper.firstElementChild;
+
+        childRow.addEventListener('click', async (e) => {
+            if (!e.target.closest('button')) {
+                const sessionId = childRow.dataset.id;
+                if (sessionId) {
+                    await this.sessionService.switchSession(sessionId);
+                } else {
+                    console.error('Session ID not found in row:', childRow);
+                }
+            }
+        });
+
+        this._attachSessionActionHandlers(childRow, session, { enableDrag });
+        return childRow;
+    }
+
+    _refreshSessionRows(sessionIds = []) {
+        if (!this.container || !Array.isArray(sessionIds) || sessionIds.length === 0) return;
+
+        const { sessions, currentSessionId } = appStore.getState();
+        for (const sessionId of sessionIds) {
+            const currentRow = this.container.querySelector(`.session-child-row[data-id="${sessionId}"]`);
+            if (!currentRow) continue;
+            const session = (sessions || []).find((item) => item.id === sessionId);
+            if (!session) continue;
+
+            const project = currentRow.dataset.project || getProjectFromSession(session);
+            const showProjectEmoji = Boolean(currentRow.querySelector('.session-project-emoji'));
+            const isDraggable = currentRow.getAttribute('draggable') !== 'false';
+            const enableDrag = isDraggable;
+            const nextRow = this._buildSessionRowElement(session, currentSessionId, {
+                project,
+                showProjectEmoji,
+                isDraggable,
+                enableDrag
+            });
+            currentRow.replaceWith(nextRow);
+        }
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
     /**
      * イベントリスナーの設定
      */
@@ -43,12 +99,26 @@ export class SessionView {
         const unsub4 = eventBus.on(EVENTS.SESSION_DELETED, () => this.render());
         const unsub5 = eventBus.on(EVENTS.SESSION_PAUSED, () => this.render());
         const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this.render());
+        const unsub6b = eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, (event) => {
+            const sessionListView = appStore.getState().ui?.sessionListView || 'timeline';
+            if (sessionListView === 'timeline') {
+                this.render();
+                return;
+            }
+
+            const sessionIds = event.detail?.sessionIds;
+            if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+                this._refreshSessionRows(sessionIds);
+                return;
+            }
+            this.render();
+        });
         const unsub7 = appStore.subscribeToSelector(
             state => state.ui?.sessionListView,
             () => this.render()
         );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub6b, unsub7);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -132,9 +202,6 @@ export class SessionView {
         if (window.lucide) {
             window.lucide.createIcons();
         }
-
-        // セッションインジケーターを更新（緑・オレンジのステータス表示）
-        updateSessionIndicators(currentSessionId);
     }
 
     /**
@@ -149,27 +216,12 @@ export class SessionView {
 
         timelineSessions.forEach(session => {
             const project = getProjectFromSession(session);
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
-                isActive: currentSessionId === session.id,
+            const childRow = this._buildSessionRowElement(session, currentSessionId, {
                 project,
                 showProjectEmoji: true,
-                isDraggable: false
+                isDraggable: false,
+                enableDrag: false
             });
-            const childRow = wrapper.firstElementChild;
-
-            childRow.addEventListener('click', async (e) => {
-                if (!e.target.closest('button')) {
-                    const sessionId = childRow.dataset.id;
-                    if (sessionId) {
-                        await this.sessionService.switchSession(sessionId);
-                    } else {
-                        console.error('Session ID not found in row:', childRow);
-                    }
-                }
-            });
-
-            this._attachSessionActionHandlers(childRow, session, { enableDrag: false });
             listDiv.appendChild(childRow);
         });
 
@@ -178,13 +230,33 @@ export class SessionView {
 
     /**
      * 時系列表示用のセッション一覧を取得
+     *
+     * ソート優先度:
+     * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
+     *    - 条件: activity === 'done-unread'
+     * 2. 残りのセッションは時系列順（最新が上）
+     *
+     * @param {Array} sessions - セッション一覧
+     * @returns {Array} ソート済みセッション一覧（アーカイブ済み除外）
      * @private
      */
     _getTimelineSessions(sessions) {
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
+
         const sorted = [...filtered].sort((a, b) => {
+            const uiStateA = deriveSessionUiState(a.id);
+            const uiStateB = deriveSessionUiState(b.id);
+            const isGreenA = uiStateA.activity === 'done-unread';
+            const isGreenB = uiStateB.activity === 'done-unread';
+
+            // 優先度1: 緑セッションを最上部に配置
+            if (isGreenA && !isGreenB) return -1;
+            if (!isGreenA && isGreenB) return 1;
+
+            // 優先度2: 緑セッション同士 or 通常セッション同士は時系列順（最新が上）
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
+
         return sorted;
     }
 
@@ -200,14 +272,11 @@ export class SessionView {
             return Number.isNaN(parsed) ? null : parsed;
         };
 
-        const liveStatus = session?.id ? getSessionStatus(session.id) : null;
+        const liveStatus = session?.id ? deriveSessionUiState(session.id).hookStatus : null;
         const statusTimestamp = Math.max(
             liveStatus?.lastWorkingAt || 0,
             liveStatus?.lastDoneAt || 0,
-            liveStatus?.timestamp || 0,
-            session?.hookStatus?.lastWorkingAt || 0,
-            session?.hookStatus?.lastDoneAt || 0,
-            session?.hookStatus?.timestamp || 0
+            liveStatus?.timestamp || 0
         );
         if (statusTimestamp > 0) {
             return statusTimestamp;
@@ -327,28 +396,12 @@ export class SessionView {
 
         // 各セッションをレンダリング
         sessions.forEach(session => {
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
-                isActive: currentSessionId === session.id,
-                project
+            const childRow = this._buildSessionRowElement(session, currentSessionId, {
+                project,
+                showProjectEmoji: false,
+                isDraggable: true,
+                enableDrag: true
             });
-            const childRow = wrapper.firstElementChild;
-
-            // セッションクリックで切り替え
-            childRow.addEventListener('click', async (e) => {
-                if (!e.target.closest('button')) {
-                    const sessionId = childRow.dataset.id;
-                    if (sessionId) {
-                        await this.sessionService.switchSession(sessionId);
-                    } else {
-                        console.error('Session ID not found in row:', childRow);
-                    }
-                }
-            });
-
-            // アクションボタンのイベントハンドラー
-            this._attachSessionActionHandlers(childRow, session);
-
             projectSessionsDiv.appendChild(childRow);
         });
 

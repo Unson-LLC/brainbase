@@ -215,6 +215,7 @@ export const EVENTS = {
     MERGE_SESSION: 'session:merge',
     RENAME_SESSION: 'session:rename',
     CREATE_SESSION: 'session:create',
+    SESSION_UI_STATE_CHANGED: 'session:ui-state-changed',
 
     // Schedule関連
     SCHEDULE_LOADED: 'schedule:loaded',

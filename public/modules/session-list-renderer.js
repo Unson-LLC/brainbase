@@ -32,6 +32,45 @@ function formatRelativeTime(isoString) {
   return `${months}mo ago`;
 }
 
+function getPausedStatusLabel(session, { isPaused }) {
+  if (!isPaused) {
+    return null;
+  }
+
+  if (session.pausedReason === 'manual') {
+    return {
+      text: '⏸ Manual pause',
+      title: 'Paused manually to save resources.'
+    };
+  }
+
+  if (session.pausedReason === 'tmux_missing_on_restore') {
+    return {
+      text: '⏸ Auto pause',
+      title: 'Paused automatically because TMUX session was missing during restore.'
+    };
+  }
+
+  if (session.pausedReason === 'migrated_from_stopped') {
+    return {
+      text: '⏸ Migrated',
+      title: 'Migrated from legacy stopped state.'
+    };
+  }
+
+  return {
+    text: '⏸ Paused',
+    title: 'Session is paused.'
+  };
+}
+
+function renderChip(text, { className = '', title = '' } = {}) {
+  if (!text) return '';
+  const classes = ['session-summary-chip', className].filter(Boolean).join(' ');
+  const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+  return `<span class="${classes}"${titleAttr}>${escapeHtml(text)}</span>`;
+}
+
 /**
  * セッション行のHTMLを生成
  * @param {Object} session - セッションオブジェクト
@@ -40,27 +79,41 @@ function formatRelativeTime(isoString) {
  * @param {string} options.project - プロジェクト名
  * @param {boolean} options.showProjectEmoji - プロジェクト絵文字を表示するか
  * @param {boolean} options.isDraggable - ドラッグ可能か
+ * @param {Object} options.sessionUiState - セッションUI状態（deriveSessionUiStateから）
  * @returns {string} HTML文字列
  */
 export function renderSessionRowHTML(session, options = {}) {
-  const { isActive = false, project = 'General', showProjectEmoji = false, isDraggable = true } = options;
+  const {
+    isActive = false,
+    project = 'General',
+    showProjectEmoji = false,
+    isDraggable = true,
+    sessionUiState = null
+  } = options;
   const displayName = escapeHtml(session.name || session.id);
   const hasWorktree = !!session.worktree;
   const engine = session.engine || 'claude';
+  const uiState = sessionUiState || {};
+  const summary = uiState.summary || {};
+  const activity = uiState.activity || 'idle';
+  const transport = uiState.transport || 'disconnected';
+  const attention = uiState.attention || 'none';
+  const recentFile = uiState.recentFile || null;
   const activeClass = isActive ? ' active' : '';
   const archivedClass = session.intendedState === 'archived' ? ' archived' : '';
   const worktreeClass = hasWorktree ? ' has-worktree' : '';
+  const transportClass = transport ? ` transport-${transport}` : '';
+  const attentionClass = attention !== 'none' ? ` attention-${attention}` : '';
   const draggableAttr = isDraggable ? 'true' : 'false';
-
-  // runtimeStatus.needsRestart を使って予期しない停止状態を判定
-  const needsRestart = session.runtimeStatus?.needsRestart || false;
-  const ttydRunning = session.runtimeStatus?.ttydRunning || false;
 
   // 意図的な一時停止状態かどうか（intendedStateで判定）
   const isPaused = session.intendedState === 'paused';
-  const pausedClass = (needsRestart || isPaused) ? ' paused' : '';
+  const pausedClass = isPaused ? ' paused' : '';
+  const pausedStatusLabel = getPausedStatusLabel(session, { isPaused });
+  const pausedLabelHTML = pausedStatusLabel
+    ? `<span class="paused-label" title="${escapeHtml(pausedStatusLabel.title)}">${escapeHtml(pausedStatusLabel.text)}</span>`
+    : '';
 
-  // セッションアイコン: worktreeあり→git-merge、なし→terminal-square
   const sessionIcon = hasWorktree ? 'git-merge' : 'terminal-square';
 
   // Engine icon: codex/claudeの区別をSVGアイコンで表示
@@ -76,16 +129,65 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="session-project-emoji" title="${projectLabel}">${projectEmoji}</span>`
     : '';
 
-  // 会話ログ情報（conversationSummary）
+  // 会話ログ情報（conversationSummary - 軽量版）
   const convSummary = session.conversationSummary;
   const convCount = convSummary?.totalConversations || 0;
-  const convLastActivity = convSummary?.lastConversation?.lastActivity;
+  const convLastActivity = convSummary?.lastActivity;
   const convBadge = convCount > 0
     ? `<span class="conversation-badge" title="${convCount} conversation(s)${convLastActivity ? ', last: ' + formatRelativeTime(convLastActivity) : ''}"><i data-lucide="message-square"></i>${convCount}</span>`
     : '';
 
-  // エージェント活動インジケーター（session-indicators.js）のみ使用
-  // セッション状態は右側のインジケーターと背景色で表現
+  const activityIndicator = activity === 'working'
+    ? '<span class="session-activity-indicator working" title="Agent working"></span>'
+    : activity === 'done-unread'
+      ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
+      : '<span class="session-activity-indicator idle" aria-hidden="true"></span>';
+
+  const transportLabelMap = {
+    connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
+    reconnecting: { text: 'Reconnecting', className: 'transport-warn', title: 'Terminal reconnecting' },
+    disconnected: { text: 'Offline', className: 'transport-muted', title: 'Terminal disconnected' }
+  };
+
+  const summaryChips = [];
+  if (summary.repo || summary.baseBranch) {
+    summaryChips.push(renderChip(
+      `${summary.repo || 'repo'}${summary.baseBranch ? `/${summary.baseBranch}` : ''}`,
+      {
+        className: 'chip-repo',
+        title: summary.workspacePath || summary.repo || ''
+      }
+    ));
+  }
+  if (summary.dirty) {
+    summaryChips.push(renderChip('dirty', { className: 'chip-dirty', title: 'Working copy has changes' }));
+  }
+  if (summary.changesNotPushed > 0) {
+    summaryChips.push(renderChip(`↑${summary.changesNotPushed}`, {
+      className: 'chip-push',
+      title: `${summary.changesNotPushed} change(s) not pushed`
+    }));
+  }
+  if (summary.prStatus === 'merged') {
+    summaryChips.push(renderChip('merged', { className: 'chip-pr-ok', title: 'PR merged' }));
+  } else if (summary.prStatus === 'open_or_pending') {
+    summaryChips.push(renderChip('pending', { className: 'chip-pr-pending', title: 'PR open or pending' }));
+  }
+  if (recentFile?.label) {
+    summaryChips.push(renderChip(`file: ${recentFile.label}`, {
+      className: 'chip-file',
+      title: recentFile.path || recentFile.label
+    }));
+  }
+
+  const transportBadge = transportLabelMap[transport]
+    ? renderChip(transportLabelMap[transport].text, {
+      className: `session-transport-badge ${transportLabelMap[transport].className}`,
+      title: transportLabelMap[transport].title
+    })
+    : '';
+
+  const attentionBadge = '';
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
   const mergeButton = hasWorktree && session.intendedState !== 'archived'
@@ -117,18 +219,27 @@ export function renderSessionRowHTML(session, options = {}) {
   const archiveIcon = session.intendedState === 'archived' ? 'archive-restore' : 'archive';
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="${draggableAttr}">
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}${transportClass}${attentionClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="${draggableAttr}">
       <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
-      <div class="session-name-container">
-        <span class="session-meta">
-          <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
-        </span>
-        ${projectEmojiBadge}
-        <span class="session-name">${displayName}</span>
-        <span class="session-meta session-meta-right">
-          ${convBadge}
-          ${engineBadge}
-        </span>
+      ${activityIndicator}
+      <div class="session-row-main">
+        <div class="session-name-container">
+          <span class="session-meta">
+            <span class="session-icon" title="${hasWorktree ? 'Worktree session' : 'Regular session'}"><i data-lucide="${sessionIcon}"></i></span>
+          </span>
+          ${projectEmojiBadge}
+          <span class="session-name">${displayName}</span>
+          ${pausedLabelHTML}
+          <span class="session-meta session-meta-right">
+            ${convBadge}
+            ${engineBadge}
+          </span>
+        </div>
+        <div class="session-summary-row">
+          ${summaryChips.join('')}
+          ${transportBadge}
+          ${attentionBadge}
+        </div>
       </div>
       <div class="session-actions-container">
         <button class="session-menu-toggle" title="メニュー"><i data-lucide="more-vertical"></i></button>
