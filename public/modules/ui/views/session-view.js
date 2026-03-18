@@ -89,6 +89,8 @@ export class SessionView {
                 isDraggable,
                 enableDrag
             });
+            // 見た目が変わってない場合はDOM差し替えをスキップ（ちらつき防止）
+            if (currentRow.innerHTML === nextRow.innerHTML) continue;
             currentRow.replaceWith(nextRow);
             if (window.lucide) {
                 window.lucide.createIcons({ root: nextRow });
