@@ -1337,10 +1337,16 @@ export class App {
         }
 
         this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
+        const transportPillText = presentationMode === 'snapshot'
+            ? 'Snapshot'
+            : (xtermActive ? 'xterm' : (usingMobileDisplay ? 'display' : 'ttyd'));
+        const transportPillTitle = presentationMode === 'snapshot'
+            ? 'snapshot terminal display'
+            : (xtermActive ? 'xterm transport' : (usingMobileDisplay ? 'snapshot terminal display' : 'ttyd iframe fallback'));
         this._setTerminalHeaderChip(this.terminalTransportPillEl, {
             hidden: false,
-            text: xtermActive ? 'xterm' : (usingMobileDisplay ? 'display' : 'ttyd'),
-            title: xtermActive ? 'xterm transport' : (usingMobileDisplay ? 'snapshot terminal display' : 'ttyd iframe fallback')
+            text: transportPillText,
+            title: transportPillTitle
         });
         this._setTerminalHeaderChip(this.terminalOwnerLabelEl, {
             hidden: !ownerLabel,
