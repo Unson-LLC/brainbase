@@ -41,6 +41,35 @@ export class SessionView {
         this.render();
     }
 
+    /**
+     * 行のビジュアルを決定する入力値からフィンガープリントを生成
+     * @private
+     */
+    _computeRowFingerprint(session, currentSessionId, options) {
+        const uiState = deriveSessionUiState(session.id);
+        const summary = session.summary || {};
+        const convSummary = session.conversationSummary || {};
+        return [
+            session.id,
+            session.name || '',
+            currentSessionId === session.id ? '1' : '0',
+            uiState.activity || '',
+            uiState.attention || '',
+            uiState.transport || '',
+            uiState.recentFile?.path || '',
+            session.intendedState || '',
+            session.hasWorktree ? '1' : '0',
+            session.engine || '',
+            options.project || '',
+            summary.repo || '',
+            summary.baseBranch || '',
+            summary.dirty ? '1' : '0',
+            summary.changesNotPushed || 0,
+            summary.prStatus || '',
+            convSummary.totalConversations || 0,
+        ].join('\t');
+    }
+
     _buildSessionRowElement(session, currentSessionId, options = {}) {
         const { project, showProjectEmoji = false, isDraggable = true, enableDrag = true } = options;
         const sessionUiState = deriveSessionUiState(session.id);
@@ -53,6 +82,7 @@ export class SessionView {
             sessionUiState
         });
         const childRow = wrapper.firstElementChild;
+        childRow.dataset.fingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
 
         childRow.addEventListener('click', async (e) => {
             if (!e.target.closest('button')) {
@@ -83,21 +113,20 @@ export class SessionView {
             const showProjectEmoji = Boolean(currentRow.querySelector('.session-project-emoji'));
             const isDraggable = currentRow.getAttribute('draggable') !== 'false';
             const enableDrag = isDraggable;
+            // フィンガープリント比較：レンダリング入力が同じなら差し替え不要
+            const newFingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
+            if (currentRow.dataset.fingerprint === newFingerprint) continue;
+
             const nextRow = this._buildSessionRowElement(session, currentSessionId, {
                 project,
                 showProjectEmoji,
                 isDraggable,
                 enableDrag
             });
-            // lucide展開してからinnerHTML比較（既存行はSVG展開済みのため）
+            currentRow.replaceWith(nextRow);
             if (window.lucide) {
                 window.lucide.createIcons({ root: nextRow });
             }
-            if (currentRow.innerHTML === nextRow.innerHTML
-                && currentRow.className === nextRow.className) {
-                continue;
-            }
-            currentRow.replaceWith(nextRow);
         }
     }
 
