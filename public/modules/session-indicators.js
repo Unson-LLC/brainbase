@@ -19,6 +19,18 @@ import { showError, showInfo } from './toast.js';
 let consecutiveErrors = 0;
 const MAX_CONSECUTIVE_ERRORS = 3;
 
+function didHookStatusChange(prev, next) {
+    if (!prev) return true;
+    return prev.isWorking !== next.isWorking
+        || prev.isDone !== next.isDone
+        || prev.lastWorkingAt !== next.lastWorkingAt
+        || prev.lastDoneAt !== next.lastDoneAt
+        || prev.lastActivityAt !== next.lastActivityAt
+        || prev.lastEventType !== next.lastEventType
+        || prev.activeTurnCount !== next.activeTurnCount
+        || prev.timestamp !== next.timestamp;
+}
+
 // Clear done status when session is opened
 export function clearDone(sessionId) {
     const status = getStoreSessionStatus(sessionId);
@@ -133,12 +145,7 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         // Update map
         for (const [sessionId, newStatus] of Object.entries(status)) {
             const prev = previousStatuses.get(sessionId);
-            if (!prev ||
-                prev.isWorking !== newStatus.isWorking ||
-                prev.isDone !== newStatus.isDone ||
-                prev.lastWorkingAt !== newStatus.lastWorkingAt ||
-                prev.lastDoneAt !== newStatus.lastDoneAt
-            ) {
+            if (didHookStatusChange(prev, newStatus)) {
                 hasStatusChange = true;
                 changedSessionIds.add(sessionId);
             }

@@ -211,4 +211,47 @@ describe('session-indicators', () => {
         await pollSessionStatus('session-1');
         expect(getSessionUiEntry('session-1').hookStatus.isWorking).toBe(true);
     });
+
+    it('pollSessionStatus呼び出し時_timestampだけ変わってもUI更新対象に含める', async () => {
+        globalThis.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    'session-1': {
+                        isWorking: true,
+                        isDone: false,
+                        lastWorkingAt: 200,
+                        lastDoneAt: 0,
+                        lastActivityAt: 200,
+                        activeTurnCount: 1,
+                        timestamp: 200
+                    }
+                })
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    'session-1': {
+                        isWorking: true,
+                        isDone: false,
+                        lastWorkingAt: 200,
+                        lastDoneAt: 0,
+                        lastActivityAt: 260,
+                        activeTurnCount: 1,
+                        timestamp: 260
+                    }
+                })
+            });
+
+        await pollSessionStatus('session-1');
+        vi.clearAllMocks();
+
+        await pollSessionStatus('session-1');
+
+        expect(getSessionUiEntry('session-1').hookStatus.timestamp).toBe(260);
+        expect(eventBus.emit).toHaveBeenCalledWith(
+            EVENTS.SESSION_UI_STATE_CHANGED,
+            { sessionIds: ['session-1'] }
+        );
+    });
 });
