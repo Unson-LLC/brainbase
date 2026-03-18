@@ -56,7 +56,6 @@ export async function markDoneAsRead(sessionId, currentSessionId = null) {
 
     clearDone(sessionId);
     await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: [sessionId], currentSessionId });
-    await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates: { doneRead: true } });
 
     try {
         await httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/clear-done`, {});
