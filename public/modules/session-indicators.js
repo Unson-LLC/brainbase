@@ -67,11 +67,17 @@ export async function markDoneAsRead(sessionId, currentSessionId = null) {
 
 // --- Connection Status ---
 
+let _lastConnectionStatus = null;
+
 /**
  * Update connection status indicator in sidebar
  * @param {boolean} isConnected - Whether server is connected
  */
 export function updateConnectionStatus(isConnected) {
+    // Skip DOM update if status hasn't changed
+    if (_lastConnectionStatus === isConnected) return;
+    _lastConnectionStatus = isConnected;
+
     const statusEl = document.getElementById('connection-status');
     if (!statusEl) return;
 
@@ -183,19 +189,38 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
 }
 
 /**
- * Start polling at regular interval
+ * Start polling with jittered setTimeout to avoid thundering herd across tabs
  * @param {function} getCurrentSessionId - Function to get current session ID
- * @param {number} intervalMs - Polling interval in milliseconds
- * @returns {number} Interval ID for clearing
+ * @param {number} intervalMs - Base polling interval in milliseconds
+ * @returns {function} Cleanup function to stop polling
  */
 export function startPolling(getCurrentSessionId, intervalMs = 3000, onStatusChange) {
+    let timerId = null;
+    let stopped = false;
+
+    function scheduleNext() {
+        if (stopped) return;
+        // Add ±500ms jitter to prevent thundering herd across tabs
+        const jitter = Math.floor(Math.random() * 1000) - 500;
+        const delay = Math.max(1000, intervalMs + jitter);
+        timerId = setTimeout(async () => {
+            await pollSessionStatus(getCurrentSessionId(), onStatusChange);
+            scheduleNext();
+        }, delay);
+    }
+
     // Initial poll
     pollSessionStatus(getCurrentSessionId(), onStatusChange);
+    scheduleNext();
 
-    // Set up interval
-    return setInterval(() => {
-        pollSessionStatus(getCurrentSessionId(), onStatusChange);
-    }, intervalMs);
+    // Return cleanup function
+    return function stopPolling() {
+        stopped = true;
+        if (timerId !== null) {
+            clearTimeout(timerId);
+            timerId = null;
+        }
+    };
 }
 
 export function updateSessionIndicators(_currentSessionId) {

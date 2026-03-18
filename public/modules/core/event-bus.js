@@ -298,7 +298,6 @@ export const EVENTS = {
     PLUGIN_REQUIREMENTS_FAILED: 'plugin:requirements-failed',
     PLUGIN_SLOT_MISSING: 'plugin:slot-missing',
 
-    // Goal Seek V2関連
     GOAL_CREATED: 'goal:created',
     GOAL_UPDATED: 'goal:updated',
     GOAL_DELETED: 'goal:deleted',
@@ -318,5 +317,11 @@ export const EVENTS = {
     NOTIFICATION_CLICKED: 'notification:clicked',
     NOTIFICATION_FALLBACK: 'notification:fallback',
     NOTIFICATION_REQUEST: 'notification:request',
-    NOTIFICATION_SEND: 'notification:send'
+    NOTIFICATION_SEND: 'notification:send',
+
+    // Wiki関連
+    WIKI_PAGES_LOADED: 'wiki:pages-loaded',
+    WIKI_PAGE_SELECTED: 'wiki:page-selected',
+    WIKI_PAGE_UPDATED: 'wiki:page-updated',
+    WIKI_PAGE_DELETED: 'wiki:page-deleted'
 };

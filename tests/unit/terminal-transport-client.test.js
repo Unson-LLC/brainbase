@@ -16,14 +16,14 @@ describe('terminal-transport-client', () => {
     expect(shouldUseXtermTransport()).toBe(true);
   });
 
-  it('mobile環境でもxterm transportを使う', () => {
+  it('mobile環境ではxterm transportを使わない', () => {
     vi.stubGlobal('window', {
       innerWidth: 390,
       location: { hostname: 'localhost' }
     });
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)' });
 
-    expect(shouldUseXtermTransport()).toBe(true);
+    expect(shouldUseXtermTransport()).toBe(false);
   });
 
   it('Cloudflare hostnameでもxterm transportを使う', () => {

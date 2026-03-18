@@ -10,6 +10,9 @@ export class TimelineView {
         this.scheduleService = scheduleService;
         this.container = null;
         this._unsubscribers = [];
+        this.googleCalendarAuthStatus = null;
+        this._googleCalendarBusy = false;
+        this._googleCalendarPopup = null;
 
         // モーダルコールバック
         this.onAddRequest = null;      // 追加モーダルを開く
@@ -18,6 +21,9 @@ export class TimelineView {
         // バインド
         this._handleClick = this._handleClick.bind(this);
         this._handleDoubleClick = this._handleDoubleClick.bind(this);
+        this._handleGoogleCalendarButtonClick = this._handleGoogleCalendarButtonClick.bind(this);
+        this._handleGoogleCalendarDisconnect = this._handleGoogleCalendarDisconnect.bind(this);
+        this._handleGoogleCalendarMessage = this._handleGoogleCalendarMessage.bind(this);
     }
 
     /**
@@ -29,6 +35,7 @@ export class TimelineView {
         this._setupEventListeners();
         this._setupDOMEventListeners();
         this.render();
+        void this._refreshGoogleCalendarAuthStatus();
     }
 
     /**
@@ -61,6 +68,18 @@ export class TimelineView {
                 }
             });
         }
+
+        const googleBtn = document.getElementById('google-calendar-connect-btn');
+        if (googleBtn) {
+            googleBtn.addEventListener('click', this._handleGoogleCalendarButtonClick);
+        }
+
+        const disconnectBtn = document.getElementById('google-calendar-disconnect-btn');
+        if (disconnectBtn) {
+            disconnectBtn.addEventListener('click', this._handleGoogleCalendarDisconnect);
+        }
+
+        window.addEventListener('message', this._handleGoogleCalendarMessage);
     }
 
     /**
@@ -182,25 +201,29 @@ export class TimelineView {
             const currentClass = isCurrent ? ' current is-current' : '';
             const workTimeClass = event.isWorkTime ? ' is-worktime' : '';
             const completedClass = event.completed ? ' is-completed' : '';
+            const googleClass = event.source === 'google-calendar' ? ' is-google-calendar' : '';
 
-            // Event ID for interactivity (Kiro format only)
-            const eventIdAttr = event.id ? ` data-event-id="${escapeHtml(event.id)}"` : '';
+            // Google Calendarイベントは読み取り専用
+            const isInteractive = event.id && event.source !== 'google-calendar';
+            const eventIdAttr = isInteractive ? ` data-event-id="${escapeHtml(event.id)}"` : '';
 
             const timeLabel = event.allDay ? '終日' : (event.start + (event.end ? '-' + event.end : ''));
             const title = escapeHtml(event.title || event.task || '');
+            const sourceBadge = event.source === 'google-calendar'
+                ? '<span class="timeline-source-badge google-calendar">Google</span>'
+                : '';
 
-            // 編集ボタン（イベントIDがある場合のみ）
-            const editBtn = event.id ? `
+            const editBtn = isInteractive ? `
                 <button class="timeline-edit-btn" title="編集" data-edit-id="${escapeHtml(event.id)}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                 </button>
             ` : '';
 
             html += `
-                <div class="timeline-item is-event${currentClass}${workTimeClass}${completedClass}"${eventIdAttr}>
+                <div class="timeline-item is-event${currentClass}${workTimeClass}${completedClass}${googleClass}"${eventIdAttr}>
                     <div class="timeline-marker"></div>
                     <span class="timeline-time">${timeLabel}</span>
-                    <span class="timeline-content">${title}</span>
+                    <span class="timeline-content">${title}${sourceBadge}</span>
                     ${editBtn}
                 </div>
             `;
@@ -237,10 +260,104 @@ export class TimelineView {
      */
     _sortEventsByTime(events) {
         return [...events].sort((a, b) => {
+            if (a.allDay && !b.allDay) return -1;
+            if (!a.allDay && b.allDay) return 1;
             const timeA = a.start || '00:00';
             const timeB = b.start || '00:00';
             return timeA.localeCompare(timeB);
         });
+    }
+
+    async _refreshGoogleCalendarAuthStatus(force = false) {
+        try {
+            this.googleCalendarAuthStatus = await this.scheduleService.getGoogleCalendarAuthStatus({ force });
+        } catch (error) {
+            console.warn('Failed to get Google Calendar auth status:', error);
+            this.googleCalendarAuthStatus = { configured: false, connected: false };
+        }
+        this._renderGoogleCalendarButton();
+    }
+
+    _renderGoogleCalendarButton() {
+        const googleBtn = document.getElementById('google-calendar-connect-btn');
+        const disconnectBtn = document.getElementById('google-calendar-disconnect-btn');
+        if (!googleBtn) return;
+
+        const status = this.googleCalendarAuthStatus || { configured: false, connected: false };
+        const configured = Boolean(status.configured);
+        const connected = Boolean(status.connected);
+
+        googleBtn.hidden = !configured;
+        googleBtn.disabled = !configured || this._googleCalendarBusy;
+        googleBtn.classList.toggle('is-connected', connected);
+        googleBtn.title = connected ? 'Google Calendar 連携済み。クリックで再同期' : 'Google Calendar を連携';
+        googleBtn.setAttribute('aria-label', connected ? 'Google Calendar を再同期' : 'Google Calendar を連携');
+        googleBtn.innerHTML = connected
+            ? '<i data-lucide="refresh-cw"></i>'
+            : '<i data-lucide="calendar"></i>';
+
+        if (disconnectBtn) {
+            disconnectBtn.hidden = !configured || !connected;
+            disconnectBtn.disabled = this._googleCalendarBusy;
+        }
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    async _handleGoogleCalendarButtonClick(e) {
+        e.preventDefault();
+        const status = this.googleCalendarAuthStatus || await this.scheduleService.getGoogleCalendarAuthStatus();
+        if (!status?.configured) return;
+
+        if (status.connected) {
+            this._googleCalendarBusy = true;
+            this._renderGoogleCalendarButton();
+            try {
+                await this.scheduleService.loadSchedule();
+                await this._refreshGoogleCalendarAuthStatus(true);
+            } finally {
+                this._googleCalendarBusy = false;
+                this._renderGoogleCalendarButton();
+            }
+            return;
+        }
+
+        const url = this.scheduleService.buildGoogleCalendarAuthUrl(window.location.origin);
+        this._googleCalendarPopup = window.open(url, 'brainbase-google-calendar-auth', 'popup,width=540,height=720');
+    }
+
+    async _handleGoogleCalendarDisconnect(e) {
+        e.preventDefault();
+        this._googleCalendarBusy = true;
+        this._renderGoogleCalendarButton();
+        try {
+            await this.scheduleService.disconnectGoogleCalendar();
+            await this._refreshGoogleCalendarAuthStatus(true);
+        } catch (error) {
+            console.error('Failed to disconnect Google Calendar:', error);
+        } finally {
+            this._googleCalendarBusy = false;
+            this._renderGoogleCalendarButton();
+        }
+    }
+
+    async _handleGoogleCalendarMessage(event) {
+        const data = event?.data;
+        if (!data || data.type !== 'brainbase-google-calendar-auth') return;
+
+        if (data.success) {
+            this._googleCalendarBusy = true;
+            this._renderGoogleCalendarButton();
+            try {
+                await this.scheduleService.loadSchedule();
+                await this._refreshGoogleCalendarAuthStatus(true);
+            } finally {
+                this._googleCalendarBusy = false;
+                this._renderGoogleCalendarButton();
+            }
+        }
     }
 
     /**
@@ -258,5 +375,17 @@ export class TimelineView {
             this.container.innerHTML = '';
             this.container = null;
         }
+
+        const googleBtn = document.getElementById('google-calendar-connect-btn');
+        if (googleBtn) {
+            googleBtn.removeEventListener('click', this._handleGoogleCalendarButtonClick);
+        }
+
+        const disconnectBtn = document.getElementById('google-calendar-disconnect-btn');
+        if (disconnectBtn) {
+            disconnectBtn.removeEventListener('click', this._handleGoogleCalendarDisconnect);
+        }
+
+        window.removeEventListener('message', this._handleGoogleCalendarMessage);
     }
 }

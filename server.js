@@ -57,6 +57,7 @@ import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
 import { createSetupRouter } from './server/routes/setup.js';
 import { createWikiRouter } from './server/routes/wiki.js';
+import { GoogleCalendarService } from './server/services/google-calendar-service.js';
 import { WikiService } from './server/services/wiki-service.js';
 
 // Import middleware
@@ -256,7 +257,10 @@ await ensureDir(SCHEDULES_DIR);
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
-const scheduleParser = new ScheduleParser(SCHEDULES_DIR);
+const googleCalendarService = new GoogleCalendarService({
+    tokenPath: path.join(VAR_DIR, 'google-calendar-token.json')
+});
+const scheduleParser = new ScheduleParser(SCHEDULES_DIR, { googleCalendarService });
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
 const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
@@ -690,7 +694,7 @@ app.use('/api/tasks', createTaskRouter(taskParser));
 app.use('/api/state', createStateRouter(stateStore, sessionManager, TEST_MODE));
 app.use('/api/config', createConfigRouter(configParser, configService));
 app.use('/api/inbox', createInboxRouter(inboxParser));
-app.use('/api/schedule', createScheduleRouter(scheduleParser));
+app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
 app.use('/api/sessions', createSessionRouter(
     sessionManager,
     worktreeService,

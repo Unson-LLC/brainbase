@@ -5,8 +5,9 @@
 import { AppError, ErrorCodes } from '../lib/errors.js';
 
 export class ScheduleController {
-    constructor(scheduleParser) {
+    constructor(scheduleParser, googleCalendarService = null) {
         this.scheduleParser = scheduleParser;
+        this.googleCalendarService = googleCalendarService;
     }
 
     /**
@@ -111,6 +112,58 @@ export class ScheduleController {
                 return next(new AppError('This operation requires Kiro schedule format', ErrorCodes.UNSUPPORTED_FORMAT));
             }
             next(AppError.isAppError(error) ? error : AppError.internal('Failed to delete event', error));
+        }
+    };
+
+    getGoogleCalendarAuthStatus = async (req, res, next) => {
+        try {
+            if (!this.googleCalendarService) {
+                return res.json({ configured: false, connected: false, calendarIds: [] });
+            }
+            const status = await this.googleCalendarService.getAuthStatus();
+            return res.json(status);
+        } catch (error) {
+            next(AppError.internal('Failed to get Google Calendar auth status', error));
+        }
+    };
+
+    startGoogleCalendarAuth = async (req, res, next) => {
+        try {
+            if (!this.googleCalendarService?.isConfigured()) {
+                throw AppError.internal('Google Calendar OAuth is not configured');
+            }
+            const origin = typeof req.query.origin === 'string' ? req.query.origin : '';
+            return res.redirect(this.googleCalendarService.buildAuthorizeUrl(origin));
+        } catch (error) {
+            next(AppError.isAppError(error) ? error : AppError.internal('Failed to start Google Calendar auth', error));
+        }
+    };
+
+    googleCalendarCallback = async (req, res) => {
+        const code = typeof req.query.code === 'string' ? req.query.code : '';
+        const state = typeof req.query.state === 'string' ? req.query.state : '';
+
+        if (!code || !state || !this.googleCalendarService) {
+            return res.status(400).type('html').send(this.googleCalendarService?.renderCallbackError('Missing code or state') || 'Invalid callback');
+        }
+
+        try {
+            const result = await this.googleCalendarService.handleOAuthCallback(code, state);
+            return res.status(200).type('html').send(this.googleCalendarService.renderCallbackSuccess(result.origin));
+        } catch (error) {
+            return res.status(400).type('html').send(this.googleCalendarService.renderCallbackError(error));
+        }
+    };
+
+    disconnectGoogleCalendar = async (req, res, next) => {
+        try {
+            if (!this.googleCalendarService) {
+                return res.json({ success: true });
+            }
+            await this.googleCalendarService.disconnect();
+            return res.json({ success: true });
+        } catch (error) {
+            next(AppError.internal('Failed to disconnect Google Calendar', error));
         }
     };
 }

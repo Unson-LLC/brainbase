@@ -1,5 +1,5 @@
 const DEFAULT_STORAGE_PREFIX = 'brainbase.auth';
-const DEFAULT_REMOTE_AUTH_BASE = 'https://bb.unson.jp';
+const DEFAULT_REMOTE_AUTH_BASE = 'https://bb.brain-base.work';
 
 function safeJsonParse(value) {
     if (!value) return null;
@@ -303,12 +303,19 @@ export class AuthManager {
             return String(this.httpClient.baseURL).replace(/\/+$/, '');
         }
 
-        const host = window.location.hostname;
+        return window.location.origin;
+    }
+
+    /**
+     * Auth base URL used only for Slack login start (redirect via remote).
+     * verify/refresh use the local origin to avoid cross-origin fetch issues.
+     */
+    resolveLoginBaseURL() {
+        const host = typeof window !== 'undefined' ? window.location.hostname : '';
         if (host === 'localhost' || host === '127.0.0.1') {
             return DEFAULT_REMOTE_AUTH_BASE;
         }
-
-        return window.location.origin;
+        return this.resolveAuthBaseURL();
     }
 
     getAllowedOrigins() {
@@ -321,6 +328,14 @@ export class AuthManager {
         if (authBase) {
             try {
                 origins.add(new URL(authBase).origin);
+            } catch {
+                // ignore invalid url
+            }
+        }
+        const loginBase = this.resolveLoginBaseURL();
+        if (loginBase) {
+            try {
+                origins.add(new URL(loginBase).origin);
             } catch {
                 // ignore invalid url
             }
@@ -382,7 +397,7 @@ export class AuthManager {
     startSlackLogin({ redirectPath = '/' } = {}) {
         if (typeof window === 'undefined') return;
         this._ensureMessageListener();
-        const authBase = this.resolveAuthBaseURL() || window.location.origin;
+        const authBase = this.resolveLoginBaseURL() || window.location.origin;
         const url = new URL('/api/auth/slack/start', authBase);
         url.searchParams.set('origin', window.location.origin);
         if (redirectPath) {

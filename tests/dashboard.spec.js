@@ -54,7 +54,7 @@ test.describe('Dashboard Layout', () => {
 
         // Verify focus section
         await expect(contextSidebar.locator('#focus-section')).toBeVisible();
-        await expect(contextSidebar.locator('#focus-section .section-header h3')).toContainText('今日のフォーカス');
+        await expect(contextSidebar.locator('#focus-section .section-header h3')).toHaveCount(0);
 
         // Verify timeline section
         await expect(contextSidebar.locator('#timeline-section')).toBeVisible();

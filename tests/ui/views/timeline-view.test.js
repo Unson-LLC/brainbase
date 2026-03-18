@@ -12,6 +12,9 @@ vi.mock('../../../public/modules/domain/schedule/schedule-service.js', () => {
                 this.loadSchedule = vi.fn();
                 this.getTimeline = vi.fn(() => []);
                 this.getEvents = vi.fn(() => []);
+                this.getGoogleCalendarAuthStatus = vi.fn().mockResolvedValue({ configured: false, connected: false });
+                this.buildGoogleCalendarAuthUrl = vi.fn(() => '/api/schedule/google/start?origin=http%3A%2F%2Flocalhost');
+                this.disconnectGoogleCalendar = vi.fn();
             }
         }
     };
@@ -24,7 +27,12 @@ describe('TimelineView', () => {
 
     beforeEach(() => {
         // DOM準備
-        document.body.innerHTML = '<div id="test-container"></div>';
+        document.body.innerHTML = `
+            <button id="google-calendar-connect-btn"></button>
+            <button id="google-calendar-disconnect-btn" hidden></button>
+            <button id="add-schedule-btn"></button>
+            <div id="test-container"></div>
+        `;
         container = document.getElementById('test-container');
 
         // モックサービス
@@ -152,6 +160,51 @@ describe('TimelineView', () => {
             expect(container.innerHTML).toContain('今日のタスク');
             expect(container.innerHTML).toContain('Complete report');
             expect(container.innerHTML).toContain('Review code');
+        });
+
+        it('should render google calendar badge for imported events', () => {
+            const mockEvents = [
+                { id: 'gcal:primary:1', start: '10:00', end: '11:00', title: 'Google Meeting', source: 'google-calendar' }
+            ];
+            mockScheduleService.getEvents.mockReturnValue(mockEvents);
+
+            timelineView.render();
+
+            expect(container.innerHTML).toContain('Google Meeting');
+            expect(container.innerHTML).toContain('timeline-source-badge');
+            expect(container.querySelector('.is-google-calendar')).toBeTruthy();
+        });
+    });
+
+    describe('google calendar auth controls', () => {
+        beforeEach(() => {
+            timelineView.mount(container);
+        });
+
+        it('should show connect button when google calendar is configured', async () => {
+            mockScheduleService.getGoogleCalendarAuthStatus.mockResolvedValue({
+                configured: true,
+                connected: false
+            });
+
+            await timelineView._refreshGoogleCalendarAuthStatus(true);
+
+            const button = document.getElementById('google-calendar-connect-btn');
+            expect(button.hidden).toBe(false);
+            expect(button.title).toContain('Google Calendar');
+        });
+
+        it('should handle auth success message by reloading schedule', async () => {
+            mockScheduleService.getGoogleCalendarAuthStatus.mockResolvedValue({
+                configured: true,
+                connected: true
+            });
+
+            await timelineView._handleGoogleCalendarMessage({
+                data: { type: 'brainbase-google-calendar-auth', success: true }
+            });
+
+            expect(mockScheduleService.loadSchedule).toHaveBeenCalled();
         });
     });
 

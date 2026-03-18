@@ -58,6 +58,11 @@ body {
     --keyboard-offset: 0px;
 }
 
+/* Terminal frame clearing state - hides iframe during about:blank to prevent white flash */
+.terminal-frame-clearing {
+    visibility: hidden;
+}
+
 body::before {
     content: '';
     position: absolute;

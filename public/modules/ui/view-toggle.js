@@ -3,13 +3,17 @@ export function renderViewToggle(container) {
 
     container.innerHTML = `
         <div class="view-toggle">
-            <button class="toggle-option active" id="nav-console-btn" title="コンソール">
+            <button class="toggle-option active" id="nav-console-btn" title="Console">
                 <i data-lucide="terminal-square"></i>
-                <span>Console</span>
             </button>
-            <button class="toggle-option" id="nav-dashboard-btn" title="ダッシュボード" style="display: none;">
+            <button class="toggle-option" id="nav-wiki-btn" title="Wiki">
+                <i data-lucide="book-open"></i>
+            </button>
+            <button class="toggle-option" id="nav-live-feed-btn" title="Live Feed">
+                <i data-lucide="radio"></i>
+            </button>
+            <button class="toggle-option" id="nav-dashboard-btn" title="Dashboard" style="display: none;">
                 <i data-lucide="layout-dashboard"></i>
-                <span>Dashboard</span>
             </button>
             <div class="toggle-bg-slider"></div>
         </div>

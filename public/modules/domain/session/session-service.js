@@ -34,7 +34,8 @@ export class SessionService {
      * セッション一覧取得
      * @returns {Promise<Array>} セッション配列
      */
-    async loadSessions() {
+    async loadSessions(options = {}) {
+        const { silent = false } = options;
         const state = await this.httpClient.get('/api/state');
         let sessions = state.sessions || [];
         const testMode = state.testMode || false;
@@ -71,7 +72,9 @@ export class SessionService {
 
         this.store.setState({ sessions, testMode, preferences });
         pruneSessionUiState(sessions.map((session) => session.id));
-        await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
+        if (!silent) {
+            await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
+        }
         return sessions;
     }
 
@@ -322,7 +325,7 @@ export class SessionService {
             s.id === sessionId ? { ...s, ...updates } : s
         );
         await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-        await this.loadSessions();
+        await this.loadSessions({ silent: true });
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
         return { success: true, sessionId, updates, eventResult };
     }
@@ -366,7 +369,7 @@ export class SessionService {
                 const state = await this.httpClient.get('/api/state');
                 const updatedSessions = (state.sessions || []).filter((session) => session.id !== sessionId);
                 await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-                await this.loadSessions();
+                await this.loadSessions({ silent: true });
                 return { success: true, sessionId, eventResult };
             } catch (error) {
                 this.store.setState({

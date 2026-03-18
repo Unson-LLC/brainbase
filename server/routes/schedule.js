@@ -5,9 +5,14 @@
 import express from 'express';
 import { ScheduleController } from '../controllers/schedule-controller.js';
 
-export function createScheduleRouter(scheduleParser) {
+export function createScheduleRouter(scheduleParser, googleCalendarService = null) {
     const router = express.Router();
-    const controller = new ScheduleController(scheduleParser);
+    const controller = new ScheduleController(scheduleParser, googleCalendarService);
+
+    router.get('/google/auth-status', controller.getGoogleCalendarAuthStatus);
+    router.get('/google/start', controller.startGoogleCalendarAuth);
+    router.get('/google/callback', controller.googleCalendarCallback);
+    router.delete('/google/auth', controller.disconnectGoogleCalendar);
 
     // GET /api/schedule/today - 今日のスケジュールを取得
     router.get('/today', controller.getToday);

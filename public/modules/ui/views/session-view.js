@@ -17,9 +17,19 @@ export class SessionView {
         this.sessionService = sessionService;
         this.container = null;
         this._unsubscribers = [];
+        this._renderScheduled = false;
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
+    }
+
+    _scheduleRender() {
+        if (this._renderScheduled) return;
+        this._renderScheduled = true;
+        queueMicrotask(() => {
+            this._renderScheduled = false;
+            this.render();
+        });
     }
 
     /**
@@ -92,17 +102,28 @@ export class SessionView {
      * イベントリスナーの設定
      */
     _setupEventListeners() {
-        // イベント購読
-        const unsub1 = eventBus.on(EVENTS.SESSION_LOADED, () => this.render());
-        const unsub2 = eventBus.on(EVENTS.SESSION_CREATED, () => this.render());
-        const unsub3 = eventBus.on(EVENTS.SESSION_UPDATED, () => this.render());
-        const unsub4 = eventBus.on(EVENTS.SESSION_DELETED, () => this.render());
-        const unsub5 = eventBus.on(EVENTS.SESSION_PAUSED, () => this.render());
-        const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this.render());
+        // イベント購読（バッチングで重複renderを抑制）
+        const unsub1 = eventBus.on(EVENTS.SESSION_LOADED, () => this._scheduleRender());
+        const unsub2 = eventBus.on(EVENTS.SESSION_CREATED, () => this._scheduleRender());
+        const unsub3 = eventBus.on(EVENTS.SESSION_UPDATED, () => this._scheduleRender());
+        const unsub4 = eventBus.on(EVENTS.SESSION_DELETED, () => this._scheduleRender());
+        const unsub5 = eventBus.on(EVENTS.SESSION_PAUSED, () => this._scheduleRender());
+        const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this._scheduleRender());
         const unsub6b = eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, (event) => {
             const sessionListView = appStore.getState().ui?.sessionListView || 'timeline';
             if (sessionListView === 'timeline') {
-                this.render();
+                // ソート順に影響する状態変化かチェック
+                const sessionIds = event.detail?.sessionIds;
+                if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+                    const needsReorder = this._checkSortOrderChanged(sessionIds);
+                    if (needsReorder) {
+                        this._scheduleRender();
+                    } else {
+                        this._refreshSessionRows(sessionIds);
+                    }
+                    return;
+                }
+                this._scheduleRender();
                 return;
             }
 
@@ -111,11 +132,11 @@ export class SessionView {
                 this._refreshSessionRows(sessionIds);
                 return;
             }
-            this.render();
+            this._scheduleRender();
         });
         const unsub7 = appStore.subscribeToSelector(
             state => state.ui?.sessionListView,
-            () => this.render()
+            () => this._scheduleRender()
         );
 
         this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub6b, unsub7);
@@ -303,6 +324,40 @@ export class SessionView {
         }
 
         return 0;
+    }
+
+    /**
+     * ソート順に影響する状態変化があったかチェック
+     * 緑インジケータ（done-unread）の付与/解除はソート順を変えるためフルrenderが必要
+     * @private
+     */
+    _checkSortOrderChanged(sessionIds) {
+        if (!this.container || !Array.isArray(sessionIds)) return true;
+
+        const { sessions } = appStore.getState();
+        const rows = this.container.querySelectorAll('.session-child-row');
+        if (rows.length === 0) return true;
+
+        for (const sessionId of sessionIds) {
+            const session = (sessions || []).find(s => s.id === sessionId);
+            if (!session) continue;
+
+            const uiState = deriveSessionUiState(sessionId);
+            const isGreen = uiState.activity === 'done-unread';
+            const row = this.container.querySelector(`.session-child-row[data-id="${sessionId}"]`);
+            if (!row) return true;
+
+            // Check if green state changed by comparing with current row position
+            const firstRow = rows[0];
+            const wasAtTop = row === firstRow || row.previousElementSibling === null;
+            if (isGreen && !wasAtTop) return true;
+            if (!isGreen && wasAtTop && rows.length > 1) {
+                // Check if there's another green above
+                const prevUiState = firstRow ? deriveSessionUiState(firstRow.dataset.id) : null;
+                if (prevUiState?.activity === 'done-unread' && firstRow.dataset.id === sessionId) return true;
+            }
+        }
+        return false;
     }
 
     /**

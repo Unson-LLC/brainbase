@@ -312,7 +312,9 @@ export class AuthService {
      * @returns {Promise<Object|null>} - User object or null if not found
      */
     async findUserBySlackId(slackUserId) {
+        logger.info(`[AUTH] findUserBySlackId called with: "${slackUserId}"`);
         if (!this.pool) {
+            logger.error('[AUTH] findUserBySlackId: no pool!');
             throw new Error('Database pool is not configured');
         }
 
@@ -327,6 +329,7 @@ export class AuthService {
                  LIMIT 1`,
                 [slackUserId]
             );
+            logger.info(`[AUTH] findUserBySlackId: users table rows=${rows.length}`);
             if (rows[0]) return rows[0];
 
             // Fallback to auth_grants table
@@ -339,6 +342,7 @@ export class AuthService {
                  LIMIT 1`,
                 [slackUserId]
             );
+            logger.info(`[AUTH] findUserBySlackId: auth_grants rows=${grantRows.length}`);
             if (grantRows[0]) {
                 const grant = grantRows[0];
                 const ROLE_TO_LEVEL = { ceo: 100, gm: 50, member: 10 };
@@ -461,7 +465,9 @@ export class AuthService {
         if (!slackUserId || !slackWorkspaceId) {
             throw new Error('Refresh token missing Slack identity');
         }
+        logger.info(`[AUTH] refresh: findGrant uid=${slackUserId} wid=${slackWorkspaceId}`);
         const grant = await this.findGrant({ slackUserId, slackWorkspaceId });
+        logger.info(`[AUTH] refresh: grant found=${!!grant}`);
         if (!grant) {
             await this.createAuditLog({
                 slackUserId,
@@ -469,6 +475,7 @@ export class AuthService {
                 eventType: 'AUTH_DENY',
                 metadata: { reason: 'grant_not_found' }
             });
+            logger.info(`[AUTH] refresh: DENY uid=${slackUserId} wid=${slackWorkspaceId}`);
             throw new Error('Access is not granted');
         }
         const personId = await this.ensurePerson({

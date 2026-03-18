@@ -353,16 +353,32 @@ class TerminalReconnectManager {
         };
     }
 
+    _clearTerminalFrame(frameEl) {
+        const frame = frameEl || this.terminalFrame;
+        if (!frame) return;
+        frame.classList.add('terminal-frame-clearing');
+        frame.src = 'about:blank';
+    }
+
+    _showTerminalFrame(frameEl) {
+        const frame = frameEl || this.terminalFrame;
+        if (!frame) return;
+        frame.classList.remove('terminal-frame-clearing');
+    }
+
     _reloadTerminalFrame(proxyPath, port = null) {
         const nextProxyPath = this._buildTerminalFrameUrl(proxyPath, port);
         if (!this.terminalFrame || !nextProxyPath) return;
 
         const currentSrc = this.terminalFrame.src || '';
         if (currentSrc.includes(nextProxyPath)) {
-            this.terminalFrame.src = 'about:blank';
-            setTimeout(() => {
-                this.terminalFrame.src = nextProxyPath;
-            }, 50);
+            // Avoid about:blank flash by using location.replace or cache-bust query
+            try {
+                this.terminalFrame.contentWindow.location.replace(nextProxyPath);
+            } catch (_crossOrigin) {
+                const separator = nextProxyPath.includes('?') ? '&' : '?';
+                this.terminalFrame.src = `${nextProxyPath}${separator}_r=${Date.now()}`;
+            }
             return;
         }
 
@@ -565,6 +581,19 @@ export class App {
         consoleArea?.classList.remove('using-snapshot');
     }
 
+    _clearTerminalFrame(frameEl) {
+        const frame = frameEl || this.terminalFrame;
+        if (!frame) return;
+        frame.classList.add('terminal-frame-clearing');
+        frame.src = 'about:blank';
+    }
+
+    _showTerminalFrame(frameEl) {
+        const frame = frameEl || this.terminalFrame;
+        if (!frame) return;
+        frame.classList.remove('terminal-frame-clearing');
+    }
+
     _showTtydIframe() {
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
@@ -719,7 +748,7 @@ export class App {
     _closeMobileLiveTerminalModalDom() {
         this.mobileLiveTerminalModalEl?.classList.remove('active');
         if (this.mobileLiveTerminalFrameEl) {
-            this.mobileLiveTerminalFrameEl.src = 'about:blank';
+            this._clearTerminalFrame(this.mobileLiveTerminalFrameEl);
         }
     }
 
@@ -3272,21 +3301,22 @@ export class App {
     async _openSessionInTtydFrame(sessionId, frameEl, options = {}) {
         const session = this._getSessionById(sessionId);
         if (!session) {
-            frameEl.src = 'about:blank';
+            this._clearTerminalFrame(frameEl);
             return { ok: false, reason: 'missing-session' };
         }
 
         const { proxyPath, terminalAccess } = await this._resolveTtydProxyPath(sessionId, session, options);
         if (terminalAccess?.state === 'blocked') {
-            frameEl.src = 'about:blank';
+            this._clearTerminalFrame(frameEl);
             return { ok: false, blocked: true, terminalAccess };
         }
 
         if (!proxyPath) {
-            frameEl.src = 'about:blank';
+            this._clearTerminalFrame(frameEl);
             return { ok: false, reason: 'no-proxy-path' };
         }
 
+        this._showTerminalFrame(frameEl);
         frameEl.src = proxyPath;
         return { ok: true, proxyPath, terminalAccess };
     }
@@ -3356,7 +3386,7 @@ export class App {
 
             if (!session) {
                 console.error('Session not found:', sessionId);
-                terminalFrame.src = 'about:blank';
+                this._clearTerminalFrame(terminalFrame);
                 return;
             }
 
@@ -3375,7 +3405,7 @@ export class App {
                 this.terminalTransportClient?.disconnect({ preserveView: false });
                 this.terminalTransportClient?.hide();
                 this._showTtydIframe();
-                terminalFrame.src = 'about:blank';
+                this._clearTerminalFrame(terminalFrame);
                 return;
             }
 
@@ -3387,7 +3417,7 @@ export class App {
                 this._mobileTerminalMode = 'display';
                 this._mobileLiveTerminalSessionId = null;
                 this._showMobileTerminalDisplay();
-                terminalFrame.src = 'about:blank';
+                this._clearTerminalFrame(terminalFrame);
 
                 const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
                 if (this.reconnectManager) {
@@ -3482,7 +3512,7 @@ export class App {
                 }
             } else {
                 console.error('No proxyPath available for session:', sessionId);
-                terminalFrame.src = 'about:blank';
+                this._clearTerminalFrame(terminalFrame);
                 this._setCurrentSessionUiState({
                     transport: 'disconnected',
                     attention: 'none'
@@ -3490,7 +3520,7 @@ export class App {
             }
         } catch (error) {
             console.error('Failed to switch session:', error);
-            terminalFrame.src = 'about:blank';
+            this._clearTerminalFrame(terminalFrame);
             this._setCurrentSessionUiState({
                 transport: 'disconnected',
                 attention: 'none'
@@ -3681,7 +3711,7 @@ export class App {
             () => appStore.getState().currentSessionId,
             3000,
             async () => {
-                await this.sessionService.loadSessions();
+                await this.sessionService.loadSessions({ silent: true });
             }
         );
 
@@ -4275,7 +4305,11 @@ export class App {
     destroy() {
         // Stop polling
         if (this.pollingIntervalId) {
-            clearInterval(this.pollingIntervalId);
+            if (typeof this.pollingIntervalId === 'function') {
+                this.pollingIntervalId();
+            } else {
+                clearInterval(this.pollingIntervalId);
+            }
             this.pollingIntervalId = null;
         }
 

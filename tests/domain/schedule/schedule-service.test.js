@@ -180,4 +180,29 @@ describe('ScheduleService', () => {
             expect(result).toHaveLength(0);
         });
     });
+
+    describe('google calendar auth', () => {
+        it('getGoogleCalendarAuthStatus呼び出し時_API結果をキャッシュする', async () => {
+            const authStatus = { configured: true, connected: true, calendarIds: ['primary'] };
+            httpClient.get.mockResolvedValue(authStatus);
+
+            const first = await scheduleService.getGoogleCalendarAuthStatus();
+            const second = await scheduleService.getGoogleCalendarAuthStatus();
+
+            expect(first).toEqual(authStatus);
+            expect(second).toEqual(authStatus);
+            expect(httpClient.get).toHaveBeenCalledTimes(1);
+            expect(httpClient.get).toHaveBeenCalledWith('/api/schedule/google/auth-status');
+        });
+
+        it('disconnectGoogleCalendar呼び出し時_認証解除後にスケジュール再読み込みする', async () => {
+            httpClient.get.mockResolvedValue(mockSchedule);
+            httpClient.delete.mockResolvedValue({ success: true });
+
+            await scheduleService.disconnectGoogleCalendar();
+
+            expect(httpClient.delete).toHaveBeenCalledWith('/api/schedule/google/auth');
+            expect(httpClient.get).toHaveBeenCalledWith('/api/schedule/today');
+        });
+    });
 });

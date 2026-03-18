@@ -264,34 +264,38 @@ describe('SessionView', () => {
             sessionView.mount(container);
         });
 
-        it('should re-render on SESSION_LOADED event', () => {
+        it('should re-render on SESSION_LOADED event', async () => {
             const renderSpy = vi.spyOn(sessionView, 'render');
 
             eventBus.emit(EVENTS.SESSION_LOADED, { sessions: [] });
+            await new Promise(resolve => queueMicrotask(resolve));
 
             expect(renderSpy).toHaveBeenCalled();
         });
 
-        it('should re-render on SESSION_CREATED event', () => {
+        it('should re-render on SESSION_CREATED event', async () => {
             const renderSpy = vi.spyOn(sessionView, 'render');
 
             eventBus.emit(EVENTS.SESSION_CREATED, { session: {} });
+            await new Promise(resolve => queueMicrotask(resolve));
 
             expect(renderSpy).toHaveBeenCalled();
         });
 
-        it('should re-render on SESSION_UPDATED event', () => {
+        it('should re-render on SESSION_UPDATED event', async () => {
             const renderSpy = vi.spyOn(sessionView, 'render');
 
             eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId: 'test' });
+            await new Promise(resolve => queueMicrotask(resolve));
 
             expect(renderSpy).toHaveBeenCalled();
         });
 
-        it('should re-render on SESSION_DELETED event', () => {
+        it('should re-render on SESSION_DELETED event', async () => {
             const renderSpy = vi.spyOn(sessionView, 'render');
 
             eventBus.emit(EVENTS.SESSION_DELETED, { sessionId: 'test' });
+            await new Promise(resolve => queueMicrotask(resolve));
 
             expect(renderSpy).toHaveBeenCalled();
         });
@@ -327,6 +331,7 @@ describe('SessionView', () => {
             });
 
             await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: ['session-1'] });
+            await new Promise(resolve => queueMicrotask(resolve));
 
             const after = Array.from(container.querySelectorAll('.session-child-row')).map((row) => row.dataset.id);
             expect(after).toEqual(['session-1', 'session-2']);
@@ -343,9 +348,12 @@ describe('SessionView', () => {
             });
             sessionView.render();
 
+            // Drain any pending microtasks from setState subscriptions before setting up spy
+            await new Promise(resolve => queueMicrotask(resolve));
             const renderSpy = vi.spyOn(sessionView, 'render');
 
             await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: ['session-1'] });
+            await new Promise(resolve => queueMicrotask(resolve));
 
             expect(renderSpy).not.toHaveBeenCalled();
         });

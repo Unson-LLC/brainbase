@@ -26,7 +26,7 @@ export function shouldUseXtermTransport() {
     if (/jsdom/i.test(userAgent) || typeof window.__vitest_worker__ !== 'undefined') {
         return false;
     }
-    return true;
+    return window.innerWidth > 768;
 }
 
 export class TerminalTransportClient {
