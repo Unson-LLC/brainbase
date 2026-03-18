@@ -146,14 +146,11 @@ export class SessionView {
             const sessionIds = event.detail?.sessionIds;
 
             if (sessionListView === 'timeline') {
-                // タイムラインでは並び順が変わった場合のみフルrender、それ以外は差分更新
-                if (this._hasTimelineOrderChanged()) {
-                    this._scheduleRender();
-                } else if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+                // 差分更新 → 必要なら並び替え（フルrenderしない）
+                if (Array.isArray(sessionIds) && sessionIds.length > 0) {
                     this._refreshSessionRows(sessionIds);
-                } else {
-                    this._scheduleRender();
                 }
+                this._reorderTimelineRows();
                 return;
             }
 
@@ -311,20 +308,38 @@ export class SessionView {
     }
 
     /**
-     * タイムラインの並び順がDOM上の現在の順序と変わったかチェック
-     * @returns {boolean} true = フルrender必要
+     * タイムラインのDOM要素を正しい順序に並び替え（要素の移動のみ、再作成しない）
      * @private
      */
-    _hasTimelineOrderChanged() {
-        if (!this.container) return true;
-        const rows = this.container.querySelectorAll('.session-child-row');
+    _reorderTimelineRows() {
+        const listDiv = this.container?.querySelector('.session-timeline-list');
+        if (!listDiv) return;
         const { sessions } = appStore.getState();
         const expected = this._getTimelineSessions(sessions);
-        if (rows.length !== expected.length) return true;
-        for (let i = 0; i < expected.length; i++) {
-            if (rows[i].dataset.id !== expected[i].id) return true;
+        const rows = listDiv.querySelectorAll('.session-child-row');
+
+        // 順序が同じならスキップ
+        let needsReorder = rows.length !== expected.length;
+        if (!needsReorder) {
+            for (let i = 0; i < expected.length; i++) {
+                if (rows[i].dataset.id !== expected[i].id) { needsReorder = true; break; }
+            }
         }
-        return false;
+        if (!needsReorder) return;
+
+        // 既存要素をMapに保持
+        const rowMap = new Map();
+        for (const row of rows) {
+            rowMap.set(row.dataset.id, row);
+        }
+
+        // 正しい順序で既存要素をappend（DOM要素の移動 = 再作成なし）
+        for (const session of expected) {
+            const row = rowMap.get(session.id);
+            if (row) {
+                listDiv.appendChild(row);
+            }
+        }
     }
 
     /**
