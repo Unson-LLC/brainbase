@@ -109,15 +109,20 @@ export class SessionView {
         const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this._scheduleRender());
         const unsub6b = eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, (event) => {
             const sessionListView = appStore.getState().ui?.sessionListView || 'timeline';
+            const sessionIds = event.detail?.sessionIds;
+
             if (sessionListView === 'timeline') {
-                // Timeline は activity/timestamp 変化が並び順に直結するため常に全体再描画する。
-                // working / thinking / goalseek / done-unread の追加で部分更新判定が追随できず、
-                // AI activity 時の並び替えが再び壊れていたため保守性を優先する。
-                this._scheduleRender();
+                // タイムラインでは並び順が変わった場合のみフルrender、それ以外は差分更新
+                if (this._hasTimelineOrderChanged()) {
+                    this._scheduleRender();
+                } else if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+                    this._refreshSessionRows(sessionIds);
+                } else {
+                    this._scheduleRender();
+                }
                 return;
             }
 
-            const sessionIds = event.detail?.sessionIds;
             if (Array.isArray(sessionIds) && sessionIds.length > 0) {
                 this._refreshSessionRows(sessionIds);
                 return;
@@ -269,6 +274,23 @@ export class SessionView {
         });
 
         return sorted;
+    }
+
+    /**
+     * タイムラインの並び順がDOM上の現在の順序と変わったかチェック
+     * @returns {boolean} true = フルrender必要
+     * @private
+     */
+    _hasTimelineOrderChanged() {
+        if (!this.container) return true;
+        const rows = this.container.querySelectorAll('.session-child-row');
+        const { sessions } = appStore.getState();
+        const expected = this._getTimelineSessions(sessions);
+        if (rows.length !== expected.length) return true;
+        for (let i = 0; i < expected.length; i++) {
+            if (rows[i].dataset.id !== expected[i].id) return true;
+        }
+        return false;
     }
 
     /**
