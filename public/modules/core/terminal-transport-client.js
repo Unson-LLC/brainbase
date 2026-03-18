@@ -71,6 +71,7 @@ export class TerminalTransportClient {
         this.terminal = new Terminal({
             fontFamily: 'Menlo, Monaco, monospace',
             fontSize: 14,
+            scrollback: 5000,
             convertEol: true,
             allowTransparency: false,
             cursorBlink: false,
