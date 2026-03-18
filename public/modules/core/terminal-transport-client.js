@@ -2,7 +2,7 @@ import { httpClient } from './http-client.js';
 import { loadXterm } from './xterm-loader.js';
 import { MessageQueue } from './message-queue.js';
 
-const SNAPSHOT_LINES = 200;
+const SNAPSHOT_LINES = 5000;
 const CONNECT_TIMEOUT_MS = 15000;
 
 // WebSocket reconnection settings (CommandMate pattern)

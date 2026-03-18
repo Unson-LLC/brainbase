@@ -2,7 +2,7 @@ import { WebSocketServer } from 'ws';
 import { detectCliState, detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';
 
-const DEFAULT_SNAPSHOT_LINES = 200;
+const DEFAULT_SNAPSHOT_LINES = 5000;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
