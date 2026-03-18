@@ -89,12 +89,15 @@ export class SessionView {
                 isDraggable,
                 enableDrag
             });
-            // 見た目が変わってない場合はDOM差し替えをスキップ（ちらつき防止）
-            if (currentRow.innerHTML === nextRow.innerHTML) continue;
-            currentRow.replaceWith(nextRow);
+            // lucide展開してからinnerHTML比較（既存行はSVG展開済みのため）
             if (window.lucide) {
                 window.lucide.createIcons({ root: nextRow });
             }
+            if (currentRow.innerHTML === nextRow.innerHTML
+                && currentRow.className === nextRow.className) {
+                continue;
+            }
+            currentRow.replaceWith(nextRow);
         }
     }
 
