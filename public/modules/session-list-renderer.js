@@ -137,7 +137,8 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="conversation-badge" title="${convCount} conversation(s)${convLastActivity ? ', last: ' + formatRelativeTime(convLastActivity) : ''}"><i data-lucide="message-square"></i>${convCount}</span>`
     : '';
 
-  const activityIndicator = activity === 'working'
+  const isWorking = activity === 'working' || activity === 'thinking' || activity === 'goalseek';
+  const activityIndicator = isWorking
     ? '<span class="session-activity-indicator working" title="Agent working"></span>'
     : activity === 'done-unread'
       ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
