@@ -987,6 +987,11 @@ export class App {
         const el = this.terminalInputStatusEl;
         if (!el) return;
 
+        // 前回と同じならDOM操作スキップ
+        const key = hidden ? 'hidden' : `${stateClass}|${text}|${title}`;
+        if (this._lastTerminalStatusKey === key) return;
+        this._lastTerminalStatusKey = key;
+
         const classes = ['ready', 'needs-focus', 'reconnecting', 'disconnected', 'blocked', 'copy-mode'];
         el.classList.remove(...classes);
 
@@ -1005,6 +1010,12 @@ export class App {
 
     _setTerminalHeaderChip(el, { hidden = false, text = '', title = '' } = {}) {
         if (!el) return;
+        const key = hidden || !text ? 'hidden' : `${text}|${title}`;
+        const cacheKey = el.id || el.className;
+        if (!this._terminalChipCache) this._terminalChipCache = new Map();
+        if (this._terminalChipCache.get(cacheKey) === key) return;
+        this._terminalChipCache.set(cacheKey, key);
+
         if (hidden || !text) {
             el.classList.add('hidden');
             el.textContent = '';
@@ -1060,6 +1071,13 @@ export class App {
 
     _renderTerminalSnapshotPanel({ visible = false, snapshot = null, title = 'Snapshot fallback' } = {}) {
         if (!this.terminalSnapshotPanelEl || !this.terminalSnapshotContentEl) return;
+
+        // 前回と同じ内容ならDOM操作スキップ
+        const snapshotKey = visible
+            ? `v|${title}|${snapshot?.capturedAt || ''}|${snapshot?.colorText?.length || snapshot?.text?.length || 0}`
+            : 'hidden';
+        if (this._lastSnapshotPanelKey === snapshotKey) return;
+        this._lastSnapshotPanelKey = snapshotKey;
 
         if (!visible) {
             this.terminalSnapshotPanelEl.classList.add('hidden');
