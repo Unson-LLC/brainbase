@@ -23,10 +23,12 @@ brainbaseは**各メンバーがローカルでサーバーを起動し、共有
 
 ## セットアップ手順
 
-### 1. ワンコマンドインストール
+### 1. インストール
 
 ```bash
-git clone git@github.com:Unson-LLC/brainbase-unson.git && brainbase-unson/scripts/setup.sh
+git clone git@github.com:Unson-LLC/brainbase-unson.git
+cd brainbase-unson
+npm run setup
 ```
 
 これだけで以下が全自動で実行される：
