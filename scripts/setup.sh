@@ -1,17 +1,39 @@
 #!/usr/bin/env bash
-# brainbase セットアップスクリプト
-# 新メンバーは clone → ./scripts/setup.sh の2ステップで完了
+# brainbase ワンコマンドセットアップ
+#
+# 使い方:
+#   git clone git@github.com:Unson-LLC/brainbase-unson.git && brainbase-unson/scripts/setup.sh
+#
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BRAINBASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# ────────────── clone済みかどうかで分岐 ──────────────
+if [[ -f "$(dirname "$0")/../server.js" ]]; then
+    # スクリプトがリポジトリ内から実行されている
+    BRAINBASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+else
+    # どこかから直接実行されている → clone する
+    INSTALL_DIR="${1:-$HOME/brainbase}"
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
+        echo "既存のインストールを検出: $INSTALL_DIR"
+        echo "最新に更新中..."
+        cd "$INSTALL_DIR" && git pull
+        BRAINBASE_DIR="$INSTALL_DIR"
+    else
+        echo "brainbase をクローン中..."
+        git clone git@github.com:Unson-LLC/brainbase-unson.git "$INSTALL_DIR"
+        BRAINBASE_DIR="$INSTALL_DIR"
+    fi
+fi
 
+cd "$BRAINBASE_DIR"
+
+echo ""
 echo "=== brainbase セットアップ ==="
 echo ""
 
 # ────────────── npm install ──────────────
 echo "依存パッケージをインストール中..."
-cd "$BRAINBASE_DIR" && npm install
+npm install --silent
 echo "[OK] npm install 完了"
 echo ""
 
@@ -35,54 +57,39 @@ PROJECTS_ROOT="$WORKSPACE_ROOT/projects"
 # DB接続（ローカルSSHトンネル経由）
 INFO_SSOT_DATABASE_URL="postgres://localhost/brainbase_ssot"
 
-# ────────────── ~/.brainbase/ ディレクトリ作成 ──────────────
-mkdir -p ~/.brainbase
-echo "[OK] ~/.brainbase/ ディレクトリ作成"
-
-# ────────────── var/ ディレクトリ作成 ──────────────
-mkdir -p "$BRAINBASE_VAR_DIR"
-echo "[OK] var/ ディレクトリ作成"
+# ────────────── ディレクトリ作成 ──────────────
+mkdir -p ~/.brainbase "$BRAINBASE_VAR_DIR"
+echo "[OK] ディレクトリ作成"
 
 # ────────────── .env ファイル生成 ──────────────
-ENV_FILE="$BRAINBASE_DIR/.env"
-cat > "$ENV_FILE" << ENVEOF
+cat > "$BRAINBASE_DIR/.env" << ENVEOF
 # brainbase 環境変数（自動生成 by scripts/setup.sh）
 # このファイルは .gitignore に含まれています
 
-# DB接続（SSHトンネル経由: ssh -L 5432:localhost:5432 lightsail）
 INFO_SSOT_DATABASE_URL=$INFO_SSOT_DATABASE_URL
-
-# 認証
 BRAINBASE_JWT_SECRET=$BRAINBASE_JWT_SECRET
 SLACK_CLIENT_ID=$SLACK_CLIENT_ID
 SLACK_CLIENT_SECRET=$SLACK_CLIENT_SECRET
 SLACK_REDIRECT_URI=$SLACK_REDIRECT_URI
 SLACK_AUTH_MODE=$SLACK_AUTH_MODE
 SLACK_AUTH_USER_SCOPES=$SLACK_AUTH_USER_SCOPES
-
-# サーバー設定
 PORT=$PORT
 NODE_ENV=$NODE_ENV
 ALLOW_INSECURE_SSOT_HEADERS=$ALLOW_INSECURE_SSOT_HEADERS
-
-# パス
 BRAINBASE_ROOT=$BRAINBASE_ROOT
 BRAINBASE_VAR_DIR=$BRAINBASE_VAR_DIR
 WORKSPACE_ROOT=$WORKSPACE_ROOT
 PROJECTS_ROOT=$PROJECTS_ROOT
 ENVEOF
-echo "[OK] .env 生成: $ENV_FILE"
+echo "[OK] .env 生成"
 
-# ────────────── macOS: launchd plist 生成 ──────────────
+# ────────────── macOS: launchd plist 生成 + サーバー起動 ──────────────
 if [[ "$(uname)" == "Darwin" ]]; then
-    PLIST_DIR="$HOME/Library/LaunchAgents"
-    PLIST_FILE="$PLIST_DIR/com.brainbase.ui.plist"
+    PLIST_FILE="$HOME/Library/LaunchAgents/com.brainbase.ui.plist"
     LOG_DIR="$HOME/Library/Logs"
-
-    mkdir -p "$PLIST_DIR"
-
-    # npm のパスを検出
     NPM_PATH="$(which npm 2>/dev/null || echo "/usr/local/bin/npm")"
+
+    mkdir -p "$HOME/Library/LaunchAgents"
 
     cat > "$PLIST_FILE" << PLISTEOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -147,26 +154,30 @@ if [[ "$(uname)" == "Darwin" ]]; then
 </dict>
 </plist>
 PLISTEOF
-    echo "[OK] launchd plist 生成: $PLIST_FILE"
-    echo ""
-    echo "サーバー起動:"
-    echo "  launchctl load $PLIST_FILE"
-    echo ""
-    echo "再起動:"
-    echo "  launchctl kickstart -k gui/\$(id -u)/com.brainbase.ui"
+    echo "[OK] launchd plist 生成"
+
+    # サーバー起動
+    launchctl bootout gui/$(id -u)/com.brainbase.ui 2>/dev/null || true
+    launchctl load "$PLIST_FILE"
+    echo "[OK] サーバー起動中..."
+    sleep 3
+
+    # ヘルスチェック
+    if curl -sf http://localhost:31013/api/health > /dev/null 2>&1; then
+        echo "[OK] サーバー起動確認"
+    else
+        echo "[!] サーバー起動中... 数秒後に http://localhost:31013 を確認してください"
+    fi
 else
     echo ""
-    echo "macOS以外の場合は手動でサーバーを起動してください:"
+    echo "手動でサーバーを起動してください:"
     echo "  source .env && node server.js"
 fi
 
 echo ""
 echo "=== セットアップ完了 ==="
 echo ""
-echo "次のステップ:"
-echo "  1. SSHトンネル開始: ssh -fNL 5432:localhost:5432 <lightsailホスト>"
-echo "  2. サーバー起動: launchctl load ~/Library/LaunchAgents/com.brainbase.ui.plist"
-echo "  3. ブラウザで http://localhost:31013 を開く"
-echo "  4. 「Login with Slack」でログイン"
+echo "http://localhost:31013 を開いて「Login with Slack」でログイン"
 echo ""
-echo "※ SSHトンネルの接続先は管理者に確認してください"
+echo "※ DB接続にはSSHトンネルが必要です:"
+echo "  ssh -fNL 5432:localhost:5432 <lightsailホスト>"
