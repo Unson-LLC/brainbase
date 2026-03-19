@@ -23,39 +23,19 @@ brainbaseは**各メンバーがローカルでサーバーを起動し、共有
 
 ## セットアップ手順
 
-### 1. リポジトリのクローン
+### 1. ワンコマンドインストール
 
 ```bash
-git clone git@github.com:Unson-LLC/brainbase-unson.git brainbase
-cd brainbase
+git clone git@github.com:Unson-LLC/brainbase-unson.git && brainbase-unson/scripts/setup.sh
 ```
 
-### 2. セットアップスクリプト実行
+これだけで以下が全自動で実行される：
+- `npm install`（依存パッケージ）
+- `.env` 生成（認証情報・DB接続含む）
+- macOS: launchd plist生成 + サーバー自動起動
+- ヘルスチェック
 
-```bash
-./scripts/setup.sh
-```
-
-これで以下が自動設定される：
-- `.env` ファイル生成（環境変数一式、`.gitignore`済み）
-- `~/.brainbase/` ディレクトリ作成
-- macOS: `~/Library/LaunchAgents/com.brainbase.ui.plist` 生成（launchd自動起動）
-
-認証情報（JWT、Slack OAuth）はスクリプトに含まれているため、個別に受け取る必要はない。
-
-### 3. サーバー起動
-
-```bash
-# 手動起動
-node server/server.js
-
-# macOSの場合はlaunchdで管理（推奨）
-# ~/Library/LaunchAgents/com.brainbase.ui.plist を設定
-```
-
-起動後、ブラウザで `http://localhost:31013` にアクセス。
-
-### 4. 認証（Slackログイン）
+### 2. 認証（Slackログイン）
 
 1. UIを開く → **「Login with Slack」** ボタンをクリック
 2. Slack OAuthフローが完了すると `~/.brainbase/tokens.json` が自動作成される
