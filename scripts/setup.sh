@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # brainbase セットアップスクリプト
-# 新メンバーは clone → npm install → ./scripts/setup.sh の3ステップで完了
+# 新メンバーは clone → ./scripts/setup.sh の2ステップで完了
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BRAINBASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=== brainbase セットアップ ==="
+echo ""
+
+# ────────────── npm install ──────────────
+echo "依存パッケージをインストール中..."
+cd "$BRAINBASE_DIR" && npm install
+echo "[OK] npm install 完了"
 echo ""
 
 # ────────────── 共通環境変数（全メンバー同じ値） ──────────────
