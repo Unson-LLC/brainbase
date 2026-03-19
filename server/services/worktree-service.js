@@ -505,6 +505,26 @@ export class WorktreeService {
                 }
             }
 
+            // Create symlink for .mcp.json (Claude Code MCP server config)
+            const sourceMcpPath = path.join(workspaceRoot, '.mcp.json');
+            const targetMcpPath = path.join(workspacePath, '.mcp.json');
+            try {
+                await fs.access(sourceMcpPath);
+                try {
+                    await fs.access(targetMcpPath);
+                    console.log(`.mcp.json already exists at ${targetMcpPath}, skipping symlink`);
+                } catch {
+                    await fs.symlink(sourceMcpPath, targetMcpPath);
+                    console.log(`Created .mcp.json symlink at ${targetMcpPath}`);
+                }
+            } catch (mcpErr) {
+                if (mcpErr.code === 'ENOENT') {
+                    console.log(`Note: .mcp.json not found at ${sourceMcpPath}`);
+                } else {
+                    console.log(`Note: Could not create .mcp.json symlink: ${mcpErr.message}`);
+                }
+            }
+
             // Get current HEAD as startCommit
             const { stdout: startCommit } = await this._execJujutsuWithStaleRetry(
                 workspacePath,
