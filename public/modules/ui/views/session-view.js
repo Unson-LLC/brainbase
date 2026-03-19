@@ -342,10 +342,6 @@ export class SessionView {
             }
         }
         if (!needsReorder) return;
-        console.log('[SessionView] reorder needed', expected.slice(0, 5).map(s => {
-            const st = deriveSessionUiState(s.id);
-            return `${s.id.slice(-5)}:${st.activity}`;
-        }));
 
         // 既存要素をMapに保持
         const rowMap = new Map();
