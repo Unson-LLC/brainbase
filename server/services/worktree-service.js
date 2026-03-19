@@ -832,6 +832,32 @@ EOF
     }
 
     /**
+     * パス直接指定でコミットログを取得
+     * @param {string} repoPath - リポジトリのパス
+     * @param {number} limit - 取得するコミット数
+     */
+    async getCommitLogByPath(repoPath, limit = 50) {
+        const dirName = path.basename(repoPath);
+
+        // Check if repo exists
+        try {
+            await fs.access(repoPath);
+        } catch {
+            return { commits: [], repoType: 'unknown', repoName: dirName, worktreePath: repoPath };
+        }
+
+        const isJujutsu = await this._isJujutsuRepo(repoPath);
+        const repoName = await this._getRemoteRepoName(repoPath, isJujutsu) || dirName;
+
+        if (isJujutsu) {
+            const result = await this._getJujutsuCommitLog(repoPath, limit);
+            return { ...result, repoName };
+        }
+        const result = await this._getGitCommitLog(repoPath, limit);
+        return { ...result, repoName };
+    }
+
+    /**
      * Jujutsuのコミットログを取得
      * @private
      */

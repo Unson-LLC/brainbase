@@ -25,22 +25,57 @@ echo "🥋 Checking Jujutsu..."
 if command -v jj &> /dev/null; then
     echo "   ✅ Jujutsu is installed: $(jj version 2>&1 | head -1)"
 
-    # Initialize Jujutsu in this repo if not already done
+    # Check if .jj exists and is valid
+    if [ -d "$REPO_ROOT/.jj" ]; then
+        # Validate .jj directory structure
+        if [ ! -d "$REPO_ROOT/.jj/repo" ] || [ ! -f "$REPO_ROOT/.jj/repo/store" ]; then
+            echo "   ⚠️  Incomplete .jj directory detected. Removing and reinitializing..."
+            rm -rf "$REPO_ROOT/.jj"
+        fi
+    fi
+
+    # Initialize Jujutsu if not already done or was removed
     if [ ! -d "$REPO_ROOT/.jj" ]; then
         echo "   📦 Initializing Jujutsu in this repository..."
         cd "$REPO_ROOT"
-        jj git init 2>/dev/null
-        echo "   ✅ Jujutsu initialized"
+        if jj git init --colocate 2>/dev/null; then
+            echo "   ✅ Jujutsu initialized"
+
+            # Configure user if Git config exists
+            GIT_USER_NAME=$(git config user.name 2>/dev/null)
+            GIT_USER_EMAIL=$(git config user.email 2>/dev/null)
+            if [ -n "$GIT_USER_NAME" ] && [ -n "$GIT_USER_EMAIL" ]; then
+                jj config set --user user.name "$GIT_USER_NAME"
+                jj config set --user user.email "$GIT_USER_EMAIL"
+                echo "   ✅ Jujutsu user configured from Git settings"
+            fi
+        else
+            echo "   ❌ Failed to initialize Jujutsu"
+        fi
     else
         echo "   ✅ Jujutsu already initialized"
     fi
 else
     echo "   ⚠️  Jujutsu (jj) is not installed"
-    echo "   Install with: brew install jj"
-    echo "   Then run: jj git init"
     echo ""
-    echo "   Note: Jujutsu is required for AI-first session management."
-    echo "   See README.md for details."
+    echo "   Jujutsu is required for AI-first session management."
+    echo "   Install now? (y/n)"
+    read -r response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        if command -v brew &> /dev/null; then
+            echo "   📦 Installing Jujutsu via Homebrew..."
+            brew install jj
+            # Recursively call this section after install
+            exec "$0"
+        else
+            echo "   ❌ Homebrew not found. Please install manually:"
+            echo "      macOS: brew install jj"
+            echo "      Linux: cargo install jj-cli"
+        fi
+    else
+        echo "   Note: You can install later with: brew install jj"
+        echo "   Then run: jj git init --colocate"
+    fi
 fi
 echo ""
 
@@ -49,8 +84,31 @@ mkdir -p "$DATA_DIR" "$VAR_DIR"
 
 # Create state.json from sample
 echo "📝 Creating state.json from state.sample.json..."
-cp "$REPO_ROOT/state.sample.json" "$STATE_FILE"
-echo "   ✅ state.json created"
+# Replace placeholder paths with actual repository path
+sed "s|/path/to/brainbase|$REPO_ROOT|g" "$REPO_ROOT/state.sample.json" > "$STATE_FILE.tmp"
+
+# Remove sample sessions and keep only brainbase session
+cat > "$STATE_FILE" <<EOF
+{
+  "schemaVersion": 3,
+  "lastOpenTaskId": null,
+  "filters": {},
+  "readNotifications": [],
+  "focusSession": null,
+  "sessions": [
+    {
+      "id": "brainbase",
+      "name": "brainbase",
+      "icon": "brain",
+      "path": "$REPO_ROOT",
+      "worktree": null,
+      "intendedState": "paused"
+    }
+  ]
+}
+EOF
+rm -f "$STATE_FILE.tmp"
+echo "   ✅ state.json created with path: $REPO_ROOT"
 
 # Create _tasks directory if it doesn't exist
 if [ ! -d "$DATA_DIR/_tasks" ]; then

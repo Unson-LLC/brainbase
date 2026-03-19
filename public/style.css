@@ -58,11 +58,6 @@ body {
     --keyboard-offset: 0px;
 }
 
-/* Terminal frame clearing state - hides iframe during about:blank to prevent white flash */
-.terminal-frame-clearing {
-    visibility: hidden;
-}
-
 body::before {
     content: '';
     position: absolute;
@@ -1603,34 +1598,48 @@ body::after {
 
 .terminal-snapshot-panel {
     position: absolute;
-    inset: 0;
+    inset: 16px;
     z-index: 18;
     display: flex;
     flex-direction: column;
-    background: #020617;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(2, 6, 23, 0.94);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
 }
 
 .terminal-snapshot-header {
-    display: none;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .terminal-snapshot-title {
-    display: none;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
 }
 
 .terminal-snapshot-timestamp {
-    display: none;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
 }
 
 .terminal-snapshot-content {
     flex: 1;
     min-height: 0;
     margin: 0;
-    padding: 8px 10px;
+    padding: 14px;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    background: #020617;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.82);
     color: #e2e8f0;
     font: 12px/1.55 'Noto Sans Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 }
@@ -6194,7 +6203,7 @@ body.resizing iframe {
     }
 
     .terminal-snapshot-panel {
-        inset: 0 0 var(--mobile-input-offset, 120px);
+        inset: 10px 10px calc(10px + var(--mobile-input-offset, 120px));
     }
 
     /* Mobile Input Dock */
@@ -6707,7 +6716,7 @@ body.resizing iframe {
     }
 
     .console-area.using-snapshot .terminal-snapshot-panel {
-        inset: 0 0 var(--mobile-input-offset, 120px);
+        inset: 10px 10px calc(10px + var(--mobile-input-offset, 120px));
         display: flex;
     }
 

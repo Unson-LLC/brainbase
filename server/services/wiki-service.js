@@ -1,6 +1,3 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { existsSync } from 'fs';
 import crypto from 'crypto';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
@@ -10,11 +7,9 @@ const ROLE_RANK = { member: 1, gm: 2, ceo: 3 };
 export class WikiService {
     /**
      * @param {Object} options
-     * @param {string} options.wikiRoot - wiki/ ディレクトリの絶対パス
      * @param {import('pg').Pool|null} options.pool - PostgreSQL接続プール
      */
-    constructor({ wikiRoot, pool }) {
-        this.wikiRoot = wikiRoot;
+    constructor({ pool }) {
         this.pool = pool;
         this._projectIdToSlug = null; // lazy-loaded cache: ULID → slug
     }
@@ -56,10 +51,6 @@ export class WikiService {
         let p = rawPath.replace(/^\/+|\/+$/g, '');
         if (p.endsWith('.md')) p = p.slice(0, -3);
         return p;
-    }
-
-    _toFilePath(wikiPath) {
-        return path.join(this.wikiRoot, `${wikiPath}.md`);
     }
 
     _checkAccess(pageAccess, requesterAccess) {
@@ -119,24 +110,27 @@ export class WikiService {
         }
     }
 
-    async _upsertPageAccess(wikiPath, { title, roleMin, sensitivity, projectId }) {
+    async _upsertPage(wikiPath, { title, roleMin, sensitivity, projectId, content, contentHash, sizeBytes }) {
         if (!this.pool) return;
         const id = `wiki_${ulid()}`;
         await this.pool.query(
-            `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+            `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id, content, content_hash, size_bytes, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
              ON CONFLICT (path)
              DO UPDATE SET
                title = COALESCE(NULLIF($3, ''), wiki_pages.title),
                role_min = COALESCE($4, wiki_pages.role_min),
                sensitivity = COALESCE($5, wiki_pages.sensitivity),
                project_id = COALESCE($6, wiki_pages.project_id),
+               content = COALESCE($7, wiki_pages.content),
+               content_hash = COALESCE($8, wiki_pages.content_hash),
+               size_bytes = COALESCE($9, wiki_pages.size_bytes),
                updated_at = NOW()`,
-            [id, wikiPath, title || wikiPath.split('/').pop(), roleMin || 'member', sensitivity || 'internal', projectId || null]
+            [id, wikiPath, title || wikiPath.split('/').pop(), roleMin || 'member', sensitivity || 'internal', projectId || null, content || null, contentHash || null, sizeBytes || null]
         );
     }
 
-    async _deletePageAccess(wikiPath) {
+    async _deletePage(wikiPath) {
         if (!this.pool) return;
         await this.pool.query('DELETE FROM wiki_pages WHERE path = $1', [wikiPath]);
     }
@@ -144,7 +138,7 @@ export class WikiService {
     async _getAllPageAccess() {
         if (!this.pool) return new Map();
         try {
-            const { rows } = await this.pool.query('SELECT path, role_min, sensitivity, project_id FROM wiki_pages');
+            const { rows } = await this.pool.query('SELECT path, role_min, sensitivity, project_id FROM wiki_pages WHERE content IS NOT NULL');
             const map = new Map();
             for (const row of rows) {
                 map.set(row.path, row);
@@ -156,61 +150,35 @@ export class WikiService {
         }
     }
 
-    // ────────────────── file helpers ──────────────────
-
-    async _collectMdFiles(dir, prefix = '') {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        const results = [];
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
-            if (entry.isDirectory()) {
-                results.push(...await this._collectMdFiles(fullPath, relPath));
-            } else if (entry.name.endsWith('.md')) {
-                results.push(relPath.slice(0, -3)); // Remove .md
-            }
-        }
-        return results;
-    }
-
     // ────────────────── public API ──────────────────
 
     /**
      * ページ一覧を取得（権限フィルタ済み）
      */
     async listPages(access) {
-        if (!existsSync(this.wikiRoot)) {
-            return [];
-        }
+        if (!this.pool) return [];
 
         await this._getProjectSlugMap(); // ensure slug map is loaded
-        const filePaths = await this._collectMdFiles(this.wikiRoot);
-        const accessMap = await this._getAllPageAccess();
+
+        const { rows } = await this.pool.query(
+            'SELECT path, title, role_min, sensitivity, project_id FROM wiki_pages WHERE content IS NOT NULL ORDER BY path'
+        );
 
         const pages = [];
-        for (const wikiPath of filePaths) {
-            const pageAccess = accessMap.get(wikiPath) || { role_min: 'member', sensitivity: 'internal' };
+        for (const row of rows) {
+            const pageAccess = { role_min: row.role_min, sensitivity: row.sensitivity, project_id: row.project_id };
             if (!this._checkAccess(pageAccess, access)) continue;
 
-            // Read first line for title
-            const filePath = this._toFilePath(wikiPath);
-            let title = wikiPath.split('/').pop();
-            try {
-                const content = await fs.readFile(filePath, 'utf-8');
-                const extracted = this._extractTitle(content);
-                if (extracted) title = extracted;
-            } catch { /* use default title */ }
-
             pages.push({
-                path: wikiPath,
-                title,
-                role_min: pageAccess.role_min,
-                sensitivity: pageAccess.sensitivity,
-                project_id: pageAccess.project_id || null
+                path: row.path,
+                title: row.title,
+                role_min: row.role_min,
+                sensitivity: row.sensitivity,
+                project_id: row.project_id || null
             });
         }
 
-        return pages.sort((a, b) => a.path.localeCompare(b.path));
+        return pages;
     }
 
     /**
@@ -219,32 +187,32 @@ export class WikiService {
     async getPage(access, rawPath) {
         await this._getProjectSlugMap();
         const wikiPath = this._normalizePath(rawPath);
-        const filePath = this._toFilePath(wikiPath);
 
-        // 権限チェック
-        const pageAccess = await this._getPageAccess(wikiPath) || { role_min: 'member', sensitivity: 'internal' };
+        if (!this.pool) return { error: 'not_found', status: 404 };
+
+        const { rows } = await this.pool.query(
+            'SELECT content, title, role_min, sensitivity, project_id FROM wiki_pages WHERE path = $1',
+            [wikiPath]
+        );
+
+        if (rows.length === 0 || rows[0].content == null) {
+            return { error: 'not_found', status: 404 };
+        }
+
+        const row = rows[0];
+        const pageAccess = { role_min: row.role_min, sensitivity: row.sensitivity, project_id: row.project_id };
         if (!this._checkAccess(pageAccess, access)) {
             return { error: 'forbidden', status: 403 };
         }
 
-        // ファイル読み込み
-        try {
-            const content = await fs.readFile(filePath, 'utf-8');
-            const title = this._extractTitle(content) || wikiPath.split('/').pop();
-            return {
-                path: wikiPath,
-                title,
-                content,
-                role_min: pageAccess.role_min,
-                sensitivity: pageAccess.sensitivity,
-                project_id: pageAccess.project_id || null
-            };
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                return { error: 'not_found', status: 404 };
-            }
-            throw error;
-        }
+        return {
+            path: wikiPath,
+            title: row.title,
+            content: row.content,
+            role_min: row.role_min,
+            sensitivity: row.sensitivity,
+            project_id: row.project_id || null
+        };
     }
 
     /**
@@ -253,7 +221,6 @@ export class WikiService {
     async savePage(access, rawPath, content) {
         await this._getProjectSlugMap();
         const wikiPath = this._normalizePath(rawPath);
-        const filePath = this._toFilePath(wikiPath);
 
         // 権限チェック（既存ページの場合）
         const existingAccess = await this._getPageAccess(wikiPath);
@@ -261,15 +228,11 @@ export class WikiService {
             return { error: 'forbidden', status: 403 };
         }
 
-        // ディレクトリ作成
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-
-        // ファイル書き込み
-        await fs.writeFile(filePath, content, 'utf-8');
-
         // DB更新
         const title = this._extractTitle(content) || wikiPath.split('/').pop();
-        await this._upsertPageAccess(wikiPath, { title });
+        const contentHash = crypto.createHash('sha256').update(content).digest('hex');
+        const sizeBytes = Buffer.byteLength(content, 'utf-8');
+        await this._upsertPage(wikiPath, { title, content, contentHash, sizeBytes });
 
         return { path: wikiPath, title, success: true };
     }
@@ -280,7 +243,6 @@ export class WikiService {
     async deletePage(access, rawPath) {
         await this._getProjectSlugMap();
         const wikiPath = this._normalizePath(rawPath);
-        const filePath = this._toFilePath(wikiPath);
 
         // 権限チェック
         const pageAccess = await this._getPageAccess(wikiPath) || { role_min: 'member', sensitivity: 'internal' };
@@ -288,16 +250,13 @@ export class WikiService {
             return { error: 'forbidden', status: 403 };
         }
 
-        try {
-            await fs.unlink(filePath);
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                return { error: 'not_found', status: 404 };
-            }
-            throw error;
+        // DB存在チェック
+        if (!this.pool) return { error: 'not_found', status: 404 };
+        const { rowCount } = await this.pool.query('DELETE FROM wiki_pages WHERE path = $1', [wikiPath]);
+        if (rowCount === 0) {
+            return { error: 'not_found', status: 404 };
         }
 
-        await this._deletePageAccess(wikiPath);
         return { success: true };
     }
 
@@ -306,7 +265,7 @@ export class WikiService {
      */
     async setPageAccess(rawPath, { roleMin, sensitivity, projectId }) {
         const wikiPath = this._normalizePath(rawPath);
-        await this._upsertPageAccess(wikiPath, { roleMin, sensitivity, projectId });
+        await this._upsertPage(wikiPath, { roleMin, sensitivity, projectId });
         return { success: true, path: wikiPath };
     }
 
@@ -317,37 +276,27 @@ export class WikiService {
      */
     async getManifest(access) {
         await this._getProjectSlugMap();
-        if (!existsSync(this.wikiRoot)) {
-            return [];
-        }
+        if (!this.pool) return [];
 
-        const filePaths = await this._collectMdFiles(this.wikiRoot);
-        const accessMap = await this._getAllPageAccess();
+        const { rows } = await this.pool.query(
+            'SELECT path, content_hash, size_bytes, updated_at, role_min, sensitivity, project_id FROM wiki_pages WHERE content IS NOT NULL ORDER BY path'
+        );
 
         const manifest = [];
-        for (const wikiPath of filePaths) {
-            const pageAccess = accessMap.get(wikiPath) || { role_min: 'member', sensitivity: 'internal' };
+        for (const row of rows) {
+            const pageAccess = { role_min: row.role_min, sensitivity: row.sensitivity, project_id: row.project_id };
             if (!this._checkAccess(pageAccess, access)) continue;
 
-            const filePath = this._toFilePath(wikiPath);
-            try {
-                const stat = await fs.stat(filePath);
-                const content = await fs.readFile(filePath, 'utf-8');
-                const contentHash = crypto.createHash('sha256').update(content).digest('hex');
-
-                manifest.push({
-                    path: wikiPath,
-                    content_hash: contentHash,
-                    size_bytes: stat.size,
-                    updated_at: stat.mtime.toISOString(),
-                    project_id: pageAccess.project_id || null
-                });
-            } catch {
-                // Skip files that can't be read
-            }
+            manifest.push({
+                path: row.path,
+                content_hash: row.content_hash,
+                size_bytes: row.size_bytes,
+                updated_at: row.updated_at ? row.updated_at.toISOString() : null,
+                project_id: row.project_id || null
+            });
         }
 
-        return manifest.sort((a, b) => a.path.localeCompare(b.path));
+        return manifest;
     }
 
     /**
@@ -375,7 +324,6 @@ export class WikiService {
         const results = [];
         for (const { path: rawPath, content, if_unmodified_since } of pages) {
             const wikiPath = this._normalizePath(rawPath);
-            const filePath = this._toFilePath(wikiPath);
 
             // Permission check
             const existingAccess = await this._getPageAccess(wikiPath);
@@ -384,62 +332,41 @@ export class WikiService {
                 continue;
             }
 
-            // Conflict detection via timestamp
-            if (if_unmodified_since) {
+            // Conflict detection via DB updated_at
+            if (if_unmodified_since && this.pool) {
                 try {
-                    const stat = await fs.stat(filePath);
-                    const serverMtime = stat.mtime.getTime();
-                    const clientMtime = new Date(if_unmodified_since).getTime();
-                    if (serverMtime > clientMtime) {
-                        const serverContent = await fs.readFile(filePath, 'utf-8');
-                        results.push({
-                            path: wikiPath,
-                            error: 'conflict',
-                            server_updated_at: stat.mtime.toISOString(),
-                            server_content: serverContent
-                        });
-                        continue;
+                    const { rows } = await this.pool.query(
+                        'SELECT updated_at, content FROM wiki_pages WHERE path = $1',
+                        [wikiPath]
+                    );
+                    if (rows.length > 0) {
+                        const serverMtime = rows[0].updated_at.getTime();
+                        const clientMtime = new Date(if_unmodified_since).getTime();
+                        if (serverMtime > clientMtime) {
+                            results.push({
+                                path: wikiPath,
+                                error: 'conflict',
+                                server_updated_at: rows[0].updated_at.toISOString(),
+                                server_content: rows[0].content
+                            });
+                            continue;
+                        }
                     }
                 } catch (e) {
-                    // File doesn't exist yet, no conflict
-                    if (e.code !== 'ENOENT') throw e;
+                    // No existing page, no conflict
+                    logger.warn('Conflict check failed', { error: e.message });
                 }
             }
 
             // Save the page
-            await fs.mkdir(path.dirname(filePath), { recursive: true });
-            await fs.writeFile(filePath, content, 'utf-8');
-
             const title = this._extractTitle(content) || wikiPath.split('/').pop();
             const contentHash = crypto.createHash('sha256').update(content).digest('hex');
             const sizeBytes = Buffer.byteLength(content, 'utf-8');
 
-            await this._upsertPageMeta(wikiPath, { title, contentHash, sizeBytes });
+            await this._upsertPage(wikiPath, { title, content, contentHash, sizeBytes });
 
             results.push({ path: wikiPath, success: true, content_hash: contentHash });
         }
         return results;
-    }
-
-    /**
-     * Upsert page metadata including sync fields
-     */
-    async _upsertPageMeta(wikiPath, { title, roleMin, sensitivity, projectId, contentHash, sizeBytes }) {
-        if (!this.pool) return;
-        const id = `wiki_${ulid()}`;
-        await this.pool.query(
-            `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id, content_hash, size_bytes, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-             ON CONFLICT (path)
-             DO UPDATE SET
-               title = COALESCE(NULLIF($3, ''), wiki_pages.title),
-               role_min = COALESCE($4, wiki_pages.role_min),
-               sensitivity = COALESCE($5, wiki_pages.sensitivity),
-               project_id = COALESCE($6, wiki_pages.project_id),
-               content_hash = COALESCE($7, wiki_pages.content_hash),
-               size_bytes = COALESCE($8, wiki_pages.size_bytes),
-               updated_at = NOW()`,
-            [id, wikiPath, title || wikiPath.split('/').pop(), roleMin || 'member', sensitivity || 'internal', projectId || null, contentHash || null, sizeBytes || null]
-        );
     }
 }
