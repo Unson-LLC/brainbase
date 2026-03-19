@@ -69,7 +69,7 @@ export class TerminalTransportClient {
             scrollback: 5000,
             convertEol: true,
             allowTransparency: false,
-            cursorBlink: false,
+            cursorBlink: true,
             theme: {
                 background: '#000000',
                 foreground: '#e2e8f0',
@@ -544,14 +544,16 @@ export class TerminalTransportClient {
 
     _applySnapshot(text, options = {}) {
         if (!this.terminal) return;
-        // snapshotの中身が前回と同じならreset+writeをスキップ（ちらつき防止）
+        // snapshotの中身が前回と同じならスキップ（ちらつき防止）
         const normalizedText = text || '';
         if (this._lastSnapshotText === normalizedText) return;
         this._lastSnapshotText = normalizedText;
 
         const viewportState = options.forceViewportState || this._captureViewportState();
-        this.terminal.reset();
-        this.terminal.write(normalizedText, () => {
+        // terminal.reset()は内部状態を全破壊してDOMを全再構築するため使わない。
+        // 代わりにANSIエスケープで画面クリア+カーソルホーム+スクロールバッファクリア。
+        // xterm.jsは変わった行だけDOMを更新する。
+        this.terminal.write('\x1b[2J\x1b[3J\x1b[H' + normalizedText, () => {
             this.fitAddon?.fit();
             this._restoreViewportState(viewportState);
             this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
