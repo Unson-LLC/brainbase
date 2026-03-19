@@ -28,7 +28,6 @@ brainbaseは**各メンバーがローカルでサーバーを起動し、共有
 ```bash
 git clone git@github.com:Unson-LLC/brainbase-unson.git brainbase
 cd brainbase
-npm install
 ```
 
 ### 2. セットアップスクリプト実行
