@@ -122,15 +122,16 @@ export function showConfirm(message, options = {}) {
 }
 
 /**
- * Show a confirm dialog with an action button (3-button pattern)
+ * Show a confirm dialog with an action button (3-button or 4-button pattern)
  * @param {string} message - The message to display
  * @param {Object} options - Options
  * @param {string} options.title - Modal title (default: '確認')
  * @param {string} options.okText - OK button text (default: 'OK')
  * @param {string} options.cancelText - Cancel button text (default: 'キャンセル')
  * @param {string} options.actionText - Action button text (default: 'アクション')
+ * @param {string} options.aiActionText - AI action button text (optional, enables 4-button mode)
  * @param {boolean} options.danger - Use danger button style for OK (default: true)
- * @returns {Promise<{action: 'ok'|'cancel'|'action'}>} - Resolves to action type
+ * @returns {Promise<{action: 'ok'|'cancel'|'action'|'ai'}>} - Resolves to action type
  */
 export function showConfirmWithAction(message, options = {}) {
     if (!hasConfirmModal) {
