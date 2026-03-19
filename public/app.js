@@ -3528,14 +3528,14 @@ export class App {
                 this.reconnectManager?.setCurrentSession(sessionId);
                 if (this.reconnectManager) {
                     this.reconnectManager.terminalAccess = result.terminalAccess || null;
-                }
-                if (this.reconnectManager?.terminalAccess?.state !== 'blocked') {
-                    this.reconnectManager.terminalAccess = {
-                        state: 'owner',
-                        ownerViewerLabel: this.viewerLabel,
-                        ownerLastSeenAt: new Date().toISOString(),
-                        canTakeover: false
-                    };
+                    if (this.reconnectManager.terminalAccess?.state !== 'blocked') {
+                        this.reconnectManager.terminalAccess = {
+                            state: 'owner',
+                            ownerViewerLabel: this.viewerLabel,
+                            ownerLastSeenAt: new Date().toISOString(),
+                            canTakeover: false
+                        };
+                    }
                 }
                 this._terminalLastNavigateAt = Date.now();
                 this._setCurrentSessionUiState({

@@ -84,8 +84,31 @@ mkdir -p "$DATA_DIR" "$VAR_DIR"
 
 # Create state.json from sample
 echo "📝 Creating state.json from state.sample.json..."
-cp "$REPO_ROOT/state.sample.json" "$STATE_FILE"
-echo "   ✅ state.json created"
+# Replace placeholder paths with actual repository path
+sed "s|/path/to/brainbase|$REPO_ROOT|g" "$REPO_ROOT/state.sample.json" > "$STATE_FILE.tmp"
+
+# Remove sample sessions and keep only brainbase session
+cat > "$STATE_FILE" <<EOF
+{
+  "schemaVersion": 3,
+  "lastOpenTaskId": null,
+  "filters": {},
+  "readNotifications": [],
+  "focusSession": null,
+  "sessions": [
+    {
+      "id": "brainbase",
+      "name": "brainbase",
+      "icon": "brain",
+      "path": "$REPO_ROOT",
+      "worktree": null,
+      "intendedState": "paused"
+    }
+  ]
+}
+EOF
+rm -f "$STATE_FILE.tmp"
+echo "   ✅ state.json created with path: $REPO_ROOT"
 
 # Create _tasks directory if it doesn't exist
 if [ ! -d "$DATA_DIR/_tasks" ]; then

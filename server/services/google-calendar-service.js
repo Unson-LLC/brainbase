@@ -42,4 +42,15 @@ export class GoogleCalendarService {
   async authorize(code) {
     throw new Error('Google Calendar integration not configured');
   }
+
+  /**
+   * Get authentication status
+   * @returns {Promise<Object>}
+   */
+  async getAuthStatus() {
+    return {
+      authenticated: false,
+      error: 'Google Calendar integration not configured'
+    };
+  }
 }
