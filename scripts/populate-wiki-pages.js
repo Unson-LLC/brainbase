@@ -225,15 +225,16 @@ async function main() {
             }
         }
 
-        // Extract title, content_hash, size_bytes from file content
+        // Extract title, content_hash, size_bytes, content from file
         let title;
         let contentHash = null;
         let sizeBytes = null;
+        let fileContent = null;
         try {
-            const content = await fs.readFile(path.join(WIKI_ROOT, relPath), 'utf-8');
-            title = extractTitle(content);
-            contentHash = crypto.createHash('sha256').update(content).digest('hex');
-            sizeBytes = Buffer.byteLength(content, 'utf-8');
+            fileContent = await fs.readFile(path.join(WIKI_ROOT, relPath), 'utf-8');
+            title = extractTitle(fileContent);
+            contentHash = crypto.createHash('sha256').update(fileContent).digest('hex');
+            sizeBytes = Buffer.byteLength(fileContent, 'utf-8');
         } catch {
             title = null;
         }
@@ -249,6 +250,7 @@ async function main() {
             projectId: resolvedProjectId,
             contentHash,
             sizeBytes,
+            content: fileContent,
         });
     }
 
@@ -290,14 +292,15 @@ async function main() {
         for (const p of pages) {
             try {
                 const result = await client.query(
-                    `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id, content_hash, size_bytes)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id, content_hash, size_bytes, content)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                      ON CONFLICT (path) DO UPDATE SET
                          title = EXCLUDED.title,
                          sensitivity = EXCLUDED.sensitivity,
                          project_id = EXCLUDED.project_id,
                          content_hash = EXCLUDED.content_hash,
                          size_bytes = EXCLUDED.size_bytes,
+                         content = EXCLUDED.content,
                          updated_at = NOW()
                      RETURNING (xmax = 0) AS is_insert`,
                     [
@@ -309,6 +312,7 @@ async function main() {
                         p.projectId,
                         p.contentHash,
                         p.sizeBytes,
+                        p.content,
                     ]
                 );
                 if (result.rows[0]?.is_insert) {

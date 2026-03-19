@@ -268,11 +268,8 @@ const inboxParser = new InboxParser(INBOX_FILE);
 const infoSSOTService = new InfoSSOTService();
 const authService = new AuthService();
 
-// Wiki Service
-const WIKI_ROOT = process.env.BRAINBASE_WIKI_ROOT || path.join(BRAINBASE_ROOT, 'wiki');
-await ensureDir(WIKI_ROOT);
+// Wiki Service (content stored in PostgreSQL, no filesystem dependency)
 const wikiService = new WikiService({
-    wikiRoot: WIKI_ROOT,
     pool: infoSSOTService.pool  // 同じDB接続プールを共有
 });
 

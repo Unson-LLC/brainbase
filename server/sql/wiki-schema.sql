@@ -1,6 +1,6 @@
 -- Wiki Pages schema (Postgres)
 -- Story: STR-WIKI-001
--- コンテンツはファイル(wiki/*.md)が正本、権限情報はDBが正本
+-- コンテンツもDBが正本（wiki/*.mdからDBに移行済み）、権限情報はDBが正本
 
 CREATE TABLE IF NOT EXISTS wiki_pages (
   id text PRIMARY KEY,
@@ -29,3 +29,4 @@ END $$;
 -- Sync support columns
 ALTER TABLE wiki_pages ADD COLUMN IF NOT EXISTS content_hash text;
 ALTER TABLE wiki_pages ADD COLUMN IF NOT EXISTS size_bytes integer;
+ALTER TABLE wiki_pages ADD COLUMN IF NOT EXISTS content text;
