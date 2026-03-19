@@ -45,7 +45,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "lint": "npx eslint public/**/*.js server/**/*.js",
-    "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix"
+    "lint:fix": "npx eslint public/**/*.js server/**/*.js --fix",
+    "setup": "bash scripts/setup.sh"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.978.0",

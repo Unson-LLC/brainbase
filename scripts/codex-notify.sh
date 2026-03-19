@@ -244,7 +244,7 @@ PY
   esac
 
   case "$event_type" in
-    user-input-requested|user_input_requested|request-user-input|request_input|waiting-for-user-input|waiting_for_user_input|task_complete|codex/event/task_complete|turn/failed|turn/interrupted)
+    agent-turn-complete|user-input-requested|user_input_requested|request-user-input|request_input|waiting-for-user-input|waiting_for_user_input|task_complete|codex/event/task_complete|turn/failed|turn/interrupted)
     lifecycle="turn_completed"
     is_done_event=true
     ;;
@@ -254,6 +254,12 @@ PY
     if [ -n "$TURN_STATE_FILE" ] && [ -f "$TURN_STATE_FILE" ]; then
       rm -f "$TURN_STATE_FILE" >/dev/null 2>&1 || true
     fi
+    # codexはagent-turn-startを送らないため、doneの前にworkingを報告してlastWorkingAtを確保
+    WORKING_AT=$(( REPORTED_AT - 1000 ))
+    curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
+      -H "Content-Type: application/json" \
+      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $WORKING_AT, \"lifecycle\": \"turn_started\", \"eventType\": \"${event_type}-synthetic\", \"turnId\": \"${turn_id}\"}" \
+      --max-time 1 >/dev/null 2>&1 || true
     curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
       -H "Content-Type: application/json" \
       -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"done\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
