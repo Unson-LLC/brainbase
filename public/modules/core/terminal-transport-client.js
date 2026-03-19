@@ -69,7 +69,7 @@ export class TerminalTransportClient {
             scrollback: 5000,
             convertEol: true,
             allowTransparency: false,
-            cursorBlink: false,
+            cursorBlink: true,
             theme: {
                 background: '#000000',
                 foreground: '#e2e8f0',
@@ -220,6 +220,8 @@ export class TerminalTransportClient {
                         resolve({ mode: 'live' });
                         break;
                     case 'snapshot':
+                        // liveモード接続中はsnapshotによるフル再描画をスキップ（ちらつき防止）
+                        if (this.status.connected && this.status.mode === 'live') break;
                         this._queueOrApplySnapshot(message.colorText || message.text || '');
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
