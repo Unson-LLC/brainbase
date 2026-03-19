@@ -576,6 +576,7 @@ export class App {
     _showXtermTransport() {
         this.terminalXtermHost?.classList.remove('hidden');
         this.terminalFrame?.classList.add('hidden');
+        this.terminalSnapshotPanelEl?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.add('using-xterm');
         consoleArea?.classList.remove('using-snapshot');
@@ -597,6 +598,7 @@ export class App {
     _showTtydIframe() {
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
+        this.terminalSnapshotPanelEl?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
         consoleArea?.classList.remove('using-snapshot');
