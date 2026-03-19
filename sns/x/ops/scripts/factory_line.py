@@ -31,10 +31,10 @@ except Exception:
         return None
 
 
-load_dotenv("/Users/ksato/workspace/.env")
+load_dotenv(Path.home() / "workspace/.env")
 JST = ZoneInfo("Asia/Tokyo")
 
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 SEED_OUT_DIR = ROOT / "sns/x/04_ideas"
 POSTS_DIR = ROOT / "sns/x/05_posts"
 POSTS_DRAFT_DIR = POSTS_DIR / "draft"
@@ -184,7 +184,7 @@ def ensure_claude_oauth_token() -> None:
         return
     refresh_token = os.environ.get("CLAUDE_REFRESH_TOKEN")
     if not refresh_token:
-        raise RuntimeError("CLAUDE_REFRESH_TOKEN is missing. Set it in /Users/ksato/workspace/.env")
+        raise RuntimeError("CLAUDE_REFRESH_TOKEN is missing. Set it in ~/workspace/.env")
     payload = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
@@ -340,7 +340,7 @@ def ensure_dirs() -> None:
 
 
 def default_meeting_roots() -> list[Path]:
-    base = Path("/Users/ksato/workspace/projects")
+    base = Path.home() / "workspace/projects"
     if not base.exists():
         return [base]
     roots = [p for p in base.glob("*/meetings") if p.is_dir()]

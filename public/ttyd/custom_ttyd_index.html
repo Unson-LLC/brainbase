@@ -206,6 +206,16 @@
 // Wheel scroll support when tmux mouse is off (delegate to parent -> tmux copy-mode)
 (function() {
     'use strict';
+    const SCROLL_MIN_DELTA_PX = 12;
+    const SCROLL_STEP_PX = 40;
+    const MAX_SCROLL_STEPS = 8;
+    const SCROLL_FLUSH_MS = 16;
+    const TOUCH_STEP_PX = 18;
+    const TOUCH_FLUSH_MS = 30;
+    let wheelAccum = 0;
+    let wheelFlushTimer = null;
+    let touchAccum = 0;
+    let touchFlushTimer = null;
 
     function isAlternateBuffer(term) {
         try {
@@ -238,6 +248,39 @@
         return true;
     }
 
+    function queueScroll(delta, options) {
+        const accumulatorKey = options.touch ? 'touch' : 'wheel';
+        if (!Number.isFinite(delta) || delta === 0) return;
+
+        if (accumulatorKey === 'touch') {
+            touchAccum += delta;
+            if (Math.abs(touchAccum) < TOUCH_STEP_PX) return;
+            if (touchFlushTimer) return;
+            touchFlushTimer = setTimeout(function() {
+                touchFlushTimer = null;
+                const pending = touchAccum;
+                touchAccum = 0;
+                const steps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Math.round(Math.abs(pending) / TOUCH_STEP_PX)));
+                const direction = pending > 0 ? 'up' : 'down';
+                window.__bbTouchDidScroll = true;
+                postScroll(direction, steps);
+            }, TOUCH_FLUSH_MS);
+            return;
+        }
+
+        wheelAccum += delta;
+        if (Math.abs(wheelAccum) < SCROLL_MIN_DELTA_PX) return;
+        if (wheelFlushTimer) return;
+        wheelFlushTimer = setTimeout(function() {
+            wheelFlushTimer = null;
+            const pending = wheelAccum;
+            wheelAccum = 0;
+            const steps = Math.min(MAX_SCROLL_STEPS, Math.max(1, Math.round(Math.abs(pending) / SCROLL_STEP_PX)));
+            const direction = pending > 0 ? 'down' : 'up';
+            postScroll(direction, steps);
+        }, SCROLL_FLUSH_MS);
+    }
+
     document.addEventListener('wheel', function(e) {
         const term = window.term;
         if (!term) return;
@@ -251,17 +294,12 @@
         e.stopPropagation();
         e.stopImmediatePropagation();
 
-        const delta = e.deltaY || 0;
-        const steps = Math.min(3, Math.max(1, Math.round(Math.abs(delta) / 80)));
-        const direction = delta > 0 ? 'down' : 'up';
-        postScroll(direction, steps);
+        queueScroll(e.deltaY || 0, { touch: false });
     }, { passive: false, capture: true });
 
     const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     if (isTouchDevice) {
         let touchY = 0;
-        let touchAccum = 0;
-        const touchThreshold = 24;
         window.__bbTouchDidScroll = false;
 
         document.addEventListener('touchstart', function(e) {
@@ -284,20 +322,16 @@
             const currentY = e.touches[0].clientY;
             const delta = currentY - touchY;
             touchY = currentY;
-            touchAccum += delta;
 
-            if (Math.abs(touchAccum) < touchThreshold) return;
-
-            const steps = Math.min(3, Math.max(1, Math.round(Math.abs(touchAccum) / touchThreshold)));
-            // Touch: finger down should reveal older content (scroll up in tmux copy-mode)
-            const direction = touchAccum > 0 ? 'up' : 'down';
-            touchAccum = 0;
-            window.__bbTouchDidScroll = true;
-            postScroll(direction, steps);
+            queueScroll(delta, { touch: true });
         }, { passive: false, capture: true });
 
         document.addEventListener('touchend', function() {
             touchAccum = 0;
+            if (touchFlushTimer) {
+                clearTimeout(touchFlushTimer);
+                touchFlushTimer = null;
+            }
             // Keep scroll flag for touchend consumer; it will reset after handling.
         }, { passive: true, capture: true });
     }
@@ -475,7 +509,6 @@
 <script>
 // File path linkifier for Claude Code output
 (function() {
-    // Wait for terminal to be available
     function addFileLinkifier() {
         const term = window.term;
         if (!term) {
@@ -483,85 +516,83 @@
             return;
         }
 
-        console.log('[LinkProvider] Terminal found, registering link provider...');
+        // Check if registerLinkProvider is available
+        if (typeof term.registerLinkProvider !== 'function') {
+            console.warn('[LinkProvider] registerLinkProvider not available on this xterm version');
+            return;
+        }
 
-        // Pattern: path/to/file.ext:123 or /absolute/path/file.ext:456
-        const filePathRegex = /([a-zA-Z0-9_\-./]+\.(ts|js|tsx|jsx|md|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh)):(\d+)/g;
+        console.log('[LinkProvider] Registering...');
 
-        // Register link provider and store disposable
+        // Match file paths with or without :line_number
+        // e.g. "public/app.js:123", "README.md", "./src/index.ts", "/abs/path/file.py:42"
+        const FILE_EXTS = 'ts|js|tsx|jsx|md|mdx|markdown|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh|toml|cfg|ini|xml|svg';
+        const filePathRegex = new RegExp(
+            '(?:^|[\\s\'"(\\[{])' +                    // preceded by start/whitespace/quote/bracket
+            '((?:\\.{0,2}/)?[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))' +  // file path with extension
+            '(?::([0-9]+))?' +                           // optional :line_number
+            '(?=[\\s\'"\\])},;:|]|$)',                   // followed by end/whitespace/delimiter
+            'g'
+        );
+
         const disposable = term.registerLinkProvider({
             provideLinks: (y, callback) => {
-                console.log('[LinkProvider] provideLinks called for line:', y);
-
-                // Get the line text
-                const line = term.buffer.active.getLine(y);
-                if (!line) {
-                    console.log('[LinkProvider] No line object');
-                    callback(undefined);
-                    return;
-                }
+                // xterm LinkProvider passes a 1-based line number.
+                const lineIndex = y - 1;
+                const line = term.buffer.active.getLine(lineIndex);
+                if (!line) { callback(undefined); return; }
 
                 const lineText = line.translateToString(true);
-                console.log('[LinkProvider] Line text:', JSON.stringify(lineText));
-
-                if (!lineText) {
-                    console.log('[LinkProvider] Empty line text');
-                    callback(undefined);
-                    return;
-                }
+                if (!lineText) { callback(undefined); return; }
 
                 const links = [];
-
-                // Reset regex
                 filePathRegex.lastIndex = 0;
 
-                // Find all matches in the line
                 let match;
                 while ((match = filePathRegex.exec(lineText)) !== null) {
-                    const fullMatch = match[0];
-                    const startIndex = match.index;
-                    const length = fullMatch.length;
+                    const filePath = match[1];
+                    const lineNum = match[2] || null;
 
-                    const link = {
+                    // Find actual start index of the file path in the line
+                    const pathStart = lineText.indexOf(filePath, match.index);
+                    if (pathStart < 0) continue;
+
+                    // Include :lineNum in the clickable range if present
+                    const fullLen = lineNum ? filePath.length + 1 + lineNum.length : filePath.length;
+
+                    links.push({
                         range: {
-                            start: { x: startIndex + 1, y: y + 1 },
-                            end: { x: startIndex + length, y: y + 1 }
+                            start: { x: pathStart + 1, y },
+                            end: { x: pathStart + fullLen, y }
                         },
-                        text: fullMatch,
+                        text: lineNum ? filePath + ':' + lineNum : filePath,
                         activate: (event, text) => {
-                            const filePath = text.substring(0, text.lastIndexOf(':'));
-                            const lineNum = text.substring(text.lastIndexOf(':') + 1);
+                            const colonIdx = text.lastIndexOf(':');
+                            let fp = text;
+                            let ln = null;
+                            // Only split on colon if it's followed by digits at the end
+                            if (colonIdx > 0 && /^\d+$/.test(text.slice(colonIdx + 1))) {
+                                fp = text.slice(0, colonIdx);
+                                ln = text.slice(colonIdx + 1);
+                            }
 
-                            console.log('[LinkProvider] Link clicked:', text, 'File:', filePath, 'Line:', lineNum);
-
-                            // Call API to open file
-                            fetch('/api/open-file', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ filePath, line: lineNum })
-                            })
-                            .then(res => res.json())
-                            .then(data => {
-                                console.log('[LinkProvider] File opened:', data.path);
-                            })
-                            .catch(err => {
-                                console.error('[LinkProvider] Error opening file:', err);
-                            });
+                            console.log('[LinkProvider] Clicked:', fp, ln ? 'line:' + ln : '');
+                            window.parent.postMessage({
+                                type: 'OPEN_FILE',
+                                filePath: fp,
+                                line: ln,
+                                sessionId
+                            }, '*');
                         }
-                    };
-
-                    console.log('[LinkProvider] Link found:', fullMatch, 'at index', startIndex, 'range:', link.range);
-                    links.push(link);
+                    });
                 }
 
-                console.log('[LinkProvider] Returning', links.length, 'links');
                 callback(links.length > 0 ? links : undefined);
             }
         });
 
-        // Store disposable globally for debugging
         window.linkProviderDisposable = disposable;
-        console.log('[LinkProvider] Registered successfully, disposable:', disposable);
+        console.log('[LinkProvider] Registered OK');
     }
 
     if (document.readyState === 'loading') {
@@ -872,6 +903,7 @@
 (function() {
     // Extract session ID from URL
     const sessionId = window.location.pathname.match(/\/console\/([^/]+)/)?.[1];
+    const viewerId = new URLSearchParams(window.location.search).get('viewerId');
     if (!sessionId) {
         console.warn('[ttyd-monitor] Could not extract session ID from URL');
         return;
@@ -883,7 +915,20 @@
     // Wrap WebSocket to monitor connection state
     window.WebSocket = class extends OriginalWebSocket {
         constructor(url, protocols) {
-            super(url, protocols);
+            const nextUrl = (() => {
+                if (!viewerId) return url;
+                try {
+                    const absolute = new URL(url, window.location.href);
+                    if (!absolute.searchParams.has('viewerId')) {
+                        absolute.searchParams.set('viewerId', viewerId);
+                    }
+                    return absolute.toString();
+                } catch {
+                    return url;
+                }
+            })();
+
+            super(nextUrl, protocols);
 
             this.addEventListener('open', () => {
                 console.log('[ttyd-monitor] WebSocket connected');
@@ -934,6 +979,52 @@
         );
     }
 
+    let pendingLayout = null;
+    let layoutFrame = null;
+
+    function scheduleLayoutApply(payload) {
+        pendingLayout = payload;
+        if (layoutFrame) return;
+        layoutFrame = window.requestAnimationFrame(() => {
+            layoutFrame = null;
+            applyLayout(pendingLayout);
+        });
+    }
+
+    function applyLayout(payload) {
+        if (!payload) return;
+        const container = document.getElementById('terminal-container');
+        const width = Math.max(0, Number(payload.width) || window.innerWidth || 0);
+        const height = Math.max(0, Number(payload.height) || window.innerHeight || 0);
+
+        document.documentElement.style.setProperty('--bb-parent-width', `${width}px`);
+        document.documentElement.style.setProperty('--bb-parent-height', `${height}px`);
+        if (container) {
+            container.style.width = `${width}px`;
+            container.style.maxWidth = `${width}px`;
+            container.style.height = `${height}px`;
+        }
+
+        try {
+            if (window.fitAddon && typeof window.fitAddon.fit === 'function') {
+                window.fitAddon.fit();
+            } else if (window.term && typeof window.term.resize === 'function') {
+                const dimensions = window.term?._core?._renderService?.dimensions?.css?.cell || null;
+                const cellWidth = Number(dimensions?.width) || 0;
+                const cellHeight = Number(dimensions?.height) || 0;
+                if (cellWidth > 0 && cellHeight > 0) {
+                    const cols = Math.max(20, Math.floor(Math.max(0, width - 10) / cellWidth));
+                    const rows = Math.max(5, Math.floor(Math.max(0, height - 10) / cellHeight));
+                    window.term.resize(cols, rows);
+                }
+            }
+        } catch (error) {
+            console.warn('[Terminal] Failed to apply parent layout', error);
+        }
+
+        window.dispatchEvent(new Event('resize'));
+    }
+
     function focusXterm() {
         try {
             if (window.term && typeof window.term.focus === 'function') {
@@ -958,10 +1049,20 @@
     }
 
     window.addEventListener('message', function(event) {
-        if (!isTrustedOrigin(event.origin)) return;
         const data = event.data || {};
+        if (!isTrustedOrigin(event.origin) && data.source !== 'brainbase-mobile-keyboard') return;
         if (data.type === 'bb-terminal-focus') {
             focusXterm();
+            return;
+        }
+        if (data.type === 'bb-terminal-layout') {
+            scheduleLayoutApply(data);
+        }
+    });
+
+    window.addEventListener('load', function() {
+        if (pendingLayout) {
+            scheduleLayoutApply(pendingLayout);
         }
     });
 })();

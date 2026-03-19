@@ -71,19 +71,42 @@ describe('session-list-renderer', () => {
       expect(html).toContain('session-child-row paused');
     });
 
-    it('should show restart pending label when active session needs restart', () => {
+    it('should render summary chips and transport badge when sessionUiState is provided', () => {
       const session = {
-        id: 'session-restart',
-        name: 'Restart Needed',
-        intendedState: 'active',
-        runtimeStatus: { needsRestart: true }
+        id: 'session-rich',
+        name: 'Rich Session'
       };
 
-      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
+      const html = renderSessionRowHTML(session, {
+        isActive: true,
+        project: 'general',
+        sessionUiState: {
+          activity: 'working',
+          transport: 'reconnecting',
+          attention: 'needs-focus',
+          summary: {
+            repo: 'brainbase',
+            baseBranch: 'develop',
+            dirty: true,
+            changesNotPushed: 2,
+            prStatus: 'open_or_pending'
+          },
+          recentFile: {
+            path: 'src/app.js',
+            label: 'app.js'
+          }
+        }
+      });
 
-      expect(html).toContain('Restart pending');
-      expect(html).toContain('session-child-row paused');
+      expect(html).toContain('brainbase/develop');
+      expect(html).toContain('dirty');
+      expect(html).toContain('↑2');
+      expect(html).toContain('pending');
+      expect(html).toContain('file: app.js');
+      expect(html).toContain('Reconnecting');
+      expect(html).toContain('Focus');
     });
+
   });
 
   describe('renderSessionGroupHeaderHTML', () => {

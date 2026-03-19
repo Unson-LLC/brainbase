@@ -69,6 +69,7 @@ describe('project-mapping', () => {
     it('should handle worktree paths', () => {
       expect(getProjectFromPath('/path/to/workspace/.worktrees/session-123-brainbase-ui')).toBe('brainbase');
       expect(getProjectFromPath('/path/to/workspace/.worktrees/session-123-back_office')).toBe('back-office');
+      expect(getProjectFromPath('/Volumes/UNSON-DRIVE/brainbase-worktrees/session-123-brainbase-ui')).toBe('brainbase');
     });
   });
 });

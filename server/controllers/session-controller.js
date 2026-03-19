@@ -2,7 +2,7 @@
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { promisify } from 'util';
@@ -12,14 +12,70 @@ const MAX_TREE_DEPTH = 3;
 const DEFAULT_TREE_DEPTH = 2;
 const MAX_TREE_ENTRIES = 200;
 const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
+const UI_SUMMARY_TTL_MS = 10_000;
+const TAKEOVER_COOLDOWN_MS = 5000;
+const MAX_FILE_READ_SIZE = 512 * 1024;
+const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 
 export class SessionController {
-    constructor(sessionManager, worktreeService, stateStore) {
+    constructor(sessionManager, worktreeService, stateStore, options = {}) {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
         this.stateStore = stateStore;
+        this.projectsRoot = typeof options.projectsRoot === 'string' && options.projectsRoot.trim()
+            ? options.projectsRoot
+            : null;
+        this.codeProjectsRoot = typeof options.codeProjectsRoot === 'string' && options.codeProjectsRoot.trim()
+            ? options.codeProjectsRoot
+            : (this.projectsRoot ? path.join(path.dirname(this.projectsRoot), 'code') : null);
+        this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
-        this._commitNotifyMap = new Map(); // sessionId -> timestamp
+        this._uiSummaryCache = new Map();
+        this._recentSessionStarts = new Map(); // sessionId -> timestamp
+    }
+
+    _resolveViewerLabel(req, explicitLabel) {
+        if (typeof explicitLabel === 'string' && explicitLabel.trim()) {
+            return explicitLabel.trim();
+        }
+
+        const referer = String(req?.headers?.referer || '');
+        const ua = String(req?.headers?.['user-agent'] || '');
+
+        const originLabel = referer.includes('localhost') || referer.includes('127.0.0.1')
+            ? 'Local'
+            : 'Cloudflare';
+
+        let deviceLabel = 'Desktop';
+        if (/iPhone/i.test(ua)) {
+            deviceLabel = 'iPhone';
+        } else if (/iPad/i.test(ua)) {
+            deviceLabel = 'iPad';
+        } else if (/Mac/i.test(ua)) {
+            deviceLabel = 'Mac';
+        } else if (/Windows/i.test(ua)) {
+            deviceLabel = 'Windows';
+        } else if (/Android/i.test(ua)) {
+            deviceLabel = 'Android';
+        }
+
+        return `${originLabel} / ${deviceLabel}`;
+    }
+
+    _appendViewerIdToProxyPath(proxyPath, viewerId) {
+        if (typeof proxyPath !== 'string' || !proxyPath.trim() || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return proxyPath;
+        }
+
+        const normalizedPath = /^\/console\/[^/?#]+$/.test(proxyPath)
+            ? `${proxyPath}/`
+            : proxyPath;
+
+        if (normalizedPath.includes('viewerId=')) {
+            return normalizedPath;
+        }
+        const separator = normalizedPath.includes('?') ? '&' : '?';
+        return `${normalizedPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
     }
 
     _parseTreeDepth(rawDepth) {
@@ -42,6 +98,94 @@ export class SessionController {
             throw new Error('Invalid path');
         }
         return normalized;
+    }
+
+    async _pathExists(candidatePath) {
+        if (typeof candidatePath !== 'string' || !candidatePath.trim()) {
+            return false;
+        }
+
+        try {
+            await fs.access(candidatePath);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _buildRepoPathCandidates(repoPath, project) {
+        const candidates = [];
+        const seen = new Set();
+        const addCandidate = (candidate) => {
+            if (typeof candidate !== 'string' || !candidate.trim()) return;
+            const normalized = path.normalize(candidate);
+            if (seen.has(normalized)) return;
+            seen.add(normalized);
+            candidates.push(normalized);
+        };
+
+        const normalizedProject = typeof project === 'string' && project.trim()
+            ? project.trim()
+            : null;
+        const normalizedRepoPath = typeof repoPath === 'string' && repoPath.trim()
+            ? path.normalize(repoPath)
+            : null;
+        const repoName = normalizedRepoPath ? path.basename(normalizedRepoPath) : null;
+        const rootCandidates = [this.projectsRoot, this.codeProjectsRoot].filter(Boolean);
+        const pathSegments = new Set();
+
+        const addSegmentVariants = (value) => {
+            if (typeof value !== 'string' || !value.trim()) return;
+            const trimmed = value.trim();
+            const hyphenated = trimmed.replace(/[_\s]+/g, '-');
+            const compact = hyphenated.replace(/-/g, '');
+
+            pathSegments.add(trimmed);
+            pathSegments.add(hyphenated);
+            pathSegments.add(compact);
+        };
+
+        addCandidate(normalizedRepoPath);
+        addSegmentVariants(normalizedProject);
+        addSegmentVariants(repoName);
+
+        if (normalizedRepoPath) {
+            addCandidate(normalizedRepoPath.replace(`${path.sep}projects${path.sep}`, `${path.sep}code${path.sep}`));
+            addCandidate(normalizedRepoPath.replace(`${path.sep}code${path.sep}`, `${path.sep}projects${path.sep}`));
+        }
+
+        for (const rootPath of rootCandidates) {
+            for (const segment of pathSegments) {
+                addCandidate(path.join(rootPath, segment));
+            }
+        }
+
+        return candidates;
+    }
+
+    async _resolveRepoPath(repoPath, project) {
+        const candidates = this._buildRepoPathCandidates(repoPath, project);
+        const existingCandidates = [];
+
+        for (const candidate of candidates) {
+            if (await this._pathExists(candidate)) {
+                existingCandidates.push(candidate);
+            }
+        }
+
+        if (existingCandidates.length === 0) {
+            return repoPath;
+        }
+
+        if (typeof this.worktreeService?._isJujutsuRepo === 'function') {
+            for (const candidate of existingCandidates) {
+                if (await this.worktreeService._isJujutsuRepo(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        return existingCandidates[0];
     }
 
     _isWithinRoot(rootPath, targetPath) {
@@ -114,6 +258,94 @@ export class SessionController {
         return { nodes, truncated };
     }
 
+    async _buildSessionUiSummary(session) {
+        const repoPath = session.worktree?.repo || null;
+        const workspacePath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            || session.worktree?.path
+            || session.path
+            || null;
+        const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
+        const currentDirectory = session.cwd || workspacePath || null;
+        const baseSummary = {
+            repo: fallbackRepoName,
+            baseBranch: null,
+            dirty: false,
+            changesNotPushed: 0,
+            prStatus: session.merged ? 'merged' : 'none',
+            workspacePath,
+            currentDirectory,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (!repoPath) {
+            return baseSummary;
+        }
+
+        try {
+            const status = await this.worktreeService.getStatus(
+                session.id,
+                repoPath,
+                session.worktree?.startCommit || null
+            );
+            const changesNotPushed = status.changesNotPushed || 0;
+            const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
+
+            return {
+                repo: status.repoName || baseSummary.repo,
+                baseBranch: status.mainBranch || null,
+                dirty: hasWorkingCopyChanges || changesNotPushed > 0,
+                changesNotPushed,
+                prStatus: session.merged
+                    ? 'merged'
+                    : (changesNotPushed > 0 || status.bookmarkPushed ? 'open_or_pending' : 'none'),
+                workspacePath: workspacePath || status.worktreePath || null,
+                currentDirectory: currentDirectory || status.worktreePath || null,
+                updatedAt: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('Failed to build session UI summary:', error);
+            return baseSummary;
+        }
+    }
+
+    async _getCachedSessionUiSummary(session) {
+        const cached = this._uiSummaryCache.get(session.id);
+        if (cached && Date.now() - cached.cachedAt < UI_SUMMARY_TTL_MS) {
+            return cached.summary;
+        }
+
+        const summary = await this._buildSessionUiSummary(session);
+        this._uiSummaryCache.set(session.id, {
+            cachedAt: Date.now(),
+            summary
+        });
+        return summary;
+    }
+
+    /**
+     * State更新をリトライ付きで実行
+     * @param {Function} updateFn - 状態更新関数（currentState => newState）
+     * @param {number} maxRetries - 最大リトライ回数
+     * @returns {Promise<Object>} - 更新後の状態
+     */
+    async _updateStateWithRetry(updateFn, maxRetries = 3) {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                const currentState = this.stateStore.get();
+                const newState = updateFn(currentState);
+                await this.stateStore.update(newState);
+                return newState;
+            } catch (err) {
+                if (err.message.includes('State conflict') && i < maxRetries - 1) {
+                    console.warn(`[SessionController] Retry ${i + 1}/${maxRetries} due to conflict`);
+                    await new Promise(resolve => setTimeout(resolve, 100 * (i + 1))); // Exponential backoff
+                    continue;
+                }
+                throw err;
+            }
+        }
+    }
+
     // ========================================
     // Activity & Status
     // ========================================
@@ -123,12 +355,16 @@ export class SessionController {
      * Hookからのactivity報告を受信
      */
     reportActivity = async (req, res) => {
-        const { sessionId, status, reportedAt } = req.body;
+        const { sessionId, status, reportedAt, lifecycle, eventType, turnId } = req.body;
         if (!sessionId || !status) {
             return res.status(400).json({ error: 'Missing sessionId or status' });
         }
 
-        this.sessionManager.reportActivity(sessionId, status, reportedAt);
+        this.sessionManager.reportActivity(sessionId, status, reportedAt, {
+            lifecycle,
+            eventType,
+            turnId
+        });
         res.json({ success: true });
     };
 
@@ -159,7 +395,7 @@ export class SessionController {
      * GET /api/sessions/:id
      * 特定セッションの情報を取得
      */
-    get = (req, res) => {
+    get = async (req, res) => {
         const { id } = req.params;
         if (!id) {
             return res.status(400).json({ error: 'Session ID is required' });
@@ -172,61 +408,117 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
+        const resolvedPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
+
+        // Add runtime status
         const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
+
         res.json({
             ...session,
+            path: resolvedPath || session.path,
+            worktree: session.worktree
+                ? { ...session.worktree, path: resolvedPath || session.worktree.path }
+                : session.worktree,
             runtimeStatus
         });
     };
 
     /**
-     * プログレス更新
-     * @param {string} sessionId - セッションID
-     * @param {string} phase - フェーズ名
-     * @param {number} percent - 進捗率（0-100）
-     * @param {string} message - メッセージ
+     * GET /api/sessions/:id/runtime
+     * 特定セッションの軽量ランタイム状態を取得
      */
-    _updateProgress(sessionId, phase, percent, message) {
-        this.progressMap.set(sessionId, {
-            phase,
-            percent,
-            message,
-            timestamp: Date.now()
-        });
-    }
-
-    /**
-     * GET /api/sessions/:id/progress
-     * プログレス取得（Long Polling）
-     */
-    getProgress = async (req, res) => {
+    getRuntime = (req, res) => {
         const { id } = req.params;
-        const currentPercent = parseInt(req.query.current) || 0;
+        const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
+        const viewerLabel = this._resolveViewerLabel(req, req.query?.viewerLabel);
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
 
-        const startTime = Date.now();
-        const timeout = 30000;
-        const interval = 100;
+        const session = this.sessionManager.getSessionById(id);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
 
-        const checkProgress = () => {
-            const progress = this.progressMap.get(id);
-
-            if (progress && progress.percent > currentPercent) {
-                return res.json(progress);
-            }
-
-            if (progress && progress.percent >= 100) {
-                this.progressMap.delete(id);
-                return res.json(progress);
-            }
-
-            if (Date.now() - startTime > timeout) {
-                return res.json({ phase: 'timeout', percent: currentPercent, message: 'Timeout' });
-            }
-
-            setTimeout(checkProgress, interval);
+        const ownership = this.sessionManager.ensureTerminalOwnership(id, viewerId, viewerLabel);
+        const runtimeStatus = {
+            ...(session.runtimeStatus || {}),
+            proxyPath: ownership.allowed
+                ? this._appendViewerIdToProxyPath(session.runtimeStatus?.proxyPath || null, viewerId)
+                : null
         };
 
-        checkProgress();
+        res.json({
+            sessionId: id,
+            runtimeStatus,
+            terminalAccess: ownership.terminalAccess
+        });
+    };
+
+    releaseTerminal = (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.body?.viewerId === 'string' ? req.body.viewerId.trim() : '';
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
+
+        const released = this.sessionManager.releaseTerminalOwnership(id, viewerId);
+        const terminalAccess = this.sessionManager.getTerminalAccessState(id, viewerId);
+        res.json({ success: released, terminalAccess });
+    };
+
+    getTerminalSnapshot = async (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
+        const viewerLabel = this._resolveViewerLabel(req, req.query?.viewerLabel);
+        const lines = Math.max(50, Math.min(400, Number.parseInt(req.query?.lines, 10) || 200));
+
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
+
+        const session = this.sessionManager.getSessionById(id);
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const ownership = this.sessionManager.ensureTerminalOwnership(id, viewerId, viewerLabel);
+        if (!ownership.allowed) {
+            return res.status(409).json({
+                error: 'Session is already open in another viewer',
+                code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+                terminalAccess: ownership.terminalAccess
+            });
+        }
+
+        try {
+            const [text, colorText, copyMode] = await Promise.all([
+                this.sessionManager.getContent(id, lines),
+                this.sessionManager.getContentWithColors(id, lines).catch(() => null),
+                this.sessionManager.getPaneMode(id).catch(() => false),
+            ]);
+            const payload = {
+                sessionId: id,
+                text,
+                copyMode,
+                capturedAt: new Date().toISOString(),
+                terminalAccess: ownership.terminalAccess
+            };
+            if (colorText) payload.colorText = colorText;
+            res.json(payload);
+        } catch (error) {
+            console.error(`Failed to get terminal snapshot for ${id}:`, error.message);
+            res.status(500).json({ error: error.message || 'Failed to capture terminal snapshot' });
+        }
     };
 
     // ========================================
@@ -238,15 +530,19 @@ export class SessionController {
      * ttydプロセスを起動
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine } = req.body;
+        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false } = req.body;
+        const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
         console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
         }
+        if (!viewerId || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
 
-        // アーカイブ済みセッションの起動を拒否（自動再接続による意図しない復活を防止）
+        // アーカイブ済みセッションの起動を拒否
         const currentState = this.stateStore.get();
         const targetSession = (currentState.sessions || []).find(s => s.id === sessionId);
         if (targetSession?.intendedState === 'archived') {
@@ -258,8 +554,60 @@ export class SessionController {
             // セッション開始時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
 
+            const ownership = forceTakeover
+                ? this.sessionManager.forceTerminalOwnership(sessionId, viewerId, viewerLabel)
+                : this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+
+            if (!ownership.allowed) {
+                return res.status(409).json({
+                    error: 'Session is already open in another viewer',
+                    code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+                    terminalAccess: ownership.terminalAccess
+                });
+            }
+
+            // テイクオーバー: 既存ttydが起動中なら再起動して新クライアントに接続を譲る
+            const existingSession = this.sessionManager.activeSessions.get(sessionId);
+            if (existingSession) {
+                const pid = existingSession.process?.pid || existingSession.pid;
+                if (pid && this.sessionManager._isProcessRunning(pid)) {
+                    if (!forceTakeover) {
+                        return res.json({
+                            port: existingSession.port,
+                            proxyPath: this._appendViewerIdToProxyPath(`/console/${sessionId}`, viewerId),
+                            startedExisting: true,
+                            takeoverSkipped: true,
+                            terminalAccess: ownership.terminalAccess
+                        });
+                    }
+
+                    const lastStartedAt = this._recentSessionStarts.get(sessionId) || 0;
+                    const startedAgoMs = Date.now() - lastStartedAt;
+                    if (startedAgoMs >= 0 && startedAgoMs < TAKEOVER_COOLDOWN_MS) {
+                        console.log(`[takeover] Session ${sessionId}: skipped restart during cooldown (${startedAgoMs}ms since last start)`);
+                        return res.json({
+                            port: existingSession.port,
+                            proxyPath: this._appendViewerIdToProxyPath(`/console/${sessionId}`, viewerId),
+                            startedExisting: true,
+                            takeoverSkipped: true,
+                            terminalAccess: ownership.terminalAccess
+                        });
+                    }
+
+                    console.log(`[takeover] Session ${sessionId}: restarting ttyd for new client (killing pid ${pid})`);
+                    await this.sessionManager.stopTtyd(sessionId, { preserveTmux: true });
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            }
+
             const startOptions = { sessionId };
-            if (typeof cwd === 'string' && cwd.trim()) {
+            const resolvedCwd = targetSession
+                ? await this.sessionManager.resolveSessionWorkspacePath(targetSession, { persist: true, preferTmux: true })
+                : null;
+
+            if (typeof resolvedCwd === 'string' && resolvedCwd.trim()) {
+                startOptions.cwd = resolvedCwd;
+            } else if (typeof cwd === 'string' && cwd.trim()) {
                 startOptions.cwd = cwd;
             }
             if (typeof initialCommand === 'string') {
@@ -271,20 +619,26 @@ export class SessionController {
 
             // ttydプロセス起動
             const result = await this.sessionManager.startTtyd(startOptions);
+            this._recentSessionStarts.set(sessionId, Date.now());
 
-            // intendedState を active に更新（restore と同様）
-            const currentState = this.stateStore.get();
-            const updatedSessions = (currentState.sessions || []).map(session =>
-                session.id === sessionId
-                    ? { ...session, intendedState: 'active', updatedAt: new Date().toISOString() }
-                    : session
-            );
-            await this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
+            // intendedState を active に更新（engine も反映）（リトライ付き）
+            await this._updateStateWithRetry((currentState) => {
+                const updatedSessions = (currentState.sessions || []).map(session => {
+                    if (session.id !== sessionId) return session;
+                    const updates = { ...session, intendedState: 'active', updatedAt: new Date().toISOString() };
+                    if (startOptions.engine) {
+                        updates.engine = startOptions.engine;
+                    }
+                    return updates;
+                });
+                return { ...currentState, sessions: updatedSessions };
             });
 
-            res.json(result);
+            res.json({
+                ...result,
+                proxyPath: this._appendViewerIdToProxyPath(result.proxyPath, viewerId),
+                terminalAccess: ownership.terminalAccess
+            });
         } catch (error) {
             console.error('Failed to start session:', error);
             res.status(500).json({ error: error.message || 'Failed to allocate port' });
@@ -300,28 +654,36 @@ export class SessionController {
         const { id } = req.params;
         const { preserveTmux = false } = req.body || {};
 
-        const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
+        try {
+            const stopped = await this.sessionManager.stopTtyd(id, { preserveTmux });
 
-        if (stopped) {
-            // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
-            if (!preserveTmux) {
-                const currentState = this.stateStore.get();
-                const now = new Date().toISOString();
-                const updatedSessions = (currentState.sessions || []).map(session =>
-                    session.id === id
-                        ? { ...session, intendedState: 'paused', pausedAt: now, updatedAt: now }
-                        : session
-                );
+            if (stopped) {
+                // preserveTmux=true は「ttydだけ再起動」用途なので intendedState は変えない
+                if (!preserveTmux) {
+                    const now = new Date().toISOString();
+                    await this._updateStateWithRetry((currentState) => {
+                        const updatedSessions = (currentState.sessions || []).map(session =>
+                            session.id === id
+                                ? {
+                                    ...session,
+                                    intendedState: 'paused',
+                                    pausedReason: 'manual',
+                                    pausedAt: now,
+                                    updatedAt: now
+                                }
+                                : session
+                        );
+                        return { ...currentState, sessions: updatedSessions };
+                    });
+                }
 
-                await this.stateStore.update({
-                    ...currentState,
-                    sessions: updatedSessions
-                });
+                res.json({ success: true });
+            } else {
+                res.status(404).json({ error: 'Session not found or already stopped' });
             }
-
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Session not found or already stopped' });
+        } catch (error) {
+            console.error(`[stop] Error stopping session ${id}:`, error);
+            res.status(500).json({ error: 'Failed to stop session', detail: error.message });
         }
     };
 
@@ -333,43 +695,67 @@ export class SessionController {
         const { id } = req.params;
         const { skipMergeCheck } = req.body;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
+        try {
+            const state = this.stateStore.get();
+            const session = state.sessions?.find(s => s.id === id);
 
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-
-        // Check if workspace needs integration (Jujutsu: push needed)
-        if (session.worktree && !skipMergeCheck) {
-            const status = await this.worktreeService.getStatus(
-                id,
-                session.worktree.repo,
-                session.worktree.startCommit || null
-            );
-            if (status.needsIntegration || status.needsMerge) {
-                return res.json({
-                    needsConfirmation: true,
-                    status,
-                    message: 'Workspace has changes not pushed to remote'
-                });
+            if (!session) {
+                return res.status(404).json({ error: 'Session not found' });
             }
+
+            // Check if workspace needs integration (Jujutsu: push needed)
+            if (session.worktree?.repo && !skipMergeCheck) {
+                let status = await this.worktreeService.getStatus(
+                    id,
+                    session.worktree.repo,
+                    session.worktree.startCommit || null
+                );
+                let autoHealResult = null;
+
+                if (status.needsIntegration || status.needsMerge) {
+                    autoHealResult = await this.worktreeService.autoHealArchiveState(
+                        id,
+                        session.worktree.repo,
+                        session.worktree.path,
+                        session.worktree.startCommit || null
+                    );
+
+                    status = autoHealResult.statusAfter || status;
+                    status.autoHealAttempted = Boolean(autoHealResult.attempted);
+                    status.autoHealApplied = Boolean(autoHealResult.healed && autoHealResult.actions?.length);
+                    status.autoHealReason = autoHealResult.reason || null;
+                    status.autoHealActions = autoHealResult.actions || [];
+                }
+
+                if (status.needsIntegration || status.needsMerge) {
+                    return res.json({
+                        needsConfirmation: true,
+                        status,
+                        message: 'Workspace has changes not pushed to remote'
+                    });
+                }
+            }
+
+            // Stop ttyd process first (release port)
+            try {
+                await this.sessionManager.stopTtyd(id);
+            } catch (ttydError) {
+                console.error(`[archive] Failed to stop ttyd for ${id}:`, ttydError.message);
+            }
+
+            // Archive: Update intendedState to archived (リトライ付き)
+            await this._updateStateWithRetry((currentState) => {
+                const updatedSessions = currentState.sessions.map(s =>
+                    s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
+                );
+                return { ...currentState, sessions: updatedSessions };
+            });
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error(`[archive] Error archiving session ${id}:`, error);
+            res.status(500).json({ error: 'Failed to archive session', detail: error.message });
         }
-
-        // Stop ttyd process first (release port)
-        await this.sessionManager.stopTtyd(id);
-
-        // Archive: Update intendedState to archived
-        const updatedSessions = state.sessions.map(s =>
-            s.id === id ? { ...s, intendedState: 'archived', archivedAt: new Date().toISOString() } : s
-        );
-
-        const newState = await this.stateStore.update({
-            ...state,
-            sessions: updatedSessions
-        });
-
-        res.json({ success: true, state: newState });
     };
 
     /**
@@ -395,14 +781,31 @@ export class SessionController {
         const engine = requestEngine || session.engine || 'claude';
 
         try {
+            let restoredWorkspacePath = session.worktree?.path || session.path || session.cwd;
+            const resolvedRepoPath = await this._resolveRepoPath(session.worktree?.repo || null, session.project);
+
             // Restore worktree if it existed
-            if (session.worktree) {
-                const worktreeResult = await this.worktreeService.create(id, session.worktree.repo);
-                if (!worktreeResult) {
-                    return res.status(500).json({
-                        error: 'Failed to restore worktree',
-                        detail: 'worktreeService.create returned null'
-                    });
+            if (resolvedRepoPath) {
+                try {
+                    const worktreeResult = await this.worktreeService.create(id, resolvedRepoPath);
+                    if (worktreeResult?.worktreePath) {
+                        restoredWorkspacePath = worktreeResult.worktreePath;
+                    } else {
+                        throw new Error('worktreeService.create returned null');
+                    }
+                } catch (worktreeError) {
+                    const fallbackPath = session.worktree?.path || session.path || session.cwd;
+                    if (await this._pathExists(fallbackPath)) {
+                        restoredWorkspacePath = fallbackPath;
+                        console.warn(
+                            `[restore] Failed to recreate worktree for ${id}, reusing existing workspace: ${fallbackPath}. ${worktreeError.message}`
+                        );
+                    } else {
+                        return res.status(500).json({
+                            error: 'Failed to restore worktree',
+                            detail: worktreeError.message
+                        });
+                    }
                 }
             }
 
@@ -410,7 +813,7 @@ export class SessionController {
             this.sessionManager.clearDoneStatus(id);
 
             // Start ttyd session
-            const cwd = session.worktree?.path || session.cwd;
+            const cwd = restoredWorkspacePath;
             const result = await this.sessionManager.startTtyd({
                 sessionId: id,
                 cwd,
@@ -418,14 +821,22 @@ export class SessionController {
                 engine
             });
 
-            // Update state to active
-            const updatedSessions = state.sessions.map(s =>
-                s.id === id ? { ...s, intendedState: 'active' } : s
-            );
-
-            await this.stateStore.update({
-                ...state,
-                sessions: updatedSessions
+            // Update state to active (archivedAt も除去、engine も反映)（リトライ付き）
+            await this._updateStateWithRetry((currentState) => {
+                const updatedSessions = currentState.sessions.map(s => {
+                    if (s.id !== id) return s;
+                    const { archivedAt, ...rest } = s;
+                        return {
+                            ...rest,
+                            path: cwd,
+                            worktree: rest.worktree
+                            ? { ...rest.worktree, repo: resolvedRepoPath, path: cwd }
+                            : rest.worktree,
+                            intendedState: 'active',
+                            engine
+                    };
+                });
+                return { ...currentState, sessions: updatedSessions };
             });
 
             res.json({
@@ -435,6 +846,93 @@ export class SessionController {
             });
         } catch (error) {
             console.error('Failed to restore session:', error);
+            res.status(500).json({ error: error.message });
+        }
+    };
+
+    /**
+     * POST /api/sessions/:id/ask-ai-integration
+     * AIに統合確認と対処を依頼
+     */
+    askAiIntegration = async (req, res) => {
+        const { id } = req.params;
+        const status = req.body?.status || {};
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        try {
+            const workspacePath = session.worktree?.path || session.path || session.cwd || process.cwd();
+            const runCommand = async (command) => {
+                try {
+                    const { stdout, stderr } = await execAsync(command, { cwd: workspacePath, maxBuffer: 1024 * 1024 });
+                    return [stdout, stderr].filter(Boolean).join('\n').trim() || '(no output)';
+                } catch (cmdError) {
+                    const stdout = typeof cmdError?.stdout === 'string' ? cmdError.stdout : '';
+                    const stderr = typeof cmdError?.stderr === 'string' ? cmdError.stderr : '';
+                    const output = [stdout, stderr].filter(Boolean).join('\n').trim();
+                    if (output) {
+                        return `${output}\n(command failed: ${cmdError.message})`;
+                    }
+                    return `(command failed: ${cmdError.message})`;
+                }
+            };
+
+            const jjStatus = await runCommand('jj status');
+            const jjLog = await runCommand('jj log -r @ -r @- -r @-- --limit 5');
+            const jjBookmarks = await runCommand('jj bookmark list');
+
+            const message = `[システム自動送信]
+
+ユーザーがアーカイブしようとしたが、以下の警告が出ました：
+
+${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
+${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
+${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
+${status.autoHealReason && status.autoHealReason !== 'healed' ? `- 自動修復スキップ理由: ${status.autoHealReason}` : ''}
+
+現在の状態：
+=== jj status ===
+${jjStatus}
+
+=== jj log ===
+${jjLog}
+
+=== jj bookmark list ===
+${jjBookmarks}
+
+セッション情報：
+- session-id: ${id}
+- プロジェクト: ${session.name || 'unson'}
+- パス: ${workspacePath}
+
+この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
+
+            let copiedByServer = false;
+            try {
+                execSync('pbcopy', {
+                    input: message,
+                    stdio: ['pipe', 'ignore', 'ignore']
+                });
+                copiedByServer = true;
+            } catch (copyError) {
+                console.warn('Server-side clipboard copy failed:', copyError.message);
+            }
+
+            res.json({
+                success: true,
+                message: copiedByServer
+                    ? 'AIへの依頼内容をコピーしました。チャットでペーストして送信してください。'
+                    : 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。',
+                copiedByServer,
+                clipboardContent: message
+            });
+        } catch (error) {
+            console.error('Failed to ask AI for integration:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -549,11 +1047,66 @@ export class SessionController {
      * POST /api/sessions/create-with-worktree
      * worktreeを作成してセッションを開始
      */
+    /**
+     * プログレス更新
+     * @param {string} sessionId - セッションID
+     * @param {string} phase - フェーズ名
+     * @param {number} percent - 進捗率（0-100）
+     * @param {string} message - メッセージ
+     */
+    _updateProgress(sessionId, phase, percent, message) {
+        this.progressMap.set(sessionId, {
+            phase,
+            percent,
+            message,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * GET /api/sessions/:id/progress
+     * プログレス取得（Long Polling）
+     */
+    getProgress = async (req, res) => {
+        const { id } = req.params;
+        const currentPercent = parseInt(req.query.current) || 0;
+
+        const startTime = Date.now();
+        const timeout = 30000;
+        const interval = 100;
+
+        const checkProgress = () => {
+            const progress = this.progressMap.get(id);
+
+            if (progress && progress.percent > currentPercent) {
+                return res.json(progress);
+            }
+
+            if (progress && progress.percent >= 100) {
+                this.progressMap.delete(id);
+                return res.json(progress);
+            }
+
+            if (Date.now() - startTime > timeout) {
+                return res.json({ phase: 'timeout', percent: currentPercent, message: 'Timeout' });
+            }
+
+            setTimeout(checkProgress, interval);
+        };
+
+        checkProgress();
+    };
+
     createWithWorktree = async (req, res) => {
-        const { sessionId, repoPath, name, initialCommand, engine = 'claude', project } = req.body;
+        const { sessionId, repoPath, name, initialCommand, engine = 'claude', project, viewerId } = req.body;
+        const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
+        const skipFetch = req.body.skipFetch !== undefined ? req.body.skipFetch : true;
 
         if (!sessionId || !repoPath) {
             return res.status(400).json({ error: 'sessionId and repoPath are required' });
+        }
+        if (!viewerId || typeof viewerId !== 'string' || !viewerId.trim()) {
+            return res.status(400).json({ error: 'viewerId is required' });
         }
 
         // Validate engine
@@ -562,21 +1115,24 @@ export class SessionController {
         }
 
         try {
-            // skipFetchオプション（デフォルト: true）
-            const skipFetch = req.body.skipFetch !== undefined ? req.body.skipFetch : true;
+            this._updateProgress(sessionId, 'worktree', 10, 'ワークスペースを作成中...');
+            const resolvedRepoPath = await this._resolveRepoPath(repoPath, project);
 
-            this._updateProgress(sessionId, 'creating_workspace', 10, 'Workspace作成中...');
-
-            // Create worktree
-            const worktreeResult = await this.worktreeService.create(sessionId, repoPath, { skipFetch });
-
-            if (!worktreeResult) {
-                return res.status(500).json({ error: 'Failed to create worktree. Is this a git repository?' });
+            if (resolvedRepoPath !== repoPath) {
+                console.warn(`[createWithWorktree] Repo path fallback for ${sessionId}: ${repoPath} -> ${resolvedRepoPath}`);
             }
 
-            const { worktreePath, branchName } = worktreeResult;
+            // Create worktree (skipFetch=trueで2-3秒短縮)
+            const worktreeResult = await this.worktreeService.create(sessionId, resolvedRepoPath, { skipFetch });
 
-            this._updateProgress(sessionId, 'setup_environment', 40, '環境セットアップ中...');
+            if (!worktreeResult) {
+                this._updateProgress(sessionId, 'error', 0, 'ワークスペース作成に失敗');
+                return res.status(500).json({ error: 'Failed to create worktree' });
+            }
+
+            this._updateProgress(sessionId, 'worktree', 40, 'ワークスペース作成完了');
+
+            const { worktreePath, branchName } = worktreeResult;
 
             // セッション作成時に'done'ステータスをクリア
             this.sessionManager.clearDoneStatus(sessionId);
@@ -584,14 +1140,13 @@ export class SessionController {
             // Update state BEFORE starting ttyd.
             // This allows ttyd start to persist pid/port and login_script.sh to resolve correct CWD.
             const now = new Date().toISOString();
-            const currentState = this.stateStore.get();
             const newSession = {
                 id: sessionId,
                 name: name || sessionId,
                 path: worktreePath,  // 追加: プロジェクト判定に必要
                 project,
                 worktree: {
-                    repo: repoPath,
+                    repo: resolvedRepoPath,
                     path: worktreePath,
                     branch: branchName,
                     startCommit: worktreeResult.startCommit
@@ -603,56 +1158,61 @@ export class SessionController {
                 updatedAt: now
             };
 
-            this._updateProgress(sessionId, 'starting_terminal', 60, 'ターミナル起動中...');
+            this._updateProgress(sessionId, 'state', 60, 'セッション状態を更新中...');
 
-            // state更新とttyd起動を並列実行
+            // state更新とttyd起動を並列実行（Tier1高速化）
             const [stateResult, ttydResult] = await Promise.allSettled([
-                this.stateStore.update({
+                this._updateStateWithRetry((currentState) => ({
                     ...currentState,
                     sessions: [...(currentState.sessions || []).filter(s => s.id !== sessionId), newSession]
-                }),
-                this.sessionManager.startTtyd({
-                    sessionId,
-                    cwd: worktreePath,
-                    initialCommand,
-                    engine
-                })
+                })),
+                (async () => {
+                    this._updateProgress(sessionId, 'ttyd', 80, 'ターミナルを起動中...');
+                    return this.sessionManager.startTtyd({
+                        sessionId,
+                        cwd: worktreePath,
+                        initialCommand,
+                        engine
+                    });
+                })()
             ]);
 
             // ttyd起動失敗時はロールバック
             if (ttydResult.status === 'rejected') {
-                console.error('[createWithWorktree] ttyd start failed:', ttydResult.reason);
-                const rollbackState = this.stateStore.get();
-                await this.stateStore.update({
-                    ...rollbackState,
-                    sessions: (rollbackState.sessions || []).filter(s => s.id !== sessionId)
-                });
-                this.worktreeService.remove(sessionId, repoPath).catch(() => {});
+                this._updateProgress(sessionId, 'error', 0, 'ターミナル起動に失敗');
+                try {
+                    await this._updateStateWithRetry((currentState) => ({
+                        ...currentState,
+                        sessions: (currentState.sessions || []).filter(s => s.id !== sessionId)
+                    }));
+                } catch (rollbackError) {
+                    console.error(`[createWithWorktree] Rollback failed:`, rollbackError);
+                }
+                this.worktreeService.remove(sessionId, resolvedRepoPath).catch(() => {});
                 throw ttydResult.reason;
             }
 
-            // state更新失敗時は警告のみ
+            // state更新失敗時は警告のみ（セッションは使える）
             if (stateResult.status === 'rejected') {
                 console.warn('[createWithWorktree] state update failed (session is usable):', stateResult.reason);
             }
 
             const result = ttydResult.value;
-
-            this._updateProgress(sessionId, 'starting_claude', 80, 'Claude起動中...');
-
-            this._updateProgress(sessionId, 'initializing', 90, '初期化中...');
+            const ownership = this.sessionManager.forceTerminalOwnership(sessionId, viewerId, viewerLabel);
+            this._updateProgress(sessionId, 'done', 100, 'セッション作成完了！');
 
             res.json({
                 success: true,
                 port: result.port,
-                proxyPath: result.proxyPath,
+                proxyPath: this._appendViewerIdToProxyPath(result.proxyPath, viewerId),
+                terminalAccess: ownership.terminalAccess,
                 worktreePath,
                 branchName
             });
         } catch (error) {
-            this._updateProgress(sessionId, 'error', 0, error.message);
             console.error('Failed to create session with worktree:', error);
-            res.status(500).json({ error: error.message });
+            this._updateProgress(sessionId, 'error', 0, 'セッション作成に失敗');
+            res.status(500).json({ error: error.message || 'Failed to create worktree' });
         }
     };
 
@@ -671,7 +1231,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -702,8 +1262,12 @@ export class SessionController {
         }
 
         const repoPath = session.worktree?.repo || null;
-        const workspacePath = session.worktree?.path || session.path || null;
+        const workspacePath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            || session.worktree?.path
+            || session.path
+            || null;
         const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
+        const currentDirectory = session.cwd || workspacePath || null;
         const context = {
             sessionId: session.id,
             sessionName: session.name || null,
@@ -711,6 +1275,7 @@ export class SessionController {
             repo: fallbackRepoName,
             repoPath,
             workspacePath,
+            currentDirectory,
             bookmark: session.id,
             dirty: false,
             changesNotPushed: 0,
@@ -750,12 +1315,33 @@ export class SessionController {
                 hasWorkingCopyChanges,
                 bookmarkPushed: Boolean(status.bookmarkPushed),
                 prStatus,
-                baseBranch: status.mainBranch || null
+                baseBranch: status.mainBranch || null,
+                currentDirectory: context.currentDirectory || status.worktreePath || null
             });
         } catch (error) {
             console.error('Failed to get session context:', error);
             res.json(context);
         }
+    };
+
+    getUiSummaries = async (req, res) => {
+        const state = this.stateStore.get();
+        const requestedIds = typeof req.query.ids === 'string' && req.query.ids.trim()
+            ? req.query.ids.split(',').map((id) => id.trim()).filter(Boolean)
+            : null;
+        const sessions = (state.sessions || []).filter((session) => {
+            if (!requestedIds) return true;
+            return requestedIds.includes(session.id);
+        });
+
+        const entries = await Promise.all(
+            sessions.map(async (session) => {
+                const summary = await this._getCachedSessionUiSummary(session);
+                return [session.id, summary];
+            })
+        );
+
+        res.json(Object.fromEntries(entries));
     };
 
     /**
@@ -773,7 +1359,9 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        const rootPath = session.worktree?.path || session.path;
+        const rootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            || session.worktree?.path
+            || session.path;
         if (!rootPath) {
             return res.status(400).json({ error: 'Session does not have workspace path' });
         }
@@ -813,6 +1401,82 @@ export class SessionController {
     };
 
     /**
+     * GET /api/sessions/:id/file-content
+     * ファイル内容を取得（Markdown等のプレビュー用）
+     */
+    getFileContent = async (req, res) => {
+        const { id } = req.params;
+        const rawPath = req.query.path || '';
+
+        if (!rawPath) {
+            return res.status(400).json({ error: 'path query parameter is required' });
+        }
+
+        const state = this.stateStore.get();
+        const session = state.sessions?.find((s) => s.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        const rootPath = session.worktree?.path || session.path;
+        if (!rootPath) {
+            return res.status(400).json({ error: 'Session does not have workspace path' });
+        }
+
+        try {
+            const relativePath = this._normalizeRelativePath(rawPath);
+            const targetPath = path.resolve(rootPath, relativePath);
+
+            if (!this._isWithinRoot(rootPath, targetPath)) {
+                return res.status(400).json({ error: 'Invalid path: outside session workspace' });
+            }
+
+            const stat = await fs.stat(targetPath);
+            if (stat.size > MAX_FILE_READ_SIZE) {
+                return res.status(413).json({ error: 'File too large to preview' });
+            }
+
+            // Binary check: read first 8KB and look for null bytes
+            const fd = await fs.open(targetPath, 'r');
+            try {
+                const probeSize = Math.min(8192, stat.size);
+                const probeBuf = Buffer.alloc(probeSize);
+                const { bytesRead } = await fd.read(probeBuf, 0, probeSize, 0);
+                const probe = probeBuf.subarray(0, bytesRead);
+                if (probe.includes(0)) {
+                    return res.status(415).json({ error: 'Binary files cannot be previewed' });
+                }
+            } finally {
+                await fd.close();
+            }
+
+            const content = await fs.readFile(targetPath, 'utf-8');
+            const fileName = path.basename(targetPath);
+            const ext = path.extname(fileName).toLowerCase();
+            const isMarkdown = MARKDOWN_EXTENSIONS.has(ext);
+
+            res.json({
+                sessionId: id,
+                relativePath,
+                fileName,
+                content,
+                size: stat.size,
+                isMarkdown
+            });
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return res.status(404).json({ error: 'File not found' });
+            }
+            if (error.message === 'Invalid path') {
+                return res.status(400).json({ error: 'Invalid path' });
+            }
+            console.error('Failed to get file content:', error);
+            res.status(500).json({ error: error.message || 'Failed to read file' });
+        }
+    };
+
+    /**
      * POST /api/sessions/:id/update-local-main
      * ローカルmainブランチを最新化
      */
@@ -828,7 +1492,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -856,7 +1520,7 @@ export class SessionController {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -864,85 +1528,26 @@ export class SessionController {
             const result = await this.worktreeService.merge(id, session.worktree.repo, session.name);
 
             if (result.success) {
-                // Update session to mark as merged
-                const updatedSessions = state.sessions.map(s =>
-                    s.id === id ? { ...s, merged: true, mergedAt: new Date().toISOString() } : s
-                );
-
-                await this.stateStore.update({
-                    ...state,
-                    sessions: updatedSessions
+                const mergedAt = result.mergedAt || new Date().toISOString();
+                // Update session to mark as merged (リトライ付き)
+                await this._updateStateWithRetry((currentState) => {
+                    const updatedSessions = (currentState.sessions || []).map(s =>
+                        s.id === id
+                            ? {
+                                ...s,
+                                merged: true,
+                                mergedAt,
+                                mergedPrUrl: result.prUrl || null
+                            }
+                            : s
+                    );
+                    return { ...currentState, sessions: updatedSessions };
                 });
             }
 
             res.json(result);
         } catch (error) {
             console.error('Failed to merge worktree:', error);
-            res.status(500).json({ error: error.message });
-        }
-    };
-
-    /**
-     * POST /api/sessions/:id/ask-ai-integration
-     * AIに統合確認と対処を依頼
-     */
-    askAiIntegration = async (req, res) => {
-        const { id } = req.params;
-        const { status } = req.body;
-
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
-
-        try {
-            // jj状態を取得
-            const { execSync } = require('child_process');
-            const workspacePath = session.worktree?.path || '/Users/ksato/workspace';
-
-            const jjStatus = execSync('jj status', { cwd: workspacePath, encoding: 'utf-8' });
-            const jjLog = execSync('jj log -r @ -r @- -r @-- --limit 5', { cwd: workspacePath, encoding: 'utf-8' });
-            const jjBookmarks = execSync('jj bookmark list', { cwd: workspacePath, encoding: 'utf-8' });
-
-            // Claude Codeに送信するメッセージを構築
-            const message = `[システム自動送信]
-
-ユーザーがアーカイブしようとしたが、以下の警告が出ました：
-
-${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
-${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
-${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
-
-現在の状態：
-=== jj status ===
-${jjStatus}
-
-=== jj log ===
-${jjLog}
-
-=== jj bookmark list ===
-${jjBookmarks}
-
-セッション情報：
-- session-id: ${id}
-- プロジェクト: ${session.name || 'unson'}
-- パス: ${workspacePath}
-
-この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
-
-            // メッセージをクリップボードにコピー（macOS）
-            const { execSync: exec } = require('child_process');
-            exec(`echo "${message.replace(/"/g, '\\"')}" | pbcopy`, { encoding: 'utf-8' });
-
-            res.json({
-                success: true,
-                message: 'AIへの依頼内容をクリップボードにコピーしました。Claude Codeのチャット画面でペーストして送信してください。',
-                clipboardContent: message
-            });
-        } catch (error) {
-            console.error('Failed to ask AI for integration:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -962,16 +1567,22 @@ ${jjBookmarks}
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
-            return res.status(400).json({ error: 'Session does not have a worktree' });
-        }
-
         try {
-            const result = await this.worktreeService.getCommitLog(
-                id,
-                session.worktree.repo,
-                limit
-            );
+            let result;
+            if (session.worktree?.repo) {
+                result = await this.worktreeService.getCommitLog(
+                    id,
+                    session.worktree.repo,
+                    limit
+                );
+            } else if (session.path) {
+                result = await this.worktreeService.getCommitLogByPath(
+                    session.path,
+                    limit
+                );
+            } else {
+                return res.status(400).json({ error: 'Session does not have a repository path' });
+            }
             res.json(result);
         } catch (error) {
             console.error('Failed to get commit log:', error);
@@ -1012,7 +1623,7 @@ ${jjBookmarks}
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        if (!session.worktree) {
+        if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
         }
 
@@ -1020,18 +1631,16 @@ ${jjBookmarks}
             const success = await this.worktreeService.remove(id, session.worktree.repo);
 
             if (success) {
-                // Remove worktree info from session state
-                const updatedSessions = state.sessions.map(s => {
-                    if (s.id === id) {
-                        const { worktree, ...rest } = s;
-                        return rest;
-                    }
-                    return s;
-                });
-
-                await this.stateStore.update({
-                    ...state,
-                    sessions: updatedSessions
+                // Remove worktree info from session state (リトライ付き)
+                await this._updateStateWithRetry((currentState) => {
+                    const updatedSessions = currentState.sessions.map(s => {
+                        if (s.id === id) {
+                            const { worktree, ...rest } = s;
+                            return rest;
+                        }
+                        return s;
+                    });
+                    return { ...currentState, sessions: updatedSessions };
                 });
 
                 res.json({ success: true });

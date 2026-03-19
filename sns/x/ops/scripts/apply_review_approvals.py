@@ -13,7 +13,7 @@ import yaml
 
 from dispatch_logs import ensure_note_log, upsert_dispatch_entry, upsert_note_log_entry
 
-ROOT = Path("/Users/ksato/workspace/brainbase-config/_codex")
+ROOT = Path.home() / "workspace/brainbase-config/_codex"
 POSTS_DIR = ROOT / "sns/x/05_posts"
 POSTS_REVIEW_DIR = POSTS_DIR / "review"
 POSTS_SCHEDULED_DIR = POSTS_DIR / "scheduled"

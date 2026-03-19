@@ -210,15 +210,20 @@ export const EVENTS = {
     SESSION_PAUSED: 'session:paused',
     SESSION_RESUMED: 'session:resumed',
     SESSION_WORKTREE_FALLBACK: 'session:worktree-fallback',
+    SESSION_UI_STATE_CHANGED: 'session:ui-state-changed',
     RESTART_SESSION: 'session:restart',
     STOP_SESSION: 'session:stop',
     MERGE_SESSION: 'session:merge',
     RENAME_SESSION: 'session:rename',
     CREATE_SESSION: 'session:create',
+    SESSION_UI_STATE_CHANGED: 'session:ui-state-changed',
     FOLDER_TREE_LOADED: 'folder-tree:loaded',
     FOLDER_TREE_NODE_TOGGLED: 'folder-tree:node-toggled',
     FOLDER_TREE_FILE_OPENED: 'folder-tree:file-opened',
     FOLDER_TREE_LOAD_FAILED: 'folder-tree:load-failed',
+    FILE_VIEWER_OPENED: 'file-viewer:opened',
+    FILE_VIEWER_CLOSED: 'file-viewer:closed',
+    FILE_VIEWER_LOAD_FAILED: 'file-viewer:load-failed',
 
     // Schedule関連
     SCHEDULE_LOADED: 'schedule:loaded',
@@ -238,6 +243,7 @@ export const EVENTS = {
 
     // Commit Tree関連
     COMMIT_LOG_LOADED: 'commit-tree:loaded',
+    COMMIT_TREE_PANEL_TOGGLED: 'commit-tree:panel-toggled',
 
     // UI関連
     INBOX_TOGGLED: 'inbox:toggled',
@@ -256,6 +262,30 @@ export const EVENTS = {
     // QA関連 (Auto-Claude QA Loop pattern)
     QA_REVIEW_STARTED: 'qa:review-started',
     QA_REVIEW_COMPLETED: 'qa:review-completed',
+
+    // Lead Console関連
+    LEAD_BUILDING_SELECTED: 'lead:building-selected',
+    LEAD_ANOMALY_SELECTED: 'lead:anomaly-selected',
+    LEAD_ACTOR_SELECTED: 'lead:actor-selected',
+    LEAD_OPTION_SELECTED: 'lead:option-selected',
+    LEAD_BRIEF_PREPARED: 'lead:brief-prepared',
+    LEAD_EVIDENCE_REVIEW_PREPARED: 'lead:evidence-review-prepared',
+    LEAD_ARTIFACT_REQUESTED: 'lead:artifact-requested',
+    LEAD_ARTIFACT_DUE_DATE_SET: 'lead:artifact-due-date-set',
+    LEAD_ALTERNATIVE_EVIDENCE_ACCEPTED: 'lead:alternative-evidence-accepted',
+    LEAD_REROUTE_ISSUED: 'lead:reroute-issued',
+    LEAD_SCOPE_SHRUNK: 'lead:scope-shrunk',
+    LEAD_DECISION_APPROVED: 'lead:decision-approved',
+    LEAD_DECISION_APPROVED_WITH_CONSTRAINT: 'lead:decision-approved-with-constraint',
+    LEAD_DECISION_RETURNED: 'lead:decision-returned',
+    LEAD_EXECUTION_RETRIED: 'lead:execution-retried',
+    LEAD_EXECUTION_REROUTED: 'lead:execution-rerouted',
+    LEAD_RECOVERY_OWNER_ASSIGNED: 'lead:recovery-owner-assigned',
+    LEAD_EXECUTION_STABILIZATION_STARTED: 'lead:execution-stabilization-started',
+    LEAD_BRIEFING_ROOM_REQUESTED: 'lead:briefing-room-requested',
+    LEAD_ESCALATION_PACKET_CREATED: 'lead:escalation-packet-created',
+    LEAD_DECISION_RECORDED: 'lead:decision-recorded',
+    LEAD_DECISION_HELD: 'lead:decision-held',
     QA_REPLAN_STARTED: 'qa:replan-started',
     QA_FIXES_APPLIED: 'qa:fixes-applied',
     QA_ESCALATED: 'qa:escalated',
@@ -268,7 +298,6 @@ export const EVENTS = {
     PLUGIN_REQUIREMENTS_FAILED: 'plugin:requirements-failed',
     PLUGIN_SLOT_MISSING: 'plugin:slot-missing',
 
-    // Goal Seek V2関連
     GOAL_CREATED: 'goal:created',
     GOAL_UPDATED: 'goal:updated',
     GOAL_DELETED: 'goal:deleted',
@@ -281,8 +310,6 @@ export const EVENTS = {
     GOAL_PROGRESS_UPDATE: 'goal:progress-update',
     GOAL_COMPLETED: 'goal:completed',
     GOAL_FAILED: 'goal:failed',
-    // Goal Seek UI
-    GOAL_SEEK_OPEN: 'goal-seek:open',
 
     // Browser Notification関連
     NOTIFICATION_PERMISSION_CHANGED: 'notification:permission-changed',
@@ -290,5 +317,11 @@ export const EVENTS = {
     NOTIFICATION_CLICKED: 'notification:clicked',
     NOTIFICATION_FALLBACK: 'notification:fallback',
     NOTIFICATION_REQUEST: 'notification:request',
-    NOTIFICATION_SEND: 'notification:send'
+    NOTIFICATION_SEND: 'notification:send',
+
+    // Wiki関連
+    WIKI_PAGES_LOADED: 'wiki:pages-loaded',
+    WIKI_PAGE_SELECTED: 'wiki:page-selected',
+    WIKI_PAGE_UPDATED: 'wiki:page-updated',
+    WIKI_PAGE_DELETED: 'wiki:page-deleted'
 };

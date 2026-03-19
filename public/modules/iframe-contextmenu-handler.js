@@ -16,10 +16,13 @@ import { appStore } from './core/store.js';
  * 現在のセッションのcwd（worktreeパス）を取得
  * @returns {string|null}
  */
-function getCurrentSessionCwd() {
+function getCurrentSessionContext() {
     const { sessions, currentSessionId } = appStore.getState();
     const session = sessions.find(s => s.id === currentSessionId);
-    return session?.path || null;
+    return {
+        sessionId: currentSessionId || null,
+        cwd: session?.worktree?.path || session?.path || null
+    };
 }
 
 let currentSelectedText = '';
@@ -79,8 +82,10 @@ function createContextMenu() {
             const fileInfo = extractFilePathFromSelection(currentSelectedText);
             if (fileInfo) {
                 try {
-                    const cwd = getCurrentSessionCwd();
-                    const options = cwd ? { cwd } : {};
+                    const { sessionId, cwd } = getCurrentSessionContext();
+                    const options = {};
+                    if (cwd) options.cwd = cwd;
+                    if (sessionId) options.sessionId = sessionId;
                     if (item.mode === 'cursor' && fileInfo.line) {
                         await openInCursor(fileInfo.path, fileInfo.line, options);
                     } else {
@@ -167,6 +172,25 @@ function showNotification(message, type = 'success') {
 
     document.body.appendChild(notification);
     setTimeout(() => notification.remove(), 2000);
+}
+
+/**
+ * xterm.js直接レンダリング用コンテキストメニュー
+ * iframeを使わないxtermモードではDOMイベントを直接リスンする
+ */
+export function setupXtermContextMenu(terminal) {
+    if (!terminal?.element) {
+        console.warn('[XtermContextMenu] Terminal element not available');
+        return;
+    }
+    terminal.element.addEventListener('contextmenu', (e) => {
+        const selectedText = terminal.getSelection();
+        if (!shouldShowContextMenu(selectedText)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showContextMenu(e.clientX, e.clientY, selectedText);
+    });
+    console.log('[XtermContextMenu] Attached contextmenu listener to xterm element');
 }
 
 /**

@@ -9,9 +9,9 @@ import { appStore } from './core/store.js';
 /**
  * キーボード表示時の対応を初期化
  */
-export function initMobileKeyboard() {
+export function initMobileKeyboard({ terminalInput = null } = {}) {
     // Setup virtual keyboard key handlers
-    setupVirtualKeyboardHandlers();
+    setupVirtualKeyboardHandlers(terminalInput);
     // デスクトップでは何もしない
     if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
         return;
@@ -97,7 +97,7 @@ function setupFallbackScrolling() {
 /**
  * モバイル仮想キーボードのキーハンドラーをセットアップ
  */
-function setupVirtualKeyboardHandlers() {
+function setupVirtualKeyboardHandlers(terminalInput) {
     const keyUp = document.getElementById('key-up');
     const keyDown = document.getElementById('key-down');
     const keyTab = document.getElementById('key-tab');
@@ -115,16 +115,13 @@ function setupVirtualKeyboardHandlers() {
             console.warn('[VirtualKeyboard] No active session');
             return;
         }
+        if (!terminalInput?.sendKey) {
+            console.warn('[VirtualKeyboard] terminalInput service is not available');
+            return;
+        }
 
         try {
-            await fetch(`/api/sessions/${sessionId}/input`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    input: keyName,
-                    type: 'key'
-                })
-            });
+            await terminalInput.sendKey(sessionId, keyName);
             console.log('[VirtualKeyboard] Sent key:', keyName);
         } catch (error) {
             console.error('[VirtualKeyboard] Failed to send key:', keyName, error);

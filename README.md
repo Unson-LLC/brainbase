@@ -233,12 +233,14 @@ export BRAINBASE_ROOT=/path/to/your/data
 # ランタイム用ディレクトリ（デフォルト: ./var）
 export BRAINBASE_VAR_DIR=/path/to/your/var
 
-# カスタムポート（デフォルト: 31013、worktree内では31014）
+# カスタムポート（デフォルト: 31013、worktreeでは 31014 以降を使用）
 export PORT=4000
 
 # サーバー起動
 npm start
 ```
+
+> **Worktree運用の注意**: worktree で `PORT=31013` のまま起動するのは禁止です。`BRAINBASE_TEST_MODE=true npm start` か `PORT=31014 npm run dev` / `PORT=31014 npm start` を使ってください。
 
 ---
 

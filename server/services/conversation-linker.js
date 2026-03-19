@@ -18,9 +18,11 @@ export class ConversationLinker {
     /**
      * @param {Object} options
      * @param {Object} options.stateStore - StateStore インスタンス
+     * @param {Object} [options.sessionManager] - SessionManager インスタンス
      */
-    constructor({ stateStore }) {
+    constructor({ stateStore, sessionManager = null }) {
         this.stateStore = stateStore;
+        this.sessionManager = sessionManager;
         this.homeDir = os.homedir();
         this.claudeProjectsDir = path.join(this.homeDir, '.claude', 'projects');
         this.codexSessionsDir = path.join(this.homeDir, '.codex', 'sessions');
@@ -32,8 +34,8 @@ export class ConversationLinker {
 
     /**
      * worktree パスから Claude Code のプロジェクトディレクトリ名を算出
-     * /Users/ksato/workspace/.worktrees/session-XXX-brainbase/
-     * → -Users-ksato-workspace--worktrees-session-XXX-brainbase
+     * /workspace/.worktrees/session-XXX-brainbase/
+     * → -workspace--worktrees-session-XXX-brainbase
      *
      * Claude Code のエンコーディング: / → - 、先頭 / は - に置換
      * 連続の - はそのまま（例: .worktrees → --worktrees は正常）
@@ -240,7 +242,9 @@ export class ConversationLinker {
      * @returns {Promise<Object|null>} conversationSummary or null (no change)
      */
     async _linkSession(session, codexIndex) {
-        const worktreePath = session.worktree?.path || session.path;
+        const worktreePath = this.sessionManager
+            ? await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            : (session.worktree?.path || session.path);
         if (!worktreePath) return null;
 
         // Claude Code ログ
@@ -423,7 +427,9 @@ export class ConversationLinker {
             throw new Error(`Session not found: ${sessionId}`);
         }
 
-        const worktreePath = session.worktree?.path || session.path;
+        const worktreePath = this.sessionManager
+            ? await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+            : (session.worktree?.path || session.path);
         if (!worktreePath) {
             return { conversations: [] };
         }

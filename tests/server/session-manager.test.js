@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { describe, it, expect, vi } from 'vitest';
 
 import { SessionManager } from '../../server/services/session-manager.js';
 
@@ -130,5 +133,192 @@ describe('SessionManager', () => {
     const status = manager.getSessionStatus()['session-1'];
     expect(status.isDone).toBe(true); // done状態は維持される
     expect(status.isWorking).toBe(false);
+  });
+
+  it('turn_started後_assistant_message_heartbeatではworkingを維持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'assistant-message',
+      turnId: 'turn-1'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.isDone).toBe(false);
+    expect(status.activeTurnCount).toBe(1);
+  });
+
+  it('turn_started後_turn_completedまではassistant_response_completeでもdoneに倒れない', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 1000, {
+      lifecycle: 'heartbeat',
+      eventType: 'assistant-response-complete',
+      turnId: 'turn-1'
+    });
+
+    let status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.isDone).toBe(false);
+
+    manager.reportActivity('session-1', 'done', now + 2000, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: 'turn-1'
+    });
+
+    status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(false);
+    expect(status.isDone).toBe(true);
+    expect(status.activeTurnCount).toBe(0);
+  });
+
+  it('複数turnのうち1つだけ完了しても残りがあればworkingを維持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 100, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-2'
+    });
+    manager.reportActivity('session-1', 'done', now + 200, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: 'turn-1'
+    });
+
+    let status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.activeTurnCount).toBe(1);
+
+    manager.reportActivity('session-1', 'done', now + 300, {
+      lifecycle: 'turn_completed',
+      eventType: 'agent-turn-complete',
+      turnId: 'turn-2'
+    });
+
+    status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(false);
+    expect(status.isDone).toBe(true);
+    expect(status.activeTurnCount).toBe(0);
+  });
+
+  it('active turn中に_turnIdなしturn_completedを受けてもworkingを維持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-1'
+    });
+    manager.reportActivity('session-1', 'working', now + 100, {
+      lifecycle: 'turn_started',
+      eventType: 'agent-turn-start',
+      turnId: 'turn-2'
+    });
+    manager.reportActivity('session-1', 'done', now + 200, {
+      lifecycle: 'turn_completed',
+      eventType: 'turn/completed'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.isWorking).toBe(true);
+    expect(status.isDone).toBe(false);
+    expect(status.activeTurnCount).toBe(2);
+  });
+
+  it('resolveSessionWorkspacePath_tmuxのcurrent_pathでstale pathを補正する', async () => {
+    const resolvedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-session-'));
+    let state = {
+      sessions: [{
+        id: 'session-1',
+        path: '/stale/worktree/path',
+        worktree: {
+          repo: '/repo/project-a',
+          path: '/stale/worktree/path'
+        }
+      }]
+    };
+
+    const stateStore = {
+      get: () => state,
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: `${resolvedDir}\n` }),
+      stateStore,
+      worktreeService: { worktreesDir: '/unused' }
+    });
+
+    const resolvedPath = await manager.resolveSessionWorkspacePath('session-1');
+
+    expect(resolvedPath).toBe(resolvedDir);
+    expect(state.sessions[0].path).toBe(resolvedDir);
+    expect(state.sessions[0].worktree.path).toBe(resolvedDir);
+
+    fs.rmSync(resolvedDir, { recursive: true, force: true });
+  });
+
+  it('sendInput呼び出し時_短文テキストはtmux send-keys -lを使う', async () => {
+    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise,
+      stateStore: createStateStore(),
+      worktreeService: {}
+    });
+
+    await manager.sendInput('session-1', 'hello world', 'text');
+
+    expect(execPromise).toHaveBeenCalledTimes(1);
+    expect(execPromise).toHaveBeenCalledWith('tmux send-keys -t "session-1" -l "hello world"');
+  });
+
+  it('sendInput呼び出し時_長文テキストはtemp file経由でpaste-bufferする', async () => {
+    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise,
+      stateStore: createStateStore(),
+      worktreeService: {}
+    });
+    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test');
+    const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
+
+    await manager.sendInput('session-1', 'a'.repeat(20000), 'text');
+
+    expect(mkdtempSpy).toHaveBeenCalled();
+    expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test/paste.txt', 'a'.repeat(20000), 'utf8');
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux load-buffer -b'));
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux paste-buffer -d -b'));
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux delete-buffer -b'));
+    expect(rmSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test', { recursive: true, force: true });
   });
 });

@@ -23,6 +23,9 @@
     "url": "https://github.com/Unson-LLC/brainbase/issues"
   },
   "homepage": "https://github.com/Unson-LLC/brainbase#readme",
+  "bin": {
+    "brainbase": "./cli/index.js"
+  },
   "engines": {
     "node": ">=20.0.0"
   },

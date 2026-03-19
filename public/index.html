@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="style.css?v=202601032345">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
+    <script src="https://unpkg.com/dompurify@3/dist/purify.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -115,71 +117,108 @@
 	        <!-- Left Panel Resize Handle -->
 	        <div class="panel-resize-handle panel-resize-handle-left" id="left-panel-resize-handle" title="ドラッグで幅を変更"></div>
 	
-	        <!-- Main Content (Console) -->
-	        <main class="main-content">
-	            <div id="session-context-bar" class="session-context-bar" role="status" aria-live="polite">
-	                <div class="session-context-bar-inner">
-	                    <div class="session-context-empty">セッション未選択</div>
-	                </div>
-	            </div>
-	            <div class="console-area" id="console-area">
-	                <div class="console-toolbar">
-	                    <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
-	                        aria-label="クリップボードからペースト">
-	                        <i data-lucide="clipboard"></i>
-	                    </button>
-	                    <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード" aria-label="画像をアップロード">
-	                        <i data-lucide="image-plus"></i>
-	                    </button>
-	                    <input type="file" id="image-file-input" accept="image/*" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
-	                    <button id="send-escape-btn" class="console-btn" title="Escapeキーを送信">
-	                        <i data-lucide="x-octagon"></i>
-	                    </button>
-	                    <button id="send-clear-btn" class="console-btn" title="画面クリア (Ctrl+L)">
-	                        <i data-lucide="eraser"></i>
-	                    </button>
-	                    <button id="copy-terminal-btn" class="console-btn" title="ターミナル内容をコピー">
-	                        <i data-lucide="copy"></i>
-	                    </button>
-	                </div>
-	                <div id="session-goal-banner" class="session-goal-banner hidden"></div>
-	                <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
+        <!-- Main Content (Console) -->
+        <main class="main-content">
+            <div id="session-context-bar" class="session-context-bar" role="status" aria-live="polite">
+                <div class="session-context-bar-inner">
+                    <div class="session-context-empty">セッション未選択</div>
+                </div>
+            </div>
+            <div class="console-area" id="console-area">
+                <div class="terminal-header" id="terminal-header">
+                    <div class="terminal-header-status-group">
+                        <div id="terminal-input-status" class="terminal-input-status hidden" role="status" aria-live="polite"></div>
+                        <div id="terminal-transport-pill" class="terminal-transport-pill hidden" aria-live="polite"></div>
+                        <div id="terminal-owner-label" class="terminal-owner-label hidden" aria-live="polite"></div>
+                        <div id="terminal-snapshot-meta" class="terminal-snapshot-meta hidden" aria-live="polite"></div>
+                    </div>
+                    <div class="terminal-header-actions">
+                        <button id="terminal-reconnect-btn" class="console-btn terminal-primary-action hidden" title="再接続" aria-label="ターミナルを再接続">
+                            <i data-lucide="rotate-cw"></i>
+                        </button>
+                        <button id="terminal-takeover-btn" class="console-btn terminal-primary-action hidden" title="引き継ぐ" aria-label="ターミナルを引き継ぐ">
+                            <i data-lucide="hand"></i>
+                        </button>
+                        <button id="terminal-open-fallback-btn" class="console-btn terminal-primary-action hidden" title="iframe fallbackで開く" aria-label="iframe fallbackで開く">
+                            <i data-lucide="monitor-up"></i>
+                        </button>
+                        <button id="terminal-more-btn" class="console-btn terminal-more-btn" title="その他の操作" aria-label="その他の terminal 操作">
+                            <i data-lucide="ellipsis"></i>
+                        </button>
+                        <div id="terminal-more-actions" class="terminal-more-actions">
+                            <button id="paste-terminal-btn" class="console-btn" title="クリップボードからペースト"
+                                aria-label="クリップボードからペースト">
+                                <i data-lucide="clipboard"></i>
+                            </button>
+                            <button id="upload-image-btn" class="console-btn" title="画像を選択してアップロード" aria-label="画像をアップロード">
+                                <i data-lucide="image-plus"></i>
+                            </button>
+                            <input type="file" id="image-file-input" accept="image/*" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
+                            <button id="send-escape-btn" class="console-btn" title="Escapeキーを送信">
+                                <i data-lucide="x-octagon"></i>
+                            </button>
+                            <button id="send-clear-btn" class="console-btn" title="画面クリア (Ctrl+L)">
+                                <i data-lucide="eraser"></i>
+                            </button>
+                            <button id="copy-terminal-btn" class="console-btn" title="ターミナル内容をコピー">
+                                <i data-lucide="copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="terminal-stage" id="terminal-stage">
+                    <div id="terminal-snapshot-panel" class="terminal-snapshot-panel hidden" aria-live="polite">
+                        <div class="terminal-snapshot-header">
+                            <span id="terminal-snapshot-title" class="terminal-snapshot-title">Snapshot</span>
+                            <span id="terminal-snapshot-timestamp" class="terminal-snapshot-timestamp"></span>
+                        </div>
+                        <pre id="terminal-snapshot-content" class="terminal-snapshot-content"></pre>
+                    </div>
+	                <div id="terminal-xterm-host" class="terminal-xterm-host hidden" aria-label="Terminal transport host"></div>
 	                <iframe id="terminal-frame" src="about:blank"></iframe>
 
-	                <!-- Terminal Loading Overlay -->
-	                <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
-	                    <div class="loading-content">
-	                        <div class="spinner"></div>
-	                        <div class="loading-message">Claude起動中...</div>
-	                        <div class="loading-hint">まもなく使えるようになります</div>
+	                    <!-- Terminal Loading Overlay -->
+	                    <div id="terminal-loading-overlay" class="terminal-loading-overlay hidden">
+	                        <div class="loading-content">
+	                            <div class="spinner"></div>
+	                            <div class="loading-message">Claude起動中...</div>
+	                            <div class="loading-hint">まもなく使えるようになります</div>
+	                        </div>
 	                    </div>
-	                </div>
 
-	                <div id="menu-overlay" class="menu-overlay hidden"></div>
-	                <div id="drop-overlay" class="drop-overlay">
-	                    <div class="drop-overlay-content">
-	                        <i data-lucide="upload"></i>
-	                        <span>ファイルをドロップしてアップロード</span>
+	                    <div id="menu-overlay" class="menu-overlay hidden"></div>
+	                    <div id="drop-overlay" class="drop-overlay">
+	                        <div class="drop-overlay-content">
+	                            <i data-lucide="upload"></i>
+	                            <span>ファイルをドロップしてアップロード</span>
+	                        </div>
 	                    </div>
-	                </div>
 	
-	                <!-- Phase 3.2: Choice Overlay for tapping terminal choices -->
-	                <div id="choice-overlay" class="choice-overlay">
-	                    <div class="choice-overlay-content">
-	                        <div class="choice-header">
-	                            <h3>選択してください</h3>
-	                            <button class="choice-close-btn" id="close-choice-overlay">
-	                                <i data-lucide="x"></i>
-	                            </button>
-	                        </div>
-	                        <div id="choice-buttons" class="choice-buttons">
-	                            <!-- Choices will be dynamically added here -->
+	                    <!-- Phase 3.2: Choice Overlay for tapping terminal choices -->
+	                    <div id="choice-overlay" class="choice-overlay">
+	                        <div class="choice-overlay-content">
+	                            <div class="choice-header">
+	                                <h3>選択してください</h3>
+	                                <button class="choice-close-btn" id="close-choice-overlay">
+	                                    <i data-lucide="x"></i>
+	                                </button>
+	                            </div>
+	                            <div id="choice-buttons" class="choice-buttons">
+	                                <!-- Choices will be dynamically added here -->
+	                            </div>
 	                        </div>
 	                    </div>
-	                </div>
-	            </div>
+                </div>
+            </div>
+
+            <!-- Wiki Panel -->
+            <div class="main-panel" id="wiki-panel" style="display: none;"></div>
+
+            <!-- Live Feed Panel -->
+            <div class="main-panel" id="live-feed-panel" style="display: none;"></div>
 
             <!-- Dashboard Panel (Phase 1) -->
+            <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
             <div class="main-panel" id="dashboard-panel" data-slot="view:dashboard" style="display: none;">
                 <div class="dashboard-container">
                     <!-- Section 1: Critical Alerts -->
@@ -263,10 +302,6 @@
                         <!-- Section 5 content injected via renderSection5() -->
                     </section>
 
-                    <!-- Section 7: Goal Seek V2 (Session Autopilot) -->
-                    <section id="goal-seek-section" style="margin-top: 32px; margin-bottom: 40px; min-height: 400px;
-                        background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
-                    </section>
                 </div>
             </div>
 
@@ -274,25 +309,25 @@
 
         <!-- Commit Tree Panel -->
         <div class="panel-resize-handle panel-resize-handle-commit-tree" id="commit-tree-resize-handle" title="ドラッグで幅を変更"></div>
-	        <aside class="commit-tree-panel" id="commit-tree-panel">
-	            <div class="section-header">
-	                <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
-	                <div class="commit-tree-header-actions">
-	                    <button id="refresh-commit-tree" class="icon-btn" title="更新" aria-label="コミットツリーを更新">
-	                        <i data-lucide="refresh-cw"></i>
-	                    </button>
-	                    <button id="toggle-commit-tree-panel" class="icon-btn" title="コミットパネルを閉じる" aria-label="コミットパネルを閉じる" aria-expanded="true">
-	                        <i data-lucide="chevron-right"></i>
-	                    </button>
-	                </div>
-	            </div>
-	            <div class="commit-tree-list" id="commit-tree-list">
-	                <div class="commit-tree-empty">セッションを選択してください</div>
-	            </div>
-	        </aside>
-	        <button id="commit-tree-expand-btn" class="commit-tree-expand-btn hidden" title="コミットパネルを開く" aria-label="コミットパネルを開く">
-	            <i data-lucide="chevron-left"></i>
-	        </button>
+        <aside class="commit-tree-panel" id="commit-tree-panel">
+            <div class="section-header">
+                <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
+                <div class="commit-tree-header-actions">
+                    <button id="refresh-commit-tree" class="icon-btn" title="更新" aria-label="コミットツリーを更新">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <button id="toggle-commit-tree-panel" class="icon-btn" title="コミットパネルを閉じる" aria-label="コミットパネルを閉じる" aria-expanded="true">
+                        <i data-lucide="chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="commit-tree-list" id="commit-tree-list">
+                <div class="commit-tree-empty">セッションを選択してください</div>
+            </div>
+        </aside>
+        <button id="commit-tree-expand-btn" class="commit-tree-expand-btn hidden" title="コミットパネルを開く" aria-label="コミットパネルを開く">
+            <i data-lucide="chevron-left"></i>
+        </button>
 
         <!-- Right Panel Resize Handle -->
         <div class="panel-resize-handle panel-resize-handle-right" id="right-panel-resize-handle" title="ドラッグで幅を変更"></div>
@@ -301,9 +336,6 @@
         <aside class="context-sidebar" id="context-sidebar">
             <!-- Focus Task Section -->
             <div class="focus-section" id="focus-section">
-                <div class="section-header">
-                    <h3><i data-lucide="target"></i> フォーカス</h3>
-                </div>
                 <div id="focus-task"></div>
             </div>
 
@@ -311,9 +343,17 @@
             <div class="timeline-section" id="timeline-section" data-slot="sidebar:schedule">
                 <div class="section-header">
                     <h3><i data-lucide="calendar"></i> タイムライン</h3>
-                    <button id="add-schedule-btn" class="icon-btn" title="予定を追加" aria-label="予定を追加">
-                        <i data-lucide="plus"></i>
-                    </button>
+                    <div class="section-header-actions">
+                        <button id="google-calendar-connect-btn" class="icon-btn" title="Google Calendar を連携" aria-label="Google Calendar を連携" hidden>
+                            <i data-lucide="calendar"></i>
+                        </button>
+                        <button id="google-calendar-disconnect-btn" class="icon-btn" title="Google Calendar 連携を解除" aria-label="Google Calendar 連携を解除" hidden>
+                            <i data-lucide="x"></i>
+                        </button>
+                        <button id="add-schedule-btn" class="icon-btn" title="予定を追加" aria-label="予定を追加">
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="timeline-list">
                     <div class="loading">読み込み中...</div>
@@ -630,6 +670,7 @@
         </div>
     </div>
 
+    <!-- Focus Engine Modal -->
     <!-- Session Progress Modal -->
     <div id="session-progress-modal" class="modal">
         <div class="modal-content progress-modal">
@@ -644,7 +685,6 @@
         </div>
     </div>
 
-    <!-- Focus Engine Modal -->
     <div id="focus-engine-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -718,6 +758,18 @@
         </div>
     </div>
 
+    <div id="mobile-live-terminal-modal" class="modal mobile-live-terminal-modal">
+        <div class="modal-content modal-fullscreen mobile-live-terminal-view">
+            <div class="modal-header">
+                <h3><i data-lucide="terminal-square"></i> Terminal</h3>
+                <button class="close-modal-btn" id="close-mobile-live-terminal-btn"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body mobile-live-terminal-body">
+                <iframe id="mobile-live-terminal-frame" src="about:blank" title="Mobile live terminal"></iframe>
+            </div>
+        </div>
+    </div>
+
     <!-- Confirm Modal -->
     <div id="confirm-modal" class="modal">
         <div class="modal-content modal-small">
@@ -730,8 +782,8 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" id="confirm-cancel-btn">キャンセル</button>
-                <button class="btn-info" id="confirm-ai-btn" style="display: none;">🤖 AIに確認して対処</button>
                 <button class="btn-info" id="confirm-action-btn" style="display: none;">アクション</button>
+                <button class="btn-info" id="confirm-ai-btn" style="display: none;">🤖 AI</button>
                 <button class="btn-danger" id="confirm-ok-btn">OK</button>
             </div>
         </div>
@@ -785,8 +837,8 @@
         <div class="mobile-input-row mobile-input-main">
             <textarea id="mobile-dock-input" rows="1" placeholder="ここに入力..." aria-label="モバイル入力"></textarea>
             <div class="mobile-input-main-actions">
-                <button class="mobile-input-primary" id="mobile-dock-send">Send</button>
-                <button class="mobile-input-secondary" id="mobile-dock-more">More</button>
+                <button class="mobile-input-primary" id="mobile-dock-send">✈</button>
+                <button class="mobile-input-secondary" id="mobile-dock-more">≡</button>
             </div>
         </div>
         <!-- Actions: Sessions, Image upload, Paste, Copy terminal, Clear, Escape, Plan mode (expanded mode only) -->
@@ -952,10 +1004,7 @@
         </div>
     </div>
 
-    <!-- Goal Seek V2 Modal (content rendered dynamically by GoalSeekModal) -->
-    <div id="goal-seek-modal" class="modal-overlay hidden"></div>
-
-    <script type="module" src="app.js?v=1766798000"></script>
+    <script type="module" src="app.js?v=1773887400"></script>
     <script>
         lucide.createIcons();
     </script>

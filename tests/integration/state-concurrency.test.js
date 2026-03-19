@@ -22,7 +22,19 @@ describe('State Concurrency - Integration', () => {
         reportActivity: vi.fn(),
         getSessionStatus: vi.fn().mockReturnValue([]),
         getRuntimeStatus: vi.fn().mockReturnValue({ status: 'stopped' }),
-        clearDoneStatus: vi.fn()
+        clearDoneStatus: vi.fn(),
+        activeSessions: new Map(),
+        _isProcessRunning: vi.fn().mockReturnValue(false),
+        resolveSessionWorkspacePath: vi.fn(async (sessionOrId) => typeof sessionOrId === 'string' ? null : sessionOrId?.path || null),
+        ensureTerminalOwnership: vi.fn().mockImplementation((sessionId, viewerId) => ({
+            allowed: true,
+            terminalAccess: {
+                state: 'owner',
+                ownerViewerLabel: 'Local / Desktop',
+                ownerLastSeenAt: null,
+                canTakeover: false
+            }
+        }))
     };
 
     const mockWorktreeService = {
@@ -167,7 +179,7 @@ describe('State Concurrency - Integration', () => {
         it('並行start呼び出しが成功する', async () => {
             // Mock request/response
             const req1 = {
-                body: { sessionId: 'test-session-1', engine: 'claude' },
+                body: { sessionId: 'test-session-1', engine: 'claude', viewerId: 'viewer-1' },
                 headers: {}
             };
             const res1 = {
@@ -176,7 +188,7 @@ describe('State Concurrency - Integration', () => {
             };
 
             const req2 = {
-                body: { sessionId: 'test-session-2', engine: 'codex' },
+                body: { sessionId: 'test-session-2', engine: 'codex', viewerId: 'viewer-2' },
                 headers: {}
             };
             const res2 = {
@@ -202,8 +214,8 @@ describe('State Concurrency - Integration', () => {
             // expect(session2.engine).toBe('codex');
 
             // レスポンスが成功したことを確認
-            expect(res1.json).toHaveBeenCalledWith({ port: 8080, proxyPath: '/proxy' });
-            expect(res2.json).toHaveBeenCalledWith({ port: 8080, proxyPath: '/proxy' });
+            expect(res1.json).toHaveBeenCalledWith(expect.objectContaining({ port: 8080, proxyPath: '/proxy?viewerId=viewer-1' }));
+            expect(res2.json).toHaveBeenCalledWith(expect.objectContaining({ port: 8080, proxyPath: '/proxy?viewerId=viewer-2' }));
         });
     });
 
@@ -240,10 +252,18 @@ describe('State Concurrency - Integration', () => {
             // リトライが2回以上実行されたことを確認
             expect(attemptCount).toBeGreaterThanOrEqual(2);
 
-            // セッションがアーカイブされたことを確認
-            const state = stateStore.get();
-            const session = state.sessions.find(s => s.id === 'test-session-1');
-            expect(session.intendedState).toBe('archived');
+            // watcherの再読込が挟まっても最終的にアーカイブ状態へ収束することを確認
+            let archivedSession = null;
+            for (let i = 0; i < 10; i++) {
+                const state = stateStore.get();
+                const session = state.sessions.find(s => s.id === 'test-session-1');
+                if (session?.intendedState === 'archived') {
+                    archivedSession = session;
+                    break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 25));
+            }
+            expect(archivedSession?.intendedState).toBe('archived');
 
             // レスポンスが成功したことを確認
             expect(res.json).toHaveBeenCalledWith({ success: true });

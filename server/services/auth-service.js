@@ -26,6 +26,7 @@ export class AuthService {
         this.slackClientId = process.env.SLACK_CLIENT_ID || '';
         this.slackClientSecret = process.env.SLACK_CLIENT_SECRET || '';
         this.slackRedirectUri = process.env.SLACK_REDIRECT_URI || '';
+        this.slackCallbackPath = '/api/auth/slack/callback';
         this.slackScopes = process.env.SLACK_AUTH_SCOPES;
         if (this.slackScopes === undefined || this.slackScopes === null) {
             this.slackScopes = DEFAULT_SCOPES;
@@ -65,9 +66,24 @@ export class AuthService {
         if (!this.jwtSecret) {
             throw new Error('BRAINBASE_JWT_SECRET is not set');
         }
-        if (!this.slackClientId || !this.slackClientSecret || !this.slackRedirectUri) {
-            throw new Error('Slack OAuth configuration is missing');
+        if (!this.slackClientId || !this.slackClientSecret) {
+            throw new Error('Slack OAuth configuration is missing (SLACK_CLIENT_ID/SLACK_CLIENT_SECRET)');
         }
+    }
+
+    /**
+     * Resolve redirect_uri dynamically from request Host header.
+     * Falls back to SLACK_REDIRECT_URI env var.
+     */
+    resolveRedirectUri(req) {
+        if (req) {
+            const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+            const host = req.get('x-forwarded-host') || req.get('host');
+            if (host && !host.startsWith('localhost')) {
+                return `${proto}://${host}${this.slackCallbackPath}`;
+            }
+        }
+        return this.slackRedirectUri;
     }
 
     generateId(prefix) {
@@ -190,10 +206,10 @@ export class AuthService {
         return { ok: true, origin, codeChallenge };
     }
 
-    buildAuthorizeUrl(state) {
+    buildAuthorizeUrl(state, req) {
         const url = new URL(this.authorizeUrl);
         url.searchParams.set('client_id', this.slackClientId);
-        url.searchParams.set('redirect_uri', this.slackRedirectUri);
+        url.searchParams.set('redirect_uri', this.resolveRedirectUri(req));
         url.searchParams.set('state', state);
         if (this.slackScopes !== undefined && this.slackScopes !== null) {
             url.searchParams.set('scope', this.slackScopes);
@@ -205,11 +221,11 @@ export class AuthService {
         return url.toString();
     }
 
-    async exchangeCode(code) {
+    async exchangeCode(code, req) {
         const body = new URLSearchParams({
             client_id: this.slackClientId,
             client_secret: this.slackClientSecret,
-            redirect_uri: this.slackRedirectUri,
+            redirect_uri: this.resolveRedirectUri(req),
             code
         });
         if (this.slackMode !== 'oauth') {
@@ -296,12 +312,15 @@ export class AuthService {
      * @returns {Promise<Object|null>} - User object or null if not found
      */
     async findUserBySlackId(slackUserId) {
+        logger.info(`[AUTH] findUserBySlackId called with: "${slackUserId}"`);
         if (!this.pool) {
+            logger.error('[AUTH] findUserBySlackId: no pool!');
             throw new Error('Database pool is not configured');
         }
 
         const client = await this.pool.connect();
         try {
+            // Try users table first
             const { rows } = await client.query(
                 `SELECT *
                  FROM users
@@ -310,7 +329,32 @@ export class AuthService {
                  LIMIT 1`,
                 [slackUserId]
             );
-            return rows[0] || null;
+            logger.info(`[AUTH] findUserBySlackId: users table rows=${rows.length}`);
+            if (rows[0]) return rows[0];
+
+            // Fallback to auth_grants table
+            const { rows: grantRows } = await client.query(
+                `SELECT person_id, person_name as name, slack_user_id, slack_workspace_id as workspace_id,
+                        role, project_codes, clearance, active as status
+                 FROM auth_grants
+                 WHERE slack_user_id = $1
+                   AND active = true
+                 LIMIT 1`,
+                [slackUserId]
+            );
+            logger.info(`[AUTH] findUserBySlackId: auth_grants rows=${grantRows.length}`);
+            if (grantRows[0]) {
+                const grant = grantRows[0];
+                const ROLE_TO_LEVEL = { ceo: 100, gm: 50, member: 10 };
+                return {
+                    ...grant,
+                    status: 'active',
+                    access_level: ROLE_TO_LEVEL[grant.role] || 10,
+                    employment_type: 'employee'
+                };
+            }
+
+            return null;
         } finally {
             client.release();
         }
@@ -421,7 +465,9 @@ export class AuthService {
         if (!slackUserId || !slackWorkspaceId) {
             throw new Error('Refresh token missing Slack identity');
         }
+        logger.info(`[AUTH] refresh: findGrant uid=${slackUserId} wid=${slackWorkspaceId}`);
         const grant = await this.findGrant({ slackUserId, slackWorkspaceId });
+        logger.info(`[AUTH] refresh: grant found=${!!grant}`);
         if (!grant) {
             await this.createAuditLog({
                 slackUserId,
@@ -429,6 +475,7 @@ export class AuthService {
                 eventType: 'AUTH_DENY',
                 metadata: { reason: 'grant_not_found' }
             });
+            logger.info(`[AUTH] refresh: DENY uid=${slackUserId} wid=${slackWorkspaceId}`);
             throw new Error('Access is not granted');
         }
         const personId = await this.ensurePerson({
@@ -714,12 +761,15 @@ export class AuthService {
                 return { error: 'access_denied', error_description: 'Access is not granted' };
             }
 
-            // Issue JWT
+            // Issue JWT (include wiki access fields from auth_grants)
             const token = this.issueToken({
                 sub: user.person_id,
                 slackUserId: user.slack_user_id,
                 level: user.access_level,
                 employmentType: user.employment_type,
+                role: user.role || 'member',
+                projectCodes: user.project_codes || [],
+                clearance: user.clearance || [],
                 tenantId: null,
                 slackWorkspaceId
             });

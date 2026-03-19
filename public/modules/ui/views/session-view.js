@@ -3,8 +3,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { groupSessionsByProject } from '../../session-manager.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { renderSessionGroupHeaderHTML, renderSessionRowHTML } from '../../session-list-renderer.js';
-import { getSessionStatus, updateSessionIndicators } from '../../session-indicators.js';
-import { FolderTreeView } from './folder-tree-view.js';
+import { deriveSessionUiState } from '../../session-ui-state.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
 import { escapeHtml } from '../../ui-helpers.js';
@@ -16,12 +15,20 @@ import { escapeHtml } from '../../ui-helpers.js';
 export class SessionView {
     constructor({ sessionService }) {
         this.sessionService = sessionService;
-        this.folderTreeView = new FolderTreeView({ sessionService });
         this.container = null;
         this._unsubscribers = [];
+        this._renderRafId = null;
         // Drag and drop state
         this.draggedSessionId = null;
         this.draggedSessionProject = null;
+    }
+
+    _scheduleRender() {
+        if (this._renderRafId) return;
+        this._renderRafId = requestAnimationFrame(() => {
+            this._renderRafId = null;
+            this.render();
+        });
     }
 
     /**
@@ -35,30 +42,130 @@ export class SessionView {
     }
 
     /**
+     * 行のビジュアルを決定する入力値からフィンガープリントを生成
+     * @private
+     */
+    _computeRowFingerprint(session, currentSessionId, options) {
+        const uiState = deriveSessionUiState(session.id);
+        const summary = session.summary || {};
+        const convSummary = session.conversationSummary || {};
+        return [
+            session.id,
+            session.name || '',
+            currentSessionId === session.id ? '1' : '0',
+            uiState.activity || '',
+            uiState.attention || '',
+            uiState.transport || '',
+            uiState.recentFile?.path || '',
+            session.intendedState || '',
+            session.hasWorktree ? '1' : '0',
+            session.engine || '',
+            options.project || '',
+            summary.repo || '',
+            summary.baseBranch || '',
+            summary.dirty ? '1' : '0',
+            summary.changesNotPushed || 0,
+            summary.prStatus || '',
+            convSummary.totalConversations || 0,
+        ].join('\t');
+    }
+
+    _buildSessionRowElement(session, currentSessionId, options = {}) {
+        const { project, showProjectEmoji = false, isDraggable = true, enableDrag = true } = options;
+        const sessionUiState = deriveSessionUiState(session.id);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = renderSessionRowHTML(session, {
+            isActive: currentSessionId === session.id,
+            project,
+            showProjectEmoji,
+            isDraggable,
+            sessionUiState
+        });
+        const childRow = wrapper.firstElementChild;
+        childRow.dataset.fingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
+
+        childRow.addEventListener('click', async (e) => {
+            if (!e.target.closest('button')) {
+                const sessionId = childRow.dataset.id;
+                if (sessionId) {
+                    await this.sessionService.switchSession(sessionId);
+                } else {
+                    console.error('Session ID not found in row:', childRow);
+                }
+            }
+        });
+
+        this._attachSessionActionHandlers(childRow, session, { enableDrag });
+        return childRow;
+    }
+
+    _refreshSessionRows(sessionIds = []) {
+        if (!this.container || !Array.isArray(sessionIds) || sessionIds.length === 0) return;
+
+        const { sessions, currentSessionId } = appStore.getState();
+        for (const sessionId of sessionIds) {
+            const currentRow = this.container.querySelector(`.session-child-row[data-id="${sessionId}"]`);
+            if (!currentRow) continue;
+            const session = (sessions || []).find((item) => item.id === sessionId);
+            if (!session) continue;
+
+            const project = currentRow.dataset.project || getProjectFromSession(session);
+            const showProjectEmoji = Boolean(currentRow.querySelector('.session-project-emoji'));
+            const isDraggable = currentRow.getAttribute('draggable') !== 'false';
+            const enableDrag = isDraggable;
+            // フィンガープリント比較：レンダリング入力が同じなら差し替え不要
+            const newFingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
+            if (currentRow.dataset.fingerprint === newFingerprint) continue;
+
+            const nextRow = this._buildSessionRowElement(session, currentSessionId, {
+                project,
+                showProjectEmoji,
+                isDraggable,
+                enableDrag
+            });
+            currentRow.replaceWith(nextRow);
+            if (window.lucide) {
+                window.lucide.createIcons({ root: nextRow });
+            }
+        }
+    }
+
+    /**
      * イベントリスナーの設定
      */
     _setupEventListeners() {
-        // イベント購読
-        const unsub1 = eventBus.on(EVENTS.SESSION_LOADED, () => this.render());
-        const unsub2 = eventBus.on(EVENTS.SESSION_CREATED, () => this.render());
-        const unsub3 = eventBus.on(EVENTS.SESSION_UPDATED, () => this.render());
-        const unsub4 = eventBus.on(EVENTS.SESSION_DELETED, () => this.render());
-        const unsub5 = eventBus.on(EVENTS.SESSION_PAUSED, () => this.render());
-        const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this.render());
+        // イベント購読（バッチングで重複renderを抑制）
+        const unsub1 = eventBus.on(EVENTS.SESSION_LOADED, () => this._scheduleRender());
+        const unsub2 = eventBus.on(EVENTS.SESSION_CREATED, () => this._scheduleRender());
+        const unsub3 = eventBus.on(EVENTS.SESSION_UPDATED, () => this._scheduleRender());
+        const unsub4 = eventBus.on(EVENTS.SESSION_DELETED, () => this._scheduleRender());
+        const unsub5 = eventBus.on(EVENTS.SESSION_PAUSED, () => this._scheduleRender());
+        const unsub6 = eventBus.on(EVENTS.SESSION_RESUMED, () => this._scheduleRender());
+        const unsub6b = eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, (event) => {
+            const sessionListView = appStore.getState().ui?.sessionListView || 'timeline';
+            const sessionIds = event.detail?.sessionIds;
+
+            if (sessionListView === 'timeline') {
+                // 差分更新 → 必要なら並び替え（フルrenderしない）
+                if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+                    this._refreshSessionRows(sessionIds);
+                }
+                this._reorderTimelineRows();
+                return;
+            }
+
+            if (Array.isArray(sessionIds) && sessionIds.length > 0) {
+                this._refreshSessionRows(sessionIds);
+                return;
+            }
+            this._scheduleRender();
+        });
         const unsub7 = appStore.subscribeToSelector(
             state => state.ui?.sessionListView,
-            () => this.render()
-        );
-        const unsub8 = appStore.subscribeToSelector(
-            state => state.ui?.sidebarPrimaryView,
-            () => this.render()
-        );
-        const unsub9 = appStore.subscribeToSelector(
-            state => state.folderTree,
-            () => this.render()
+            () => this._scheduleRender()
         );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub6b, unsub7);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -106,13 +213,7 @@ export class SessionView {
         this.container.innerHTML = '';
 
         const { sessions, currentSessionId, ui } = appStore.getState();
-        const sidebarPrimaryView = ui?.sidebarPrimaryView || 'sessions';
         const sessionListView = ui?.sessionListView || 'timeline';
-
-        if (sidebarPrimaryView === 'folders') {
-            this.folderTreeView.render(this.container);
-            return;
-        }
 
         if (!sessions || sessions.length === 0) {
             this.container.innerHTML = '<div class="empty-state">セッションがありません</div>';
@@ -146,11 +247,8 @@ export class SessionView {
 
         // Lucideアイコンを初期化
         if (window.lucide) {
-            window.lucide.createIcons();
+            window.lucide.createIcons({ root: this.container });
         }
-
-        // セッションインジケーターを更新（緑・オレンジのステータス表示）
-        updateSessionIndicators(currentSessionId);
     }
 
     /**
@@ -165,27 +263,12 @@ export class SessionView {
 
         timelineSessions.forEach(session => {
             const project = getProjectFromSession(session);
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
-                isActive: currentSessionId === session.id,
+            const childRow = this._buildSessionRowElement(session, currentSessionId, {
                 project,
                 showProjectEmoji: true,
-                isDraggable: false
+                isDraggable: false,
+                enableDrag: false
             });
-            const childRow = wrapper.firstElementChild;
-
-            childRow.addEventListener('click', async (e) => {
-                if (!e.target.closest('button')) {
-                    const sessionId = childRow.dataset.id;
-                    if (sessionId) {
-                        await this.sessionService.switchSession(sessionId);
-                    } else {
-                        console.error('Session ID not found in row:', childRow);
-                    }
-                }
-            });
-
-            this._attachSessionActionHandlers(childRow, session, { enableDrag: false });
             listDiv.appendChild(childRow);
         });
 
@@ -194,24 +277,73 @@ export class SessionView {
 
     /**
      * 時系列表示用のセッション一覧を取得
+     *
+     * ソート優先度:
+     * 1. 緑インジケータセッション（未読更新あり）を最上部に配置
+     *    - 条件: activity === 'done-unread'
+     * 2. 残りのセッションは時系列順（最新が上）
+     *
+     * @param {Array} sessions - セッション一覧
+     * @returns {Array} ソート済みセッション一覧（アーカイブ済み除外）
      * @private
      */
     _getTimelineSessions(sessions) {
         const filtered = (sessions || []).filter(s => s.intendedState !== 'archived');
-        const currentSessionId = appStore.getState().currentSessionId;
 
-        return [...filtered].sort((a, b) => {
-            const aStatus = a?.id ? getSessionStatus(a.id) : null;
-            const bStatus = b?.id ? getSessionStatus(b.id) : null;
-            const aIsDonePriority = Boolean(aStatus?.isDone) && a.id !== currentSessionId;
-            const bIsDonePriority = Boolean(bStatus?.isDone) && b.id !== currentSessionId;
+        const sorted = [...filtered].sort((a, b) => {
+            const uiStateA = deriveSessionUiState(a.id);
+            const uiStateB = deriveSessionUiState(b.id);
+            const isGreenA = uiStateA.activity === 'done-unread';
+            const isGreenB = uiStateB.activity === 'done-unread';
 
-            if (aIsDonePriority !== bIsDonePriority) {
-                return bIsDonePriority ? 1 : -1;
-            }
+            // 優先度1: 緑セッションを最上部に配置
+            if (isGreenA && !isGreenB) return -1;
+            if (!isGreenA && isGreenB) return 1;
 
+            // 優先度2: 緑セッション同士 or 通常セッション同士は時系列順（最新が上）
             return this._getSessionSortTimestamp(b) - this._getSessionSortTimestamp(a);
         });
+
+        return sorted;
+    }
+
+    /**
+     * タイムラインのDOM要素を正しい順序に並び替え（要素の移動のみ、再作成しない）
+     * @private
+     */
+    _reorderTimelineRows() {
+        const listDiv = this.container?.querySelector('.session-timeline-list');
+        if (!listDiv) return;
+        const { sessions } = appStore.getState();
+        const expected = this._getTimelineSessions(sessions);
+        const rows = listDiv.querySelectorAll('.session-child-row');
+
+        // 順序が同じならスキップ
+        let needsReorder = rows.length !== expected.length;
+        if (!needsReorder) {
+            for (let i = 0; i < expected.length; i++) {
+                if (rows[i].dataset.id !== expected[i].id) { needsReorder = true; break; }
+            }
+        }
+        if (!needsReorder) return;
+        console.log('[SessionView] reorder needed', expected.slice(0, 5).map(s => {
+            const st = deriveSessionUiState(s.id);
+            return `${s.id.slice(-5)}:${st.activity}`;
+        }));
+
+        // 既存要素をMapに保持
+        const rowMap = new Map();
+        for (const row of rows) {
+            rowMap.set(row.dataset.id, row);
+        }
+
+        // 正しい順序で既存要素をappend（DOM要素の移動 = 再作成なし）
+        for (const session of expected) {
+            const row = rowMap.get(session.id);
+            if (row) {
+                listDiv.appendChild(row);
+            }
+        }
     }
 
     /**
@@ -226,14 +358,11 @@ export class SessionView {
             return Number.isNaN(parsed) ? null : parsed;
         };
 
-        const liveStatus = session?.id ? getSessionStatus(session.id) : null;
+        const liveStatus = session?.id ? deriveSessionUiState(session.id).hookStatus : null;
         const statusTimestamp = Math.max(
             liveStatus?.lastWorkingAt || 0,
             liveStatus?.lastDoneAt || 0,
-            liveStatus?.timestamp || 0,
-            session?.hookStatus?.lastWorkingAt || 0,
-            session?.hookStatus?.lastDoneAt || 0,
-            session?.hookStatus?.timestamp || 0
+            liveStatus?.timestamp || 0
         );
         if (statusTimestamp > 0) {
             return statusTimestamp;
@@ -353,28 +482,12 @@ export class SessionView {
 
         // 各セッションをレンダリング
         sessions.forEach(session => {
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = renderSessionRowHTML(session, {
-                isActive: currentSessionId === session.id,
-                project
+            const childRow = this._buildSessionRowElement(session, currentSessionId, {
+                project,
+                showProjectEmoji: false,
+                isDraggable: true,
+                enableDrag: true
             });
-            const childRow = wrapper.firstElementChild;
-
-            // セッションクリックで切り替え
-            childRow.addEventListener('click', async (e) => {
-                if (!e.target.closest('button')) {
-                    const sessionId = childRow.dataset.id;
-                    if (sessionId) {
-                        await this.sessionService.switchSession(sessionId);
-                    } else {
-                        console.error('Session ID not found in row:', childRow);
-                    }
-                }
-            });
-
-            // アクションボタンのイベントハンドラー
-            this._attachSessionActionHandlers(childRow, session);
-
             projectSessionsDiv.appendChild(childRow);
         });
 
@@ -476,26 +589,20 @@ export class SessionView {
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
-                        const criticalDetails = [];
-                        const infoDetails = [];
+                        const details = [];
 
-                        // Jujutsu概念でステータス表示（重要な警告のみ）
+                        // Jujutsu概念でステータス表示
                         if (status.changesNotPushed > 0) {
-                            criticalDetails.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
+                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
+                        }
+                        if (!status.bookmarkPushed && status.bookmarkName) {
+                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
                         }
                         if (status.hasWorkingCopyChanges) {
-                            criticalDetails.push('working copyに未完了のchangeがあります');
+                            details.push('working copyに未完了のchangeがあります');
                         }
 
-                        // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
-                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges)) {
-                            infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
-                        }
-
-                        const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
-                        const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
-                        const detailText = criticalText + infoText;
-
+                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
                         const confirmResult = await showConfirmWithAction(
                             `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
@@ -503,7 +610,6 @@ export class SessionView {
                                 okText: 'そのままアーカイブ',
                                 cancelText: 'キャンセル',
                                 actionText: 'pushして統合',
-                                aiActionText: '🤖 AIに確認して対処',
                                 danger: true
                             }
                         );
@@ -511,30 +617,12 @@ export class SessionView {
                             ? confirmResult.action
                             : (confirmResult ? 'ok' : 'cancel');
 
-                        if (selectedAction === 'ai') {
-                            // AIに確認して対処
-                            try {
-                                const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
-                                if (aiResult?.success) {
-                                    showSuccess(aiResult.message || 'AIに統合確認を依頼しました');
-                                } else {
-                                    showError(aiResult?.error || 'AI依頼に失敗しました');
-                                }
-                            } catch (aiErr) {
-                                console.error('Failed to ask AI:', aiErr);
-                                showError('AI依頼に失敗しました');
-                            }
-                            return;
-                        }
-
                         if (selectedAction === 'action') {
                             // pushして統合
                             try {
                                 const mergeResult = await this.sessionService.mergeSession(session.id);
                                 if (mergeResult?.success) {
                                     showSuccess(`セッション「${displayName}」をpushしてアーカイブしました`);
-                                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
-                                    this._switchToNextActiveSession(session.id);
                                 } else {
                                     showError(mergeResult?.error || 'pushに失敗しました');
                                 }
@@ -551,14 +639,10 @@ export class SessionView {
                         }
                         await this.sessionService.archiveSession(session.id, { skipMergeCheck: true });
                         showSuccess(`セッション「${displayName}」をアーカイブしました`);
-                        // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
-                        this._switchToNextActiveSession(session.id);
                         return;
                     }
 
                     showSuccess(`セッション「${displayName}」をアーカイブしました`);
-                    // アーカイブしたセッションがアクティブだった場合、別のセッションに切り替え
-                    this._switchToNextActiveSession(session.id);
                 } catch (error) {
                     console.error('Failed to archive session:', error);
                     showError('アーカイブに失敗しました');
@@ -774,48 +858,13 @@ export class SessionView {
     }
 
     /**
-     * アーカイブしたセッションがアクティブだった場合、別のアクティブセッションに切り替え
-     * @param {string} archivedSessionId - アーカイブしたセッションID
-     */
-    _switchToNextActiveSession(archivedSessionId) {
-        const currentSessionId = this.store.getState().currentSessionId;
-
-        // アーカイブしたセッションが現在のアクティブセッションでない場合はスキップ
-        if (currentSessionId !== archivedSessionId) {
-            return;
-        }
-
-        // 他のアクティブセッションを取得（archived以外）
-        const sessions = this.store.getState().sessions || [];
-        const activeSessions = sessions.filter(s =>
-            s.intendedState !== 'archived' && s.id !== archivedSessionId
-        );
-
-        if (activeSessions.length === 0) {
-            // アクティブセッションがない場合、currentSessionIdをnullに
-            this.store.setState({ currentSessionId: null });
-            this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: null });
-            return;
-        }
-
-        // 最新のアクティブセッション（createdAt降順）を選択
-        const sortedSessions = activeSessions.sort((a, b) => {
-            const dateA = new Date(a.createdAt || 0);
-            const dateB = new Date(b.createdAt || 0);
-            return dateB - dateA;  // 降順
-        });
-
-        const nextSession = sortedSessions[0];
-        this.store.setState({ currentSessionId: nextSession.id });
-        this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: nextSession.id });
-
-        console.log(`[Archive] Switched from ${archivedSessionId} to ${nextSession.id}`);
-    }
-
-    /**
      * クリーンアップ
      */
     unmount() {
+        if (this._renderRafId) {
+            cancelAnimationFrame(this._renderRafId);
+            this._renderRafId = null;
+        }
         this._unsubscribers.forEach(unsub => unsub());
         this._unsubscribers = [];
 

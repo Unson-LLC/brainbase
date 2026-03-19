@@ -40,6 +40,7 @@ describe('SessionManager env', () => {
 
     manager.findFreePort = vi.fn().mockResolvedValue(40000);
     manager._saveTtydProcessInfo = vi.fn().mockResolvedValue();
+    manager.waitForTtydReady = vi.fn().mockResolvedValue();
   });
 
   it('startTtyd呼び出し時_BRAINBASE_PORTが環境変数に設定される', async () => {
@@ -52,19 +53,12 @@ describe('SessionManager env', () => {
     };
     spawnMock.mockReturnValue(mockProcess);
 
-    vi.useFakeTimers();
-
-    const startPromise = manager.startTtyd({
+    await manager.startTtyd({
       sessionId: 'session-1',
       cwd: '/tmp',
       initialCommand: '',
       engine: 'claude'
     });
-
-    await vi.runAllTimersAsync();
-    await startPromise;
-
-    vi.useRealTimers();
 
     const [, , spawnOptions] = spawnMock.mock.calls[0];
     expect(spawnOptions.env.BRAINBASE_PORT).toBe('31013');

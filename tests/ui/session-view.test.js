@@ -3,14 +3,19 @@ import { SessionView } from '../../public/modules/ui/views/session-view.js';
 
 // モックStore（appStoreとして使う）
 let mockStoreState = { currentSessionId: 'session-current' };
+let mockUiStateBySessionId = {};
 
-// モックSessionIndicators
-vi.mock('../../public/modules/session-indicators.js', () => ({
-    getSessionStatus: vi.fn((sessionId) => {
-        // デフォルトではundefinedを返す（モック内で個別に設定する）
-        return undefined;
-    }),
-    updateSessionIndicators: vi.fn()
+vi.mock('../../public/modules/session-ui-state.js', () => ({
+    deriveSessionUiState: vi.fn((sessionId) => mockUiStateBySessionId[sessionId] || ({
+        activity: 'idle',
+        transport: 'disconnected',
+        attention: 'none',
+        goalSeek: null,
+        summary: null,
+        recentFile: null,
+        recentFiles: [],
+        hookStatus: null
+    }))
 }));
 
 // モックappStore
@@ -43,16 +48,13 @@ vi.mock('../../public/modules/core/event-bus.js', () => ({
 describe('SessionView', () => {
     describe('_getTimelineSessions', () => {
         let sessionView;
-        let getSessionStatus;
 
         beforeEach(async () => {
-            // モジュールをリセットしてモック関数を取得
-            const sessionIndicators = await import('../../public/modules/session-indicators.js');
-            getSessionStatus = sessionIndicators.getSessionStatus;
             vi.clearAllMocks();
 
             // mockStoreStateをリセット
             mockStoreState = { currentSessionId: 'session-current' };
+            mockUiStateBySessionId = {};
 
             // SessionViewインスタンス作成
             sessionView = new SessionView({
@@ -68,13 +70,10 @@ describe('SessionView', () => {
                 { id: 'session-c', intendedState: 'running', createdAt: 3000 }
             ];
 
-            // session-b を緑インジケータに設定（isDone=true, currentSessionIdと不一致）
-            getSessionStatus.mockImplementation((sessionId) => {
-                if (sessionId === 'session-b') {
-                    return { isDone: true, isWorking: false, lastDoneAt: 2500 };
-                }
-                return undefined;
-            });
+            mockUiStateBySessionId['session-b'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false, lastDoneAt: 2500 }
+            };
 
             // Act: ソート実行
             const result = sessionView._getTimelineSessions(sessions);
@@ -94,13 +93,14 @@ describe('SessionView', () => {
                 { id: 'session-d', intendedState: 'running', createdAt: 4000 }
             ];
 
-            // session-b, session-c を緑インジケータに設定
-            getSessionStatus.mockImplementation((sessionId) => {
-                if (sessionId === 'session-b' || sessionId === 'session-c') {
-                    return { isDone: true, isWorking: false };
-                }
-                return undefined;
-            });
+            mockUiStateBySessionId['session-b'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false }
+            };
+            mockUiStateBySessionId['session-c'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false }
+            };
 
             // Act
             const result = sessionView._getTimelineSessions(sessions);
@@ -112,28 +112,25 @@ describe('SessionView', () => {
             expect(result[3].id).toBe('session-a'); // 通常・古い
         });
 
-        it('現在のセッションが緑インジケータの場合_優先されない', () => {
+        it('現在のセッションが緑インジケータの場合_優先される', () => {
             // Arrange
             const sessions = [
                 { id: 'session-a', intendedState: 'running', createdAt: 1000 },
-                { id: 'session-current', intendedState: 'running', createdAt: 2000 }, // 現在のセッション（緑だが優先しない）
+                { id: 'session-current', intendedState: 'running', createdAt: 2000 }, // 現在のセッション（緑）
                 { id: 'session-c', intendedState: 'running', createdAt: 3000 }
             ];
 
-            // session-current を緑インジケータに設定（isDone=true）
-            getSessionStatus.mockImplementation((sessionId) => {
-                if (sessionId === 'session-current') {
-                    return { isDone: true, isWorking: false };
-                }
-                return undefined;
-            });
+            mockUiStateBySessionId['session-current'] = {
+                activity: 'done-unread',
+                hookStatus: { isDone: true, isWorking: false }
+            };
 
             // Act
             const result = sessionView._getTimelineSessions(sessions);
 
-            // Assert: session-current は緑インジケータだが、currentSessionIdなので優先されない
-            expect(result[0].id).toBe('session-c'); // 通常・最新
-            expect(result[1].id).toBe('session-current'); // 現在のセッション（緑だが優先しない）
+            // Assert: 現在のセッションでも緑インジケータなら優先される
+            expect(result[0].id).toBe('session-current');
+            expect(result[1].id).toBe('session-c');
             expect(result[2].id).toBe('session-a'); // 通常・古い
         });
 
@@ -151,6 +148,50 @@ describe('SessionView', () => {
             // Assert: archived は除外される
             expect(result.length).toBe(2);
             expect(result.find(s => s.id === 'session-archived')).toBeUndefined();
+        });
+    });
+
+    describe('AI integration prompt delivery', () => {
+        let sessionView;
+
+        beforeEach(() => {
+            vi.clearAllMocks();
+            sessionView = new SessionView({
+                sessionService: {
+                    askAiToResolveIntegration: vi.fn()
+                }
+            });
+            delete window.mobileInputController;
+            delete window.copyToClipboardMobile;
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard書き込み成功_clipboardモードを返す', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'clipboard' });
+            expect(writeText).toHaveBeenCalledWith('test prompt');
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_consoleフォールバック', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'console' });
+            warnSpy.mockRestore();
+            logSpy.mockRestore();
         });
     });
 });

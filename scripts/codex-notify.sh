@@ -106,6 +106,7 @@ PY
 
 event_type=""
 is_done_event=false
+lifecycle=""
 
 # If missing, derive session id from tmux session name
 if [ -z "$BRAINBASE_SESSION_ID" ] && [ -n "$TMUX" ] && command -v tmux >/dev/null 2>&1; then
@@ -138,6 +139,20 @@ except Exception:
     print("\t\t\t0")
     sys.exit(0)
 
+def first_string(*values):
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+    return ''
+
+def get_nested(obj, *path):
+    current = obj
+    for key in path:
+        if not isinstance(current, dict):
+            return ''
+        current = current.get(key)
+    return current if isinstance(current, str) else ''
+
 def contains_commit_command(value):
     if isinstance(value, str):
         return "/commit" in value
@@ -147,7 +162,29 @@ def contains_commit_command(value):
         return any(contains_commit_command(v) for v in value)
     return False
 
-print(f"{data.get('type', '')}\t{data.get('turn-id', '')}\t{data.get('thread-id', '')}\t{1 if contains_commit_command(data) else 0}")
+event_type = first_string(
+    data.get('type'),
+    data.get('method'),
+    get_nested(data, 'event', 'type'),
+    get_nested(data, 'notification', 'type'),
+    get_nested(data, 'params', 'type'),
+    get_nested(data, 'params', 'method')
+)
+turn_id = first_string(
+    data.get('turn-id'),
+    data.get('turnId'),
+    get_nested(data, 'turn', 'id'),
+    get_nested(data, 'params', 'turnId'),
+    get_nested(data, 'params', 'turn', 'id')
+)
+thread_id = first_string(
+    data.get('thread-id'),
+    data.get('threadId'),
+    get_nested(data, 'thread', 'id'),
+    get_nested(data, 'params', 'threadId'),
+    get_nested(data, 'params', 'thread', 'id')
+)
+print(f"{event_type}\t{turn_id}\t{thread_id}\t{1 if contains_commit_command(data) else 0}")
 PY
 )"
 
@@ -174,15 +211,18 @@ PY
     TURN_STATE_FILE="${TURN_STATE_DIR}/${turn_id}.start"
   fi
 
-  if [ "$event_type" = "agent-turn-start" ] || [ "$event_type" = "agent-turn-begin" ]; then
+  case "$event_type" in
+    agent-turn-start|agent-turn-begin|turn/started|task_started)
+    lifecycle="turn_started"
     if [ -n "$TURN_STATE_FILE" ]; then
       echo "$REPORTED_AT" > "$TURN_STATE_FILE" 2>/dev/null || true
     fi
     curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
       -H "Content-Type: application/json" \
-      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT}" \
+      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
       --max-time 1 >/dev/null 2>&1 || true &
-  fi
+    ;;
+  esac
 
   COMMIT_STATE_DIR="${TMPDIR:-/tmp}/brainbase-codex-commit"
   COMMIT_STATE_FILE="${COMMIT_STATE_DIR}/${BRAINBASE_SESSION_ID}.pending"
@@ -191,9 +231,24 @@ PY
     echo "$REPORTED_AT" > "$COMMIT_STATE_FILE" 2>/dev/null || true
   fi
 
-  if [ "$event_type" = "agent-turn-complete" ] || [ "$event_type" = "agent-turn-end" ] || [ "$event_type" = "assistant-message" ] || [ "$event_type" = "assistant-response" ] || [ "$event_type" = "assistant-message-complete" ] || [ "$event_type" = "assistant-response-complete" ]; then
+  case "$event_type" in
+    assistant-message|assistant-response|assistant-message-complete|assistant-response-complete|item/agentMessage/delta|item/assistantMessage/delta|agent_message_delta|item/commandExecution/outputDelta|exec_command_output_delta|item/fileChange/outputDelta|item/completed)
+    lifecycle="heartbeat"
+    if [ -z "$turn_id" ] || [ -f "$TURN_STATE_FILE" ]; then
+      curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
+        -H "Content-Type: application/json" \
+        -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
+        --max-time 1 >/dev/null 2>&1 || true &
+    fi
+    ;;
+  esac
+
+  case "$event_type" in
+    user-input-requested|user_input_requested|request-user-input|request_input|waiting-for-user-input|waiting_for_user_input|task_complete|codex/event/task_complete|turn/failed|turn/interrupted)
+    lifecycle="turn_completed"
     is_done_event=true
-  fi
+    ;;
+  esac
 
   if [ "$is_done_event" = true ]; then
     if [ -n "$TURN_STATE_FILE" ] && [ -f "$TURN_STATE_FILE" ]; then
@@ -201,7 +256,7 @@ PY
     fi
     curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
       -H "Content-Type: application/json" \
-      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"done\", \"reportedAt\": $REPORTED_AT}" \
+      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"done\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
       --max-time 1 >/dev/null 2>&1 || true &
 
     if [ -f "$COMMIT_STATE_FILE" ]; then

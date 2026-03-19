@@ -138,7 +138,7 @@ export class AuthController {
             const origin = typeof req.query.origin === 'string' ? req.query.origin : '';
             const codeChallenge = typeof req.query.code_challenge === 'string' ? req.query.code_challenge : '';
             const state = this.authService.createState({ origin, codeChallenge });
-            const url = this.authService.buildAuthorizeUrl(state);
+            const url = this.authService.buildAuthorizeUrl(state, req);
             if (String(req.query.json || '').toLowerCase() === 'true') {
                 return res.json({ url, state });
             }
@@ -151,6 +151,7 @@ export class AuthController {
 
     slackCallback = async (req, res) => {
         try {
+            logger.info(`[AUTH] slackCallback HIT: ${req.method} ${req.originalUrl}`);
             this.authService.assertReady();
             const { code, state } = req.query;
             if (!code || !state) {
@@ -166,7 +167,9 @@ export class AuthController {
                 this.authService.storeCodeChallenge(String(code), stateResult.codeChallenge);
             }
 
-            const tokenPayload = await this.authService.exchangeCode(String(code));
+            logger.info(`[AUTH] exchangeCode starting, redirectUri=${this.authService.resolveRedirectUri(req)}`);
+            const tokenPayload = await this.authService.exchangeCode(String(code), req);
+            logger.info(`[AUTH] exchangeCode ok=${tokenPayload?.ok}`);
             let userInfo = null;
             if (this.authService.slackMode !== 'oauth') {
                 const accessToken = tokenPayload.access_token;
@@ -177,12 +180,14 @@ export class AuthController {
             }
 
             const { slackUserId, slackWorkspaceId } = this.authService.resolveSlackIdentity(tokenPayload, userInfo);
+            logger.info(`[AUTH] callback identity: uid=${slackUserId} wid=${slackWorkspaceId} mode=${this.authService.slackMode} tkeys=${Object.keys(tokenPayload||{}).join(',')} authedUser=${JSON.stringify(tokenPayload?.authed_user)} team=${JSON.stringify(tokenPayload?.team)}`);
             if (!slackUserId || !slackWorkspaceId) {
                 return res.status(401).json({ error: 'Slack identity could not be resolved' });
             }
 
             // Phase 1: PostgreSQLベース権限管理
             const user = await this.authService.findUserBySlackId(slackUserId);
+            logger.info(`[AUTH] findUser: uid=${slackUserId} found=${!!user} name=${user?.name} role=${user?.role}`);
             if (!user) {
                 await this.authService.createAuditLog({
                     slackUserId,
@@ -193,12 +198,15 @@ export class AuthController {
                 return res.status(403).json({ error: 'Access is not granted' });
             }
 
-            // JWT発行（Phase 1仕様）
+            // JWT発行（Phase 1仕様 + wiki access fields）
             const token = this.authService.issueToken({
                 sub: user.person_id,
                 slackUserId: user.slack_user_id,
                 level: user.access_level,
                 employmentType: user.employment_type,
+                role: user.role || 'member',
+                projectCodes: user.project_codes || [],
+                clearance: user.clearance || [],
                 tenantId: null, // Phase 1はsingle-tenant
                 slackWorkspaceId
             });
@@ -245,6 +253,7 @@ export class AuthController {
 
             return res.json(responsePayload);
         } catch (error) {
+            logger.info(`[AUTH] callback ERROR: ${error.message}`);
             logger.error('Slack auth callback failed', { error });
             return res.status(500).json({ error: error.message || 'Slack auth failed' });
         }
@@ -296,6 +305,7 @@ export class AuthController {
 
     tokenExchange = async (req, res) => {
         try {
+            logger.info(`[AUTH] tokenExchange HIT: ${req.method} ${req.originalUrl} body=${JSON.stringify(req.body||{}).slice(0,200)}`);
             this.authService.assertReady();
             const { code, code_verifier } = req.body;
             if (!code || !code_verifier) {
@@ -309,7 +319,7 @@ export class AuthController {
             }
 
             // Slack OAuth code exchangeでslackUserIdを取得
-            const tokenPayload = await this.authService.exchangeCode(String(code));
+            const tokenPayload = await this.authService.exchangeCode(String(code), req);
             let userInfo = null;
             if (this.authService.slackMode !== 'oauth') {
                 const accessToken = tokenPayload.access_token;
@@ -325,7 +335,9 @@ export class AuthController {
             }
 
             // PostgreSQLからユーザー情報取得
+            logger.info(`[AUTH] tokenExchange: findUserBySlackId uid=${slackUserId} wid=${slackWorkspaceId}`);
             const user = await this.authService.findUserBySlackId(slackUserId);
+            logger.info(`[AUTH] tokenExchange: found=${!!user} name=${user?.name}`);
             if (!user) {
                 await this.authService.createAuditLog({
                     slackUserId,
@@ -333,6 +345,7 @@ export class AuthController {
                     eventType: 'AUTH_DENY',
                     metadata: { reason: 'user_not_found_or_inactive', source: 'token_exchange' }
                 });
+                logger.info(`[AUTH] tokenExchange: DENY uid=${slackUserId}`);
                 return res.status(403).json({ error: 'Access is not granted' });
             }
 

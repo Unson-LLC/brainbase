@@ -1,6 +1,9 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { sessionDataCache } from '../../core/session-data-cache.js';
+
+const SCHEDULE_CACHE_SCOPE = 'global';
 
 /**
  * スケジュールのビジネスロジック
@@ -10,6 +13,7 @@ export class ScheduleService {
         this.httpClient = httpClient;
         this.store = appStore;
         this.eventBus = eventBus;
+        this.googleCalendarAuthStatus = null;
     }
 
     /**
@@ -25,7 +29,24 @@ export class ScheduleService {
      * @returns {Promise<Object>} スケジュールデータ
      */
     async loadSchedule() {
+        // キャッシュチェック
+        const cached = sessionDataCache.get('schedule', SCHEDULE_CACHE_SCOPE);
+        if (cached) {
+            console.log('[ScheduleService] Cache hit');
+            this.store.setState({ schedule: cached });
+            await this.eventBus.emit(EVENTS.SCHEDULE_LOADED, cached);
+            return cached;
+        }
+
+        // キャッシュミス: API呼び出し
+        const startTime = performance.now();
         const schedule = await this.httpClient.get('/api/schedule/today');
+        const duration = performance.now() - startTime;
+        console.log(`[ScheduleService] API loaded in ${duration.toFixed(2)}ms`);
+
+        // キャッシュに保存（TTL: 1時間）
+        sessionDataCache.set('schedule', SCHEDULE_CACHE_SCOPE, schedule);
+
         this.store.setState({ schedule });
         await this.eventBus.emit(EVENTS.SCHEDULE_LOADED, schedule);
         return schedule;
@@ -77,6 +98,7 @@ export class ScheduleService {
             ...eventData,
             source: eventData.source || 'manual'
         });
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
         return event;
     }
@@ -90,6 +112,7 @@ export class ScheduleService {
     async updateEvent(eventId, updates) {
         const date = this._getTodayDate();
         const event = await this.httpClient.put(`/api/schedule/${date}/events/${eventId}`, updates);
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
         return event;
     }
@@ -102,6 +125,7 @@ export class ScheduleService {
     async deleteEvent(eventId) {
         const date = this._getTodayDate();
         await this.httpClient.delete(`/api/schedule/${date}/events/${eventId}`);
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
     }
 
@@ -116,5 +140,34 @@ export class ScheduleService {
             throw new Error('Event not found');
         }
         return this.updateEvent(eventId, { completed: !event.completed });
+    }
+
+    async getGoogleCalendarAuthStatus({ force = false } = {}) {
+        if (this.googleCalendarAuthStatus && !force) {
+            return this.googleCalendarAuthStatus;
+        }
+        this.googleCalendarAuthStatus = await this.httpClient.get('/api/schedule/google/auth-status');
+        return this.googleCalendarAuthStatus;
+    }
+
+    buildGoogleCalendarAuthUrl(origin = window.location.origin) {
+        const safeOrigin = origin || (typeof window !== 'undefined' ? window.location.origin : '');
+        const params = new URLSearchParams({ origin });
+        if (!safeOrigin) {
+            params.delete('origin');
+        } else {
+            params.set('origin', safeOrigin);
+        }
+        return `/api/schedule/google/start?${params.toString()}`;
+    }
+
+    async disconnectGoogleCalendar() {
+        await this.httpClient.delete('/api/schedule/google/auth');
+        this.googleCalendarAuthStatus = {
+            ...(this.googleCalendarAuthStatus || {}),
+            connected: false
+        };
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
+        await this.loadSchedule();
     }
 }

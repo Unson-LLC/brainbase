@@ -1,52 +1,94 @@
 /**
  * session-indicators.js - Session status indicator management
  *
- * Simple logic:
- * - Orange (working): Hook reports 'working' (AI started)
- * - Green (done): Hook reports 'done' (AI stopped) AND not current session
- * - Hidden: Current session (when done) OR no hook status
+ * Hook status polling and indicator state sync.
+ * The single source of truth is sessionUi.byId[sessionId].hookStatus.
  */
 
+import { httpClient } from './core/http-client.js';
 import { eventBus, EVENTS } from './core/event-bus.js';
+import {
+    getSessionHookStatusMap,
+    getSessionStatus as getStoreSessionStatus,
+    mergeSessionUiEntry,
+    replaceSessionHookStatuses
+} from './session-ui-state.js';
 import { showError, showInfo } from './toast.js';
-
-// --- Module State ---
-const sessionStatusMap = new Map(); // sessionId -> { isWorking, isDone }
 
 // --- Error State Management ---
 let consecutiveErrors = 0;
 const MAX_CONSECUTIVE_ERRORS = 3;
 
-// --- State Accessors ---
-export function getSessionStatus(sessionId) {
-    return sessionStatusMap.get(sessionId);
+function didHookStatusChange(prev, next) {
+    if (!prev) return true;
+    return prev.isWorking !== next.isWorking
+        || prev.isDone !== next.isDone
+        || prev.lastWorkingAt !== next.lastWorkingAt
+        || prev.lastDoneAt !== next.lastDoneAt
+        || prev.lastActivityAt !== next.lastActivityAt
+        || prev.lastEventType !== next.lastEventType
+        || prev.activeTurnCount !== next.activeTurnCount
+        || prev.timestamp !== next.timestamp;
 }
 
 // Clear done status when session is opened
 export function clearDone(sessionId) {
-    const status = sessionStatusMap.get(sessionId);
+    const status = getStoreSessionStatus(sessionId);
     if (status) {
-        status.isDone = false;
-        sessionStatusMap.set(sessionId, status);
+        mergeSessionUiEntry(sessionId, {
+            hookStatus: {
+                ...status,
+                isDone: false
+            }
+        });
     }
 }
 
 // Clear working status when session is switched
 export function clearWorking(sessionId) {
-    const status = sessionStatusMap.get(sessionId);
+    const status = getStoreSessionStatus(sessionId);
     if (status) {
-        status.isWorking = false;
-        sessionStatusMap.set(sessionId, status);
+        mergeSessionUiEntry(sessionId, {
+            hookStatus: {
+                ...status,
+                isWorking: false
+            }
+        });
+    }
+}
+
+/**
+ * Mark done indicator as read for a session.
+ * Local state is updated first for immediate UI response, then server sync is attempted.
+ * @param {string} sessionId - Session to clear done status for
+ * @param {string|null} currentSessionId - Current active session id for indicator rendering
+ */
+export async function markDoneAsRead(sessionId, currentSessionId = null) {
+    if (!sessionId) return;
+
+    clearDone(sessionId);
+    await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: [sessionId], currentSessionId });
+
+    try {
+        await httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/clear-done`, {});
+    } catch (error) {
+        console.warn(`[Session Indicators] Failed to persist done-read for ${sessionId}:`, error);
     }
 }
 
 // --- Connection Status ---
+
+let _lastConnectionStatus = null;
 
 /**
  * Update connection status indicator in sidebar
  * @param {boolean} isConnected - Whether server is connected
  */
 export function updateConnectionStatus(isConnected) {
+    // Skip DOM update if status hasn't changed
+    if (_lastConnectionStatus === isConnected) return;
+    _lastConnectionStatus = isConnected;
+
     const statusEl = document.getElementById('connection-status');
     if (!statusEl) return;
 
@@ -85,8 +127,10 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         const status = await res.json();
-        const previousStatuses = new Map(sessionStatusMap);
+        const previousStatuses = new Map(Object.entries(getSessionHookStatusMap()));
         let hasStatusChange = false;
+        const incomingSessionIds = new Set(Object.keys(status));
+        const changedSessionIds = new Set();
 
         // Debug log: 取得した状態を可視化
         const workingSessions = Object.entries(status).filter(([, s]) => s.isWorking);
@@ -101,28 +145,28 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         // Update map
         for (const [sessionId, newStatus] of Object.entries(status)) {
             const prev = previousStatuses.get(sessionId);
-            if (!prev ||
-                prev.isWorking !== newStatus.isWorking ||
-                prev.isDone !== newStatus.isDone ||
-                prev.lastWorkingAt !== newStatus.lastWorkingAt ||
-                prev.lastDoneAt !== newStatus.lastDoneAt ||
-                prev.goalSeek?.active !== newStatus.goalSeek?.active ||
-                prev.goalSeek?.iteration !== newStatus.goalSeek?.iteration ||
-                prev.goalSeek?.maxIterations !== newStatus.goalSeek?.maxIterations
-            ) {
+            if (didHookStatusChange(prev, newStatus)) {
                 hasStatusChange = true;
+                changedSessionIds.add(sessionId);
             }
-            sessionStatusMap.set(sessionId, newStatus);
+        }
+
+        for (const sessionId of previousStatuses.keys()) {
+            if (!incomingSessionIds.has(sessionId)) {
+                hasStatusChange = true;
+                changedSessionIds.add(sessionId);
+            }
         }
 
         if (hasStatusChange) {
+            replaceSessionHookStatuses(status);
             if (typeof onStatusChange === 'function') {
                 await onStatusChange(status);
             }
-            await eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId: null, updates: { hookStatus: status } });
+            await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
+                sessionIds: Array.from(changedSessionIds)
+            });
         }
-
-        updateSessionIndicators(currentSessionId);
 
         // 接続状態を更新（正常）
         updateConnectionStatus(true);
@@ -151,62 +195,40 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
 }
 
 /**
- * Update visual indicators on session list items
- * @param {string|null} currentSessionId - Currently active session ID
- */
-export function updateSessionIndicators(currentSessionId) {
-    const sessionItems = document.querySelectorAll('.session-child-row');
-    sessionItems.forEach(item => {
-        const sessionId = item.dataset.id;
-        const status = sessionStatusMap.get(sessionId);
-
-        // Remove existing indicator
-        const existingIndicator = item.querySelector('.session-activity-indicator');
-        if (existingIndicator) {
-            existingIndicator.remove();
-        }
-
-        // Simple logic:
-        // 1. Orange: isWorking (AI running)
-        // 2. Green: isDone AND not current session
-        // 3. Hidden: no status
-
-        if (status?.isWorking) {
-            const indicator = document.createElement('div');
-            indicator.className = 'session-activity-indicator working';
-            // drag-handleの後に挿入（左側に配置）
-            const dragHandle = item.querySelector('.drag-handle');
-            if (dragHandle && dragHandle.nextSibling) {
-                item.insertBefore(indicator, dragHandle.nextSibling);
-            } else {
-                item.appendChild(indicator);
-            }
-        } else if (status?.isDone && currentSessionId !== sessionId) {
-            const indicator = document.createElement('div');
-            indicator.className = 'session-activity-indicator done';
-            // drag-handleの後に挿入（左側に配置）
-            const dragHandle = item.querySelector('.drag-handle');
-            if (dragHandle && dragHandle.nextSibling) {
-                item.insertBefore(indicator, dragHandle.nextSibling);
-            } else {
-                item.appendChild(indicator);
-            }
-        }
-    });
-}
-
-/**
- * Start polling at regular interval
+ * Start polling with jittered setTimeout to avoid thundering herd across tabs
  * @param {function} getCurrentSessionId - Function to get current session ID
- * @param {number} intervalMs - Polling interval in milliseconds
- * @returns {number} Interval ID for clearing
+ * @param {number} intervalMs - Base polling interval in milliseconds
+ * @returns {function} Cleanup function to stop polling
  */
 export function startPolling(getCurrentSessionId, intervalMs = 3000, onStatusChange) {
+    let timerId = null;
+    let stopped = false;
+
+    function scheduleNext() {
+        if (stopped) return;
+        // Add ±500ms jitter to prevent thundering herd across tabs
+        const jitter = Math.floor(Math.random() * 1000) - 500;
+        const delay = Math.max(1000, intervalMs + jitter);
+        timerId = setTimeout(async () => {
+            await pollSessionStatus(getCurrentSessionId(), onStatusChange);
+            scheduleNext();
+        }, delay);
+    }
+
     // Initial poll
     pollSessionStatus(getCurrentSessionId(), onStatusChange);
+    scheduleNext();
 
-    // Set up interval
-    return setInterval(() => {
-        pollSessionStatus(getCurrentSessionId(), onStatusChange);
-    }, intervalMs);
+    // Return cleanup function
+    return function stopPolling() {
+        stopped = true;
+        if (timerId !== null) {
+            clearTimeout(timerId);
+            timerId = null;
+        }
+    };
+}
+
+export function updateSessionIndicators(_currentSessionId) {
+    // no-op: indicators are now driven by session-ui-state events
 }

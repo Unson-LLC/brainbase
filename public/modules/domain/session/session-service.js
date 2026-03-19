@@ -1,9 +1,11 @@
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { getTerminalViewerId, getTerminalViewerLabel } from '../../core/terminal-viewer.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject, generateSessionName } from '../../session-manager.js';
 import { addSession, removeSession } from '../../state-api.js';
+import { pruneSessionUiState, setSessionSummaryMap } from '../../session-ui-state.js';
 
 /**
  * セッションのビジネスロジック
@@ -23,13 +25,17 @@ export class SessionService {
         this.store = appStore;
         this.eventBus = eventBus;
         this.recoveryService = options.recoveryService || null;
+        this._pendingDeletes = new Map();
+        this.viewerId = getTerminalViewerId();
+        this.viewerLabel = getTerminalViewerLabel();
     }
 
     /**
      * セッション一覧取得
      * @returns {Promise<Array>} セッション配列
      */
-    async loadSessions() {
+    async loadSessions(options = {}) {
+        const { silent = false } = options;
         const state = await this.httpClient.get('/api/state');
         let sessions = state.sessions || [];
         const testMode = state.testMode || false;
@@ -49,7 +55,11 @@ export class SessionService {
         sessions = sessions.map(session => {
             if (session.intendedState === 'stopped') {
                 migrationNeeded = true;
-                return { ...session, intendedState: 'paused' };
+                return {
+                    ...session,
+                    intendedState: 'paused',
+                    pausedReason: session.pausedReason || 'migrated_from_stopped'
+                };
             }
             return session;
         });
@@ -61,8 +71,33 @@ export class SessionService {
         }
 
         this.store.setState({ sessions, testMode, preferences });
-        await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
+        pruneSessionUiState(sessions.map((session) => session.id));
+        if (!silent) {
+            await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
+        }
         return sessions;
+    }
+
+    async getSessionUiSummaries(sessionIds = []) {
+        const ids = Array.isArray(sessionIds) ? sessionIds.filter(Boolean) : [];
+        const query = ids.length > 0
+            ? `?ids=${encodeURIComponent(ids.join(','))}`
+            : '';
+        return await this.httpClient.get(`/api/sessions/ui-summaries${query}`);
+    }
+
+    async refreshSessionUiSummaries(sessionIds = []) {
+        try {
+            const summaries = await this.getSessionUiSummaries(sessionIds);
+            setSessionSummaryMap(summaries || {});
+            await this.eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
+                sessionIds: Object.keys(summaries || {})
+            });
+            return summaries;
+        } catch (error) {
+            console.error('Failed to refresh session UI summaries:', error);
+            return {};
+        }
     }
 
     /**
@@ -155,18 +190,24 @@ export class SessionService {
 
         await addSession(newSession);
 
+        let startResult = null;
+
         try {
             // Start terminal session
             const res = await this.httpClient.post('/api/sessions/start', {
                 sessionId,
                 initialCommand,
                 cwd: repoPath,
-                engine
+                engine,
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
             });
 
             if (!res || res.error) {
                 throw new Error('Failed to start terminal session');
             }
+
+            startResult = res;
         } catch (error) {
             // Roll back state on failure (best-effort)
             try {
@@ -182,7 +223,7 @@ export class SessionService {
 
         await this.eventBus.emit(EVENTS.SESSION_CREATED, { session: newSession });
 
-        return { sessionId, session: newSession };
+        return { sessionId, session: newSession, proxyPath: startResult?.proxyPath || null };
     }
 
     /**
@@ -190,14 +231,29 @@ export class SessionService {
      * @private
      */
     async _createWorktreeSession(sessionId, repoPath, name, initialCommand, engine, project) {
-        const res = await this.httpClient.post('/api/sessions/create-with-worktree', {
-            sessionId,
-            repoPath,
-            name,
-            initialCommand,
-            engine,
-            project
-        });
+        let res;
+        try {
+            res = await this.httpClient.post('/api/sessions/create-with-worktree', {
+                sessionId,
+                repoPath,
+                name,
+                initialCommand,
+                engine,
+                project,
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
+            });
+        } catch (error) {
+            const reason = error?.message || 'Worktree creation failed';
+            console.warn('Worktree creation failed, falling back to regular session:', reason);
+            await this.eventBus.emit(EVENTS.SESSION_WORKTREE_FALLBACK, {
+                sessionId,
+                project,
+                repoPath,
+                reason
+            });
+            return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine, project);
+        }
 
         if (!res || res.error) {
             // Fallback to regular session
@@ -209,7 +265,7 @@ export class SessionService {
                 repoPath,
                 reason
             });
-            return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine);
+            return await this._createRegularSession(sessionId, name, repoPath, initialCommand, engine, project);
         }
 
         // サーバーサイドで既にセッションを追加しているため、
@@ -237,42 +293,13 @@ export class SessionService {
     }
 
     /**
-     * セッションコンテキスト取得
+     * ファイル内容を取得（Markdownプレビュー等）
      * @param {string} sessionId - セッションID
-     * @returns {Promise<Object|null>}
-     */
-    async getSessionContext(sessionId) {
-        try {
-            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
-        } catch (error) {
-            console.error('Failed to get session context:', error);
-            return null;
-        }
-    }
-
-    /**
-     * セッションのフォルダツリーを取得
-     * @param {string} sessionId - セッションID
-     * @param {string} query - クエリ文字列（例: ?path=public&depth=1）
+     * @param {string} relativePath - セッションワークスペースからの相対パス
      * @returns {Promise<Object>}
      */
-    async getSessionFolderTree(sessionId, query = '') {
-        const suffix = typeof query === 'string' ? query : '';
-        return await this.httpClient.get(`/api/sessions/${sessionId}/folder-tree${suffix}`);
-    }
-
-    /**
-     * ファイルをデフォルトアプリで開く
-     * @param {string} relativePath - セッションCWDからの相対パス
-     * @param {string|null} cwd - セッションの作業ディレクトリ
-     * @returns {Promise<Object>}
-     */
-    async openFileInDefaultApp(relativePath, cwd = null) {
-        return await this.httpClient.post('/api/open-file', {
-            path: relativePath,
-            mode: 'file',
-            cwd
-        });
+    async getFileContent(sessionId, relativePath) {
+        return await this.httpClient.get(`/api/sessions/${sessionId}/file-content?path=${encodeURIComponent(relativePath)}`);
     }
 
     /**
@@ -298,7 +325,7 @@ export class SessionService {
             s.id === sessionId ? { ...s, ...updates } : s
         );
         await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-        await this.loadSessions();
+        await this.loadSessions({ silent: true });
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
         return { success: true, sessionId, updates, eventResult };
     }
@@ -309,12 +336,90 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async deleteSession(sessionId) {
-        const state = await this.httpClient.get('/api/state');
-        const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
-        await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-        await this.loadSessions();
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
-        return { success: true, sessionId, eventResult };
+        if (this._pendingDeletes.has(sessionId)) {
+            return this._pendingDeletes.get(sessionId);
+        }
+
+        const deletePromise = (async () => {
+            const stateBeforeDelete = this.store.getState();
+            const previousSessions = stateBeforeDelete.sessions || [];
+            const previousCurrentSessionId = stateBeforeDelete.currentSessionId || null;
+            const previousFilters = stateBeforeDelete.filters || {};
+
+            const optimisticSessions = previousSessions.filter((session) => session.id !== sessionId);
+            const nextCurrentSessionId = this._resolveNextSessionIdAfterDelete(
+                optimisticSessions,
+                sessionId,
+                previousCurrentSessionId,
+                previousFilters
+            );
+
+            // 楽観的更新: 先にUIから削除して体感速度を上げる
+            this.store.setState({
+                sessions: optimisticSessions,
+                currentSessionId: nextCurrentSessionId
+            });
+
+            const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, {
+                sessionId,
+                optimistic: true
+            });
+
+            try {
+                const state = await this.httpClient.get('/api/state');
+                const updatedSessions = (state.sessions || []).filter((session) => session.id !== sessionId);
+                await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
+                await this.loadSessions({ silent: true });
+                return { success: true, sessionId, eventResult };
+            } catch (error) {
+                this.store.setState({
+                    sessions: previousSessions,
+                    currentSessionId: previousCurrentSessionId
+                });
+                await this.eventBus.emit(EVENTS.SESSION_LOADED, {
+                    sessions: previousSessions,
+                    rollback: true
+                });
+                throw error;
+            }
+        })();
+
+        this._pendingDeletes.set(sessionId, deletePromise);
+        try {
+            return await deletePromise;
+        } finally {
+            this._pendingDeletes.delete(sessionId);
+        }
+    }
+
+    _resolveNextSessionIdAfterDelete(sessions, deletingSessionId, currentSessionId, filters = {}) {
+        if (currentSessionId !== deletingSessionId) {
+            return currentSessionId;
+        }
+
+        const activeSessions = this._getFilteredSessionsForState(sessions, filters)
+            .filter((session) => session.intendedState !== 'archived');
+
+        return activeSessions.length > 0 ? activeSessions[0].id : null;
+    }
+
+    _getFilteredSessionsForState(sessions, filters = {}) {
+        const { sessionFilter = '', showArchivedSessions = false } = filters;
+        let filtered = sessions || [];
+
+        if (sessionFilter) {
+            filtered = filtered.filter((session) =>
+                session.name?.includes(sessionFilter) ||
+                session.project?.includes(sessionFilter) ||
+                session.path?.includes(sessionFilter)
+            );
+        }
+
+        if (!showArchivedSessions) {
+            filtered = filtered.filter((session) => session.intendedState !== 'archived');
+        }
+
+        return filtered;
     }
 
     /**
@@ -323,25 +428,7 @@ export class SessionService {
      */
     getFilteredSessions() {
         const { sessions, filters } = this.store.getState();
-        const { sessionFilter, showArchivedSessions } = filters;
-
-        let filtered = sessions || [];
-
-        // テキストフィルタ（名前、プロジェクト名で検索）
-        if (sessionFilter) {
-            filtered = filtered.filter(s =>
-                s.name?.includes(sessionFilter) ||
-                s.project?.includes(sessionFilter) ||
-                s.path?.includes(sessionFilter)
-            );
-        }
-
-        // アーカイブフィルタ
-        if (!showArchivedSessions) {
-            filtered = filtered.filter(s => s.intendedState !== 'archived');
-        }
-
-        return filtered;
+        return this._getFilteredSessionsForState(sessions, filters);
     }
 
     /**
@@ -414,6 +501,46 @@ export class SessionService {
     }
 
     /**
+     * セッションコンテキスト取得
+     * @param {string} sessionId - セッションID
+     * @returns {Promise<Object|null>}
+     */
+    async getSessionContext(sessionId) {
+        try {
+            return await this.httpClient.get(`/api/sessions/${sessionId}/context`);
+        } catch (error) {
+            console.error('Failed to get session context:', error);
+            return null;
+        }
+    }
+
+    /**
+     * セッションのフォルダツリーを取得
+     * @param {string} sessionId - セッションID
+     * @param {string} query - クエリ文字列（例: ?path=public&depth=1）
+     * @returns {Promise<Object>}
+     */
+    async getSessionFolderTree(sessionId, query = '') {
+        const suffix = typeof query === 'string' ? query : '';
+        return await this.httpClient.get(`/api/sessions/${sessionId}/folder-tree${suffix}`);
+    }
+
+    /**
+     * ファイルをデフォルトアプリで開く
+     * @param {string} relativePath - セッションCWDからの相対パス
+     * @param {string|null} cwd - セッションの作業ディレクトリ
+     * @returns {Promise<Object>}
+     */
+    async openFileInDefaultApp(relativePath, cwd = null, sessionId = null) {
+        return await this.httpClient.post('/api/open-file', {
+            path: relativePath,
+            mode: 'file',
+            cwd,
+            sessionId
+        });
+    }
+
+    /**
      * Worktree状態取得
      * @param {string} sessionId - セッションID
      * @returns {Promise<Object|null>}
@@ -446,6 +573,10 @@ export class SessionService {
     async archiveSession(sessionId, options = {}) {
         const { skipMergeCheck = false } = options;
 
+        // アーカイブ前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/archive`,
             { skipMergeCheck }
@@ -458,6 +589,19 @@ export class SessionService {
 
         await this.loadSessions();
         await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+        // 現在表示中のセッションをアーカイブした場合、次のアクティブセッションに切り替え
+        if (wasCurrentSession) {
+            const activeSessions = this.getFilteredSessions()
+                .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
+            if (activeSessions.length > 0) {
+                await this.switchSession(activeSessions[0].id);
+            } else {
+                // アクティブセッションがない場合はcurrentSessionIdをクリア
+                this.store.setState({ currentSessionId: null });
+            }
+        }
+
         return { success: true };
     }
 
@@ -468,6 +612,10 @@ export class SessionService {
      * @returns {Promise<{success?: boolean, error?: string, prUrl?: string}>}
      */
     async mergeSession(sessionId) {
+        // マージ前に現在表示中のセッションかチェック
+        const { currentSessionId } = this.store.getState();
+        const wasCurrentSession = currentSessionId === sessionId;
+
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/merge`
         );
@@ -475,17 +623,22 @@ export class SessionService {
         if (result.success) {
             await this.loadSessions();
             await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
+
+            // 現在表示中のセッションをマージした場合、次のアクティブセッションに切り替え
+            if (wasCurrentSession) {
+                const activeSessions = this.getFilteredSessions()
+                    .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
+                if (activeSessions.length > 0) {
+                    await this.switchSession(activeSessions[0].id);
+                } else {
+                    this.store.setState({ currentSessionId: null });
+                }
+            }
         }
 
         return result;
     }
 
-    /**
-     * AIに統合確認と対処を依頼
-     * @param {string} sessionId - セッションID
-     * @param {Object} status - 統合ステータス情報
-     * @returns {Promise<Object>}
-     */
     async askAiToResolveIntegration(sessionId, status) {
         const result = await this.httpClient.post(
             `/api/sessions/${sessionId}/ask-ai-integration`,
@@ -531,6 +684,7 @@ export class SessionService {
      */
     async switchSession(sessionId) {
         const { currentSessionId } = this.store.getState();
+        const previousSessionId = currentSessionId;
 
         // 同じセッションへの切り替えは何もしない
         if (currentSessionId === sessionId) {
@@ -541,7 +695,10 @@ export class SessionService {
         this.store.setState({ currentSessionId: sessionId });
 
         // SESSION_CHANGEDイベントを発火（app.jsでターミナルiframe切り替え用）
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_CHANGED, {
+            sessionId,
+            previousSessionId
+        });
         return { success: true, sessionId, eventResult };
     }
 
@@ -562,6 +719,7 @@ export class SessionService {
         // Phase 2: intendedState を paused に変更 + pausedAt タイムスタンプ設定
         await this.updateSession(sessionId, {
             intendedState: 'paused',
+            pausedReason: 'manual',
             pausedAt: new Date().toISOString()
         });
 
@@ -590,14 +748,19 @@ export class SessionService {
                 sessionId,
                 cwd: session.path,
                 initialCommand: session.initialCommand || '',
-                engine: session.engine || 'claude'
+                engine: session.engine || 'claude',
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
             });
         } catch (error) {
             console.error(`Failed to start ttyd for session ${sessionId}:`, error);
         }
 
         // intendedState を active に変更
-        await this.updateSession(sessionId, { intendedState: 'active' });
+        await this.updateSession(sessionId, {
+            intendedState: 'active',
+            pausedReason: null
+        });
 
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_RESUMED, { sessionId });
         return { success: true, sessionId, eventResult };

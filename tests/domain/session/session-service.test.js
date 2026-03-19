@@ -43,6 +43,15 @@ describe('SessionService', () => {
     let mockSessions;
 
     beforeEach(() => {
+        Object.defineProperty(window, 'sessionStorage', {
+            value: {
+                getItem: vi.fn(() => 'viewer-test'),
+                setItem: vi.fn(),
+                removeItem: vi.fn()
+            },
+            configurable: true
+        });
+
         // テストデータ準備
         mockSessions = [
             {
@@ -116,18 +125,20 @@ describe('SessionService', () => {
                 path: '/path/new'
             };
             httpClient.get.mockResolvedValue({ sessions: [...mockSessions, newSession] });
-            httpClient.post.mockResolvedValue({});
+            httpClient.post.mockResolvedValue({ proxyPath: '/console/session-new' });
             addSession.mockResolvedValue();
 
-            await sessionService.createSession(newSession);
+            const result = await sessionService.createSession(newSession);
 
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
                 sessionId: expect.any(String),
                 cwd: expect.stringContaining('project-a'),
-                engine: 'claude'
+                engine: 'claude',
+                viewerId: 'viewer-test'
             }));
             expect(addSession).toHaveBeenCalled();
             expect(httpClient.get).toHaveBeenCalledWith('/api/state');
+            expect(result.proxyPath).toBe('/console/session-new');
         });
 
         it('should emit SESSION_CREATED event', async () => {
@@ -148,7 +159,7 @@ describe('SessionService', () => {
             const unsubscribe = eventBus.on(EVENTS.SESSION_WORKTREE_FALLBACK, listener);
 
             httpClient.post
-                .mockResolvedValueOnce({ error: 'Not a git repo' })
+                .mockRejectedValueOnce(new Error('Failed to create worktree. Is this a git repository?'))
                 .mockResolvedValueOnce({});
             httpClient.get.mockResolvedValue({ sessions: mockSessions });
             addSession.mockResolvedValue();
@@ -157,15 +168,17 @@ describe('SessionService', () => {
 
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/create-with-worktree', expect.objectContaining({
                 sessionId: expect.any(String),
-                repoPath: expect.stringContaining('project-a')
+                repoPath: expect.stringContaining('project-a'),
+                viewerId: 'viewer-test'
             }));
             expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
                 sessionId: expect.any(String),
                 cwd: expect.stringContaining('project-a'),
-                engine: 'claude'
+                engine: 'claude',
+                viewerId: 'viewer-test'
             }));
             expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail.reason).toBe('Not a git repo');
+            expect(listener.mock.calls[0][0].detail.reason).toBe('Failed to create worktree. Is this a git repository?');
 
             unsubscribe();
         });
@@ -201,8 +214,21 @@ describe('SessionService', () => {
     });
 
     describe('deleteSession', () => {
+        const createDeferred = () => {
+            let resolve;
+            let reject;
+            const promise = new Promise((res, rej) => {
+                resolve = res;
+                reject = rej;
+            });
+            return { promise, resolve, reject };
+        };
+
         it('should delete session via API and reload sessions', async () => {
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockResolvedValueOnce({ sessions: mockSessions })
+                .mockResolvedValueOnce({ sessions: persistedSessions });
             httpClient.post.mockResolvedValue({});
 
             await sessionService.deleteSession('session-1');
@@ -216,7 +242,10 @@ describe('SessionService', () => {
         });
 
         it('should emit SESSION_DELETED event', async () => {
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockResolvedValueOnce({ sessions: mockSessions })
+                .mockResolvedValueOnce({ sessions: persistedSessions });
             httpClient.post.mockResolvedValue({});
             const listener = vi.fn();
             eventBus.on(EVENTS.SESSION_DELETED, listener);
@@ -225,6 +254,95 @@ describe('SessionService', () => {
 
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.sessionId).toBe('session-1');
+            expect(listener.mock.calls[0][0].detail.optimistic).toBe(true);
+        });
+
+        it('should optimistically remove session before API completes', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: null,
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            const deferred = createDeferred();
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockReturnValueOnce(deferred.promise)
+                .mockResolvedValueOnce({ sessions: persistedSessions });
+            httpClient.post.mockResolvedValue({});
+
+            const deletePromise = sessionService.deleteSession('session-1');
+
+            expect(appStore.getState().sessions.map((session) => session.id)).toEqual(['session-2', 'session-3']);
+
+            deferred.resolve({ sessions: mockSessions });
+            await deletePromise;
+        });
+
+        it('should switch current session immediately when deleting current session', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            const deferred = createDeferred();
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockReturnValueOnce(deferred.promise)
+                .mockResolvedValueOnce({ sessions: persistedSessions });
+            httpClient.post.mockResolvedValue({});
+
+            const deletePromise = sessionService.deleteSession('session-1');
+
+            expect(appStore.getState().currentSessionId).toBe('session-3');
+
+            deferred.resolve({ sessions: mockSessions });
+            await deletePromise;
+        });
+
+        it('should rollback optimistic deletion when persistence fails', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            httpClient.get.mockResolvedValueOnce({ sessions: mockSessions });
+            httpClient.post.mockRejectedValueOnce(new Error('save failed'));
+            const loadedListener = vi.fn();
+            eventBus.on(EVENTS.SESSION_LOADED, loadedListener);
+
+            await expect(sessionService.deleteSession('session-1')).rejects.toThrow('save failed');
+
+            expect(appStore.getState().sessions).toEqual(mockSessions);
+            expect(appStore.getState().currentSessionId).toBe('session-1');
+            expect(loadedListener).toHaveBeenCalledWith(expect.objectContaining({
+                detail: expect.objectContaining({ rollback: true })
+            }));
+        });
+
+        it('should deduplicate same session delete requests', async () => {
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: null,
+                filters: { sessionFilter: '', showArchivedSessions: false }
+            });
+
+            const deferred = createDeferred();
+            const persistedSessions = mockSessions.filter((session) => session.id !== 'session-1');
+            httpClient.get
+                .mockReturnValueOnce(deferred.promise)
+                .mockResolvedValueOnce({ sessions: persistedSessions });
+            httpClient.post.mockResolvedValue({});
+
+            const p1 = sessionService.deleteSession('session-1');
+            const p2 = sessionService.deleteSession('session-1');
+
+            deferred.resolve({ sessions: mockSessions });
+            await Promise.all([p1, p2]);
+
+            expect(httpClient.post).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -348,7 +466,10 @@ describe('SessionService', () => {
             await sessionService.switchSession('session-2');
 
             expect(changedListener).toHaveBeenCalledWith(expect.objectContaining({
-                detail: expect.objectContaining({ sessionId: 'session-2' })
+                detail: expect.objectContaining({
+                    sessionId: 'session-2',
+                    previousSessionId: 'session-1'
+                })
             }));
         });
 
@@ -513,16 +634,18 @@ describe('SessionService', () => {
             // Check that the sessions were migrated to "paused"
             expect(httpClient.post).toHaveBeenCalledWith('/api/state', {
                 sessions: [
-                    { id: 'session-1', name: 'Session 1', intendedState: 'paused' },
+                    { id: 'session-1', name: 'Session 1', intendedState: 'paused', pausedReason: 'migrated_from_stopped' },
                     { id: 'session-2', name: 'Session 2', intendedState: 'active' },
-                    { id: 'session-3', name: 'Session 3', intendedState: 'paused' }
+                    { id: 'session-3', name: 'Session 3', intendedState: 'paused', pausedReason: 'migrated_from_stopped' }
                 ]
             });
 
             // Check that the migrated sessions were saved to store
             const { sessions } = appStore.getState();
             expect(sessions[0].intendedState).toBe('paused');
+            expect(sessions[0].pausedReason).toBe('migrated_from_stopped');
             expect(sessions[2].intendedState).toBe('paused');
+            expect(sessions[2].pausedReason).toBe('migrated_from_stopped');
         });
 
         it('should not trigger migration if no "stopped" sessions exist', async () => {

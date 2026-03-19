@@ -3,11 +3,15 @@ import { ScheduleService } from '../../../public/modules/domain/schedule/schedul
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
+import { sessionDataCache } from '../../../public/modules/core/session-data-cache.js';
 
 // モジュールをモック化
 vi.mock('../../../public/modules/core/http-client.js', () => ({
     httpClient: {
-        get: vi.fn()
+        get: vi.fn(),
+        post: vi.fn(),
+        put: vi.fn(),
+        delete: vi.fn()
     }
 }));
 
@@ -26,7 +30,9 @@ describe('ScheduleService', () => {
         };
 
         // ストア初期化
-        appStore.setState({ schedule: null });
+        appStore.setState({ schedule: null, currentSessionId: 'session-a' });
+
+        sessionDataCache.clear();
 
         // サービスインスタンス作成
         scheduleService = new ScheduleService();
@@ -77,6 +83,66 @@ describe('ScheduleService', () => {
             expect(appStore.getState().schedule).toEqual(emptySchedule);
             expect(result).toEqual(emptySchedule);
         });
+
+        it('loadSchedule呼び出し時_セッションが変わってもglobal cacheが再利用される', async () => {
+            httpClient.get.mockResolvedValue(mockSchedule);
+
+            await scheduleService.loadSchedule();
+            appStore.setState({ currentSessionId: 'session-b' });
+            const result = await scheduleService.loadSchedule();
+
+            expect(httpClient.get).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mockSchedule);
+        });
+    });
+
+    describe('schedule mutations', () => {
+        it('addEvent呼び出し時_キャッシュ無効化後に最新スケジュールを再取得する', async () => {
+            const refreshedSchedule = {
+                ...mockSchedule,
+                items: [...mockSchedule.items, { id: '3', title: 'Focus', start: '15:00', end: '16:00' }]
+            };
+            httpClient.get.mockResolvedValueOnce(mockSchedule).mockResolvedValueOnce(refreshedSchedule);
+            httpClient.post.mockResolvedValue({ id: '3' });
+
+            await scheduleService.loadSchedule();
+            await scheduleService.addEvent({ title: 'Focus', start: '15:00', end: '16:00' });
+
+            expect(httpClient.get).toHaveBeenCalledTimes(2);
+            expect(appStore.getState().schedule).toEqual(refreshedSchedule);
+        });
+
+        it('updateEvent呼び出し時_キャッシュ無効化後に最新スケジュールを再取得する', async () => {
+            const refreshedSchedule = {
+                ...mockSchedule,
+                items: mockSchedule.items.map(item =>
+                    item.id === '1' ? { ...item, title: 'Updated Meeting' } : item
+                )
+            };
+            httpClient.get.mockResolvedValueOnce(mockSchedule).mockResolvedValueOnce(refreshedSchedule);
+            httpClient.put.mockResolvedValue({ id: '1' });
+
+            await scheduleService.loadSchedule();
+            await scheduleService.updateEvent('1', { title: 'Updated Meeting' });
+
+            expect(httpClient.get).toHaveBeenCalledTimes(2);
+            expect(appStore.getState().schedule).toEqual(refreshedSchedule);
+        });
+
+        it('deleteEvent呼び出し時_キャッシュ無効化後に最新スケジュールを再取得する', async () => {
+            const refreshedSchedule = {
+                ...mockSchedule,
+                items: mockSchedule.items.filter(item => item.id !== '2')
+            };
+            httpClient.get.mockResolvedValueOnce(mockSchedule).mockResolvedValueOnce(refreshedSchedule);
+            httpClient.delete.mockResolvedValue({});
+
+            await scheduleService.loadSchedule();
+            await scheduleService.deleteEvent('2');
+
+            expect(httpClient.get).toHaveBeenCalledTimes(2);
+            expect(appStore.getState().schedule).toEqual(refreshedSchedule);
+        });
     });
 
     describe('getTimeline', () => {
@@ -112,6 +178,31 @@ describe('ScheduleService', () => {
 
             expect(result).toEqual([]);
             expect(result).toHaveLength(0);
+        });
+    });
+
+    describe('google calendar auth', () => {
+        it('getGoogleCalendarAuthStatus呼び出し時_API結果をキャッシュする', async () => {
+            const authStatus = { configured: true, connected: true, calendarIds: ['primary'] };
+            httpClient.get.mockResolvedValue(authStatus);
+
+            const first = await scheduleService.getGoogleCalendarAuthStatus();
+            const second = await scheduleService.getGoogleCalendarAuthStatus();
+
+            expect(first).toEqual(authStatus);
+            expect(second).toEqual(authStatus);
+            expect(httpClient.get).toHaveBeenCalledTimes(1);
+            expect(httpClient.get).toHaveBeenCalledWith('/api/schedule/google/auth-status');
+        });
+
+        it('disconnectGoogleCalendar呼び出し時_認証解除後にスケジュール再読み込みする', async () => {
+            httpClient.get.mockResolvedValue(mockSchedule);
+            httpClient.delete.mockResolvedValue({ success: true });
+
+            await scheduleService.disconnectGoogleCalendar();
+
+            expect(httpClient.delete).toHaveBeenCalledWith('/api/schedule/google/auth');
+            expect(httpClient.get).toHaveBeenCalledWith('/api/schedule/today');
         });
     });
 });

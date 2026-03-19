@@ -11,6 +11,9 @@ import { GraphAPISource } from './sources/graphapi-source.js';
 import { TokenManager } from './auth/token-manager.js';
 // Global index (built once at startup)
 let entityIndex;
+// Global refs for wiki API calls
+let wikiApiBaseUrl;
+let globalTokenManager;
 /**
  * Format entity for output
  */
@@ -196,6 +199,34 @@ const tools = [
             required: ['query'],
         },
     },
+    {
+        name: 'search_wiki',
+        description: 'Search wiki pages by keyword. Searches page titles and paths. Returns a list of matching wiki pages with their paths and titles.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                query: {
+                    type: 'string',
+                    description: 'The search keyword to find wiki pages',
+                },
+            },
+            required: ['query'],
+        },
+    },
+    {
+        name: 'get_wiki_page',
+        description: 'Get the content of a specific wiki page by path. Returns the full Markdown content of the page.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                path: {
+                    type: 'string',
+                    description: 'The wiki page path (e.g., "brainbase/strategy", "people/sato_keigo", "glossary/index")',
+                },
+            },
+            required: ['path'],
+        },
+    },
 ];
 /**
  * Handle tool calls
@@ -267,6 +298,66 @@ async function handleToolCall(name, args) {
             }
             return lines.join('\n');
         }
+        case 'search_wiki': {
+            const query = args.query?.toLowerCase() || '';
+            try {
+                const token = await globalTokenManager.getToken();
+                const res = await fetch(`${wikiApiBaseUrl}/api/wiki/pages`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+                if (!res.ok) {
+                    return `Wiki API error: ${res.status} ${res.statusText}`;
+                }
+                const data = await res.json();
+                const pages = data.pages || [];
+                const matched = pages.filter(p => p.path.toLowerCase().includes(query) ||
+                    p.title.toLowerCase().includes(query));
+                if (matched.length === 0) {
+                    return `No wiki pages found for "${args.query}".`;
+                }
+                const lines = [`# Wiki Search: "${args.query}" (${matched.length} found)`, ''];
+                for (const page of matched.slice(0, 20)) {
+                    lines.push(`- **${page.title}** — \`${page.path}\``);
+                }
+                if (matched.length > 20) {
+                    lines.push(`\n... and ${matched.length - 20} more.`);
+                }
+                return lines.join('\n');
+            }
+            catch (err) {
+                return `Wiki search failed: ${err.message}`;
+            }
+        }
+        case 'get_wiki_page': {
+            const pagePath = args.path;
+            if (!pagePath) {
+                return 'Error: path is required';
+            }
+            try {
+                const token = await globalTokenManager.getToken();
+                const res = await fetch(`${wikiApiBaseUrl}/api/wiki/page?path=${encodeURIComponent(pagePath)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+                if (res.status === 404) {
+                    return `Wiki page not found: ${pagePath}`;
+                }
+                if (res.status === 403) {
+                    return `Access denied to wiki page: ${pagePath}`;
+                }
+                if (!res.ok) {
+                    return `Wiki API error: ${res.status} ${res.statusText}`;
+                }
+                const data = await res.json();
+                const lines = [`# ${data.title || pagePath}`, `**Path**: \`${data.path}\``, ''];
+                if (data.content) {
+                    lines.push(data.content);
+                }
+                return lines.join('\n');
+            }
+            catch (err) {
+                return `Wiki page fetch failed: ${err.message}`;
+            }
+        }
         default:
             return `Unknown tool: ${name}`;
     }
@@ -296,6 +387,8 @@ export async function runServer(codexPath) {
         throw new Error('BRAINBASE_GRAPH_API_URL is required for graphapi mode');
     }
     const tokenManager = new TokenManager(config.graphApiUrl);
+    globalTokenManager = tokenManager;
+    wikiApiBaseUrl = config.graphApiUrl;
     const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
     console.error('[brainbase] Using Graph API source');
     // Build index from source

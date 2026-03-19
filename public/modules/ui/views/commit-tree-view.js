@@ -29,6 +29,8 @@ export class CommitTreeView {
         this.commitTreeService = commitTreeService;
         this.container = null;
         this._unsubscribers = [];
+        this._pendingSessionId = null;
+        this._pollInterval = null;
     }
 
     mount(container) {
@@ -41,12 +43,31 @@ export class CommitTreeView {
         const unsub1 = eventBus.on(EVENTS.SESSION_CHANGED, (e) => {
             const sessionId = e.detail?.sessionId || appStore.getState().currentSessionId;
             this._lastNotify = 0;
-            this.commitTreeService.loadCommitLog(sessionId);
+            if (!sessionId) return;
+
+            if (this._isPanelVisible()) {
+                this._pendingSessionId = null;
+                this.commitTreeService.loadCommitLog(sessionId);
+                return;
+            }
+
+            this._pendingSessionId = sessionId;
         });
         const unsub2 = eventBus.on(EVENTS.COMMIT_LOG_LOADED, () => {
             this.render();
         });
-        this._unsubscribers.push(unsub1, unsub2);
+        const unsub3 = eventBus.on(EVENTS.COMMIT_TREE_PANEL_TOGGLED, (e) => {
+            const collapsed = Boolean(e.detail?.collapsed);
+            if (collapsed) return;
+
+            const sessionId = this._pendingSessionId || appStore.getState().currentSessionId;
+            if (!sessionId) return;
+
+            this._pendingSessionId = null;
+            this._lastNotify = 0;
+            this.commitTreeService.loadCommitLog(sessionId);
+        });
+        this._unsubscribers.push(unsub1, unsub2, unsub3);
 
         // リフレッシュボタン
         const refreshBtn = document.getElementById('refresh-commit-tree');
@@ -60,6 +81,7 @@ export class CommitTreeView {
         // commit-notify ポーリング（5秒間隔）
         this._lastNotify = 0;
         this._pollInterval = setInterval(async () => {
+            if (!this._isPanelVisible()) return;
             const sessionId = appStore.getState().currentSessionId;
             if (!sessionId) return;
             const ts = await this.commitTreeService.checkCommitNotify(sessionId);
@@ -68,6 +90,13 @@ export class CommitTreeView {
                 this.commitTreeService.loadCommitLog(sessionId);
             }
         }, 5000);
+    }
+
+    _isPanelVisible() {
+        const panel = document.getElementById('commit-tree-panel');
+        if (!panel) return true;
+        if (panel.classList.contains('is-collapsed')) return false;
+        return panel.style.display !== 'none';
     }
 
     render() {

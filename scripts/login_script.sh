@@ -19,8 +19,17 @@ INITIAL_CMD_FILE=""
 STATE_JSON_PATH=""
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
-if [ -f "$STATE_JSON_PATH" ] && command -v python3 >/dev/null 2>&1; then
-    WORKTREE_PATH=$(python3 -c "
+if [ -f "$STATE_JSON_PATH" ]; then
+    # 優先: jq（高速、0.3-0.5秒短縮）
+    if command -v jq >/dev/null 2>&1; then
+        WORKTREE_PATH=$(jq -r --arg sid "$SESSION_NAME" '
+            .sessions[] |
+            select(.id == $sid) |
+            (.worktree.path // .path) // empty
+        ' "$STATE_JSON_PATH" 2>/dev/null)
+    # フォールバック: Python3（互換性）
+    elif command -v python3 >/dev/null 2>&1; then
+        WORKTREE_PATH=$(python3 -c "
 import json, sys
 try:
     with open('$STATE_JSON_PATH') as f:
@@ -36,6 +45,7 @@ try:
 except Exception:
     pass
 " 2>/dev/null)
+    fi
     if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
         cd "$WORKTREE_PATH"
     fi
@@ -188,9 +198,13 @@ if command -v tmux >/dev/null 2>&1; then
     tmux set-environment -g PATH "$PATH" 2>/dev/null || true
 fi
 
-# nvm fails if npm_config_prefix is set; clear it before tmux/session creation
-unset npm_config_prefix NPM_CONFIG_PREFIX
+# Environment sanitization (CommandMate pattern):
+# 1. CLAUDECODE/CLAUDE_CODE_ENTRYPOINT: Prevents Claude Code from detecting nested session
+# 2. npm_config_prefix: nvm compatibility
+unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT npm_config_prefix NPM_CONFIG_PREFIX
 if command -v tmux >/dev/null 2>&1; then
+    tmux set-environment -g -u CLAUDECODE 2>/dev/null || true
+    tmux set-environment -g -u CLAUDE_CODE_ENTRYPOINT 2>/dev/null || true
     tmux set-environment -g -u npm_config_prefix 2>/dev/null || true
     tmux set-environment -g -u NPM_CONFIG_PREFIX 2>/dev/null || true
 fi
@@ -233,6 +247,7 @@ sync_codex_prompts_link() {
 tmux set -g escape-time 0 2>/dev/null || true
 tmux set -g default-terminal "screen-256color" 2>/dev/null || true
 tmux set -g mouse off 2>/dev/null || true
+tmux set -g history-limit 5000 2>/dev/null || true
 
 if [ "$ENGINE" = "codex" ]; then
     sync_codex_prompts_link

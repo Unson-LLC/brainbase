@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Codex start wrapper: report "working" then exec codex.
+# Codex start wrapper: send a lightweight heartbeat before exec codex.
 
 resolve_brainbase_port() {
   if [ -n "$BRAINBASE_PORT" ]; then
@@ -51,7 +51,7 @@ if [ -n "$BRAINBASE_SESSION_ID" ] && command -v curl >/dev/null 2>&1; then
   REPORTED_AT=$(($(date +%s) * 1000))
   curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
     -H "Content-Type: application/json" \
-    -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT}" \
+    -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"heartbeat\", \"eventType\": \"codex-wrapper-start\"}" \
     --max-time 1 >/dev/null 2>&1 || true &
 fi
 

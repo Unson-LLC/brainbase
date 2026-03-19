@@ -65,6 +65,74 @@ describe('FolderTreeView', () => {
         expect(container.textContent).toContain('README.md');
     });
 
+    it('.mdファイルクリック時_fileViewerServiceがあればopenFileが呼ばれる', async () => {
+        const fileViewerService = {
+            openFile: vi.fn().mockResolvedValue()
+        };
+        const viewWithFV = new FolderTreeView({ sessionService, fileViewerService });
+        appStore.setState({
+            sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
+            currentSessionId: 'session-1',
+            folderTree: {
+                bySessionId: {
+                    'session-1': {
+                        rootPath: '/tmp/project',
+                        nodesByPath: {
+                            '': [
+                                { name: 'README.md', relativePath: 'README.md', type: 'file', hasChildren: false }
+                            ]
+                        }
+                    }
+                },
+                expandedPaths: {},
+                loading: false,
+                error: null
+            }
+        });
+        viewWithFV.render(container);
+        const fileButton = container.querySelector('.folder-tree-file');
+        fileButton.click();
+
+        await vi.waitFor(() => {
+            expect(fileViewerService.openFile).toHaveBeenCalledWith('session-1', 'README.md');
+        });
+        expect(sessionService.openFileInDefaultApp).not.toHaveBeenCalled();
+    });
+
+    it('.jsファイルクリック時_fileViewerServiceがあってもopenFileInDefaultAppが呼ばれる', async () => {
+        const fileViewerService = {
+            openFile: vi.fn().mockResolvedValue()
+        };
+        const viewWithFV = new FolderTreeView({ sessionService, fileViewerService });
+        appStore.setState({
+            sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
+            currentSessionId: 'session-1',
+            folderTree: {
+                bySessionId: {
+                    'session-1': {
+                        rootPath: '/tmp/project',
+                        nodesByPath: {
+                            '': [
+                                { name: 'app.js', relativePath: 'app.js', type: 'file', hasChildren: false }
+                            ]
+                        }
+                    }
+                },
+                expandedPaths: {},
+                loading: false,
+                error: null
+            }
+        });
+        viewWithFV.render(container);
+        const fileButton = container.querySelector('.folder-tree-file');
+        fileButton.click();
+
+        await vi.waitFor(() => {
+            expect(sessionService.openFileInDefaultApp).toHaveBeenCalledWith('app.js', '/tmp/project', 'session-1');
+        });
+        expect(fileViewerService.openFile).not.toHaveBeenCalled();
+    });
+
     it('ファイルクリック時_open-fileが呼ばれてイベントが発火される', async () => {
         appStore.setState({
             sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
@@ -93,7 +161,7 @@ describe('FolderTreeView', () => {
         fileButton.click();
 
         await vi.waitFor(() => {
-            expect(sessionService.openFileInDefaultApp).toHaveBeenCalledWith('README.md', '/tmp/project');
+            expect(sessionService.openFileInDefaultApp).toHaveBeenCalledWith('README.md', '/tmp/project', 'session-1');
         });
         expect(listener).toHaveBeenCalled();
         unsubscribe();

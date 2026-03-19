@@ -13,18 +13,23 @@ import { retroactiveRename } from '../utils/session-name-generator.js';
  * @param {StateStore} stateStore - StateStoreインスタンス
  * @param {boolean} [testMode=false] - テストモードフラグ
  * @param {ConversationLinker} [conversationLinker] - ConversationLinkerインスタンス
+ * @param {Object} [pathOptions={}] - パス解決オプション
  * @returns {express.Router}
  */
-export function createSessionRouter(sessionManager, worktreeService, stateStore, testMode = false, conversationLinker = null) {
+export function createSessionRouter(sessionManager, worktreeService, stateStore, testMode = false, conversationLinker = null, pathOptions = {}) {
     const router = express.Router();
-    const controller = new SessionController(sessionManager, worktreeService, stateStore);
+    const controller = new SessionController(sessionManager, worktreeService, stateStore, pathOptions);
 
     // ========================================
     // Activity & Status
     // ========================================
     router.post('/report_activity', controller.reportActivity);
     router.get('/status', controller.getStatus);
+    router.get('/ui-summaries', controller.getUiSummaries);
     router.post('/:id/clear-done', controller.clearDone);
+    router.get('/:id/runtime', controller.getRuntime);
+    router.post('/:id/release-terminal', controller.releaseTerminal);
+    router.get('/:id/terminal/snapshot', controller.getTerminalSnapshot);
     router.get('/:id', controller.get);
 
     // ========================================
@@ -34,6 +39,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     router.post('/:id/stop', controller.stop);
     router.post('/:id/archive', controller.archive);
     router.post('/:id/restore', controller.restore);
+    router.post('/:id/ask-ai-integration', controller.askAiIntegration);
 
     // ========================================
     // Terminal I/O
@@ -119,12 +125,12 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     router.get('/:id/worktree-status', controller.getWorktreeStatus);
     router.get('/:id/context', controller.getContext);
     router.get('/:id/folder-tree', controller.getFolderTree);
+    router.get('/:id/file-content', controller.getFileContent);
     router.get('/:id/commit-log', controller.getCommitLog);
     router.post('/:id/commit-notify', controller.commitNotify);
     router.get('/:id/commit-notify', controller.getCommitNotify);
     router.post('/:id/update-local-main', controller.updateLocalMain);
     router.post('/:id/merge', controller.merge);
-    router.post('/:id/ask-ai-integration', controller.askAiIntegration);
     router.delete('/:id/worktree', controller.deleteWorktree);
 
     return router;

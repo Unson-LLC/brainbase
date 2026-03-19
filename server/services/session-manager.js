@@ -5,9 +5,14 @@
 import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import net from 'net';
+import os from 'os';
 import path from 'path';
 import yaml from 'js-yaml';
 import { TerminalOutputParser } from './terminal-output-parser.js';
+import { gracefulCleanup } from '../lib/graceful-cleanup.js';
+import { SessionHealthMonitor } from './session-health-monitor.js';
+
+const INPUT_TEMPFILE_THRESHOLD_BYTES = 16 * 1024;
 
 export class SessionManager {
     /**
@@ -27,7 +32,9 @@ export class SessionManager {
 
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
-        this.hookStatus = new Map(); // sessionId -> { status: 'working'|'done', timestamp }
+        this.hookStatus = new Map(); // sessionId -> { status, timestamp, lastWorkingAt, lastDoneAt, lastActivityAt, lastEventType, activeTurnIds }
+        this.startLocks = new Map(); // sessionId -> Promise (並行起動防止ロック)
+        this.terminalOwners = new Map(); // sessionId -> { viewerId, viewerLabel, claimedAt, lastSeenAt }
         // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
@@ -42,7 +49,129 @@ export class SessionManager {
         this.outputParser = new TerminalOutputParser();
 
         // 許可されたキー
-        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Tab', 'S-Tab', 'BTab'];
+        this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab'];
+        this.TERMINAL_OWNER_TTL_MS = 10 * 60 * 1000;
+    }
+
+    _normalizeViewerId(viewerId) {
+        if (typeof viewerId !== 'string') return null;
+        const normalized = viewerId.trim();
+        return normalized || null;
+    }
+
+    _normalizeViewerLabel(viewerLabel) {
+        if (typeof viewerLabel !== 'string') return null;
+        const normalized = viewerLabel.trim();
+        return normalized || null;
+    }
+
+    _getTerminalOwnerEntry(sessionId) {
+        const owner = this.terminalOwners.get(sessionId);
+        if (!owner) return null;
+
+        if (Date.now() - owner.lastSeenAt > this.TERMINAL_OWNER_TTL_MS) {
+            this.terminalOwners.delete(sessionId);
+            return null;
+        }
+
+        return owner;
+    }
+
+    _buildTerminalAccessState(owner, viewerId) {
+        if (!owner) {
+            return {
+                state: 'available',
+                ownerViewerLabel: null,
+                ownerLastSeenAt: null,
+                canTakeover: false
+            };
+        }
+
+        const isOwner = owner.viewerId === viewerId;
+        return {
+            state: isOwner ? 'owner' : 'blocked',
+            ownerViewerLabel: owner.viewerLabel || null,
+            ownerLastSeenAt: new Date(owner.lastSeenAt).toISOString(),
+            canTakeover: !isOwner
+        };
+    }
+
+    getTerminalAccessState(sessionId, viewerId) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        return this._buildTerminalAccessState(owner, normalizedViewerId);
+    }
+
+    claimTerminalOwnership(sessionId, viewerId, viewerLabel) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) return null;
+
+        const now = Date.now();
+        const owner = {
+            viewerId: normalizedViewerId,
+            viewerLabel: this._normalizeViewerLabel(viewerLabel),
+            claimedAt: now,
+            lastSeenAt: now
+        };
+        this.terminalOwners.set(sessionId, owner);
+        return owner;
+    }
+
+    touchTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) return null;
+
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        if (!owner || owner.viewerId !== normalizedViewerId) {
+            return null;
+        }
+
+        owner.lastSeenAt = Date.now();
+        if (viewerLabel) {
+            owner.viewerLabel = this._normalizeViewerLabel(viewerLabel);
+        }
+        this.terminalOwners.set(sessionId, owner);
+        return owner;
+    }
+
+    ensureTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        if (!sessionId || !normalizedViewerId) {
+            return { allowed: false, terminalAccess: this._buildTerminalAccessState(this._getTerminalOwnerEntry(sessionId), normalizedViewerId) };
+        }
+
+        const currentOwner = this._getTerminalOwnerEntry(sessionId);
+        if (!currentOwner) {
+            const owner = this.claimTerminalOwnership(sessionId, normalizedViewerId, viewerLabel);
+            return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+        }
+
+        if (currentOwner.viewerId === normalizedViewerId) {
+            const owner = this.touchTerminalOwnership(sessionId, normalizedViewerId, viewerLabel) || currentOwner;
+            return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+        }
+
+        // Auto-takeover: last accessor wins (no concurrent viewing expected)
+        const owner = this.claimTerminalOwnership(sessionId, normalizedViewerId, viewerLabel);
+        return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+    }
+
+    forceTerminalOwnership(sessionId, viewerId, viewerLabel = null) {
+        const owner = this.claimTerminalOwnership(sessionId, viewerId, viewerLabel);
+        return {
+            allowed: Boolean(owner),
+            owner,
+            terminalAccess: this._buildTerminalAccessState(owner, this._normalizeViewerId(viewerId))
+        };
+    }
+
+    releaseTerminalOwnership(sessionId, viewerId, { force = false } = {}) {
+        const normalizedViewerId = this._normalizeViewerId(viewerId);
+        const owner = this._getTerminalOwnerEntry(sessionId);
+        if (!owner) return false;
+        if (!force && owner.viewerId !== normalizedViewerId) return false;
+        this.terminalOwners.delete(sessionId);
+        return true;
     }
 
     /**
@@ -56,6 +185,160 @@ export class SessionManager {
                     this.hookStatus.set(session.id, session.hookStatus);
                 }
             });
+        }
+    }
+
+    _getStoredWorkspacePath(session) {
+        return session?.worktree?.path || session?.path || null;
+    }
+
+    _getWorkspaceName(session) {
+        if (!session?.id) return null;
+
+        const repoPath = session?.worktree?.repo || null;
+        if (repoPath) {
+            return `${session.id}-${path.basename(repoPath)}`;
+        }
+
+        const storedPath = this._getStoredWorkspacePath(session);
+        if (!storedPath) return null;
+
+        const basename = path.basename(storedPath.replace(/\/+$/, ''));
+        return basename.startsWith(`${session.id}-`) ? basename : null;
+    }
+
+    _getCandidateWorkspacePaths(session) {
+        const candidates = [];
+        const workspaceName = this._getWorkspaceName(session);
+        const repoPath = session?.worktree?.repo || null;
+
+        const pushCandidate = (candidate) => {
+            if (!candidate || typeof candidate !== 'string') return;
+            if (!candidates.includes(candidate)) {
+                candidates.push(candidate);
+            }
+        };
+
+        pushCandidate(session?.worktree?.path);
+        pushCandidate(session?.path);
+
+        if (workspaceName) {
+            pushCandidate(path.join(this.worktreeService?.worktreesDir || '', workspaceName));
+
+            const configuredRoot = process.env.BRAINBASE_WORKTREES_DIR;
+            if (configuredRoot) {
+                pushCandidate(path.join(configuredRoot, workspaceName));
+            }
+
+            if (repoPath) {
+                pushCandidate(path.join(repoPath, '.worktrees', workspaceName));
+            }
+
+            try {
+                for (const entry of fs.readdirSync('/Volumes', { withFileTypes: true })) {
+                    if (!entry.isDirectory()) continue;
+                    pushCandidate(path.join('/Volumes', entry.name, 'brainbase-worktrees', workspaceName));
+                }
+            } catch {
+                // Ignore missing /Volumes or permission issues
+            }
+        }
+
+        return candidates;
+    }
+
+    async _getTmuxCurrentPath(sessionId) {
+        if (!sessionId) return null;
+        try {
+            const { stdout } = await this.execPromise(
+                `tmux list-panes -t "${sessionId}" -F "#{pane_current_path}" 2>/dev/null || true`
+            );
+            const currentPath = stdout
+                .split('\n')
+                .map(line => line.trim())
+                .find(Boolean);
+
+            return currentPath && fs.existsSync(currentPath) ? currentPath : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async _persistResolvedWorkspacePath(sessionId, resolvedPath) {
+        if (!sessionId || !resolvedPath) return;
+
+        const currentState = this.stateStore.get();
+        let changed = false;
+        const updatedSessions = (currentState.sessions || []).map((session) => {
+            if (session.id !== sessionId) return session;
+
+            const nextSession = { ...session };
+            if (nextSession.path !== resolvedPath) {
+                nextSession.path = resolvedPath;
+                changed = true;
+            }
+
+            if (nextSession.worktree) {
+                const nextWorktree = { ...nextSession.worktree };
+                if (nextWorktree.path !== resolvedPath) {
+                    nextWorktree.path = resolvedPath;
+                    changed = true;
+                }
+                nextSession.worktree = nextWorktree;
+            }
+
+            if (changed) {
+                nextSession.updatedAt = new Date().toISOString();
+            }
+
+            return nextSession;
+        });
+
+        if (changed) {
+            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        }
+    }
+
+    async resolveSessionWorkspacePath(sessionOrId, options = {}) {
+        const { persist = true, preferTmux = true } = options;
+        const state = this.stateStore.get();
+        const session = typeof sessionOrId === 'string'
+            ? (state.sessions || []).find((item) => item.id === sessionOrId)
+            : sessionOrId;
+
+        if (!session) return null;
+
+        const seen = new Set();
+        const orderedCandidates = [];
+        const pushOrdered = (candidate) => {
+            if (!candidate || seen.has(candidate)) return;
+            seen.add(candidate);
+            orderedCandidates.push(candidate);
+        };
+
+        if (preferTmux) {
+            pushOrdered(await this._getTmuxCurrentPath(session.id));
+        }
+
+        for (const candidate of this._getCandidateWorkspacePaths(session)) {
+            pushOrdered(candidate);
+        }
+
+        const resolvedPath = orderedCandidates.find((candidate) => fs.existsSync(candidate)) || null;
+        if (resolvedPath && persist) {
+            await this._persistResolvedWorkspacePath(session.id, resolvedPath);
+        }
+
+        return resolvedPath;
+    }
+
+    async reconcileSessionWorkspacePaths() {
+        const state = this.stateStore.get();
+        const sessions = state.sessions || [];
+
+        for (const session of sessions) {
+            if (!session?.id) continue;
+            await this.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
         }
     }
 
@@ -123,7 +406,8 @@ export class SessionManager {
                 const sessionId = session.id;
                 const engine = session.engine || 'claude';
                 const initialCommand = session.initialCommand || '';
-                const cwd = session.path || (session.worktree && session.worktree.path);
+                const cwd = await this.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+                    || this._getStoredWorkspacePath(session);
 
                 const hasTmux = tmuxSessions.has(sessionId);
                 const candidates = ttydProcsBySessionId.get(sessionId) || [];
@@ -267,17 +551,14 @@ export class SessionManager {
             const lines = stdout.trim().split('\n');
             console.log(`[cleanupOrphans] Found ${lines.length} ttyd process(es)`);
 
-            // 2. 保護対象: state.json の intendedState === 'active' または 'paused' + activeSessions内のセッション
+            // 2. 保護対象: state.json の intendedState === 'active' または 'paused'
             const state = this.stateStore.get();
-            const protectedSessionIds = new Set([
-                // state.jsonの保護対象セッション
-                ...(state.sessions || [])
+            const protectedSessionIds = new Set(
+                (state.sessions || [])
                     .filter(s => s.intendedState === 'active' || s.intendedState === 'paused')
-                    .map(s => s.id),
-                // activeSessions内のセッションも保護（再起動中のセッション対応）
-                ...this.activeSessions.keys()
-            ]);
-            console.log(`[cleanupOrphans] Found ${protectedSessionIds.size} protected session(s) (state.json + activeSessions)`);
+                    .map(s => s.id)
+            );
+            console.log(`[cleanupOrphans] Found ${protectedSessionIds.size} active/paused session(s) in state.json`);
 
             // 3. state.json / in-memory の正PIDマップ
             const statePidBySessionId = new Map();
@@ -398,103 +679,96 @@ export class SessionManager {
     }
 
     /**
-     * goal-seek.local.mdを読み取り、goalSeek情報を返す
-     * @param {string} worktreePath - worktreeのパス
-     * @returns {Object} { active: boolean, iteration: number, maxIterations: number }
+     * ttydがポートをリッスン状態になるまで待機
+     * @param {number} port - 監視対象ポート
+     * @param {number} timeoutMs - タイムアウト（デフォルト: 10000ms）
+     * @param {number} retryIntervalMs - リトライ間隔（デフォルト: 100ms）
+     * @returns {Promise<void>} - リッスン開始したらresolve、タイムアウトでreject
+     * @throws {Error} - タイムアウト時
      */
-    _readGoalSeekStatus(worktreePath) {
-        if (!worktreePath) {
-            return { active: false };
-        }
+    async waitForTtydReady(port, timeoutMs = 10000, retryIntervalMs = 100) {
+        const startTime = Date.now();
+        const deadline = startTime + timeoutMs;
 
-        const goalSeekPath = path.join(worktreePath, '.claude', 'goal-seek.local.md');
-        if (!fs.existsSync(goalSeekPath)) {
-            return { active: false };
-        }
-
-        try {
-            const content = fs.readFileSync(goalSeekPath, 'utf-8');
-
-            // YAMLフロントマター抽出（--- ... --- 形式）
-            const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-            if (!frontmatterMatch) {
-                return { active: false };
+        while (Date.now() < deadline) {
+            try {
+                await this._checkPortListening(port);
+                const elapsedMs = Date.now() - startTime;
+                console.log(`[ttyd] Port ${port} ready after ${elapsedMs}ms`);
+                return;
+            } catch (err) {
+                await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
             }
-
-            const frontmatter = yaml.load(frontmatterMatch[1]);
-
-            return {
-                active: frontmatter.active === true,
-                iteration: frontmatter.iteration || 0,
-                maxIterations: frontmatter.max_iterations || 0
-            };
-        } catch (error) {
-            console.error(`[Goal-Seek] Failed to read ${goalSeekPath}:`, error.message);
-            return { active: false };
         }
+
+        const elapsedMs = Date.now() - startTime;
+        throw new Error(`ttyd port ${port} did not become ready within ${timeoutMs}ms (elapsed: ${elapsedMs}ms)`);
     }
 
     /**
-     * セッション状態を取得（Hook報告ベース + goal-seek情報）
-     * ハートビートタイムアウト: 10分以上working報告がなければisWorking=falseとする
-     * @returns {Object} sessionId -> {isWorking, isDone, goalSeek}
+     * 指定ポートがリッスン状態かチェック（TCP接続試行）
+     * @private
+     * @param {number} port - チェック対象ポート
+     * @param {number} connectionTimeout - 接続タイムアウト（デフォルト: 100ms）
+     * @returns {Promise<void>} - リッスン中ならresolve、接続失敗でreject
+     */
+    _checkPortListening(port, connectionTimeout = 100) {
+        return new Promise((resolve, reject) => {
+            const socket = net.createConnection({ port, host: 'localhost', timeout: connectionTimeout });
+
+            socket.on('connect', () => {
+                socket.end();
+                resolve();
+            });
+
+            socket.on('timeout', () => {
+                socket.destroy();
+                reject(new Error('Connection timeout'));
+            });
+
+            socket.on('error', (err) => {
+                socket.destroy();
+                reject(err);
+            });
+        });
+    }
+
+    /**
+     * セッション状態を取得（Hook報告ベース）
+     * ハートビートタイムアウト: 60分以上working報告がなければisWorking=falseとする
+     * @returns {Object} sessionId -> {isWorking, isDone}
      */
     getSessionStatus() {
         const status = {};
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000; // 60分
         const now = Date.now();
 
-        // stateStoreからsessions取得（goal-seek情報取得用）
-        const state = this.stateStore.get();
-        const sessions = state.sessions || [];
-        const sessionMap = new Map(sessions.map(s => [s.id, s]));
-
         // hookStatusでループ（ttyd停止後も'done'を保持するため）
         for (const [sessionId, hookData] of this.hookStatus) {
             const normalized = this._normalizeHookData(hookData);
             if (!normalized) continue;
 
+            const activeTurnCount = normalized.activeTurnIds.length;
             const hasWorking = normalized.lastWorkingAt > 0;
             const hasDone = normalized.lastDoneAt > 0;
-            if (!hasWorking && !hasDone) continue;
+            if (!hasWorking && !hasDone && activeTurnCount === 0) continue;
 
             // タイムアウト判定: 最後のworking報告から10分経過したらisWorking: false
-            const isStale = now - normalized.lastWorkingAt > HEARTBEAT_TIMEOUT;
-            const isWorking = !isStale && normalized.lastWorkingAt > normalized.lastDoneAt;
+            const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
+            const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
+            const isWorking = !isStale && (activeTurnCount > 0 || normalized.lastWorkingAt > normalized.lastDoneAt);
             const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
-
-            // goal-seek情報を追加
-            const session = sessionMap.get(sessionId);
-            const worktreePath = session?.worktree?.path || session?.path;
-            const goalSeek = this._readGoalSeekStatus(worktreePath);
 
             status[sessionId] = {
                 isWorking,
                 isDone,
                 lastWorkingAt: normalized.lastWorkingAt,
                 lastDoneAt: normalized.lastDoneAt,
-                timestamp: normalized.timestamp,
-                goalSeek
+                lastActivityAt: normalized.lastActivityAt,
+                lastEventType: normalized.lastEventType,
+                activeTurnCount,
+                timestamp: normalized.timestamp
             };
-        }
-
-        // hookStatusに存在しないセッションでもgoal-seekがactiveなら追加
-        for (const session of sessions) {
-            if (status[session.id]) continue; // 既に追加済み
-
-            const worktreePath = session.worktree?.path || session.path;
-            const goalSeek = this._readGoalSeekStatus(worktreePath);
-
-            if (goalSeek.active) {
-                status[session.id] = {
-                    isWorking: false,
-                    isDone: false,
-                    lastWorkingAt: 0,
-                    lastDoneAt: 0,
-                    timestamp: 0,
-                    goalSeek
-                };
-            }
         }
 
         return status;
@@ -506,58 +780,73 @@ export class SessionManager {
      * @param {string} status - ステータス（'working' | 'done'）
      * @param {number} reportedAt - 報告時刻（ms）
      */
-    reportActivity(sessionId, status, reportedAt) {
+    reportActivity(sessionId, status, reportedAt, metadata = {}) {
         if (status !== 'working' && status !== 'done') {
             console.warn(`[Hook] Ignoring invalid status for ${sessionId}: ${status}`);
             return;
         }
 
         const timestamp = this._coerceTimestamp(reportedAt);
-        console.log(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp}`);
+        const lifecycle = typeof metadata.lifecycle === 'string' ? metadata.lifecycle : '';
+        const eventType = typeof metadata.eventType === 'string' ? metadata.eventType : '';
+        const turnId = typeof metadata.turnId === 'string' ? metadata.turnId.trim() : '';
+        console.log(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp} (${lifecycle || 'legacy'}${turnId ? `:${turnId}` : ''})`);
 
         const currentHookData = this._normalizeHookData(this.hookStatus.get(sessionId)) || {
             lastWorkingAt: 0,
-            lastDoneAt: 0
+            lastDoneAt: 0,
+            lastActivityAt: 0,
+            lastEventType: null,
+            activeTurnIds: []
         };
 
         let lastWorkingAt = currentHookData.lastWorkingAt;
         let lastDoneAt = currentHookData.lastDoneAt;
+        let lastActivityAt = Math.max(currentHookData.lastActivityAt, timestamp);
+        let lastEventType = eventType || currentHookData.lastEventType || null;
+        const activeTurnIds = new Set(currentHookData.activeTurnIds);
 
-        if (status === 'working') {
+        if (lifecycle === 'turn_started') {
+            if (turnId) {
+                activeTurnIds.add(turnId);
+            }
+            lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            lastDoneAt = 0;
+        } else if (lifecycle === 'turn_completed') {
+            if (turnId) {
+                activeTurnIds.delete(turnId);
+            } else if (activeTurnIds.size > 0) {
+                console.warn(`[Hook] Ignoring ambiguous turn_completed without turnId for ${sessionId}; keeping ${activeTurnIds.size} active turn(s)`);
+            }
+
+            if (turnId || activeTurnIds.size === 0) {
+                lastDoneAt = Math.max(lastDoneAt, timestamp);
+            }
+        } else if (lifecycle === 'heartbeat') {
+            if (activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt) {
+                lastWorkingAt = Math.max(lastWorkingAt, timestamp);
+            }
+        } else if (status === 'working') {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             lastDoneAt = 0; // working報告を優先化（done報告をリセット）
         } else {
             lastDoneAt = Math.max(lastDoneAt, timestamp);
         }
 
-        const effectiveStatus = lastWorkingAt > lastDoneAt ? 'working' : 'done';
+        const effectiveStatus = activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt ? 'working' : 'done';
 
         const hookStatusData = {
             status: effectiveStatus,
             timestamp,
             lastWorkingAt,
-            lastDoneAt
+            lastDoneAt,
+            lastActivityAt,
+            lastEventType,
+            activeTurnIds: Array.from(activeTurnIds)
         };
 
         this.hookStatus.set(sessionId, hookStatusData);
-
-        // Update persisted state
-        const currentState = this.stateStore.get();
-        const updatedAt = new Date(timestamp).toISOString();
-        const updatedSessions = currentState.sessions.map(session =>
-            session.id === sessionId
-                ? {
-                    ...session,
-                    hookStatus: hookStatusData,
-                    updatedAt
-                }
-                : session
-        );
-
-        this.stateStore.update({
-            ...currentState,
-            sessions: updatedSessions
-        });
+        this._persistHookStatus(sessionId, hookStatusData, timestamp);
     }
 
     /**
@@ -566,23 +855,12 @@ export class SessionManager {
      */
     clearDoneStatus(sessionId) {
         const normalized = this._normalizeHookData(this.hookStatus.get(sessionId));
-        if (normalized && normalized.lastDoneAt >= normalized.lastWorkingAt && normalized.lastDoneAt > 0) {
+        if (normalized &&
+            normalized.activeTurnIds.length === 0 &&
+            normalized.lastDoneAt >= normalized.lastWorkingAt &&
+            normalized.lastDoneAt > 0) {
             this.hookStatus.delete(sessionId);
-
-            // Update persisted state
-            const currentState = this.stateStore.get();
-            const updatedSessions = currentState.sessions.map(session => {
-                if (session.id === sessionId) {
-                    const { hookStatus, ...rest } = session;
-                    return rest;
-                }
-                return session;
-            });
-
-            this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
-            });
+            this._persistHookStatus(sessionId, null);
         }
     }
 
@@ -592,23 +870,9 @@ export class SessionManager {
      */
     clearWorking(sessionId) {
         const normalized = this._normalizeHookData(this.hookStatus.get(sessionId));
-        if (normalized && normalized.lastWorkingAt > normalized.lastDoneAt && normalized.lastWorkingAt > 0) {
+        if (normalized && (normalized.activeTurnIds.length > 0 || (normalized.lastWorkingAt > normalized.lastDoneAt && normalized.lastWorkingAt > 0))) {
             this.hookStatus.delete(sessionId);
-
-            // Update persisted state
-            const currentState = this.stateStore.get();
-            const updatedSessions = currentState.sessions.map(session => {
-                if (session.id === sessionId) {
-                    const { hookStatus, ...rest } = session;
-                    return rest;
-                }
-                return session;
-            });
-
-            this.stateStore.update({
-                ...currentState,
-                sessions: updatedSessions
-            });
+            this._persistHookStatus(sessionId, null);
         }
     }
 
@@ -627,14 +891,57 @@ export class SessionManager {
             : status === 'done'
                 ? timestamp
                 : 0;
+        const lastActivityAt = Number.isFinite(hookData.lastActivityAt)
+            ? hookData.lastActivityAt
+            : Math.max(lastWorkingAt, lastDoneAt, timestamp);
+        const lastEventType = typeof hookData.lastEventType === 'string' && hookData.lastEventType.trim()
+            ? hookData.lastEventType
+            : null;
+        const activeTurnIds = Array.isArray(hookData.activeTurnIds)
+            ? Array.from(new Set(
+                hookData.activeTurnIds
+                    .filter(turnId => typeof turnId === 'string')
+                    .map(turnId => turnId.trim())
+                    .filter(Boolean)
+            ))
+            : [];
 
         return {
             ...hookData,
             status,
             timestamp,
             lastWorkingAt,
-            lastDoneAt
+            lastDoneAt,
+            lastActivityAt,
+            lastEventType,
+            activeTurnIds
         };
+    }
+
+    _persistHookStatus(sessionId, hookStatusData, timestamp = Date.now()) {
+        const currentState = this.stateStore.get();
+        const updatedAt = new Date(timestamp).toISOString();
+        const updatedSessions = currentState.sessions.map(session => {
+            if (session.id !== sessionId) {
+                return session;
+            }
+
+            if (hookStatusData) {
+                return {
+                    ...session,
+                    hookStatus: hookStatusData,
+                    updatedAt
+                };
+            }
+
+            const { hookStatus, ...rest } = session;
+            return rest;
+        });
+
+        this.stateStore.update({
+            ...currentState,
+            sessions: updatedSessions
+        });
     }
 
     _coerceTimestamp(value) {
@@ -660,6 +967,11 @@ export class SessionManager {
      */
     getActiveSessions() {
         return this.activeSessions;
+    }
+
+    getSession(sessionId) {
+        const state = this.stateStore.get();
+        return (state.sessions || []).find(session => session.id === sessionId) || null;
     }
 
     /**
@@ -705,16 +1017,38 @@ export class SessionManager {
      * @returns {{ttydRunning: boolean, needsRestart: boolean}}
      */
     getRuntimeStatus(session) {
-        const activeEntry = this.activeSessions.get(session.id);
+        const sessionId = session?.id;
+        const activeEntry = this.activeSessions.get(session?.id);
         const activePid = activeEntry?.process?.pid || activeEntry?.pid;
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
         const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
         const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        const port = activeEntry?.port || session?.ttydProcess?.port || null;
 
         return {
             ttydRunning,
-            needsRestart
+            needsRestart,
+            proxyPath: ttydRunning && sessionId ? `/console/${sessionId}` : null,
+            port
+        };
+    }
+
+    /**
+     * 単一セッションを取得（優先ロード用）
+     * @param {string} sessionId - セッションID
+     * @returns {Object|null} セッション情報（runtime status付き）
+     */
+    getSessionById(sessionId) {
+        const state = this.stateStore.get();
+        const session = (state.sessions || []).find(s => s.id === sessionId);
+        if (!session) return null;
+        const runtimeStatus = this.getRuntimeStatus(session);
+
+        return {
+            ...session,
+            ttydRunning: runtimeStatus.ttydRunning,
+            runtimeStatus
         };
     }
 
@@ -729,6 +1063,22 @@ export class SessionManager {
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
     async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
+        // 並行起動防止ロック: 同じセッションに対する同時呼び出しを防止
+        if (this.startLocks.has(sessionId)) {
+            console.log(`[startTtyd] Lock active for ${sessionId}, waiting for existing start to complete`);
+            return await this.startLocks.get(sessionId);
+        }
+
+        const promise = this._doStartTtyd({ sessionId, cwd, initialCommand, engine, preferredPort });
+        this.startLocks.set(sessionId, promise);
+        try {
+            return await promise;
+        } finally {
+            this.startLocks.delete(sessionId);
+        }
+    }
+
+    async _doStartTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
         // Validate engine
         if (!['claude', 'codex'].includes(engine)) {
             throw new Error('engine must be "claude" or "codex"');
@@ -817,8 +1167,10 @@ export class SessionManager {
         const args = [
             '-p', port.toString(),
             '-W',
-            // Exit on disconnect to avoid PTY FD leaks accumulating inside long-lived ttyd processes.
-            '-o',
+            // WebSocket ping interval to prevent timeout (especially over Cloudflare Zero Trust)
+            '-P', '3',
+            // Note: Removed '-o' (exit on disconnect) to allow reconnection on mobile/Cloudflare Zero Trust
+            // PTY leak prevention is now handled by session lifecycle management
         ];
 
         // Only use base path on non-Windows platforms
@@ -839,7 +1191,7 @@ export class SessionManager {
 
         args.push(
             '-I', customIndexPath, // Custom HTML with keyboard shortcuts and mobile scroll support
-            '-m', '3',                         // Max 3 clients: allow browser reconnects and multiple tabs (prevent 1006 reconnect loop)
+            '-m', '1',                         // Max 1 client: prevent concurrent PTY allocation per session
             '-t', 'disableReconnect=true',   // Prevent PTY leak: disable ttyd built-in reconnect (brainbase TerminalReconnectManager handles it)
             '-t', 'disableLeaveAlert=true', // Disable "Leave site?" alert
             '-t', 'enableClipboard=true',   // Enable clipboard access for copy/paste
@@ -922,6 +1274,7 @@ export class SessionManager {
             // Preserve tmux on ttyd exit. tmux lifecycle is managed explicitly (archive/delete/TTL).
             await this._clearTtydProcessInfoIfMatches(sessionId, ttyd.pid);
             this.activeSessions.delete(sessionId);
+            this.releaseTerminalOwnership(sessionId, null, { force: true });
         });
 
         // activeSessionsにpidも保存（復旧時の型統一のため）
@@ -930,18 +1283,43 @@ export class SessionManager {
         // state.jsonにttydProcess情報を永続化
         await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
 
-        // Give ttyd a moment to bind to the port and verify it's still running
+        // 起動直後に短時間だけ生存確認して即返す（固定500ms待機を回避）
         await new Promise((resolve, reject) => {
-            setTimeout(() => {
-                if (this.activeSessions.has(sessionId)) {
-                    resolve();
-                } else {
+            const minStableMs = 120;
+            const timeoutMs = 500;
+            const stableAt = Date.now() + minStableMs;
+            const deadline = Date.now() + timeoutMs;
+
+            const check = () => {
+                if (!this.activeSessions.has(sessionId)) {
                     reject(new Error('Session failed to start (process exited)'));
+                    return;
                 }
-            }, 500);
+                if (Date.now() >= stableAt) {
+                    resolve();
+                    return;
+                }
+                if (Date.now() >= deadline) {
+                    reject(new Error('Session start verification timeout'));
+                    return;
+                }
+                setTimeout(check, 25);
+            };
+
+            check();
         });
 
-        return { port, proxyPath: basePath };
+        // Step 2: ttyd完全起動確認（ポートリッスン開始を待機）
+        try {
+            await this.waitForTtydReady(port, 10000, 100);
+            console.log(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
+        } catch (error) {
+            console.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
+            await this.stopTtyd(sessionId);
+            throw new Error(`ttyd startup timeout: ${error.message}`);
+        }
+
+        return { port, proxyPath: basePath, startedExisting: false };
     }
 
     /**
@@ -981,52 +1359,73 @@ export class SessionManager {
      * @returns {Promise<boolean>} 停止成功時true
      */
     async stopTtyd(sessionId, { preserveTmux = false } = {}) {
-        if (this.activeSessions.has(sessionId)) {
-            const sessionData = this.activeSessions.get(sessionId);
-            // PIDを取得（新規起動時はprocess.pid、復旧時はpid直接）
-            const pid = sessionData.process?.pid || sessionData.pid;
-            console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
+        if (!this.activeSessions.has(sessionId)) {
+            return false;
+        }
 
-            if (pid) {
-                try {
-                    // PIDベースでkill（ChildProcessオブジェクトがなくても動作）
-                    process.kill(pid, 'SIGTERM');
-                    // Give it a moment to terminate gracefully
-                    await new Promise(resolve => setTimeout(resolve, 500));
+        const sessionData = this.activeSessions.get(sessionId);
+        const pid = sessionData.process?.pid || sessionData.pid;
+        console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
 
-                    // プロセスがまだ存在するか確認
-                    if (this._isProcessRunning(pid)) {
-                        // Force kill if still running
-                        process.kill(pid, 'SIGKILL');
-                    }
-                } catch (err) {
-                    // ESRCH: プロセスが既に存在しない場合は正常
-                    if (err.code !== 'ESRCH') {
-                        console.error(`Error killing ttyd process for ${sessionId}:`, err.message);
+        // Graceful Partial Cleanup: 各ステップが失敗しても後続を続行
+        const steps = [];
+
+        // Step 1: ttydプロセスのkill
+        if (pid) {
+            steps.push({
+                name: 'kill-ttyd-process',
+                fn: async () => {
+                    try {
+                        process.kill(pid, 'SIGTERM');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        if (this._isProcessRunning(pid)) {
+                            process.kill(pid, 'SIGKILL');
+                        }
+                    } catch (err) {
+                        if (err.code !== 'ESRCH') throw err;
                     }
                 }
-            }
-
-            // Cleanup TMUX session and MCP processes (skip if preserveTmux)
-            if (!preserveTmux) {
-                await this.cleanupSessionResources(sessionId);
-            } else {
-                console.log(`[stopTtyd] Preserving TMUX session for ${sessionId} (ttyd-only restart)`);
-            }
-
-            // ttydProcess情報をクリア (only if it still points to this pid)
-            if (pid) {
-                await this._clearTtydProcessInfoIfMatches(sessionId, pid);
-            } else {
-                await this._clearTtydProcessInfo(sessionId);
-            }
-
-            this.activeSessions.delete(sessionId);
-            // hookStatusは保持（'done'ステータスを保持するため）
-            // this.hookStatus.delete(sessionId);
-            return true;
+            });
         }
-        return false;
+
+        // Step 2: TMUX/MCPクリーンアップ
+        if (!preserveTmux) {
+            steps.push({
+                name: 'cleanup-session-resources',
+                fn: () => this.cleanupSessionResources(sessionId)
+            });
+        }
+
+        // Step 3: ttydProcess情報クリア
+        steps.push({
+            name: 'clear-ttyd-process-info',
+            fn: async () => {
+                if (pid) {
+                    await this._clearTtydProcessInfoIfMatches(sessionId, pid);
+                } else {
+                    await this._clearTtydProcessInfo(sessionId);
+                }
+            }
+        });
+
+        // Step 4: activeSessionsから削除
+        steps.push({
+            name: 'delete-active-session',
+            fn: () => { this.activeSessions.delete(sessionId); }
+        });
+
+        // Step 5: terminal ownershipリリース
+        steps.push({
+            name: 'release-terminal-ownership',
+            fn: () => { this.releaseTerminalOwnership(sessionId, null, { force: true }); }
+        });
+
+        const result = await gracefulCleanup(sessionId, steps);
+        if (result.warnings.length > 0) {
+            console.warn(`[stopTtyd] Partial cleanup for ${sessionId}:`, result.warnings);
+        }
+
+        return true;
     }
 
     /**
@@ -1298,6 +1697,33 @@ export class SessionManager {
         }
     }
 
+    async isTmuxSessionRunning(sessionId) {
+        return await this._isTmuxSessionRunning(sessionId);
+    }
+
+    async getPaneMode(sessionId) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const { stdout } = await this.execPromise(`tmux display-message -p -t "${sessionId}" "#{pane_in_mode}" 2>/dev/null || echo "0"`);
+        return stdout.trim() === '1';
+    }
+
+    async resizeSessionWindow(sessionId, cols, rows) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const safeCols = Math.max(40, Math.min(300, Number(cols) || 0));
+        const safeRows = Math.max(12, Math.min(120, Number(rows) || 0));
+        if (!Number.isFinite(safeCols) || !Number.isFinite(safeRows)) {
+            throw new Error('Invalid terminal size');
+        }
+
+        await this.execPromise(`tmux resize-window -t "${sessionId}" -x ${safeCols} -y ${safeRows}`);
+    }
+
     /**
      * tmux copy-mode scroll
      * @param {string} sessionId - セッションID
@@ -1366,8 +1792,13 @@ export class SessionManager {
             throw new Error('Input required');
         }
 
-        // DEBUG: ログ出力
-        console.log(`[session-manager] sendInput: sessionId="${sessionId}", type="${type}", input="${input}"`);
+        const inputBytes = Buffer.byteLength(input, 'utf8');
+        const preview = input.length > 120
+            ? `${input.slice(0, 120)}...`
+            : input;
+        console.log(
+            `[session-manager] sendInput: sessionId="${sessionId}", type="${type}", bytes=${inputBytes}, preview=${JSON.stringify(preview)}`
+        );
 
         if (type === 'key') {
             if (!this.ALLOWED_KEYS.includes(input)) {
@@ -1377,6 +1808,11 @@ export class SessionManager {
             console.log(`[session-manager] Executing: ${cmd}`);
             await this.execPromise(cmd);
         } else if (type === 'text') {
+            if (inputBytes > INPUT_TEMPFILE_THRESHOLD_BYTES) {
+                await this._pasteLargeInputFromTempFile(sessionId, input);
+                return;
+            }
+
             // Use -l for literal text (don't interpret special keys)
             // Escape double quotes in input
             const escaped = input.replace(/"/g, '\\"');
@@ -1388,6 +1824,30 @@ export class SessionManager {
         }
     }
 
+    _shellQuote(value) {
+        return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+    }
+
+    async _pasteLargeInputFromTempFile(sessionId, input) {
+        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'brainbase-input-'));
+        const tempFile = path.join(tempDir, 'paste.txt');
+        const bufferName = `brainbase-${sessionId}-${Date.now()}`;
+
+        try {
+            await fs.promises.writeFile(tempFile, input, 'utf8');
+
+            const loadCommand = `tmux load-buffer -b ${this._shellQuote(bufferName)} ${this._shellQuote(tempFile)}`;
+            const pasteCommand = `tmux paste-buffer -d -b ${this._shellQuote(bufferName)} -t ${this._shellQuote(sessionId)}`;
+
+            console.log(`[session-manager] Executing large paste via temp file: ${tempFile}`);
+            await this.execPromise(loadCommand);
+            await this.execPromise(pasteCommand);
+        } finally {
+            await this.execPromise(`tmux delete-buffer -b ${this._shellQuote(bufferName)}`).catch(() => {});
+            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        }
+    }
+
     /**
      * ターミナルコンテンツを取得（履歴）
      * @param {string} sessionId - セッションID
@@ -1396,6 +1856,20 @@ export class SessionManager {
      */
     async getContent(sessionId, lines = 500) {
         const { stdout } = await this.execPromise(`tmux capture-pane -t "${sessionId}" -p -S -${lines}`);
+        return stdout;
+    }
+
+    /**
+     * ANSI色情報付きでターミナル出力を取得
+     * tmux capture-pane -e でエスケープシーケンスを保持したまま取得
+     * @param {string} sessionId - セッションID
+     * @param {number} lines - 取得行数
+     * @returns {Promise<string>} ANSI色付きテキスト
+     */
+    async getContentWithColors(sessionId, lines = 10) {
+        const { stdout } = await this.execPromise(
+            `tmux capture-pane -e -t "${sessionId}" -p -S -${lines}`
+        );
         return stdout;
     }
 
@@ -1419,11 +1893,22 @@ export class SessionManager {
 
     /**
      * PTY Watchdog: 定期的にPTY使用状況を監視し、閾値超過時に警告
-     * @param {number} intervalMs - 監視間隔（デフォルト: 1800000ms = 30分）
+     * @param {number} intervalMs - 監視間隔（デフォルト: 600000ms = 10分）
      */
-    startPtyWatchdog(intervalMs = 1800000) {
+    startPtyWatchdog(intervalMs = 600000) {
         if (this._ptyWatchdogTimer) return;
         console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
+
+        // Session health monitor (CommandMate pattern): detect dead tmux sessions
+        this._healthMonitor = new SessionHealthMonitor(this, {
+            onDeadSession: (sessionId) => {
+                console.warn(`[PTY Watchdog] Dead session detected: ${sessionId}, cleaning up...`);
+                this.stopTtyd(sessionId).catch(err => {
+                    console.error(`[PTY Watchdog] Cleanup failed for ${sessionId}:`, err.message);
+                });
+            }
+        });
+        this._healthMonitor.start(intervalMs);
 
         this._ptyWatchdogTimer = setInterval(async () => {
             try {
@@ -1454,6 +1939,10 @@ export class SessionManager {
      * PTY Watchdogを停止
      */
     stopPtyWatchdog() {
+        if (this._healthMonitor) {
+            this._healthMonitor.stop();
+            this._healthMonitor = null;
+        }
         if (this._ptyWatchdogTimer) {
             clearInterval(this._ptyWatchdogTimer);
             this._ptyWatchdogTimer = null;

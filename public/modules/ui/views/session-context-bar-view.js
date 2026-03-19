@@ -10,12 +10,15 @@ export class SessionContextBarView {
     constructor({ sessionService, pollIntervalMs = 8000 }) {
         this.sessionService = sessionService;
         this.pollIntervalMs = pollIntervalMs;
+        this.switchDelayMs = 150;
         this.container = null;
         this._requestId = 0;
         this._unsubscribers = [];
         this._pollTimer = null;
+        this._refreshTimer = null;
         this._expanded = false;
         this._currentContext = null;
+        this._refreshTimer = null;
     }
 
     mount(container) {
@@ -29,7 +32,7 @@ export class SessionContextBarView {
     _setupEventListeners() {
         const unsub1 = appStore.subscribeToSelector(
             (state) => state.currentSessionId,
-            () => this.refresh({ forceLoading: true })
+            () => this._scheduleRefresh({ forceLoading: false, delayMs: this.switchDelayMs })
         );
 
         const refresh = () => this.refresh();
@@ -55,10 +58,33 @@ export class SessionContextBarView {
         }
     }
 
+    _scheduleRefresh(options = {}) {
+        const { forceLoading = false, delayMs = 0 } = options;
+        if (this._refreshTimer) {
+            clearTimeout(this._refreshTimer);
+            this._refreshTimer = null;
+        }
+
+        this._refreshTimer = setTimeout(() => {
+            this._refreshTimer = null;
+            void this.refresh({ forceLoading });
+        }, delayMs);
+    }
+
     _shortPath(pathValue) {
         if (!pathValue) return '-';
         if (pathValue.length <= 52) return pathValue;
         return `...${pathValue.slice(-49)}`;
+    }
+
+    _normalizePath(pathValue) {
+        if (!pathValue || pathValue === '-') return '';
+        const normalized = String(pathValue).trim().replace(/[\\/]+$/, '');
+        if (!normalized) return '';
+        if (/^[A-Z]:/.test(normalized)) {
+            return `${normalized[0].toLowerCase()}${normalized.slice(1)}`;
+        }
+        return normalized;
     }
 
     _renderItem(label, value, options = {}) {
@@ -91,9 +117,11 @@ export class SessionContextBarView {
         const baseBranch = context.baseBranch || '-';
         const repoPath = context.repoPath || '-';
         const workspacePath = context.workspacePath || '-';
+        const currentDirectory = context.currentDirectory || context.cwd || workspacePath || '-';
         const dirty = context.dirty;
         const changesNotPushed = Number(context.changesNotPushed || 0);
         const prStatus = context.prStatus || 'none';
+        const hasCwdMismatch = this._normalizePath(workspacePath) !== this._normalizePath(currentDirectory);
 
         // Engine icon (既存のSVGアイコンを使用)
         const engineMeta = engine === 'codex'
@@ -117,6 +145,9 @@ export class SessionContextBarView {
         } else if (prStatus === 'open_or_pending') {
             alerts.push('<span class="context-alert is-warning" title="PR pending">🔀 pending</span>');
         }
+        if (hasCwdMismatch) {
+            alerts.push('<span class="context-alert is-cwd-mismatch" title="Current directory differs from workspace">⚠ cwd!=workspace</span>');
+        }
 
         const alertsHtml = alerts.length > 0 ? ` <span class="context-separator">|</span> ${alerts.join(' ')}` : '';
 
@@ -134,6 +165,10 @@ export class SessionContextBarView {
                 <div class="context-detail-item">
                     <span class="context-detail-label">Workspace:</span>
                     <span class="context-detail-value" title="${escapeHtml(workspacePath)}">${escapeHtml(this._shortPath(workspacePath))}</span>
+                </div>
+                <div class="context-detail-item">
+                    <span class="context-detail-label">Current:</span>
+                    <span class="context-detail-value" title="${escapeHtml(currentDirectory)}">${escapeHtml(this._shortPath(currentDirectory))}</span>
                 </div>
                 <div class="context-detail-item">
                     <span class="context-detail-label">Session:</span>
@@ -192,6 +227,10 @@ export class SessionContextBarView {
 
     unmount() {
         this._stopPolling();
+        if (this._refreshTimer) {
+            clearTimeout(this._refreshTimer);
+            this._refreshTimer = null;
+        }
         this._unsubscribers.forEach((unsub) => unsub());
         this._unsubscribers = [];
         if (this.container) {

@@ -12,8 +12,9 @@ import { calcKeyboardOffset } from './mobile-input-utils.js';
  * - キーボードデバッグモードの表示
  */
 export class MobileInputFocusManager {
-    constructor(elements) {
+    constructor(elements, { onViewportChange = null } = {}) {
         this.elements = elements;
+        this.onViewportChange = typeof onViewportChange === 'function' ? onViewportChange : null;
         this.activeInput = null;
         this.inputFocused = false;
         this.viewport = null;
@@ -53,8 +54,7 @@ export class MobileInputFocusManager {
 
     isInputFocused() {
         const active = document.activeElement;
-        const terminalFrame = document.getElementById('terminal-frame');
-        return this.inputFocused || active === this.elements.dockInput || active === this.elements.composerInput || active === terminalFrame;
+        return this.inputFocused || active === this.elements.dockInput || active === this.elements.composerInput;
     }
 
     syncKeyboardState() {
@@ -161,12 +161,21 @@ export class MobileInputFocusManager {
             // }
             document.body.style.setProperty('--keyboard-offset', `${offset}px`);
             document.documentElement.style.setProperty('--vvh', `${Math.round(this.viewport.height)}px`);
+            document.documentElement.style.setProperty('--vvw', `${Math.round(this.viewport.width || window.innerWidth)}px`);
             document.documentElement.style.setProperty('--vv-top', `${Math.round(this.viewport.offsetTop || 0)}px`);
             document.documentElement.style.setProperty('--vv-left', `${Math.round(this.viewport.offsetLeft || 0)}px`);
             document.body.classList.toggle('keyboard-open', keyboardOpen);
             this.lastKeyboardOffset = offset;
             this.lastKeyboardData = { baseline, heightDelta, rawOffset, offset, keyboardOpen, dockGap, visualHeight };
             this.updateKeyboardDebug(this.lastKeyboardData);
+            this.onViewportChange?.({
+                width: Math.round(this.viewport.width || window.innerWidth),
+                height: Math.round(this.viewport.height || window.innerHeight),
+                offsetTop: Math.round(this.viewport.offsetTop || 0),
+                offsetLeft: Math.round(this.viewport.offsetLeft || 0),
+                keyboardOffset: Math.round(offset),
+                keyboardOpen
+            });
 
             // キーボード状態変化時にボトムナビも更新
             this.updateBottomNavVisibility();

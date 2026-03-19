@@ -25,7 +25,7 @@ export class MobileInputUIController {
         this.focusManager = managers.focusManager;
         this.draftManager = managers.draftManager;
         this.clipboardManager = managers.clipboardManager;
-        this.apiClient = managers.apiClient;
+        this.terminalInput = managers.terminalInput;
         this.sheetManager = managers.sheetManager;
         this.selectionMode = false;
         this.isOnline = true;
@@ -202,12 +202,40 @@ export class MobileInputUIController {
                 if (action === 'enter') {
                     this.sendEnterKey();
                     this.focusManager.refocusInput(inputEl);
+                } else if (inputEl === this.elements.dockInput && ['up', 'down', 'left', 'right'].includes(action)) {
+                    this.sendDockCursorKey(action);
+                    this.focusManager.refocusInput(inputEl);
                 } else {
                     this.moveCursor(inputEl, action);
                     this.focusManager.refocusInput(inputEl);
                 }
             });
         });
+    }
+
+    async sendDockCursorKey(action) {
+        const keyMap = {
+            up: 'Up',
+            down: 'Down',
+            left: 'Left',
+            right: 'Right'
+        };
+
+        const key = keyMap[action];
+        if (!key) return;
+
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) {
+            showInfo('セッションを選択してね');
+            return;
+        }
+
+        try {
+            await this.terminalInput.sendKey(sessionId, key);
+        } catch (error) {
+            console.error(`Failed to send ${key} key:`, error);
+            showError(`${key}キーの送信に失敗したよ`);
+        }
     }
 
     bindFormatButtons(container) {
@@ -397,7 +425,7 @@ export class MobileInputUIController {
         console.log('[mobile-input] Payload:', payload);
 
         try {
-            await this.apiClient.sendInput(sessionId, payload);
+            await this.terminalInput.sendInput(sessionId, payload);
 
             inputEl.value = '';
             this.autoResize(inputEl);
@@ -625,9 +653,12 @@ export class MobileInputUIController {
     }
 
     updateSendAvailability() {
-        const disabled = !this.isOnline || !appStore.getState().currentSessionId;
-        if (this.elements.dockSend) this.elements.dockSend.disabled = disabled;
-        if (this.elements.composerSend) this.elements.composerSend.disabled = disabled;
+        const sessionId = appStore.getState().currentSessionId;
+        const disabled = !this.isOnline || !sessionId;
+        const availability = this.terminalInput?.getAvailability?.(sessionId) || { canSend: !disabled };
+        const nextDisabled = disabled || !availability.canSend;
+        if (this.elements.dockSend) this.elements.dockSend.disabled = nextDisabled;
+        if (this.elements.composerSend) this.elements.composerSend.disabled = nextDisabled;
     }
 
     autoResize(inputEl) {
@@ -658,7 +689,7 @@ export class MobileInputUIController {
         }
 
         try {
-            await this.apiClient.sendKey(sessionId, 'Enter');
+            await this.terminalInput.sendKey(sessionId, 'Enter');
         } catch (error) {
             console.error('Failed to send Enter key:', error);
             showError('Enterキーの送信に失敗したよ');
@@ -686,7 +717,7 @@ export class MobileInputUIController {
         }
 
         try {
-            const content = await this.apiClient.fetchTerminalContent(sessionId);
+            const content = await this.terminalInput.fetchTerminalContent(sessionId);
 
             const copyTerminalModal = document.getElementById('copy-terminal-modal');
             const terminalContentDisplay = document.getElementById('terminal-content-display');
@@ -717,7 +748,7 @@ export class MobileInputUIController {
         }
 
         try {
-            await this.apiClient.sendKey(sessionId, 'C-l');
+            await this.terminalInput.sendKey(sessionId, 'C-l');
             showSuccess('画面クリア送信');
         } catch (error) {
             console.error('Failed to send Clear:', error);
@@ -735,7 +766,7 @@ export class MobileInputUIController {
         }
 
         try {
-            await this.apiClient.sendKey(sessionId, 'Escape');
+            await this.terminalInput.sendKey(sessionId, 'Escape');
             showSuccess('Escape送信');
         } catch (error) {
             console.error('Failed to send Escape:', error);
@@ -754,7 +785,7 @@ export class MobileInputUIController {
 
         try {
             // BTab (Backtab) の方がtmuxで確実に認識される
-            await this.apiClient.sendKey(sessionId, 'BTab');
+            await this.terminalInput.sendKey(sessionId, 'BTab');
             showSuccess('Shift+Tab送信');
         } catch (error) {
             console.error('Failed to send Shift+Tab:', error);
