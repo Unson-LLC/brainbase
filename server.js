@@ -257,9 +257,7 @@ await ensureDir(SCHEDULES_DIR);
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
-const googleCalendarService = new GoogleCalendarService({
-    tokenPath: path.join(VAR_DIR, 'google-calendar-token.json')
-});
+const googleCalendarService = new GoogleCalendarService();
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR, { googleCalendarService });
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);

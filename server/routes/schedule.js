@@ -10,9 +10,9 @@ export function createScheduleRouter(scheduleParser, googleCalendarService = nul
     const controller = new ScheduleController(scheduleParser, googleCalendarService);
 
     router.get('/google/auth-status', controller.getGoogleCalendarAuthStatus);
-    router.get('/google/start', controller.startGoogleCalendarAuth);
-    router.get('/google/callback', controller.googleCalendarCallback);
-    router.delete('/google/auth', controller.disconnectGoogleCalendar);
+    router.get('/google/start', controller.googleCalendarOAuthDeprecated);
+    router.get('/google/callback', controller.googleCalendarOAuthDeprecated);
+    router.delete('/google/auth', controller.googleCalendarOAuthDeprecated);
 
     // GET /api/schedule/today - 今日のスケジュールを取得
     router.get('/today', controller.getToday);
