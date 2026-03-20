@@ -3,6 +3,31 @@
     "chrome-devtools": {
       "command": "npx",
       "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "brainbase": {
+      "command": "npx",
+      "args": ["tsx", "mcp/brainbase/src/index.ts"],
+      "env": {
+        "BRAINBASE_ENTITY_SOURCE": "graphapi",
+        "BRAINBASE_GRAPH_API_URL": "https://graph.brain-base.work",
+        "BRAINBASE_WIKI_API_URL": "http://localhost:31013"
+      }
+    },
+    "nocodb": {
+      "command": "npx",
+      "args": ["tsx", "mcp/nocodb/src/index.ts"],
+      "env": {
+        "NOCODB_URL": "https://noco.unson.jp",
+        "NOCODB_TOKEN": "hWlU_pB7o4WZMNiIPwPaJKBVNiQ5K83dE4s4wvL3"
+      }
+    },
+    "jibble": {
+      "command": "npx",
+      "args": ["tsx", "mcp/jibble/src/index.ts"],
+      "env": {
+        "JIBBLE_CLIENT_ID": "b013484f-3d05-4fb7-aae5-f5f417a87ac4",
+        "JIBBLE_CLIENT_SECRET": "m9JpWnqrWOdOwYjtMl0IMZd57VJsH0O1FeAE-rAgdk7dtTvM"
+      }
     }
   }
 }

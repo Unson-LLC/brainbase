@@ -1,0 +1,41 @@
+{
+  "name": "@brainbase/nocodb-mcp-server",
+  "version": "1.0.0",
+  "description": "NocoDB MCP Server for Brainbase",
+  "type": "module",
+  "bin": {
+    "nocodb-mcp-server": "build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepare": "npm run build",
+    "test": "node --test --experimental-test-coverage tests/*.test.js",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "keywords": [
+    "nocodb",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "database",
+    "brainbase"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.6.0",
+    "axios": "^1.7.9",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "Keigo Sato",
+  "license": "MIT"
+}

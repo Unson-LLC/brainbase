@@ -35,6 +35,16 @@ echo ""
 echo "依存パッケージをインストール中..."
 npm install --silent
 echo "[OK] npm install 完了"
+
+# ────────────── MCP Server 依存インストール ──────────────
+echo "MCP Serverの依存パッケージをインストール中..."
+for mcp_dir in "$BRAINBASE_DIR"/mcp/*/; do
+    if [ -f "$mcp_dir/package.json" ]; then
+        (cd "$mcp_dir" && npm install --silent 2>/dev/null)
+        echo "  [OK] $(basename "$mcp_dir")"
+    fi
+done
+echo "[OK] MCP Server 依存インストール完了"
 echo ""
 
 # ────────────── 共通環境変数（全メンバー同じ値） ──────────────
