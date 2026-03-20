@@ -211,23 +211,39 @@
                 </div>
             </div>
 
-            <!-- Wiki Panel -->
-            <div class="main-panel" id="wiki-panel" style="display: none;"></div>
-
-            <!-- Live Feed Panel -->
+            <!-- Live Feed Panel (Phase 2で Inbox統合予定) -->
             <div class="main-panel" id="live-feed-panel" style="display: none;"></div>
 
-            <!-- Dashboard Panel (Phase 1) -->
+            <!-- File Viewer Panel -->
             <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
-            <div class="main-panel" id="dashboard-panel" data-slot="view:dashboard" style="display: none;">
+
+        </main>
+
+        <!-- Wiki Drawer (right slide-in, independent of main-content) -->
+        <aside class="wiki-drawer" id="wiki-drawer">
+            <div class="wiki-drawer-header">
+                <h3><i data-lucide="book-open"></i> Wiki</h3>
+                <button id="wiki-drawer-close" class="icon-btn" title="Wikiを閉じる" aria-label="Wikiドロワーを閉じる">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div id="wiki-panel" class="wiki-drawer-body"></div>
+        </aside>
+
+        <!-- Dashboard Overlay (fullscreen, independent of main-content) -->
+        <div class="dashboard-overlay" id="dashboard-overlay">
+            <div class="dashboard-overlay-header">
+                <h2><i data-lucide="layout-dashboard"></i> Dashboard</h2>
+                <button id="dashboard-overlay-close" class="icon-btn" title="Dashboardを閉じる" aria-label="Dashboardオーバーレイを閉じる">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div id="dashboard-panel" data-slot="view:dashboard">
                 <div class="dashboard-container">
                     <!-- Section 1: Critical Alerts -->
                     <section id="section-1-alerts" class="critical-alerts-section" aria-labelledby="section-1-heading"
                         role="region">
-                        <!-- Rendered by DashboardController.renderSection1() -->
                     </section>
-
-                    <!-- Section 1 (Old): Removed -->
 
                     <!-- Section 2: Strategic Overview -->
                     <section id="section-2-strategic" class="strategic-overview-section"
@@ -237,12 +253,10 @@
                                 Strategic Overview
                             </h2>
                         </div>
-                        <div id="strategic-content">
-                            <!-- Project priority ranking & bottlenecks will be injected via JS -->
-                        </div>
+                        <div id="strategic-content"></div>
                     </section>
 
-                    <!-- Section 4: Trend Analysis (Story 4: 構造的な問題を見抜く) -->
+                    <!-- Section 4: Trend Analysis -->
                     <section id="section-4-trends" class="trend-analysis-section" aria-labelledby="section-4-heading"
                         role="region" style="margin-top: 48px;">
                         <div class="section-header"
@@ -257,19 +271,16 @@
                             </p>
                         </div>
 
-                        <!-- 8-Week Health Heatmap (Story 4 AC: 過去4〜8週の循環状態推移が時系列で見える) -->
                         <div id="trends-heatmap-container" style="margin-bottom: 32px;">
                             <h4 style="color: var(--text-primary); font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
                                 <span>8週間の健全性推移</span>
                                 <span style="font-size: 12px; font-weight: 400; color: var(--text-secondary);">(循環状態ヒートマップ)</span>
                             </h4>
                             <div id="heatmap-table-container">
-                                <!-- 8-week heatmap table will be injected via JS -->
                                 <div class="heatmap-loading" style="text-align: center; padding: 40px; color: var(--text-secondary);">
                                     <div style="margin-bottom: 8px;">データ読み込み中...</div>
                                 </div>
                             </div>
-                            <!-- Heatmap Legend -->
                             <div class="heatmap-legend" style="display: flex; gap: 16px; justify-content: center; margin-top: 16px; font-size: 12px;">
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <div style="width: 16px; height: 16px; background: #22c55e; border-radius: 3px;"></div>
@@ -290,22 +301,17 @@
                             </div>
                         </div>
 
-                        <!-- Chronic Stagnation Alerts (Story 4 AC: 慢性的な止まり(2週以上継続)がアラート対象) -->
-                        <div id="chronic-alerts-container" style="margin-bottom: 32px;">
-                            <!-- Chronic stagnation alerts will be injected via JS -->
-                        </div>
+                        <div id="chronic-alerts-container" style="margin-bottom: 32px;"></div>
                     </section>
 
-                    <!-- Section 5: Mana Quality Dashboard (Week 7-8) -->
+                    <!-- Section 5: Mana Quality Dashboard -->
                     <section id="mana-quality" aria-label="Mana Quality Dashboard" role="region"
                         style="margin-top: 32px; margin-bottom: 40px;">
-                        <!-- Section 5 content injected via renderSection5() -->
                     </section>
 
                 </div>
             </div>
-
-        </main>
+        </div>
 
         <!-- Commit Tree Panel -->
         <div class="panel-resize-handle panel-resize-handle-commit-tree" id="commit-tree-resize-handle" title="ドラッグで幅を変更"></div>
@@ -334,6 +340,10 @@
 
         <!-- Right Sidebar (Context: Today's Page) -->
         <aside class="context-sidebar" id="context-sidebar">
+            <!-- Collapse Button -->
+            <button id="context-sidebar-collapse-btn" class="context-sidebar-collapse-btn" title="サイドバーを折りたたむ" aria-label="コンテキストサイドバーを折りたたむ">
+                <i data-lucide="panel-right-close"></i>
+            </button>
             <!-- Focus Task Section -->
             <div class="focus-section" id="focus-section">
                 <div id="focus-task"></div>
@@ -456,6 +466,10 @@
                 </div>
             </div>
         </aside>
+        <!-- Context Sidebar Expand Button (visible when collapsed) -->
+        <button id="context-sidebar-expand-btn" class="context-sidebar-expand-btn hidden" title="サイドバーを展開" aria-label="コンテキストサイドバーを展開">
+            <i data-lucide="panel-right-open"></i>
+        </button>
     </div>
 
     <footer class="app-footer">

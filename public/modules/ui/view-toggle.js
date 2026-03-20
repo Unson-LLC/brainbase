@@ -1,21 +1,21 @@
-export function renderViewToggle(container) {
+/**
+ * Panel toggle buttons (replaces old exclusive view toggle).
+ * Each button independently toggles a panel open/closed.
+ */
+export function renderPanelToggles(container) {
     if (!container) return () => {};
 
     container.innerHTML = `
         <div class="view-toggle">
-            <button class="toggle-option active" id="nav-console-btn" title="Console">
-                <i data-lucide="terminal-square"></i>
-            </button>
-            <button class="toggle-option" id="nav-wiki-btn" title="Wiki">
+            <button class="toggle-option" id="nav-wiki-btn" title="Wiki (Ctrl+Shift+W)">
                 <i data-lucide="book-open"></i>
             </button>
-            <button class="toggle-option" id="nav-live-feed-btn" title="Live Feed">
-                <i data-lucide="radio"></i>
+            <button class="toggle-option active" id="nav-sidebar-btn" title="サイドバー (Ctrl+Shift+B)">
+                <i data-lucide="panel-right"></i>
             </button>
-            <button class="toggle-option" id="nav-dashboard-btn" title="Dashboard" style="display: none;">
+            <button class="toggle-option" id="nav-dashboard-btn" title="Dashboard (Ctrl+Shift+D)" style="display: none;">
                 <i data-lucide="layout-dashboard"></i>
             </button>
-            <div class="toggle-bg-slider"></div>
         </div>
     `;
 
@@ -27,3 +27,6 @@ export function renderViewToggle(container) {
         container.innerHTML = '';
     };
 }
+
+// Backward compat alias
+export const renderViewToggle = renderPanelToggles;

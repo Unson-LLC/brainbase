@@ -8381,40 +8381,195 @@ body.resizing iframe {
     height: 18px;
 }
 
-/* Sliding Background Pill — uses JS-counted visible buttons */
+/* Panel toggle: each button has independent active state (no slider) */
 .toggle-bg-slider {
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    width: calc(33.333% - 3px);
-    height: calc(100% - 8px);
+    display: none;
+}
+
+.toggle-option.active {
     background: var(--primary-color);
+    color: var(--text-white);
     border-radius: 6px;
-    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-    z-index: 1;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Slider positions: Console=0, Wiki=1, Feed=2, Dashboard=3 */
-.view-toggle.wiki-active .toggle-bg-slider {
-    transform: translateX(100%);
-}
+/* =========================================
+   Panel Layout: Wiki Drawer, Dashboard Overlay, Sidebar Collapse
+   ========================================= */
 
-.view-toggle.live-feed-active .toggle-bg-slider {
-    transform: translateX(200%);
-}
-
-.view-toggle.dashboard-active .toggle-bg-slider {
-    transform: translateX(300%);
-}
-
-.toggle-bg-slider::after {
-    /* Optional: Add a subtle shine/gradient or inner border */
-    content: '';
+/* Wiki Drawer */
+.wiki-drawer {
     position: absolute;
+    top: 0;
+    right: 0;
+    width: 480px;
+    height: 100%;
+    background-color: rgba(30, 41, 59, 0.95);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.wiki-drawer.open {
+    transform: translateX(0);
+}
+
+.wiki-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.wiki-drawer-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wiki-drawer-header h3 i {
+    width: 16px;
+    height: 16px;
+}
+
+.wiki-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+/* Context Sidebar Collapse */
+.context-sidebar {
+    transition: width 0.2s ease, opacity 0.2s ease, min-width 0.2s ease;
+}
+
+.context-sidebar.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;
+    opacity: 0;
+    padding: 0;
+    border: none;
+}
+
+.context-sidebar-collapse-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-sidebar-collapse-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.context-sidebar-collapse-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.context-sidebar-expand-btn {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    z-index: 55;
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-sidebar-expand-btn:hover {
+    color: var(--text-primary);
+    background: rgba(30, 41, 59, 1);
+}
+
+.context-sidebar-expand-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.context-sidebar-expand-btn.hidden {
+    display: none;
+}
+
+/* Dashboard Overlay */
+.dashboard-overlay {
+    position: fixed;
     inset: 0;
-    border-radius: inherit;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 200;
+    background-color: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.dashboard-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.dashboard-overlay-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dashboard-overlay-header h2 i {
+    width: 20px;
+    height: 20px;
+}
+
+/* Panel toggle buttons - active state */
+.view-toggle .toggle-option.active {
+    color: var(--text-white);
+    background: var(--primary-color);
+    border-radius: 6px;
 }
 
 /* Phase 2: Heatmap & System Resources */

@@ -319,6 +319,9 @@ export const EVENTS = {
     NOTIFICATION_REQUEST: 'notification:request',
     NOTIFICATION_SEND: 'notification:send',
 
+    // Panel関連
+    PANEL_TOGGLED: 'panel:toggled',
+
     // Wiki関連
     WIKI_PAGES_LOADED: 'wiki:pages-loaded',
     WIKI_PAGE_SELECTED: 'wiki:page-selected',

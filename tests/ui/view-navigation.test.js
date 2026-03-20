@@ -5,10 +5,12 @@ describe('setupViewNavigation', () => {
     beforeEach(() => {
         document.body.innerHTML = `
             <div class="view-toggle"></div>
-            <button id="nav-console-btn">console</button>
             <button id="nav-dashboard-btn">dashboard</button>
             <div id="console-area" style="display:flex"></div>
-            <div id="dashboard-panel" style="display:none"></div>
+            <div id="file-viewer-panel" style="display:none"></div>
+            <div id="live-feed-panel" style="display:none"></div>
+            <aside class="wiki-drawer" id="wiki-drawer"></aside>
+            <div class="dashboard-overlay" id="dashboard-overlay"></div>
             <iframe id="terminal-frame"></iframe>
         `;
 
@@ -19,49 +21,50 @@ describe('setupViewNavigation', () => {
         });
     });
 
-    it('dashboardクリック時_ビュー表示とイベントが更新される', () => {
+    it('showDashboard呼び出し時_オーバーレイが表示される', () => {
         const onDashboardActivated = vi.fn();
         const resizeSpy = vi.spyOn(window, 'dispatchEvent');
 
-        setupViewNavigation({ onDashboardActivated });
+        const { showDashboard } = setupViewNavigation({ onDashboardActivated });
+        showDashboard();
 
-        document.getElementById('nav-dashboard-btn').click();
-
-        expect(document.getElementById('nav-dashboard-btn').classList.contains('active')).toBe(true);
-        expect(document.getElementById('nav-console-btn').classList.contains('active')).toBe(false);
-        expect(document.querySelector('.view-toggle').classList.contains('dashboard-active')).toBe(true);
-        expect(document.getElementById('console-area').style.display).toBe('none');
-        expect(document.getElementById('dashboard-panel').style.display).toBe('block');
+        expect(document.getElementById('dashboard-overlay').classList.contains('open')).toBe(true);
         expect(onDashboardActivated).toHaveBeenCalled();
         expect(resizeSpy).toHaveBeenCalled();
 
         resizeSpy.mockRestore();
     });
 
-    it('consoleクリック時_ターミナルにフォーカスされる', () => {
+    it('showConsole呼び出し時_ターミナルにフォーカスされconsoleが表示される', () => {
         const frame = document.getElementById('terminal-frame');
         const focusSpy = frame.contentWindow.focus;
 
-        setupViewNavigation();
+        const { showConsole } = setupViewNavigation();
+        showConsole();
 
-        document.getElementById('nav-console-btn').click();
-
-        expect(document.getElementById('nav-console-btn').classList.contains('active')).toBe(true);
-        expect(document.getElementById('nav-dashboard-btn').classList.contains('active')).toBe(false);
-        expect(document.querySelector('.view-toggle').classList.contains('dashboard-active')).toBe(false);
         expect(document.getElementById('console-area').style.display).toBe('flex');
-        expect(document.getElementById('dashboard-panel').style.display).toBe('none');
+        expect(document.getElementById('dashboard-overlay').classList.contains('open')).toBe(false);
         expect(focusSpy).toHaveBeenCalled();
     });
 
-    it('cleanup後_クリックしても切り替わらない', () => {
-        const { cleanup } = setupViewNavigation();
+    it('showWiki呼び出し時_wikiドロワーがトグルされる', () => {
+        const onWikiActivated = vi.fn();
+        const { showWiki } = setupViewNavigation({ onWikiActivated });
 
-        cleanup();
+        showWiki();
 
-        document.getElementById('nav-dashboard-btn').click();
+        expect(document.getElementById('wiki-drawer').classList.contains('open')).toBe(true);
+        expect(onWikiActivated).toHaveBeenCalled();
+    });
 
-        expect(document.querySelector('.view-toggle').classList.contains('dashboard-active')).toBe(false);
-        expect(document.getElementById('dashboard-panel').style.display).toBe('none');
+    it('showConsole呼び出し時_パネルとドロワーが閉じられる', () => {
+        const { showDashboard, showConsole } = setupViewNavigation();
+
+        showDashboard();
+        expect(document.getElementById('dashboard-overlay').classList.contains('open')).toBe(true);
+
+        showConsole();
+        expect(document.getElementById('dashboard-overlay').classList.contains('open')).toBe(false);
+        expect(document.getElementById('console-area').style.display).toBe('flex');
     });
 });

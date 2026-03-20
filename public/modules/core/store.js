@@ -212,6 +212,11 @@ export const appStore = new Store({
             composerOpen: false,
             selectionMode: false,
             online: true
+        },
+        panels: {
+            wikiOpen: false,
+            contextSidebarCollapsed: false,
+            dashboardOpen: false
         }
     },
     folderTree: {

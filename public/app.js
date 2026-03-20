@@ -54,7 +54,8 @@ import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
 import { setupSidebarPrimaryToggle } from './modules/ui/sidebar-primary-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
-import { renderViewToggle } from './modules/ui/view-toggle.js';
+import { renderViewToggle, renderPanelToggles } from './modules/ui/view-toggle.js';
+import { setupPanelLayout } from './modules/ui/panel-layout-manager.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
 import { MobileInputController } from './modules/ui/mobile-input-controller.js';
@@ -1963,9 +1964,43 @@ export class App {
             slots: {
                 'nav:view-toggle': {
                     mount: ({ container }) => {
-                        const cleanupToggle = renderViewToggle(container);
+                        const cleanupToggle = renderPanelToggles(container);
+
+                        // Setup panel layout manager
+                        const panelLayout = setupPanelLayout({ store: appStore, eventBus });
+                        this._panelLayout = panelLayout;
+
+                        // Wire toggle buttons to panel layout
+                        const wikiBtn = document.getElementById('nav-wiki-btn');
+                        const sidebarBtn = document.getElementById('nav-sidebar-btn');
+                        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+
+                        if (wikiBtn) wikiBtn.addEventListener('click', panelLayout.toggleWiki);
+                        if (sidebarBtn) sidebarBtn.addEventListener('click', panelLayout.toggleContextSidebar);
+                        if (dashboardBtn) dashboardBtn.addEventListener('click', panelLayout.toggleDashboard);
+
+                        // Wire close buttons inside drawer/overlay
+                        const wikiCloseBtn = document.getElementById('wiki-drawer-close');
+                        const dashCloseBtn = document.getElementById('dashboard-overlay-close');
+                        if (wikiCloseBtn) wikiCloseBtn.addEventListener('click', panelLayout.toggleWiki);
+                        if (dashCloseBtn) dashCloseBtn.addEventListener('click', panelLayout.toggleDashboard);
+
+                        // Wire context sidebar collapse/expand buttons
+                        const collapseBtn = document.getElementById('context-sidebar-collapse-btn');
+                        const expandBtn = document.getElementById('context-sidebar-expand-btn');
+                        if (collapseBtn) collapseBtn.addEventListener('click', panelLayout.toggleContextSidebar);
+                        if (expandBtn) expandBtn.addEventListener('click', panelLayout.toggleContextSidebar);
+
                         return () => {
                             cleanupToggle?.();
+                            panelLayout.cleanup();
+                            if (wikiBtn) wikiBtn.removeEventListener('click', panelLayout.toggleWiki);
+                            if (sidebarBtn) sidebarBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
+                            if (dashboardBtn) dashboardBtn.removeEventListener('click', panelLayout.toggleDashboard);
+                            if (wikiCloseBtn) wikiCloseBtn.removeEventListener('click', panelLayout.toggleWiki);
+                            if (dashCloseBtn) dashCloseBtn.removeEventListener('click', panelLayout.toggleDashboard);
+                            if (collapseBtn) collapseBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
+                            if (expandBtn) expandBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
                         };
                     }
                 },
@@ -1981,6 +2016,7 @@ export class App {
                             mobileDashboardBtn.style.display = '';
                         }
 
+                        // Setup backward-compatible navigation helpers
                         const { cleanup, showConsole, showDashboard, showFileViewer, showWiki } = setupViewNavigation({
                             onDashboardActivated: () => {
                                 this.dashboardController?.init();
@@ -1990,9 +2026,15 @@ export class App {
                             }
                         });
                         this.showConsole = showConsole;
-                        this.showDashboard = showDashboard;
+                        this.showDashboard = () => {
+                            this._panelLayout?.toggleDashboard();
+                            this.dashboardController?.init();
+                        };
                         this.showFileViewer = showFileViewer;
-                        this.showWiki = showWiki;
+                        this.showWiki = () => {
+                            this._panelLayout?.toggleWiki();
+                            this.wikiService?.loadPages();
+                        };
 
                         // Wire file viewer events to panel switching
                         const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, () => {
@@ -2003,6 +2045,17 @@ export class App {
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();
+
+                        // Wire dashboard init on panel toggle
+                        const unsubPanelToggle = eventBus.on(EVENTS.PANEL_TOGGLED, (e) => {
+                            if (e.detail?.panel === 'dashboard' && e.detail?.open) {
+                                this.dashboardController?.init();
+                            }
+                            if (e.detail?.panel === 'wiki' && e.detail?.open) {
+                                this.wikiService?.loadPages();
+                            }
+                        });
+                        this.unsubscribers.push(unsubPanelToggle);
 
                         return () => {
                             cleanup?.();
@@ -2019,7 +2072,6 @@ export class App {
                                 this.dashboardController.destroy();
                             }
                             this.dashboardController = null;
-                            container.style.display = 'none';
                         };
                     }
                 }
