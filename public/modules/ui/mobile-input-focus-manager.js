@@ -84,9 +84,9 @@ export class MobileInputFocusManager {
     }
 
     updateTerminalReserve(viewportHeight, viewportTop = 0) {
-        const visualHeight = viewportHeight || this.viewport?.height || window.innerHeight;
-        const visualTop = viewportTop || this.viewport?.offsetTop || 0;
-        const visualBottom = visualTop + visualHeight;
+        const stageRect = document.getElementById('terminal-stage')?.getBoundingClientRect();
+        const consoleRect = document.querySelector('.console-area')?.getBoundingClientRect();
+        const containerBottom = stageRect?.bottom || consoleRect?.bottom || ((viewportTop || this.viewport?.offsetTop || 0) + (viewportHeight || this.viewport?.height || window.innerHeight));
         const overlays = [
             this.elements.dock,
             document.getElementById('mobile-bottom-nav')
@@ -98,7 +98,7 @@ export class MobileInputFocusManager {
             .filter((rect) => rect.height > 0);
 
         const reserve = visibleRects.length > 0
-            ? Math.max(0, Math.round(visualBottom - Math.min(...visibleRects.map((rect) => rect.top))))
+            ? Math.max(0, Math.round(containerBottom - Math.min(...visibleRects.map((rect) => rect.top))))
             : 0;
 
         document.body.style.setProperty('--mobile-terminal-reserve', `${reserve}px`);
