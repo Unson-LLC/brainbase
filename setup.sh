@@ -79,6 +79,21 @@ else
 fi
 echo ""
 
+# Create .env from .env.example if it doesn't exist
+if [ ! -f "$REPO_ROOT/.env" ]; then
+    echo "📝 Creating .env from .env.example..."
+    if [ -f "$REPO_ROOT/.env.example" ]; then
+        cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env"
+        echo "   ✅ .env created"
+        echo "   ⚠️  Edit .env with your credentials for authentication (optional)"
+    else
+        echo "   ⚠️  .env.example not found, skipping .env creation"
+    fi
+else
+    echo "📝 .env already exists, skipping"
+fi
+echo ""
+
 # Ensure local data/runtime dirs exist
 mkdir -p "$DATA_DIR" "$VAR_DIR"
 
