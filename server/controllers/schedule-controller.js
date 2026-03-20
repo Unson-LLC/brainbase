@@ -118,7 +118,16 @@ export class ScheduleController {
     getGoogleCalendarAuthStatus = async (req, res, next) => {
         try {
             if (!this.googleCalendarService) {
-                return res.json({ configured: false, connected: false, calendarIds: [] });
+                return res.json({
+                    provider: 'gog',
+                    configured: false,
+                    installed: false,
+                    connected: false,
+                    defaultAccount: null,
+                    calendarIds: [],
+                    reason: 'missing_service',
+                    setupCommands: []
+                });
             }
             const status = await this.googleCalendarService.getAuthStatus();
             return res.json(status);
@@ -127,43 +136,10 @@ export class ScheduleController {
         }
     };
 
-    startGoogleCalendarAuth = async (req, res, next) => {
-        try {
-            if (!this.googleCalendarService?.isConfigured()) {
-                throw AppError.internal('Google Calendar OAuth is not configured');
-            }
-            const origin = typeof req.query.origin === 'string' ? req.query.origin : '';
-            return res.redirect(this.googleCalendarService.buildAuthorizeUrl(origin));
-        } catch (error) {
-            next(AppError.isAppError(error) ? error : AppError.internal('Failed to start Google Calendar auth', error));
-        }
-    };
-
-    googleCalendarCallback = async (req, res) => {
-        const code = typeof req.query.code === 'string' ? req.query.code : '';
-        const state = typeof req.query.state === 'string' ? req.query.state : '';
-
-        if (!code || !state || !this.googleCalendarService) {
-            return res.status(400).type('html').send(this.googleCalendarService?.renderCallbackError('Missing code or state') || 'Invalid callback');
-        }
-
-        try {
-            const result = await this.googleCalendarService.handleOAuthCallback(code, state);
-            return res.status(200).type('html').send(this.googleCalendarService.renderCallbackSuccess(result.origin));
-        } catch (error) {
-            return res.status(400).type('html').send(this.googleCalendarService.renderCallbackError(error));
-        }
-    };
-
-    disconnectGoogleCalendar = async (req, res, next) => {
-        try {
-            if (!this.googleCalendarService) {
-                return res.json({ success: true });
-            }
-            await this.googleCalendarService.disconnect();
-            return res.json({ success: true });
-        } catch (error) {
-            next(AppError.internal('Failed to disconnect Google Calendar', error));
-        }
+    googleCalendarOAuthDeprecated = async (_req, res) => {
+        return res.status(410).json({
+            error: 'Google Calendar OAuth flow has been removed. Configure gog locally instead.',
+            provider: 'gog'
+        });
     };
 }

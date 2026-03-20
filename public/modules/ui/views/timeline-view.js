@@ -12,7 +12,7 @@ export class TimelineView {
         this._unsubscribers = [];
         this.googleCalendarAuthStatus = null;
         this._googleCalendarBusy = false;
-        this._googleCalendarPopup = null;
+        this._showGoogleCalendarDiagnostics = false;
 
         // モーダルコールバック
         this.onAddRequest = null;      // 追加モーダルを開く
@@ -22,8 +22,7 @@ export class TimelineView {
         this._handleClick = this._handleClick.bind(this);
         this._handleDoubleClick = this._handleDoubleClick.bind(this);
         this._handleGoogleCalendarButtonClick = this._handleGoogleCalendarButtonClick.bind(this);
-        this._handleGoogleCalendarDisconnect = this._handleGoogleCalendarDisconnect.bind(this);
-        this._handleGoogleCalendarMessage = this._handleGoogleCalendarMessage.bind(this);
+        this._handleGoogleCalendarDiagnosticsClick = this._handleGoogleCalendarDiagnosticsClick.bind(this);
     }
 
     /**
@@ -74,12 +73,10 @@ export class TimelineView {
             googleBtn.addEventListener('click', this._handleGoogleCalendarButtonClick);
         }
 
-        const disconnectBtn = document.getElementById('google-calendar-disconnect-btn');
-        if (disconnectBtn) {
-            disconnectBtn.addEventListener('click', this._handleGoogleCalendarDisconnect);
+        const diagnostics = document.getElementById('google-calendar-diagnostics');
+        if (diagnostics) {
+            diagnostics.addEventListener('click', this._handleGoogleCalendarDiagnosticsClick);
         }
-
-        window.addEventListener('message', this._handleGoogleCalendarMessage);
     }
 
     /**
@@ -148,6 +145,7 @@ export class TimelineView {
         const currentTime = this._getCurrentTimeStr();
 
         this.container.innerHTML = this._formatTimelineHTML(events, currentTime);
+        this._renderGoogleCalendarControls();
     }
 
     /**
@@ -273,32 +271,48 @@ export class TimelineView {
             this.googleCalendarAuthStatus = await this.scheduleService.getGoogleCalendarAuthStatus({ force });
         } catch (error) {
             console.warn('Failed to get Google Calendar auth status:', error);
-            this.googleCalendarAuthStatus = { configured: false, connected: false };
+            this.googleCalendarAuthStatus = {
+                provider: 'gog',
+                configured: true,
+                installed: false,
+                connected: false,
+                defaultAccount: null,
+                calendarIds: [],
+                reason: 'auth_failed',
+                setupCommands: []
+            };
         }
-        this._renderGoogleCalendarButton();
+        this._renderGoogleCalendarControls();
     }
 
-    _renderGoogleCalendarButton() {
+    _renderGoogleCalendarControls() {
         const googleBtn = document.getElementById('google-calendar-connect-btn');
-        const disconnectBtn = document.getElementById('google-calendar-disconnect-btn');
+        const diagnostics = document.getElementById('google-calendar-diagnostics');
         if (!googleBtn) return;
 
-        const status = this.googleCalendarAuthStatus || { configured: false, connected: false };
-        const configured = Boolean(status.configured);
+        const status = this.googleCalendarAuthStatus || {
+            provider: 'gog',
+            configured: true,
+            installed: false,
+            connected: false,
+            calendarIds: [],
+            reason: 'unknown',
+            setupCommands: []
+        };
         const connected = Boolean(status.connected);
 
-        googleBtn.hidden = !configured;
-        googleBtn.disabled = !configured || this._googleCalendarBusy;
+        googleBtn.hidden = false;
+        googleBtn.disabled = this._googleCalendarBusy;
         googleBtn.classList.toggle('is-connected', connected);
-        googleBtn.title = connected ? 'Google Calendar 連携済み。クリックで再同期' : 'Google Calendar を連携';
-        googleBtn.setAttribute('aria-label', connected ? 'Google Calendar を再同期' : 'Google Calendar を連携');
-        googleBtn.innerHTML = connected
-            ? '<i data-lucide="refresh-cw"></i>'
-            : '<i data-lucide="calendar"></i>';
+        googleBtn.title = connected ? 'Google Calendar 診断を表示' : 'Google Calendar 設定を表示';
+        googleBtn.setAttribute('aria-label', connected ? 'Google Calendar 診断を表示' : 'Google Calendar 設定を表示');
+        googleBtn.innerHTML = '<i data-lucide="calendar"></i>';
 
-        if (disconnectBtn) {
-            disconnectBtn.hidden = !configured || !connected;
-            disconnectBtn.disabled = this._googleCalendarBusy;
+        if (diagnostics) {
+            diagnostics.hidden = !this._showGoogleCalendarDiagnostics;
+            diagnostics.innerHTML = this._showGoogleCalendarDiagnostics
+                ? this._formatGoogleCalendarDiagnosticsHTML(status)
+                : '';
         }
 
         if (window.lucide) {
@@ -308,56 +322,72 @@ export class TimelineView {
 
     async _handleGoogleCalendarButtonClick(e) {
         e.preventDefault();
-        const status = this.googleCalendarAuthStatus || await this.scheduleService.getGoogleCalendarAuthStatus();
-        if (!status?.configured) return;
-
-        if (status.connected) {
-            this._googleCalendarBusy = true;
-            this._renderGoogleCalendarButton();
-            try {
-                await this.scheduleService.loadSchedule();
-                await this._refreshGoogleCalendarAuthStatus(true);
-            } finally {
-                this._googleCalendarBusy = false;
-                this._renderGoogleCalendarButton();
-            }
-            return;
+        if (!this.googleCalendarAuthStatus) {
+            await this._refreshGoogleCalendarAuthStatus(true);
         }
-
-        const url = this.scheduleService.buildGoogleCalendarAuthUrl(window.location.origin);
-        this._googleCalendarPopup = window.open(url, 'brainbase-google-calendar-auth', 'popup,width=540,height=720');
+        this._showGoogleCalendarDiagnostics = !this._showGoogleCalendarDiagnostics;
+        this._renderGoogleCalendarControls();
     }
 
-    async _handleGoogleCalendarDisconnect(e) {
+    async _handleGoogleCalendarDiagnosticsClick(e) {
+        const refreshBtn = e.target.closest('#google-calendar-refresh-btn');
+        if (!refreshBtn) return;
+
         e.preventDefault();
         this._googleCalendarBusy = true;
-        this._renderGoogleCalendarButton();
+        this._renderGoogleCalendarControls();
         try {
-            await this.scheduleService.disconnectGoogleCalendar();
             await this._refreshGoogleCalendarAuthStatus(true);
+            if (this.googleCalendarAuthStatus?.connected) {
+                await this.scheduleService.loadSchedule();
+            }
         } catch (error) {
-            console.error('Failed to disconnect Google Calendar:', error);
+            console.error('Failed to refresh Google Calendar diagnostics:', error);
         } finally {
             this._googleCalendarBusy = false;
-            this._renderGoogleCalendarButton();
+            await this._refreshGoogleCalendarAuthStatus(true);
         }
     }
 
-    async _handleGoogleCalendarMessage(event) {
-        const data = event?.data;
-        if (!data || data.type !== 'brainbase-google-calendar-auth') return;
+    _formatGoogleCalendarDiagnosticsHTML(status) {
+        const accountLine = status.connected && status.defaultAccount
+            ? `<div class="timeline-google-diagnostics-row"><strong>接続中:</strong> ${escapeHtml(status.defaultAccount)}</div>`
+            : '';
+        const calendarsLine = Array.isArray(status.calendarIds) && status.calendarIds.length > 0
+            ? `<div class="timeline-google-diagnostics-row"><strong>Calendar:</strong> ${escapeHtml(status.calendarIds.join(', '))}</div>`
+            : '';
+        const commandList = Array.isArray(status.setupCommands) && status.setupCommands.length > 0
+            ? `
+                <div class="timeline-google-diagnostics-commands">
+                    ${status.setupCommands.map(command => `<code>${escapeHtml(command)}</code>`).join('')}
+                </div>
+            `
+            : '';
 
-        if (data.success) {
-            this._googleCalendarBusy = true;
-            this._renderGoogleCalendarButton();
-            try {
-                await this.scheduleService.loadSchedule();
-                await this._refreshGoogleCalendarAuthStatus(true);
-            } finally {
-                this._googleCalendarBusy = false;
-                this._renderGoogleCalendarButton();
-            }
-        }
+        const messageMap = {
+            ready: 'gog の default account で Google Calendar を読み込んでる。',
+            missing_binary: 'gog が見つからない。まず CLI を入れて。',
+            no_credentials: 'gog の OAuth credentials が未設定。',
+            no_default_account: 'gog の default account が未設定。',
+            auth_failed: 'gog の認証確認に失敗した。設定を見直して。',
+            unknown: 'Google Calendar の状態を確認してね。'
+        };
+        const message = messageMap[status.reason] || messageMap.unknown;
+
+        return `
+            <div class="timeline-google-diagnostics-card ${status.connected ? 'is-ready' : 'is-warning'}">
+                <div class="timeline-google-diagnostics-header">
+                    <span class="timeline-google-diagnostics-title">Google Calendar 診断</span>
+                    <button id="google-calendar-refresh-btn" class="icon-btn" title="再診断" aria-label="Google Calendar を再診断">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                </div>
+                <div class="timeline-google-diagnostics-message">${escapeHtml(message)}</div>
+                ${accountLine}
+                ${calendarsLine}
+                ${!status.connected ? commandList : ''}
+            </div>
+        `;
     }
 
     /**
@@ -381,11 +411,9 @@ export class TimelineView {
             googleBtn.removeEventListener('click', this._handleGoogleCalendarButtonClick);
         }
 
-        const disconnectBtn = document.getElementById('google-calendar-disconnect-btn');
-        if (disconnectBtn) {
-            disconnectBtn.removeEventListener('click', this._handleGoogleCalendarDisconnect);
+        const diagnostics = document.getElementById('google-calendar-diagnostics');
+        if (diagnostics) {
+            diagnostics.removeEventListener('click', this._handleGoogleCalendarDiagnosticsClick);
         }
-
-        window.removeEventListener('message', this._handleGoogleCalendarMessage);
     }
 }
