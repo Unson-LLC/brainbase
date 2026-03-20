@@ -45,6 +45,17 @@ for mcp_dir in "$BRAINBASE_DIR"/mcp/*/; do
     fi
 done
 echo "[OK] MCP Server 依存インストール完了"
+
+# ────────────── CLIツール（gogcli） ──────────────
+if command -v gog &> /dev/null; then
+    echo "[OK] gogcli インストール済み ($(gog --version 2>&1 | head -1))"
+elif command -v brew &> /dev/null; then
+    echo "gogcli をインストール中..."
+    brew install gogcli --quiet
+    echo "[OK] gogcli インストール完了"
+else
+    echo "[!] gogcli 未インストール（brew install gogcli で手動インストールしてください）"
+fi
 echo ""
 
 # ────────────── 共通環境変数（全メンバー同じ値） ──────────────

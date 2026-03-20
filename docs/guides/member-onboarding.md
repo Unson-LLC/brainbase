@@ -1,7 +1,7 @@
 # メンバーオンボーディングガイド
 
 **対象**: brainbase-unsonを新たに利用するUnsonメンバー
-**更新日**: 2026-03-19
+**更新日**: 2026-03-20
 
 ---
 
@@ -33,9 +33,20 @@ npm run setup
 
 これだけで以下が全自動で実行される：
 - `npm install`（依存パッケージ）
+- MCP Server依存インストール（brainbase / nocodb / jibble）
+- `gogcli` インストール（Google Suite CLI、Homebrew経由）
 - `.env` 生成（認証情報・DB接続含む）
 - macOS: launchd plist生成 + サーバー自動起動
 - ヘルスチェック
+
+### セットアップ後に使えるツール
+
+| ツール | 用途 | 確認コマンド |
+|--------|------|-------------|
+| brainbase MCP | プロジェクト・人物・組織情報の取得 | Claude Codeで自動読み込み |
+| nocodb MCP | タスク・スプリント・マイルストーン管理 | Claude Codeで自動読み込み |
+| jibble MCP | 勤怠・工数管理 | Claude Codeで自動読み込み |
+| gogcli | Google Suite CLI（Gmail/Calendar/Drive等） | `gog --version` |
 
 ### 2. 認証（Slackログイン）
 
