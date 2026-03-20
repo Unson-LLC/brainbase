@@ -9735,7 +9735,6 @@ flex-wrap: wrap;
     color: var(--text-primary);
 }
 
-<<<<<<< HEAD
 /* ========================================
    Session Progress Modal
    ======================================== */
@@ -10047,6 +10046,11 @@ flex-wrap: wrap;
 #wiki-panel {
     height: 100%;
     overflow: hidden;
+    padding: 0;
+}
+
+#live-feed-panel {
+    padding: 0;
 }
 
 .wiki-layout {

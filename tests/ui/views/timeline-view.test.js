@@ -12,9 +12,16 @@ vi.mock('../../../public/modules/domain/schedule/schedule-service.js', () => {
                 this.loadSchedule = vi.fn();
                 this.getTimeline = vi.fn(() => []);
                 this.getEvents = vi.fn(() => []);
-                this.getGoogleCalendarAuthStatus = vi.fn().mockResolvedValue({ configured: false, connected: false });
-                this.buildGoogleCalendarAuthUrl = vi.fn(() => '/api/schedule/google/start?origin=http%3A%2F%2Flocalhost');
-                this.disconnectGoogleCalendar = vi.fn();
+                this.getGoogleCalendarAuthStatus = vi.fn().mockResolvedValue({
+                    provider: 'gog',
+                    configured: true,
+                    installed: false,
+                    connected: false,
+                    defaultAccount: null,
+                    calendarIds: ['primary'],
+                    reason: 'missing_binary',
+                    setupCommands: ['brew install steipete/tap/gogcli']
+                });
             }
         }
     };
@@ -29,7 +36,7 @@ describe('TimelineView', () => {
         // DOM準備
         document.body.innerHTML = `
             <button id="google-calendar-connect-btn"></button>
-            <button id="google-calendar-disconnect-btn" hidden></button>
+            <div id="google-calendar-diagnostics" hidden></div>
             <button id="add-schedule-btn"></button>
             <div id="test-container"></div>
         `;
@@ -181,27 +188,44 @@ describe('TimelineView', () => {
             timelineView.mount(container);
         });
 
-        it('should show connect button when google calendar is configured', async () => {
+        it('should show diagnostics when google calendar is not ready', async () => {
             mockScheduleService.getGoogleCalendarAuthStatus.mockResolvedValue({
+                provider: 'gog',
                 configured: true,
-                connected: false
+                installed: false,
+                connected: false,
+                defaultAccount: null,
+                calendarIds: ['primary'],
+                reason: 'missing_binary',
+                setupCommands: ['brew install steipete/tap/gogcli']
             });
 
             await timelineView._refreshGoogleCalendarAuthStatus(true);
+            await timelineView._handleGoogleCalendarButtonClick({ preventDefault() {} });
 
-            const button = document.getElementById('google-calendar-connect-btn');
-            expect(button.hidden).toBe(false);
-            expect(button.title).toContain('Google Calendar');
+            const diagnostics = document.getElementById('google-calendar-diagnostics');
+            expect(diagnostics.hidden).toBe(false);
+            expect(diagnostics.textContent).toContain('gog が見つからない');
+            expect(diagnostics.textContent).toContain('brew install steipete/tap/gogcli');
         });
 
-        it('should handle auth success message by reloading schedule', async () => {
+        it('should refresh schedule when diagnostics refresh succeeds', async () => {
             mockScheduleService.getGoogleCalendarAuthStatus.mockResolvedValue({
+                provider: 'gog',
                 configured: true,
-                connected: true
+                installed: true,
+                connected: true,
+                defaultAccount: 'gyaru@example.com',
+                calendarIds: ['primary'],
+                reason: 'ready',
+                setupCommands: []
             });
 
-            await timelineView._handleGoogleCalendarMessage({
-                data: { type: 'brainbase-google-calendar-auth', success: true }
+            await timelineView._refreshGoogleCalendarAuthStatus(true);
+            await timelineView._handleGoogleCalendarButtonClick({ preventDefault() {} });
+            await timelineView._handleGoogleCalendarDiagnosticsClick({
+                preventDefault() {},
+                target: document.getElementById('google-calendar-diagnostics').querySelector('#google-calendar-refresh-btn')
             });
 
             expect(mockScheduleService.loadSchedule).toHaveBeenCalled();
