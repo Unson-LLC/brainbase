@@ -125,14 +125,20 @@ export function getCORE_PROJECTS() {
 /**
  * セッション作成UIで選択可能なプロジェクト一覧を取得
  * archived: true と session_select: false を除外
+ * メンバーのprojectCodesでフィルター（空配列=制限なし＝admin/CEO）
+ * @param {string[]|null} projectCodes - ログインユーザーのprojectCodes
  * @returns {string[]} プロジェクトID配列
  */
-export function getSessionSelectableProjects() {
+export function getSessionSelectableProjects(projectCodes = null) {
     const projects = getCORE_PROJECTS();
+    let filtered = projects;
     if (PROJECT_CONFIG_CACHE) {
-        return projects.filter((id) => PROJECT_CONFIG_CACHE[id]?.session_select !== false);
+        filtered = filtered.filter((id) => PROJECT_CONFIG_CACHE[id]?.session_select !== false);
     }
-    return projects;
+    if (projectCodes && projectCodes.length > 0) {
+        filtered = filtered.filter((id) => projectCodes.includes(id));
+    }
+    return filtered;
 }
 
 // 後方互換性のため

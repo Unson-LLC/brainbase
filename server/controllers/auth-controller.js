@@ -237,7 +237,8 @@ export class AuthController {
                     slackUserId: user.slack_user_id,
                     workspaceId: user.workspace_id,
                     name: user.name,
-                    role: user.role
+                    role: user.role,
+                    projectCodes: user.project_codes || []
                 }
             };
 

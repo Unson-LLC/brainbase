@@ -2234,7 +2234,7 @@ export class App {
         try {
             const { getSessionSelectableProjects, projectMappingReady } = await import('./modules/project-mapping.js');
             await projectMappingReady;
-            const projects = getSessionSelectableProjects();
+            const projects = getSessionSelectableProjects(this.authManager?.access?.projectCodes);
             console.log('[App] Initializing project select with projects:', projects);
 
             // Clear existing options
