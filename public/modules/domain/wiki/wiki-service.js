@@ -1,33 +1,40 @@
 /**
- * Wiki Service
- * Placeholder implementation for Wiki functionality
+ * Wiki Service (Client)
+ * サーバーの /api/wiki エンドポイントに接続
  */
 
 export class WikiService {
-  constructor() {
-    this.pages = [];
-  }
+    constructor() {
+        this._baseUrl = '/api/wiki';
+    }
 
-  async getPages() {
-    return this.pages;
-  }
+    async getPages() {
+        const res = await fetch(`${this._baseUrl}/pages`);
+        if (!res.ok) return [];
+        return res.json();
+    }
 
-  async getPage(id) {
-    return null;
-  }
+    async getPage(path) {
+        const res = await fetch(`${this._baseUrl}/page?path=${encodeURIComponent(path)}`);
+        if (!res.ok) return null;
+        return res.json();
+    }
 
-  async createPage(data) {
-    // Placeholder
-    return { id: Date.now(), ...data };
-  }
+    async savePage(path, content) {
+        const res = await fetch(`${this._baseUrl}/page`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, content })
+        });
+        if (!res.ok) return null;
+        return res.json();
+    }
 
-  async updatePage(id, data) {
-    // Placeholder
-    return { id, ...data };
-  }
-
-  async deletePage(id) {
-    // Placeholder
-    return true;
-  }
+    async deletePage(path) {
+        const res = await fetch(`${this._baseUrl}/page?path=${encodeURIComponent(path)}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) return null;
+        return res.json();
+    }
 }
