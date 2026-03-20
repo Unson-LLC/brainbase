@@ -216,26 +216,25 @@
 
         </main>
 
-        <!-- Wiki Drawer (right slide-in, independent of main-content) -->
-        <aside class="wiki-drawer" id="wiki-drawer">
-            <div class="wiki-drawer-header">
-                <h3><i data-lucide="book-open"></i> Wiki</h3>
-                <button id="wiki-drawer-close" class="icon-btn" title="Wikiを閉じる" aria-label="Wikiドロワーを閉じる">
+        <!-- Info Drawer (right slide-in, Wiki + LiveFeed tabs) -->
+        <aside class="info-drawer" id="info-drawer">
+            <div class="info-drawer-header">
+                <div class="info-drawer-tabs">
+                    <button class="info-drawer-tab active" data-tab="wiki">
+                        <i data-lucide="book-open"></i> Wiki
+                    </button>
+                    <button class="info-drawer-tab" data-tab="live-feed">
+                        <i data-lucide="radio"></i> Live Feed
+                    </button>
+                </div>
+                <button id="info-drawer-close" class="icon-btn" title="閉じる" aria-label="Infoドロワーを閉じる">
                     <i data-lucide="x"></i>
                 </button>
             </div>
-            <div id="wiki-panel" class="wiki-drawer-body"></div>
-        </aside>
-
-        <!-- Live Feed Drawer (right slide-in, same pattern as Wiki) -->
-        <aside class="live-feed-drawer" id="live-feed-drawer">
-            <div class="live-feed-drawer-header">
-                <h3><i data-lucide="radio"></i> Live Feed</h3>
-                <button id="live-feed-drawer-close" class="icon-btn" title="Live Feedを閉じる" aria-label="Live Feedドロワーを閉じる">
-                    <i data-lucide="x"></i>
-                </button>
+            <div class="info-drawer-body">
+                <div id="wiki-panel" class="info-tab-content active" data-tab="wiki"></div>
+                <div id="live-feed-panel" class="info-tab-content" data-tab="live-feed"></div>
             </div>
-            <div id="live-feed-panel" class="live-feed-drawer-body"></div>
         </aside>
 
         <!-- Dashboard Overlay (fullscreen, independent of main-content) -->

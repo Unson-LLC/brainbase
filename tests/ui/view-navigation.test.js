@@ -9,7 +9,16 @@ describe('setupViewNavigation', () => {
             <div id="console-area" style="display:flex"></div>
             <div id="file-viewer-panel" style="display:none"></div>
             <div id="live-feed-panel" style="display:none"></div>
-            <aside class="wiki-drawer" id="wiki-drawer"></aside>
+            <aside class="info-drawer" id="info-drawer">
+                <div class="info-drawer-tabs">
+                    <button class="info-drawer-tab active" data-tab="wiki">Wiki</button>
+                    <button class="info-drawer-tab" data-tab="live-feed">Live Feed</button>
+                </div>
+                <div class="info-drawer-body">
+                    <div id="wiki-panel" class="info-tab-content active" data-tab="wiki"></div>
+                    <div id="live-feed-panel" class="info-tab-content" data-tab="live-feed"></div>
+                </div>
+            </aside>
             <div class="dashboard-overlay" id="dashboard-overlay"></div>
             <iframe id="terminal-frame"></iframe>
         `;
@@ -53,7 +62,7 @@ describe('setupViewNavigation', () => {
 
         showWiki();
 
-        expect(document.getElementById('wiki-drawer').classList.contains('open')).toBe(true);
+        expect(document.getElementById('info-drawer').classList.contains('open')).toBe(true);
         expect(onWikiActivated).toHaveBeenCalled();
     });
 

@@ -214,8 +214,8 @@ export const appStore = new Store({
             online: true
         },
         panels: {
-            wikiOpen: false,
-            liveFeedOpen: false,
+            infoDrawerOpen: false,
+            infoDrawerTab: 'wiki',
             contextSidebarCollapsed: false,
             dashboardOpen: false
         }

@@ -1,7 +1,6 @@
 /**
  * Backward-compatible wrapper for view navigation.
  * Delegates to panel-layout-manager internally.
- * Existing callers (app.js bb-dashboard plugin) continue to work.
  */
 export function setupViewNavigation({
     root = document,
@@ -13,24 +12,15 @@ export function setupViewNavigation({
 
     const consoleArea = getById('console-area');
     const fileViewerPanel = getById('file-viewer-panel');
-    const liveFeedPanel = getById('live-feed-panel');
 
-    // Ensure console is always visible
     if (consoleArea) consoleArea.style.display = 'flex';
 
     const hideAllPanels = () => {
-        // Close wiki drawer
-        const wikiDrawer = getById('wiki-drawer');
-        if (wikiDrawer) wikiDrawer.classList.remove('open');
-        // Close live feed drawer
-        const liveFeedDrawer = getById('live-feed-drawer');
-        if (liveFeedDrawer) liveFeedDrawer.classList.remove('open');
-        // Close dashboard overlay
+        const infoDrawer = getById('info-drawer');
+        if (infoDrawer) infoDrawer.classList.remove('open');
         const dashOverlay = getById('dashboard-overlay');
         if (dashOverlay) dashOverlay.classList.remove('open');
-        // Hide file viewer
         if (fileViewerPanel) fileViewerPanel.style.display = 'none';
-        // Ensure console visible
         if (consoleArea) consoleArea.style.display = 'flex';
     };
 
@@ -56,14 +46,24 @@ export function setupViewNavigation({
     };
 
     const showWiki = () => {
-        const wikiDrawer = getById('wiki-drawer');
-        if (wikiDrawer) wikiDrawer.classList.toggle('open');
+        const infoDrawer = getById('info-drawer');
+        if (infoDrawer) infoDrawer.classList.toggle('open');
+        // Activate wiki tab
+        const tabs = document.querySelectorAll('.info-drawer-tab');
+        const contents = document.querySelectorAll('.info-tab-content');
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === 'wiki'));
+        contents.forEach(c => c.classList.toggle('active', c.dataset.tab === 'wiki'));
         onWikiActivated?.();
     };
 
     const showLiveFeed = () => {
-        const liveFeedDrawer = getById('live-feed-drawer');
-        if (liveFeedDrawer) liveFeedDrawer.classList.toggle('open');
+        const infoDrawer = getById('info-drawer');
+        if (infoDrawer) infoDrawer.classList.toggle('open');
+        // Activate live-feed tab
+        const tabs = document.querySelectorAll('.info-drawer-tab');
+        const contents = document.querySelectorAll('.info-tab-content');
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === 'live-feed'));
+        contents.forEach(c => c.classList.toggle('active', c.dataset.tab === 'live-feed'));
         onLiveFeedActivated?.();
     };
 

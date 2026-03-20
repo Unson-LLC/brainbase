@@ -8397,8 +8397,8 @@ body.resizing iframe {
    Panel Layout: Wiki Drawer, Dashboard Overlay, Sidebar Collapse
    ========================================= */
 
-/* Wiki Drawer */
-.wiki-drawer {
+/* Info Drawer (Wiki + LiveFeed tabs) */
+.info-drawer {
     position: absolute;
     top: 0;
     right: 0;
@@ -8415,90 +8415,72 @@ body.resizing iframe {
     overflow: hidden;
 }
 
-.wiki-drawer.open {
+.info-drawer.open {
     transform: translateX(0);
 }
 
-.wiki-drawer-header {
+.info-drawer-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 8px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
-}
-
-.wiki-drawer-header h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
     gap: 8px;
 }
 
-.wiki-drawer-header h3 i {
-    width: 16px;
-    height: 16px;
+.info-drawer-tabs {
+    display: flex;
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 2px;
 }
 
-.wiki-drawer-body {
+.info-drawer-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.info-drawer-tab:hover {
+    color: var(--text-primary);
+}
+
+.info-drawer-tab.active {
+    background: var(--primary-color);
+    color: var(--text-white);
+}
+
+.info-drawer-tab i {
+    width: 14px;
+    height: 14px;
+}
+
+.info-drawer-body {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
+    position: relative;
 }
 
-/* Live Feed Drawer (same pattern as Wiki) */
-.live-feed-drawer {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 480px;
+.info-tab-content {
+    display: none;
+    padding: 16px;
     height: 100%;
-    background-color: rgba(30, 41, 59, 0.95);
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(20px);
-    transform: translateX(100%);
-    transition: transform 0.25s ease;
-    z-index: 59;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.live-feed-drawer.open {
-    transform: translateX(0);
-}
-
-.live-feed-drawer-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    flex-shrink: 0;
-}
-
-.live-feed-drawer-header h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.live-feed-drawer-header h3 i {
-    width: 16px;
-    height: 16px;
-}
-
-.live-feed-drawer-body {
-    flex: 1;
     overflow-y: auto;
-    padding: 16px;
+}
+
+.info-tab-content.active {
+    display: block;
 }
 
 /* Context Sidebar Collapse */
@@ -8622,6 +8604,26 @@ body.resizing iframe {
     color: var(--text-white);
     background: var(--primary-color);
     border-radius: 6px;
+}
+
+/* Dashboard button - visually distinct (fullscreen action) */
+.toggle-option-dashboard {
+    gap: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+    margin-top: 4px;
+    padding-top: 8px !important;
+}
+
+.toggle-option-dashboard .toggle-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.toggle-option-dashboard.active {
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: var(--accent-color, #818cf8) !important;
+    border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
 /* Phase 2: Heatmap & System Resources */
