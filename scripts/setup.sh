@@ -58,6 +58,16 @@ else
 fi
 echo ""
 
+# ────────────── プロジェクト設定（config.yml） ──────────────
+if [ ! -f "$BRAINBASE_DIR/config.yml" ]; then
+    if [ -f "$BRAINBASE_DIR/config.unson.yml" ]; then
+        cp "$BRAINBASE_DIR/config.unson.yml" "$BRAINBASE_DIR/config.yml"
+        echo "[OK] config.yml 生成（全プロジェクト一覧）"
+    fi
+else
+    echo "[OK] config.yml 既存"
+fi
+
 # ────────────── 共通環境変数（全メンバー同じ値） ──────────────
 BRAINBASE_JWT_SECRET="91fCWNFaMqZ56B4qSN6fUn0s880niCw5PX2lraEtZD4="
 SLACK_CLIENT_ID="7700200993749.9126720830805"
