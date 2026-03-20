@@ -29,6 +29,13 @@
                 <button class="activity-bar-item active" id="ab-sessions-btn" title="Sessions">
                     <i data-lucide="layers"></i>
                 </button>
+                <div class="activity-bar-divider"></div>
+                <button class="activity-bar-item" id="ab-commit-tree-btn" title="Commit Tree (Ctrl+Shift+G)">
+                    <i data-lucide="git-branch"></i>
+                </button>
+                <button class="activity-bar-item" id="ab-tasks-btn" title="Tasks">
+                    <i data-lucide="list-todo"></i>
+                </button>
                 <button class="activity-bar-item" id="ab-dashboard-btn" title="Dashboard (Ctrl+Shift+D)" style="display: none;">
                     <i data-lucide="layout-dashboard"></i>
                 </button>
@@ -233,10 +240,16 @@
 
         </main>
 
-        <!-- Info Drawer (right slide-in, Wiki + LiveFeed tabs) -->
+        <!-- Info Drawer (right slide-in, unified tabs: Commit Tree / Tasks / Wiki / LiveFeed) -->
         <aside class="info-drawer" id="info-drawer">
             <div class="info-drawer-header">
                 <div class="info-drawer-tabs">
+                    <button class="info-drawer-tab" data-tab="commit-tree">
+                        <i data-lucide="git-branch"></i> Commits
+                    </button>
+                    <button class="info-drawer-tab" data-tab="tasks">
+                        <i data-lucide="list-todo"></i> Tasks
+                    </button>
                     <button class="info-drawer-tab active" data-tab="wiki">
                         <i data-lucide="book-open"></i> Wiki
                     </button>
@@ -249,7 +262,149 @@
                 </button>
             </div>
             <div class="info-drawer-body">
+                <!-- Commit Tree Tab -->
+                <div id="commit-tree-tab-content" class="info-tab-content" data-tab="commit-tree">
+                    <div class="commit-tree-panel-inner">
+                        <div class="section-header">
+                            <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
+                            <div class="commit-tree-header-actions">
+                                <button id="refresh-commit-tree" class="icon-btn" title="更新" aria-label="コミットツリーを更新">
+                                    <i data-lucide="refresh-cw"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="commit-tree-list" id="commit-tree-list">
+                            <div class="commit-tree-empty">セッションを選択してください</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tasks Tab -->
+                <div id="tasks-tab-content" class="info-tab-content" data-tab="tasks">
+                    <!-- Focus Task Section -->
+                    <div class="focus-section" id="focus-section">
+                        <div id="focus-task"></div>
+                    </div>
+
+                    <!-- Timeline Section: 予定+タスク統合 -->
+                    <div class="timeline-section" id="timeline-section" data-slot="sidebar:schedule">
+                        <div class="section-header">
+                            <h3><i data-lucide="calendar"></i> タイムライン</h3>
+                            <div class="section-header-actions">
+                                <button id="google-calendar-connect-btn" class="icon-btn" title="Google Calendar 設定を表示" aria-label="Google Calendar 設定を表示">
+                                    <i data-lucide="calendar"></i>
+                                </button>
+                                <button id="add-schedule-btn" class="icon-btn" title="予定を追加" aria-label="予定を追加">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="google-calendar-diagnostics" class="timeline-google-diagnostics" hidden></div>
+                        <div id="timeline-list">
+                            <div class="loading">読み込み中...</div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline Resize Handle -->
+                    <div class="timeline-resize-handle" id="timeline-resize-handle" title="ドラッグで高さを変更">
+                        <div class="resize-grip"></div>
+                    </div>
+
+                    <!-- Next Tasks Section: 残りのタスク -->
+                    <div class="next-tasks-section" id="next-tasks-section" data-slot="sidebar:next-tasks">
+                        <div class="section-header">
+                            <h3><i data-lucide="list-todo"></i> 次にやること</h3>
+                            <button id="toggle-all-tasks" class="icon-btn" title="全て表示" aria-label="全てのタスクを表示">
+                                <i data-lucide="chevron-down"></i>
+                            </button>
+                        </div>
+
+                        <!-- タブナビゲーション -->
+                        <div class="task-tabs" id="task-tabs">
+                            <button class="task-tab active" data-tab="local">
+                                <i data-lucide="file-text"></i> ローカル
+                            </button>
+                            <button class="task-tab" data-tab="nocodb" data-slot="sidebar:project-tasks-tab">
+                                <i data-lucide="database"></i> プロジェクト
+                            </button>
+                        </div>
+
+                        <!-- ローカルタブコンテンツ -->
+                        <div class="task-tab-content active" id="local-tasks-panel">
+                            <div class="task-filter">
+                                <div class="filter-group">
+                                    <label for="task-filter-input" class="sr-only">タスクフィルター</label>
+                                    <input type="text" id="task-filter-input" placeholder="タスクを検索..."
+                                        aria-label="タスク名または説明で検索" />
+                                </div>
+
+                                <div class="filter-group">
+                                    <label for="priority-filter" class="sr-only">優先度フィルター</label>
+                                    <select id="priority-filter" class="priority-filter" aria-label="優先度でフィルタ">
+                                        <option value="">すべて</option>
+                                        <option value="high">🔴 高</option>
+                                        <option value="medium">🟡 中</option>
+                                        <option value="low">🔵 低</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <button id="add-local-task-btn" class="icon-btn" title="ローカルタスク追加" aria-label="ローカルタスクを追加">
+                                        <i data-lucide="plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="next-tasks-list">
+                                <div class="loading">読み込み中...</div>
+                            </div>
+                            <div id="remaining-tasks-toggle" class="remaining-toggle" style="display: none;">
+                                <button id="show-more-tasks">他 <span id="remaining-count">0</span> 件を表示</button>
+                            </div>
+                        </div>
+
+                        <!-- NocoDBタブコンテンツ -->
+                        <div class="task-tab-content" id="nocodb-tasks-panel" data-slot="sidebar:project-tasks-panel">
+                            <div class="task-filter">
+                                <div class="filter-group">
+                                    <label for="nocodb-task-search" class="sr-only">タスク名フィルター</label>
+                                    <input type="text" id="nocodb-task-search" placeholder="タスク名で検索..."
+                                        aria-label="タスク名で検索" />
+                                </div>
+                                <div class="filter-group">
+                                    <label for="nocodb-assignee-filter" class="sr-only">担当者フィルター</label>
+                                    <select id="nocodb-assignee-filter" aria-label="担当者でフィルタ">
+                                        <option value="">全担当者</option>
+                                        <option value="__self__">自分だけ</option>
+                                        <option value="__unassigned__">未割当</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="nocodb-project-filter" class="sr-only">プロジェクトフィルター</label>
+                                    <select id="nocodb-project-filter" class="priority-filter" aria-label="プロジェクトでフィルタ">
+                                        <option value="">全プロジェクト</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <button id="add-nocodb-task-btn" class="icon-btn" title="プロジェクトタスク追加" aria-label="プロジェクトタスクを追加">
+                                        <i data-lucide="plus"></i>
+                                    </button>
+                                </div>
+                                <button id="nocodb-sync-btn" class="icon-btn" title="同期">
+                                    <i data-lucide="refresh-cw"></i>
+                                </button>
+                            </div>
+                            <div id="nocodb-tasks-list">
+                                <div class="empty-state">
+                                    <i data-lucide="database"></i>
+                                    <p>プロジェクトタブを選択してください</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wiki Tab -->
                 <div id="wiki-panel" class="info-tab-content active" data-tab="wiki"></div>
+                <!-- Live Feed Tab -->
                 <div id="live-feed-panel" class="info-tab-content" data-tab="live-feed"></div>
             </div>
         </aside>
@@ -337,163 +492,7 @@
             </div>
         </div>
 
-        <!-- Commit Tree Panel -->
-        <div class="panel-resize-handle panel-resize-handle-commit-tree" id="commit-tree-resize-handle" title="ドラッグで幅を変更"></div>
-        <aside class="commit-tree-panel" id="commit-tree-panel">
-            <div class="section-header">
-                <h3><i data-lucide="git-branch"></i> コミット <span class="commit-tree-repo-badge hidden" id="commit-tree-repo-type"></span></h3>
-                <div class="commit-tree-header-actions">
-                    <button id="refresh-commit-tree" class="icon-btn" title="更新" aria-label="コミットツリーを更新">
-                        <i data-lucide="refresh-cw"></i>
-                    </button>
-                    <button id="toggle-commit-tree-panel" class="icon-btn" title="コミットパネルを閉じる" aria-label="コミットパネルを閉じる" aria-expanded="true">
-                        <i data-lucide="chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="commit-tree-list" id="commit-tree-list">
-                <div class="commit-tree-empty">セッションを選択してください</div>
-            </div>
-        </aside>
-        <button id="commit-tree-expand-btn" class="commit-tree-expand-btn hidden" title="コミットパネルを開く" aria-label="コミットパネルを開く">
-            <i data-lucide="chevron-left"></i>
-        </button>
-
-        <!-- Right Panel Resize Handle -->
-        <div class="panel-resize-handle panel-resize-handle-right" id="right-panel-resize-handle" title="ドラッグで幅を変更"></div>
-
-        <!-- Right Sidebar (Context: Today's Page) -->
-        <aside class="context-sidebar" id="context-sidebar">
-            <!-- Collapse Button -->
-            <button id="context-sidebar-collapse-btn" class="context-sidebar-collapse-btn" title="サイドバーを折りたたむ" aria-label="コンテキストサイドバーを折りたたむ">
-                <i data-lucide="panel-right-close"></i>
-            </button>
-            <!-- Focus Task Section -->
-            <div class="focus-section" id="focus-section">
-                <div id="focus-task"></div>
-            </div>
-
-            <!-- Timeline Section: 予定+タスク統合 -->
-            <div class="timeline-section" id="timeline-section" data-slot="sidebar:schedule">
-                <div class="section-header">
-                    <h3><i data-lucide="calendar"></i> タイムライン</h3>
-                    <div class="section-header-actions">
-                        <button id="google-calendar-connect-btn" class="icon-btn" title="Google Calendar を連携" aria-label="Google Calendar を連携" hidden>
-                            <i data-lucide="calendar"></i>
-                        </button>
-                        <button id="google-calendar-disconnect-btn" class="icon-btn" title="Google Calendar 連携を解除" aria-label="Google Calendar 連携を解除" hidden>
-                            <i data-lucide="x"></i>
-                        </button>
-                        <button id="add-schedule-btn" class="icon-btn" title="予定を追加" aria-label="予定を追加">
-                            <i data-lucide="plus"></i>
-                        </button>
-                    </div>
-                </div>
-                <div id="timeline-list">
-                    <div class="loading">読み込み中...</div>
-                </div>
-            </div>
-
-            <!-- Timeline Resize Handle -->
-            <div class="timeline-resize-handle" id="timeline-resize-handle" title="ドラッグで高さを変更">
-                <div class="resize-grip"></div>
-            </div>
-
-            <!-- Next Tasks Section: 残りのタスク -->
-            <div class="next-tasks-section" id="next-tasks-section" data-slot="sidebar:next-tasks">
-                <div class="section-header">
-                    <h3><i data-lucide="list-todo"></i> 次にやること</h3>
-                    <button id="toggle-all-tasks" class="icon-btn" title="全て表示" aria-label="全てのタスクを表示">
-                        <i data-lucide="chevron-down"></i>
-                    </button>
-                </div>
-
-                <!-- タブナビゲーション -->
-                <div class="task-tabs" id="task-tabs">
-                    <button class="task-tab active" data-tab="local">
-                        <i data-lucide="file-text"></i> ローカル
-                    </button>
-                    <button class="task-tab" data-tab="nocodb" data-slot="sidebar:project-tasks-tab">
-                        <i data-lucide="database"></i> プロジェクト
-                    </button>
-                </div>
-
-                <!-- ローカルタブコンテンツ -->
-                <div class="task-tab-content active" id="local-tasks-panel">
-                    <div class="task-filter">
-                        <div class="filter-group">
-                            <label for="task-filter-input" class="sr-only">タスクフィルター</label>
-                            <input type="text" id="task-filter-input" placeholder="タスクを検索..."
-                                aria-label="タスク名または説明で検索" />
-                        </div>
-
-                        <div class="filter-group">
-                            <label for="priority-filter" class="sr-only">優先度フィルター</label>
-                            <select id="priority-filter" class="priority-filter" aria-label="優先度でフィルタ">
-                                <option value="">すべて</option>
-                                <option value="high">🔴 高</option>
-                                <option value="medium">🟡 中</option>
-                                <option value="low">🔵 低</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <button id="add-local-task-btn" class="icon-btn" title="ローカルタスク追加" aria-label="ローカルタスクを追加">
-                                <i data-lucide="plus"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div id="next-tasks-list">
-                        <div class="loading">読み込み中...</div>
-                    </div>
-                    <div id="remaining-tasks-toggle" class="remaining-toggle" style="display: none;">
-                        <button id="show-more-tasks">他 <span id="remaining-count">0</span> 件を表示</button>
-                    </div>
-                </div>
-
-                <!-- NocoDBタブコンテンツ -->
-                <div class="task-tab-content" id="nocodb-tasks-panel" data-slot="sidebar:project-tasks-panel">
-                    <div class="task-filter">
-                        <div class="filter-group">
-                            <label for="nocodb-task-search" class="sr-only">タスク名フィルター</label>
-                            <input type="text" id="nocodb-task-search" placeholder="タスク名で検索..."
-                                aria-label="タスク名で検索" />
-                        </div>
-                        <div class="filter-group">
-                            <label for="nocodb-assignee-filter" class="sr-only">担当者フィルター</label>
-                            <select id="nocodb-assignee-filter" aria-label="担当者でフィルタ">
-                                <option value="">全担当者</option>
-                                <option value="__self__">自分だけ</option>
-                                <option value="__unassigned__">未割当</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label for="nocodb-project-filter" class="sr-only">プロジェクトフィルター</label>
-                            <select id="nocodb-project-filter" class="priority-filter" aria-label="プロジェクトでフィルタ">
-                                <option value="">全プロジェクト</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <button id="add-nocodb-task-btn" class="icon-btn" title="プロジェクトタスク追加" aria-label="プロジェクトタスクを追加">
-                                <i data-lucide="plus"></i>
-                            </button>
-                        </div>
-                        <button id="nocodb-sync-btn" class="icon-btn" title="同期">
-                            <i data-lucide="refresh-cw"></i>
-                        </button>
-                    </div>
-                    <div id="nocodb-tasks-list">
-                        <div class="empty-state">
-                            <i data-lucide="database"></i>
-                            <p>プロジェクトタブを選択してください</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </aside>
-        <!-- Context Sidebar Expand Button (visible when collapsed) -->
-        <button id="context-sidebar-expand-btn" class="context-sidebar-expand-btn hidden" title="サイドバーを展開" aria-label="コンテキストサイドバーを展開">
-            <i data-lucide="panel-right-open"></i>
-        </button>
+        <!-- Standalone panels removed: Commit Tree and Context Sidebar are now in Info Drawer tabs -->
     </div>
 
     <footer class="app-footer">

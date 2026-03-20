@@ -192,7 +192,6 @@ describe('terminal-transport-client', () => {
           viewportY: 80
         }
       },
-      reset: vi.fn(),
       write: vi.fn((text, callback) => {
         terminal.buffer.active.baseY = 160;
         callback?.();
@@ -206,8 +205,10 @@ describe('terminal-transport-client', () => {
     client._applySnapshot('updated output');
     await Promise.resolve();
 
-    expect(terminal.reset).toHaveBeenCalled();
-    expect(terminal.write).toHaveBeenCalledWith('updated output', expect.any(Function));
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hupdated output',
+      expect.any(Function)
+    );
     expect(scrollToLine).toHaveBeenCalledWith(120);
   });
 
@@ -224,7 +225,6 @@ describe('terminal-transport-client', () => {
           viewportY: 64
         }
       },
-      reset: vi.fn(),
       write: vi.fn((text, callback) => {
         callback?.();
       }),
@@ -254,14 +254,12 @@ describe('terminal-transport-client', () => {
           viewportY: 80
         }
       },
-      reset: vi.fn(),
       write: vi.fn()
     };
 
     client.terminal = terminal;
     client._queueOrApplySnapshot('new output');
 
-    expect(terminal.reset).not.toHaveBeenCalled();
     expect(terminal.write).not.toHaveBeenCalled();
     expect(client._pendingSnapshotText).toBe('new output');
   });
@@ -279,7 +277,6 @@ describe('terminal-transport-client', () => {
           viewportY: 80
         }
       },
-      reset: vi.fn(),
       write: vi.fn((text, callback) => {
         terminal.buffer.active.viewportY = terminal.buffer.active.baseY;
         callback?.();
@@ -295,8 +292,10 @@ describe('terminal-transport-client', () => {
     client._handleTerminalScroll();
     await Promise.resolve();
 
-    expect(terminal.reset).toHaveBeenCalled();
-    expect(terminal.write).toHaveBeenCalledWith('queued output', expect.any(Function));
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hqueued output',
+      expect.any(Function)
+    );
     expect(scrollToBottom).toHaveBeenCalled();
     expect(client._pendingSnapshotText).toBeNull();
   });

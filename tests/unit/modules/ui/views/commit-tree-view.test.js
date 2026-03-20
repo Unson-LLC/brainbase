@@ -22,10 +22,16 @@ describe('CommitTreeView', () => {
         // Container
         container = document.createElement('div');
         document.body.appendChild(container);
-        const panel = document.createElement('div');
-        panel.id = 'commit-tree-panel';
-        panel.style.display = 'flex';
-        document.body.appendChild(panel);
+
+        // Info Drawer (new unified panel structure)
+        const drawer = document.createElement('div');
+        drawer.id = 'info-drawer';
+        drawer.classList.add('open');
+        document.body.appendChild(drawer);
+        const tabContent = document.createElement('div');
+        tabContent.id = 'commit-tree-tab-content';
+        tabContent.classList.add('active');
+        drawer.appendChild(tabContent);
 
         view = new CommitTreeView({ commitTreeService: mockService });
         view.mount(container);
@@ -185,8 +191,9 @@ describe('CommitTreeView', () => {
 
     describe('visibility aware loading', () => {
         it('panelが閉じているとき_SESSION_CHANGEDでcommit logを読まない', async () => {
-            const panel = document.getElementById('commit-tree-panel');
-            panel.style.display = 'none';
+            // Close the drawer (remove 'open' class)
+            const drawer = document.getElementById('info-drawer');
+            drawer.classList.remove('open');
 
             await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: 'session-1' });
 
@@ -194,11 +201,14 @@ describe('CommitTreeView', () => {
         });
 
         it('panel再表示時_pending sessionのcommit logを読む', async () => {
-            const panel = document.getElementById('commit-tree-panel');
-            panel.style.display = 'none';
+            // Close the drawer
+            const drawer = document.getElementById('info-drawer');
+            drawer.classList.remove('open');
 
             await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: 'session-2' });
-            panel.style.display = 'flex';
+
+            // Re-open drawer with commit-tree tab active
+            drawer.classList.add('open');
             await eventBus.emit(EVENTS.COMMIT_TREE_PANEL_TOGGLED, { collapsed: false });
 
             expect(mockService.loadCommitLog).toHaveBeenCalledWith('session-2');

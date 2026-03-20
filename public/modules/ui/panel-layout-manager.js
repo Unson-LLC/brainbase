@@ -4,9 +4,8 @@ const STORAGE_KEY = 'bb-panel-state';
 
 /**
  * Panel layout manager: Console is always visible.
- * - Info Drawer (Wiki + LiveFeed tabs): right slide-in panel
+ * - Info Drawer (Commit Tree / Tasks / Wiki / LiveFeed tabs): right slide-in panel
  * - Dashboard: fullscreen overlay
- * - Context sidebar: collapsible (controlled by its own buttons, not the toggle bar)
  */
 export function setupPanelLayout({ store, eventBus }) {
     _restoreState(store);
@@ -40,18 +39,16 @@ export function setupPanelLayout({ store, eventBus }) {
         _applyDashboard(false);
         _persistState(store);
         eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'info', open: nextOpen, tab: nextTab });
+
+        // Emit commit-tree toggled event for backward compat
+        if (nextTab === 'commit-tree' || currentTab === 'commit-tree') {
+            const commitTreeVisible = nextOpen && nextTab === 'commit-tree';
+            eventBus.emit(EVENTS.COMMIT_TREE_PANEL_TOGGLED, { collapsed: !commitTreeVisible });
+        }
     };
 
-    const toggleContextSidebar = () => {
-        const panels = store.getState().ui.panels;
-        const next = !panels.contextSidebarCollapsed;
-        store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, contextSidebarCollapsed: next } }
-        });
-        _applyContextSidebar(next);
-        _persistState(store);
-        eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'contextSidebar', collapsed: next });
-    };
+    // Backward compat: toggleContextSidebar now opens/closes the tasks tab
+    const toggleContextSidebar = () => toggleInfoDrawer('tasks');
 
     const toggleDashboard = () => {
         const panels = store.getState().ui.panels;
@@ -91,26 +88,21 @@ export function setupPanelLayout({ store, eventBus }) {
         tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === activeTab));
         contents.forEach(c => c.classList.toggle('active', c.dataset.tab === activeTab));
 
-
-        // Update Activity Bar buttons
+        // Update Activity Bar buttons (all tab-based buttons)
         const abWiki = getEl('ab-wiki-btn');
         const abLive = getEl('ab-livefeed-btn');
+        const abCommitTree = getEl('ab-commit-tree-btn');
+        const abTasks = getEl('ab-tasks-btn');
         const abSessions = getEl('ab-sessions-btn');
+
         if (abWiki) abWiki.classList.toggle('active', open && activeTab === 'wiki');
         if (abLive) abLive.classList.toggle('active', open && activeTab === 'live-feed');
+        if (abCommitTree) abCommitTree.classList.toggle('active', open && activeTab === 'commit-tree');
+        if (abTasks) abTasks.classList.toggle('active', open && activeTab === 'tasks');
 
         // Sessions button is active only when no panel is open
         const dashOpen = store.getState().ui.panels.dashboardOpen;
         if (abSessions) abSessions.classList.toggle('active', !open && !dashOpen);
-    }
-
-    function _applyContextSidebar(collapsed) {
-        const sidebar = getEl('context-sidebar');
-        const expandBtn = getEl('context-sidebar-expand-btn');
-        const resizeHandle = getEl('right-panel-resize-handle');
-        if (sidebar) sidebar.classList.toggle('collapsed', collapsed);
-        if (expandBtn) expandBtn.classList.toggle('hidden', !collapsed);
-        if (resizeHandle) resizeHandle.style.display = collapsed ? 'none' : '';
     }
 
     function _applyDashboard(open) {
@@ -144,6 +136,12 @@ export function setupPanelLayout({ store, eventBus }) {
     const tabButtons = document.querySelectorAll('.info-drawer-tab');
     tabButtons.forEach(btn => btn.addEventListener('click', _onTabClick));
 
+    // --- EventBus: handle commit-tree toggle request ---
+
+    const unsubCommitTreeReq = eventBus.on(EVENTS.COMMIT_TREE_PANEL_TOGGLE_REQUESTED, () => {
+        toggleInfoDrawer('commit-tree');
+    });
+
     // --- Keyboard shortcuts ---
 
     const _onKeydown = (e) => {
@@ -160,11 +158,15 @@ export function setupPanelLayout({ store, eventBus }) {
             switch (e.key.toUpperCase()) {
                 case 'I':
                     e.preventDefault();
-                    toggleInfoDrawer();
+                    toggleInfoDrawer('wiki');
                     break;
                 case 'B':
                     e.preventDefault();
-                    toggleContextSidebar();
+                    toggleInfoDrawer('tasks');
+                    break;
+                case 'G':
+                    e.preventDefault();
+                    toggleInfoDrawer('commit-tree');
                     break;
                 case 'D':
                     e.preventDefault();
@@ -179,7 +181,6 @@ export function setupPanelLayout({ store, eventBus }) {
     // --- Initial DOM state ---
     const initialPanels = store.getState().ui.panels;
     _applyInfoDrawer(initialPanels.infoDrawerOpen, initialPanels.infoDrawerTab);
-    _applyContextSidebar(initialPanels.contextSidebarCollapsed);
     _applyDashboard(initialPanels.dashboardOpen);
 
     const consoleArea = getEl('console-area');
@@ -190,6 +191,7 @@ export function setupPanelLayout({ store, eventBus }) {
     const cleanup = () => {
         document.removeEventListener('keydown', _onKeydown);
         tabButtons.forEach(btn => btn.removeEventListener('click', _onTabClick));
+        unsubCommitTreeReq();
     };
 
     return { cleanup, toggleInfoDrawer, toggleWiki, toggleLiveFeed, toggleContextSidebar, toggleDashboard, closeAllPanels };
@@ -201,7 +203,6 @@ function _persistState(store) {
     try {
         const panels = store.getState().ui.panels;
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            contextSidebarCollapsed: panels.contextSidebarCollapsed,
             infoDrawerTab: panels.infoDrawerTab
         }));
     } catch { /* ignore */ }
@@ -217,7 +218,6 @@ function _restoreState(store) {
                     ...ui,
                     panels: {
                         ...ui.panels,
-                        contextSidebarCollapsed: !!saved.contextSidebarCollapsed,
                         infoDrawerTab: saved.infoDrawerTab || 'wiki'
                     }
                 }

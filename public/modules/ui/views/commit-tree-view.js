@@ -93,10 +93,10 @@ export class CommitTreeView {
     }
 
     _isPanelVisible() {
-        const panel = document.getElementById('commit-tree-panel');
-        if (!panel) return true;
-        if (panel.classList.contains('is-collapsed')) return false;
-        return panel.style.display !== 'none';
+        const drawer = document.getElementById('info-drawer');
+        if (!drawer) return true;
+        const tabContent = document.getElementById('commit-tree-tab-content');
+        return drawer.classList.contains('open') && tabContent?.classList.contains('active');
     }
 
     render() {

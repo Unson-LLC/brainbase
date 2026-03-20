@@ -1975,28 +1975,28 @@ export class App {
                         const abDashboardBtn = document.getElementById('ab-dashboard-btn');
                         const abWikiBtn = document.getElementById('ab-wiki-btn');
                         const abLivefeedBtn = document.getElementById('ab-livefeed-btn');
+                        const abCommitTreeBtn = document.getElementById('ab-commit-tree-btn');
+                        const abTasksBtn = document.getElementById('ab-tasks-btn');
 
                         const onSessionsClick = () => panelLayout.closeAllPanels();
                         const onDashboardClick = () => panelLayout.toggleDashboard();
                         const onWikiClick = () => panelLayout.toggleInfoDrawer('wiki');
                         const onLivefeedClick = () => panelLayout.toggleInfoDrawer('live-feed');
+                        const onCommitTreeClick = () => panelLayout.toggleInfoDrawer('commit-tree');
+                        const onTasksClick = () => panelLayout.toggleInfoDrawer('tasks');
 
                         if (abSessionsBtn) abSessionsBtn.addEventListener('click', onSessionsClick);
                         if (abDashboardBtn) abDashboardBtn.addEventListener('click', onDashboardClick);
                         if (abWikiBtn) abWikiBtn.addEventListener('click', onWikiClick);
                         if (abLivefeedBtn) abLivefeedBtn.addEventListener('click', onLivefeedClick);
+                        if (abCommitTreeBtn) abCommitTreeBtn.addEventListener('click', onCommitTreeClick);
+                        if (abTasksBtn) abTasksBtn.addEventListener('click', onTasksClick);
 
                         // Wire close buttons inside drawer/overlay
                         const infoCloseBtn = document.getElementById('info-drawer-close');
                         const dashCloseBtn = document.getElementById('dashboard-overlay-close');
                         if (infoCloseBtn) infoCloseBtn.addEventListener('click', panelLayout.closeAllPanels);
                         if (dashCloseBtn) dashCloseBtn.addEventListener('click', panelLayout.toggleDashboard);
-
-                        // Wire context sidebar collapse/expand buttons
-                        const collapseBtn = document.getElementById('context-sidebar-collapse-btn');
-                        const expandBtn = document.getElementById('context-sidebar-expand-btn');
-                        if (collapseBtn) collapseBtn.addEventListener('click', panelLayout.toggleContextSidebar);
-                        if (expandBtn) expandBtn.addEventListener('click', panelLayout.toggleContextSidebar);
 
                         return () => {
                             cleanupToggle?.();
@@ -2005,10 +2005,10 @@ export class App {
                             if (abDashboardBtn) abDashboardBtn.removeEventListener('click', onDashboardClick);
                             if (abWikiBtn) abWikiBtn.removeEventListener('click', onWikiClick);
                             if (abLivefeedBtn) abLivefeedBtn.removeEventListener('click', onLivefeedClick);
+                            if (abCommitTreeBtn) abCommitTreeBtn.removeEventListener('click', onCommitTreeClick);
+                            if (abTasksBtn) abTasksBtn.removeEventListener('click', onTasksClick);
                             if (infoCloseBtn) infoCloseBtn.removeEventListener('click', panelLayout.closeAllPanels);
                             if (dashCloseBtn) dashCloseBtn.removeEventListener('click', panelLayout.toggleDashboard);
-                            if (collapseBtn) collapseBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
-                            if (expandBtn) expandBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
                         };
                     }
                 },
@@ -3238,10 +3238,10 @@ export class App {
         this.unsubscribers.push(unsubscribeMobileSessionView);
 
         const renderMobileTasksContent = ({ activeTab } = {}) => {
-            const contextSidebar = document.getElementById('context-sidebar');
-            if (!mobileTasksContent || !contextSidebar) return;
+            const tasksTabContent = document.getElementById('tasks-tab-content');
+            if (!mobileTasksContent || !tasksTabContent) return;
 
-            mobileTasksContent.innerHTML = contextSidebar.innerHTML;
+            mobileTasksContent.innerHTML = tasksTabContent.innerHTML;
 
             if (activeTab) {
                 const tabButtons = mobileTasksContent.querySelectorAll('.task-tab');

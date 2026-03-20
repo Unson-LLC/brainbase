@@ -188,7 +188,17 @@ export function renderSessionRowHTML(session, options = {}) {
     })
     : '';
 
-  const attentionBadge = '';
+  const attentionLabelMap = {
+    'needs-focus': { text: 'Focus', className: 'attention-focus', title: 'Needs attention' },
+    'needs-input': { text: 'Input', className: 'attention-input', title: 'Waiting for input' }
+  };
+
+  const attentionBadge = (attention !== 'none' && attentionLabelMap[attention])
+    ? renderChip(attentionLabelMap[attention].text, {
+      className: `session-attention-badge ${attentionLabelMap[attention].className}`,
+      title: attentionLabelMap[attention].title
+    })
+    : '';
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
   const mergeButton = hasWorktree && session.intendedState !== 'archived'

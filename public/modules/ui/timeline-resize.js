@@ -10,7 +10,7 @@ const MAX_HEIGHT_RATIO = 0.7; // sidebarの70%まで
 export function initTimelineResize() {
     const handle = document.getElementById('timeline-resize-handle');
     const timelineSection = document.getElementById('timeline-section');
-    const sidebar = document.getElementById('context-sidebar');
+    const sidebar = document.getElementById('tasks-tab-content');
 
     if (!handle || !timelineSection || !sidebar) {
         console.warn('[TimelineResize] Required elements not found');
