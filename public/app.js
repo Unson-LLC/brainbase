@@ -1534,10 +1534,6 @@ export class App {
             if (e.target?.closest?.('button')) return;
 
             if (this._isMobileTerminalDisplayMode()) {
-                const snapshotContent = e.target?.closest?.('#terminal-snapshot-content');
-                if (snapshotContent) {
-                    return;
-                }
                 void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
                 return;
             }
@@ -1588,6 +1584,59 @@ export class App {
         this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchmove', onConsoleTouchMove, { passive: true }));
         this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchend', onConsoleTouchEnd, { passive: true }));
 
+        const onSnapshotClick = (event) => {
+            if (!this._isMobileTerminalDisplayMode()) return;
+            if (this._isEditableTarget(event.target)) return;
+            const overlayState = this._getTerminalOverlayState();
+            if (overlayState.choiceActive || overlayState.dropActive) return;
+            event.stopPropagation();
+            void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+        };
+        this.terminalSnapshotPanelEl?.addEventListener('click', onSnapshotClick, true);
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('click', onSnapshotClick, true));
+
+        const onSnapshotTouchStart = (event) => {
+            if (!this._isMobileTerminalDisplayMode()) return;
+            if (this._isEditableTarget(event.target)) return;
+            this._mobileTapTracking = {
+                startX: event.touches?.[0]?.clientX ?? 0,
+                startY: event.touches?.[0]?.clientY ?? 0,
+                moved: false
+            };
+        };
+        const onSnapshotTouchMove = (event) => {
+            if (!this._mobileTapTracking) return;
+            const touch = event.touches?.[0];
+            if (!touch) return;
+            const dx = Math.abs(touch.clientX - this._mobileTapTracking.startX);
+            const dy = Math.abs(touch.clientY - this._mobileTapTracking.startY);
+            if (dx > 8 || dy > 8) {
+                this._mobileTapTracking.moved = true;
+            }
+        };
+        const onSnapshotTouchEnd = (event) => {
+            if (!this._isMobileTerminalDisplayMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
+                this._mobileTapTracking = null;
+                return;
+            }
+            if (this._isEditableTarget(event.target)) {
+                this._mobileTapTracking = null;
+                return;
+            }
+            const overlayState = this._getTerminalOverlayState();
+            if (!overlayState.any) {
+                event.stopPropagation();
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+            }
+            this._mobileTapTracking = null;
+        };
+        this.terminalSnapshotPanelEl?.addEventListener('touchstart', onSnapshotTouchStart, { passive: true });
+        this.terminalSnapshotPanelEl?.addEventListener('touchmove', onSnapshotTouchMove, { passive: true });
+        this.terminalSnapshotPanelEl?.addEventListener('touchend', onSnapshotTouchEnd, { passive: true });
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('touchstart', onSnapshotTouchStart, { passive: true }));
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('touchmove', onSnapshotTouchMove, { passive: true }));
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('touchend', onSnapshotTouchEnd, { passive: true }));
+
         const onMobileLiveTerminalLoad = () => {
             if (this._mobileTerminalMode !== 'interactive') return;
             this.scheduleTerminalFrameLayoutSync(this._latestMobileViewportLayout);
@@ -1623,6 +1672,11 @@ export class App {
             e.preventDefault();
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
+
+            if (this._isMobileTerminalDisplayMode()) {
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+                return;
+            }
 
             const xtermActive = this._isXtermTransportActive();
             if ((xtermActive && this._terminalTransportStatus?.blockedAccess?.state === 'blocked')
@@ -1662,6 +1716,10 @@ export class App {
 
         const onReconnectClick = (e) => {
             e.preventDefault();
+            if (this._isMobileTerminalDisplayMode()) {
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+                return;
+            }
             if (this._isXtermTransportActive()) {
                 void this.terminalTransportClient?.reconnect().catch(() => {});
                 return;

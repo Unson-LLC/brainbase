@@ -298,6 +298,78 @@ describe('app switchSession runtime handling', () => {
     expect(modalFrame.src).toContain('viewerId=viewer-test');
   });
 
+  it('mobile snapshot panel clickはlive terminal modalを開く', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app._mobileTerminalMode = 'display';
+    const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const snapshotPanel = document.getElementById('terminal-snapshot-panel');
+    snapshotPanel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(openSpy).toHaveBeenCalledWith('session-1');
+  });
+
+  it('mobile status pill clickはlive terminal modalを開く', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app._mobileTerminalMode = 'display';
+    const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const status = document.getElementById('terminal-input-status');
+    status.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(openSpy).toHaveBeenCalledWith('session-1');
+  });
+
+  it('mobile reconnect button clickはlive terminal modalを開く', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app._mobileTerminalMode = 'display';
+    const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const reconnectBtn = document.getElementById('terminal-reconnect-btn');
+    reconnectBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(openSpy).toHaveBeenCalledWith('session-1');
+  });
+
   it('mobile viewport更新時はinteractive modalへlayout messageを送る', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);

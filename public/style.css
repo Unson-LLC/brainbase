@@ -1598,48 +1598,34 @@ body::after {
 
 .terminal-snapshot-panel {
     position: absolute;
-    inset: 16px;
+    inset: 0;
     z-index: 18;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    border-radius: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(2, 6, 23, 0.94);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(12px);
+    background: #020617;
 }
 
 .terminal-snapshot-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
+    display: none;
 }
 
 .terminal-snapshot-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text-primary);
+    display: none;
 }
 
 .terminal-snapshot-timestamp {
-    font-size: 12px;
-    color: var(--text-secondary);
-    white-space: nowrap;
+    display: none;
 }
 
 .terminal-snapshot-content {
     flex: 1;
     min-height: 0;
     margin: 0;
-    padding: 14px;
+    padding: 8px 10px;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    border-radius: 10px;
-    background: rgba(15, 23, 42, 0.82);
+    background: #020617;
     color: #e2e8f0;
     font: 12px/1.55 'Noto Sans Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 }
@@ -6203,7 +6189,7 @@ body.resizing iframe {
     }
 
     .terminal-snapshot-panel {
-        inset: 10px 10px calc(10px + var(--mobile-input-offset, 120px));
+        inset: 0 0 var(--mobile-terminal-reserve, var(--mobile-input-offset, 120px));
     }
 
     /* Mobile Input Dock */
@@ -6716,7 +6702,7 @@ body.resizing iframe {
     }
 
     .console-area.using-snapshot .terminal-snapshot-panel {
-        inset: 10px 10px calc(10px + var(--mobile-input-offset, 120px));
+        inset: 0 0 var(--mobile-terminal-reserve, var(--mobile-input-offset, 120px));
         display: flex;
     }
 
