@@ -215,6 +215,7 @@ export const appStore = new Store({
         },
         panels: {
             wikiOpen: false,
+            liveFeedOpen: false,
             contextSidebarCollapsed: false,
             dashboardOpen: false
         }

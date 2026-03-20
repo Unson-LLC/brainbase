@@ -211,9 +211,6 @@
                 </div>
             </div>
 
-            <!-- Live Feed Panel (Phase 2で Inbox統合予定) -->
-            <div class="main-panel" id="live-feed-panel" style="display: none;"></div>
-
             <!-- File Viewer Panel -->
             <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
 
@@ -228,6 +225,17 @@
                 </button>
             </div>
             <div id="wiki-panel" class="wiki-drawer-body"></div>
+        </aside>
+
+        <!-- Live Feed Drawer (right slide-in, same pattern as Wiki) -->
+        <aside class="live-feed-drawer" id="live-feed-drawer">
+            <div class="live-feed-drawer-header">
+                <h3><i data-lucide="radio"></i> Live Feed</h3>
+                <button id="live-feed-drawer-close" class="icon-btn" title="Live Feedを閉じる" aria-label="Live Feedドロワーを閉じる">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div id="live-feed-panel" class="live-feed-drawer-body"></div>
         </aside>
 
         <!-- Dashboard Overlay (fullscreen, independent of main-content) -->

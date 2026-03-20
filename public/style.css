@@ -8449,6 +8449,58 @@ body.resizing iframe {
     padding: 16px;
 }
 
+/* Live Feed Drawer (same pattern as Wiki) */
+.live-feed-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 480px;
+    height: 100%;
+    background-color: rgba(30, 41, 59, 0.95);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 59;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.live-feed-drawer.open {
+    transform: translateX(0);
+}
+
+.live-feed-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.live-feed-drawer-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.live-feed-drawer-header h3 i {
+    width: 16px;
+    height: 16px;
+}
+
+.live-feed-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
 /* Context Sidebar Collapse */
 .context-sidebar {
     transition: width 0.2s ease, opacity 0.2s ease, min-width 0.2s ease;

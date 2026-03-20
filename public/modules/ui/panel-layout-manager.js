@@ -38,14 +38,28 @@ export function setupPanelLayout({ store, eventBus }) {
         eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'contextSidebar', collapsed: next });
     };
 
+    const toggleLiveFeed = () => {
+        const panels = store.getState().ui.panels;
+        const next = !panels.liveFeedOpen;
+        store.setState({
+            ui: { ...store.getState().ui, panels: { ...panels, liveFeedOpen: next, wikiOpen: false, dashboardOpen: false } }
+        });
+        _applyLiveFeed(next);
+        _applyWiki(false);
+        _applyDashboard(false);
+        _persistState(store);
+        eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'liveFeed', open: next });
+    };
+
     const toggleDashboard = () => {
         const panels = store.getState().ui.panels;
         const next = !panels.dashboardOpen;
         store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, dashboardOpen: next, wikiOpen: false } }
+            ui: { ...store.getState().ui, panels: { ...panels, dashboardOpen: next, wikiOpen: false, liveFeedOpen: false } }
         });
         _applyDashboard(next);
         _applyWiki(false);
+        _applyLiveFeed(false);
         _persistState(store);
         eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'dashboard', open: next });
     };
@@ -53,9 +67,10 @@ export function setupPanelLayout({ store, eventBus }) {
     const closeAllPanels = () => {
         const panels = store.getState().ui.panels;
         store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, wikiOpen: false, dashboardOpen: false } }
+            ui: { ...store.getState().ui, panels: { ...panels, wikiOpen: false, liveFeedOpen: false, dashboardOpen: false } }
         });
         _applyWiki(false);
+        _applyLiveFeed(false);
         _applyDashboard(false);
         _persistState(store);
     };
@@ -90,6 +105,15 @@ export function setupPanelLayout({ store, eventBus }) {
         if (btn) btn.classList.toggle('active', !collapsed);
     }
 
+    function _applyLiveFeed(open) {
+        const drawer = getEl('live-feed-drawer');
+        if (drawer) {
+            drawer.classList.toggle('open', open);
+        }
+        const btn = getEl('nav-live-feed-btn');
+        if (btn) btn.classList.toggle('active', open);
+    }
+
     function _applyDashboard(open) {
         const overlay = getEl('dashboard-overlay');
         if (overlay) {
@@ -106,7 +130,7 @@ export function setupPanelLayout({ store, eventBus }) {
         // Escape: close any open panel
         if (e.key === 'Escape') {
             const panels = store.getState().ui.panels;
-            if (panels.dashboardOpen || panels.wikiOpen) {
+            if (panels.dashboardOpen || panels.wikiOpen || panels.liveFeedOpen) {
                 e.preventDefault();
                 closeAllPanels();
                 return;
@@ -119,6 +143,10 @@ export function setupPanelLayout({ store, eventBus }) {
                 case 'W':
                     e.preventDefault();
                     toggleWiki();
+                    break;
+                case 'F':
+                    e.preventDefault();
+                    toggleLiveFeed();
                     break;
                 case 'B':
                     e.preventDefault();
@@ -137,6 +165,7 @@ export function setupPanelLayout({ store, eventBus }) {
     // --- Initial DOM state ---
     const initialPanels = store.getState().ui.panels;
     _applyWiki(initialPanels.wikiOpen);
+    _applyLiveFeed(initialPanels.liveFeedOpen);
     _applyContextSidebar(initialPanels.contextSidebarCollapsed);
     _applyDashboard(initialPanels.dashboardOpen);
 
@@ -150,7 +179,7 @@ export function setupPanelLayout({ store, eventBus }) {
         document.removeEventListener('keydown', _onKeydown);
     };
 
-    return { cleanup, toggleWiki, toggleContextSidebar, toggleDashboard, closeAllPanels };
+    return { cleanup, toggleWiki, toggleLiveFeed, toggleContextSidebar, toggleDashboard, closeAllPanels };
 }
 
 // --- Persistence helpers ---

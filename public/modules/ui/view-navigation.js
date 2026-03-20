@@ -22,13 +22,14 @@ export function setupViewNavigation({
         // Close wiki drawer
         const wikiDrawer = getById('wiki-drawer');
         if (wikiDrawer) wikiDrawer.classList.remove('open');
+        // Close live feed drawer
+        const liveFeedDrawer = getById('live-feed-drawer');
+        if (liveFeedDrawer) liveFeedDrawer.classList.remove('open');
         // Close dashboard overlay
         const dashOverlay = getById('dashboard-overlay');
         if (dashOverlay) dashOverlay.classList.remove('open');
         // Hide file viewer
         if (fileViewerPanel) fileViewerPanel.style.display = 'none';
-        // Hide live feed
-        if (liveFeedPanel) liveFeedPanel.style.display = 'none';
         // Ensure console visible
         if (consoleArea) consoleArea.style.display = 'flex';
     };
@@ -61,8 +62,8 @@ export function setupViewNavigation({
     };
 
     const showLiveFeed = () => {
-        hideAllPanels();
-        if (liveFeedPanel) liveFeedPanel.style.display = 'flex';
+        const liveFeedDrawer = getById('live-feed-drawer');
+        if (liveFeedDrawer) liveFeedDrawer.classList.toggle('open');
         onLiveFeedActivated?.();
     };
 

@@ -1972,17 +1972,21 @@ export class App {
 
                         // Wire toggle buttons to panel layout
                         const wikiBtn = document.getElementById('nav-wiki-btn');
+                        const liveFeedBtn = document.getElementById('nav-live-feed-btn');
                         const sidebarBtn = document.getElementById('nav-sidebar-btn');
                         const dashboardBtn = document.getElementById('nav-dashboard-btn');
 
                         if (wikiBtn) wikiBtn.addEventListener('click', panelLayout.toggleWiki);
+                        if (liveFeedBtn) liveFeedBtn.addEventListener('click', panelLayout.toggleLiveFeed);
                         if (sidebarBtn) sidebarBtn.addEventListener('click', panelLayout.toggleContextSidebar);
                         if (dashboardBtn) dashboardBtn.addEventListener('click', panelLayout.toggleDashboard);
 
                         // Wire close buttons inside drawer/overlay
                         const wikiCloseBtn = document.getElementById('wiki-drawer-close');
+                        const liveFeedCloseBtn = document.getElementById('live-feed-drawer-close');
                         const dashCloseBtn = document.getElementById('dashboard-overlay-close');
                         if (wikiCloseBtn) wikiCloseBtn.addEventListener('click', panelLayout.toggleWiki);
+                        if (liveFeedCloseBtn) liveFeedCloseBtn.addEventListener('click', panelLayout.toggleLiveFeed);
                         if (dashCloseBtn) dashCloseBtn.addEventListener('click', panelLayout.toggleDashboard);
 
                         // Wire context sidebar collapse/expand buttons
@@ -1995,9 +1999,11 @@ export class App {
                             cleanupToggle?.();
                             panelLayout.cleanup();
                             if (wikiBtn) wikiBtn.removeEventListener('click', panelLayout.toggleWiki);
+                            if (liveFeedBtn) liveFeedBtn.removeEventListener('click', panelLayout.toggleLiveFeed);
                             if (sidebarBtn) sidebarBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
                             if (dashboardBtn) dashboardBtn.removeEventListener('click', panelLayout.toggleDashboard);
                             if (wikiCloseBtn) wikiCloseBtn.removeEventListener('click', panelLayout.toggleWiki);
+                            if (liveFeedCloseBtn) liveFeedCloseBtn.removeEventListener('click', panelLayout.toggleLiveFeed);
                             if (dashCloseBtn) dashCloseBtn.removeEventListener('click', panelLayout.toggleDashboard);
                             if (collapseBtn) collapseBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
                             if (expandBtn) expandBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
