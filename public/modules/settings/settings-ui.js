@@ -28,7 +28,7 @@ export class SettingsUI {
     // DOM要素を取得
     this.modal = document.getElementById('settings-modal');
     this.modalContent = document.getElementById('settings-view');
-    this.settingsBtn = document.getElementById('settings-btn');
+    this.settingsBtn = document.getElementById('ab-settings-btn');
     this.closeBtn = document.getElementById('close-settings-btn');
 
     // Settings Modal の構造を初期化（Plugin Architecture対応）

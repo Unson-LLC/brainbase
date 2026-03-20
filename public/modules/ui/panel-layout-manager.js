@@ -91,9 +91,17 @@ export function setupPanelLayout({ store, eventBus }) {
         tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === activeTab));
         contents.forEach(c => c.classList.toggle('active', c.dataset.tab === activeTab));
 
-        // Update toggle button
-        const btn = getEl('nav-info-btn');
-        if (btn) btn.classList.toggle('active', open);
+
+        // Update Activity Bar buttons
+        const abWiki = getEl('ab-wiki-btn');
+        const abLive = getEl('ab-livefeed-btn');
+        const abSessions = getEl('ab-sessions-btn');
+        if (abWiki) abWiki.classList.toggle('active', open && activeTab === 'wiki');
+        if (abLive) abLive.classList.toggle('active', open && activeTab === 'live-feed');
+
+        // Sessions button is active only when no panel is open
+        const dashOpen = store.getState().ui.panels.dashboardOpen;
+        if (abSessions) abSessions.classList.toggle('active', !open && !dashOpen);
     }
 
     function _applyContextSidebar(collapsed) {
@@ -108,8 +116,15 @@ export function setupPanelLayout({ store, eventBus }) {
     function _applyDashboard(open) {
         const overlay = getEl('dashboard-overlay');
         if (overlay) overlay.classList.toggle('open', open);
-        const btn = getEl('nav-dashboard-btn');
-        if (btn) btn.classList.toggle('active', open);
+
+        // Update Activity Bar buttons
+        const abDash = getEl('ab-dashboard-btn');
+        const abSessions = getEl('ab-sessions-btn');
+        if (abDash) abDash.classList.toggle('active', open);
+
+        // Sessions button is active only when no panel is open
+        const infoOpen = store.getState().ui.panels.infoDrawerOpen;
+        if (abSessions) abSessions.classList.toggle('active', !open && !infoOpen);
     }
 
     // --- Info drawer tab clicks ---

@@ -23,14 +23,34 @@
 
 <body class="dark-theme">
     <div class="app-container">
+        <!-- Activity Bar (Cursor-style vertical icon nav) -->
+        <aside class="activity-bar" id="activity-bar" data-slot="nav:view-toggle">
+            <div class="activity-bar-top">
+                <button class="activity-bar-item active" id="ab-sessions-btn" title="Sessions">
+                    <i data-lucide="layers"></i>
+                </button>
+                <button class="activity-bar-item" id="ab-dashboard-btn" title="Dashboard (Ctrl+Shift+D)" style="display: none;">
+                    <i data-lucide="layout-dashboard"></i>
+                </button>
+                <button class="activity-bar-item" id="ab-wiki-btn" title="Wiki (Ctrl+Shift+I)">
+                    <i data-lucide="book-open"></i>
+                </button>
+                <button class="activity-bar-item" id="ab-livefeed-btn" title="Live Feed">
+                    <i data-lucide="radio"></i>
+                </button>
+            </div>
+            <div class="activity-bar-bottom">
+                <button class="activity-bar-item" id="ab-settings-btn" title="Settings">
+                    <i data-lucide="settings"></i>
+                </button>
+            </div>
+        </aside>
+
         <!-- Left Navigation (Session List) -->
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h3 id="app-version" class="app-version">v--</h3>
             </div>
-
-            <!-- View Toggle -->
-            <div class="view-toggle-container" data-slot="nav:view-toggle"></div>
 
             <!-- Connection Status Indicator -->
             <div class="connection-status" id="connection-status">
@@ -107,10 +127,7 @@
                     <span id="auth-btn-text">ログイン</span>
                     <span id="auth-status-badge" class="auth-status-badge neutral">未ログイン</span>
                 </button>
-                <button id="settings-btn" class="settings-link">
-                    <i data-lucide="settings"></i>
-                    <span>Settings</span>
-                </button>
+                <!-- Settings moved to Activity Bar -->
             </div>
         </nav>
 

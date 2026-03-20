@@ -92,6 +92,68 @@ body::after {
     overflow: hidden;
 }
 
+/* Activity Bar (Cursor-style vertical icon nav) */
+.activity-bar {
+    width: 48px;
+    min-width: 48px;
+    background-color: rgba(15, 23, 42, 0.95);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    flex-shrink: 0;
+    z-index: 51;
+}
+
+.activity-bar-top, .activity-bar-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.activity-bar-item {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 8px;
+    position: relative;
+    transition: color 0.15s, background 0.15s;
+}
+
+.activity-bar-item:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.activity-bar-item.active {
+    color: var(--text-primary);
+}
+
+.activity-bar-item.active::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 25%;
+    height: 50%;
+    width: 3px;
+    background: var(--accent-color);
+    border-radius: 0 2px 2px 0;
+}
+
+.activity-bar-item i {
+    width: 20px;
+    height: 20px;
+}
+
 /* Pane 1: Left Navigation (Sessions) */
 .sidebar {
     width: 260px;
@@ -6601,7 +6663,11 @@ body.resizing iframe {
         display: flex;
     }
 
-    /* Hide desktop sidebars */
+    /* Hide desktop Activity Bar + sidebars */
+    .activity-bar {
+        display: none !important;
+    }
+
     .sidebar {
         display: none !important;
         width: 0 !important;

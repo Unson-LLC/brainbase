@@ -1970,13 +1970,21 @@ export class App {
                         const panelLayout = setupPanelLayout({ store: appStore, eventBus });
                         this._panelLayout = panelLayout;
 
-                        // Wire toggle buttons to panel layout
-                        const infoBtn = document.getElementById('nav-info-btn');
-                        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+                        // Wire Activity Bar buttons
+                        const abSessionsBtn = document.getElementById('ab-sessions-btn');
+                        const abDashboardBtn = document.getElementById('ab-dashboard-btn');
+                        const abWikiBtn = document.getElementById('ab-wiki-btn');
+                        const abLivefeedBtn = document.getElementById('ab-livefeed-btn');
 
-                        const onInfoClick = () => panelLayout.toggleInfoDrawer();
-                        if (infoBtn) infoBtn.addEventListener('click', onInfoClick);
-                        if (dashboardBtn) dashboardBtn.addEventListener('click', panelLayout.toggleDashboard);
+                        const onSessionsClick = () => panelLayout.closeAllPanels();
+                        const onDashboardClick = () => panelLayout.toggleDashboard();
+                        const onWikiClick = () => panelLayout.toggleInfoDrawer('wiki');
+                        const onLivefeedClick = () => panelLayout.toggleInfoDrawer('live-feed');
+
+                        if (abSessionsBtn) abSessionsBtn.addEventListener('click', onSessionsClick);
+                        if (abDashboardBtn) abDashboardBtn.addEventListener('click', onDashboardClick);
+                        if (abWikiBtn) abWikiBtn.addEventListener('click', onWikiClick);
+                        if (abLivefeedBtn) abLivefeedBtn.addEventListener('click', onLivefeedClick);
 
                         // Wire close buttons inside drawer/overlay
                         const infoCloseBtn = document.getElementById('info-drawer-close');
@@ -1993,8 +2001,10 @@ export class App {
                         return () => {
                             cleanupToggle?.();
                             panelLayout.cleanup();
-                            if (infoBtn) infoBtn.removeEventListener('click', onInfoClick);
-                            if (dashboardBtn) dashboardBtn.removeEventListener('click', panelLayout.toggleDashboard);
+                            if (abSessionsBtn) abSessionsBtn.removeEventListener('click', onSessionsClick);
+                            if (abDashboardBtn) abDashboardBtn.removeEventListener('click', onDashboardClick);
+                            if (abWikiBtn) abWikiBtn.removeEventListener('click', onWikiClick);
+                            if (abLivefeedBtn) abLivefeedBtn.removeEventListener('click', onLivefeedClick);
                             if (infoCloseBtn) infoCloseBtn.removeEventListener('click', panelLayout.closeAllPanels);
                             if (dashCloseBtn) dashCloseBtn.removeEventListener('click', panelLayout.toggleDashboard);
                             if (collapseBtn) collapseBtn.removeEventListener('click', panelLayout.toggleContextSidebar);
@@ -2005,10 +2015,10 @@ export class App {
                 'view:dashboard': {
                     manageVisibility: false,
                     mount: async ({ container }) => {
-                        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+                        const abDashboardBtn = document.getElementById('ab-dashboard-btn');
                         const mobileDashboardBtn = document.getElementById('mobile-dashboard-btn');
-                        if (dashboardBtn) {
-                            dashboardBtn.style.display = '';
+                        if (abDashboardBtn) {
+                            abDashboardBtn.style.display = '';
                         }
                         if (mobileDashboardBtn) {
                             mobileDashboardBtn.style.display = '';
@@ -2701,10 +2711,10 @@ export class App {
             };
         }
 
-        // Settings button
-        const settingsBtn = document.getElementById('settings-btn');
-        if (settingsBtn) {
-            settingsBtn.onclick = async () => {
+        // Settings button (Activity Bar)
+        const abSettingsBtn = document.getElementById('ab-settings-btn');
+        if (abSettingsBtn) {
+            abSettingsBtn.onclick = async () => {
                 if (this.settingsCore && this.settingsCore.ui) {
                     await this.settingsCore.ui.openModal();
                 }
@@ -3294,8 +3304,8 @@ export class App {
             closeTasksSheet();
             closeSettingsPanel();
 
-            const dashboardBtn = document.getElementById('nav-dashboard-btn');
-            const isDashboardActive = dashboardBtn?.classList.contains('active');
+            const abDashBtn = document.getElementById('ab-dashboard-btn');
+            const isDashboardActive = abDashBtn?.classList.contains('active');
             if (isDashboardActive) {
                 this.showConsole?.();
                 return;

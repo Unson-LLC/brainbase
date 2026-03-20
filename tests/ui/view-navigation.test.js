@@ -4,8 +4,18 @@ import { setupViewNavigation } from '../../public/modules/ui/view-navigation.js'
 describe('setupViewNavigation', () => {
     beforeEach(() => {
         document.body.innerHTML = `
+            <aside class="activity-bar" id="activity-bar">
+                <div class="activity-bar-top">
+                    <button class="activity-bar-item active" id="ab-sessions-btn"></button>
+                    <button class="activity-bar-item" id="ab-dashboard-btn" style="display:none"></button>
+                    <button class="activity-bar-item" id="ab-wiki-btn"></button>
+                    <button class="activity-bar-item" id="ab-livefeed-btn"></button>
+                </div>
+                <div class="activity-bar-bottom">
+                    <button class="activity-bar-item" id="ab-settings-btn"></button>
+                </div>
+            </aside>
             <div class="view-toggle"></div>
-            <button id="nav-dashboard-btn">dashboard</button>
             <div id="console-area" style="display:flex"></div>
             <div id="file-viewer-panel" style="display:none"></div>
             <div id="live-feed-panel" style="display:none"></div>
