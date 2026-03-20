@@ -7,4 +7,5 @@ projects: []
 plugins:
   enabled:
     - bb-inbox
+    - bb-dashboard
   disabled: []
