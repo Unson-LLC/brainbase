@@ -94,13 +94,20 @@ export class WorktreeService {
     }
 
     async _getBookmarkInfos(repoPath, sessionId) {
+        // リモートの最新状態を取得
+        try {
+            await this.execPromise(`jj -R "${repoPath}" git fetch`);
+        } catch (fetchErr) {
+            console.log(`[getStatus] git fetch failed, continuing: ${fetchErr.message}`);
+        }
+
         const bookmarkCandidates = [this._getSessionBranchName(sessionId), sessionId];
         const infos = [];
 
         for (const candidate of bookmarkCandidates) {
             try {
                 const { stdout } = await this.execPromise(
-                    `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager`
+                    `jj -R "${repoPath}" bookmark list "${candidate}" --all-remotes --no-pager`
                 );
                 const output = stdout.trim();
                 if (!output || output.includes('No matching bookmarks') || output.includes('(deleted)')) {
@@ -109,7 +116,7 @@ export class WorktreeService {
 
                 infos.push({
                     name: candidate,
-                    pushed: output.includes('@origin') || output.includes(' origin'),
+                    pushed: output.includes('@origin:') || output.includes('origin:'),
                     output
                 });
             } catch {
