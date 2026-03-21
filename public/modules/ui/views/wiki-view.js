@@ -1,7 +1,7 @@
 /**
  * Wiki View
  * 右パネル: プロジェクト/カテゴリ別の索引のみ
- * ページ内容はwiki-reader-overlay（メインエリア）に表示
+ * ページ内容はconsole-area内のオーバーレイに表示（ターミナル部分のみ覆う）
  */
 import { escapeHtml } from '../../ui-helpers.js';
 
@@ -34,36 +34,92 @@ export class WikiView {
 
     // --- Grouping ---
 
-    _groupPages(pages) {
-        const groups = {};
+    // --- Folder tree builder ---
+
+    _buildTree(pages) {
+        const root = { _children: {}, _pages: [] };
         for (const page of pages) {
             const parts = page.path.split('/');
-            const groupKey = parts[0] || '_root';
-            if (!groups[groupKey]) groups[groupKey] = [];
-            groups[groupKey].push(page);
+            let node = root;
+            for (let i = 0; i < parts.length - 1; i++) {
+                const seg = parts[i];
+                if (!node._children[seg]) node._children[seg] = { _children: {}, _pages: [] };
+                node = node._children[seg];
+            }
+            node._pages.push(page);
         }
-        return groups;
+        return root;
     }
 
-    _groupLabel(key) {
-        const labels = {
-            '_archived': '📦 アーカイブ',
-            '_common': '🏢 共通',
-            'brainbase': '🧠 brainbase',
-            'salestailor': '📱 SalesTailor',
-            'zeims': '⚡ Zeims',
-            'tech-knight': '🛡️ Tech Knight',
-            'baao': '🎯 BAAO',
-            'unson': '☁️ UNSON',
-            'index': '📖 トップ',
-        };
-        return labels[key] || key;
+    _folderLabel(key) {
+        return key;
     }
 
-    _groupOrder(key) {
+    _folderOrder(key) {
         const order = ['index', 'brainbase', 'salestailor', 'zeims', 'tech-knight', 'baao', 'unson', '_common', '_archived'];
         const idx = order.indexOf(key);
         return idx >= 0 ? idx : 50;
+    }
+
+    _countPages(node) {
+        let count = node._pages.length;
+        for (const child of Object.values(node._children)) {
+            count += this._countPages(child);
+        }
+        return count;
+    }
+
+    _renderTree(node, depth = 0, parentPath = '') {
+        let html = '';
+        // Sort folders
+        const folderKeys = Object.keys(node._children).sort((a, b) => {
+            if (depth === 0) return this._folderOrder(a) - this._folderOrder(b);
+            return a.localeCompare(b);
+        });
+
+        for (const key of folderKeys) {
+            const child = node._children[key];
+            const folderPath = parentPath ? `${parentPath}/${key}` : key;
+            const collapsed = this._collapsed[folderPath] ?? (key === '_archived' || depth >= 2);
+            const chevron = collapsed ? 'chevron-right' : 'chevron-down';
+            const label = this._folderLabel(key);
+            const count = this._countPages(child);
+
+            html += `<div class="wiki-idx-folder" data-depth="${depth}">
+                <div class="wiki-idx-folder-header${collapsed ? ' collapsed' : ''}" data-folder="${escapeHtml(folderPath)}" style="padding-left: ${depth * 16 + 4}px">
+                    <i data-lucide="${collapsed ? 'folder' : 'folder-open'}"></i>
+                    <i data-lucide="${chevron}" class="wiki-idx-chevron"></i>
+                    <span class="wiki-idx-folder-label">${label}</span>
+                    <span class="wiki-idx-folder-count">${count}</span>
+                </div>`;
+
+            if (!collapsed) {
+                html += this._renderTree(child, depth + 1, folderPath);
+                // Render pages in this folder
+                const sorted = [...child._pages].sort((a, b) => (a.title || a.path).localeCompare(b.title || b.path));
+                for (const page of sorted) {
+                    const name = page.path.split('/').pop();
+                    const title = escapeHtml(page.title || name);
+                    html += `<div class="wiki-idx-item" data-path="${escapeHtml(page.path)}" title="${escapeHtml(page.path)}" style="padding-left: ${(depth + 1) * 16 + 4}px">
+                        <span class="wiki-idx-item-title">${title}</span>
+                    </div>`;
+                }
+            }
+            html += '</div>';
+        }
+
+        // Root-level pages (no folder)
+        if (depth === 0) {
+            const sorted = [...node._pages].sort((a, b) => (a.title || a.path).localeCompare(b.title || b.path));
+            for (const page of sorted) {
+                const title = escapeHtml(page.title || page.path);
+                html += `<div class="wiki-idx-item" data-path="${escapeHtml(page.path)}" title="${escapeHtml(page.path)}" style="padding-left: 4px">
+                    <span class="wiki-idx-item-title">${title}</span>
+                </div>`;
+            }
+        }
+
+        return html;
     }
 
     // --- Index render (right panel) ---
@@ -77,42 +133,8 @@ export class WikiView {
     _render() {
         if (!this._container) return;
         const filtered = this._pages.filter(p => this._matchesFilter(p));
-        const groups = this._groupPages(filtered);
-        const sortedKeys = Object.keys(groups).sort((a, b) => this._groupOrder(a) - this._groupOrder(b));
-
-        let indexHtml = '';
-        for (const key of sortedKeys) {
-            const pages = groups[key];
-            const collapsed = this._collapsed[key] ?? (key === '_archived');
-            const chevron = collapsed ? 'chevron-right' : 'chevron-down';
-            const label = this._groupLabel(key);
-            const count = pages.length;
-
-            indexHtml += `<div class="wiki-idx-group" data-group="${escapeHtml(key)}">
-                <div class="wiki-idx-group-header${collapsed ? ' collapsed' : ''}">
-                    <i data-lucide="${chevron}"></i>
-                    <span class="wiki-idx-group-label">${label}</span>
-                    <span class="wiki-idx-group-count">${count}</span>
-                </div>`;
-
-            if (!collapsed) {
-                indexHtml += '<div class="wiki-idx-group-items">';
-                const sorted = [...pages].sort((a, b) => (a.title || a.path).localeCompare(b.title || b.path));
-                for (const page of sorted) {
-                    const subpath = page.path.split('/').slice(1).join('/') || page.path;
-                    const title = escapeHtml(page.title || subpath);
-                    indexHtml += `<div class="wiki-idx-item" data-path="${escapeHtml(page.path)}" title="${escapeHtml(page.path)}">
-                        <span class="wiki-idx-item-title">${title}</span>
-                    </div>`;
-                }
-                indexHtml += '</div>';
-            }
-            indexHtml += '</div>';
-        }
-
-        if (!indexHtml) {
-            indexHtml = '<div class="wiki-idx-empty">ページなし</div>';
-        }
+        const tree = this._buildTree(filtered);
+        const indexHtml = this._renderTree(tree) || '<div class="wiki-idx-empty">ページなし</div>';
 
         this._container.innerHTML = `<div class="wiki-idx">
             <div class="wiki-idx-header">
@@ -131,18 +153,18 @@ export class WikiView {
     _bindEvents() {
         if (!this._container) return;
 
-        // Group toggle
-        this._container.querySelectorAll('.wiki-idx-group-header').forEach(el => {
+        // Folder toggle
+        this._container.querySelectorAll('.wiki-idx-folder-header').forEach(el => {
             el.addEventListener('click', () => {
-                const group = el.closest('.wiki-idx-group')?.dataset.group;
-                if (group) {
-                    this._collapsed[group] = !this._collapsed[group];
+                const folder = el.dataset.folder;
+                if (folder) {
+                    this._collapsed[folder] = !this._collapsed[folder];
                     this._render();
                 }
             });
         });
 
-        // Page click → open overlay
+        // Page click → open overlay on terminal
         this._container.querySelectorAll('.wiki-idx-item').forEach(el => {
             el.addEventListener('click', () => {
                 const path = el.dataset.path;
@@ -162,7 +184,6 @@ export class WikiView {
             searchInput.addEventListener('input', (e) => {
                 this._filter = e.target.value;
                 this._render();
-                // re-focus search after render
                 const newInput = this._container.querySelector('.wiki-idx-search');
                 if (newInput) {
                     newInput.focus();
@@ -172,7 +193,7 @@ export class WikiView {
         }
     }
 
-    // --- Overlay (main area content display) ---
+    // --- Overlay (covers console-area only) ---
 
     _ensureOverlay() {
         if (document.getElementById('wiki-reader-overlay')) {
@@ -191,10 +212,11 @@ export class WikiView {
             </div>
             <div class="wiki-reader-body"></div>
         `;
-        // Insert after dashboard-overlay
-        const dashOverlay = document.getElementById('dashboard-overlay');
-        if (dashOverlay) {
-            dashOverlay.parentElement.insertBefore(overlay, dashOverlay.nextSibling);
+        // Insert inside console-area (which has position:relative)
+        // so the overlay covers only the terminal area
+        const consoleArea = document.getElementById('console-area');
+        if (consoleArea) {
+            consoleArea.appendChild(overlay);
         } else {
             document.body.appendChild(overlay);
         }
@@ -217,7 +239,6 @@ export class WikiView {
         const body = this._overlay.querySelector('.wiki-reader-body');
         const breadcrumb = this._overlay.querySelector('.wiki-reader-breadcrumb');
 
-        // Show overlay with loading state
         this._overlay.classList.add('open');
         breadcrumb.textContent = path;
         body.innerHTML = '<div class="wiki-reader-loading">読み込み中...</div>';
