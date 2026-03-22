@@ -147,7 +147,7 @@ projects:
   github:
     owner: Unson-LLC
     repo: brainbase
-    branch: main
+    branch: develop
   nocodb:
     base_id: pva7l2qlu6fdfip
     project_id: pva7l2qlu6fdfip
@@ -361,4 +361,3 @@ plugins:
   enabled:
   - bb-inbox
   disabled: []
-

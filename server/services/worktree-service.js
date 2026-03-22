@@ -452,6 +452,8 @@ export class WorktreeService {
                 console.log(`[workspace] git fetch skipped (skipFetch=true)`);
             }
 
+            const mainBranchName = await this._getMainBranchName(repoPath);
+
             // Create workspace
             await this._execJujutsuWithStaleRetry(
                 repoPath,
@@ -471,7 +473,7 @@ export class WorktreeService {
             try {
                 await this._execJujutsuWithStaleRetry(
                     repoPath,
-                    `bookmark create -r main ${bookmarkName}`
+                    `bookmark create -r ${mainBranchName} ${bookmarkName}`
                 );
                 console.log(`[workspace] Created bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
@@ -723,7 +725,7 @@ export class WorktreeService {
     }
 
     /**
-     * Jujutsu workspaceをmainにマージ（PR経由）
+     * Jujutsu workspaceをベースブランチにマージ（PR経由）
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @param {string|null} sessionName - セッション名（オプション）
