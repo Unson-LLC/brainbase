@@ -22,6 +22,7 @@ import {
 import { loadConfig } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import { TokenManager } from './auth/token-manager.js';
+import { filterWikiPages } from './tools/wiki-search.js';
 
 // Global index (built once at startup)
 let entityIndex: EntityIndex;
@@ -226,13 +227,17 @@ const tools: Tool[] = [
   },
   {
     name: 'search_wiki',
-    description: 'Search wiki pages by keyword. Returns matching page titles and paths from the brainbase wiki.',
+    description: 'Search wiki pages by keyword. Returns matching page titles and paths from the brainbase wiki. Optionally filter by project_id.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
           description: 'Search keyword to find wiki pages',
+        },
+        project_id: {
+          type: 'string',
+          description: 'Optional project ID to filter results (e.g. "brainbase", "salestailor")',
         },
       },
       required: ['query'],
@@ -339,6 +344,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
 
     case 'search_wiki': {
       const query = args.query as string;
+      const projectId = args.project_id as string | undefined;
       const token = await globalTokenManager.getToken();
       const url = new URL('/api/wiki/pages', wikiApiBaseUrl);
       const response = await fetch(url.toString(), {
@@ -348,16 +354,14 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         return `Wiki API error: ${response.status} ${response.statusText}`;
       }
       const pages = (await response.json()) as Array<{ path: string; title: string; project_id: string | null }>;
-      const q = query.toLowerCase();
-      const matches = pages.filter(
-        (p) =>
-          p.path.toLowerCase().includes(q) ||
-          p.title.toLowerCase().includes(q)
-      );
+      const matches = filterWikiPages(pages, query, projectId);
       if (matches.length === 0) {
-        return `No wiki pages found for "${query}".`;
+        return `No wiki pages found for "${query}"${projectId ? ` in project "${projectId}"` : ''}.`;
       }
-      const lines = [`# Wiki Search: "${query}" (${matches.length} results)\n`];
+      const header = projectId
+        ? `# Wiki Search: "${query}" in project "${projectId}" (${matches.length} results)\n`
+        : `# Wiki Search: "${query}" (${matches.length} results)\n`;
+      const lines = [header];
       for (const p of matches.slice(0, 20)) {
         lines.push(`- **${p.title}** — \`${p.path}\`${p.project_id ? ` [${p.project_id}]` : ''}`);
       }
