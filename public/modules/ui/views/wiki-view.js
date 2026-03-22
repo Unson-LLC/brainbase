@@ -86,7 +86,7 @@ export class WikiView {
             const count = this._countPages(child);
 
             html += `<div class="wiki-idx-folder" data-depth="${depth}">
-                <div class="wiki-idx-folder-header${collapsed ? ' collapsed' : ''}" data-folder="${escapeHtml(folderPath)}" style="padding-left: ${depth * 16 + 4}px">
+                <div class="wiki-idx-folder-header" data-folder="${escapeHtml(folderPath)}" style="padding-left: ${depth * 16 + 4}px">
                     <i data-lucide="${collapsed ? 'folder' : 'folder-open'}"></i>
                     <i data-lucide="${chevron}" class="wiki-idx-chevron"></i>
                     <span class="wiki-idx-folder-label">${label}</span>
@@ -143,6 +143,14 @@ export class WikiView {
             </div>
             <div class="wiki-idx-list">${indexHtml}</div>
         </div>`;
+
+        // Apply collapsed state via classList
+        this._container.querySelectorAll('.wiki-idx-folder-header').forEach(el => {
+            const folder = el.dataset.folder;
+            if (folder && this._collapsed[folder]) {
+                el.classList.add('collapsed');
+            }
+        });
 
         this._bindEvents();
         if (typeof window.lucide !== 'undefined') {
