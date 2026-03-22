@@ -213,6 +213,28 @@ describe('WorktreeService Git compatibility helpers', () => {
         );
         expect(mockExec).toHaveBeenCalledWith('jj -R "/tmp/repo" bookmark create -r develop session-1');
     });
+
+    it('未マージcommitがある場合_cleanでもneedsMergeを返す', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_getBookmarkInfos').mockResolvedValue([
+            { name: 'session/session-1', pushed: true, output: 'session/session-1: abc@origin' }
+        ]);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(2);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({ stdout: 'The working copy has no changes.\n' });
+
+        const result = await service.getStatus('session-1', '/tmp/repo', 'abc123');
+
+        expect(result.changesNotPushed).toBe(0);
+        expect(result.hasWorkingCopyChanges).toBe(false);
+        expect(result.needsIntegration).toBe(false);
+        expect(result.needsMerge).toBe(true);
+        expect(result.commitsAheadOfBase).toBe(2);
+    });
 });
 
 describe('WorktreeService.autoHealArchiveState', () => {

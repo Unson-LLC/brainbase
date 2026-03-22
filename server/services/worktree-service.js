@@ -220,6 +220,21 @@ export class WorktreeService {
         }
     }
 
+    async _countCommitsAheadOfBase(repoPath, baseRef, targetRef) {
+        if (!baseRef || !targetRef) {
+            return 0;
+        }
+
+        try {
+            const { stdout } = await this.execPromise(
+                `jj -R "${repoPath}" log -r "${baseRef}..${targetRef}" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
+            );
+            return parseInt(stdout.trim(), 10) || 0;
+        } catch {
+            return 0;
+        }
+    }
+
     async _resolveArchiveTargetBookmark(sessionId, repoPath, workspacePath, bookmarkInfos) {
         const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
         if (officialBookmark) {
@@ -283,7 +298,14 @@ export class WorktreeService {
             const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId);
             const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
             const bookmarkPushed = Boolean(officialBookmark);
+            const mergeTargetRef = officialBookmark?.name || bookmarkInfos[0]?.name || null;
+            const commitsAheadOfBase = await this._countCommitsAheadOfBase(
+                repoPath,
+                mainBranchName,
+                mergeTargetRef
+            );
             const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges;
+            const needsMerge = commitsAheadOfBase > 0;
 
             return {
                 exists: true,
@@ -297,10 +319,12 @@ export class WorktreeService {
                 hasWorkingCopyChanges,
                 bookmarkPushed,
                 needsIntegration,
+                needsMerge,
+                commitsAheadOfBase,
                 commitsAhead: changesNotPushed,
                 hasUncommittedChanges: hasWorkingCopyChanges,
                 branchName: this._getSessionBranchName(sessionId),
-                needsMerge: needsIntegration
+                mergeTargetRef
             };
         } catch {
             return {

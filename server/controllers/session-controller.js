@@ -892,6 +892,7 @@ export class SessionController {
 
 ${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
 ${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
+${status.needsMerge ? `- ${status.mainBranch || 'base branch'} に未マージのcommitが${status.commitsAheadOfBase || 0}件あります` : ''}
 ${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
 ${status.autoHealReason && status.autoHealReason !== 'healed' ? `- 自動修復スキップ理由: ${status.autoHealReason}` : ''}
 

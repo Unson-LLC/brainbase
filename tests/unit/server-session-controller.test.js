@@ -661,6 +661,66 @@ describe('SessionController (Server)', () => {
       }));
       expect(mockSessionManager.stopTtyd).not.toHaveBeenCalled();
     });
+
+    it('working copyがcleanでも未マージcommitがあれば確認レスポンスを返す', async () => {
+      const sessionId = 'session-unmerged-only';
+      mockStateStore.get.mockReturnValue({
+        sessions: [
+          {
+            id: sessionId,
+            intendedState: 'active',
+            worktree: {
+              repo: '/tmp/repo',
+              path: '/tmp/worktrees/session-unmerged-only-repo',
+              startCommit: 'abc123'
+            }
+          }
+        ]
+      });
+      mockWorktreeService.getStatus.mockResolvedValue({
+        needsIntegration: false,
+        needsMerge: true,
+        commitsAheadOfBase: 2,
+        mainBranch: 'develop',
+        changesNotPushed: 0,
+        hasWorkingCopyChanges: false,
+        bookmarkName: sessionId,
+        bookmarkPushed: true
+      });
+      mockWorktreeService.autoHealArchiveState.mockResolvedValue({
+        attempted: false,
+        healed: false,
+        reason: 'changes_not_pushed',
+        actions: [],
+        statusAfter: {
+          needsIntegration: false,
+          needsMerge: true,
+          commitsAheadOfBase: 2,
+          mainBranch: 'develop',
+          changesNotPushed: 0,
+          hasWorkingCopyChanges: false,
+          bookmarkName: sessionId,
+          bookmarkPushed: true
+        }
+      });
+
+      const req = {
+        params: { id: sessionId },
+        body: {}
+      };
+
+      await sessionController.archive(req, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        needsConfirmation: true,
+        status: expect.objectContaining({
+          needsMerge: true,
+          commitsAheadOfBase: 2,
+          mainBranch: 'develop'
+        })
+      }));
+      expect(mockSessionManager.stopTtyd).not.toHaveBeenCalled();
+    });
   });
 
   describe('restore', () => {
