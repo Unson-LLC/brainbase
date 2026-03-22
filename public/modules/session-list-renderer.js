@@ -189,7 +189,6 @@ export function renderSessionRowHTML(session, options = {}) {
     : '';
 
   const attentionLabelMap = {
-    'needs-focus': { text: 'Focus', className: 'attention-focus', title: 'Needs attention' },
     'needs-input': { text: 'Input', className: 'attention-input', title: 'Waiting for input' }
   };
 

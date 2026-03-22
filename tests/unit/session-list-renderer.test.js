@@ -104,7 +104,7 @@ describe('session-list-renderer', () => {
       expect(html).toContain('pending');
       expect(html).toContain('file: app.js');
       expect(html).toContain('Reconnecting');
-      expect(html).toContain('Focus');
+      expect(html).not.toContain('session-attention-badge');
     });
 
   });

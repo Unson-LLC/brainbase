@@ -570,6 +570,44 @@ describe('app switchSession runtime handling', () => {
     expect(app.reconnectManager._setBlocked).toHaveBeenCalled();
   });
 
+  it('desktop switchSessionは自動フォーカスを再試行しiframe load後も再実行する', async () => {
+    vi.useFakeTimers();
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    app.terminalFrame = terminalFrame;
+    app.setupTerminalInputUx();
+
+    await app.switchSession('session-1');
+
+    expect(app.focusTerminal).toHaveBeenCalledWith('switchSession');
+
+    await vi.advanceTimersByTimeAsync(220);
+    const switchSessionCalls = app.focusTerminal.mock.calls.filter(([reason]) => reason === 'switchSession').length;
+    expect(switchSessionCalls).toBeGreaterThan(1);
+
+    const callCountBeforeLoad = app.focusTerminal.mock.calls.length;
+    terminalFrame.dispatchEvent(new Event('load'));
+    await vi.advanceTimersByTimeAsync(220);
+
+    expect(app.focusTerminal.mock.calls.length).toBeGreaterThan(callCountBeforeLoad);
+    expect(app.focusTerminal).toHaveBeenCalledWith('terminal-frame-load');
+    vi.useRealTimers();
+  });
+
   it('updates session UI state when attention changes while transport stays connected', async () => {
     const emitSpy = vi.spyOn(eventBus, 'emit');
 

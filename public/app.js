@@ -554,6 +554,7 @@ export class App {
         this.mobileInputController = null;
         this.terminalInteractionService = null;
         this._sessionSwitchToken = 0;
+        this._terminalAutoFocusTimers = new Set();
         this.viewerId = getTerminalViewerId();
         this.viewerLabel = getTerminalViewerLabel();
     }
@@ -568,6 +569,35 @@ export class App {
 
     _shouldAutoFocusTerminalSurface() {
         return !this.isMobile();
+    }
+
+    _clearScheduledTerminalAutoFocus() {
+        this._terminalAutoFocusTimers.forEach(timerId => window.clearTimeout(timerId));
+        this._terminalAutoFocusTimers.clear();
+    }
+
+    _scheduleTerminalAutoFocus(reason = 'unknown', delays = [75, 200]) {
+        if (!this._shouldAutoFocusTerminalSurface()) return;
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+
+        delays.forEach((delay) => {
+            const timerId = window.setTimeout(() => {
+                this._terminalAutoFocusTimers.delete(timerId);
+                if (appStore.getState().currentSessionId !== sessionId) return;
+                if (!this._shouldAutoFocusTerminalSurface() || !this._isConsoleVisible()) return;
+                this.focusTerminal(reason);
+            }, delay);
+            this._terminalAutoFocusTimers.add(timerId);
+        });
+    }
+
+    _triggerTerminalAutoFocus(reason = 'unknown', delays = [75, 200]) {
+        this._clearScheduledTerminalAutoFocus();
+        if (!this._shouldAutoFocusTerminalSurface()) return;
+        if (!appStore.getState().currentSessionId) return;
+        this.focusTerminal(reason);
+        this._scheduleTerminalAutoFocus(reason, delays);
     }
 
     _isMobileTerminalDisplayMode() {
@@ -1645,6 +1675,14 @@ export class App {
         this.mobileLiveTerminalFrameEl?.addEventListener('load', onMobileLiveTerminalLoad);
         this._terminalInputUxCleanup.push(() => this.mobileLiveTerminalFrameEl?.removeEventListener('load', onMobileLiveTerminalLoad));
 
+        const onTerminalFrameLoad = () => {
+            this._scheduleTerminalInputStatusUpdate();
+            if (this._mobileTerminalMode === 'interactive') return;
+            this._scheduleTerminalAutoFocus('terminal-frame-load', [60, 180]);
+        };
+        this.terminalFrame?.addEventListener('load', onTerminalFrameLoad);
+        this._terminalInputUxCleanup.push(() => this.terminalFrame?.removeEventListener('load', onTerminalFrameLoad));
+
         const onMobileLiveTerminalClose = (event) => {
             event?.preventDefault?.();
             this.closeMobileLiveTerminal();
@@ -2427,7 +2465,7 @@ export class App {
             }
 
             if (this._shouldAutoFocusTerminalSurface()) {
-                this.focusTerminal('session-changed');
+                this._triggerTerminalAutoFocus('session-changed');
             }
 
             scheduleAfterNextPaint(() => {
@@ -3602,7 +3640,7 @@ export class App {
                         attention: 'none'
                     });
                     if (this._shouldAutoFocusTerminalSurface()) {
-                        this.focusTerminal('switchSession');
+                        this._triggerTerminalAutoFocus('switchSession');
                     }
 
                     return;
@@ -3661,7 +3699,7 @@ export class App {
                     attention: 'none'
                 });
                 if (this._shouldAutoFocusTerminalSurface()) {
-                    this.focusTerminal('switchSession');
+                    this._triggerTerminalAutoFocus('switchSession');
                 }
             } else {
                 console.error('No proxyPath available for session:', sessionId);
@@ -4484,6 +4522,7 @@ export class App {
             window.cancelAnimationFrame(this._terminalFrameLayoutSyncRaf);
             this._terminalFrameLayoutSyncRaf = null;
         }
+        this._clearScheduledTerminalAutoFocus();
 
         // Stop choice detection
         this.stopChoiceDetection();
