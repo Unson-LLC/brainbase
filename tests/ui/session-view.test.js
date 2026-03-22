@@ -193,5 +193,18 @@ describe('SessionView', () => {
             warnSpy.mockRestore();
             logSpy.mockRestore();
         });
+
+        it('_generateInvestigationPrompt呼び出し時_未マージcommitを含める', () => {
+            const prompt = sessionView._generateInvestigationPrompt({
+                changesNotPushed: 0,
+                hasWorkingCopyChanges: false,
+                bookmarkPushed: true,
+                needsMerge: true,
+                commitsAheadOfBase: 2,
+                mainBranch: 'develop'
+            });
+
+            expect(prompt).toContain('develop に未マージのcommit: 2件');
+        });
     });
 });

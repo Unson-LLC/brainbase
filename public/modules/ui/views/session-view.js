@@ -611,9 +611,18 @@ export class SessionView {
                         if (status.hasWorkingCopyChanges) {
                             criticalDetails.push('working copyに未完了のchangeがあります');
                         }
+                        if (status.needsMerge) {
+                            const baseBranch = status.mainBranch || 'base branch';
+                            const mergeCount = status.commitsAheadOfBase || 0;
+                            criticalDetails.push(
+                                mergeCount > 0
+                                    ? `${baseBranch} に未マージのcommitが${mergeCount}件あります`
+                                    : `${baseBranch} に未マージのchangeがあります`
+                            );
+                        }
 
                         // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
-                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges)) {
+                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges || status.needsMerge)) {
                             infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
                         }
 
@@ -913,6 +922,9 @@ export class SessionView {
 
         if (status.changesNotPushed > 0) {
             issues.push(`- remoteにpushされてないchange: ${status.changesNotPushed}件`);
+        }
+        if (status.needsMerge) {
+            issues.push(`- ${status.mainBranch || 'base branch'} に未マージのcommit: ${status.commitsAheadOfBase || 0}件`);
         }
         if (!status.bookmarkPushed && status.bookmarkName) {
             issues.push(`- bookmark '${status.bookmarkName}' がremoteにない`);
