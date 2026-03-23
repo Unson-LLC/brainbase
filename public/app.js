@@ -854,6 +854,39 @@ export class App {
         return await this.sessionService.refreshSessionUiSummaries(sessionIds);
     }
 
+    _collectVisibleSessionIds(container) {
+        if (!container || !container.isConnected) return [];
+        const containerRect = container.getBoundingClientRect();
+        if (containerRect.width <= 0 || containerRect.height <= 0) return [];
+
+        return Array.from(container.querySelectorAll('.session-child-row[data-id]'))
+            .filter((row) => {
+                const rect = row.getBoundingClientRect();
+                return rect.height > 0
+                    && rect.bottom >= containerRect.top
+                    && rect.top <= containerRect.bottom;
+            })
+            .map((row) => row.dataset.id)
+            .filter(Boolean);
+    }
+
+    _getSessionUiSummaryRefreshIds() {
+        const ids = new Set();
+        const state = appStore.getState();
+        if (state.currentSessionId) {
+            ids.add(state.currentSessionId);
+        }
+
+        for (const containerId of ['session-list', 'mobile-session-list']) {
+            const container = document.getElementById(containerId);
+            for (const sessionId of this._collectVisibleSessionIds(container)) {
+                ids.add(sessionId);
+            }
+        }
+
+        return Array.from(ids);
+    }
+
     _runDeferredSessionSwitchWork(sessionId, switchToken) {
         if (switchToken !== this._sessionSwitchToken) return;
         if (appStore.getState().currentSessionId !== sessionId) return;
@@ -4385,14 +4418,13 @@ export class App {
         }
 
         this.sessionUiSummaryIntervalId = setInterval(() => {
+            if (document.hidden) return;
             const state = appStore.getState();
             if (state.ui?.sidebarPrimaryView !== 'sessions') return;
-            const activeIds = (state.sessions || [])
-                .filter((session) => session.intendedState !== 'archived')
-                .map((session) => session.id);
-            if (activeIds.length === 0) return;
-            void this.refreshSessionUiSummaries(activeIds);
-        }, 15_000);
+            const refreshIds = this._getSessionUiSummaryRefreshIds();
+            if (refreshIds.length === 0) return;
+            void this.refreshSessionUiSummaries(refreshIds);
+        }, 30_000);
     }
 
     /**

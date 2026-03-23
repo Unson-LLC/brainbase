@@ -1,8 +1,10 @@
 import { WebSocketServer } from 'ws';
-import { detectCliState, detectCliStateWithColors } from './cli-pattern-detector.js';
+import { detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';
+import { TmuxCaptureCache } from './tmux-capture-cache.js';
+import { TmuxControlRegistry } from './tmux-control-registry.js';
 
-const DEFAULT_SNAPSHOT_LINES = 5000;
+const DEFAULT_SNAPSHOT_LINES = 400;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
@@ -35,9 +37,11 @@ function buildTerminalWsMatch(urlString = '') {
 }
 
 export class TerminalTransportService {
-    constructor({ sessionManager, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS }) {
+    constructor({ sessionManager, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS, captureCache = null, controlRegistry = null }) {
         this.sessionManager = sessionManager;
         this.pollIntervalMs = pollIntervalMs;
+        this.captureCache = captureCache || new TmuxCaptureCache({ sessionManager });
+        this.controlRegistry = controlRegistry || new TmuxControlRegistry();
         this.activeConnections = new Map(); // sessionId → { viewerId, ws, connection }
         this.wss = new WebSocketServer({ noServer: true });
         this.wss.on('connection', (ws, request, clientInfo) => {
@@ -112,7 +116,10 @@ export class TerminalTransportService {
             lastSnapshot: null,
             lastCopyMode: null,
             lastCliState: null,
-            pollTimer: null
+            pollTimer: null,
+            transport: 'snapshot',
+            controlClient: null,
+            streamCleanup: null
         };
 
         this.activeConnections.set(sessionId, { viewerId, ws, connection });
@@ -123,6 +130,10 @@ export class TerminalTransportService {
             if (connection.pollTimer) {
                 clearInterval(connection.pollTimer);
                 connection.pollTimer = null;
+            }
+            if (typeof connection.streamCleanup === 'function') {
+                connection.streamCleanup();
+                connection.streamCleanup = null;
             }
             // activeConnectionsから削除（自分の接続の場合のみ）
             const current = this.activeConnections.get(sessionId);
@@ -142,9 +153,7 @@ export class TerminalTransportService {
                 await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
             await this._sendReady(connection);
-            connection.pollTimer = setInterval(() => {
-                void this._pollConnection(connection);
-            }, this.pollIntervalMs);
+            await this._startStreaming(connection);
         } catch (err) {
             console.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
             if (ws.readyState === 1) {
@@ -157,7 +166,7 @@ export class TerminalTransportService {
     async _sendReady(connection) {
         const { sessionId, viewerId, viewerLabel, ws, cols, rows } = connection;
         this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
-        const snapshot = await this._getSnapshotPayload(sessionId);
+        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
         connection.lastSnapshot = snapshot.text;
         connection.lastCopyMode = snapshot.copyMode;
         if (ws.readyState !== 1) return;
@@ -177,8 +186,75 @@ export class TerminalTransportService {
         ws.send(JSON.stringify({
             type: 'status',
             mode: 'live',
-            copyMode: snapshot.copyMode
+            copyMode: snapshot.copyMode,
+            transport: 'streaming'
         }));
+    }
+
+    async _startStreaming(connection) {
+        if (connection.closed) return;
+
+        try {
+            const client = this.controlRegistry.acquire(connection.sessionId);
+            connection.controlClient = client;
+            connection.transport = 'streaming';
+
+            const handleOutput = (data) => {
+                if (connection.closed || connection.ws.readyState !== 1 || !data) return;
+                connection.ws.send(JSON.stringify({
+                    type: 'output',
+                    data
+                }));
+            };
+            const handleFailure = () => {
+                void this._fallbackToPolling(connection);
+            };
+
+            client.on('output', handleOutput);
+            client.on('error', handleFailure);
+            client.on('exit', handleFailure);
+
+            connection.streamCleanup = () => {
+                client.off('output', handleOutput);
+                client.off('error', handleFailure);
+                client.off('exit', handleFailure);
+                this.controlRegistry.release(connection.sessionId, client);
+            };
+
+            if (connection.cols && connection.rows) {
+                client.resize(connection.cols, connection.rows);
+            }
+        } catch (error) {
+            console.warn(`[TerminalTransport] streaming start failed for ${connection.sessionId}: ${error.message}`);
+            await this._fallbackToPolling(connection);
+        }
+    }
+
+    async _fallbackToPolling(connection) {
+        if (connection.closed || connection.transport === 'snapshot') return;
+
+        if (typeof connection.streamCleanup === 'function') {
+            connection.streamCleanup();
+            connection.streamCleanup = null;
+        }
+        connection.controlClient = null;
+        connection.transport = 'snapshot';
+
+        if (connection.ws.readyState === 1) {
+            connection.ws.send(JSON.stringify({
+                type: 'status',
+                mode: 'snapshot',
+                copyMode: connection.lastCopyMode || false,
+                transport: 'snapshot'
+            }));
+        }
+
+        await this._pollConnection(connection);
+        if (!connection.pollTimer) {
+            connection.pollTimer = setInterval(() => {
+                void this._pollConnection(connection);
+            }, this.pollIntervalMs);
+        }
     }
 
     async _pollConnection(connection) {
@@ -209,7 +285,6 @@ export class TerminalTransportService {
                 text: snapshot.text,
                 capturedAt: snapshot.capturedAt
             };
-            if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
             ws.send(JSON.stringify(pollSnapshotMsg));
         }
 
@@ -222,8 +297,9 @@ export class TerminalTransportService {
             connection.lastCliState = cliState;
             ws.send(JSON.stringify({
                 type: 'status',
-                mode: 'live',
+                mode: 'snapshot',
                 copyMode: snapshot.copyMode,
+                transport: 'snapshot',
                 cliState
             }));
         }
@@ -237,35 +313,47 @@ export class TerminalTransportService {
         switch (message.type) {
             case 'ping': {
                 if (ws.readyState === 1) {
-                    ws.send(JSON.stringify({ type: 'status', mode: 'live', copyMode: connection.lastCopyMode || false }));
+                    ws.send(JSON.stringify({
+                        type: 'status',
+                        mode: connection.transport === 'streaming' ? 'live' : 'snapshot',
+                        copyMode: connection.lastCopyMode || false,
+                        transport: connection.transport
+                    }));
                 }
                 return;
             }
             case 'input': {
                 const inputType = message.inputType === 'key' ? 'key' : 'text';
                 await this.sessionManager.sendInput(sessionId, message.value, inputType);
+                this.captureCache.invalidate(sessionId);
                 this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 
-                // Pasted text detection (CommandMate pattern):
-                // After sending text, check if terminal shows paste overlay and auto-dismiss
                 if (inputType === 'text' && message.value && message.value.includes('\n')) {
-                    await this._handlePastedTextOverlay(connection);
+                    void this._handlePastedTextOverlay(connection);
                 }
 
-                await this._pollConnection(connection);
+                if (connection.transport !== 'streaming') {
+                    await this._pollConnection(connection);
+                }
                 return;
             }
             case 'resize': {
                 const cols = Number(message.cols);
                 const rows = Number(message.rows);
-                await this.sessionManager.resizeSessionWindow(sessionId, cols, rows);
+                this.captureCache.invalidate(sessionId);
                 if (Number.isFinite(cols) && cols > 0) {
                     connection.cols = cols;
                 }
                 if (Number.isFinite(rows) && rows > 0) {
                     connection.rows = rows;
                 }
-                await this._pollConnection(connection);
+
+                if (connection.transport === 'streaming' && connection.controlClient) {
+                    connection.controlClient.resize(cols, rows);
+                } else {
+                    await this.sessionManager.resizeSessionWindow(sessionId, cols, rows);
+                    await this._pollConnection(connection);
+                }
                 return;
             }
             default:
@@ -293,21 +381,16 @@ export class TerminalTransportService {
             // Send Enter to dismiss the overlay
             console.log(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
             await this.sessionManager.sendInput(connection.sessionId, 'C-m', 'key').catch(() => {});
+            this.captureCache.invalidate(connection.sessionId);
         }
     }
 
-    async _getSnapshotPayload(sessionId) {
-        const [text, colorText, copyMode] = await Promise.all([
-            this.sessionManager.getContent(sessionId, DEFAULT_SNAPSHOT_LINES),
-            this.sessionManager.getContentWithColors(sessionId, DEFAULT_SNAPSHOT_LINES).catch(() => null),
-            this.sessionManager.getPaneMode(sessionId).catch(() => false),
-        ]);
-        return {
-            text,
-            colorText,
-            copyMode,
-            capturedAt: new Date().toISOString()
-        };
+    async _getSnapshotPayload(sessionId, options = {}) {
+        return await this.captureCache.getSnapshot(sessionId, {
+            lines: DEFAULT_SNAPSHOT_LINES,
+            includeColors: options.includeColors === true,
+            includeCopyMode: options.includeCopyMode !== false
+        });
     }
 }
 

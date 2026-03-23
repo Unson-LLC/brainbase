@@ -89,6 +89,9 @@ describe('terminal-transport-client', () => {
           this._emit('message', {
             data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
           });
+          this._emit('message', {
+            data: JSON.stringify({ type: 'status', mode: 'live', transport: 'streaming', copyMode: false })
+          });
         });
       }
 
@@ -210,6 +213,7 @@ describe('terminal-transport-client', () => {
       expect.any(Function)
     );
     expect(scrollToLine).toHaveBeenCalledWith(120);
+    expect(client.fitAddon.fit).not.toHaveBeenCalled();
   });
 
   it('snapshot適用時_最下部を見ているなら最下部を維持する', async () => {
@@ -298,5 +302,20 @@ describe('terminal-transport-client', () => {
     );
     expect(scrollToBottom).toHaveBeenCalled();
     expect(client._pendingSnapshotText).toBeNull();
+  });
+
+  it('outputメッセージはxtermへそのまま追記する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._applyOutput('\u001b[32mhello\u001b[0m');
+
+    expect(terminal.write).toHaveBeenCalledWith('\u001b[32mhello\u001b[0m');
   });
 });
