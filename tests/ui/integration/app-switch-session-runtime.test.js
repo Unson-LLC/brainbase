@@ -757,4 +757,39 @@ describe('app switchSession runtime handling', () => {
     expect(app.scheduleService.loadSchedule).toHaveBeenCalled();
     expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith([]);
   });
+
+  it('loadInitialDataは一時的なapi/state未準備をretryして非archived sessionを選ぶ', async () => {
+    const loadSessions = vi.fn()
+      .mockRejectedValueOnce(new Error('Service not ready'))
+      .mockImplementationOnce(async () => {
+        appStore.setState({
+          currentSessionId: null,
+          sessions: [
+            { id: 'session-archived', intendedState: 'archived' },
+            { id: 'session-active', intendedState: 'active' }
+          ]
+        });
+      });
+
+    app.sessionService = { loadSessions };
+    app.taskService = { loadTasks: vi.fn() };
+    app.scheduleService = { loadSchedule: vi.fn() };
+    app.refreshSessionUiSummaries = vi.fn();
+    app.loadSessionData = vi.fn();
+    app._updateSessionGoalBanner = vi.fn();
+
+    const emitSpy = vi.spyOn(eventBus, 'emit').mockImplementation(async (event, detail) => {
+      if (event === 'session:changed') {
+        appStore.setState({ currentSessionId: detail.sessionId });
+      }
+    });
+
+    await app.loadInitialData();
+
+    expect(loadSessions).toHaveBeenCalledTimes(2);
+    expect(emitSpy).toHaveBeenCalledWith('session:changed', { sessionId: 'session-active' });
+    expect(appStore.getState().currentSessionId).toBe('session-active');
+    expect(app.loadSessionData).toHaveBeenCalledWith('session-active');
+    expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-active']);
+  });
 });

@@ -3758,11 +3758,31 @@ export class App {
         return sessionList.find((session) => session.intendedState !== 'archived')?.id || null;
     }
 
+    async _loadSessionsForStartup(maxAttempts = 3, delayMs = 350) {
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return await this.sessionService.loadSessions();
+            } catch (error) {
+                lastError = error;
+                if (attempt >= maxAttempts) break;
+                console.warn(
+                    `Sessions not available during startup (attempt ${attempt}/${maxAttempts}), retrying...`,
+                    error.message
+                );
+                await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+            }
+        }
+
+        throw lastError || new Error('Failed to load sessions during startup');
+    }
+
     async loadInitialData() {
         try {
             // Load all sessions (404エラーは許容)
             try {
-                await this.sessionService.loadSessions();
+                await this._loadSessionsForStartup();
             } catch (error) {
                 console.warn('Sessions not available, using empty state:', error.message);
             }
