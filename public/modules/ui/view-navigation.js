@@ -15,9 +15,7 @@ export function setupViewNavigation({
 
     if (consoleArea) consoleArea.style.display = 'flex';
 
-    const hideAllPanels = () => {
-        const infoDrawer = getById('info-drawer');
-        if (infoDrawer) infoDrawer.classList.remove('open');
+    const hideTransientPanels = () => {
         const dashOverlay = getById('dashboard-overlay');
         if (dashOverlay) dashOverlay.classList.remove('open');
         if (fileViewerPanel) fileViewerPanel.style.display = 'none';
@@ -25,7 +23,7 @@ export function setupViewNavigation({
     };
 
     const showConsole = () => {
-        hideAllPanels();
+        hideTransientPanels();
         const frame = getById('terminal-frame');
         if (frame) {
             frame.focus?.();
