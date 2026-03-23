@@ -654,4 +654,67 @@ describe('app switchSession runtime handling', () => {
 
     expect(emitSpy).toHaveBeenCalledWith('session:ui-state-changed', { sessionIds: ['session-1'] });
   });
+
+  it('loadInitialDataはarchived先頭を飛ばして最初の非archived sessionを選ぶ', async () => {
+    app.sessionService = {
+      loadSessions: vi.fn(async () => {
+        appStore.setState({
+          currentSessionId: null,
+          sessions: [
+            { id: 'session-archived', intendedState: 'archived' },
+            { id: 'session-active', intendedState: 'active' },
+            { id: 'session-paused', intendedState: 'paused' }
+          ]
+        });
+      })
+    };
+    app.taskService = { loadTasks: vi.fn() };
+    app.scheduleService = { loadSchedule: vi.fn() };
+    app.refreshSessionUiSummaries = vi.fn();
+    app.loadSessionData = vi.fn();
+    app._updateSessionGoalBanner = vi.fn();
+
+    const emitSpy = vi.spyOn(eventBus, 'emit').mockImplementation(async (event, detail) => {
+      if (event === 'session:changed') {
+        appStore.setState({ currentSessionId: detail.sessionId });
+      }
+    });
+
+    await app.loadInitialData();
+
+    expect(emitSpy).toHaveBeenCalledWith('session:changed', { sessionId: 'session-active' });
+    expect(appStore.getState().currentSessionId).toBe('session-active');
+    expect(app.loadSessionData).toHaveBeenCalledWith('session-active');
+    expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-active', 'session-paused']);
+  });
+
+  it('loadInitialDataは全sessionがarchivedなら自動選択しない', async () => {
+    app.sessionService = {
+      loadSessions: vi.fn(async () => {
+        appStore.setState({
+          currentSessionId: null,
+          sessions: [
+            { id: 'session-archived-1', intendedState: 'archived' },
+            { id: 'session-archived-2', intendedState: 'archived' }
+          ]
+        });
+      })
+    };
+    app.taskService = { loadTasks: vi.fn() };
+    app.scheduleService = { loadSchedule: vi.fn() };
+    app.refreshSessionUiSummaries = vi.fn();
+    app.loadSessionData = vi.fn();
+    app._updateSessionGoalBanner = vi.fn();
+
+    const emitSpy = vi.spyOn(eventBus, 'emit').mockImplementation(async () => {});
+
+    await app.loadInitialData();
+
+    expect(emitSpy).not.toHaveBeenCalledWith('session:changed', expect.anything());
+    expect(appStore.getState().currentSessionId).toBeNull();
+    expect(app.loadSessionData).not.toHaveBeenCalled();
+    expect(app.taskService.loadTasks).toHaveBeenCalled();
+    expect(app.scheduleService.loadSchedule).toHaveBeenCalled();
+    expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith([]);
+  });
 });

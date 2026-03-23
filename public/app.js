@@ -3742,6 +3742,19 @@ export class App {
     /**
      * Initial data load
      */
+    _resolveInitialSessionId(currentSessionId, sessions = []) {
+        const sessionList = Array.isArray(sessions) ? sessions : [];
+        const currentSession = currentSessionId
+            ? sessionList.find((session) => session.id === currentSessionId)
+            : null;
+
+        if (currentSession && currentSession.intendedState !== 'archived') {
+            return currentSession.id;
+        }
+
+        return sessionList.find((session) => session.intendedState !== 'archived')?.id || null;
+    }
+
     async loadInitialData() {
         try {
             // Load all sessions (404エラーは許容)
@@ -3754,11 +3767,18 @@ export class App {
             // Get current session from store
             let { currentSessionId, sessions } = appStore.getState();
 
-            // If no current session, select the first session automatically
-            if (!currentSessionId && sessions && sessions.length > 0) {
-                currentSessionId = sessions[0].id;
-                console.log('Auto-selecting first session:', currentSessionId);
+            const resolvedCurrentSessionId = this._resolveInitialSessionId(currentSessionId, sessions);
+            const shouldAutoSelectInitialSession = resolvedCurrentSessionId !== currentSessionId;
+            if (shouldAutoSelectInitialSession) {
+                currentSessionId = resolvedCurrentSessionId;
+            }
+
+            // Auto-select the first non-archived session when the current selection is missing or invalid.
+            if (shouldAutoSelectInitialSession && currentSessionId) {
+                console.log('Auto-selecting initial session:', currentSessionId);
                 await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: currentSessionId });
+            } else if (shouldAutoSelectInitialSession) {
+                appStore.setState({ currentSessionId: null });
             }
 
             if (sessions && sessions.length > 0) {
