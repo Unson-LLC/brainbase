@@ -6835,11 +6835,18 @@ body.resizing iframe {
     .console-area.using-snapshot iframe,
     .console-area.using-snapshot #terminal-xterm-host {
         display: none;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
     }
 
     .console-area.using-snapshot .terminal-snapshot-panel {
         inset: 0 0 var(--mobile-terminal-reserve, var(--mobile-input-offset, 120px));
         display: flex;
+        z-index: 1105;
+        visibility: visible;
+        opacity: 1;
+        isolation: isolate;
     }
 
     .console-area.using-snapshot .terminal-snapshot-content {
