@@ -9799,6 +9799,10 @@ flex-wrap: wrap;
 
 .terminal-loading-overlay.hidden {
     opacity: 0;
+    visibility: hidden;
+    display: none;
+    background: transparent;
+    backdrop-filter: none;
     pointer-events: none;
 }
 
