@@ -1103,6 +1103,7 @@ export class App {
     }
 
     _renderTerminalSnapshotPanel({ visible = false, snapshot = null, title = 'Snapshot fallback' } = {}) {
+        this._cacheTerminalUiElements();
         if (!this.terminalSnapshotPanelEl || !this.terminalSnapshotContentEl) return;
 
         // 前回と同じ内容ならDOM操作スキップ
@@ -1190,6 +1191,7 @@ export class App {
     }
 
     _updateTerminalInputStatus() {
+        this._cacheTerminalUiElements();
         if (!this.terminalInputStatusEl) return;
 
         if (!this._isConsoleVisible()) {
@@ -1445,9 +1447,7 @@ export class App {
         );
     }
 
-    setupTerminalInputUx() {
-        if (!this.terminalFrame) return;
-
+    _cacheTerminalUiElements() {
         this.terminalHeaderEl = document.getElementById('terminal-header');
         this.terminalInputStatusEl = document.getElementById('terminal-input-status');
         this.terminalTransportPillEl = document.getElementById('terminal-transport-pill');
@@ -1464,6 +1464,12 @@ export class App {
         this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
         this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
         this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
+    }
+
+    setupTerminalInputUx() {
+        if (!this.terminalFrame) return;
+
+        this._cacheTerminalUiElements();
         const consoleArea = document.getElementById('console-area');
         const closeMobileLiveTerminalBtn = document.getElementById('close-mobile-live-terminal-btn');
 

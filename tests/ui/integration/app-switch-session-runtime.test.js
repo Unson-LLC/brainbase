@@ -269,17 +269,6 @@ describe('app switchSession runtime handling', () => {
     app._shouldUseXtermTransport = vi.fn(() => false);
     app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
-    app.terminalSnapshotPanelEl = document.getElementById('terminal-snapshot-panel');
-    app.terminalSnapshotContentEl = document.getElementById('terminal-snapshot-content');
-    app.terminalSnapshotTitleEl = document.getElementById('terminal-snapshot-title');
-    app.terminalSnapshotTimestampEl = document.getElementById('terminal-snapshot-timestamp');
-    app.terminalTransportPillEl = document.getElementById('terminal-transport-pill');
-    app.terminalOwnerLabelEl = document.getElementById('terminal-owner-label');
-    app.terminalSnapshotMetaEl = document.getElementById('terminal-snapshot-meta');
-    app.terminalReconnectBtn = document.getElementById('terminal-reconnect-btn');
-    app.terminalTakeoverBtn = document.getElementById('terminal-takeover-btn');
-    app.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
-    app.terminalInputStatusEl = document.getElementById('terminal-input-status');
 
     const snapshotPromise = new Promise(() => {});
     app._loadTerminalSnapshot = vi.fn(() => snapshotPromise);
