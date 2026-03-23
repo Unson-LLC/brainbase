@@ -78,6 +78,9 @@ describe('setupViewNavigation', () => {
 
     it('showConsole呼び出し時_パネルとドロワーが閉じられる', () => {
         const { showDashboard, showConsole } = setupViewNavigation();
+        const infoDrawer = document.getElementById('info-drawer');
+
+        infoDrawer.classList.add('open');
 
         showDashboard();
         expect(document.getElementById('dashboard-overlay').classList.contains('open')).toBe(true);
@@ -85,5 +88,6 @@ describe('setupViewNavigation', () => {
         showConsole();
         expect(document.getElementById('dashboard-overlay').classList.contains('open')).toBe(false);
         expect(document.getElementById('console-area').style.display).toBe('flex');
+        expect(infoDrawer.classList.contains('open')).toBe(true);
     });
 });
