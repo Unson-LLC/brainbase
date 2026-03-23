@@ -264,6 +264,46 @@ describe('app switchSession runtime handling', () => {
     expect(app.focusTerminal).not.toHaveBeenCalled();
   });
 
+  it('mobileではsnapshot取得前でもplaceholder panelを即時表示する', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app.terminalSnapshotPanelEl = document.getElementById('terminal-snapshot-panel');
+    app.terminalSnapshotContentEl = document.getElementById('terminal-snapshot-content');
+    app.terminalSnapshotTitleEl = document.getElementById('terminal-snapshot-title');
+    app.terminalSnapshotTimestampEl = document.getElementById('terminal-snapshot-timestamp');
+    app.terminalTransportPillEl = document.getElementById('terminal-transport-pill');
+    app.terminalOwnerLabelEl = document.getElementById('terminal-owner-label');
+    app.terminalSnapshotMetaEl = document.getElementById('terminal-snapshot-meta');
+    app.terminalReconnectBtn = document.getElementById('terminal-reconnect-btn');
+    app.terminalTakeoverBtn = document.getElementById('terminal-takeover-btn');
+    app.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
+    app.terminalInputStatusEl = document.getElementById('terminal-input-status');
+
+    const snapshotPromise = new Promise(() => {});
+    app._loadTerminalSnapshot = vi.fn(() => snapshotPromise);
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    await app.switchSession('session-1');
+
+    const snapshotPanel = document.getElementById('terminal-snapshot-panel');
+    const snapshotContent = document.getElementById('terminal-snapshot-content');
+    expect(snapshotPanel.classList.contains('hidden')).toBe(false);
+    expect(snapshotContent.textContent).toContain('Snapshotを読み込み中');
+    expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(true);
+  });
+
   it('mobileでtapするとdedicated ttyd modalを開く', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);

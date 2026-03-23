@@ -3622,6 +3622,9 @@ export class App {
                     this._terminalLastNavigateAt = Date.now();
                 }
                 this._syncMobileSnapshotPolling({ immediate: true, force: true });
+                // Render the snapshot surface immediately so mobile users do not see a blank
+                // terminal area while the first snapshot fetch is still in flight.
+                this._updateTerminalInputStatus();
                 this._setCurrentSessionUiState({
                     transport: terminalAccess?.state === 'blocked' ? 'blocked' : 'connected',
                     attention: 'none'
