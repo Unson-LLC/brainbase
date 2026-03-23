@@ -93,12 +93,15 @@ export class WorktreeService {
         }
     }
 
-    async _getBookmarkInfos(repoPath, sessionId) {
-        // リモートの最新状態を取得
-        try {
-            await this.execPromise(`jj -R "${repoPath}" git fetch`);
-        } catch (fetchErr) {
-            console.log(`[getStatus] git fetch failed, continuing: ${fetchErr.message}`);
+    async _getBookmarkInfos(repoPath, sessionId, options = {}) {
+        const { fetchRemote = true } = options;
+
+        if (fetchRemote) {
+            try {
+                await this.execPromise(`jj -R "${repoPath}" git fetch`);
+            } catch (fetchErr) {
+                console.log(`[getStatus] git fetch failed, continuing: ${fetchErr.message}`);
+            }
         }
 
         const bookmarkCandidates = [this._getSessionBranchName(sessionId), sessionId];
@@ -264,7 +267,8 @@ export class WorktreeService {
         };
     }
 
-    async _collectStatus(sessionId, repoPath, workspacePath, startCommit = null) {
+    async _collectStatus(sessionId, repoPath, workspacePath, startCommit = null, options = {}) {
+        const { fetchRemote = true } = options;
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const bookmarkName = sessionId;
@@ -295,7 +299,7 @@ export class WorktreeService {
                 hasWorkingCopyChanges = false;
             }
 
-            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId);
+            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { fetchRemote });
             const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
             const bookmarkPushed = Boolean(officialBookmark);
             const mergeTargetRef = officialBookmark?.name || bookmarkInfos[0]?.name || null;
@@ -630,11 +634,11 @@ export class WorktreeService {
      * @param {string|null} startCommit - セッション開始時のコミットハッシュ
      * @returns {Promise<Object>} workspace状態情報
      */
-    async getStatus(sessionId, repoPath, startCommit = null) {
+    async getStatus(sessionId, repoPath, startCommit = null, options = {}) {
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        return await this._collectStatus(sessionId, repoPath, workspacePath, startCommit);
+        return await this._collectStatus(sessionId, repoPath, workspacePath, startCommit, options);
     }
 
     async autoHealArchiveState(sessionId, repoPath, workspacePath, startCommit = null) {

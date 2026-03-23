@@ -235,6 +235,23 @@ describe('WorktreeService Git compatibility helpers', () => {
         expect(result.needsMerge).toBe(true);
         expect(result.commitsAheadOfBase).toBe(2);
     });
+
+    it('fetchRemote=false のとき jj git fetch を実行しない', async () => {
+        const { promises: fs } = await import('fs');
+        vi.spyOn(fs, 'access').mockResolvedValue(undefined);
+        vi.spyOn(service, '_countCommitsAheadOfBase').mockResolvedValue(0);
+
+        mockExec
+            .mockResolvedValueOnce({ stdout: 'develop\n' })
+            .mockResolvedValueOnce({ stdout: '0\n' })
+            .mockResolvedValueOnce({ stdout: 'The working copy has no changes.\n' })
+            .mockResolvedValueOnce({ stdout: 'session/session-1: abc\n' })
+            .mockResolvedValueOnce({ stdout: '' });
+
+        await service.getStatus('session-1', '/tmp/repo', 'abc123', { fetchRemote: false });
+
+        expect(mockExec).not.toHaveBeenCalledWith('jj -R "/tmp/repo" git fetch');
+    });
 });
 
 describe('WorktreeService.autoHealArchiveState', () => {

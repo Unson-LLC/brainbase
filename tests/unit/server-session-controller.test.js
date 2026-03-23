@@ -928,6 +928,12 @@ describe('SessionController (Server)', () => {
 
       await sessionController.getUiSummaries(req, mockRes);
 
+      expect(mockWorktreeService.getStatus).toHaveBeenCalledWith(
+        'session-ui',
+        '/tmp/repo',
+        'abc123',
+        { fetchRemote: false }
+      );
       expect(mockRes.json).toHaveBeenCalledWith({
         'session-ui': expect.objectContaining({
           repo: 'brainbase',

@@ -16,8 +16,13 @@ vi.mock('../../public/modules/core/event-bus.js', () => ({
         SESSION_LOADED: 'session:loaded',
         SESSION_UPDATED: 'session:updated',
         SESSION_ARCHIVED: 'session:archived',
-        SESSION_CREATED: 'session:created'
+        SESSION_CREATED: 'session:created',
+        SESSION_UI_STATE_CHANGED: 'session:ui-state-changed'
     }
+}));
+
+vi.mock('../../public/modules/session-ui-state.js', () => ({
+    getSessionStatus: vi.fn(() => null)
 }));
 
 describe('SessionContextBarView', () => {

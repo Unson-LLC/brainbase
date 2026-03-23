@@ -12,7 +12,7 @@ const MAX_TREE_DEPTH = 3;
 const DEFAULT_TREE_DEPTH = 2;
 const MAX_TREE_ENTRIES = 200;
 const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
-const UI_SUMMARY_TTL_MS = 10_000;
+const UI_SUMMARY_TTL_MS = 60_000;
 const TAKEOVER_COOLDOWN_MS = 5000;
 const MAX_FILE_READ_SIZE = 512 * 1024;
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
@@ -28,6 +28,7 @@ export class SessionController {
         this.codeProjectsRoot = typeof options.codeProjectsRoot === 'string' && options.codeProjectsRoot.trim()
             ? options.codeProjectsRoot
             : (this.projectsRoot ? path.join(path.dirname(this.projectsRoot), 'code') : null);
+        this.captureCache = options.captureCache || null;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
         this._uiSummaryCache = new Map();
@@ -285,7 +286,8 @@ export class SessionController {
             const status = await this.worktreeService.getStatus(
                 session.id,
                 repoPath,
-                session.worktree?.startCommit || null
+                session.worktree?.startCommit || null,
+                { fetchRemote: false }
             );
             const changesNotPushed = status.changesNotPushed || 0;
             const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
@@ -501,20 +503,34 @@ export class SessionController {
         }
 
         try {
-            const [text, colorText, copyMode] = await Promise.all([
-                this.sessionManager.getContent(id, lines),
-                this.sessionManager.getContentWithColors(id, lines).catch(() => null),
-                this.sessionManager.getPaneMode(id).catch(() => false),
-            ]);
-            const payload = {
+            const payload = this.captureCache
+                ? await this.captureCache.getSnapshot(id, {
+                    lines,
+                    includeColors: true,
+                    includeCopyMode: true
+                })
+                : await (async () => {
+                    const [text, colorText, copyMode] = await Promise.all([
+                        this.sessionManager.getContent(id, lines),
+                        this.sessionManager.getContentWithColors(id, lines).catch(() => null),
+                        this.sessionManager.getPaneMode(id).catch(() => false),
+                    ]);
+                    return {
+                        text,
+                        colorText,
+                        copyMode,
+                        capturedAt: new Date().toISOString()
+                    };
+                })();
+            const response = {
                 sessionId: id,
-                text,
-                copyMode,
-                capturedAt: new Date().toISOString(),
+                text: payload.text,
+                copyMode: payload.copyMode,
+                capturedAt: payload.capturedAt,
                 terminalAccess: ownership.terminalAccess
             };
-            if (colorText) payload.colorText = colorText;
-            res.json(payload);
+            if (payload.colorText) response.colorText = payload.colorText;
+            res.json(response);
         } catch (error) {
             console.error(`Failed to get terminal snapshot for ${id}:`, error.message);
             res.status(500).json({ error: error.message || 'Failed to capture terminal snapshot' });
@@ -1297,7 +1313,8 @@ ${jjBookmarks}
             const status = await this.worktreeService.getStatus(
                 id,
                 repoPath,
-                session.worktree?.startCommit || null
+                session.worktree?.startCommit || null,
+                { fetchRemote: false }
             );
 
             const changesNotPushed = status.changesNotPushed || 0;
