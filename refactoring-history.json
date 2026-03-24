@@ -999,9 +999,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/380",
       "pr_status": "merged",
       "merged_at": "2026-03-24T09:24:41Z"
+    },
+    {
+      "area": "public/modules/core",
+      "refactored_at": "2026-03-24T12:22:55.530Z",
+      "files_modified": [
+        "public/modules/core/plugin-manager.js"
+      ],
+      "changes_summary": "public/modules/core/plugin-manager.js:70-240 でイベント発火を _emitEvent helper にまとめて await の扱いも統一、loadConfig からは _syncStoreState 呼び出しに差し替えてストア更新ロジックの重複をカットしたから core の挙動キレイになったょ〜",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor centralizes all event-bus dispatches through `_emitEvent`, reducing repeated null checks and improving readability, while load/config handling now reuses `_syncStoreState` ensuring store updates stay consistent; no behavior changes detected.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider documenting `_emitEvent` to clarify that it transparently handles missing event buses and returns the underlying emit promise, which aids future callers."
+      ],
+      "run_number": "334",
+      "run_id": "23489100548",
+      "trigger_event": "schedule",
+      "pr_number": 381,
+      "pr_branch": "ops-department/auto-refactor-334",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/381",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-24T12:20:52.773Z",
-  "total_prs_created": 37,
+  "last_updated": "2026-03-24T12:23:14.630Z",
+  "total_prs_created": 38,
   "total_prs_merged": 33
 }
