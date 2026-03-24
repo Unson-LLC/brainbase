@@ -24,6 +24,14 @@ export class WorktreeService {
         this.jujutsuRepoCache = new Map();  // パスごとのキャッシュ
     }
 
+    _resolveWorkspaceContext(sessionId, repoPath) {
+        const repoName = path.basename(repoPath);
+        const workspaceName = `${sessionId}-${repoName}`;
+        const workspacePath = path.join(this.worktreesDir, workspaceName);
+        const bookmarkName = `session/${sessionId}`;
+        return { repoName, workspaceName, workspacePath, bookmarkName };
+    }
+
     /**
      * Jujutsuリポジトリかどうかを判定
      * @param {string} repoPath - リポジトリパス
@@ -63,10 +71,7 @@ export class WorktreeService {
     async create(sessionId, repoPath) {
         await this.ensureWorktreesDir();
 
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
-        const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = `session/${sessionId}`;  // Jujutsu bookmark = sessionId
+        const { workspaceName, workspacePath, bookmarkName } = this._resolveWorkspaceContext(sessionId, repoPath);
 
         try {
             // Check if directory exists first
@@ -171,10 +176,7 @@ export class WorktreeService {
      * @returns {Promise<boolean>}
      */
     async remove(sessionId, repoPath) {
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
-        const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = `session/${sessionId}`;
+        const { workspaceName, workspacePath, bookmarkName } = this._resolveWorkspaceContext(sessionId, repoPath);
 
         try {
             // Forget workspace (metadata only)
@@ -216,10 +218,7 @@ export class WorktreeService {
      * @returns {Promise<Object>} workspace状態情報
      */
     async getStatus(sessionId, repoPath, startCommit = null) {
-        const repoName = path.basename(repoPath);
-        const workspaceName = `${sessionId}-${repoName}`;
-        const workspacePath = path.join(this.worktreesDir, workspaceName);
-        const bookmarkName = `session/${sessionId}`;
+        const { workspaceName, workspacePath, bookmarkName } = this._resolveWorkspaceContext(sessionId, repoPath);
 
         try {
             // Check if workspace exists
@@ -335,15 +334,11 @@ export class WorktreeService {
      * @returns {Promise<{success: boolean, message?: string, error?: string, needsCommit?: boolean, hasConflicts?: boolean, prUrl?: string}>}
      */
     async merge(sessionId, repoPath, sessionName = null) {
-        const bookmarkName = `session/${sessionId}`;
+        const { workspaceName, workspacePath, bookmarkName } = this._resolveWorkspaceContext(sessionId, repoPath);
 
         try {
             // Get main branch name
             const mainBranchName = await this._getMainBranchName(repoPath);
-
-            // Prepare workspace paths
-            const workspaceName = `${sessionId}-${path.basename(repoPath)}`;
-            const workspacePath = path.join(this.worktreesDir, workspaceName);
 
             // Push bookmark to remote
             console.log(`[merge] Pushing bookmark: ${bookmarkName}`);
@@ -387,30 +382,33 @@ EOF
             console.log(`[merge] Merging PR`);
             await this.execPromise(`cd "${workspacePath}" && gh pr merge --merge --delete-branch`);
 
-            try {
-                await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
-            } catch (forgetErr) {
-                console.log(`[merge] Workspace forget skipped: ${forgetErr.message}`);
-            }
-
-            try {
-                await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
-            } catch (bookmarkErr) {
-                console.log(`[merge] Bookmark deletion skipped: ${bookmarkErr.message}`);
-            }
-
-            // Remove physical directory
-            try {
-                await fs.rm(workspacePath, { recursive: true, force: true });
-            } catch (rmErr) {
-                console.log(`[merge] Directory removal skipped: ${rmErr.message}`);
-            }
+            await this._cleanupWorkspaceArtifacts({ repoPath, workspaceName, workspacePath, bookmarkName });
 
             console.log(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
             return { success: true, message: 'Merged via PR', prUrl: prUrl.trim() };
         } catch (err) {
             console.error(`Failed to merge workspace for ${sessionId}:`, err.message);
             return { success: false, error: err.message };
+        }
+    }
+
+    async _cleanupWorkspaceArtifacts({ repoPath, workspaceName, workspacePath, bookmarkName }) {
+        try {
+            await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
+        } catch (forgetErr) {
+            console.log(`[merge] Workspace forget skipped: ${forgetErr.message}`);
+        }
+
+        try {
+            await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
+        } catch (bookmarkErr) {
+            console.log(`[merge] Bookmark deletion skipped: ${bookmarkErr.message}`);
+        }
+
+        try {
+            await fs.rm(workspacePath, { recursive: true, force: true });
+        } catch (rmErr) {
+            console.log(`[merge] Directory removal skipped: ${rmErr.message}`);
         }
     }
 
