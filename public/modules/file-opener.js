@@ -17,19 +17,8 @@ const FILE_PATH_PATTERNS = [
     /(?:^|\s)([a-zA-Z0-9_.\-]+\/[a-zA-Z0-9_.\-\/]+\.[a-zA-Z0-9]+)(?::(\d+))?(?:\s|$)/g
 ];
 
-/**
- * ファイルを開く
- * @param {string} path - ファイルパス
- * @param {string} mode - 開き方 ('file' | 'reveal' | 'cursor')
- * @param {Object} options - オプション
- * @param {string} options.cwd - 相対パス解決のベースディレクトリ
- * @returns {Promise<Object>} APIレスポンス
- */
-export async function openFile(path, mode = 'file', options = {}) {
+async function sendOpenFileRequest(body, errorPrefix = 'Error opening file') {
     try {
-        const body = { path, mode };
-        if (options.cwd) body.cwd = options.cwd;
-
         const response = await fetch('/api/open-file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -44,9 +33,23 @@ export async function openFile(path, mode = 'file', options = {}) {
 
         return result;
     } catch (error) {
-        console.error('Error opening file:', error);
+        console.error(`${errorPrefix}:`, error);
         throw error;
     }
+}
+
+/**
+ * ファイルを開く
+ * @param {string} path - ファイルパス
+ * @param {string} mode - 開き方 ('file' | 'reveal' | 'cursor')
+ * @param {Object} options - オプション
+ * @param {string} options.cwd - 相対パス解決のベースディレクトリ
+ * @returns {Promise<Object>} APIレスポンス
+ */
+export async function openFile(path, mode = 'file', options = {}) {
+    const body = { path, mode };
+    if (options.cwd) body.cwd = options.cwd;
+    return sendOpenFileRequest(body);
 }
 
 /**
@@ -67,27 +70,9 @@ export async function revealInFinder(path) {
  * @returns {Promise<Object>} APIレスポンス
  */
 export async function openInCursor(path, line, options = {}) {
-    try {
-        const body = { path, mode: 'cursor', line };
-        if (options.cwd) body.cwd = options.cwd;
-
-        const response = await fetch('/api/open-file', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Failed to open file');
-        }
-
-        return result;
-    } catch (error) {
-        console.error('Error opening file in Cursor:', error);
-        throw error;
-    }
+    const body = { path, mode: 'cursor', line };
+    if (options.cwd) body.cwd = options.cwd;
+    return sendOpenFileRequest(body, 'Error opening file in Cursor');
 }
 
 /**
@@ -100,6 +85,7 @@ export function extractFilePaths(text) {
     const seen = new Set();
 
     for (const pattern of FILE_PATH_PATTERNS) {
+        pattern.lastIndex = 0; // ensure repeated calls start fresh
         let match;
         while ((match = pattern.exec(text)) !== null) {
             const path = match[1];
