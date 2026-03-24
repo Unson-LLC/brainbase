@@ -1,14 +1,17 @@
-import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { appStore } from '../../core/store.js';
+import { eventBus as defaultEventBus, EVENTS } from '../../core/event-bus.js';
+import { appStore as defaultStore } from '../../core/store.js';
 
 /**
  * ブラウザ通知サービス
  * Notification APIをラップし、EventBus統合とフォールバック機能を提供
  */
 export class BrowserNotificationService {
-    constructor() {
-        this.eventBus = eventBus;
-        this.store = appStore;
+    constructor({
+        eventBus: injectedEventBus = defaultEventBus,
+        store: injectedStore = defaultStore
+    } = {}) {
+        this.eventBus = injectedEventBus;
+        this.store = injectedStore;
 
         // 購読解除関数を保持（先に初期化）
         this._unsubscribeFunctions = [];
@@ -25,10 +28,22 @@ export class BrowserNotificationService {
      * @private
      */
     _syncPermissionState() {
-        const apiPermission = this._getPermissionFromApi();
-        if (apiPermission) {
-            this.store.setState({ browserNotificationPermission: apiPermission });
+        this._updatePermissionState(this._getPermissionFromApi());
+    }
+
+    /**
+     * 権限状態をStoreに保存
+     * @param {string|null} permission
+     * @returns {string|null}
+     * @private
+     */
+    _updatePermissionState(permission) {
+        if (!permission) {
+            return null;
         }
+
+        this.store.setState({ browserNotificationPermission: permission });
+        return permission;
     }
 
     /**
@@ -69,10 +84,9 @@ export class BrowserNotificationService {
         }
 
         try {
-            const permission = await Notification.requestPermission();
-
-            // Storeを更新
-            this.store.setState({ browserNotificationPermission: permission });
+            const permission = this._updatePermissionState(
+                await Notification.requestPermission()
+            );
 
             // イベント発火
             await this.eventBus.emit(EVENTS.NOTIFICATION_PERMISSION_CHANGED, { permission });
@@ -155,9 +169,13 @@ export class BrowserNotificationService {
      * @returns {string} 権限状態 ('granted' | 'denied' | 'default')
      */
     getPermissionState() {
-        // Storeから取得
         const { browserNotificationPermission } = this.store.getState();
-        return browserNotificationPermission || 'default';
+        if (browserNotificationPermission) {
+            return browserNotificationPermission;
+        }
+
+        const apiPermission = this._getPermissionFromApi();
+        return apiPermission || 'default';
     }
 
     /**
@@ -165,7 +183,7 @@ export class BrowserNotificationService {
      * @returns {boolean}
      */
     hasPermission() {
-        return this._getPermissionFromApi() === 'granted';
+        return this.getPermissionState() === 'granted';
     }
 
     /**
