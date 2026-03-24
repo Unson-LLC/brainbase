@@ -72,9 +72,7 @@ export class PluginManager {
 
         this.plugins.set(plugin.id, normalized);
 
-        if (this.eventBus?.emit) {
-            this.eventBus.emit(EVENTS.PLUGIN_REGISTERED, { pluginId: plugin.id });
-        }
+        this._emitEvent(EVENTS.PLUGIN_REGISTERED, { pluginId: plugin.id });
     }
 
     getPlugin(id) {
@@ -94,21 +92,9 @@ export class PluginManager {
         };
         this.enabledConfig = new Set(enabled);
         this.disabledConfig = new Set(disabled);
+        this._syncStoreState();
 
-        if (this.store?.setState) {
-            this.store.setState({
-                plugins: {
-                    enabled,
-                    disabled,
-                    active: Array.from(this.activePluginIds),
-                    failed: Object.fromEntries(this.failedPlugins)
-                }
-            });
-        }
-
-        if (this.eventBus?.emit) {
-            await this.eventBus.emit(EVENTS.PLUGIN_CONFIG_LOADED, { enabled, disabled });
-        }
+        await this._emitEvent(EVENTS.PLUGIN_CONFIG_LOADED, { enabled, disabled });
     }
 
     isEnabled(pluginId) {
@@ -152,22 +138,18 @@ export class PluginManager {
         if (!requirementCheck.ok) {
             this._recordFailedPlugin(pluginId, requirementCheck);
             this._hidePluginSlots(plugin);
-            if (this.eventBus?.emit) {
-                await this.eventBus.emit(EVENTS.PLUGIN_REQUIREMENTS_FAILED, {
-                    pluginId,
-                    missingConfig: requirementCheck.missingConfig,
-                    missingEnv: requirementCheck.missingEnv
-                });
-            }
+            await this._emitEvent(EVENTS.PLUGIN_REQUIREMENTS_FAILED, {
+                pluginId,
+                missingConfig: requirementCheck.missingConfig,
+                missingEnv: requirementCheck.missingEnv
+            });
             return;
         }
 
         const activeMounts = new Map();
         for (const { slotId, slotConfig, containers } of this._slotEntries(plugin)) {
             if (containers.length === 0) {
-                if (this.eventBus?.emit) {
-                    await this.eventBus.emit(EVENTS.PLUGIN_SLOT_MISSING, { pluginId, slotId });
-                }
+                await this._emitEvent(EVENTS.PLUGIN_SLOT_MISSING, { pluginId, slotId });
                 continue;
             }
 
@@ -198,9 +180,7 @@ export class PluginManager {
         this.activePluginIds.add(pluginId);
         this._syncStoreState();
 
-        if (this.eventBus?.emit) {
-            await this.eventBus.emit(EVENTS.PLUGIN_ENABLED, { pluginId });
-        }
+        await this._emitEvent(EVENTS.PLUGIN_ENABLED, { pluginId });
     }
 
     disablePlugin(pluginId) {
@@ -224,9 +204,7 @@ export class PluginManager {
         this.activePluginIds.delete(pluginId);
         this._syncStoreState();
 
-        if (this.eventBus?.emit) {
-            this.eventBus.emit(EVENTS.PLUGIN_DISABLED, { pluginId });
-        }
+        this._emitEvent(EVENTS.PLUGIN_DISABLED, { pluginId });
     }
 
     _checkRequirements(plugin) {
@@ -323,6 +301,11 @@ export class PluginManager {
     _updateContainersVisibility(containers = [], shouldManage, isVisible) {
         if (!shouldManage) return;
         containers.forEach(container => this._setSlotVisibility(container, isVisible));
+    }
+
+    _emitEvent(eventName, payload) {
+        if (!this.eventBus?.emit) return undefined;
+        return this.eventBus.emit(eventName, payload);
     }
 
     _createDefaultApiClient() {
