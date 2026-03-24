@@ -914,9 +914,38 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/374",
       "pr_status": "merged",
       "merged_at": "2026-03-24T00:23:20Z"
+    },
+    {
+      "area": "lib/utils",
+      "refactored_at": "2026-03-24T02:09:45.040Z",
+      "files_modified": [
+        "lib/utils/atomic-runner.js",
+        "tests/unit/atomic-runner.test.js"
+      ],
+      "changes_summary": "strictオプのデフォ挙動を元のTypeError仕様に戻してstrict=trueの時だけwarn skipさせるよう直しつつ、その流れを守るユニットテストも追加したよ♡ vitest依存が無くて実行できなかったから、入れたら `npm run test -- tests/unit/atomic-runner.test.js` でチェックお願いね☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 1,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor cleanly introduces an optional `strict` flag so invalid operations can be skipped with a warning while the default path now rejects with an explicit TypeError, all without disturbing the promise queueing logic; accompanying unit tests cover the new behaviors.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider adding a regression test that still verifies sequential execution for valid operations to guard against future edits to the queue handling."
+      ],
+      "run_number": "330",
+      "run_id": "23467027582",
+      "trigger_event": "schedule",
+      "pr_number": 376,
+      "pr_branch": "ops-department/auto-refactor-330",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/376",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-24T00:23:37.111Z",
-  "total_prs_created": 34,
+  "last_updated": "2026-03-24T02:09:57.116Z",
+  "total_prs_created": 35,
   "total_prs_merged": 30
 }
