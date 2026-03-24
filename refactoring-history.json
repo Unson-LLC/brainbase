@@ -1055,9 +1055,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/382",
       "pr_status": "merged",
       "merged_at": "2026-03-24T15:31:13Z"
+    },
+    {
+      "area": "public/modules/domain/browser-notification",
+      "refactored_at": "2026-03-24T18:26:01.513Z",
+      "files_modified": [
+        "public/modules/domain/browser-notification/browser-notification-service.js"
+      ],
+      "changes_summary": "イベントバスとストアをDI注入対応にして差し替えやすさUP、権限同期ロジックは_updatePermissionState()にまとめて重複カット、さらにgetPermissionState()/hasPermission()がAPI値とStore値をシームレスに使えるよう整えたよ〜。今回のリファクタは挙動維持のロジック整理だけだから追加テストは不要って判断ね。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 97,
+      "judge_threshold": 90,
+      "judge_summary": "依存注入と権限同期処理の共通化でBrowserNotificationServiceがだいぶ読みやすくなってるし、動作も崩れてなさそうで安心感あるよ〜。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "navigator.permissions経由で権限が変わったときにStoreが確実に追随できてるかのユニットテストを追加しておくと、今回のリファクタの信頼度さらに盛れると思うよ〜。"
+      ],
+      "run_number": "336",
+      "run_id": "23505661775",
+      "trigger_event": "schedule",
+      "pr_number": 383,
+      "pr_branch": "ops-department/auto-refactor-336",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/383",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-24T18:23:37.292Z",
-  "total_prs_created": 39,
+  "last_updated": "2026-03-24T18:26:26.806Z",
+  "total_prs_created": 40,
   "total_prs_merged": 35
 }
