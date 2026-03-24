@@ -1083,9 +1083,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/383",
       "pr_status": "merged",
       "merged_at": "2026-03-24T18:26:42Z"
+    },
+    {
+      "area": "public/modules/domain/goal",
+      "refactored_at": "2026-03-24T21:17:45.870Z",
+      "files_modified": [
+        "public/modules/domain/goal/goal-service.js"
+      ],
+      "changes_summary": "complete/fail/cancelのゴール遷移がそれぞれコピペ祭りだったから、_transitionGoalヘルパーに抽出してステータス更新・Store反映・イベント発火・ログ記録を一括管理にしたよん💅 テストは今回は回してないから、気になるときは `npm run test` でサクッと確認してねっ💖",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "complete/fail/cancelの処理を_transitionGoalに集約して重複ブチ減らしつつ既存イベント発火やログ記録の挙動もキープできててイケてる感じ〜。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "共通化した_transitionGoalのユニットテスト用意して完了/失敗/キャンセル全部カバーすると安心感さらに盛れると思うよ〜。"
+      ],
+      "run_number": "337",
+      "run_id": "23512564693",
+      "trigger_event": "schedule",
+      "pr_number": 384,
+      "pr_branch": "ops-department/auto-refactor-337",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/384",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-24T21:14:58.662Z",
-  "total_prs_created": 40,
+  "last_updated": "2026-03-24T21:17:57.729Z",
+  "total_prs_created": 41,
   "total_prs_merged": 36
 }
