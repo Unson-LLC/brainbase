@@ -160,22 +160,19 @@ export class DeviceAuthController {
         }
         const formattedCode = this.formatUserCode(rawCode);
 
-        this.verifyBtn.disabled = true;
-        this.verifyBtn.innerHTML = '<span class="spinner"></span> 確認中...';
         this.hideError();
 
         try {
-            const response = await fetch('/api/auth/device/verify-user-code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_code: userCode })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok || !data.ok) {
-                throw new Error(data.error || 'コードの確認に失敗しました');
-            }
+            const data = await this.withButtonLoading(
+                this.verifyBtn,
+                '確認中...',
+                () => this.postDeviceRequest(
+                    '/api/auth/device/verify-user-code',
+                    { user_code: formattedCode },
+                    'コードの確認に失敗しました'
+                ),
+                '次へ'
+            );
 
             this.deviceCode = data.device_code;
             this.userCode = formattedCode;
@@ -184,13 +181,9 @@ export class DeviceAuthController {
 
             // Save to sessionStorage for Slack callback
             this.persistDeviceSession(this.deviceCode, formattedCode);
-
             this.showStep('slack');
         } catch (error) {
             this.showError(error.message || 'コードの確認に失敗しました');
-        } finally {
-            this.verifyBtn.disabled = false;
-            this.verifyBtn.textContent = '次へ';
         }
     }
 
@@ -216,25 +209,21 @@ export class DeviceAuthController {
             return;
         }
 
-        this.approveBtn.disabled = true;
-        this.approveBtn.innerHTML = '<span class="spinner"></span> 承認中...';
-
         try {
-            const response = await fetch('/api/auth/device/approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    device_code: this.deviceCode,
-                    slack_user_id: this.slackUserId,
-                    slack_workspace_id: this.slackWorkspaceId
-                })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok || !data.ok) {
-                throw new Error(data.error || '承認に失敗しました');
-            }
+            await this.withButtonLoading(
+                this.approveBtn,
+                '承認中...',
+                () => this.postDeviceRequest(
+                    '/api/auth/device/approve',
+                    {
+                        device_code: this.deviceCode,
+                        slack_user_id: this.slackUserId,
+                        slack_workspace_id: this.slackWorkspaceId
+                    },
+                    '承認に失敗しました'
+                ),
+                '許可'
+            );
 
             // Clear sessionStorage
             this.clearSessionData();
@@ -242,9 +231,6 @@ export class DeviceAuthController {
             this.showStep('success');
         } catch (error) {
             this.showGlobalError(error.message || '承認に失敗しました');
-        } finally {
-            this.approveBtn.disabled = false;
-            this.approveBtn.textContent = '許可';
         }
     }
 
@@ -254,21 +240,17 @@ export class DeviceAuthController {
             return;
         }
 
-        this.denyBtn.disabled = true;
-        this.denyBtn.innerHTML = '<span class="spinner"></span> 拒否中...';
-
         try {
-            const response = await fetch('/api/auth/device/deny', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ device_code: this.deviceCode })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok || !data.ok) {
-                throw new Error(data.error || '拒否に失敗しました');
-            }
+            await this.withButtonLoading(
+                this.denyBtn,
+                '拒否中...',
+                () => this.postDeviceRequest(
+                    '/api/auth/device/deny',
+                    { device_code: this.deviceCode },
+                    '拒否に失敗しました'
+                ),
+                '拒否'
+            );
 
             // Clear sessionStorage
             this.clearSessionData();
@@ -277,9 +259,6 @@ export class DeviceAuthController {
             this.showStep('error');
         } catch (error) {
             this.showGlobalError(error.message || '拒否に失敗しました');
-        } finally {
-            this.denyBtn.disabled = false;
-            this.denyBtn.textContent = '拒否';
         }
     }
 
@@ -321,6 +300,39 @@ export class DeviceAuthController {
 
     clearSessionData() {
         Object.values(SESSION_KEYS).forEach((key) => sessionStorage.removeItem(key));
+    }
+
+    async postDeviceRequest(path, payload, defaultError) {
+        const response = await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data?.ok) {
+            throw new Error((data && data.error) || defaultError);
+        }
+
+        return data;
+    }
+
+    async withButtonLoading(button, loadingText, action, defaultLabel) {
+        if (!button) {
+            return action();
+        }
+
+        const restoreLabel = defaultLabel ?? button.textContent;
+        button.disabled = true;
+        button.innerHTML = `<span class="spinner"></span> ${loadingText}`;
+
+        try {
+            return await action();
+        } finally {
+            button.disabled = false;
+            button.textContent = restoreLabel;
+        }
     }
 
     showError(message) {
