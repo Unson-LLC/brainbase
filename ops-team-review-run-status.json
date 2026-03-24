@@ -2,13 +2,13 @@
   "status": "success",
   "reason": "refactor_completed",
   "details": {
-    "area": "public/modules/domain/browser-notification",
+    "area": "public/modules/domain/goal",
     "filesModified": 1,
-    "judgeScore": 97
+    "judgeScore": 95
   },
-  "timestamp": "2026-03-24T18:26:01.631Z",
+  "timestamp": "2026-03-24T21:17:45.972Z",
   "workflow": "ops-department-auto-refactoring.yml",
-  "runId": "23505661775",
-  "runNumber": "336",
+  "runId": "23512564693",
+  "runNumber": "337",
   "eventName": "schedule"
 }

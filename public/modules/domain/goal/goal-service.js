@@ -264,27 +264,16 @@ export class GoalSeekService {
      * @returns {Promise<Object>} 更新されたゴール
      */
     async completeGoal(goalId, options = {}) {
-        const goal = options.goal || await this.repository.getGoal(goalId);
-
-        const updatedGoal = await this.repository.updateGoal(goalId, {
+        return await this._transitionGoal(goalId, {
+            goal: options.goal,
             status: GOAL_STATUS.COMPLETED,
-            completedAt: this._getTimestamp()
+            timestampField: 'completedAt',
+            eventName: EVENTS.GOAL_SEEK_COMPLETED,
+            eventDetail: { reason: options.reason },
+            logPhase: 'seek',
+            logAction: 'goal_completed',
+            logData: options
         });
-
-        // Store更新
-        this._updateStoreGoals(updatedGoal);
-
-        // イベント発火
-        await this.eventBus.emit(EVENTS.GOAL_SEEK_COMPLETED, {
-            goalId,
-            sessionId: goal.sessionId,
-            reason: options.reason
-        });
-
-        // ログ記録
-        await this._createLog(goalId, 'seek', 'goal_completed', options);
-
-        return updatedGoal;
     }
 
     /**
@@ -294,28 +283,18 @@ export class GoalSeekService {
      * @returns {Promise<Object>} 更新されたゴール
      */
     async failGoal(goalId, options = {}) {
-        const goal = await this.repository.getGoal(goalId);
-
-        const updatedGoal = await this.repository.updateGoal(goalId, {
+        return await this._transitionGoal(goalId, {
             status: GOAL_STATUS.FAILED,
-            failedAt: this._getTimestamp()
+            timestampField: 'failedAt',
+            eventName: EVENTS.GOAL_SEEK_FAILED,
+            eventDetail: {
+                reason: options.reason,
+                error: options.error
+            },
+            logPhase: 'self_improve',
+            logAction: 'goal_failed',
+            logData: options
         });
-
-        // Store更新
-        this._updateStoreGoals(updatedGoal);
-
-        // イベント発火
-        await this.eventBus.emit(EVENTS.GOAL_SEEK_FAILED, {
-            goalId,
-            sessionId: goal.sessionId,
-            reason: options.reason,
-            error: options.error
-        });
-
-        // ログ記録
-        await this._createLog(goalId, 'self_improve', 'goal_failed', options);
-
-        return updatedGoal;
     }
 
     /**
@@ -325,27 +304,15 @@ export class GoalSeekService {
      * @returns {Promise<Object>} 更新されたゴール
      */
     async cancelGoal(goalId, options = {}) {
-        const goal = await this.repository.getGoal(goalId);
-
-        const updatedGoal = await this.repository.updateGoal(goalId, {
+        return await this._transitionGoal(goalId, {
             status: GOAL_STATUS.CANCELLED,
-            cancelledAt: this._getTimestamp()
+            timestampField: 'cancelledAt',
+            eventName: EVENTS.GOAL_SEEK_CANCELLED,
+            eventDetail: { reason: options.reason },
+            logPhase: 'seek',
+            logAction: 'goal_cancelled',
+            logData: options
         });
-
-        // Store更新
-        this._updateStoreGoals(updatedGoal);
-
-        // イベント発火
-        await this.eventBus.emit(EVENTS.GOAL_SEEK_CANCELLED, {
-            goalId,
-            sessionId: goal.sessionId,
-            reason: options.reason
-        });
-
-        // ログ記録
-        await this._createLog(goalId, 'seek', 'goal_cancelled', options);
-
-        return updatedGoal;
     }
 
     /**
@@ -399,6 +366,42 @@ export class GoalSeekService {
         }
         // 他のタイプは状況に応じて拡張
         return false;
+    }
+
+    /**
+     * ゴール状態遷移の共通処理
+     * @private
+     */
+    async _transitionGoal(goalId, {
+        goal = null,
+        status,
+        timestampField,
+        eventName,
+        eventDetail = {},
+        logPhase,
+        logAction,
+        logData = eventDetail
+    }) {
+        const targetGoal = goal || await this.repository.getGoal(goalId);
+
+        const updatedGoal = await this.repository.updateGoal(goalId, {
+            status,
+            ...(timestampField ? { [timestampField]: this._getTimestamp() } : {})
+        });
+
+        this._updateStoreGoals(updatedGoal);
+
+        if (this.eventBus) {
+            await this.eventBus.emit(eventName, {
+                goalId,
+                sessionId: targetGoal.sessionId,
+                ...eventDetail
+            });
+        }
+
+        await this._createLog(goalId, logPhase, logAction, logData);
+
+        return updatedGoal;
     }
 
     /**
