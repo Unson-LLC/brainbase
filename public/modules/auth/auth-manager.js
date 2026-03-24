@@ -85,30 +85,18 @@ export class AuthManager {
         this.access = access || null;
         this.refreshToken = refreshToken || null;
 
-        if (persist && typeof window !== 'undefined' && window.localStorage) {
-            if (this.token) {
-                window.localStorage.setItem(this.storageKeys.token, this.token);
-            } else {
-                window.localStorage.removeItem(this.storageKeys.token);
-            }
-            if (this.access) {
-                window.localStorage.setItem(this.storageKeys.access, JSON.stringify(this.access));
-            } else {
-                window.localStorage.removeItem(this.storageKeys.access);
-            }
-            if (this.refreshToken) {
-                window.localStorage.setItem(this.storageKeys.refresh, this.refreshToken);
-            } else {
-                window.localStorage.removeItem(this.storageKeys.refresh);
-            }
-        }
+        this._persistSessionState({
+            token: this.token,
+            access: this.access,
+            refreshToken: this.refreshToken,
+            persist
+        });
 
         if (this.httpClient?.setAuthToken && this.token) {
             this.httpClient.setAuthToken(this.token);
         }
 
-        this._syncStore();
-        this._emit('auth:changed');
+        this._notifyAuthChanged();
     }
 
     clearSession({ persist = true } = {}) {
@@ -116,18 +104,13 @@ export class AuthManager {
         this.access = null;
         this.refreshToken = null;
 
-        if (persist && typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.removeItem(this.storageKeys.token);
-            window.localStorage.removeItem(this.storageKeys.access);
-            window.localStorage.removeItem(this.storageKeys.refresh);
-        }
+        this._persistSessionState({ token: null, access: null, refreshToken: null, persist });
 
         if (this.httpClient?.clearAuthToken) {
             this.httpClient.clearAuthToken();
         }
 
-        this._syncStore();
-        this._emit('auth:changed');
+        this._notifyAuthChanged();
     }
 
     async logout() {
@@ -339,9 +322,7 @@ export class AuthManager {
             this.token = token;
             this.access = access || null;
             this.refreshToken = refreshToken || this.refreshToken || null;
-            if (this.refreshToken && window.localStorage) {
-                window.localStorage.setItem(this.storageKeys.refresh, this.refreshToken);
-            }
+            this._setStorageItem(this.storageKeys.refresh, this.refreshToken);
             if (this.httpClient?.setAuthToken) {
                 this.httpClient.setAuthToken(token);
             }
@@ -429,6 +410,35 @@ export class AuthManager {
         this.store.setState({ auth: summary });
     }
 
+    _persistSessionState({ token, access, refreshToken, persist }) {
+        if (!persist || typeof window === 'undefined' || !window.localStorage) {
+            return;
+        }
+
+        this._setStorageItem(this.storageKeys.token, token);
+        const serializedAccess = access != null ? JSON.stringify(access) : null;
+        this._setStorageItem(this.storageKeys.access, serializedAccess);
+        this._setStorageItem(this.storageKeys.refresh, refreshToken);
+    }
+
+    _setStorageItem(key, value) {
+        if (typeof window === 'undefined' || !window.localStorage) {
+            return;
+        }
+
+        if (value === null || typeof value === 'undefined') {
+            window.localStorage.removeItem(key);
+            return;
+        }
+
+        window.localStorage.setItem(key, value);
+    }
+
+    _notifyAuthChanged() {
+        this._syncStore();
+        this._emit('auth:changed');
+    }
+
     _emit(eventName) {
         if (!this.eventBus?.emit) return;
         this.eventBus.emit(eventName, { summary: this.getSummary() });
@@ -448,7 +458,6 @@ export class AuthManager {
 
     _setVerifying(value) {
         this._verifying = Boolean(value);
-        this._syncStore();
-        this._emit('auth:changed');
+        this._notifyAuthChanged();
     }
 }
