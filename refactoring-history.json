@@ -1027,9 +1027,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/381",
       "pr_status": "merged",
       "merged_at": "2026-03-24T12:23:18Z"
+    },
+    {
+      "area": "public/modules/device",
+      "refactored_at": "2026-03-24T15:30:50.772Z",
+      "files_modified": [
+        "public/modules/device/device-auth-controller.js"
+      ],
+      "changes_summary": "HTTP POSTとボタンのローディングUI処理を共通化するヘルパー（postDeviceRequest / withButtonLoading）を新設し、verify/approve/denyの各メソッドから重複fetchロジックとDOM操作を排除して読みやすさと保守性を上げたよ。必要以上の挙動変更はなく、エラーハンドリングも一元化済み。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 96,
+      "judge_threshold": 90,
+      "judge_summary": "ボタン処理をwithButtonLoadingとpostDeviceRequestにまとめたおかげでスピナー制御もエラーハンドリングも一貫になって超見通し良くなってて安心感あるよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "withButtonLoadingやpostDeviceRequestの振る舞いを軽くユニットテスト化しておくと今後のリファクタ時もビビらず済むからオススメだよ〜"
+      ],
+      "run_number": "335",
+      "run_id": "23497689537",
+      "trigger_event": "schedule",
+      "pr_number": 382,
+      "pr_branch": "ops-department/auto-refactor-335",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/382",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-24T15:28:33.137Z",
-  "total_prs_created": 38,
+  "last_updated": "2026-03-24T15:31:07.633Z",
+  "total_prs_created": 39,
   "total_prs_merged": 34
 }
