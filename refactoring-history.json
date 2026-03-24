@@ -884,9 +884,39 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/296",
       "pr_status": "merged",
       "merged_at": "2026-03-03T18:19:21Z"
+    },
+    {
+      "area": "lib",
+      "refactored_at": "2026-03-24T00:22:58.307Z",
+      "files_modified": [
+        "lib/task-file-manager.js",
+        "lib/task-parser.js",
+        "lib/utils/atomic-runner.js"
+      ],
+      "changes_summary": "createAtomicRunnerヘルパーを新設してTaskFileManagerとTaskParserのrunAtomic処理を共通化、エラーログラベルまで添えて同期制御の重複をばっさりなくしたから保守ラクちんだよ〜今回はロジック整理オンリーだからテスト実行は見送ったよ☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "TaskFileManagerとTaskParserのrunAtomicを共通のcreateAtomicRunnerにまとめてて同期処理の直列化ロジックも従来通りキープどころかPromise.resolveチェーンで同期例外も拾いやすくなってて、範囲もlib内のatomic処理だけでちゃんと収まってるから安心感あるリファクタだよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "atomic runnerユーティリティにさくっとユニットテスト足せば今回のシリアライゼーション保証を将来も守りやすくなるから検討してみてね〜"
+      ],
+      "run_number": "324",
+      "run_id": "23424512444",
+      "trigger_event": "schedule",
+      "pr_number": 374,
+      "pr_branch": "ops-department/auto-refactor-324",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/374",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-03T21:11:43.686Z",
-  "total_prs_created": 33,
+  "last_updated": "2026-03-24T00:23:16.852Z",
+  "total_prs_created": 34,
   "total_prs_merged": 29
 }
