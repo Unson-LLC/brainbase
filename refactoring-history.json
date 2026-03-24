@@ -971,9 +971,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/379",
       "pr_status": "merged",
       "merged_at": "2026-03-24T06:28:42Z"
+    },
+    {
+      "area": "public/modules/auth",
+      "refactored_at": "2026-03-24T09:24:25.404Z",
+      "files_modified": [
+        "public/modules/auth/auth-manager.js"
+      ],
+      "changes_summary": "session保存とauth変更通知をヘルパー化してローカルストレージ操作の重複を削減しつつ、メッセージリスナー経由のrefresh同期も同じ仕組みに揃えたよ♡",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "Refactor extracts persistence and notification helpers so session storage and auth change events are handled consistently; also reuses the new storage helper when refreshing tokens, improving SSR safety.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider unit tests around _persistSessionState/_setStorageItem to document the expected storage behavior (e.g., persist=false, server-side)."
+      ],
+      "run_number": "333",
+      "run_id": "23482065040",
+      "trigger_event": "schedule",
+      "pr_number": 380,
+      "pr_branch": "ops-department/auto-refactor-333",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/380",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-24T09:21:39.373Z",
-  "total_prs_created": 36,
+  "last_updated": "2026-03-24T09:24:38.106Z",
+  "total_prs_created": 37,
   "total_prs_merged": 32
 }
