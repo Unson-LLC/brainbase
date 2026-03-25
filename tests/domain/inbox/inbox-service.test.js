@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 import { InboxService } from '../../../public/modules/domain/inbox/inbox-service.js';
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';

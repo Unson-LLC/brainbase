@@ -19,6 +19,7 @@ import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
+import { refreshIcons } from './modules/ui-helpers.js';
 import { createSessionId } from './modules/session-manager.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener, setupXtermContextMenu } from './modules/iframe-contextmenu-handler.js';
@@ -2762,9 +2763,7 @@ export class App {
                     document.body.insertBefore(banner, appContainer);
 
                     // Re-render lucide icons
-                    if (window.lucide && window.lucide.createIcons) {
-                        window.lucide.createIcons();
-                    }
+                    refreshIcons();
                 }
             }
         } else {
@@ -2931,7 +2930,7 @@ export class App {
         }
 
         if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
+            refreshIcons();
         }
     }
 
@@ -3307,7 +3306,7 @@ export class App {
             renderMobileSessionList();
             sessionsSheetOverlay?.classList.add('active');
             sessionsBottomSheet?.classList.add('active');
-            lucide.createIcons();
+            refreshIcons();
         };
 
         const refreshMobileSessionListIfOpen = () => {
@@ -3354,7 +3353,7 @@ export class App {
                 }
             });
 
-            lucide.createIcons();
+            refreshIcons();
         };
 
         // Open Tasks bottom sheet
@@ -3364,7 +3363,7 @@ export class App {
             renderMobileTasksContent();
             tasksSheetOverlay?.classList.add('active');
             tasksBottomSheet?.classList.add('active');
-            lucide.createIcons();
+            refreshIcons();
         };
 
         // Close Tasks bottom sheet
@@ -4520,7 +4519,7 @@ export class App {
         });
 
         overlay.classList.add('active');
-        lucide.createIcons();
+        refreshIcons();
 
         closeBtn.onclick = () => this.closeChoiceOverlay();
     }

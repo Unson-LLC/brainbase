@@ -10,6 +10,7 @@ import { StorageService } from '../services/storage-service.js';
 import { NocoDBService } from '../services/nocodb-service.js';
 import { logger } from '../utils/logger.js';
 import { cacheMiddleware } from '../middleware/cache.js';
+import { asyncHandler } from '../lib/async-handler.js';
 import { BrainbaseActionController, ACTION_TYPES, ACTION_STATUS } from '../controllers/brainbase-action-controller.js';
 
 // Re-export for backward compatibility
@@ -52,187 +53,44 @@ export function createBrainbaseRouter(options = {}) {
      * GET /api/brainbase
      * すべての監視情報を一括取得
      */
-    router.get('/', async (req, res) => {
-        try {
-            const [github, system, tasks, worktrees, projects] = await Promise.all([
-                getGitHubInfo(),
-                systemService.getSystemStatus(),
-                // DISABLED: storageService.getStorageSummary() causes memory leak (du process accumulation)
-                // storageService.getStorageSummary(),
-                getTasksInfo(),
-                getWorktreesInfo(),
-                getProjectsWithHealth(),
-            ]);
+    router.get('/', asyncHandler(async (req, res) => {
+        const [github, system, tasks, worktrees, projects] = await Promise.all([
+            getGitHubInfo(), systemService.getSystemStatus(),
+            getTasksInfo(), getWorktreesInfo(), getProjectsWithHealth(),
+        ]);
+        res.json({ github, system, tasks, worktrees, projects, timestamp: new Date().toISOString() });
+    }));
 
-            res.json({
-                github,
-                system,
-                // storage: null, // Disabled to prevent memory leak
-                tasks,
-                worktrees,
-                projects,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error) {
-            logger.error('Error fetching dashboard data', { error });
-            res.status(500).json({ error: 'Failed to fetch dashboard data' });
-        }
-    });
+    router.get('/github/runners', asyncHandler(async (req, res) => {
+        res.json(await githubService.getSelfHostedRunners());
+    }));
 
-    /**
-     * GET /api/brainbase/github/runners
-     * GitHub Actionsセルフホストランナー情報
-     */
-    router.get('/github/runners', async (req, res) => {
-        try {
-            const runners = await githubService.getSelfHostedRunners();
-            res.json(runners);
-        } catch (error) {
-            logger.error('Error fetching runners', { error });
-            res.status(500).json({ error: 'Failed to fetch runners' });
-        }
-    });
+    router.get('/github/workflows', asyncHandler(async (req, res) => {
+        res.json(await githubService.getWorkflowRuns(parseInt(req.query.limit) || 10));
+    }));
 
-    /**
-     * GET /api/brainbase/github/workflows
-     * GitHub Actionsワークフロー実行履歴
-     */
-    router.get('/github/workflows', async (req, res) => {
-        try {
-            const limit = parseInt(req.query.limit) || 10;
-            const workflows = await githubService.getWorkflowRuns(limit);
-            res.json(workflows);
-        } catch (error) {
-            logger.error('Error fetching workflows', { error });
-            res.status(500).json({ error: 'Failed to fetch workflows' });
-        }
-    });
+    router.get('/system', asyncHandler(async (req, res) => {
+        res.json(await systemService.getSystemStatus());
+    }));
 
-    /**
-     * GET /api/brainbase/system
-     * システムリソース情報
-     */
-    router.get('/system', async (req, res) => {
-        try {
-            const system = await systemService.getSystemStatus();
-            res.json(system);
-        } catch (error) {
-            logger.error('Error fetching system status', { error });
-            res.status(500).json({ error: 'Failed to fetch system status' });
-        }
-    });
+    router.get('/system-health', asyncHandler(async (req, res) => {
+        res.json({ success: true, data: await githubService.getHealthcheckStatus() });
+    }));
 
-    /**
-     * GET /api/brainbase/system-health
-     * healthcheckワークフローの実行結果取得（mana + runners）
-     */
-    router.get('/system-health', async (req, res) => {
-        try {
-            const healthStatus = await githubService.getHealthcheckStatus();
-            res.json({
-                success: true,
-                data: healthStatus,
-            });
-        } catch (error) {
-            logger.error('Error fetching system health', { error });
-            res.status(500).json({
-                success: false,
-                error: 'Failed to fetch system health',
-            });
-        }
-    });
+    router.get('/storage', asyncHandler(async (req, res) => {
+        res.json(await storageService.getStorageSummary());
+    }));
 
-    /**
-     * GET /api/brainbase/storage
-     * ストレージ情報取得（キャッシュ付き、TTL: 5分）
-     * NOTE: メモリリーク対策として専用エンドポイントでのみ取得可能。
-     *       `/api/brainbase/overview` では引き続き無効化されている。
-     */
-    router.get('/storage', async (req, res) => {
-        try {
-            const storage = await storageService.getStorageSummary();
-            res.json(storage);
-        } catch (error) {
-            logger.error('Error fetching storage info', { error });
-            res.status(500).json({ error: 'Failed to fetch storage info' });
-        }
-    });
+    router.get('/tasks', asyncHandler(async (req, res) => {
+        res.json(await getTasksInfo());
+    }));
 
-    /**
-     * GET /api/brainbase/tasks
-     * タスク管理ステータス
-     */
-    router.get('/tasks', async (req, res) => {
-        try {
-            const tasks = await getTasksInfo();
-            res.json(tasks);
-        } catch (error) {
-            logger.error('Error fetching tasks', { error });
-            res.status(500).json({ error: 'Failed to fetch tasks' });
-        }
-    });
+    router.get('/worktrees', asyncHandler(async (req, res) => {
+        res.json(await getWorktreesInfo());
+    }));
 
-    /**
-     * GET /api/brainbase/worktrees
-     * Worktree情報
-     */
-    router.get('/worktrees', async (req, res) => {
-        try {
-            const worktrees = await getWorktreesInfo();
-            res.json(worktrees);
-        } catch (error) {
-            logger.error('Error fetching worktrees', { error });
-            res.status(500).json({ error: 'Failed to fetch worktrees' });
-        }
-    });
-
-    /**
-     * GET /api/brainbase/projects
-     * 全プロジェクトの健全性スコアを返却（NocoDB実データ使用）
-     */
-    router.get('/projects', async (req, res) => {
-        try {
-            // 1. config.ymlからプロジェクト一覧（project_id必須）
-            const config = await configParser.getAll();
-            const projects = (config.projects?.projects || [])
-                .filter(p => !p.archived && p.nocodb?.project_id)
-                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
-
-            // 2. NocoDBから統計取得
-            const stats = await Promise.all(
-                projects.map(p => nocodbService.getProjectStats(p.project_id))
-            );
-
-            // 3. 健全性スコア計算
-            const healthScores = stats.map((stat, i) => {
-                const taskCompletion = stat.completionRate || 0;
-                const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
-                const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
-                const milestoneProgress = stat.averageProgress || 0;
-
-                const healthScore = Math.round(
-                    (taskCompletion * 0.3) +
-                    (overdueScore * 0.2) +
-                    (blockedScore * 0.2) +
-                    (milestoneProgress * 0.3)
-                );
-
-                return {
-                    id: projects[i].id,
-                    name: projects[i].id,
-                    healthScore,
-                    overdue: stat.overdue,
-                    blocked: stat.blocked,
-                    completionRate: taskCompletion,
-                    manaScore: 92 // 固定値（Phase 3でmana統合）
-                };
-            });
-
-            res.json(healthScores.sort((a, b) => b.healthScore - a.healthScore));
-        } catch (error) {
-            logger.error('Failed to fetch projects', { error });
-            res.status(500).json({ error: 'Failed to fetch projects' });
-        }
+    router.get('/projects', asyncHandler(async (req, res) => {
+        res.json(await getProjectsWithHealth());
     });
 
     /**
