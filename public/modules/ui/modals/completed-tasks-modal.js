@@ -1,5 +1,5 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 import { BaseModal } from './base-modal.js';
 
 /**
@@ -81,9 +81,7 @@ export class CompletedTasksModal extends BaseModal {
 
         listElement.innerHTML = html;
 
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        refreshIcons();
 
         listElement.querySelectorAll('.restore-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {

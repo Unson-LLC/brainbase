@@ -1,6 +1,6 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * タイムライン表示のUIコンポーネント
@@ -314,10 +314,7 @@ export class TimelineView {
                 ? this._formatGoogleCalendarDiagnosticsHTML(status)
                 : '';
         }
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     async _handleGoogleCalendarButtonClick(e) {

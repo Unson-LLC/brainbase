@@ -1,6 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * NocoDBTasksView
@@ -233,9 +233,7 @@ export class NocoDBTasksView {
                 <span>NocoDB タスクを読み込み中...</span>
             </div>
         `;
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**
@@ -252,9 +250,7 @@ export class NocoDBTasksView {
                 </button>
             </div>
         `;
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**
@@ -287,18 +283,14 @@ export class NocoDBTasksView {
                     <p>担当タスクがありません</p>
                 </div>
             `;
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            refreshIcons();
             return;
         }
 
         this.container.innerHTML = tasks.map(task => this._renderTaskItem(task)).join('');
         this._attachStatusHandlers();
 
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**
@@ -321,9 +313,7 @@ export class NocoDBTasksView {
             });
         }
 
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**

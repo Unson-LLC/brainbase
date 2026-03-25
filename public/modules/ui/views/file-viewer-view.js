@@ -1,5 +1,5 @@
 import { appStore } from '../../core/store.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * ファイルビューアのUIコンポーネント
@@ -89,9 +89,6 @@ export class FileViewerView {
                 this.fileViewerService.close();
             });
         }
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 }

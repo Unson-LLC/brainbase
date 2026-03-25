@@ -1,6 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * Inbox（通知）表示のUIコンポーネント
@@ -192,9 +192,7 @@ export class InboxView {
             });
 
             // Re-init lucide icons
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            refreshIcons();
         }
     }
 

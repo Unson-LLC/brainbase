@@ -1,7 +1,7 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getProjectFromSession } from '../../project-mapping.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 
@@ -375,9 +375,6 @@ export class FolderTreeView {
         `;
 
         this._bindEvents(container, sessionId);
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 }

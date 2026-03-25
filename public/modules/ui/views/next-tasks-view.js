@@ -1,5 +1,6 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { refreshIcons } from '../../ui-helpers.js';
 
 /**
  * Next Tasks表示のUIコンポーネント
@@ -60,9 +61,7 @@ export class NextTasksView {
         this.container.innerHTML = html;
 
         // Lucideアイコンを初期化
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
 
         this._updateRemainingToggle(remainingCount);
         this._attachEventHandlers();

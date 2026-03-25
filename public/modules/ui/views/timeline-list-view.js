@@ -1,5 +1,5 @@
 import { EVENTS } from '../../core/event-bus.js';
-import { escapeHtml, iconHtml } from '../../ui-helpers.js';
+import { escapeHtml, iconHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * TimelineListView
@@ -46,9 +46,7 @@ export class TimelineListView {
         this.container.innerHTML = this._generateHTML(items);
 
         // Lucideアイコンを初期化
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
 
         this._attachEventHandlers();
     }

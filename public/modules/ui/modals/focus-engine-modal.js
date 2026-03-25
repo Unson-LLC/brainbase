@@ -1,4 +1,5 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { refreshIcons } from '../../ui-helpers.js';
 import { BaseModal } from './base-modal.js';
 
 /**
@@ -20,9 +21,7 @@ export class FocusEngineModal extends BaseModal {
         this.pendingTask = task;
         this.modalElement.classList.add('active');
 
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     close() {
