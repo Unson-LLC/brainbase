@@ -1,8 +1,4 @@
-function escapeHtml(value) {
-    const div = document.createElement('div');
-    div.textContent = value ?? '';
-    return div.innerHTML;
-}
+import { escapeHtml } from '../../ui-helpers.js';
 
 function statusSpecificFields(item) {
     if (!item) return '';

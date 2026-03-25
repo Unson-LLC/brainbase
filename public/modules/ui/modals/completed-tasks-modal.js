@@ -1,4 +1,5 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { escapeHtml } from '../../ui-helpers.js';
 import { BaseModal } from './base-modal.js';
 
 /**
@@ -63,9 +64,9 @@ export class CompletedTasksModal extends BaseModal {
                 html += `
                     <div class="completed-task-item" data-task-id="${task.id}">
                         <div class="completed-task-info">
-                            <div class="completed-task-name">${this._escapeHtml(taskName)}</div>
+                            <div class="completed-task-name">${escapeHtml(taskName)}</div>
                             <div class="completed-task-meta">
-                                ${project ? `<span class="task-project">${this._escapeHtml(project)}</span>` : ''}
+                                ${project ? `<span class="task-project">${escapeHtml(project)}</span>` : ''}
                                 ${priority ? `<span class="task-priority priority-${priority}">${this._getPriorityLabel(priority)}</span>` : ''}
                             </div>
                         </div>
@@ -125,11 +126,6 @@ export class CompletedTasksModal extends BaseModal {
         return labels[priority] || priority;
     }
 
-    _escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
     _attachEventHandlers() {
         const filterSelect = document.getElementById('completed-date-filter');

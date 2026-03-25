@@ -1,5 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
+import { escapeHtml } from '../../ui-helpers.js';
 
 /**
  * NocoDBTasksView
@@ -245,7 +246,7 @@ export class NocoDBTasksView {
         this.container.innerHTML = `
             <div class="error-state">
                 <i data-lucide="alert-circle"></i>
-                <p>${this._escapeHtml(message)}</p>
+                <p>${escapeHtml(message)}</p>
                 <button class="btn-secondary btn-sm" onclick="document.getElementById('nocodb-sync-btn')?.click()">
                     再試行
                 </button>
@@ -342,7 +343,7 @@ export class NocoDBTasksView {
         return `
             <div class="nocodb-task-item ${statusClass}${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
                 <div class="task-header">
-                    <span class="project-badge">${this._escapeHtml(task.projectName || task.project)}</span>
+                    <span class="project-badge">${escapeHtml(task.projectName || task.project)}</span>
                     <span class="priority-indicator">${priorityEmoji}</span>
                     <div class="nocodb-task-actions">
                         <button class="nocodb-task-action-btn nocodb-task-start-btn" data-task-id="${task.id}" title="セッションを開始">
@@ -356,7 +357,7 @@ export class NocoDBTasksView {
                         </button>
                     </div>
                 </div>
-                <div class="task-title">${this._escapeHtml(task.title)}</div>
+                <div class="task-title">${escapeHtml(task.title)}</div>
                 <div class="task-meta">
                     ${dueDateHtml}
                     <select class="task-status-select" data-task-id="${task.id}">
@@ -367,7 +368,7 @@ export class NocoDBTasksView {
                     <div class="assignee-combobox" data-task-id="${task.id}">
                         <button class="assignee-trigger" type="button">
                             <i data-lucide="user" class="assignee-icon"></i>
-                            <span class="assignee-value">${this._escapeHtml(task.assignee || '未割当')}</span>
+                            <span class="assignee-value">${escapeHtml(task.assignee || '未割当')}</span>
                             <i data-lucide="chevron-down" class="chevron-icon"></i>
                         </button>
                         <div class="assignee-popover" style="display: none;">
@@ -393,8 +394,8 @@ export class NocoDBTasksView {
 
         for (const name of this.members) {
             const isSelected = name === currentAssignee;
-            options += `<div class="assignee-option ${isSelected ? 'selected' : ''}" data-value="${this._escapeHtml(name)}">
-                <span class="option-text">${this._escapeHtml(name)}</span>
+            options += `<div class="assignee-option ${isSelected ? 'selected' : ''}" data-value="${escapeHtml(name)}">
+                <span class="option-text">${escapeHtml(name)}</span>
                 ${isSelected ? '<i data-lucide="check" class="check-icon"></i>' : ''}
             </div>`;
         }
@@ -404,13 +405,13 @@ export class NocoDBTasksView {
             options = `<div class="assignee-option" data-value="">
                 <span class="option-text">未割当</span>
             </div>
-            <div class="assignee-option selected" data-value="${this._escapeHtml(currentAssignee)}">
-                <span class="option-text">${this._escapeHtml(currentAssignee)} ⚠️</span>
+            <div class="assignee-option selected" data-value="${escapeHtml(currentAssignee)}">
+                <span class="option-text">${escapeHtml(currentAssignee)} ⚠️</span>
                 <i data-lucide="check" class="check-icon"></i>
             </div>`;
             for (const name of this.members) {
-                options += `<div class="assignee-option" data-value="${this._escapeHtml(name)}">
-                    <span class="option-text">${this._escapeHtml(name)}</span>
+                options += `<div class="assignee-option" data-value="${escapeHtml(name)}">
+                    <span class="option-text">${escapeHtml(name)}</span>
                 </div>`;
             }
         }
@@ -613,15 +614,6 @@ export class NocoDBTasksView {
         });
     }
 
-    /**
-     * HTMLエスケープ
-     */
-    _escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
     /**
      * クリーンアップ
