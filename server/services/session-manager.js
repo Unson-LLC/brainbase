@@ -975,6 +975,22 @@ export class SessionManager {
         return (state.sessions || []).find(session => session.id === sessionId) || null;
     }
 
+    _resolveScriptPath(scriptName) {
+        const candidates = [
+            path.join(this.serverDir, 'scripts', scriptName),
+            path.join(this.serverDir, scriptName),
+            path.join(this.serverDir, '..', 'scripts', scriptName),
+        ];
+
+        for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+
+        return candidates[0];
+    }
+
     /**
      * 起動準備完了フラグを設定
      */
@@ -1012,25 +1028,44 @@ export class SessionManager {
         ]);
     }
 
+    _isTmuxSessionRunningSync(sessionId) {
+        if (!sessionId) return false;
+        try {
+            execSync(`tmux has-session -t "${sessionId}" 2>/dev/null`, { stdio: 'ignore' });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     /**
      * セッションのランタイム状態を取得
      * @param {Object} session - セッション情報
-     * @returns {{ttydRunning: boolean, needsRestart: boolean}}
+     * @returns {{interactiveTransport: string, interactiveReady: boolean, interactiveUrl: string|null, needsRestart: boolean, port: number|null, ttydRunning: boolean, proxyPath: string|null}}
      */
     getRuntimeStatus(session) {
         const sessionId = session?.id;
+        const intendedState = session?.intendedState;
         const activeEntry = this.activeSessions.get(session?.id);
         const activePid = activeEntry?.process?.pid || activeEntry?.pid;
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
         const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
-        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        const shouldCheckTmux = intendedState === 'active' && !ttydRunning;
+        const tmuxRunning = shouldCheckTmux ? this._isTmuxSessionRunningSync(sessionId) : false;
+        const needsRestart = intendedState === 'active' && !ttydRunning && !tmuxRunning;
         const port = activeEntry?.port || session?.ttydProcess?.port || null;
+        const interactiveTransport = ttydRunning ? 'ttyd' : (tmuxRunning ? 'xterm' : 'none');
+        const interactiveReady = ttydRunning || tmuxRunning;
+        const interactiveUrl = ttydRunning && sessionId ? `/console/${sessionId}` : null;
 
         return {
+            interactiveTransport,
+            interactiveReady,
+            interactiveUrl,
             ttydRunning,
             needsRestart,
-            proxyPath: ttydRunning && sessionId ? `/console/${sessionId}` : null,
+            proxyPath: interactiveUrl,
             port
         };
     }
@@ -1053,6 +1088,67 @@ export class SessionManager {
         };
     }
 
+    async ensureSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude' }) {
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required');
+        }
+        if (!['claude', 'codex'].includes(engine)) {
+            throw new Error('engine must be "claude" or "codex"');
+        }
+
+        if (await this._isTmuxSessionRunning(sessionId)) {
+            return { startedExisting: true };
+        }
+
+        if (cwd && !fs.existsSync(cwd)) {
+            throw new Error(`Working directory does not exist: ${cwd}`);
+        }
+
+        const scriptPath = this._resolveScriptPath('ensure_session_runtime.sh');
+        const spawnOptions = {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: {
+                ...process.env,
+                LANG: 'en_US.UTF-8',
+                LC_ALL: 'en_US.UTF-8'
+            }
+        };
+        const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
+        if (resolvedUiPort) {
+            spawnOptions.env.BRAINBASE_PORT = String(resolvedUiPort);
+        }
+        if (cwd) {
+            spawnOptions.cwd = cwd;
+        }
+
+        await new Promise((resolve, reject) => {
+            const child = spawn('bash', [scriptPath, sessionId, initialCommand || '', engine], spawnOptions);
+            let stderr = '';
+
+            child.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            child.on('error', reject);
+            child.on('exit', (code) => {
+                if (code === 0) {
+                    resolve();
+                    return;
+                }
+                reject(new Error(stderr.trim() || `ensure_session_runtime exited with code ${code}`));
+            });
+        });
+
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+            if (await this._isTmuxSessionRunning(sessionId)) {
+                return { startedExisting: false };
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        throw new Error(`tmux session did not become ready: ${sessionId}`);
+    }
+
     /**
      * ttydプロセスを起動
      * @param {Object} options - 起動オプション
@@ -1064,6 +1160,8 @@ export class SessionManager {
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
     async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
+        await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine });
+
         // 並行起動防止ロック: 同じセッションに対する同時呼び出しを防止
         if (this.startLocks.has(sessionId)) {
             logger.info(`[startTtyd] Lock active for ${sessionId}, waiting for existing start to complete`);
@@ -1122,9 +1220,7 @@ export class SessionManager {
         }
 
         // Spawn ttyd with Base Path
-        const scriptPath = fs.existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
-            ? path.join(this.serverDir, 'scripts', 'login_script.sh')
-            : path.join(this.serverDir, 'login_script.sh');
+        const scriptPath = this._resolveScriptPath('login_script.sh');
         const customIndexPath = fs.existsSync(path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html'))
             ? path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html')
             : path.join(this.serverDir, 'custom_ttyd_index.html');

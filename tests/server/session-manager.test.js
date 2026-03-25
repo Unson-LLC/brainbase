@@ -27,6 +27,39 @@ const createManager = () => new SessionManager({
 });
 
 describe('SessionManager', () => {
+  it('getRuntimeStatus_paused_session_does_not_probe_tmux', () => {
+    const manager = createManager();
+    const tmuxSpy = vi.spyOn(manager, '_isTmuxSessionRunningSync').mockReturnValue(true);
+    const processSpy = vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
+
+    const runtimeStatus = manager.getRuntimeStatus({
+      id: 'session-1',
+      intendedState: 'paused',
+      ttydProcess: { pid: 12345 }
+    });
+
+    expect(processSpy).toHaveBeenCalledWith(12345);
+    expect(tmuxSpy).not.toHaveBeenCalled();
+    expect(runtimeStatus.needsRestart).toBe(false);
+    expect(runtimeStatus.interactiveTransport).toBe('none');
+  });
+
+  it('getRuntimeStatus_active_session_without_ttyd_probes_tmux', () => {
+    const manager = createManager();
+    const tmuxSpy = vi.spyOn(manager, '_isTmuxSessionRunningSync').mockReturnValue(true);
+    vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
+
+    const runtimeStatus = manager.getRuntimeStatus({
+      id: 'session-1',
+      intendedState: 'active',
+      ttydProcess: { pid: 12345 }
+    });
+
+    expect(tmuxSpy).toHaveBeenCalledWith('session-1');
+    expect(runtimeStatus.interactiveTransport).toBe('xterm');
+    expect(runtimeStatus.needsRestart).toBe(false);
+  });
+
   it('reportActivity_working_latest_sets_isWorking_true', () => {
     const manager = createManager();
     const now = Date.now();

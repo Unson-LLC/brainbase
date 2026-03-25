@@ -58,13 +58,15 @@ export class TerminalTransportClient {
         this._isViewportPinnedToBottom = true;
         this._pendingSnapshotText = null;
         this._lastSnapshotText = null;
+        this._pendingEchoText = '';
+        this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
         this._visibilityHandler = null;
     }
 
     async init(hostEl) {
         this.hostEl = hostEl;
-        const { Terminal, FitAddon, WebLinksAddon } = await loadXterm();
+        const { Terminal, FitAddon } = await loadXterm();
         if (this.terminal) return;
 
         this.terminal = new Terminal({
@@ -83,9 +85,6 @@ export class TerminalTransportClient {
         });
         this.fitAddon = new FitAddon();
         this.terminal.loadAddon(this.fitAddon);
-        if (WebLinksAddon) {
-            this.terminal.loadAddon(new WebLinksAddon());
-        }
         this.terminal.open(hostEl);
         this.fitAddon.fit();
         if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
@@ -200,6 +199,7 @@ export class TerminalTransportClient {
     }
 
     async connect(sessionId) {
+        const switchingSessions = Boolean(this.sessionId && this.sessionId !== sessionId);
         this._connectToken += 1;
         const connectToken = this._connectToken;
         this._manualClose = false;
@@ -212,6 +212,10 @@ export class TerminalTransportClient {
 
         this._clearReconnectTimer();
         this._closeWs();
+
+        if (switchingSessions) {
+            this._prepareForSessionSwitch();
+        }
 
         const initialDimensions = this._measureViewport();
         const wsUrl = this._buildWsUrl(sessionId, initialDimensions);
@@ -337,6 +341,7 @@ export class TerminalTransportClient {
             this.status.blockedAccess = null;
             this.status.transport = 'snapshot';
             this._pendingSnapshotText = null;
+            this._pendingEchoText = '';
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
             this.terminal?.reset();
@@ -353,6 +358,7 @@ export class TerminalTransportClient {
             return;
         }
         await this._ensureInteractiveMode();
+        this._applyLocalEcho(value);
         this.ws.send(JSON.stringify(message));
     }
 
@@ -556,6 +562,19 @@ export class TerminalTransportClient {
     _queueOrApplySnapshot(text) {
         if (!this.terminal) return;
 
+        if (this._forceApplyNextSnapshot) {
+            this._forceApplyNextSnapshot = false;
+            this._isViewportPinnedToBottom = true;
+            this._pendingSnapshotText = null;
+            this._applySnapshot(text, {
+                forceViewportState: {
+                    distanceFromBottom: 0,
+                    wasPinnedToBottom: true
+                }
+            });
+            return;
+        }
+
         if (!this._computeIsViewportPinnedToBottom()) {
             this._isViewportPinnedToBottom = false;
             this._pendingSnapshotText = text || '';
@@ -589,20 +608,71 @@ export class TerminalTransportClient {
         const normalizedText = text || '';
         if (this._lastSnapshotText === normalizedText) return;
         this._lastSnapshotText = normalizedText;
+        this._pendingEchoText = '';
 
         const viewportState = options.forceViewportState || this._captureViewportState();
         // terminal.reset()は内部状態を全破壊してDOMを全再構築するため使わない。
         // 代わりにANSIエスケープで画面クリア+カーソルホーム+スクロールバッファクリア。
         // xterm.jsは変わった行だけDOMを更新する。
-        this.terminal.write('\x1b[2J\x1b[3J\x1b[H' + normalizedText, () => {
-            this._restoreViewportState(viewportState);
-            this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
-        });
+        this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H' + normalizedText, viewportState);
     }
 
     _applyOutput(text) {
         if (!this.terminal || !text) return;
-        this.terminal.write(text);
+        const nextText = this._consumePendingEcho(text);
+        if (!nextText) return;
+        this._writeToTerminal(nextText);
+    }
+
+    _applyLocalEcho(text) {
+        if (!this.terminal || !text || this.status.mode !== 'live') return;
+        if (!this._canOptimisticallyEcho(text)) return;
+
+        const normalized = this._normalizeEchoText(text);
+        if (!normalized) return;
+
+        this._pendingEchoText += normalized;
+        this._writeToTerminal(normalized);
+    }
+
+    _canOptimisticallyEcho(text) {
+        if (typeof text !== 'string' || !text) return false;
+        return !/[\u0000-\u0008\u000b-\u001f\u007f\u001b]/.test(text);
+    }
+
+    _normalizeEchoText(text) {
+        return text
+            .replace(/\r?\n/g, '\r\n')
+            .replace(/\t/g, '    ');
+    }
+
+    _consumePendingEcho(text) {
+        if (!this._pendingEchoText) return text;
+        if (!text.startsWith(this._pendingEchoText)) {
+            this._pendingEchoText = '';
+            return text;
+        }
+
+        const remaining = text.slice(this._pendingEchoText.length);
+        this._pendingEchoText = '';
+        return remaining;
+    }
+
+    _writeToTerminal(text, viewportState = null) {
+        if (!this.terminal || !text) return;
+        const nextViewportState = viewportState || this._captureViewportState();
+        this.terminal.write(text, () => {
+            this._restoreViewportState(nextViewportState);
+            this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
+        });
+    }
+
+    _prepareForSessionSwitch() {
+        this._forceApplyNextSnapshot = true;
+        this._pendingSnapshotText = null;
+        this._pendingEchoText = '';
+        this._lastSnapshotText = null;
+        this._isViewportPinnedToBottom = true;
     }
 
     _measureViewport() {

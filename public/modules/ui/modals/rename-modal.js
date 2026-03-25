@@ -8,6 +8,7 @@ export class RenameModal extends BaseModal {
         super('rename-session-modal');
         this.sessionService = sessionService;
         this.currentSessionId = null;
+        this.isSaving = false;
     }
 
     /**
@@ -17,6 +18,7 @@ export class RenameModal extends BaseModal {
     open(session) {
         if (!this.modalElement) return;
 
+        this.isSaving = false;
         this.currentSessionId = session.id;
 
         const input = document.getElementById('rename-session-input');
@@ -40,7 +42,7 @@ export class RenameModal extends BaseModal {
      * セッション名を保存
      */
     async save() {
-        if (!this.currentSessionId) return;
+        if (!this.currentSessionId || this.isSaving) return;
 
         const input = document.getElementById('rename-session-input');
         const newName = input?.value?.trim();
@@ -50,12 +52,17 @@ export class RenameModal extends BaseModal {
             return;
         }
 
+        this.isSaving = true;
+        const sessionId = this.currentSessionId;
+        this.close();
+
         try {
-            await this.sessionService.updateSession(this.currentSessionId, { name: newName });
-            this.close();
+            await this.sessionService.updateSession(sessionId, { name: newName });
         } catch (error) {
             console.error('Failed to rename session:', error);
             alert('セッション名の変更に失敗しました');
+        } finally {
+            this.isSaving = false;
         }
     }
 
@@ -71,5 +78,6 @@ export class RenameModal extends BaseModal {
     unmount() {
         super.unmount();
         this.currentSessionId = null;
+        this.isSaving = false;
     }
 }

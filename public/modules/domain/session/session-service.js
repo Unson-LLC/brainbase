@@ -309,25 +309,53 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, updates: Object, eventResult: Object}>}
      */
     async updateSession(sessionId, updates) {
-        const state = await this.httpClient.get('/api/state');
         const now = new Date().toISOString();
+        const nextUpdates = { ...updates };
+        const previousState = this.store.getState();
+        const previousSessions = Array.isArray(previousState.sessions) ? previousState.sessions : [];
+        const previousSession = previousSessions.find((session) => session.id === sessionId) || null;
 
         // アーカイブ時にarchivedAtを自動設定
-        if (updates.intendedState === 'archived' && !updates.archivedAt) {
-            updates.archivedAt = now;
+        if (nextUpdates.intendedState === 'archived' && !nextUpdates.archivedAt) {
+            nextUpdates.archivedAt = now;
         }
 
-        if (!updates.updatedAt) {
-            updates.updatedAt = now;
+        if (!nextUpdates.updatedAt) {
+            nextUpdates.updatedAt = now;
         }
 
-        const updatedSessions = state.sessions.map(s =>
-            s.id === sessionId ? { ...s, ...updates } : s
+        const optimisticSessions = previousSessions.map((session) =>
+            session.id === sessionId ? { ...session, ...nextUpdates } : session
         );
-        await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
-        await this.loadSessions({ silent: true });
-        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates });
-        return { success: true, sessionId, updates, eventResult };
+
+        this.store.setState({ sessions: optimisticSessions });
+        const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates: nextUpdates });
+
+        try {
+            const patchedSession = await this.httpClient.patch(`/api/state/sessions/${encodeURIComponent(sessionId)}`, nextUpdates);
+            const currentSessions = this.store.getState().sessions || optimisticSessions;
+            const reconciledSessions = currentSessions.map((session) =>
+                session.id === sessionId ? { ...session, ...(patchedSession || {}) } : session
+            );
+            this.store.setState({ sessions: reconciledSessions });
+            return { success: true, sessionId, updates: nextUpdates, eventResult };
+        } catch (error) {
+            if (previousSession) {
+                this.store.setState({
+                    sessions: previousSessions.map((session) =>
+                        session.id === sessionId ? previousSession : session
+                    )
+                });
+            } else {
+                this.store.setState({ sessions: previousSessions });
+            }
+            await this.eventBus.emit(EVENTS.SESSION_UPDATED, {
+                sessionId,
+                updates: previousSession || {},
+                rollback: true
+            });
+            throw error;
+        }
     }
 
     /**

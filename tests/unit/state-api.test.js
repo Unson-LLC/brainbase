@@ -56,25 +56,15 @@ describe('state-api', () => {
 
   describe('updateSession', () => {
     it('should update a specific session', async () => {
-      const existingState = {
-        sessions: [
-          { id: 'session-1', name: 'Old Name' },
-          { id: 'session-2', name: 'Other' }
-        ]
-      };
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve(existingState)
-        })
-        .mockResolvedValueOnce({ ok: true });
+      mockFetch.mockResolvedValueOnce({ ok: true });
 
       await updateSession('session-1', { name: 'New Name' });
 
-      const saveCall = mockFetch.mock.calls[1];
-      const savedState = JSON.parse(saveCall[1].body);
-      expect(savedState.sessions[0].name).toBe('New Name');
-      expect(savedState.sessions[1].name).toBe('Other');
+      expect(mockFetch).toHaveBeenCalledWith('/api/state/sessions/session-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'New Name' })
+      });
     });
   });
 

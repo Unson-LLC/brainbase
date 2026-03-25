@@ -304,6 +304,91 @@ describe('terminal-transport-client', () => {
     expect(client._pendingSnapshotText).toBeNull();
   });
 
+  it('別sessionへ切り替えた直後の最初のsnapshotはscroll位置に関係なく即反映する', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      cols: 98,
+      rows: 32,
+      buffer: {
+        active: {
+          baseY: 120,
+          viewportY: 80
+        }
+      },
+      write: vi.fn((text, callback) => {
+        terminal.buffer.active.baseY = 0;
+        terminal.buffer.active.viewportY = 0;
+        callback?.();
+      }),
+      scrollToBottom: vi.fn(),
+      scrollToLine: vi.fn()
+    };
+
+    const sockets = [];
+
+    class MockWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+
+      constructor(url) {
+        this.url = url;
+        this.readyState = MockWebSocket.OPEN;
+        this.listeners = new Map();
+        sockets.push(this);
+      }
+
+      addEventListener(type, listener) {
+        const current = this.listeners.get(type) || [];
+        current.push(listener);
+        this.listeners.set(type, current);
+      }
+
+      send() {}
+
+      close() {
+        this.readyState = 3;
+      }
+
+      _emit(type, event) {
+        for (const listener of this.listeners.get(type) || []) {
+          listener(event);
+        }
+      }
+    }
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', host: 'localhost:31013', hostname: 'localhost' }
+    });
+    vi.stubGlobal('WebSocket', MockWebSocket);
+
+    client.fitAddon = { fit: vi.fn() };
+    client.terminal = terminal;
+    client.sessionId = 'session-1';
+
+    const connectPromise = client.connect('session-2');
+    const socket = sockets[0];
+    socket._emit('message', {
+      data: JSON.stringify({ type: 'ready', sessionId: 'session-2', cols: 98, rows: 32 })
+    });
+    socket._emit('message', {
+      data: JSON.stringify({ type: 'snapshot', text: 'session-2 output', capturedAt: new Date().toISOString() })
+    });
+    socket._emit('message', {
+      data: JSON.stringify({ type: 'status', mode: 'live', transport: 'streaming', copyMode: false })
+    });
+    await connectPromise;
+
+    expect(terminal.write).toHaveBeenCalledWith(
+      '\x1b[2J\x1b[3J\x1b[Hsession-2 output',
+      expect.any(Function)
+    );
+    expect(client._pendingSnapshotText).toBeNull();
+    expect(client._forceApplyNextSnapshot).toBe(false);
+  });
+
   it('outputメッセージはxtermへそのまま追記する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
@@ -316,7 +401,114 @@ describe('terminal-transport-client', () => {
     client.terminal = terminal;
     client._applyOutput('\u001b[32mhello\u001b[0m');
 
-    expect(terminal.write).toHaveBeenCalledWith('\u001b[32mhello\u001b[0m');
+    expect(terminal.write).toHaveBeenCalledWith('\u001b[32mhello\u001b[0m', expect.any(Function));
+  });
+
+  it('live入力時は印字可能な文字をローカルエコーする', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.status.mode = 'live';
+    client.terminal = {
+      write: vi.fn()
+    };
+
+    client._applyLocalEcho('abc');
+
+    expect(client.terminal.write).toHaveBeenCalledWith('abc', expect.any(Function));
+    expect(client._pendingEchoText).toBe('abc');
+  });
+
+  it('サーバー出力がローカルエコーと一致する場合は二重描画しない', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._pendingEchoText = 'abc';
+    client._applyOutput('abc');
+
+    expect(terminal.write).not.toHaveBeenCalled();
+    expect(client._pendingEchoText).toBe('');
+  });
+
+  it('サーバー出力がローカルエコーに続く追加出力を含む場合は差分だけ描画する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const terminal = {
+      write: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._pendingEchoText = 'abc\r\n';
+    client._applyOutput('abc\r\n$ ');
+
+    expect(terminal.write).toHaveBeenCalledWith('$ ', expect.any(Function));
+    expect(client._pendingEchoText).toBe('');
+  });
+
+  it('output適用時_上にスクロール中ならviewport位置を維持する', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const scrollToLine = vi.fn();
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 120,
+          viewportY: 80
+        }
+      },
+      write: vi.fn((text, callback) => {
+        terminal.buffer.active.baseY = 160;
+        callback?.();
+      }),
+      scrollToLine
+    };
+
+    client.terminal = terminal;
+    client._applyOutput('hello');
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith('hello', expect.any(Function));
+    expect(scrollToLine).toHaveBeenCalledWith(120);
+  });
+
+  it('output適用時_最下部にいるなら最下部を維持する', async () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const scrollToBottom = vi.fn();
+    const terminal = {
+      buffer: {
+        active: {
+          baseY: 64,
+          viewportY: 64
+        }
+      },
+      write: vi.fn((text, callback) => {
+        callback?.();
+      }),
+      scrollToBottom,
+      scrollToLine: vi.fn()
+    };
+
+    client.terminal = terminal;
+    client._applyOutput('hello');
+    await Promise.resolve();
+
+    expect(terminal.write).toHaveBeenCalledWith('hello', expect.any(Function));
+    expect(scrollToBottom).toHaveBeenCalled();
+    expect(terminal.scrollToLine).not.toHaveBeenCalled();
   });
 
   it('古いWebSocketのcloseイベントでは現在のlive状態を上書きしない', async () => {

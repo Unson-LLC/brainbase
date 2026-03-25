@@ -9,7 +9,8 @@ import { addSession } from '../../../public/modules/state-api.js';
 vi.mock('../../../public/modules/core/http-client.js', () => ({
     httpClient: {
         get: vi.fn(),
-        post: vi.fn()
+        post: vi.fn(),
+        patch: vi.fn()
     }
 }));
 
@@ -185,24 +186,23 @@ describe('SessionService', () => {
     });
 
     describe('updateSession', () => {
-        it('should update session via API and reload sessions', async () => {
+        it('should update session optimistically via API', async () => {
             const updates = { name: 'Updated Name' };
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
-            httpClient.post.mockResolvedValue({});
+            const currentSessions = mockSessions.map((session) => ({ ...session }));
+            appStore.setState({ sessions: currentSessions });
+            httpClient.patch.mockResolvedValue({ id: 'session-1', name: 'Updated Name' });
 
             await sessionService.updateSession('session-1', updates);
 
-            expect(httpClient.get).toHaveBeenCalledWith('/api/state');
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: expect.arrayContaining([
-                    expect.objectContaining({ id: 'session-1', name: 'Updated Name' })
-                ])
-            }));
+            expect(httpClient.patch).toHaveBeenCalledWith(
+                '/api/state/sessions/session-1',
+                expect.objectContaining({ name: 'Updated Name' })
+            );
+            expect(appStore.getState().sessions.find((session) => session.id === 'session-1')?.name).toBe('Updated Name');
         });
 
         it('should emit SESSION_UPDATED event', async () => {
-            httpClient.get.mockResolvedValue({ sessions: mockSessions });
-            httpClient.post.mockResolvedValue({});
+            httpClient.patch.mockResolvedValue({});
             const listener = vi.fn();
             eventBus.on(EVENTS.SESSION_UPDATED, listener);
 
@@ -210,6 +210,16 @@ describe('SessionService', () => {
 
             expect(listener).toHaveBeenCalled();
             expect(listener.mock.calls[0][0].detail.sessionId).toBe('session-1');
+        });
+
+        it('should rollback optimistic update when patch fails', async () => {
+            const currentSessions = mockSessions.map((session) => ({ ...session }));
+            appStore.setState({ sessions: currentSessions });
+            httpClient.patch.mockRejectedValue(new Error('patch failed'));
+
+            await expect(sessionService.updateSession('session-1', { name: 'Broken Name' })).rejects.toThrow('patch failed');
+
+            expect(appStore.getState().sessions.find((session) => session.id === 'session-1')?.name).toBe('Session 1');
         });
     });
 
@@ -511,16 +521,17 @@ describe('SessionService', () => {
             appStore.setState({ sessions: sessionsWithState });
             httpClient.get.mockResolvedValue({ sessions: sessionsWithState });
             httpClient.post.mockResolvedValue({});
+            httpClient.patch.mockResolvedValue({});
         });
 
         it('should pause active session and stop ttyd', async () => {
             await sessionService.pauseSession('session-1');
 
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: expect.arrayContaining([
-                    expect.objectContaining({ id: 'session-1', intendedState: 'paused' })
-                ])
-            }));
+            expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/stop');
+            expect(httpClient.patch).toHaveBeenCalledWith(
+                '/api/state/sessions/session-1',
+                expect.objectContaining({ intendedState: 'paused' })
+            );
         });
 
         it('should emit SESSION_PAUSED event', async () => {
@@ -544,16 +555,20 @@ describe('SessionService', () => {
             appStore.setState({ sessions: sessionsWithState });
             httpClient.get.mockResolvedValue({ sessions: sessionsWithState });
             httpClient.post.mockResolvedValue({});
+            httpClient.patch.mockResolvedValue({});
         });
 
         it('should resume paused session to active', async () => {
             await sessionService.resumeSession('session-1');
 
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: expect.arrayContaining([
-                    expect.objectContaining({ id: 'session-1', intendedState: 'active' })
-                ])
+            expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+                sessionId: 'session-1',
+                cwd: '/path/a'
             }));
+            expect(httpClient.patch).toHaveBeenCalledWith(
+                '/api/state/sessions/session-1',
+                expect.objectContaining({ intendedState: 'active' })
+            );
         });
 
         it('should emit SESSION_RESUMED event', async () => {
