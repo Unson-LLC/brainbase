@@ -1139,9 +1139,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/385",
       "pr_status": "merged",
       "merged_at": "2026-03-25T00:33:36Z"
+    },
+    {
+      "area": "public/modules/settings",
+      "refactored_at": "2026-03-25T03:56:14.650Z",
+      "files_modified": [
+        "public/modules/settings/settings-core.js",
+        "public/modules/settings/settings-ui.js",
+        "public/modules/ui-helpers.js"
+      ],
+      "changes_summary": "Lucideアイコンの再初期化ロジックをui-helpers.jsのrefreshLucideIconsに集約して、settings-coreとsettings-ui側ではそのヘルパーを呼ぶだけにしたから、重複コードが消えてめっちゃサッパリしたよ〜✌️",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "Lucide再初期化ロジックをhelperに寄せて重複排除できてるし挙動もそのままで安全なリファクタだから超いい感じだよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [],
+      "run_number": "339",
+      "run_id": "23524011221",
+      "trigger_event": "schedule",
+      "pr_number": 387,
+      "pr_branch": "ops-department/auto-refactor-339",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/387",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-25T03:50:55.943Z",
-  "total_prs_created": 42,
+  "last_updated": "2026-03-25T03:56:28.773Z",
+  "total_prs_created": 43,
   "total_prs_merged": 38
 }
