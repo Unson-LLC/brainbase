@@ -1280,9 +1280,38 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/392",
       "pr_status": "merged",
       "merged_at": "2026-03-25T18:26:36Z"
+    },
+    {
+      "area": "server/middleware",
+      "refactored_at": "2026-03-25T21:17:07.375Z",
+      "files_modified": [
+        "server/middleware/auth.js",
+        "server/middleware/cache.js"
+      ],
+      "changes_summary": "cache.js: added a reusable payload-size helper so cache logging no longer repeats stringify logic or throws on non-serializable payloads. auth.js: centralized static internal-access data, added helpers for role-level lookup and header resolution, and simplified env-flag checks to cut duplication in requireAuth. Tests not run (not requested).",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "ヘッダー値取得やロール判定が共通化されて可読性アップ、キャッシュ計測も安全化されてて挙動そのままっぽくてイイ感じだよ☆",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "今度このヘルパー群をカバーするテスト足してくれたらさらに安心感マシマシだと思うよ〜"
+      ],
+      "run_number": "345",
+      "run_id": "23564456660",
+      "trigger_event": "schedule",
+      "pr_number": 393,
+      "pr_branch": "ops-department/auto-refactor-345",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/393",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-25T21:14:01.599Z",
-  "total_prs_created": 47,
+  "last_updated": "2026-03-25T21:17:19.158Z",
+  "total_prs_created": 48,
   "total_prs_merged": 43
 }
