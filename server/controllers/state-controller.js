@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import { pickAllowedFields } from '../lib/validation.js';
 
 /**
  * StateController
@@ -24,26 +25,13 @@ const ALLOWED_SESSION_FIELDS = [
 /**
  * セッションオブジェクトの検証
  * @param {Object} session - 検証対象セッション
- * @returns {Object} 検証済みセッション（不正フィールド除去）
+ * @returns {Object|null} 検証済みセッション（不正フィールド除去）
  */
 function validateSession(session) {
-    if (!session || typeof session !== 'object') {
+    if (!session?.id || typeof session.id !== 'string') {
         return null;
     }
-
-    // id は必須かつ文字列
-    if (!session.id || typeof session.id !== 'string') {
-        return null;
-    }
-
-    // 許可されたフィールドのみ残す
-    const validated = {};
-    for (const key of ALLOWED_SESSION_FIELDS) {
-        if (key in session) {
-            validated[key] = session[key];
-        }
-    }
-    return validated;
+    return pickAllowedFields(session, ALLOWED_SESSION_FIELDS);
 }
 
 export class StateController {
