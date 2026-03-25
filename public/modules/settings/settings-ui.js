@@ -1,3 +1,5 @@
+import { refreshLucideIcons } from '../ui-helpers.js';
+
 /**
  * Settings UI Module
  *
@@ -99,7 +101,7 @@ export class SettingsUI {
       await this.onOpenCallback();
     }
 
-    this._refreshIcons();
+    refreshLucideIcons();
   }
 
   /**
@@ -140,7 +142,7 @@ export class SettingsUI {
       `)
       .join('');
 
-    this._refreshIcons();
+    refreshLucideIcons();
 
     // タブクリックイベントを再設定
     this._setupTabClickListeners();
@@ -237,14 +239,4 @@ export class SettingsUI {
     return iconMap[tabId] || 'folder';
   }
 
-  /**
-   * Lucide icons再初期化（存在確認付き）
-   * @private
-   */
-  _refreshIcons() {
-    if (typeof lucide === 'undefined') {
-      return;
-    }
-    lucide.createIcons();
-  }
 }

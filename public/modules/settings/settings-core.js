@@ -8,7 +8,7 @@
 import { eventBus } from '../core/event-bus.js';
 import { appStore } from '../core/store.js';
 import { fetchPreferences, updatePreferences } from '../state-api.js';
-import { escapeHtml } from '../ui-helpers.js';
+import { escapeHtml, refreshLucideIcons } from '../ui-helpers.js';
 
 export class SettingsCore {
   constructor({ pluginRegistry, ui, apiClient }) {
@@ -43,17 +43,6 @@ export class SettingsCore {
 
     // 4. EventBusリスニング
     this._setupEventListeners();
-  }
-
-  /**
-   * Lucide icons再初期化（存在チェック付き）
-   * @private
-   */
-  _refreshIcons() {
-    if (typeof lucide === 'undefined') {
-      return;
-    }
-    lucide.createIcons();
   }
 
   /**
@@ -102,7 +91,7 @@ export class SettingsCore {
           container.innerHTML = this._renderOverviewHTML(settingsIntegrity, settingsUnified, settingsManaStats, settingsHealth);
 
           // Lucide icons再初期化
-          this._refreshIcons();
+          refreshLucideIcons();
         }
       }
     });
@@ -141,7 +130,7 @@ export class SettingsCore {
           this._setupOrganizationsCrud(container, settingsOrganizations || []);
 
           // Lucide icons再初期化
-          this._refreshIcons();
+          refreshLucideIcons();
         }
       }
     });
@@ -208,7 +197,7 @@ export class SettingsCore {
           }
 
           // Lucide icons再初期化
-          this._refreshIcons();
+          refreshLucideIcons();
         }
       }
     });
@@ -229,7 +218,7 @@ export class SettingsCore {
           this._setupNotificationsCrud(container, notifications);
 
           // Lucide icons再初期化
-          this._refreshIcons();
+          refreshLucideIcons();
         }
       }
     });

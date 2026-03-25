@@ -56,3 +56,13 @@ export function formatTime(time) {
 export function iconHtml(name, className = '') {
     return `<i data-lucide="${name}" class="${className}"></i>`;
 }
+
+/**
+ * Re-initialize Lucide icons if library is available.
+ */
+export function refreshLucideIcons() {
+    if (typeof lucide === 'undefined') {
+        return;
+    }
+    lucide.createIcons();
+}
