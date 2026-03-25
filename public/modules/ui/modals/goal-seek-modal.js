@@ -62,11 +62,13 @@ export class GoalSeekModal {
      * @returns {Object} パラメータオブジェクト
      */
     getParams() {
-        const targetInput = document.getElementById('goal-target');
-        const currentInput = document.getElementById('goal-current');
-        const unitInput = document.getElementById('goal-unit');
-        const periodInput = document.getElementById('goal-period');
-        const variableInput = document.getElementById('goal-variable');
+        const {
+            targetInput,
+            currentInput,
+            unitInput,
+            periodInput,
+            variableInput
+        } = this._getGoalInputs();
 
         return {
             target: targetInput ? parseFloat(targetInput.value) || 0 : 0,
@@ -78,15 +80,28 @@ export class GoalSeekModal {
     }
 
     /**
+     * ゴール入力要素をまとめて取得
+     * @returns {Object}
+     * @private
+     */
+    _getGoalInputs() {
+        return {
+            targetInput: document.getElementById('goal-target'),
+            currentInput: document.getElementById('goal-current'),
+            unitInput: document.getElementById('goal-unit'),
+            periodInput: document.getElementById('goal-period'),
+            variableInput: document.getElementById('goal-variable')
+        };
+    }
+
+    /**
      * フォームバリデーション
      * @returns {{valid: boolean, errors: string[]}}
      */
     validate() {
         const errors = [];
 
-        const targetInput = document.getElementById('goal-target');
-        const currentInput = document.getElementById('goal-current');
-        const periodInput = document.getElementById('goal-period');
+        const { targetInput, currentInput, periodInput } = this._getGoalInputs();
 
         // 空文字チェック（入力フィールドの値を直接確認）
         const targetValue = targetInput?.value;
@@ -94,12 +109,12 @@ export class GoalSeekModal {
         const periodValue = periodInput?.value;
 
         // target: 空文字または未定義の場合エラー
-        if (targetValue === '' || targetValue === undefined || targetValue === null) {
+        if (this._isEmptyValue(targetValue)) {
             errors.push('target is required');
         }
 
         // current: 空文字または未定義の場合エラー
-        if (currentValue === '' || currentValue === undefined || currentValue === null) {
+        if (this._isEmptyValue(currentValue)) {
             errors.push('current is required');
         }
 
@@ -113,6 +128,16 @@ export class GoalSeekModal {
             valid: errors.length === 0,
             errors
         };
+    }
+
+    /**
+     * 空値判定ヘルパー
+     * @param {*} value
+     * @returns {boolean}
+     * @private
+     */
+    _isEmptyValue(value) {
+        return value === '' || value === undefined || value === null;
     }
 
     /**
@@ -270,45 +295,11 @@ export class GoalSeekModal {
      * @private
      */
     _attachEventHandlers() {
-        // 閉じるボタン
-        const closeBtn = document.getElementById('goal-seek-modal-close');
-        if (closeBtn) {
-            const handler = () => this.hide();
-            closeBtn.addEventListener('click', handler);
-            this._unsubscribers.push(() => closeBtn.removeEventListener('click', handler));
-        }
-
-        // Submitボタン
-        const submitBtn = document.getElementById('goal-seek-modal-submit');
-        if (submitBtn) {
-            const handler = () => this._handleSubmit();
-            submitBtn.addEventListener('click', handler);
-            this._unsubscribers.push(() => submitBtn.removeEventListener('click', handler));
-        }
-
-        // Proceed ボタン
-        const proceedBtn = document.getElementById('intervention-proceed-btn');
-        if (proceedBtn) {
-            const handler = () => this._handleAction('proceed');
-            proceedBtn.addEventListener('click', handler);
-            this._unsubscribers.push(() => proceedBtn.removeEventListener('click', handler));
-        }
-
-        // Abort ボタン
-        const abortBtn = document.getElementById('intervention-abort-btn');
-        if (abortBtn) {
-            const handler = () => this._handleAction('abort');
-            abortBtn.addEventListener('click', handler);
-            this._unsubscribers.push(() => abortBtn.removeEventListener('click', handler));
-        }
-
-        // Modify ボタン
-        const modifyBtn = document.getElementById('intervention-modify-btn');
-        if (modifyBtn) {
-            const handler = () => this._handleAction('modify');
-            modifyBtn.addEventListener('click', handler);
-            this._unsubscribers.push(() => modifyBtn.removeEventListener('click', handler));
-        }
+        this._bindButton('goal-seek-modal-close', () => this.hide());
+        this._bindButton('goal-seek-modal-submit', () => this._handleSubmit());
+        this._bindButton('intervention-proceed-btn', () => this._handleAction('proceed'));
+        this._bindButton('intervention-abort-btn', () => this._handleAction('abort'));
+        this._bindButton('intervention-modify-btn', () => this._handleAction('modify'));
 
         // バックドロップクリック
         const backdropHandler = (e) => {
@@ -318,6 +309,20 @@ export class GoalSeekModal {
         };
         this.modalElement.addEventListener('click', backdropHandler);
         this._unsubscribers.push(() => this.modalElement.removeEventListener('click', backdropHandler));
+    }
+
+    /**
+     * ボタンイベントをバインド
+     * @param {string} elementId
+     * @param {Function} handler
+     * @private
+     */
+    _bindButton(elementId, handler) {
+        const button = document.getElementById(elementId);
+        if (!button) return;
+
+        button.addEventListener('click', handler);
+        this._unsubscribers.push(() => button.removeEventListener('click', handler));
     }
 
     /**
