@@ -1167,9 +1167,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/387",
       "pr_status": "merged",
       "merged_at": "2026-03-25T03:56:32Z"
+    },
+    {
+      "area": "public/modules/ui",
+      "refactored_at": "2026-03-25T09:24:07.418Z",
+      "files_modified": [
+        "public/modules/ui/mobile-input-ui-controller.js"
+      ],
+      "changes_summary": "list/quoteフォーマット処理をapplyLinePrefixFormatヘルパーにまとめてDRYったよ☆選択範囲とprefix管理が一か所になって挙動もキープしやすくなったんだわ。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "List/quote formatting branches are unified into a new helper that reuses the existing line-prefix logic, keeping cursor updates identical while improving readability.",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "Consider covering applyLinePrefixFormat with a small unit test to lock in behavior for future formatting types."
+      ],
+      "run_number": "341",
+      "run_id": "23533726198",
+      "trigger_event": "schedule",
+      "pr_number": 389,
+      "pr_branch": "ops-department/auto-refactor-341",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/389",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-25T06:27:03.919Z",
-  "total_prs_created": 43,
+  "last_updated": "2026-03-25T09:24:19.937Z",
+  "total_prs_created": 44,
   "total_prs_merged": 39
 }
