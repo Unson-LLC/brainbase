@@ -237,13 +237,21 @@ export class SessionController {
         if (!workspaceRoot) {
             throw new Error('Session does not have workspace path');
         }
+        const trimmedRawPath = typeof rawPath === 'string' ? rawPath.trim() : '';
+        const canFallbackOutsidePrimaryRoot = trimmedRawPath.startsWith('/') || trimmedRawPath.startsWith('~/');
 
-        const primaryTarget = this._resolveWorkspaceFileTarget(workspaceRoot, rawPath);
         try {
-            await fs.stat(primaryTarget.targetPath);
-            return primaryTarget;
+            const primaryTarget = this._resolveWorkspaceFileTarget(workspaceRoot, rawPath);
+            try {
+                await fs.stat(primaryTarget.targetPath);
+                return primaryTarget;
+            } catch (error) {
+                if (error?.code !== 'ENOENT') {
+                    throw error;
+                }
+            }
         } catch (error) {
-            if (error?.code !== 'ENOENT') {
+            if (error?.message !== 'Invalid path' || !canFallbackOutsidePrimaryRoot) {
                 throw error;
             }
         }

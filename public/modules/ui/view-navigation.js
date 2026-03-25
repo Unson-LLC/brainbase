@@ -40,6 +40,7 @@ export function setupViewNavigation({
     };
 
     const showFileViewer = () => {
+        if (consoleArea) consoleArea.style.display = 'none';
         if (fileViewerPanel) fileViewerPanel.style.display = 'block';
     };
 

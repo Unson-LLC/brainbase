@@ -23,6 +23,7 @@ import { refreshIcons } from './modules/ui-helpers.js';
 import { createSessionId } from './modules/session-manager.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener, setupXtermContextMenu } from './modules/iframe-contextmenu-handler.js';
+import { isBrowserPreviewablePath, resolvePreviewRelativePath } from './modules/file-preview-config.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { ansiToHtml } from './modules/utils/ansi-to-html.js';
@@ -963,19 +964,32 @@ export class App {
             this.hideTerminalLoadingOverlay();
             return { ok: true };
         } catch (error) {
-            if (error?.code === 'SESSION_NOT_RUNNING') {
-                console.warn('Xterm transport reported SESSION_NOT_RUNNING, falling back to ttyd:', error);
-                this.terminalTransportClient.disconnect({ preserveView: false });
-                this.terminalTransportClient.hide();
-                this._showTtydIframe();
-                return { ok: false, fallback: true };
-            }
-            console.warn('Xterm transport unavailable, falling back to ttyd:', error);
+            console.warn('Xterm transport unavailable:', error);
             this.terminalTransportClient.disconnect({ preserveView: false });
-            this.terminalTransportClient.hide();
-            this._showTtydIframe();
-            return { ok: false, fallback: true };
+            this.terminalTransportClient.show();
+            this._showXtermTransport();
+            this._terminalTransportStatus = {
+                mode: 'disconnected',
+                copyMode: false,
+                blockedAccess: null,
+                connected: false,
+                isFocused: false,
+                lastSnapshotAt: null,
+                transport: 'streaming'
+            };
+            this._updateTerminalInputStatus();
+            return { ok: false, error };
         }
+    }
+
+    async _ensureDesktopTerminalRuntime(session) {
+        if (!session?.id) return null;
+        return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
+            initialCommand: session.initialCommand || '',
+            cwd: session.path,
+            engine: session.engine || 'claude',
+            viewerId: this.viewerId
+        });
     }
 
     async _preferXtermForCurrentSession() {
@@ -1577,27 +1591,53 @@ export class App {
         this._terminalInputUxCleanup.push(unsubMobileInputSent);
 
         // Handle OPEN_FILE from terminal link clicks
-        const MARKDOWN_EXTS = new Set(['.md', '.mdx', '.markdown']);
         const onOpenFileMessage = (event) => {
             if (event.origin !== window.location.origin) return;
             if (event.data?.type !== 'OPEN_FILE') return;
 
-            const { filePath, line, sessionId: msgSessionId } = event.data;
+            const {
+                filePath,
+                previewPath,
+                previewable,
+                line,
+                sessionId: msgSessionId
+            } = event.data;
             if (!filePath) return;
+            console.log('[OPEN_FILE] received', {
+                filePath,
+                previewPath,
+                previewable,
+                line,
+                sessionId: msgSessionId || null
+            });
 
             const currentSessionId = msgSessionId || appStore.getState().currentSessionId;
-            const ext = filePath.lastIndexOf('.') >= 0 ? filePath.slice(filePath.lastIndexOf('.')).toLowerCase() : '';
+            const session = appStore.getState().sessions.find(s => s.id === currentSessionId);
+            const workspaceRoot = session?.worktree?.path || session?.path || null;
+            const previewRelativePath = previewPath
+                || resolvePreviewRelativePath(filePath, workspaceRoot, currentSessionId)
+                || null;
+            const shouldOpenInBrowser = Boolean(previewRelativePath)
+                || Boolean(previewable)
+                || isBrowserPreviewablePath(filePath);
+            console.log('[OPEN_FILE] resolved', {
+                currentSessionId,
+                workspaceRoot,
+                previewRelativePath,
+                shouldOpenInBrowser
+            });
 
-            if (MARKDOWN_EXTS.has(ext) && this.fileViewerService) {
-                this.fileViewerService.openFile(currentSessionId, filePath);
-            } else {
-                // Fallback: open in default app via API
-                fetch('/api/open-file', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: filePath, mode: 'cursor', line, sessionId: currentSessionId })
-                }).catch(err => console.error('[OPEN_FILE] Error:', err));
+            if (shouldOpenInBrowser && this.fileViewerService) {
+                void this.fileViewerService.openFile(currentSessionId, previewRelativePath || filePath);
+                this.showFileViewer?.();
+                return;
             }
+
+            fetch('/api/open-file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: filePath, mode: 'file', line, sessionId: currentSessionId })
+            }).catch(err => console.error('[OPEN_FILE] Error:', err));
         };
         window.addEventListener('message', onOpenFileMessage);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onOpenFileMessage));
@@ -3681,6 +3721,30 @@ export class App {
             }
 
             if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+                try {
+                    await this._ensureDesktopTerminalRuntime(session);
+                } catch (error) {
+                    console.error('Failed to ensure desktop terminal runtime:', error);
+                    this.terminalTransportClient?.disconnect({ preserveView: false });
+                    this.terminalTransportClient?.show();
+                    this._showXtermTransport();
+                    this._terminalTransportStatus = {
+                        mode: 'disconnected',
+                        copyMode: false,
+                        blockedAccess: null,
+                        connected: false,
+                        isFocused: false,
+                        lastSnapshotAt: null,
+                        transport: 'streaming'
+                    };
+                    this._updateTerminalInputStatus();
+                    this._setCurrentSessionUiState({
+                        transport: 'disconnected',
+                        attention: 'none'
+                    });
+                    return;
+                }
+
                 const transportResult = await this._connectXtermTransport(session);
                 if (transportResult.ok) {
                     this.reconnectManager?.setCurrentSession(sessionId);
@@ -3712,6 +3776,12 @@ export class App {
                     this._updateTerminalInputStatus();
                     return;
                 }
+
+                this._setCurrentSessionUiState({
+                    transport: 'disconnected',
+                    attention: 'none'
+                });
+                return;
             }
 
             this.terminalTransportClient?.disconnect({ preserveView: false });
@@ -3942,13 +4012,7 @@ export class App {
         // 4.6. Update app version display (include runtime info)
         await this.updateAppVersionDisplay();
 
-        // 5. Load initial data
-        await this.loadInitialData();
-
-        // 6. Initialize file upload (Drag & Drop, Clipboard)
-        initFileUpload(() => appStore.getState().currentSessionId);
-
-        // 6.5. Initialize terminal reconnect manager
+        // 5. Initialize terminal reconnect manager before session auto-selection.
         const terminalFrame = document.getElementById('terminal-frame');
         const terminalXtermHost = document.getElementById('terminal-xterm-host');
         if (terminalFrame) {
@@ -3974,16 +4038,28 @@ export class App {
                     }
                 });
                 await this.terminalTransportClient.init(terminalXtermHost);
-                await this._preferXtermForCurrentSession();
                 if (this.terminalTransportClient.terminal) {
                     setupXtermContextMenu(this.terminalTransportClient.terminal);
                 }
             }
             this.setupTerminalInputUx();
-            if (currentSessionId && this.isMobile()) {
-                await this.switchSession(currentSessionId);
-            }
         }
+
+        // 6. Load initial data
+        await this.loadInitialData();
+
+        const currentSessionId = appStore.getState().currentSessionId;
+        if (currentSessionId) {
+            this.reconnectManager?.setCurrentSession(currentSessionId);
+        }
+        if (currentSessionId && this.isMobile()) {
+            await this.switchSession(currentSessionId);
+        } else if (currentSessionId && this._shouldUseXtermTransport()) {
+            await this._preferXtermForCurrentSession();
+        }
+
+        // 6.5. Initialize file upload (Drag & Drop, Clipboard)
+        initFileUpload(() => appStore.getState().currentSessionId);
 
         const onPageHide = () => {
             void this.releaseTerminalOwnership(appStore.getState().currentSessionId);

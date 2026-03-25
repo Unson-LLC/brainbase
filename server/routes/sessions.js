@@ -29,6 +29,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
     router.get('/ui-summaries', controller.getUiSummaries);
     router.post('/:id/clear-done', controller.clearDone);
     router.get('/:id/runtime', controller.getRuntime);
+    router.post('/:id/terminal/ensure', controller.ensureTerminalRuntime);
     router.post('/:id/release-terminal', controller.releaseTerminal);
     router.get('/:id/terminal/snapshot', controller.getTerminalSnapshot);
     router.get('/:id', controller.get);
