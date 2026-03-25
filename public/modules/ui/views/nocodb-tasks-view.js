@@ -1,6 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
-import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons, formatDueDate } from '../../ui-helpers.js';
 import { BaseView } from './base-view.js';
 
 /**
@@ -412,32 +412,8 @@ export class NocoDBTasksView extends BaseView {
     _formatDueDate(dueStr) {
         if (!dueStr) return '';
 
-        const due = new Date(dueStr);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        const dueDate = new Date(due);
-        dueDate.setHours(0, 0, 0, 0);
-
-        let text = '';
-        let isUrgent = false;
-
-        if (dueDate < today) {
-            text = '期限切れ';
-            isUrgent = true;
-        } else if (dueDate.getTime() === today.getTime()) {
-            text = '今日';
-            isUrgent = true;
-        } else if (dueDate.getTime() === tomorrow.getTime()) {
-            text = '明日';
-        } else {
-            const month = due.getMonth() + 1;
-            const day = due.getDate();
-            text = `${month}/${day}`;
-        }
+        const text = formatDueDate(dueStr);
+        const isUrgent = text === '期限切れ' || text === '今日';
 
         return `<span class="deadline ${isUrgent ? 'urgent' : ''}"><i data-lucide="calendar"></i> ${text}</span>`;
     }

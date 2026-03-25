@@ -1,6 +1,6 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { refreshIcons } from '../../ui-helpers.js';
+import { refreshIcons, formatDueDate } from '../../ui-helpers.js';
 import { isTaskInProgress } from '../../utils/task-filters.js';
 import { BaseView } from './base-view.js';
 
@@ -44,7 +44,7 @@ export class TaskView extends BaseView {
 
     _renderFocusTask(task) {
         const isUrgent = task.due && new Date(task.due) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
-        const dueText = task.due ? this._formatDueDate(task.due) : '';
+        const dueText = task.due ? formatDueDate(task.due) : '';
         const isInProgress = isTaskInProgress(task);
 
         const startOrRestoreButton = isInProgress
@@ -74,25 +74,6 @@ export class TaskView extends BaseView {
                 </div>
             </div>
         `;
-    }
-
-    _formatDueDate(dueStr) {
-        const due = new Date(dueStr);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        const dueDate = new Date(due);
-        dueDate.setHours(0, 0, 0, 0);
-
-        if (dueDate.getTime() === today.getTime()) return '今日';
-        if (dueDate.getTime() === tomorrow.getTime()) return '明日';
-
-        const month = due.getMonth() + 1;
-        const day = due.getDate();
-        return `${month}/${day}`;
     }
 
     _renderTask(task) {

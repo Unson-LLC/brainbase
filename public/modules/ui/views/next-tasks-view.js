@@ -1,6 +1,6 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
-import { refreshIcons } from '../../ui-helpers.js';
+import { refreshIcons, formatDueDate } from '../../ui-helpers.js';
 import { isTaskInProgress } from '../../utils/task-filters.js';
 import { BaseView } from './base-view.js';
 
@@ -118,38 +118,16 @@ export class NextTasksView extends BaseView {
     _formatDeadline(deadline) {
         if (!deadline) return '';
 
-        const due = new Date(deadline);
-        due.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        let text;
+        const text = formatDueDate(deadline);
         let cssClass = 'next-task-deadline';
-
-        if (due < today) {
-            text = '期限切れ';
-            cssClass += ' overdue';
-        } else if (due.getTime() === today.getTime()) {
-            text = '今日';
-            cssClass += ' urgent';
-        } else if (due.getTime() === tomorrow.getTime()) {
-            text = '明日';
-        } else {
-            text = `${due.getMonth() + 1}/${due.getDate()}`;
-        }
+        if (text === '期限切れ') cssClass += ' overdue';
+        else if (text === '今日') cssClass += ' urgent';
 
         return `<span class="${cssClass}"><i data-lucide="calendar"></i> ${text}</span>`;
     }
 
     _isOverdue(deadline) {
-        if (!deadline) return false;
-        const due = new Date(deadline);
-        due.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return due < today;
+        return deadline ? formatDueDate(deadline) === '期限切れ' : false;
     }
 
     _attachEventHandlers() {
