@@ -579,24 +579,12 @@ export class MobileInputUIController {
             updated = value.slice(0, lineStart) + prefix + line + value.slice(lineEnd);
             cursorStart = lineStart + prefix.length;
             cursorEnd = cursorStart + line.length;
-        } else if (format === 'list') {
-            const { lineStart, lineEnd } = this.getLineRange(value, start, end);
-            const segment = value.slice(lineStart, lineEnd);
-            const lines = segment.split('\n');
-            const updatedLines = lines.map(line => (line.startsWith('- ') ? line : `- ${line}`));
-            const newSegment = updatedLines.join('\n');
-            updated = value.slice(0, lineStart) + newSegment + value.slice(lineEnd);
-            cursorStart = lineStart;
-            cursorEnd = lineStart + newSegment.length;
-        } else if (format === 'quote') {
-            const { lineStart, lineEnd } = this.getLineRange(value, start, end);
-            const segment = value.slice(lineStart, lineEnd);
-            const lines = segment.split('\n');
-            const updatedLines = lines.map(line => (line.startsWith('> ') ? line : `> ${line}`));
-            const newSegment = updatedLines.join('\n');
-            updated = value.slice(0, lineStart) + newSegment + value.slice(lineEnd);
-            cursorStart = lineStart;
-            cursorEnd = lineStart + newSegment.length;
+        } else if (format === 'list' || format === 'quote') {
+            const prefix = format === 'list' ? '- ' : '> ';
+            const prefixed = this.applyLinePrefixFormat({ value, selectionStart: start, selectionEnd: end, prefix });
+            updated = prefixed.value;
+            cursorStart = prefixed.selectionStart;
+            cursorEnd = prefixed.selectionEnd;
         } else if (format === 'code') {
             const wrapped = selection ? `\n\n\`\`\`\n${selection}\n\`\`\`\n` : '\n\n\`\`\`\n\n\`\`\`\n';
             updated = value.slice(0, start) + wrapped + value.slice(end);
@@ -614,6 +602,20 @@ export class MobileInputUIController {
         const rangeStart = this.findLineStart(text, start);
         const rangeEnd = this.findLineEnd(text, end);
         return { lineStart: rangeStart, lineEnd: rangeEnd };
+    }
+
+    applyLinePrefixFormat({ value, selectionStart, selectionEnd, prefix }) {
+        const { lineStart, lineEnd } = this.getLineRange(value, selectionStart, selectionEnd);
+        const segment = value.slice(lineStart, lineEnd);
+        const lines = segment.split('\n');
+        const updatedLines = lines.map(line => (line.startsWith(prefix) ? line : `${prefix}${line}`));
+        const newSegment = updatedLines.join('\n');
+        const updatedValue = value.slice(0, lineStart) + newSegment + value.slice(lineEnd);
+        return {
+            value: updatedValue,
+            selectionStart: lineStart,
+            selectionEnd: lineStart + newSegment.length
+        };
     }
 
     async handleClipSlot(index) {
