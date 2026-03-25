@@ -641,16 +641,15 @@ export class SessionView {
                             : (confirmResult ? 'ok' : 'cancel');
 
                         if (selectedAction === 'ai') {
-                            try {
-                                const aiResult = await this.sessionService.askAiToResolveIntegration(session.id, status);
-                                if (aiResult?.success) {
-                                    showSuccess(aiResult.message || 'AIに統合確認を依頼しました');
-                                } else {
-                                    showError(aiResult?.error || 'AI依頼に失敗しました');
-                                }
-                            } catch (aiErr) {
-                                console.error('Failed to ask AI:', aiErr);
-                                showError('AI依頼に失敗しました');
+                            const aiActionResult = await this._handleArchiveAiAction(session.id, status);
+                            if (aiActionResult.aiResult?.success) {
+                                showSuccess(aiActionResult.aiResult.message || 'AI向けの調査プロンプトを準備しました');
+                            } else if (aiActionResult.delivery.mode === 'clipboard') {
+                                showInfo('AI依頼は失敗しましたが、調査プロンプトをクリップボードにコピーしました');
+                            } else if (aiActionResult.delivery.mode === 'inserted') {
+                                showInfo('AI依頼は失敗しましたが、調査プロンプトを入力欄に挿入しました');
+                            } else {
+                                showError(aiActionResult.aiResult?.error || 'AI依頼に失敗しました');
                             }
                             return;
                         }
@@ -858,6 +857,31 @@ export class SessionView {
     }
 
     /**
+     * アーカイブ前の統合調査プロンプトを配信し、可能ならAI依頼も実行
+     * @param {string} sessionId
+     * @param {Object} status
+     * @returns {Promise<{delivery: {mode: 'inserted'|'clipboard'|'console'}, aiResult: Object|null}>}
+     */
+    async _handleArchiveAiAction(sessionId, status) {
+        const prompt = this._generateInvestigationPrompt(status, sessionId);
+        const delivery = await this._deliverInvestigationPrompt(prompt);
+
+        try {
+            const aiResult = await this.sessionService.askAiToResolveIntegration(sessionId, status);
+            return { delivery, aiResult };
+        } catch (error) {
+            console.error('Failed to ask AI:', error);
+            return {
+                delivery,
+                aiResult: {
+                    success: false,
+                    error: 'AI依頼に失敗しました'
+                }
+            };
+        }
+    }
+
+    /**
      * 現在フォーカス中の入力欄にテキスト挿入
      * @param {string} text
      * @returns {boolean}
@@ -911,9 +935,10 @@ export class SessionView {
     /**
      * 診断プロンプトを生成（Jujutsu概念）
      * @param {Object} status - { changesNotPushed, hasWorkingCopyChanges, bookmarkPushed, bookmarkName }
+     * @param {string} sessionId
      * @returns {string} - フォーマット済みプロンプト
      */
-    _generateInvestigationPrompt(status) {
+    _generateInvestigationPrompt(status, sessionId = null) {
         const issues = [];
 
         if (status.changesNotPushed > 0) {
@@ -938,6 +963,6 @@ ${issueList}
 これらの問題を解決してアーカイブ可能な状態にする方法を教えてください。
 Jujutsuコマンド（jj）を使用してください。
 
-セッションID: ${window.location.hash.slice(1) || '不明'}`;
+セッションID: ${sessionId || window.location.hash.slice(1) || '不明'}`;
     }
 }

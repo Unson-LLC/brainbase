@@ -202,9 +202,60 @@ describe('SessionView', () => {
                 needsMerge: true,
                 commitsAheadOfBase: 2,
                 mainBranch: 'develop'
-            });
+            }, 'session-test');
 
             expect(prompt).toContain('develop に未マージのcommit: 2件');
+            expect(prompt).toContain('セッションID: session-test');
+        });
+
+        it('_handleArchiveAiAction呼び出し時_調査プロンプトを配信してからAI依頼する', async () => {
+            const deliverSpy = vi.spyOn(sessionView, '_deliverInvestigationPrompt').mockResolvedValue({ mode: 'clipboard' });
+            sessionView.sessionService.askAiToResolveIntegration.mockResolvedValue({
+                success: true,
+                message: 'AIに依頼しました'
+            });
+
+            const status = {
+                changesNotPushed: 1,
+                hasWorkingCopyChanges: true,
+                bookmarkPushed: false,
+                bookmarkName: 'bookmark-a',
+                needsMerge: true,
+                commitsAheadOfBase: 2,
+                mainBranch: 'develop'
+            };
+
+            const result = await sessionView._handleArchiveAiAction('session-target', status);
+
+            expect(deliverSpy).toHaveBeenCalledTimes(1);
+            expect(deliverSpy.mock.calls[0][0]).toContain('セッションID: session-target');
+            expect(sessionView.sessionService.askAiToResolveIntegration).toHaveBeenCalledWith('session-target', status);
+            expect(result).toEqual({
+                delivery: { mode: 'clipboard' },
+                aiResult: {
+                    success: true,
+                    message: 'AIに依頼しました'
+                }
+            });
+        });
+
+        it('_handleArchiveAiAction呼び出し時_AI失敗でもクリップボード配信結果を保持する', async () => {
+            vi.spyOn(sessionView, '_deliverInvestigationPrompt').mockResolvedValue({ mode: 'clipboard' });
+            sessionView.sessionService.askAiToResolveIntegration.mockRejectedValue(new Error('network down'));
+
+            const result = await sessionView._handleArchiveAiAction('session-target', {
+                changesNotPushed: 1,
+                hasWorkingCopyChanges: false,
+                bookmarkPushed: true
+            });
+
+            expect(result).toEqual({
+                delivery: { mode: 'clipboard' },
+                aiResult: {
+                    success: false,
+                    error: 'AI依頼に失敗しました'
+                }
+            });
         });
     });
 });
