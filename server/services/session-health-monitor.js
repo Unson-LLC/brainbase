@@ -9,6 +9,7 @@
  * - 死亡検出時にcallbackで通知
  * - PTY Watchdogと組み合わせて使用
  */
+import { logger } from '../utils/logger.js';
 
 export class SessionHealthMonitor {
     /**

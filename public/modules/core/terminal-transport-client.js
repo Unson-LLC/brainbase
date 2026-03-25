@@ -75,6 +75,7 @@ export class TerminalTransportClient {
             scrollback: 1000,
             convertEol: true,
             allowTransparency: false,
+            allowProposedApi: true,
             cursorBlink: true,
             theme: {
                 background: '#000000',

@@ -91,7 +91,7 @@ export function createBrainbaseRouter(options = {}) {
 
     router.get('/projects', asyncHandler(async (req, res) => {
         res.json(await getProjectsWithHealth());
-    });
+    }));
 
     /**
      * GET /api/brainbase/critical-alerts

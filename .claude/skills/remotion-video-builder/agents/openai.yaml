@@ -1,0 +1,4 @@
+interface:
+  display_name: "Remotion Video Builder"
+  short_description: "Set up Remotion, design short demos, and render props-driven videos"
+  default_prompt: "Use this skill to set up or demo Remotion quickly with a small, props-driven composition and a reliable render path."
