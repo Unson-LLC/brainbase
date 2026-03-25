@@ -193,16 +193,10 @@ export class GoalSeekWebSocketManager {
      * @returns {Promise<Object>} 処理結果
      */
     async handleInterventionResponseHTTP({ interventionId, goalId, choice, reason, userId }) {
-        const pending = this.pendingInterventions.get(interventionId);
+        const { pending, error } = this._getValidPendingIntervention(interventionId);
 
         if (!pending) {
-            throw new Error('Intervention not found or expired');
-        }
-
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            throw new Error('Intervention expired');
+            throw new Error(error === 'expired' ? 'Intervention expired' : 'Intervention not found or expired');
         }
 
         // 所有者チェック
@@ -307,16 +301,10 @@ export class GoalSeekWebSocketManager {
     async _handleInterventionResponse(ws, correlationId, payload) {
         const { interventionId, choice } = payload;
 
-        const pending = this.pendingInterventions.get(interventionId);
+        const { pending, error } = this._getValidPendingIntervention(interventionId);
         if (!pending) {
-            this._sendError(ws, correlationId, 'Intervention not found or expired', null, 'INTERVENTION_EXPIRED');
-            return;
-        }
-
-        // 期限チェック
-        if (Date.now() > pending.expiresAt) {
-            this.pendingInterventions.delete(interventionId);
-            this._sendError(ws, correlationId, 'Intervention expired', null, 'INTERVENTION_EXPIRED');
+            const message = error === 'expired' ? 'Intervention expired' : 'Intervention not found or expired';
+            this._sendError(ws, correlationId, message, null, 'INTERVENTION_EXPIRED');
             return;
         }
 
@@ -357,6 +345,26 @@ export class GoalSeekWebSocketManager {
             type: MESSAGE_TYPES.CANCELLED,
             correlationId
         });
+    }
+
+    /**
+     * 有効な介入を取得（期限を自動判定）
+     * @param {string} interventionId
+     * @returns {{pending: Object|null, error: 'expired'|'not_found'|null}}
+     * @private
+     */
+    _getValidPendingIntervention(interventionId) {
+        const pending = this.pendingInterventions.get(interventionId);
+        if (!pending) {
+            return { pending: null, error: 'not_found' };
+        }
+
+        if (Date.now() > pending.expiresAt) {
+            this.pendingInterventions.delete(interventionId);
+            return { pending: null, error: 'expired' };
+        }
+
+        return { pending, error: null };
     }
 
     /**

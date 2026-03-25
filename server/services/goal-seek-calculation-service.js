@@ -89,23 +89,17 @@ export class GoalSeekCalculationService {
         this._validateParams({ target, period, current });
 
         // 開始イベント発行
-        if (this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_STARTED, {
-                target,
-                period,
-                current,
-                unit,
-                correlationId
-            });
-        }
+        this._emit(EVENTS.GOAL_SEEK_STARTED, {
+            target,
+            period,
+            current,
+            unit,
+            correlationId
+        });
 
         // 進捗イベント発行（オプション）
-        if (emitProgress && this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_PROGRESS, {
-                correlationId,
-                progress: 0,
-                step: 'validating'
-            });
+        if (emitProgress) {
+            this._emitProgressEvent(correlationId, 0, 'validating');
         }
 
         // 計算実行
@@ -119,21 +113,15 @@ export class GoalSeekCalculationService {
         });
 
         // 進捗イベント発行（オプション）
-        if (emitProgress && this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_PROGRESS, {
-                correlationId,
-                progress: 100,
-                step: 'completed'
-            });
+        if (emitProgress) {
+            this._emitProgressEvent(correlationId, 100, 'completed');
         }
 
         // 完了イベント発行
-        if (this.eventBus) {
-            this.eventBus.emit(EVENTS.GOAL_SEEK_COMPLETED, {
-                correlationId,
-                result
-            });
-        }
+        this._emit(EVENTS.GOAL_SEEK_COMPLETED, {
+            correlationId,
+            result
+        });
 
         logger.info('GoalSeek calculation completed', {
             target,
@@ -305,6 +293,32 @@ export class GoalSeekCalculationService {
             estimatedCompletion: period,
             confidenceLevel: dailyTarget <= 50 ? 'high' : dailyTarget <= 100 ? 'medium' : 'low'
         };
+    }
+
+    /**
+     * EventBusが設定されている場合のみイベントを発火
+     * @param {string} eventName
+     * @param {Object} payload
+     * @private
+     */
+    _emit(eventName, payload) {
+        if (!this.eventBus) return;
+        this.eventBus.emit(eventName, payload);
+    }
+
+    /**
+     * 進捗イベントを共通フォーマットで発火
+     * @param {string} correlationId
+     * @param {number} progress
+     * @param {string} step
+     * @private
+     */
+    _emitProgressEvent(correlationId, progress, step) {
+        this._emit(EVENTS.GOAL_SEEK_PROGRESS, {
+            correlationId,
+            progress,
+            step
+        });
     }
 }
 
