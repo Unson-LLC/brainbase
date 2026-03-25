@@ -125,12 +125,11 @@ export class SessionController {
         const { id } = req.params;
         const { skipMergeCheck } = req.body;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
+        const context = this._getSessionContext(id, res);
+        if (!context) {
+            return;
         }
+        const { state, session } = context;
 
         // Check if workspace needs integration (Jujutsu: push needed)
         if (session.worktree && !skipMergeCheck) {
@@ -172,12 +171,11 @@ export class SessionController {
         const { id } = req.params;
         const { engine: requestEngine } = req.body;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
+        const context = this._getSessionContext(id, res);
+        if (!context) {
+            return;
         }
+        const { state, session } = context;
 
         if (session.intendedState !== 'archived') {
             return res.status(400).json({ error: 'Session is not archived' });
@@ -432,18 +430,11 @@ export class SessionController {
      */
     getWorktreeStatus = async (req, res) => {
         const { id } = req.params;
-
-        // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
+        const context = this._getSessionWithWorktree(id, res);
+        if (!context) {
+            return;
         }
-
-        if (!session.worktree) {
-            return res.status(400).json({ error: 'Session does not have a worktree' });
-        }
+        const { session } = context;
 
         try {
             const status = await this.worktreeService.getStatus(
@@ -465,18 +456,11 @@ export class SessionController {
     updateLocalMain = async (req, res) => {
         const { id } = req.params;
         const { autoStash = false } = req.body || {};
-
-        // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
+        const context = this._getSessionWithWorktree(id, res);
+        if (!context) {
+            return;
         }
-
-        if (!session.worktree) {
-            return res.status(400).json({ error: 'Session does not have a worktree' });
-        }
+        const { session } = context;
 
         try {
             const result = await this.worktreeService.updateLocalMain(session.worktree.repo, { autoStash });
@@ -493,18 +477,11 @@ export class SessionController {
      */
     merge = async (req, res) => {
         const { id } = req.params;
-
-        // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
+        const context = this._getSessionWithWorktree(id, res);
+        if (!context) {
+            return;
         }
-
-        if (!session.worktree) {
-            return res.status(400).json({ error: 'Session does not have a worktree' });
-        }
+        const { state, session } = context;
 
         try {
             const result = await this.worktreeService.merge(id, session.worktree.repo, session.name);
@@ -534,18 +511,11 @@ export class SessionController {
      */
     deleteWorktree = async (req, res) => {
         const { id } = req.params;
-
-        // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
+        const context = this._getSessionWithWorktree(id, res);
+        if (!context) {
+            return;
         }
-
-        if (!session.worktree) {
-            return res.status(400).json({ error: 'Session does not have a worktree' });
-        }
+        const { state, session } = context;
 
         try {
             const success = await this.worktreeService.remove(id, session.worktree.repo);
@@ -596,5 +566,28 @@ export class SessionController {
             console.error('[SessionController] Failed to get git branch:', error);
             return null;
         }
+    }
+
+    _getSessionContext(id, res) {
+        const state = this.stateStore.get() || {};
+        const sessions = Array.isArray(state.sessions) ? state.sessions : [];
+        const session = sessions.find(s => s.id === id);
+        if (!session) {
+            res.status(404).json({ error: 'Session not found' });
+            return null;
+        }
+        return { state, session };
+    }
+
+    _getSessionWithWorktree(id, res) {
+        const context = this._getSessionContext(id, res);
+        if (!context) {
+            return null;
+        }
+        if (!context.session.worktree) {
+            res.status(400).json({ error: 'Session does not have a worktree' });
+            return null;
+        }
+        return context;
     }
 }
