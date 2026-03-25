@@ -1193,11 +1193,11 @@
       "pr_number": 389,
       "pr_branch": "ops-department/auto-refactor-341",
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/389",
-      "pr_status": "open",
-      "merged_at": null
+      "pr_status": "merged",
+      "merged_at": "2026-03-25T09:24:23Z"
     }
   ],
-  "last_updated": "2026-03-25T09:24:19.937Z",
+  "last_updated": "2026-03-25T12:19:59.303Z",
   "total_prs_created": 44,
-  "total_prs_merged": 39
+  "total_prs_merged": 40
 }
