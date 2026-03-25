@@ -1195,9 +1195,38 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/389",
       "pr_status": "merged",
       "merged_at": "2026-03-25T09:24:23Z"
+    },
+    {
+      "area": "public/modules/ui/modals",
+      "refactored_at": "2026-03-25T12:21:56.275Z",
+      "files_modified": [
+        "public/modules/ui/modals/goal-seek-modal.js",
+        "public/modules/ui/modals/task-add-modal.js"
+      ],
+      "changes_summary": "Goal Seekは入力DOM参照とボタンバインドを共通化して重複カット、Task Addもボタン/バックドロップのハンドラ登録を共通ヘルパー化して解除忘れ防止したよ☆",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "DOM取得とイベント登録がヘルパー化されて読みやすさ爆上がりだし、値チェックやボタン挙動も変わってなさそうで安全みしみし感じる〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "ゴール入力やボタン要素の取得をモーダル要素配下にスコープしたキャッシュにしておくと再描画時のDOM探索が減って更にパフォよくなるかも〜"
+      ],
+      "run_number": "342",
+      "run_id": "23540641579",
+      "trigger_event": "schedule",
+      "pr_number": 390,
+      "pr_branch": "ops-department/auto-refactor-342",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/390",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-25T12:19:59.303Z",
-  "total_prs_created": 44,
+  "last_updated": "2026-03-25T12:22:10.648Z",
+  "total_prs_created": 45,
   "total_prs_merged": 40
 }
