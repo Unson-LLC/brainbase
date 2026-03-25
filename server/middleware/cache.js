@@ -1,6 +1,15 @@
 import NodeCache from 'node-cache';
 import logger from '../utils/logger.js';
 
+function getPayloadSize(payload) {
+    try {
+        return JSON.stringify(payload).length;
+    } catch (error) {
+        logger.warn('Failed to stringify payload for cache metrics', { message: error.message });
+        return 0;
+    }
+}
+
 /**
  * In-process Cache Middleware
  *
@@ -39,7 +48,7 @@ const cache = new NodeCache({
 
 // キャッシュイベントのロギング
 cache.on('set', (key, value) => {
-    logger.debug('Cache set', { key, valueSize: JSON.stringify(value).length });
+    logger.debug('Cache set', { key, valueSize: getPayloadSize(value) });
 });
 
 cache.on('del', (key, value) => {
@@ -91,7 +100,7 @@ export function cacheMiddleware(ttl = 300) {
             // 成功レスポンスのみキャッシュ（200-299）
             if (res.statusCode >= 200 && res.statusCode < 300) {
                 cache.set(key, body, ttl);
-                logger.debug('Cache stored', { key, ttl, bodySize: JSON.stringify(body).length });
+                logger.debug('Cache stored', { key, ttl, bodySize: getPayloadSize(body) });
             }
             return originalJson(body);
         };
