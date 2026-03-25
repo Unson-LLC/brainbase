@@ -6785,6 +6785,14 @@ body.resizing iframe {
         -webkit-overflow-scrolling: touch;
         touch-action: pan-y;
         padding-bottom: calc(var(--mobile-input-offset) + env(safe-area-inset-bottom, 0));
+        box-sizing: border-box;
+        min-height: 0;
+    }
+
+    .terminal-stage {
+        flex: 1 1 auto;
+        min-height: var(--mobile-terminal-stage-height, 0px);
+        height: var(--mobile-terminal-stage-height, auto);
     }
 
     /* Terminal iframe - full width, fill parent */
@@ -6841,18 +6849,26 @@ body.resizing iframe {
     }
 
     .console-area.using-snapshot .terminal-snapshot-panel {
-        inset: 0 0 var(--mobile-terminal-reserve, var(--mobile-input-offset, 120px));
+        position: fixed;
+        top: var(--mobile-terminal-stage-top, 0px);
+        left: var(--mobile-terminal-stage-left, 0px);
+        width: var(--mobile-terminal-stage-width, 100vw);
+        height: var(--mobile-terminal-stage-height, 0px);
+        inset: auto;
         display: flex;
         z-index: 1105;
         visibility: visible;
         opacity: 1;
         isolation: isolate;
+        pointer-events: auto;
     }
 
     .console-area.using-snapshot .terminal-snapshot-content {
         white-space: pre-wrap;
         word-break: break-word;
         overflow-wrap: anywhere;
+        height: 100%;
+        min-height: 100%;
     }
 
     /* Modal adjustments for mobile */

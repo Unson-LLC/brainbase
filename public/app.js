@@ -1159,15 +1159,25 @@ export class App {
         if (this.terminalSnapshotTitleEl) {
             this.terminalSnapshotTitleEl.textContent = title;
         }
-        if (snapshot?.colorText) {
+        const snapshotText = this._normalizeTerminalSnapshotText(snapshot?.text);
+        if (this.isMobile()) {
+            this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
+        } else if (snapshot?.colorText) {
             this.terminalSnapshotContentEl.innerHTML = ansiToHtml(snapshot.colorText);
         } else {
-            this.terminalSnapshotContentEl.textContent = snapshot?.text || 'Snapshotを読み込み中...';
+            this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
         }
         if (this.terminalSnapshotTimestampEl) {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
         this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
+    }
+
+    _normalizeTerminalSnapshotText(text) {
+        if (typeof text !== 'string') return '';
+        return text
+            .replace(/\r\n/g, '\n')
+            .replace(/(?:\n[ \t]*){4,}$/u, '\n\n');
     }
 
     _syncTerminalSnapshotPanel({ sessionId, visible, title }) {

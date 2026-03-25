@@ -86,7 +86,7 @@ export class MobileInputFocusManager {
     updateTerminalReserve(viewportHeight, viewportTop = 0) {
         const stageRect = document.getElementById('terminal-stage')?.getBoundingClientRect();
         const consoleRect = document.querySelector('.console-area')?.getBoundingClientRect();
-        const containerBottom = stageRect?.bottom || consoleRect?.bottom || ((viewportTop || this.viewport?.offsetTop || 0) + (viewportHeight || this.viewport?.height || window.innerHeight));
+        const visualBottom = (viewportTop || this.viewport?.offsetTop || 0) + (viewportHeight || this.viewport?.height || window.innerHeight);
         const overlays = [
             this.elements.dock,
             document.getElementById('mobile-bottom-nav')
@@ -97,11 +97,18 @@ export class MobileInputFocusManager {
             .map((el) => el.getBoundingClientRect())
             .filter((rect) => rect.height > 0);
 
-        const reserve = visibleRects.length > 0
-            ? Math.max(0, Math.round(containerBottom - Math.min(...visibleRects.map((rect) => rect.top))))
-            : 0;
+        const obstructionTop = visibleRects.length > 0
+            ? Math.min(...visibleRects.map((rect) => rect.top))
+            : visualBottom;
+        const stageTop = stageRect?.top || consoleRect?.top || (viewportTop || this.viewport?.offsetTop || 0);
+        const reserve = Math.max(0, Math.round(visualBottom - obstructionTop));
+        const stageHeight = Math.max(0, Math.round(obstructionTop - stageTop));
 
         document.body.style.setProperty('--mobile-terminal-reserve', `${reserve}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-height', `${stageHeight}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-top', `${Math.round(stageTop)}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-left', `${Math.round(consoleRect?.left || 0)}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-width', `${Math.round(consoleRect?.width || window.innerWidth)}px`);
         return reserve;
     }
 
