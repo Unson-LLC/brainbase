@@ -196,23 +196,23 @@ export class TaskAddModal {
      */
     _attachEventHandlers() {
         // 閉じるボタン
-        const closeBtns = this.modalElement.querySelectorAll('.close-modal-btn');
-        closeBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.close());
+        this.modalElement.querySelectorAll('.close-modal-btn').forEach(btn => {
+            const handler = () => this.close();
+            btn.addEventListener('click', handler);
+            this._unsubscribers.push(() => btn.removeEventListener('click', handler));
         });
 
         // 保存ボタン
-        const saveBtn = document.getElementById('save-add-task-btn');
-        if (saveBtn) {
-            saveBtn.addEventListener('click', () => this.save());
-        }
+        this._bindButton('save-add-task-btn', () => this.save());
 
         // バックドロップクリック
-        this.modalElement.addEventListener('click', (e) => {
+        const backdropHandler = (e) => {
             if (e.target === this.modalElement) {
                 this.close();
             }
-        });
+        };
+        this.modalElement.addEventListener('click', backdropHandler);
+        this._unsubscribers.push(() => this.modalElement.removeEventListener('click', backdropHandler));
 
         // Enterキーで保存（タイトル入力欄）
         // IME変換中（isComposing）はスキップ
@@ -225,6 +225,13 @@ export class TaskAddModal {
                 }
             });
         }
+    }
+
+    _bindButton(id, handler) {
+        const button = document.getElementById(id);
+        if (!button) return;
+        button.addEventListener('click', handler);
+        this._unsubscribers.push(() => button.removeEventListener('click', handler));
     }
 
     /**
