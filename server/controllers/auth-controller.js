@@ -350,12 +350,15 @@ export class AuthController {
                 return res.status(403).json({ error: 'Access is not granted' });
             }
 
-            // JWT発行
+            // JWT発行（include wiki access fields from auth_grants）
             const token = this.authService.issueToken({
                 sub: user.person_id,
                 slackUserId: user.slack_user_id,
                 level: user.access_level,
                 employmentType: user.employment_type,
+                role: user.role || 'member',
+                projectCodes: user.project_codes || [],
+                clearance: user.clearance || [],
                 tenantId: null,
                 slackWorkspaceId
             });
