@@ -1,39 +1,26 @@
 import { EVENTS } from '../../core/event-bus.js';
 import { escapeHtml, iconHtml, refreshIcons } from '../../ui-helpers.js';
+import { BaseView } from './base-view.js';
 
 /**
  * TimelineListView
  * タイムライン一覧表示のUIコンポーネント
  */
-export class TimelineListView {
+export class TimelineListView extends BaseView {
     constructor({ timelineService, eventBus }) {
+        super();
         this.timelineService = timelineService;
         this.eventBus = eventBus;
-        this.container = null;
-        this._unsubscribers = [];
     }
 
-    /**
-     * DOMコンテナにマウント
-     * @param {HTMLElement} container - マウント先のコンテナ
-     */
-    mount(container) {
-        this.container = container;
-        this._setupEventListeners();
-        this.render();
-    }
-
-    /**
-     * イベントリスナーの設定
-     */
     _setupEventListeners() {
-        const unsub1 = this.eventBus.on(EVENTS.TIMELINE_LOADED, () => this.render());
-        const unsub2 = this.eventBus.on(EVENTS.TIMELINE_ITEM_CREATED, () => this.render());
-        const unsub3 = this.eventBus.on(EVENTS.TIMELINE_ITEM_UPDATED, () => this.render());
-        const unsub4 = this.eventBus.on(EVENTS.TIMELINE_ITEM_DELETED, () => this.render());
-        const unsub5 = this.eventBus.on(EVENTS.TIMELINE_FILTER_CHANGED, () => this.render());
-
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+        this._addSubscriptions(
+            this.eventBus.on(EVENTS.TIMELINE_LOADED, () => this.render()),
+            this.eventBus.on(EVENTS.TIMELINE_ITEM_CREATED, () => this.render()),
+            this.eventBus.on(EVENTS.TIMELINE_ITEM_UPDATED, () => this.render()),
+            this.eventBus.on(EVENTS.TIMELINE_ITEM_DELETED, () => this.render()),
+            this.eventBus.on(EVENTS.TIMELINE_FILTER_CHANGED, () => this.render())
+        );
     }
 
     /**
@@ -316,15 +303,4 @@ export class TimelineListView {
         });
     }
 
-    /**
-     * クリーンアップ
-     */
-    unmount() {
-        this._unsubscribers.forEach(unsub => unsub());
-        this._unsubscribers = [];
-        if (this.container) {
-            this.container.innerHTML = '';
-            this.container = null;
-        }
-    }
 }
