@@ -1,25 +1,13 @@
-import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { BaseModal } from './base-modal.js';
 
 /**
  * セッション名変更モーダル
  */
-export class RenameModal {
+export class RenameModal extends BaseModal {
     constructor({ sessionService }) {
+        super('rename-session-modal');
         this.sessionService = sessionService;
-        this.modalElement = null;
         this.currentSessionId = null;
-    }
-
-    /**
-     * モーダルをマウント
-     */
-    mount() {
-        this.modalElement = document.getElementById('rename-session-modal');
-        if (!this.modalElement) {
-            console.warn('RenameModal: #rename-session-modal not found');
-            return;
-        }
-        this._attachEventHandlers();
     }
 
     /**
@@ -34,7 +22,6 @@ export class RenameModal {
         const input = document.getElementById('rename-session-input');
         if (input) {
             input.value = session.name || '';
-            // フォーカスして全選択
             setTimeout(() => {
                 input.focus();
                 input.select();
@@ -44,12 +31,8 @@ export class RenameModal {
         this.modalElement.classList.add('active');
     }
 
-    /**
-     * モーダルを閉じる
-     */
     close() {
-        if (!this.modalElement) return;
-        this.modalElement.classList.remove('active');
+        super.close();
         this.currentSessionId = null;
     }
 
@@ -76,46 +59,17 @@ export class RenameModal {
         }
     }
 
-    /**
-     * イベントハンドラーをアタッチ
-     */
     _attachEventHandlers() {
-        // 閉じるボタン
-        const closeBtns = this.modalElement.querySelectorAll('.close-modal-btn');
-        closeBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.close());
-        });
-
-        // 保存ボタン
         const saveBtn = document.getElementById('save-rename-btn');
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }
 
-        // バックドロップクリック
-        this.modalElement.addEventListener('click', (e) => {
-            if (e.target === this.modalElement) {
-                this.close();
-            }
-        });
-
-        // Enterキーで保存
-        // IME変換中（isComposing）はスキップ
-        const input = document.getElementById('rename-session-input');
-        if (input) {
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.isComposing) {
-                    this.save();
-                }
-            });
-        }
+        this._attachEnterKeyHandler('rename-session-input', () => this.save());
     }
 
-    /**
-     * クリーンアップ
-     */
     unmount() {
-        this.modalElement = null;
+        super.unmount();
         this.currentSessionId = null;
     }
 }
