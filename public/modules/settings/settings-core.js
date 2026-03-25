@@ -1,3 +1,5 @@
+import { refreshIcons } from '../ui-helpers.js';
+
 /**
  * Settings Core Module
  *
@@ -90,10 +92,7 @@ export class SettingsCore {
           const { settingsIntegrity, settingsUnified, settingsManaStats, settingsHealth } = appStore.getState();
           container.innerHTML = this._renderOverviewHTML(settingsIntegrity, settingsUnified, settingsManaStats, settingsHealth);
 
-          // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          refreshIcons();
         }
       }
     });
@@ -131,10 +130,7 @@ export class SettingsCore {
           container.innerHTML = this._renderOrganizationsHTML(settingsOrganizations || []);
           this._setupOrganizationsCrud(container, settingsOrganizations || []);
 
-          // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          refreshIcons();
         }
       }
     });
@@ -200,10 +196,7 @@ export class SettingsCore {
             });
           }
 
-          // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          refreshIcons();
         }
       }
     });
@@ -223,10 +216,7 @@ export class SettingsCore {
           container.innerHTML = this._renderNotificationsHTML(notifications);
           this._setupNotificationsCrud(container, notifications);
 
-          // Lucide icons再初期化
-          if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-          }
+          refreshIcons();
         }
       }
     });

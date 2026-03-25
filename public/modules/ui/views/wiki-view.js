@@ -3,7 +3,7 @@
  * 右パネル: プロジェクト/カテゴリ別の索引のみ
  * ページ内容はconsole-area内のオーバーレイに表示（ターミナル部分のみ覆う）
  */
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 export class WikiView {
     constructor({ wikiService, service, eventBus, container }) {
@@ -153,9 +153,7 @@ export class WikiView {
         });
 
         this._bindEvents();
-        if (typeof window.lucide !== 'undefined') {
-            window.lucide.createIcons({ nodes: [this._container] });
-        }
+        refreshIcons({ nodes: [this._container] });
     }
 
     _bindEvents() {
@@ -251,9 +249,7 @@ export class WikiView {
         breadcrumb.textContent = path;
         body.innerHTML = '<div class="wiki-reader-loading">読み込み中...</div>';
 
-        if (typeof window.lucide !== 'undefined') {
-            window.lucide.createIcons({ nodes: [this._overlay] });
-        }
+        refreshIcons({ nodes: [this._overlay] });
 
         try {
             const page = await this.wikiService.getPage(path);
