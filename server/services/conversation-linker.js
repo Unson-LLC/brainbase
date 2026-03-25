@@ -13,6 +13,7 @@ import { existsSync, readFileSync, createReadStream } from 'fs';
 import path from 'path';
 import os from 'os';
 import readline from 'readline';
+import { logger } from '../utils/logger.js';
 
 export class ConversationLinker {
     /**
@@ -185,7 +186,7 @@ export class ConversationLinker {
      */
     async linkAll() {
         if (this._isLinking) {
-            console.warn('[ConversationLinker] linkAll already in progress, skipping');
+            logger.warn('[ConversationLinker] linkAll already in progress, skipping');
             return { updated: 0, total: 0, errors: [], skipped: true };
         }
         this._isLinking = true;
@@ -195,7 +196,7 @@ export class ConversationLinker {
             const errors = [];
             let updated = 0;
 
-            console.log(`[ConversationLinker] Starting linkAll for ${sessions.length} session(s)...`);
+            logger.info(`[ConversationLinker] Starting linkAll for ${sessions.length} session(s)...`);
 
             // Build Codex session index (cwd → files) once
             const codexIndex = await this._buildCodexIndex();
@@ -220,13 +221,13 @@ export class ConversationLinker {
             // Save updated state
             if (updated > 0) {
                 await this.stateStore.update({ ...state, sessions: updatedSessions });
-                console.log(`[ConversationLinker] Updated ${updated}/${sessions.length} session(s)`);
+                logger.info(`[ConversationLinker] Updated ${updated}/${sessions.length} session(s)`);
             } else {
-                console.log(`[ConversationLinker] No updates needed`);
+                logger.info(`[ConversationLinker] No updates needed`);
             }
 
             if (errors.length > 0) {
-                console.warn(`[ConversationLinker] ${errors.length} error(s):`, errors.slice(0, 5));
+                logger.warn(`[ConversationLinker] ${errors.length} error(s):`, errors.slice(0, 5));
             }
 
             return { updated, total: sessions.length, errors };
@@ -406,10 +407,10 @@ export class ConversationLinker {
                 }
             }
         } catch (err) {
-            console.warn('[ConversationLinker] Error building Codex index:', err.message);
+            logger.warn('[ConversationLinker] Error building Codex index:', err.message);
         }
 
-        console.log(`[ConversationLinker] Codex index: ${index.size} unique cwd(s)`);
+        logger.info(`[ConversationLinker] Codex index: ${index.size} unique cwd(s)`);
         this._codexIndexCache = index;
         this._codexIndexCacheTime = Date.now();
         return index;
@@ -501,13 +502,13 @@ export class ConversationLinker {
     startPeriodicLink(intervalMs = 5 * 60 * 1000) {
         if (this._intervalTimer) return;
 
-        console.log(`[ConversationLinker] Starting periodic link (interval: ${intervalMs / 1000}s)`);
+        logger.info(`[ConversationLinker] Starting periodic link (interval: ${intervalMs / 1000}s)`);
 
         this._intervalTimer = setInterval(async () => {
             try {
                 await this.linkAll();
             } catch (err) {
-                console.error('[ConversationLinker] Periodic link error:', err.message);
+                logger.error('[ConversationLinker] Periodic link error:', err.message);
             }
         }, intervalMs);
     }
@@ -519,7 +520,7 @@ export class ConversationLinker {
         if (this._intervalTimer) {
             clearInterval(this._intervalTimer);
             this._intervalTimer = null;
-            console.log('[ConversationLinker] Periodic link stopped');
+            logger.info('[ConversationLinker] Periodic link stopped');
         }
     }
 }

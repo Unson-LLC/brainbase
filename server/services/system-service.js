@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import util from 'util';
 import os from 'os';
+import { logger } from '../utils/logger.js';
 
 const execPromise = util.promisify(exec);
 
@@ -38,7 +39,7 @@ export class SystemService {
 
             throw new Error('Failed to parse CPU usage');
         } catch (error) {
-            console.error('[SystemService] Failed to get CPU usage:', error.message);
+            logger.error('[SystemService] Failed to get CPU usage:', error.message);
             return { error: error.message, usage: 0 };
         }
     }
@@ -64,7 +65,7 @@ export class SystemService {
                 freeBytes: freeMem,
             };
         } catch (error) {
-            console.error('[SystemService] Failed to get memory usage:', error.message);
+            logger.error('[SystemService] Failed to get memory usage:', error.message);
             return { error: error.message, usage: 0 };
         }
     }
@@ -102,7 +103,7 @@ export class SystemService {
                 path,
             };
         } catch (error) {
-            console.error('[SystemService] Failed to get disk usage:', error.message);
+            logger.error('[SystemService] Failed to get disk usage:', error.message);
             return { error: error.message, usage: 0 };
         }
     }

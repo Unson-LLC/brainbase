@@ -3,6 +3,7 @@ import { detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';
 import { TmuxCaptureCache } from './tmux-capture-cache.js';
 import { TmuxControlRegistry } from './tmux-control-registry.js';
+import { logger } from '../utils/logger.js';
 
 const DEFAULT_SNAPSHOT_LINES = 400;
 const DEFAULT_POLL_INTERVAL_MS = 350;
@@ -55,7 +56,7 @@ export class TerminalTransportService {
 
     handleUpgrade(request, socket, head) {
         const clientInfo = buildTerminalWsMatch(request?.url || request?.originalUrl || '');
-        console.log(`[TerminalTransport] handleUpgrade: url=${request?.url}, clientInfo=${JSON.stringify(clientInfo)}`);
+        logger.info(`[TerminalTransport] handleUpgrade: url=${request?.url}, clientInfo=${JSON.stringify(clientInfo)}`);
         if (!clientInfo) {
             socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
             socket.destroy();
@@ -63,14 +64,14 @@ export class TerminalTransportService {
         }
 
         this.wss.handleUpgrade(request, socket, head, (ws) => {
-            console.log(`[TerminalTransport] WebSocket upgraded for ${clientInfo.sessionId}, viewerId=${clientInfo.viewerId}`);
+            logger.info(`[TerminalTransport] WebSocket upgraded for ${clientInfo.sessionId}, viewerId=${clientInfo.viewerId}`);
             this.wss.emit('connection', ws, request, clientInfo);
         });
     }
 
     async _handleConnection(ws, request, clientInfo) {
         const { sessionId, viewerId, viewerLabel, cols, rows } = clientInfo;
-        console.log(`[TerminalTransport] _handleConnection: session=${sessionId}, viewer=${viewerId}, wsState=${ws.readyState}`);
+        logger.info(`[TerminalTransport] _handleConnection: session=${sessionId}, viewer=${viewerId}, wsState=${ws.readyState}`);
         if (!sessionId || !viewerId) {
             ws.send(JSON.stringify({ type: 'error', code: 'INVALID_REQUEST', message: 'sessionId and viewerId are required' }));
             ws.close();
@@ -78,7 +79,7 @@ export class TerminalTransportService {
         }
 
         const ownership = this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
-        console.log(`[TerminalTransport] ownership check: allowed=${ownership.allowed}, session=${sessionId}, wsState=${ws.readyState}`);
+        logger.info(`[TerminalTransport] ownership check: allowed=${ownership.allowed}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!ownership.allowed) {
             ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
             ws.close();
@@ -93,12 +94,12 @@ export class TerminalTransportService {
         }
 
         if (ws.readyState !== 1) {
-            console.warn(`[TerminalTransport] WebSocket already closed before tmux check, session=${sessionId}`);
+            logger.warn(`[TerminalTransport] WebSocket already closed before tmux check, session=${sessionId}`);
             return;
         }
 
         const tmuxRunning = await this.sessionManager.isTmuxSessionRunning(sessionId);
-        console.log(`[TerminalTransport] tmux check: running=${tmuxRunning}, session=${sessionId}, wsState=${ws.readyState}`);
+        logger.info(`[TerminalTransport] tmux check: running=${tmuxRunning}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!tmuxRunning) {
             if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'error', code: 'SESSION_NOT_RUNNING', message: 'tmux session not found' }));
             ws.close();
@@ -155,7 +156,7 @@ export class TerminalTransportService {
             await this._sendReady(connection);
             await this._startStreaming(connection);
         } catch (err) {
-            console.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
+            logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
             if (ws.readyState === 1) {
                 ws.send(JSON.stringify({ type: 'error', code: 'INTERNAL_ERROR', message: err.message }));
             }
@@ -225,7 +226,7 @@ export class TerminalTransportService {
                 client.resize(connection.cols, connection.rows);
             }
         } catch (error) {
-            console.warn(`[TerminalTransport] streaming start failed for ${connection.sessionId}: ${error.message}`);
+            logger.warn(`[TerminalTransport] streaming start failed for ${connection.sessionId}: ${error.message}`);
             await this._fallbackToPolling(connection);
         }
     }
@@ -379,7 +380,7 @@ export class TerminalTransportService {
             }
 
             // Send Enter to dismiss the overlay
-            console.log(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
+            logger.info(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
             await this.sessionManager.sendInput(connection.sessionId, 'C-m', 'key').catch(() => {});
             this.captureCache.invalidate(connection.sessionId);
         }
