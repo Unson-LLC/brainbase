@@ -1,14 +1,39 @@
+const INTERNAL_PROJECT_CODES = Object.freeze([
+    'mana', 'brainbase', 'salestailor', 'zeims', 'tech-knight',
+    'baao', 'unson', 'dialogai', 'aitle', 'other'
+]);
+
+const INTERNAL_CLEARANCE_LEVELS = Object.freeze([
+    'internal',
+    'restricted',
+    'finance',
+    'hr',
+    'contract'
+]);
+
+const ROLE_LEVEL_MAP = Object.freeze({
+    ceo: 3,
+    gm: 2
+});
+
 function allowInsecureHeaderAuth() {
-    if (process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
-        return true;
-    }
-    if (process.env.BRAINBASE_TEST_MODE === 'true') {
-        return true;
-    }
-    if (process.env.NODE_ENV === 'test') {
-        return true;
-    }
-    return false;
+    return process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true'
+        || process.env.BRAINBASE_TEST_MODE === 'true'
+        || process.env.NODE_ENV === 'test';
+}
+
+function buildInternalAccess() {
+    return {
+        role: 'member',
+        projectCodes: [...INTERNAL_PROJECT_CODES],
+        clearance: [...INTERNAL_CLEARANCE_LEVELS],
+        level: 2,
+        employmentType: 'internal_service',
+        personId: 'internal_api',
+        slackUserId: null,
+        slackWorkspaceId: null,
+        tenantId: null
+    };
 }
 
 function parseCsv(value) {
@@ -16,6 +41,23 @@ function parseCsv(value) {
         return [];
     }
     return value.split(',').map(v => v.trim()).filter(Boolean);
+}
+
+function deriveRoleLevel(role, fallback = 1) {
+    if (!role) {
+        return fallback;
+    }
+    return ROLE_LEVEL_MAP[role.toLowerCase()] || fallback;
+}
+
+function getHeaderValue(req, ...names) {
+    for (const name of names) {
+        const value = req.get(name);
+        if (value) {
+            return value;
+        }
+    }
+    return '';
 }
 
 export function requireAuth(authService) {
@@ -31,34 +73,20 @@ export function requireAuth(authService) {
 
             if (internalApiKey && requestApiKey === internalApiKey) {
                 // 内部APIアクセスは全プロジェクトへのアクセス権を付与
-                // 主要プロジェクトを列挙（動的取得は複雑なため静的リスト）
-                const allProjects = [
-                    'mana', 'brainbase', 'salestailor', 'zeims', 'tech-knight',
-                    'baao', 'unson', 'dialogai', 'aitle', 'other'
-                ];
-                const access = {
-                    role: 'member',
-                    projectCodes: allProjects,
-                    clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
-                    level: 2,
-                    employmentType: 'internal_service',
-                    personId: 'internal_api',
-                    slackUserId: null,
-                    slackWorkspaceId: null,
-                    tenantId: null
-                };
+                const access = buildInternalAccess();
                 req.access = access;
-                req.auth = { sub: 'internal_api', level: 2 };
+                req.auth = { sub: 'internal_api', level: access.level };
                 return next();
             }
 
             // 開発環境ではヘッダーだけでアクセス可能
             if (allowInsecureHeaderAuth()) {
-                const role = (req.get('x-brainbase-role') || req.get('x-role') || '').toLowerCase();
-                if (role) {
+                const roleHeader = getHeaderValue(req, 'x-brainbase-role', 'x-role');
+                if (roleHeader) {
+                    const role = roleHeader.toLowerCase();
                     // ヘッダーベース認証を使用（Info SSOT controller用の形式）
-                    const projectHeader = req.get('x-brainbase-projects') || req.get('x-projects') || '';
-                    const clearanceHeader = req.get('x-brainbase-clearance') || req.get('x-clearance') || '';
+                    const projectHeader = getHeaderValue(req, 'x-brainbase-projects', 'x-projects');
+                    const clearanceHeader = getHeaderValue(req, 'x-brainbase-clearance', 'x-clearance');
                     const projectCodes = parseCsv(projectHeader);
                     const clearance = parseCsv(clearanceHeader);
 
@@ -67,7 +95,7 @@ export function requireAuth(authService) {
                         projectCodes,
                         clearance,
                         // 既存のフィールドも維持（他のコードが使うかもしれないため）
-                        level: role === 'ceo' ? 3 : role === 'gm' ? 2 : 1,
+                        level: deriveRoleLevel(role),
                         employmentType: 'contractor',
                         personId: null,
                         slackUserId: null,
