@@ -146,16 +146,12 @@ export class SessionService {
 
         try {
             // Start terminal session
-            const res = await this.httpClient.post('/api/sessions/start', {
+            await this._startTtydSession({
                 sessionId,
                 initialCommand,
                 cwd: repoPath,
                 engine
             });
-
-            if (!res || res.error) {
-                throw new Error('Failed to start terminal session');
-            }
         } catch (error) {
             // Roll back state on failure (best-effort)
             try {
@@ -233,12 +229,11 @@ export class SessionService {
             normalizedUpdates.updatedAt = now;
         }
 
-        await this._applySessionsMutation(sessions =>
+        await this._mutateSessionsAndReload(sessions =>
             sessions.map(s =>
                 s.id === sessionId ? { ...s, ...normalizedUpdates } : s
             )
         );
-        await this.loadSessions();
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_UPDATED, { sessionId, updates: normalizedUpdates });
         return { success: true, sessionId, updates: normalizedUpdates, eventResult };
     }
@@ -249,10 +244,9 @@ export class SessionService {
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}>}
      */
     async deleteSession(sessionId) {
-        await this._applySessionsMutation(sessions =>
+        await this._mutateSessionsAndReload(sessions =>
             sessions.filter(s => s.id !== sessionId)
         );
-        await this.loadSessions();
         const eventResult = await this.eventBus.emit(EVENTS.SESSION_DELETED, { sessionId });
         return { success: true, sessionId, eventResult };
     }
@@ -511,7 +505,7 @@ export class SessionService {
 
         // TTYDプロセスを起動
         try {
-            await this.httpClient.post('/api/sessions/start', {
+            await this._startTtydSession({
                 sessionId,
                 cwd: session.path,
                 initialCommand: session.initialCommand || '',
@@ -577,6 +571,43 @@ export class SessionService {
 
         await this._persistSessionsState(state, updatedSessions);
         return updatedSessions;
+    }
+
+    /**
+     * state.sessionsに対する変更とstoreの同期をまとめて実行
+     * @private
+     * @param {Function} mutationFn - セッション配列から新しい配列を生成する関数
+     * @returns {Promise<Array>} 更新後のセッション配列
+     */
+    async _mutateSessionsAndReload(mutationFn) {
+        const updated = await this._applySessionsMutation(mutationFn);
+        await this.loadSessions();
+        return updated;
+    }
+
+    /**
+     * ttydセッション開始API呼び出しの共通化
+     * @private
+     * @param {Object} options
+     * @param {string} options.sessionId
+     * @param {string} options.cwd
+     * @param {string} [options.initialCommand]
+     * @param {string} [options.engine]
+     * @returns {Promise<Object>}
+     */
+    async _startTtydSession({ sessionId, cwd, initialCommand = '', engine = 'claude' }) {
+        const response = await this.httpClient.post('/api/sessions/start', {
+            sessionId,
+            initialCommand,
+            cwd,
+            engine
+        });
+
+        if (!response || response.error) {
+            throw new Error('Failed to start terminal session');
+        }
+
+        return response;
     }
 
     /**
