@@ -23,3 +23,25 @@ export function pickAllowedFields(obj, allowedFields) {
 
     return Object.keys(picked).length > 0 ? picked : null;
 }
+
+/**
+ * 日付をYYYY-MM-DD形式にフォーマットする
+ * @param {Date} date
+ * @returns {string}
+ */
+export function formatDateYMD(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * 1週間後の期限日を取得
+ * @returns {string} YYYY-MM-DD形式
+ */
+export function getDefaultDueDate() {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return formatDateYMD(date);
+}

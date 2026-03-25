@@ -1,5 +1,5 @@
 import { asyncHandler } from '../lib/async-handler.js';
-import { pickAllowedFields } from '../lib/validation.js';
+import { pickAllowedFields, getDefaultDueDate } from '../lib/validation.js';
 import { AppError, ErrorCodes } from '../lib/errors.js';
 
 /**
@@ -14,19 +14,6 @@ const ALLOWED_UPDATE_FIELDS = [
 const ALLOWED_PRIORITIES = ['low', 'medium', 'high'];
 const DEFAULT_ASSIGNEE = '自分';
 const DEFAULT_PRIORITY = 'medium';
-
-function formatDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-function getDefaultDueDate() {
-    const date = new Date();
-    date.setDate(date.getDate() + 7);
-    return formatDate(date);
-}
 
 export class TaskController {
     constructor(taskParser) {

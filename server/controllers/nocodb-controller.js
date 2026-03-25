@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import { formatDateYMD, getDefaultDueDate } from '../lib/validation.js';
 
 /**
  * NocoDBController
@@ -167,7 +168,7 @@ export class NocoDBController {
             const normalizedPriority = rawPriority || 'medium';
             const normalizedDue = typeof due === 'string' && due.trim()
                 ? due.trim()
-                : this._getDefaultDueDate();
+                : getDefaultDueDate();
 
             const priorityMap = { high: '高', medium: '中', low: '低' };
             const fields = {
@@ -666,25 +667,4 @@ export class NocoDBController {
         return Number.isNaN(numericId) ? id : numericId;
     }
 
-    /**
-     * 1週間後の期限日を取得
-     * @returns {string}
-     */
-    _getDefaultDueDate() {
-        const date = new Date();
-        date.setDate(date.getDate() + 7);
-        return this._formatDate(date);
-    }
-
-    /**
-     * 日付をYYYY-MM-DD形式に整形
-     * @param {Date} date
-     * @returns {string}
-     */
-    _formatDate(date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
 }
