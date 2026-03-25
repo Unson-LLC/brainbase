@@ -10,28 +10,10 @@ import { StorageService } from '../services/storage-service.js';
 import { NocoDBService } from '../services/nocodb-service.js';
 import { logger } from '../utils/logger.js';
 import { cacheMiddleware } from '../middleware/cache.js';
+import { BrainbaseActionController, ACTION_TYPES, ACTION_STATUS } from '../controllers/brainbase-action-controller.js';
 
-/**
- * アクション型定義
- * Story 3: 介入判断を実行に移す
- */
-export const ACTION_TYPES = {
-    MTG_INVITE: { id: 'mtg_invite', label: 'MTG招集', icon: '📅' },
-    REASSIGN: { id: 'reassign', label: '担当変更', icon: '👤' },
-    DEADLINE_CHANGE: { id: 'deadline_change', label: '期限変更', icon: '📆' },
-    UNBLOCK: { id: 'unblock', label: 'ブロック解除', icon: '🔓' },
-    ESCALATE: { id: 'escalate', label: 'エスカレーション', icon: '⚡' }
-};
-
-/**
- * アクションステータス定義
- */
-export const ACTION_STATUS = {
-    PENDING: 'pending',     // 発行済み・未実行
-    APPROVED: 'approved',   // 承認済み
-    EXECUTED: 'executed',   // 実行完了
-    FAILED: 'failed'        // 実行失敗
-};
+// Re-export for backward compatibility
+export { ACTION_TYPES, ACTION_STATUS };
 
 /**
  * brainbaseダッシュボードAPIルーター
@@ -1025,112 +1007,11 @@ export function createBrainbaseRouter(options = {}) {
     }
 
     // ==================== Actions API (Story 3) ====================
-
-    /**
-     * POST /api/brainbase/actions
-     * アクションを発行（NocoDBに記録）
-     * Story 3: 介入判断を実行に移す
-     */
-    router.post('/actions', async (req, res) => {
-        try {
-            const { project, taskId, tableId, actionType, details } = req.body;
-
-            // バリデーション
-            if (!project || !taskId || !tableId || !actionType) {
-                return res.status(400).json({
-                    error: 'Missing required fields',
-                    message: 'project, taskId, tableId, actionType are required'
-                });
-            }
-
-            // アクション種別の検証
-            const validTypes = Object.values(ACTION_TYPES).map(t => t.id);
-            if (!validTypes.includes(actionType)) {
-                return res.status(400).json({
-                    error: 'Invalid action type',
-                    message: `Valid types: ${validTypes.join(', ')}`
-                });
-            }
-
-            // NocoDBにアクション記録
-            const action = await nocodbService.createAction({
-                project,
-                taskId: parseInt(taskId, 10),
-                tableId,
-                actionType,
-                details: details || {},
-                status: ACTION_STATUS.PENDING,
-                createdAt: new Date().toISOString()
-            });
-
-            logger.info('Action created', { project, taskId, actionType });
-            res.json({ success: true, action });
-        } catch (error) {
-            logger.error('Failed to create action', { error });
-            res.status(500).json({ error: 'Failed to create action' });
-        }
-    });
-
-    /**
-     * GET /api/brainbase/actions
-     * 発行済みアクション一覧を取得
-     * Story 3: 介入判断を実行に移す
-     */
-    router.get('/actions', async (req, res) => {
-        try {
-            const { project } = req.query;
-            const limit = parseInt(req.query.limit) || 50;
-
-            const result = await nocodbService.getActions(project, limit);
-
-            res.json(result);
-        } catch (error) {
-            logger.error('Failed to fetch actions', { error });
-            res.status(500).json({
-                error: 'Failed to fetch actions',
-                actions: [],
-                total: 0
-            });
-        }
-    });
-
-    /**
-     * PATCH /api/brainbase/actions/:actionId/status
-     * アクションのステータスを更新
-     * Story 3: 介入判断を実行に移す
-     */
-    router.patch('/actions/:actionId/status', async (req, res) => {
-        try {
-            const { actionId } = req.params;
-            const { status } = req.body;
-
-            // ステータスの検証
-            const validStatuses = Object.values(ACTION_STATUS);
-            if (!validStatuses.includes(status)) {
-                return res.status(400).json({
-                    error: 'Invalid status',
-                    message: `Valid statuses: ${validStatuses.join(', ')}`
-                });
-            }
-
-            await nocodbService.updateActionStatus(parseInt(actionId, 10), status);
-
-            logger.info('Action status updated', { actionId, status });
-            res.json({ success: true });
-        } catch (error) {
-            logger.error('Failed to update action status', { error });
-            res.status(500).json({ error: 'Failed to update action status' });
-        }
-    });
-
-    /**
-     * GET /api/brainbase/action-types
-     * アクション種別一覧を取得
-     * Story 3: 介入判断を実行に移す
-     */
-    router.get('/action-types', (req, res) => {
-        res.json(ACTION_TYPES);
-    });
+    const actionController = new BrainbaseActionController(nocodbService);
+    router.post('/actions', actionController.create);
+    router.get('/actions', actionController.list);
+    router.patch('/actions/:actionId/status', actionController.updateStatus);
+    router.get('/action-types', actionController.getTypes);
 
     return router;
 }
