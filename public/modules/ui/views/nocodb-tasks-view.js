@@ -206,6 +206,21 @@ export class NocoDBTasksView {
         this._setFilter('hideCompleted', hideCompleted);
     }
 
+    _renderTemplate(html) {
+        if (!this.container) {
+            return false;
+        }
+        this.container.innerHTML = html;
+        this._initIcons();
+        return true;
+    }
+
+    _initIcons() {
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
     /**
      * 同期ボタンハンドラ
      */
@@ -230,24 +245,19 @@ export class NocoDBTasksView {
      * ローディング表示
      */
     _showLoading() {
-        if (!this.container) return;
-        this.container.innerHTML = `
+        this._renderTemplate(`
             <div class="loading">
                 <i data-lucide="loader-2" class="spin"></i>
                 <span>NocoDB タスクを読み込み中...</span>
             </div>
-        `;
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        `);
     }
 
     /**
      * エラー表示
      */
     _showError(message) {
-        if (!this.container) return;
-        this.container.innerHTML = `
+        if (!this._renderTemplate(`
             <div class="error-state">
                 <i data-lucide="alert-circle"></i>
                 <p>${this._escapeHtml(message)}</p>
@@ -255,9 +265,8 @@ export class NocoDBTasksView {
                     再試行
                 </button>
             </div>
-        `;
-        if (window.lucide) {
-            window.lucide.createIcons();
+        `)) {
+            return;
         }
     }
 
@@ -285,48 +294,39 @@ export class NocoDBTasksView {
         const tasks = this.service.getFilteredTasks(resolvedFilter);
 
         if (tasks.length === 0) {
-            this.container.innerHTML = `
+            this._renderTemplate(`
                 <div class="empty-state">
                     <i data-lucide="inbox"></i>
                     <p>担当タスクがありません</p>
                 </div>
-            `;
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            `);
             return;
         }
 
         this.container.innerHTML = tasks.map(task => this._renderTaskItem(task)).join('');
         this._attachStatusHandlers();
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        this._initIcons();
     }
 
     /**
      * 自分の担当者名が未設定の場合の表示
      */
     _showMissingSelfAssignee() {
-        if (!this.container) return;
-        this.container.innerHTML = `
+        if (!this._renderTemplate(`
             <div class="empty-state">
                 <i data-lucide="user"></i>
                 <p>「自分だけ」フィルタを使うには、Settings → Integrations で担当者名を設定してください</p>
                 <button class="btn-secondary btn-sm" id="open-nocodb-self-settings">設定を開く</button>
             </div>
-        `;
+        `)) {
+            return;
+        }
 
         const openBtn = this.container.querySelector('#open-nocodb-self-settings');
         if (openBtn) {
             openBtn.addEventListener('click', () => {
                 eventBus.emit('settings:open-tab', { tabId: 'integrations', subTab: 'nocodb' });
             });
-        }
-
-        if (window.lucide) {
-            window.lucide.createIcons();
         }
     }
 
