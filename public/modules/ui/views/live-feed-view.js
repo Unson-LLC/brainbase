@@ -1,6 +1,6 @@
 /**
  * Live Feed View
- * EventBusイベントのリアルタイムフィード表示
+ * セッション横断で現在のAIアクティビティを時系列表示する。
  */
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
@@ -69,13 +69,13 @@ export class LiveFeedView {
         const entriesHtml = entries.length > 0
             ? entries.map(e => this._renderEntry(e)).join('')
             : `<div class="live-feed-empty">
-                <p>イベントを待機中...</p>
+                <p>セッションの動きを待機中...</p>
             </div>`;
 
         this._container.innerHTML = `<div class="live-feed-container">
             <div class="live-feed-header">
                 <div class="live-feed-title">
-                    <h3>Activity</h3>
+                    <h3>Live Feed</h3>
                     <span class="live-feed-status active">LIVE</span>
                 </div>
             </div>
