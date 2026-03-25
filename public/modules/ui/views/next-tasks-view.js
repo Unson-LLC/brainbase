@@ -1,6 +1,7 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { refreshIcons } from '../../ui-helpers.js';
+import { isTaskInProgress } from '../../utils/task-filters.js';
 import { BaseView } from './base-view.js';
 
 /**
@@ -70,7 +71,7 @@ export class NextTasksView extends BaseView {
 
         const deadlineHtml = this._formatDeadline(task.deadline || task.due);
         const isOverdue = this._isOverdue(task.deadline || task.due);
-        const isInProgress = task.status === 'in-progress' || task.status === 'in_progress' || task.status === 'doing';
+        const isInProgress = isTaskInProgress(task);
 
         const statusBadge = isInProgress
             ? '<span class="next-task-status in-progress">進行中</span>'

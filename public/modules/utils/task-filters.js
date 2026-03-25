@@ -3,6 +3,17 @@
  */
 
 /**
+ * タスクが進行中かどうか判定
+ * ステータスの表記揺れ (in-progress, in_progress, doing) を吸収する
+ * @param {Object} task - タスクオブジェクト
+ * @returns {boolean}
+ */
+export function isTaskInProgress(task) {
+    const s = task?.status;
+    return s === 'in-progress' || s === 'in_progress' || s === 'doing';
+}
+
+/**
  * 優先度でタスクをフィルタリング
  * @param {Array} tasks - タスク配列
  * @param {string} priority - フィルタする優先度 ('high', 'medium', 'low', 'critical', 'highest', 'normal')

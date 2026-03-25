@@ -1,6 +1,7 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { refreshIcons } from '../../ui-helpers.js';
+import { isTaskInProgress } from '../../utils/task-filters.js';
 import { BaseView } from './base-view.js';
 
 /**
@@ -44,7 +45,7 @@ export class TaskView extends BaseView {
     _renderFocusTask(task) {
         const isUrgent = task.due && new Date(task.due) <= new Date(Date.now() + 24 * 60 * 60 * 1000);
         const dueText = task.due ? this._formatDueDate(task.due) : '';
-        const isInProgress = task.status === 'in-progress' || task.status === 'in_progress' || task.status === 'doing';
+        const isInProgress = isTaskInProgress(task);
 
         const startOrRestoreButton = isInProgress
             ? `<button class="focus-btn-restore" data-id="${task.id}">
