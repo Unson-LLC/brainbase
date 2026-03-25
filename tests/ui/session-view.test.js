@@ -178,10 +178,44 @@ describe('SessionView', () => {
             expect(writeText).toHaveBeenCalledWith('test prompt');
         });
 
-        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_consoleフォールバック', async () => {
+        it('_deliverInvestigationPrompt呼び出し時_mobile入力より先にclipboardを優先する', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+            window.mobileInputController = {
+                insertTextAtCursor: vi.fn().mockReturnValue(true)
+            };
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'clipboard' });
+            expect(writeText).toHaveBeenCalledWith('test prompt');
+            expect(window.mobileInputController.insertTextAtCursor).not.toHaveBeenCalled();
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_入力欄へフォールバック', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+            const insertSpy = vi.spyOn(sessionView, '_insertTextIntoActiveEditable').mockReturnValue(true);
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'inserted' });
+            expect(insertSpy).toHaveBeenCalledWith('test prompt');
+            warnSpy.mockRestore();
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboardも挿入も失敗_consoleフォールバック', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
             const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
             const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+            vi.spyOn(sessionView, '_insertTextIntoActiveEditable').mockReturnValue(false);
             Object.defineProperty(navigator, 'clipboard', {
                 value: { writeText },
                 configurable: true
@@ -230,6 +264,29 @@ describe('SessionView', () => {
             expect(deliverSpy).toHaveBeenCalledTimes(1);
             expect(deliverSpy.mock.calls[0][0]).toContain('セッションID: session-target');
             expect(sessionView.sessionService.askAiToResolveIntegration).toHaveBeenCalledWith('session-target', status);
+            expect(result).toEqual({
+                delivery: { mode: 'clipboard' },
+                aiResult: {
+                    success: true,
+                    message: 'AIに依頼しました'
+                }
+            });
+        });
+
+        it('_handleArchiveAiAction呼び出し時_事前deliveryがあれば再配送しない', async () => {
+            const deliverSpy = vi.spyOn(sessionView, '_deliverInvestigationPrompt');
+            sessionView.sessionService.askAiToResolveIntegration.mockResolvedValue({
+                success: true,
+                message: 'AIに依頼しました'
+            });
+
+            const result = await sessionView._handleArchiveAiAction(
+                'session-target',
+                { changesNotPushed: 1 },
+                { mode: 'clipboard' }
+            );
+
+            expect(deliverSpy).not.toHaveBeenCalled();
             expect(result).toEqual({
                 delivery: { mode: 'clipboard' },
                 aiResult: {

@@ -625,6 +625,7 @@ export class SessionView {
                         const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
                         const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
                         const detailText = criticalText + infoText;
+                        const investigationPrompt = this._generateInvestigationPrompt(status, session.id);
                         const confirmResult = await showConfirmWithAction(
                             `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
@@ -633,6 +634,7 @@ export class SessionView {
                                 cancelText: 'キャンセル',
                                 actionText: 'pushして統合',
                                 aiActionText: '🤖 AIに確認して対処',
+                                aiClipboardText: investigationPrompt,
                                 danger: true
                             }
                         );
@@ -641,7 +643,11 @@ export class SessionView {
                             : (confirmResult ? 'ok' : 'cancel');
 
                         if (selectedAction === 'ai') {
-                            const aiActionResult = await this._handleArchiveAiAction(session.id, status);
+                            const aiActionResult = await this._handleArchiveAiAction(
+                                session.id,
+                                status,
+                                typeof confirmResult === 'object' && confirmResult !== null ? confirmResult.delivery || null : null
+                            );
                             if (aiActionResult.aiResult?.success) {
                                 showSuccess(aiActionResult.aiResult.message || 'AI向けの調査プロンプトを準備しました');
                             } else if (aiActionResult.delivery.mode === 'clipboard') {
@@ -830,6 +836,15 @@ export class SessionView {
      * @returns {Promise<{mode: 'inserted'|'clipboard'|'console'}>}
      */
     async _deliverInvestigationPrompt(prompt) {
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(prompt);
+                return { mode: 'clipboard' };
+            }
+        } catch (error) {
+            console.warn('Failed to copy investigation prompt to clipboard:', error);
+        }
+
         const controller = window.mobileInputController || window.brainbaseApp?.mobileInputController;
         if (controller && typeof controller.insertTextAtCursor === 'function') {
             const inserted = controller.insertTextAtCursor(prompt);
@@ -842,15 +857,6 @@ export class SessionView {
             return { mode: 'inserted' };
         }
 
-        try {
-            if (navigator?.clipboard?.writeText) {
-                await navigator.clipboard.writeText(prompt);
-                return { mode: 'clipboard' };
-            }
-        } catch (error) {
-            console.warn('Failed to copy investigation prompt to clipboard:', error);
-        }
-
         console.log('[Archive Investigation Prompt]');
         console.log(prompt);
         return { mode: 'console' };
@@ -860,11 +866,13 @@ export class SessionView {
      * アーカイブ前の統合調査プロンプトを配信し、可能ならAI依頼も実行
      * @param {string} sessionId
      * @param {Object} status
+     * @param {{mode: 'inserted'|'clipboard'|'console'}|null} initialDelivery
      * @returns {Promise<{delivery: {mode: 'inserted'|'clipboard'|'console'}, aiResult: Object|null}>}
      */
-    async _handleArchiveAiAction(sessionId, status) {
-        const prompt = this._generateInvestigationPrompt(status, sessionId);
-        const delivery = await this._deliverInvestigationPrompt(prompt);
+    async _handleArchiveAiAction(sessionId, status, initialDelivery = null) {
+        const delivery = initialDelivery || await this._deliverInvestigationPrompt(
+            this._generateInvestigationPrompt(status, sessionId)
+        );
 
         try {
             const aiResult = await this.sessionService.askAiToResolveIntegration(sessionId, status);

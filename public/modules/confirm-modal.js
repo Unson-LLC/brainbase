@@ -20,6 +20,7 @@ const hasConfirmModal = Boolean(
 
 let resolvePromise = null;
 let confirmResponseMode = 'boolean';
+let pendingAiClipboardText = null;
 
 // Setup event listeners
 if (hasConfirmModal) {
@@ -40,8 +41,26 @@ if (hasConfirmModal) {
 
     // AI button event listener (for archive with AI check)
     if (confirmAiBtn) {
-        confirmAiBtn.addEventListener('click', () => closeConfirm({ action: 'ai' }));
+        confirmAiBtn.addEventListener('click', async () => {
+            const delivery = await tryCopyAiClipboardText();
+            closeConfirm(delivery ? { action: 'ai', delivery } : { action: 'ai' });
+        });
     }
+}
+
+async function tryCopyAiClipboardText() {
+    if (!pendingAiClipboardText) return null;
+
+    try {
+        if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(pendingAiClipboardText);
+            return { mode: 'clipboard' };
+        }
+    } catch (error) {
+        console.warn('Failed to copy AI investigation prompt from confirm modal:', error);
+    }
+
+    return null;
 }
 
 function closeConfirm(result) {
@@ -58,6 +77,7 @@ function closeConfirm(result) {
     const resolver = resolvePromise;
     resolvePromise = null;
     confirmResponseMode = 'boolean';
+    pendingAiClipboardText = null;
     if (resolver) {
         resolver(result);
     }
@@ -88,6 +108,7 @@ export function showConfirm(message, options = {}) {
         danger = true
     } = options;
     confirmResponseMode = 'boolean';
+    pendingAiClipboardText = null;
     confirmModal.classList.remove('confirm-modal--action');
 
     // XSS対策: DOMメソッドで構築
@@ -129,6 +150,7 @@ export function showConfirm(message, options = {}) {
  * @param {string} options.cancelText - Cancel button text (default: 'キャンセル')
  * @param {string} options.actionText - Action button text (default: 'アクション')
  * @param {string} options.aiActionText - AI action button text (optional, enables 4-button mode)
+ * @param {string|null} options.aiClipboardText - AI action click中にclipboardへ入れるテキスト
  * @param {boolean} options.danger - Use danger button style for OK (default: true)
  * @returns {Promise<{action: 'ok'|'cancel'|'action'|'ai'}>} - Resolves to action type
  */
@@ -148,9 +170,11 @@ export function showConfirmWithAction(message, options = {}) {
         cancelText = 'キャンセル',
         actionText = 'アクション',
         aiActionText = null,
+        aiClipboardText = null,
         danger = true
     } = options;
     confirmResponseMode = 'action';
+    pendingAiClipboardText = aiClipboardText;
     confirmModal.classList.add('confirm-modal--action');
 
     // XSS対策: DOMメソッドで構築
