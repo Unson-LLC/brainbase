@@ -1252,9 +1252,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/391",
       "pr_status": "merged",
       "merged_at": "2026-03-25T15:33:24Z"
+    },
+    {
+      "area": "server/controllers",
+      "refactored_at": "2026-03-25T18:26:20.364Z",
+      "files_modified": [
+        "server/controllers/session-controller.js"
+      ],
+      "changes_summary": "server/controllers/session-controller.js:125ほかでrefactoring-workflowとarchitecture-patterns意識しつつ`_getSessionContext` / `_getSessionWithWorktree`を追加してarchive・restoreとworktree系エンドポイントのセッション取得ロジックをDRYったよ。verify-first-debugging観点で挙動はそのままだからテストは回してないよ〜。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 96,
+      "judge_threshold": 90,
+      "judge_summary": "共通のセッション取得ロジックを `_getSessionContext` と `_getSessionWithWorktree` にまとめて各エンドポイントから呼び出すリファクタで、重複していた 404/400 応答処理が整理され分岐が明瞭になった。既存ハンドラの振る舞いは維持されつつ未定義 state への安全策も追加されており、作用範囲も session 取得部分に限定されている。",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "新規ヘルパーの挙動を固定化するユニットテストを追加して、将来的なリグレッションに備えておくと安心。"
+      ],
+      "run_number": "344",
+      "run_id": "23557185348",
+      "trigger_event": "schedule",
+      "pr_number": 392,
+      "pr_branch": "ops-department/auto-refactor-344",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/392",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-25T18:22:54.110Z",
-  "total_prs_created": 46,
+  "last_updated": "2026-03-25T18:26:32.623Z",
+  "total_prs_created": 47,
   "total_prs_merged": 42
 }
