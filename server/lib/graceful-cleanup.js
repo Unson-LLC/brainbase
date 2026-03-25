@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 /**
  * Graceful Partial Cleanup（CommandMateパターン）
  *
@@ -21,7 +22,7 @@ export async function gracefulCleanup(contextId, steps) {
             completed.push(step.name);
         } catch (error) {
             const message = `[GracefulCleanup] ${contextId}: ${step.name} failed - ${error.message}`;
-            console.warn(message);
+            logger.warn(message);
             warnings.push(message);
         }
     }

@@ -8,6 +8,7 @@
  */
 
 import crypto from 'crypto';
+import { logger } from '../utils/logger.js';
 
 // Session-based token store (In production, use Redis or session store)
 const tokens = new Map();
@@ -89,7 +90,7 @@ export function csrfMiddleware() {
         // In development, log warning but allow request
         if (process.env.NODE_ENV !== 'production') {
             if (!token) {
-                console.warn(`[CSRF] Missing token for ${req.method} ${req.path}`);
+                logger.warn(`[CSRF] Missing token for ${req.method} ${req.path}`);
             }
             return next();
         }

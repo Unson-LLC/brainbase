@@ -2,6 +2,7 @@ import { execFile as execFileCallback } from 'child_process';
 import { promisify } from 'util';
 
 import { GOOGLE_CALENDAR_SOURCE } from '../../lib/google-calendar-utils.js';
+import { logger } from '../utils/logger.js';
 
 const execFile = promisify(execFileCallback);
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -148,7 +149,7 @@ export class GoogleCalendarService {
                     }
                 }
             } catch (error) {
-                console.warn(`[GoogleCalendarService] Failed to list events for ${calendarId}:`, error.message);
+                logger.warn(`[GoogleCalendarService] Failed to list events for ${calendarId}:`, error.message);
             }
         }
 

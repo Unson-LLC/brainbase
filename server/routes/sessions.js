@@ -5,6 +5,7 @@
 import express from 'express';
 import { SessionController } from '../controllers/session-controller.js';
 import { retroactiveRename } from '../utils/session-name-generator.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Session router factory
@@ -74,12 +75,12 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
 
             if (changeCount > 0) {
                 await stateStore.update({ ...state, sessions: renamed });
-                console.log(`[Sessions] Retroactive rename: ${changeCount}/${sessions.length} session(s) renamed`);
+                logger.info(`[Sessions] Retroactive rename: ${changeCount}/${sessions.length} session(s) renamed`);
             }
 
             res.json({ success: true, renamed: changeCount, total: sessions.length });
         } catch (err) {
-            console.error('[Sessions] Retroactive rename failed:', err.message);
+            logger.error('[Sessions] Retroactive rename failed:', err.message);
             res.status(500).json({ error: err.message });
         }
     });
@@ -97,7 +98,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
                 const result = await conversationLinker.getConversationsForSession(req.params.id);
                 res.json(result);
             } catch (err) {
-                console.error(`[Sessions] Failed to get conversations for ${req.params.id}:`, err.message);
+                logger.error(`[Sessions] Failed to get conversations for ${req.params.id}:`, err.message);
                 res.status(err.message.includes('not found') ? 404 : 500).json({ error: err.message });
             }
         });
@@ -111,7 +112,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
                 const result = await conversationLinker.linkAll();
                 res.json(result);
             } catch (err) {
-                console.error('[Sessions] Failed to link conversations:', err.message);
+                logger.error('[Sessions] Failed to link conversations:', err.message);
                 res.status(500).json({ error: err.message });
             }
         });

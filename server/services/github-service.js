@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { logger } from '../utils/logger.js';
 
 /**
  * GitHub API Service
@@ -8,7 +9,7 @@ export class GitHubService {
     constructor() {
         this.token = process.env.GITHUB_TOKEN;
         if (!this.token) {
-            console.warn('[GitHubService] GITHUB_TOKEN not set. GitHub API features will be limited.');
+            logger.warn('[GitHubService] GITHUB_TOKEN not set. GitHub API features will be limited.');
         }
 
         this.octokit = new Octokit({
@@ -51,7 +52,7 @@ export class GitHubService {
                 busy: runners.filter(r => r.busy).length,
             };
         } catch (error) {
-            console.error('[GitHubService] Failed to fetch runners:', error.message);
+            logger.error('[GitHubService] Failed to fetch runners:', error.message);
             return { error: error.message, runners: [] };
         }
     }
@@ -96,7 +97,7 @@ export class GitHubService {
                 summary,
             };
         } catch (error) {
-            console.error('[GitHubService] Failed to fetch workflow runs:', error.message);
+            logger.error('[GitHubService] Failed to fetch workflow runs:', error.message);
             return { error: error.message, runs: [] };
         }
     }
@@ -132,7 +133,7 @@ export class GitHubService {
 
             return { runs };
         } catch (error) {
-            console.error(`[GitHubService] Failed to fetch workflow runs for ${workflowId}:`, error.message);
+            logger.error(`[GitHubService] Failed to fetch workflow runs for ${workflowId}:`, error.message);
             return { error: error.message, runs: [] };
         }
     }
@@ -252,7 +253,7 @@ export class GitHubService {
                 },
             };
         } catch (error) {
-            console.error('[GitHubService] Failed to fetch healthcheck status:', error.message);
+            logger.error('[GitHubService] Failed to fetch healthcheck status:', error.message);
             return {
                 status: 'error',
                 message: error.message,

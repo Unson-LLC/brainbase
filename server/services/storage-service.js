@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import util from 'util';
 import path from 'path';
+import { logger } from '../utils/logger.js';
 
 const execPromise = util.promisify(exec);
 
@@ -30,12 +31,12 @@ export class StorageService {
 
         // キャッシュが有効な場合は即座に返す
         if (cached && (now - cached.timestamp) < this._cacheTTL) {
-            console.log(`[StorageService] Cache hit: ${key} (age: ${Math.round((now - cached.timestamp) / 1000)}s)`);
+            logger.info(`[StorageService] Cache hit: ${key} (age: ${Math.round((now - cached.timestamp) / 1000)}s)`);
             return cached.value;
         }
 
         // キャッシュが無効または存在しない場合、計算して保存
-        console.log(`[StorageService] Cache miss: ${key}, calculating...`);
+        logger.info(`[StorageService] Cache miss: ${key}, calculating...`);
         const value = await fn();
         this._cache.set(key, { value, timestamp: now });
 
@@ -70,7 +71,7 @@ export class StorageService {
                 sizeBytes: await this.getDirectorySizeInBytes(dir),
             };
         } catch (error) {
-            console.error(`[StorageService] Failed to get directory size for ${dir}:`, error.message);
+            logger.error(`[StorageService] Failed to get directory size for ${dir}:`, error.message);
             return { error: error.message, size: '0' };
         }
     }
@@ -108,7 +109,7 @@ export class StorageService {
                 total: workspace.sizeBytes + worktrees.sizeBytes,
             };
         } catch (error) {
-            console.error('[StorageService] Failed to get workspace storage:', error.message);
+            logger.error('[StorageService] Failed to get workspace storage:', error.message);
             return { error: error.message };
         }
     }
@@ -149,7 +150,7 @@ export class StorageService {
 
             return fileDetails.filter(f => f !== null);
         } catch (error) {
-            console.error('[StorageService] Failed to find large files:', error.message);
+            logger.error('[StorageService] Failed to find large files:', error.message);
             return [];
         }
     }
@@ -180,7 +181,7 @@ export class StorageService {
             // サイズ順にソート
             return sizes.sort((a, b) => b.sizeBytes - a.sizeBytes);
         } catch (error) {
-            console.error('[StorageService] Failed to get worktrees sizes:', error.message);
+            logger.error('[StorageService] Failed to get worktrees sizes:', error.message);
             return [];
         }
     }
