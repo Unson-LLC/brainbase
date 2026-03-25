@@ -2,64 +2,42 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { showConfirm } from '../../confirm-modal.js';
 import { getProjectFromPath } from '../../project-mapping.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { BaseModal } from './base-modal.js';
 
 /**
  * アーカイブセッション表示モーダル
  */
-export class ArchiveModal {
+export class ArchiveModal extends BaseModal {
     constructor({ sessionService }) {
+        super('archive-modal');
         this.sessionService = sessionService;
-        this.modalElement = null;
         this.searchTerm = '';
         this.projectFilter = '';
-        this._unsubscribers = [];
     }
 
-    /**
-     * モーダルをマウント
-     */
     mount() {
-        this.modalElement = document.getElementById('archive-modal');
-        if (!this.modalElement) {
-            console.warn('ArchiveModal: #archive-modal not found');
-            return;
-        }
-
-        this._attachEventHandlers();
+        super.mount();
+        if (!this.modalElement) return;
         this._setupEventSubscriptions();
     }
 
-    /**
-     * モーダルを開く
-     */
     async open() {
         if (!this.modalElement) return;
 
-        // アーカイブ込みでセッションをリロード
         const currentFilters = appStore.getState().filters || {};
         appStore.setState({
-            filters: {
-                ...currentFilters,
-                showArchivedSessions: true
-            }
+            filters: { ...currentFilters, showArchivedSessions: true }
         });
 
-        // セッション一覧を再取得（アーカイブ込み）
         await this.sessionService.loadSessions();
 
-        // フィルタを元に戻す（他の画面への影響を防ぐ）
         appStore.setState({
-            filters: {
-                ...currentFilters,
-                showArchivedSessions: false
-            }
+            filters: { ...currentFilters, showArchivedSessions: false }
         });
 
-        // プロジェクトフィルターを更新
         this._updateProjectFilter();
 
-        // 検索をクリア
         const searchInput = document.getElementById('archive-search');
         if (searchInput) {
             searchInput.value = '';
@@ -72,34 +50,18 @@ export class ArchiveModal {
             this.projectFilter = '';
         }
 
-        // リストをレンダリング
         this._renderList();
-
-        // モーダルを表示
         this.modalElement.classList.add('active');
 
-        // 検索欄にフォーカス
         if (searchInput) {
             searchInput.focus();
         }
     }
 
-    /**
-     * モーダルを閉じる
-     */
-    close() {
-        if (!this.modalElement) return;
-        this.modalElement.classList.remove('active');
-    }
-
-    /**
-     * プロジェクトフィルターオプション更新
-     */
     _updateProjectFilter() {
         const projectFilterEl = document.getElementById('archive-project-filter');
         if (!projectFilterEl) return;
 
-        // アーカイブされたセッションのプロジェクトのみを取得
         const archivedSessions = this.sessionService.getArchivedSessions('', '');
         const projects = new Set();
         archivedSessions.forEach(s => {
@@ -114,30 +76,16 @@ export class ArchiveModal {
         });
     }
 
-    /**
-     * アーカイブリストをレンダリング
-     */
     _renderList() {
-        console.log('[DEBUG] ArchiveModal._renderList called');
-        console.log('[DEBUG] searchTerm:', this.searchTerm, 'projectFilter:', this.projectFilter);
-
         const archivedSessions = this.sessionService.getArchivedSessions(
             this.searchTerm,
             this.projectFilter
         );
 
-        console.log('[DEBUG] ArchiveModal - Received sessions:', archivedSessions.length);
-
         const archiveListEl = document.getElementById('archive-list');
         const archiveEmptyEl = document.getElementById('archive-empty');
 
-        if (!archiveListEl || !archiveEmptyEl) {
-            console.error('[DEBUG] ArchiveModal - Elements not found!', {
-                archiveListEl: !!archiveListEl,
-                archiveEmptyEl: !!archiveEmptyEl
-            });
-            return;
-        }
+        if (!archiveListEl || !archiveEmptyEl) return;
 
         if (archivedSessions.length === 0) {
             archiveListEl.innerHTML = '';
@@ -151,10 +99,8 @@ export class ArchiveModal {
             const name = session.name || session.id;
             const project = getProjectFromPath(session.path);
 
-            // 日付の優先順位: archivedAt > createdDate > createdAt > セッションIDから抽出
             let dateValue = session.archivedAt || session.createdDate || session.createdAt;
 
-            // セッションIDから日付を抽出（session-1766499565748のような形式）
             if (!dateValue && session.id) {
                 const match = session.id.match(/session-(\d{13})/);
                 if (match) {
@@ -192,33 +138,12 @@ export class ArchiveModal {
             `;
         }).join('');
 
-        // Lucide icons初期化
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
 
-        // アクションボタンにイベントハンドラーをアタッチ
         this._attachListEventHandlers();
     }
 
-    /**
-     * イベントハンドラーをアタッチ
-     */
     _attachEventHandlers() {
-        // 閉じるボタン
-        const closeBtns = this.modalElement.querySelectorAll('.close-modal-btn');
-        closeBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.close());
-        });
-
-        // バックドロップクリック
-        this.modalElement.addEventListener('click', (e) => {
-            if (e.target === this.modalElement) {
-                this.close();
-            }
-        });
-
-        // 検索入力
         const searchInput = document.getElementById('archive-search');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
@@ -227,7 +152,6 @@ export class ArchiveModal {
             });
         }
 
-        // プロジェクトフィルター
         const projectFilterEl = document.getElementById('archive-project-filter');
         if (projectFilterEl) {
             projectFilterEl.addEventListener('change', (e) => {
@@ -237,11 +161,7 @@ export class ArchiveModal {
         }
     }
 
-    /**
-     * リスト内のイベントハンドラーをアタッチ
-     */
     _attachListEventHandlers() {
-        // Unarchive buttons
         const unarchiveBtns = this.modalElement.querySelectorAll('[data-action="unarchive"]');
         unarchiveBtns.forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -254,7 +174,6 @@ export class ArchiveModal {
             });
         });
 
-        // Delete buttons
         const deleteBtns = this.modalElement.querySelectorAll('[data-action="delete"]');
         deleteBtns.forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -272,11 +191,7 @@ export class ArchiveModal {
         });
     }
 
-    /**
-     * イベント購読設定
-     */
     _setupEventSubscriptions() {
-        // セッションが更新されたらリストを再レンダリング
         const unsub1 = eventBus.on(EVENTS.SESSION_UPDATED, () => {
             if (this.modalElement?.classList.contains('active')) {
                 this._renderList();
@@ -289,15 +204,7 @@ export class ArchiveModal {
             }
         });
 
-        this._unsubscribers.push(unsub1, unsub2);
-    }
-
-    /**
-     * クリーンアップ
-     */
-    unmount() {
-        this._unsubscribers.forEach(unsub => unsub());
-        this._unsubscribers = [];
-        this.modalElement = null;
+        this._addSubscription(unsub1);
+        this._addSubscription(unsub2);
     }
 }

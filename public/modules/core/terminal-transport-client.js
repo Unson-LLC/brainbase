@@ -291,6 +291,10 @@ export class TerminalTransportClient {
             });
 
             ws.addEventListener('close', (closeEvent) => {
+                if (this._connectToken !== connectToken || this.ws !== ws) {
+                    cleanup();
+                    return;
+                }
                 cleanup();
                 this._stopKeepalive();
                 this.status.connected = false;

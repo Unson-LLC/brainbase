@@ -1,15 +1,16 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
+import { escapeHtml, refreshIcons, formatDueDate } from '../../ui-helpers.js';
+import { BaseView } from './base-view.js';
 
 /**
  * NocoDBTasksView
  * NocoDBタスク一覧の表示コンポーネント
  */
-export class NocoDBTasksView {
+export class NocoDBTasksView extends BaseView {
     constructor({ nocodbTaskService }) {
+        super();
         this.service = nocodbTaskService;
-        this.container = null;
-        this.unsubscribers = [];
         this.members = [];  // メンバーリスト（担当者ドロップダウン用）
         this.selfFilterValue = '__self__';
         this.unassignedFilterValue = '__unassigned__';
@@ -25,42 +26,25 @@ export class NocoDBTasksView {
      * DOMコンテナにマウント
      * @param {HTMLElement} container - マウント先のコンテナ
      */
-    mount(container) {
-        this.container = container;
-        this._setupEventListeners();
-        this.render();
-    }
-
-    /**
-     * イベントリスナーの設定
-     */
     _setupEventListeners() {
-        // NocoDB タスク読み込み完了
-        const unsub1 = eventBus.on(EVENTS.NOCODB_TASKS_LOADED, () => {
-            this._updateProjectFilter();
-            this._updateAssigneeFilter();
-            this.render();
-        });
-
-        // NocoDB タスク更新
-        const unsub2 = eventBus.on(EVENTS.NOCODB_TASK_UPDATED, () => this.render());
-
-        // NocoDB タスク削除
-        const unsub3 = eventBus.on(EVENTS.NOCODB_TASK_DELETED, () => this.render());
-
-        // NocoDB エラー
-        const unsub4 = eventBus.on(EVENTS.NOCODB_TASK_ERROR, (event) => {
-            this._showError(event.detail?.error || 'エラーが発生しました');
-        });
-
-        const unsub5 = appStore.subscribe((change) => {
-            if (change.key === 'preferences') {
+        this._addSubscriptions(
+            eventBus.on(EVENTS.NOCODB_TASKS_LOADED, () => {
+                this._updateProjectFilter();
                 this._updateAssigneeFilter();
                 this.render();
-            }
-        });
-
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+            }),
+            eventBus.on(EVENTS.NOCODB_TASK_UPDATED, () => this.render()),
+            eventBus.on(EVENTS.NOCODB_TASK_DELETED, () => this.render()),
+            eventBus.on(EVENTS.NOCODB_TASK_ERROR, (event) => {
+                this._showError(event.detail?.error || 'エラーが発生しました');
+            }),
+            appStore.subscribe((change) => {
+                if (change.key === 'preferences') {
+                    this._updateAssigneeFilter();
+                    this.render();
+                }
+            })
+        );
     }
 
     /**
@@ -232,9 +216,7 @@ export class NocoDBTasksView {
                 <span>NocoDB タスクを読み込み中...</span>
             </div>
         `;
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**
@@ -245,15 +227,13 @@ export class NocoDBTasksView {
         this.container.innerHTML = `
             <div class="error-state">
                 <i data-lucide="alert-circle"></i>
-                <p>${this._escapeHtml(message)}</p>
+                <p>${escapeHtml(message)}</p>
                 <button class="btn-secondary btn-sm" onclick="document.getElementById('nocodb-sync-btn')?.click()">
                     再試行
                 </button>
             </div>
         `;
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**
@@ -286,18 +266,14 @@ export class NocoDBTasksView {
                     <p>担当タスクがありません</p>
                 </div>
             `;
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            refreshIcons();
             return;
         }
 
         this.container.innerHTML = tasks.map(task => this._renderTaskItem(task)).join('');
         this._attachStatusHandlers();
 
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**
@@ -320,9 +296,7 @@ export class NocoDBTasksView {
             });
         }
 
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 
     /**
@@ -342,7 +316,7 @@ export class NocoDBTasksView {
         return `
             <div class="nocodb-task-item ${statusClass}${isOverdue ? ' overdue' : ''}" data-task-id="${task.id}">
                 <div class="task-header">
-                    <span class="project-badge">${this._escapeHtml(task.projectName || task.project)}</span>
+                    <span class="project-badge">${escapeHtml(task.projectName || task.project)}</span>
                     <span class="priority-indicator">${priorityEmoji}</span>
                     <div class="nocodb-task-actions">
                         <button class="nocodb-task-action-btn nocodb-task-start-btn" data-task-id="${task.id}" title="セッションを開始">
@@ -356,7 +330,7 @@ export class NocoDBTasksView {
                         </button>
                     </div>
                 </div>
-                <div class="task-title">${this._escapeHtml(task.title)}</div>
+                <div class="task-title">${escapeHtml(task.title)}</div>
                 <div class="task-meta">
                     ${dueDateHtml}
                     <select class="task-status-select" data-task-id="${task.id}">
@@ -367,7 +341,7 @@ export class NocoDBTasksView {
                     <div class="assignee-combobox" data-task-id="${task.id}">
                         <button class="assignee-trigger" type="button">
                             <i data-lucide="user" class="assignee-icon"></i>
-                            <span class="assignee-value">${this._escapeHtml(task.assignee || '未割当')}</span>
+                            <span class="assignee-value">${escapeHtml(task.assignee || '未割当')}</span>
                             <i data-lucide="chevron-down" class="chevron-icon"></i>
                         </button>
                         <div class="assignee-popover" style="display: none;">
@@ -393,8 +367,8 @@ export class NocoDBTasksView {
 
         for (const name of this.members) {
             const isSelected = name === currentAssignee;
-            options += `<div class="assignee-option ${isSelected ? 'selected' : ''}" data-value="${this._escapeHtml(name)}">
-                <span class="option-text">${this._escapeHtml(name)}</span>
+            options += `<div class="assignee-option ${isSelected ? 'selected' : ''}" data-value="${escapeHtml(name)}">
+                <span class="option-text">${escapeHtml(name)}</span>
                 ${isSelected ? '<i data-lucide="check" class="check-icon"></i>' : ''}
             </div>`;
         }
@@ -404,13 +378,13 @@ export class NocoDBTasksView {
             options = `<div class="assignee-option" data-value="">
                 <span class="option-text">未割当</span>
             </div>
-            <div class="assignee-option selected" data-value="${this._escapeHtml(currentAssignee)}">
-                <span class="option-text">${this._escapeHtml(currentAssignee)} ⚠️</span>
+            <div class="assignee-option selected" data-value="${escapeHtml(currentAssignee)}">
+                <span class="option-text">${escapeHtml(currentAssignee)} ⚠️</span>
                 <i data-lucide="check" class="check-icon"></i>
             </div>`;
             for (const name of this.members) {
-                options += `<div class="assignee-option" data-value="${this._escapeHtml(name)}">
-                    <span class="option-text">${this._escapeHtml(name)}</span>
+                options += `<div class="assignee-option" data-value="${escapeHtml(name)}">
+                    <span class="option-text">${escapeHtml(name)}</span>
                 </div>`;
             }
         }
@@ -438,32 +412,8 @@ export class NocoDBTasksView {
     _formatDueDate(dueStr) {
         if (!dueStr) return '';
 
-        const due = new Date(dueStr);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        const dueDate = new Date(due);
-        dueDate.setHours(0, 0, 0, 0);
-
-        let text = '';
-        let isUrgent = false;
-
-        if (dueDate < today) {
-            text = '期限切れ';
-            isUrgent = true;
-        } else if (dueDate.getTime() === today.getTime()) {
-            text = '今日';
-            isUrgent = true;
-        } else if (dueDate.getTime() === tomorrow.getTime()) {
-            text = '明日';
-        } else {
-            const month = due.getMonth() + 1;
-            const day = due.getDate();
-            text = `${month}/${day}`;
-        }
+        const text = formatDueDate(dueStr);
+        const isUrgent = text === '期限切れ' || text === '今日';
 
         return `<span class="deadline ${isUrgent ? 'urgent' : ''}"><i data-lucide="calendar"></i> ${text}</span>`;
     }
@@ -613,25 +563,8 @@ export class NocoDBTasksView {
         });
     }
 
-    /**
-     * HTMLエスケープ
-     */
-    _escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
     /**
      * クリーンアップ
      */
-    unmount() {
-        this.unsubscribers.forEach(unsub => unsub());
-        this.unsubscribers = [];
-        if (this.container) {
-            this.container.innerHTML = '';
-            this.container = null;
-        }
-    }
 }

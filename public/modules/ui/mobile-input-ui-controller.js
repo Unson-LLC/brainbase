@@ -1,6 +1,7 @@
 import { appStore } from '../core/store.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { showError, showInfo, showSuccess } from '../toast.js';
+import { refreshIcons } from '../ui-helpers.js';
 import {
     findWordBoundaryLeft,
     findWordBoundaryRight
@@ -725,7 +726,7 @@ export class MobileInputUIController {
             if (terminalContentDisplay && copyTerminalModal) {
                 terminalContentDisplay.textContent = content;
                 copyTerminalModal.classList.add('active');
-                if (window.lucide) window.lucide.createIcons();
+                refreshIcons();
 
                 // Scroll to bottom
                 setTimeout(() => {

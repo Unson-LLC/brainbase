@@ -1,3 +1,5 @@
+import { refreshIcons } from './ui-helpers.js';
+
 // Confirm modal module
 
 const confirmModal = document.getElementById('confirm-modal');
@@ -109,10 +111,7 @@ export function showConfirm(message, options = {}) {
         confirmOkBtn.className = 'btn-primary';
     }
 
-    // Initialize lucide icon
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    refreshIcons();
 
     confirmModal.classList.add('active');
 
@@ -186,10 +185,7 @@ export function showConfirmWithAction(message, options = {}) {
         confirmOkBtn.className = 'btn-primary';
     }
 
-    // Initialize lucide icon
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    refreshIcons();
 
     confirmModal.classList.add('active');
 

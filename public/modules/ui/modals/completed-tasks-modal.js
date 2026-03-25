@@ -1,75 +1,40 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { getPriorityLabel } from '../../utils/task-filters.js';
+import { BaseModal } from './base-modal.js';
 
 /**
  * 完了タスク一覧モーダル
  */
-export class CompletedTasksModal {
+export class CompletedTasksModal extends BaseModal {
     constructor({ taskService }) {
+        super('completed-tasks-modal');
         this.taskService = taskService;
-        this.modalElement = null;
         this.dateFilter = null;  // null = 全期間, 7, 30, 90
-        this._unsubscribers = [];
     }
 
-    /**
-     * モーダルをマウント
-     */
-    mount() {
-        this.modalElement = document.getElementById('completed-tasks-modal');
-        if (!this.modalElement) {
-            console.warn('CompletedTasksModal: #completed-tasks-modal not found');
-            return;
-        }
-
-        this._attachEventHandlers();
-    }
-
-    /**
-     * モーダルを開く
-     */
     async open() {
         if (!this.modalElement) return;
 
-        // フィルターをリセット
         this.dateFilter = null;
         const filterSelect = document.getElementById('completed-date-filter');
         if (filterSelect) {
             filterSelect.value = '';
         }
 
-        // モーダルを表示（ローディング中も表示）
         this.modalElement.classList.add('active');
-
-        // リストを描画
         await this._renderList();
     }
 
-    /**
-     * モーダルを閉じる
-     */
-    close() {
-        if (!this.modalElement) return;
-
-        this.modalElement.classList.remove('active');
-    }
-
-    /**
-     * タスクを復活
-     * @param {string} taskId - 復活するタスクのID
-     */
     async restoreTask(taskId) {
         try {
             await this.taskService.restoreTask(taskId);
-            // リストを再描画
             await this._renderList();
         } catch (error) {
             console.error('Failed to restore task:', error);
         }
     }
 
-    /**
-     * リストを描画
-     */
     async _renderList() {
         const listElement = document.getElementById('completed-tasks-list');
         const emptyElement = document.getElementById('completed-tasks-empty');
@@ -86,7 +51,6 @@ export class CompletedTasksModal {
 
         if (emptyElement) emptyElement.style.display = 'none';
 
-        // 日付でグループ化
         const grouped = this._groupByDate(completedTasks);
 
         let html = '';
@@ -101,10 +65,10 @@ export class CompletedTasksModal {
                 html += `
                     <div class="completed-task-item" data-task-id="${task.id}">
                         <div class="completed-task-info">
-                            <div class="completed-task-name">${this._escapeHtml(taskName)}</div>
+                            <div class="completed-task-name">${escapeHtml(taskName)}</div>
                             <div class="completed-task-meta">
-                                ${project ? `<span class="task-project">${this._escapeHtml(project)}</span>` : ''}
-                                ${priority ? `<span class="task-priority priority-${priority}">${this._getPriorityLabel(priority)}</span>` : ''}
+                                ${project ? `<span class="task-project">${escapeHtml(project)}</span>` : ''}
+                                ${priority ? `<span class="task-priority priority-${priority}">${getPriorityLabel(priority)}</span>` : ''}
                             </div>
                         </div>
                         <button class="restore-task-btn btn-icon" title="復活">
@@ -118,12 +82,8 @@ export class CompletedTasksModal {
 
         listElement.innerHTML = html;
 
-        // Lucide iconsを初期化
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        refreshIcons();
 
-        // 復活ボタンにイベントを追加
         listElement.querySelectorAll('.restore-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const taskItem = e.target.closest('.completed-task-item');
@@ -135,11 +95,6 @@ export class CompletedTasksModal {
         });
     }
 
-    /**
-     * タスクを日付でグループ化
-     * @param {Array} tasks - タスク配列
-     * @returns {Object} 日付をキーとしたオブジェクト
-     */
     _groupByDate(tasks) {
         const grouped = {};
         const today = new Date().toISOString().split('T')[0];
@@ -165,49 +120,9 @@ export class CompletedTasksModal {
         return grouped;
     }
 
-    /**
-     * 優先度ラベルを取得
-     * @param {string} priority - 優先度
-     * @returns {string} ラベル
-     */
-    _getPriorityLabel(priority) {
-        const labels = {
-            high: '高',
-            medium: '中',
-            low: '低'
-        };
-        return labels[priority] || priority;
-    }
 
-    /**
-     * HTMLエスケープ
-     * @param {string} text - テキスト
-     * @returns {string} エスケープ済みテキスト
-     */
-    _escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
-    /**
-     * イベントハンドラーをアタッチ
-     */
     _attachEventHandlers() {
-        // 閉じるボタン
-        const closeBtns = this.modalElement.querySelectorAll('.close-modal-btn');
-        closeBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.close());
-        });
-
-        // バックドロップクリック
-        this.modalElement.addEventListener('click', (e) => {
-            if (e.target === this.modalElement) {
-                this.close();
-            }
-        });
-
-        // 日付フィルター変更
         const filterSelect = document.getElementById('completed-date-filter');
         if (filterSelect) {
             filterSelect.addEventListener('change', async (e) => {
@@ -217,21 +132,11 @@ export class CompletedTasksModal {
             });
         }
 
-        // TASK_COMPLETED イベントをリスン（モーダル表示中に更新）
         const unsub = eventBus.on(EVENTS.TASK_COMPLETED, async () => {
             if (this.modalElement?.classList.contains('active')) {
                 await this._renderList();
             }
         });
-        this._unsubscribers.push(unsub);
-    }
-
-    /**
-     * クリーンアップ
-     */
-    unmount() {
-        this._unsubscribers.forEach(unsub => unsub());
-        this._unsubscribers = [];
-        this.modalElement = null;
+        this._addSubscription(unsub);
     }
 }

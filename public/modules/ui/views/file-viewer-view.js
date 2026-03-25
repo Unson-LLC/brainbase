@@ -1,49 +1,27 @@
 import { appStore } from '../../core/store.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { BaseView } from './base-view.js';
 
 /**
  * ファイルビューアのUIコンポーネント
  * Markdownレンダリング / テキストプレビューを表示
  */
-export class FileViewerView {
+export class FileViewerView extends BaseView {
     constructor({ fileViewerService }) {
+        super();
         this.fileViewerService = fileViewerService;
         this.store = appStore;
-        this.container = null;
-        this._unsubscribers = [];
     }
 
-    /**
-     * DOMコンテナにマウント
-     * @param {HTMLElement} container
-     */
-    mount(container) {
-        this.container = container;
-
-        const unsub = this.store.subscribeToSelector(
-            (state) => state.fileViewer,
-            () => this.render()
+    _setupEventListeners() {
+        this._addSubscription(
+            this.store.subscribeToSelector(
+                (state) => state.fileViewer,
+                () => this.render()
+            )
         );
-        this._unsubscribers.push(unsub);
-
-        this.render();
     }
 
-    /**
-     * クリーンアップ
-     */
-    unmount() {
-        this._unsubscribers.forEach((unsub) => unsub());
-        this._unsubscribers = [];
-        if (this.container) {
-            this.container.innerHTML = '';
-            this.container = null;
-        }
-    }
-
-    /**
-     * レンダリング
-     */
     render() {
         if (!this.container) return;
 
@@ -82,16 +60,12 @@ export class FileViewerView {
             </div>
         `;
 
-        // Bind back button
         const backBtn = this.container.querySelector('.file-viewer-back');
         if (backBtn) {
             backBtn.addEventListener('click', () => {
                 this.fileViewerService.close();
             });
         }
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
+        refreshIcons();
     }
 }

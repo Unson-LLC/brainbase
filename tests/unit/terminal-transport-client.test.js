@@ -318,4 +318,80 @@ describe('terminal-transport-client', () => {
 
     expect(terminal.write).toHaveBeenCalledWith('\u001b[32mhello\u001b[0m');
   });
+
+  it('古いWebSocketのcloseイベントでは現在のlive状態を上書きしない', async () => {
+    const sockets = [];
+
+    class MockWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+
+      constructor(url) {
+        this.url = url;
+        this.readyState = MockWebSocket.OPEN;
+        this.listeners = new Map();
+        sockets.push(this);
+      }
+
+      addEventListener(type, listener) {
+        const current = this.listeners.get(type) || [];
+        current.push(listener);
+        this.listeners.set(type, current);
+      }
+
+      send() {}
+
+      close() {
+        this.readyState = 3;
+        this._emit('close', { code: 1006 });
+      }
+
+      _emit(type, event) {
+        for (const listener of this.listeners.get(type) || []) {
+          listener(event);
+        }
+      }
+    }
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'http:', host: 'localhost:31013', hostname: 'localhost' }
+    });
+    vi.stubGlobal('WebSocket', MockWebSocket);
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.fitAddon = { fit: vi.fn() };
+    client.terminal = { cols: 98, rows: 32 };
+
+    const firstConnect = client.connect('session-1');
+    const firstSocket = sockets[0];
+    firstSocket._emit('message', {
+      data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
+    });
+    firstSocket._emit('message', {
+      data: JSON.stringify({ type: 'status', mode: 'live', transport: 'streaming', copyMode: false })
+    });
+    await firstConnect;
+
+    const secondConnect = client.connect('session-1');
+    const secondSocket = sockets[1];
+
+    secondSocket._emit('message', {
+      data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
+    });
+    secondSocket._emit('message', {
+      data: JSON.stringify({ type: 'status', mode: 'live', transport: 'streaming', copyMode: false })
+    });
+    await secondConnect;
+
+    expect(client.status.mode).toBe('live');
+
+    firstSocket._emit('close', { code: 1006 });
+
+    expect(client.status.mode).toBe('live');
+
+    secondSocket._emit('close', { code: 1000 });
+  });
 });

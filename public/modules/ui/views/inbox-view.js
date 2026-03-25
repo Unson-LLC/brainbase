@@ -1,5 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * Inbox（通知）表示のUIコンポーネント
@@ -154,16 +155,16 @@ export class InboxView {
 
         if (this.inboxListEl) {
             this.inboxListEl.innerHTML = this.inboxItems.map(item => {
-                const escapedId = this._escapeHtml(item.id || '');
-                const sender = this._escapeHtml(item.sender || '');
-                const channel = this._escapeHtml(item.channel || '');
+                const escapedId = escapeHtml(item.id || '');
+                const sender = escapeHtml(item.sender || '');
+                const channel = escapeHtml(item.channel || '');
                 // Slack ID（<@U07B19N048G>）を人名に変換してからエスケープ
                 const convertedMessage = this._convertSlackMentions(item.message || '');
-                const message = this._escapeHtml(convertedMessage);
-                const slackUrl = this._escapeHtml(item.slackUrl || '');
+                const message = escapeHtml(convertedMessage);
+                const slackUrl = escapeHtml(item.slackUrl || '');
                 // 日付と時刻（APIから取得、なければタイトルから抽出）
-                const date = this._escapeHtml(item.date || '');
-                const time = this._escapeHtml(item.time || '');
+                const date = escapeHtml(item.date || '');
+                const time = escapeHtml(item.time || '');
                 const datetime = date && time ? `${date} ${time}` : (date || time || '');
 
                 return `
@@ -191,21 +192,11 @@ export class InboxView {
             });
 
             // Re-init lucide icons
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            refreshIcons();
         }
     }
 
 
-    /**
-     * HTMLエスケープ
-     */
-    _escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
     /**
      * クリーンアップ

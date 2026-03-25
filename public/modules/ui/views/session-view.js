@@ -7,7 +7,7 @@ import { deriveSessionUiState } from '../../session-ui-state.js';
 import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * セッション表示のUIコンポーネント
@@ -126,9 +126,7 @@ export class SessionView {
                 enableDrag
             });
             currentRow.replaceWith(nextRow);
-            if (window.lucide) {
-                window.lucide.createIcons({ root: nextRow });
-            }
+            refreshIcons({ root: nextRow });
         }
     }
 
@@ -262,9 +260,7 @@ export class SessionView {
         }
 
         // Lucideアイコンを初期化
-        if (window.lucide) {
-            window.lucide.createIcons({ root: this.container });
-        }
+        refreshIcons({ root: this.container });
     }
 
     /**
@@ -432,7 +428,7 @@ export class SessionView {
             const icon = header.querySelector('i');
             if (icon) {
                 icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'chevron-right' : 'chevron-down');
-                if (window.lucide) window.lucide.createIcons();
+                refreshIcons();
             }
         });
 
@@ -478,7 +474,7 @@ export class SessionView {
                 projectSessionsDiv.style.display = isCurrentlyExpanded ? 'none' : 'block';
                 const icon = headerEl.querySelector('.folder-icon i');
                 icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'folder' : 'folder-open');
-                if (window.lucide) window.lucide.createIcons();
+                refreshIcons();
             }
         });
 

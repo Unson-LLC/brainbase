@@ -1,72 +1,44 @@
+import { appStore } from '../../core/store.js';
+import { BaseModal } from './base-modal.js';
+
+const ERROR_ID = 'add-task-error';
+
 /**
  * タスク追加モーダル
  */
-import { appStore } from '../../core/store.js';
-
-export class TaskAddModal {
+export class TaskAddModal extends BaseModal {
     constructor({ taskService, nocodbTaskService }) {
+        super('add-task-modal');
         this.taskService = taskService;
         this.nocodbTaskService = nocodbTaskService;
-        this.modalElement = null;
-        this._unsubscribers = [];
         this.mode = 'local';
         this.projects = [];
         this.nocodbProjects = [];
         this._configLoaded = false;
     }
 
-    /**
-     * モーダルをマウント
-     */
-    mount() {
-        this.modalElement = document.getElementById('add-task-modal');
-        if (!this.modalElement) {
-            console.warn('TaskAddModal: #add-task-modal not found');
-            return;
-        }
-
-        this._attachEventHandlers();
-    }
-
-    /**
-     * モーダルを開く
-     */
     async open({ mode = 'local' } = {}) {
         if (!this.modalElement) return;
 
         this.mode = mode;
         this._setModalTitle();
-
-        // フォームをクリア
         await this._clearForm();
-
-        // モーダルを表示
         this.modalElement.classList.add('active');
 
-        // タイトル入力にフォーカス
         const titleInput = document.getElementById('add-task-title');
         if (titleInput) {
             setTimeout(() => titleInput.focus(), 100);
         }
     }
 
-    /**
-     * モーダルを閉じる
-     */
     close() {
-        if (!this.modalElement) return;
-
-        this.modalElement.classList.remove('active');
+        super.close();
         this._clearForm();
     }
 
-    /**
-     * フォームをクリア
-     */
     async _clearForm() {
         const titleInput = document.getElementById('add-task-title');
         const assigneeInput = document.getElementById('add-task-assignee');
-        const projectInput = document.getElementById('add-task-project');
         const priorityInput = document.getElementById('add-task-priority');
         const dueInput = document.getElementById('add-task-due');
         const descriptionInput = document.getElementById('add-task-description');
@@ -78,13 +50,9 @@ export class TaskAddModal {
         if (dueInput) dueInput.value = this._getDefaultDueDate();
         if (descriptionInput) descriptionInput.value = '';
 
-        // エラー表示をクリア
-        this._hideError();
+        this._hideError(ERROR_ID);
     }
 
-    /**
-     * タスクを保存
-     */
     async save() {
         const titleInput = document.getElementById('add-task-title');
         const assigneeInput = document.getElementById('add-task-assignee');
@@ -98,9 +66,8 @@ export class TaskAddModal {
         let priority = priorityInput?.value || '';
         let due = dueInput?.value || '';
 
-        // バリデーション
         if (!title) {
-            this._showError('タスク名は必須です');
+            this._showError(ERROR_ID, 'タスク名は必須です');
             titleInput?.focus();
             return;
         }
@@ -117,19 +84,19 @@ export class TaskAddModal {
             if (dueInput) dueInput.value = due;
         }
         if (!assignee) {
-            this._showError('担当者は必須です');
+            this._showError(ERROR_ID, '担当者は必須です');
             assigneeInput?.focus();
             return;
         }
         if (!due) {
-            this._showError('期限は必須です');
+            this._showError(ERROR_ID, '期限は必須です');
             dueInput?.focus();
             return;
         }
 
         const project = projectInput?.value || (this.mode === 'nocodb' ? '' : 'general');
         if (!project) {
-            this._showError('プロジェクトは必須です');
+            this._showError(ERROR_ID, 'プロジェクトは必須です');
             projectInput?.focus();
             return;
         }
@@ -160,89 +127,30 @@ export class TaskAddModal {
             this.close();
         } catch (error) {
             console.error('Failed to create task:', error);
-            this._showError('タスクの作成に失敗しました');
+            this._showError(ERROR_ID, 'タスクの作成に失敗しました');
         }
     }
 
-    /**
-     * エラーを表示
-     * @param {string} message - エラーメッセージ
-     */
-    _showError(message) {
-        const errorElement = document.getElementById('add-task-error');
-        if (errorElement) {
-            errorElement.textContent = message;
-            errorElement.style.display = 'block';
-        }
-    }
-
-    /**
-     * エラーを非表示
-     */
-    _hideError() {
-        const errorElement = document.getElementById('add-task-error');
-        if (errorElement) {
-            errorElement.textContent = '';
-            errorElement.style.display = 'none';
-        }
-    }
-
-    /**
-     * イベントハンドラーをアタッチ
-     */
     _attachEventHandlers() {
-        // 閉じるボタン
-        const closeBtns = this.modalElement.querySelectorAll('.close-modal-btn');
-        closeBtns.forEach(btn => {
-            btn.addEventListener('click', () => this.close());
-        });
-
-        // 保存ボタン
         const saveBtn = document.getElementById('save-add-task-btn');
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }
 
-        // バックドロップクリック
-        this.modalElement.addEventListener('click', (e) => {
-            if (e.target === this.modalElement) {
-                this.close();
-            }
-        });
-
-        // Enterキーで保存（タイトル入力欄）
-        // IME変換中（isComposing）はスキップ
-        const titleInput = document.getElementById('add-task-title');
-        if (titleInput) {
-            titleInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-                    e.preventDefault();
-                    this.save();
-                }
-            });
-        }
+        this._attachEnterKeyHandler('add-task-title', () => this.save());
     }
 
-    /**
-     * モーダルタイトルを更新
-     */
     _setModalTitle() {
         const titleEl = document.getElementById('add-task-modal-title');
         if (!titleEl) return;
         titleEl.textContent = this.mode === 'nocodb' ? 'プロジェクトタスク追加' : 'ローカルタスク追加';
     }
 
-    /**
-     * デフォルト担当者名を取得
-     */
     _getDefaultAssignee() {
         const assignee = appStore.getState().preferences?.user?.assignee?.trim();
         return assignee || '自分';
     }
 
-    /**
-     * 1週間後の期限日を取得
-     */
     _getDefaultDueDate() {
         const date = new Date();
         date.setDate(date.getDate() + 7);
@@ -252,9 +160,6 @@ export class TaskAddModal {
         return `${year}-${month}-${day}`;
     }
 
-    /**
-     * プロジェクト一覧を読み込み
-     */
     async _loadProjects() {
         if (this._configLoaded) return;
 
@@ -275,9 +180,6 @@ export class TaskAddModal {
         }
     }
 
-    /**
-     * プロジェクト選択肢を更新
-     */
     async _populateProjectSelect() {
         const projectInput = document.getElementById('add-task-project');
         if (!projectInput) return;
@@ -322,14 +224,5 @@ export class TaskAddModal {
                 ? (list[0]?.id || '')
                 : 'general';
         }
-    }
-
-    /**
-     * クリーンアップ
-     */
-    unmount() {
-        this._unsubscribers.forEach(unsub => unsub());
-        this._unsubscribers = [];
-        this.modalElement = null;
     }
 }

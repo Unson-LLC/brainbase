@@ -1,3 +1,5 @@
+import { refreshIcons } from './ui-helpers.js';
+
 // Toast notification module
 
 const toastContainer = document.getElementById('toast-container');
@@ -27,10 +29,7 @@ export function showToast(message, type = 'info', duration = 3000) {
 
     toastContainer.appendChild(toast);
 
-    // Initialize lucide icon
-    if (window.lucide) {
-        window.lucide.createIcons({ icons: { [ICONS[type]]: true }, nameAttr: 'data-lucide' });
-    }
+    refreshIcons({ icons: { [ICONS[type]]: true }, nameAttr: 'data-lucide' });
 
     // Auto remove
     setTimeout(() => {

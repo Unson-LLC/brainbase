@@ -2,7 +2,7 @@
  * Live Feed View
  * EventBusイベントのリアルタイムフィード表示
  */
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 export class LiveFeedView {
     constructor({ liveFeedService, service, eventBus, container }) {
@@ -59,9 +59,7 @@ export class LiveFeedView {
             list.lastElementChild.remove();
         }
 
-        if (typeof window.lucide !== 'undefined') {
-            window.lucide.createIcons({ nodes: [el] });
-        }
+        refreshIcons({ nodes: [el] });
     }
 
     _render() {
@@ -84,9 +82,7 @@ export class LiveFeedView {
             <div class="live-feed-list">${entriesHtml}</div>
         </div>`;
 
-        if (typeof window.lucide !== 'undefined') {
-            window.lucide.createIcons({ nodes: [this._container] });
-        }
+        refreshIcons({ nodes: [this._container] });
     }
 
     unmount() {

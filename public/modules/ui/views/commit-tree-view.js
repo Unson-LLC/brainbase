@@ -6,6 +6,7 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { escapeHtml } from '../../ui-helpers.js';
+import { BaseView } from './base-view.js';
 
 const LANE_W = 16;
 const DOT_R = 4;
@@ -24,19 +25,12 @@ const COLORS = [
     '#e6c999', // lighter burlywood
 ];
 
-export class CommitTreeView {
+export class CommitTreeView extends BaseView {
     constructor({ commitTreeService }) {
+        super();
         this.commitTreeService = commitTreeService;
-        this.container = null;
-        this._unsubscribers = [];
         this._pendingSessionId = null;
         this._pollInterval = null;
-    }
-
-    mount(container) {
-        this.container = container;
-        this._setupEventListeners();
-        this.render();
     }
 
     _setupEventListeners() {
@@ -323,12 +317,10 @@ export class CommitTreeView {
     }
 
     unmount() {
-        this._unsubscribers.forEach(fn => fn());
-        this._unsubscribers = [];
         if (this._pollInterval) {
             clearInterval(this._pollInterval);
             this._pollInterval = null;
         }
-        if (this.container) this.container.innerHTML = '';
+        super.unmount();
     }
 }

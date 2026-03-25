@@ -1,3 +1,6 @@
+import { asyncHandler } from '../lib/async-handler.js';
+import { AppError, ErrorCodes } from '../lib/errors.js';
+
 /**
  * TimelineController
  * タイムライン関連のHTTPリクエスト処理
@@ -7,134 +10,73 @@ export class TimelineController {
         this.storage = timelineStorage;
     }
 
-    /**
-     * GET /api/timeline/today
-     * 今日のタイムラインを取得
-     */
-    getToday = async (req, res) => {
-        try {
-            const timeline = await this.storage.getTodayTimeline();
-            res.json(timeline);
-        } catch (error) {
-            console.error('Failed to get today\'s timeline:', error);
-            res.status(500).json({ error: error.message || 'Failed to get timeline' });
+    /** GET /api/timeline/today */
+    getToday = asyncHandler(async (req, res) => {
+        const timeline = await this.storage.getTodayTimeline();
+        res.json(timeline);
+    });
+
+    /** GET /api/timeline */
+    getByDate = asyncHandler(async (req, res) => {
+        const { date } = req.query;
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            throw new AppError('Invalid date format. Use YYYY-MM-DD', ErrorCodes.INVALID_DATE_FORMAT);
         }
-    };
+        const timeline = await this.storage.loadTimeline(date);
+        res.json(timeline);
+    });
 
-    /**
-     * GET /api/timeline
-     * 指定日のタイムラインを取得
-     */
-    getByDate = async (req, res) => {
-        try {
-            const { date } = req.query;
-            if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-                return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
-            }
-            const timeline = await this.storage.loadTimeline(date);
-            res.json(timeline);
-        } catch (error) {
-            console.error('Failed to get timeline:', error);
-            res.status(500).json({ error: error.message || 'Failed to get timeline' });
+    /** GET /api/timeline/:id */
+    getItem = asyncHandler(async (req, res) => {
+        const item = await this.storage.getItem(req.params.id);
+        if (!item) {
+            throw new AppError('Timeline item not found', ErrorCodes.TASK_NOT_FOUND);
         }
-    };
+        res.json(item);
+    });
 
-    /**
-     * GET /api/timeline/:id
-     * 指定IDの項目を取得
-     */
-    getItem = async (req, res) => {
-        try {
-            const { id } = req.params;
-            const item = await this.storage.getItem(id);
-            if (!item) {
-                return res.status(404).json({ error: 'Timeline item not found' });
-            }
-            res.json(item);
-        } catch (error) {
-            console.error('Failed to get timeline item:', error);
-            res.status(500).json({ error: error.message || 'Failed to get timeline item' });
+    /** POST /api/timeline */
+    create = asyncHandler(async (req, res) => {
+        const item = req.body;
+
+        if (!item.type || !item.title) {
+            throw AppError.validation('type and title are required');
         }
-    };
 
-    /**
-     * POST /api/timeline
-     * タイムライン項目を作成
-     */
-    create = async (req, res) => {
-        try {
-            const item = req.body;
-
-            // バリデーション
-            if (!item.type || !item.title) {
-                return res.status(400).json({ error: 'type and title are required' });
+        const result = await this.storage.addItem(item);
+        if (!result.success) {
+            if (result.reason === 'duplicate') {
+                throw AppError.conflict('Duplicate item');
             }
-
-            const result = await this.storage.addItem(item);
-            if (!result.success) {
-                if (result.reason === 'duplicate') {
-                    return res.status(409).json({ error: 'Duplicate item', reason: result.reason });
-                }
-                return res.status(400).json({ error: 'Failed to create item', reason: result.reason });
-            }
-
-            res.status(201).json(result.item);
-        } catch (error) {
-            console.error('Failed to create timeline item:', error);
-            res.status(500).json({ error: error.message || 'Failed to create timeline item' });
+            throw AppError.validation(`Failed to create item: ${result.reason}`);
         }
-    };
 
-    /**
-     * PUT /api/timeline/:id
-     * タイムライン項目を更新
-     */
-    update = async (req, res) => {
-        try {
-            const { id } = req.params;
-            const updates = req.body;
+        res.status(201).json(result.item);
+    });
 
-            const result = await this.storage.updateItem(id, updates);
-            if (!result.success) {
-                if (result.reason === 'not_found') {
-                    return res.status(404).json({ error: 'Timeline item not found' });
-                }
-                if (result.reason === 'invalid_id') {
-                    return res.status(400).json({ error: 'Invalid item ID' });
-                }
-                return res.status(400).json({ error: 'Failed to update item', reason: result.reason });
+    /** PUT /api/timeline/:id */
+    update = asyncHandler(async (req, res) => {
+        const result = await this.storage.updateItem(req.params.id, req.body);
+        if (!result.success) {
+            if (result.reason === 'not_found') {
+                throw new AppError('Timeline item not found', ErrorCodes.TASK_NOT_FOUND);
             }
-
-            res.json(result.item);
-        } catch (error) {
-            console.error('Failed to update timeline item:', error);
-            res.status(500).json({ error: error.message || 'Failed to update timeline item' });
+            throw AppError.validation(`Failed to update item: ${result.reason}`);
         }
-    };
 
-    /**
-     * DELETE /api/timeline/:id
-     * タイムライン項目を削除
-     */
-    delete = async (req, res) => {
-        try {
-            const { id } = req.params;
+        res.json(result.item);
+    });
 
-            const result = await this.storage.deleteItem(id);
-            if (!result.success) {
-                if (result.reason === 'not_found') {
-                    return res.status(404).json({ error: 'Timeline item not found' });
-                }
-                if (result.reason === 'invalid_id') {
-                    return res.status(400).json({ error: 'Invalid item ID' });
-                }
-                return res.status(400).json({ error: 'Failed to delete item', reason: result.reason });
+    /** DELETE /api/timeline/:id */
+    delete = asyncHandler(async (req, res) => {
+        const result = await this.storage.deleteItem(req.params.id);
+        if (!result.success) {
+            if (result.reason === 'not_found') {
+                throw new AppError('Timeline item not found', ErrorCodes.TASK_NOT_FOUND);
             }
-
-            res.status(204).send();
-        } catch (error) {
-            console.error('Failed to delete timeline item:', error);
-            res.status(500).json({ error: error.message || 'Failed to delete timeline item' });
+            throw AppError.validation(`Failed to delete item: ${result.reason}`);
         }
-    };
+
+        res.status(204).send();
+    });
 }
