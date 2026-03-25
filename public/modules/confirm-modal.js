@@ -22,12 +22,6 @@ const hasConfirmModal = Boolean(
 
 let resolvePromise = null;
 let confirmResponseMode = 'boolean';
-let pendingAiClipboardText = null;
-
-function setClipboardGuard(durationMs = 2000) {
-    if (typeof window === 'undefined') return;
-    window.__brainbaseClipboardGuardUntil = Date.now() + durationMs;
-}
 
 // Setup event listeners
 if (hasConfirmModal) {
@@ -48,77 +42,11 @@ if (hasConfirmModal) {
 
     // AI button event listener (for archive with AI check)
     if (confirmAiBtn) {
-        confirmAiBtn.addEventListener('click', async () => {
+        confirmAiBtn.addEventListener('click', () => {
             console.info('[ArchiveAI] AI confirm button clicked');
-            const delivery = await tryCopyAiClipboardText();
-            if (delivery?.mode === 'manual') {
-                console.warn('[ArchiveAI] Clipboard copy failed; showing manual copy fallback');
-                showManualCopyFallback(delivery.prompt);
-                return;
-            }
-            console.info('[ArchiveAI] AI confirm button resolved with delivery:', delivery?.mode || 'none');
-            closeConfirm(delivery ? { action: 'ai', delivery } : { action: 'ai' });
+            closeConfirm({ action: 'ai' });
         });
     }
-}
-
-async function tryCopyAiClipboardText() {
-    if (!pendingAiClipboardText) {
-        console.warn('[ArchiveAI] No pending clipboard text was set');
-        return null;
-    }
-
-    try {
-        if (navigator?.clipboard?.writeText) {
-            console.info('[ArchiveAI] Attempting navigator.clipboard.writeText');
-            await navigator.clipboard.writeText(pendingAiClipboardText);
-            setClipboardGuard();
-            console.info('[ArchiveAI] navigator.clipboard.writeText succeeded');
-            return { mode: 'clipboard' };
-        }
-        console.warn('[ArchiveAI] navigator.clipboard.writeText is unavailable');
-    } catch (error) {
-        console.warn('[ArchiveAI] navigator.clipboard.writeText failed:', error);
-    }
-
-    if (copyTextWithExecCommand(pendingAiClipboardText)) {
-        setClipboardGuard();
-        console.info('[ArchiveAI] document.execCommand("copy") succeeded');
-        return { mode: 'clipboard' };
-    }
-
-    return {
-        mode: 'manual',
-        prompt: pendingAiClipboardText
-    };
-}
-
-function copyTextWithExecCommand(text) {
-    if (!confirmManualCopyText || typeof document.execCommand !== 'function') {
-        console.warn('[ArchiveAI] document.execCommand("copy") is unavailable');
-        return false;
-    }
-
-    try {
-        confirmManualCopyText.value = text;
-        confirmManualCopyText.focus();
-        confirmManualCopyText.select();
-        confirmManualCopyText.setSelectionRange(0, text.length);
-        return document.execCommand('copy');
-    } catch (error) {
-        console.warn('[ArchiveAI] document.execCommand("copy") failed:', error);
-        return false;
-    }
-}
-
-function showManualCopyFallback(text) {
-    if (!confirmManualCopy || !confirmManualCopyText) return;
-    console.info('[ArchiveAI] Showing manual copy fallback UI');
-    confirmManualCopyText.value = text;
-    confirmManualCopy.classList.remove('hidden');
-    confirmManualCopyText.focus();
-    confirmManualCopyText.select();
-    confirmManualCopyText.setSelectionRange(0, text.length);
 }
 
 function closeConfirm(result) {
@@ -141,7 +69,6 @@ function closeConfirm(result) {
     const resolver = resolvePromise;
     resolvePromise = null;
     confirmResponseMode = 'boolean';
-    pendingAiClipboardText = null;
     if (resolver) {
         resolver(result);
     }
@@ -172,7 +99,6 @@ export function showConfirm(message, options = {}) {
         danger = true
     } = options;
     confirmResponseMode = 'boolean';
-    pendingAiClipboardText = null;
     confirmModal.classList.remove('confirm-modal--action');
     if (confirmManualCopy) {
         confirmManualCopy.classList.add('hidden');
@@ -220,7 +146,7 @@ export function showConfirm(message, options = {}) {
  * @param {string} options.cancelText - Cancel button text (default: 'キャンセル')
  * @param {string} options.actionText - Action button text (default: 'アクション')
  * @param {string} options.aiActionText - AI action button text (optional, enables 4-button mode)
- * @param {string|null} options.aiClipboardText - AI action click中にclipboardへ入れるテキスト
+ * @param {string|null} options.aiClipboardText - Deprecated: browser clipboard fallback用の互換オプション
  * @param {boolean} options.danger - Use danger button style for OK (default: true)
  * @returns {Promise<{action: 'ok'|'cancel'|'action'|'ai'}>} - Resolves to action type
  */
@@ -244,7 +170,6 @@ export function showConfirmWithAction(message, options = {}) {
         danger = true
     } = options;
     confirmResponseMode = 'action';
-    pendingAiClipboardText = aiClipboardText;
     confirmModal.classList.add('confirm-modal--action');
     if (confirmManualCopy) {
         confirmManualCopy.classList.add('hidden');

@@ -23,13 +23,7 @@ describe('confirm-modal', () => {
         vi.resetModules();
     });
 
-    it('showConfirmWithAction呼び出し時_AIボタンクリック中にclipboardへ書き込む', async () => {
-        const writeText = vi.fn().mockResolvedValue(undefined);
-        Object.defineProperty(navigator, 'clipboard', {
-            value: { writeText },
-            configurable: true
-        });
-
+    it('showConfirmWithAction呼び出し時_AIボタンクリックでaiアクションを返す', async () => {
         const { showConfirmWithAction } = await import('../../public/modules/confirm-modal.js');
 
         const promise = showConfirmWithAction('message', {
@@ -44,24 +38,14 @@ describe('confirm-modal', () => {
         document.getElementById('confirm-ai-btn').click();
 
         await expect(promise).resolves.toEqual({
-            action: 'ai',
-            delivery: { mode: 'clipboard' }
+            action: 'ai'
         });
-        expect(writeText).toHaveBeenCalledWith('prompt text');
     });
 
-    it('showConfirmWithAction呼び出し時_clipboard失敗なら手動コピー欄を表示する', async () => {
-        Object.defineProperty(navigator, 'clipboard', {
-            value: {
-                writeText: vi.fn().mockRejectedValue(new Error('denied'))
-            },
-            configurable: true
-        });
-        document.execCommand = vi.fn().mockReturnValue(false);
-
+    it('showConfirmWithAction呼び出し時_AIボタンクリックでもモーダルは通常どおり閉じる', async () => {
         const { showConfirmWithAction } = await import('../../public/modules/confirm-modal.js');
 
-        void showConfirmWithAction('message', {
+        const promise = showConfirmWithAction('message', {
             title: '確認',
             okText: 'OK',
             cancelText: 'Cancel',
@@ -71,10 +55,7 @@ describe('confirm-modal', () => {
         });
 
         document.getElementById('confirm-ai-btn').click();
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
-        expect(document.getElementById('confirm-modal').classList.contains('active')).toBe(true);
-        expect(document.getElementById('confirm-manual-copy').classList.contains('hidden')).toBe(false);
-        expect(document.getElementById('confirm-manual-copy-text').value).toBe('prompt text');
+        await expect(promise).resolves.toEqual({ action: 'ai' });
+        expect(document.getElementById('confirm-modal').classList.contains('active')).toBe(false);
     });
 });

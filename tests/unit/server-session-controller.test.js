@@ -196,7 +196,7 @@ describe('SessionController (Server)', () => {
         cwd: '/tmp/session-restart',
         engine: 'codex'
       }));
-      expect(mockRes.json).toHaveBeenCalledWith({
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         port: 40101,
         proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
         terminalAccess: {
@@ -205,7 +205,7 @@ describe('SessionController (Server)', () => {
           ownerLastSeenAt: null,
           canTakeover: false
         }
-      });
+      }));
     });
 
     it('別viewerのstart呼び出し時_409 blockedを返す', async () => {
@@ -276,6 +276,7 @@ describe('SessionController (Server)', () => {
       expect(mockRes.json).toHaveBeenCalledWith({
         sessionId,
         runtimeStatus: {
+          interactiveUrl: `/console/${sessionId}/?viewerId=viewer-1`,
           ttydRunning: true,
           needsRestart: false,
           proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
@@ -1046,6 +1047,202 @@ describe('SessionController (Server)', () => {
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
         error: 'Session not found'
+      }));
+    });
+  });
+
+  describe('getFileContent', () => {
+    it('workspace root relative path を開ける', async () => {
+      const workspaceRoot = path.join(tempDir, 'workspace');
+      const filePath = path.join(workspaceRoot, 'tests/unit/iframe-contextmenu-handler.test.js');
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, 'export const ok = true;\n');
+
+      mockStateStore.get.mockReturnValue({
+        sessions: [{ id: 'session-1', path: workspaceRoot, intendedState: 'active' }]
+      });
+
+      await sessionController.getFileContent({
+        params: { id: 'session-1' },
+        query: { path: 'tests/unit/iframe-contextmenu-handler.test.js' }
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-1',
+        relativePath: 'tests/unit/iframe-contextmenu-handler.test.js',
+        fileName: 'iframe-contextmenu-handler.test.js',
+        content: 'export const ok = true;\n',
+        isMarkdown: false
+      }));
+    });
+
+    it('repo名つきの workspace 相対パスも開ける', async () => {
+      const workspaceRoot = path.join(tempDir, 'brainbase');
+      const filePath = path.join(workspaceRoot, 'scripts/ensure_session_runtime.sh');
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, '#!/usr/bin/env bash\n');
+
+      mockStateStore.get.mockReturnValue({
+        sessions: [{ id: 'session-1', path: workspaceRoot, intendedState: 'active' }]
+      });
+
+      await sessionController.getFileContent({
+        params: { id: 'session-1' },
+        query: { path: 'brainbase/scripts/ensure_session_runtime.sh' }
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-1',
+        relativePath: 'scripts/ensure_session_runtime.sh',
+        fileName: 'ensure_session_runtime.sh',
+        content: '#!/usr/bin/env bash\n',
+        isMarkdown: false
+      }));
+    });
+
+    it('workspace 内の絶対パスとホーム相対パスを開ける', async () => {
+      const homeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'bb-home-'));
+      const homeSpy = vi.spyOn(os, 'homedir').mockReturnValue(homeRoot);
+      const workspaceRoot = path.join(homeRoot, 'workspace');
+      const filePath = path.join(workspaceRoot, 'public/modules/iframe-contextmenu-handler.js');
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, 'export const linked = true;\n');
+
+      mockStateStore.get.mockReturnValue({
+        sessions: [{ id: 'session-1', path: workspaceRoot, intendedState: 'active' }]
+      });
+
+      await sessionController.getFileContent({
+        params: { id: 'session-1' },
+        query: { path: filePath }
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenLastCalledWith(expect.objectContaining({
+        relativePath: 'public/modules/iframe-contextmenu-handler.js',
+        fileName: 'iframe-contextmenu-handler.js'
+      }));
+
+      mockRes.json.mockClear();
+      mockRes.status.mockClear();
+
+      await sessionController.getFileContent({
+        params: { id: 'session-1' },
+        query: { path: '~/workspace/public/modules/iframe-contextmenu-handler.js' }
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        relativePath: 'public/modules/iframe-contextmenu-handler.js',
+        fileName: 'iframe-contextmenu-handler.js'
+      }));
+
+      homeSpy.mockRestore();
+      await fs.rm(homeRoot, { recursive: true, force: true });
+    });
+
+    it('workspace に無い場合_repo candidate にフォールバックして開ける', async () => {
+      const projectsRoot = path.join(tempDir, 'projects');
+      const codeProjectsRoot = path.join(tempDir, 'code');
+      const workspaceRoot = path.join(tempDir, 'worktrees', 'session-1-brainbase');
+      const fallbackRepoPath = path.join(codeProjectsRoot, 'brainbase');
+      const filePath = path.join(fallbackRepoPath, 'tests/unit/iframe-contextmenu-handler.test.js');
+      const controller = new SessionController(
+        mockSessionManager,
+        mockWorktreeService,
+        mockStateStore,
+        { projectsRoot, codeProjectsRoot }
+      );
+
+      await fs.mkdir(workspaceRoot, { recursive: true });
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, 'export const fallback = true;\n');
+
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-1',
+          path: workspaceRoot,
+          worktree: {
+            path: workspaceRoot,
+            repo: path.join(projectsRoot, 'brainbase')
+          },
+          intendedState: 'active'
+        }]
+      });
+      mockWorktreeService._isJujutsuRepo.mockResolvedValue(false);
+
+      await controller.getFileContent({
+        params: { id: 'session-1' },
+        query: { path: 'tests/unit/iframe-contextmenu-handler.test.js' }
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-1',
+        relativePath: 'tests/unit/iframe-contextmenu-handler.test.js',
+        fileName: 'iframe-contextmenu-handler.test.js',
+        content: 'export const fallback = true;\n',
+        isMarkdown: false
+      }));
+    });
+  });
+
+  describe('askAiIntegration', () => {
+    it('server側clipboard成功時_copiedByServerとclipboardMethodを返す', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ai',
+          name: 'AI Session',
+          path: tempDir,
+          intendedState: 'active'
+        }]
+      });
+      vi.spyOn(sessionController, '_copyToSystemClipboard').mockResolvedValue({
+        success: true,
+        method: 'osascript'
+      });
+
+      await sessionController.askAiIntegration({
+        params: { id: 'session-ai' },
+        body: {
+          status: {
+            changesNotPushed: 1,
+            hasWorkingCopyChanges: true,
+            bookmarkPushed: false,
+            bookmarkName: 'bookmark-a'
+          }
+        }
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: true,
+        copiedByServer: true,
+        clipboardMethod: 'osascript',
+        clipboardContent: expect.stringContaining('session-id: session-ai')
+      }));
+    });
+
+    it('server側clipboard失敗時_browser fallback用メッセージを返す', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ai',
+          name: 'AI Session',
+          path: tempDir,
+          intendedState: 'active'
+        }]
+      });
+      vi.spyOn(sessionController, '_copyToSystemClipboard').mockResolvedValue({
+        success: false,
+        method: null
+      });
+
+      await sessionController.askAiIntegration({
+        params: { id: 'session-ai' },
+        body: { status: {} }
+      }, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: true,
+        copiedByServer: false,
+        clipboardMethod: null,
+        message: 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。'
       }));
     });
   });

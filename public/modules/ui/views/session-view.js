@@ -643,15 +643,23 @@ export class SessionView {
                             : (confirmResult ? 'ok' : 'cancel');
 
                         if (selectedAction === 'ai') {
+                            console.info('[ArchiveAI] SessionView received AI action for session:', session.id, 'delivery:', confirmResult?.delivery?.mode || 'none');
                             const aiActionResult = await this._handleArchiveAiAction(
                                 session.id,
                                 status,
                                 typeof confirmResult === 'object' && confirmResult !== null ? confirmResult.delivery || null : null
                             );
+                            console.info('[ArchiveAI] SessionView AI action result:', {
+                                sessionId: session.id,
+                                deliveryMode: aiActionResult.delivery?.mode,
+                                aiSuccess: Boolean(aiActionResult.aiResult?.success)
+                            });
                             if (aiActionResult.aiResult?.success) {
                                 showSuccess(aiActionResult.aiResult.message || 'AI向けの調査プロンプトを準備しました');
                             } else if (aiActionResult.delivery.mode === 'clipboard') {
                                 showInfo('AI依頼は失敗しましたが、調査プロンプトをクリップボードにコピーしました');
+                            } else if (aiActionResult.delivery.mode === 'manual') {
+                                showInfo('自動コピーに失敗したため、調査プロンプトを画面上に表示しています');
                             } else if (aiActionResult.delivery.mode === 'inserted') {
                                 showInfo('AI依頼は失敗しましたが、調査プロンプトを入力欄に挿入しました');
                             } else {
@@ -864,21 +872,32 @@ export class SessionView {
 
     /**
      * アーカイブ前の統合調査プロンプトを配信し、可能ならAI依頼も実行
+     * localhostサーバーのpbcopy成功を最優先し、失敗時のみブラウザ側へフォールバックする
      * @param {string} sessionId
      * @param {Object} status
-     * @param {{mode: 'inserted'|'clipboard'|'console'}|null} initialDelivery
-     * @returns {Promise<{delivery: {mode: 'inserted'|'clipboard'|'console'}, aiResult: Object|null}>}
+     * @param {{mode: 'inserted'|'clipboard'|'console'|'manual'|'server-clipboard', prompt?: string}|null} initialDelivery
+     * @returns {Promise<{delivery: {mode: 'inserted'|'clipboard'|'console'|'manual'|'server-clipboard'}, aiResult: Object|null}>}
      */
     async _handleArchiveAiAction(sessionId, status, initialDelivery = null) {
-        const delivery = initialDelivery || await this._deliverInvestigationPrompt(
-            this._generateInvestigationPrompt(status, sessionId)
-        );
+        const prompt = this._generateInvestigationPrompt(status, sessionId);
 
         try {
             const aiResult = await this.sessionService.askAiToResolveIntegration(sessionId, status);
+            if (aiResult?.copiedByServer) {
+                console.info('[ArchiveAI] Server-side pbcopy succeeded for session:', sessionId);
+                return {
+                    delivery: { mode: 'server-clipboard' },
+                    aiResult
+                };
+            }
+
+            const fallbackPrompt = aiResult?.clipboardContent || prompt;
+            const delivery = initialDelivery || await this._deliverInvestigationPrompt(fallbackPrompt);
+            console.info('[ArchiveAI] Server-side pbcopy unavailable; used browser fallback:', delivery.mode);
             return { delivery, aiResult };
         } catch (error) {
             console.error('Failed to ask AI:', error);
+            const delivery = initialDelivery || await this._deliverInvestigationPrompt(prompt);
             return {
                 delivery,
                 aiResult: {

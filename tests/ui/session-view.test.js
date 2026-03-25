@@ -242,11 +242,12 @@ describe('SessionView', () => {
             expect(prompt).toContain('セッションID: session-test');
         });
 
-        it('_handleArchiveAiAction呼び出し時_調査プロンプトを配信してからAI依頼する', async () => {
+        it('_handleArchiveAiAction呼び出し時_server側pbcopy成功ならserver-clipboardを返す', async () => {
             const deliverSpy = vi.spyOn(sessionView, '_deliverInvestigationPrompt').mockResolvedValue({ mode: 'clipboard' });
             sessionView.sessionService.askAiToResolveIntegration.mockResolvedValue({
                 success: true,
-                message: 'AIに依頼しました'
+                message: 'AIへの依頼内容をコピーしました。チャットでペーストして送信してください。',
+                copiedByServer: true
             });
 
             const status = {
@@ -261,37 +262,37 @@ describe('SessionView', () => {
 
             const result = await sessionView._handleArchiveAiAction('session-target', status);
 
-            expect(deliverSpy).toHaveBeenCalledTimes(1);
-            expect(deliverSpy.mock.calls[0][0]).toContain('セッションID: session-target');
+            expect(deliverSpy).not.toHaveBeenCalled();
             expect(sessionView.sessionService.askAiToResolveIntegration).toHaveBeenCalledWith('session-target', status);
             expect(result).toEqual({
-                delivery: { mode: 'clipboard' },
+                delivery: { mode: 'server-clipboard' },
                 aiResult: {
                     success: true,
-                    message: 'AIに依頼しました'
+                    message: 'AIへの依頼内容をコピーしました。チャットでペーストして送信してください。',
+                    copiedByServer: true
                 }
             });
         });
 
-        it('_handleArchiveAiAction呼び出し時_事前deliveryがあれば再配送しない', async () => {
-            const deliverSpy = vi.spyOn(sessionView, '_deliverInvestigationPrompt');
+        it('_handleArchiveAiAction呼び出し時_server側コピー不可ならブラウザ側へフォールバックする', async () => {
+            const deliverSpy = vi.spyOn(sessionView, '_deliverInvestigationPrompt').mockResolvedValue({ mode: 'clipboard' });
             sessionView.sessionService.askAiToResolveIntegration.mockResolvedValue({
                 success: true,
-                message: 'AIに依頼しました'
+                message: 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。',
+                copiedByServer: false,
+                clipboardContent: 'server prompt'
             });
 
-            const result = await sessionView._handleArchiveAiAction(
-                'session-target',
-                { changesNotPushed: 1 },
-                { mode: 'clipboard' }
-            );
+            const result = await sessionView._handleArchiveAiAction('session-target', { changesNotPushed: 1 });
 
-            expect(deliverSpy).not.toHaveBeenCalled();
+            expect(deliverSpy).toHaveBeenCalledWith('server prompt');
             expect(result).toEqual({
                 delivery: { mode: 'clipboard' },
                 aiResult: {
                     success: true,
-                    message: 'AIに依頼しました'
+                    message: 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。',
+                    copiedByServer: false,
+                    clipboardContent: 'server prompt'
                 }
             });
         });
