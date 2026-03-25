@@ -1,16 +1,16 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { BaseView } from './base-view.js';
 
 /**
  * NocoDBTasksView
  * NocoDBタスク一覧の表示コンポーネント
  */
-export class NocoDBTasksView {
+export class NocoDBTasksView extends BaseView {
     constructor({ nocodbTaskService }) {
+        super();
         this.service = nocodbTaskService;
-        this.container = null;
-        this.unsubscribers = [];
         this.members = [];  // メンバーリスト（担当者ドロップダウン用）
         this.selfFilterValue = '__self__';
         this.unassignedFilterValue = '__unassigned__';
@@ -26,42 +26,25 @@ export class NocoDBTasksView {
      * DOMコンテナにマウント
      * @param {HTMLElement} container - マウント先のコンテナ
      */
-    mount(container) {
-        this.container = container;
-        this._setupEventListeners();
-        this.render();
-    }
-
-    /**
-     * イベントリスナーの設定
-     */
     _setupEventListeners() {
-        // NocoDB タスク読み込み完了
-        const unsub1 = eventBus.on(EVENTS.NOCODB_TASKS_LOADED, () => {
-            this._updateProjectFilter();
-            this._updateAssigneeFilter();
-            this.render();
-        });
-
-        // NocoDB タスク更新
-        const unsub2 = eventBus.on(EVENTS.NOCODB_TASK_UPDATED, () => this.render());
-
-        // NocoDB タスク削除
-        const unsub3 = eventBus.on(EVENTS.NOCODB_TASK_DELETED, () => this.render());
-
-        // NocoDB エラー
-        const unsub4 = eventBus.on(EVENTS.NOCODB_TASK_ERROR, (event) => {
-            this._showError(event.detail?.error || 'エラーが発生しました');
-        });
-
-        const unsub5 = appStore.subscribe((change) => {
-            if (change.key === 'preferences') {
+        this._addSubscriptions(
+            eventBus.on(EVENTS.NOCODB_TASKS_LOADED, () => {
+                this._updateProjectFilter();
                 this._updateAssigneeFilter();
                 this.render();
-            }
-        });
-
-        this.unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+            }),
+            eventBus.on(EVENTS.NOCODB_TASK_UPDATED, () => this.render()),
+            eventBus.on(EVENTS.NOCODB_TASK_DELETED, () => this.render()),
+            eventBus.on(EVENTS.NOCODB_TASK_ERROR, (event) => {
+                this._showError(event.detail?.error || 'エラーが発生しました');
+            }),
+            appStore.subscribe((change) => {
+                if (change.key === 'preferences') {
+                    this._updateAssigneeFilter();
+                    this.render();
+                }
+            })
+        );
     }
 
     /**
@@ -608,12 +591,4 @@ export class NocoDBTasksView {
     /**
      * クリーンアップ
      */
-    unmount() {
-        this.unsubscribers.forEach(unsub => unsub());
-        this.unsubscribers = [];
-        if (this.container) {
-            this.container.innerHTML = '';
-            this.container = null;
-        }
-    }
 }

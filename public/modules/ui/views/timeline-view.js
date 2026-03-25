@@ -1,15 +1,15 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { BaseView } from './base-view.js';
 
 /**
  * タイムライン表示のUIコンポーネント
  */
-export class TimelineView {
+export class TimelineView extends BaseView {
     constructor({ scheduleService }) {
+        super();
         this.scheduleService = scheduleService;
-        this.container = null;
-        this._unsubscribers = [];
         this.googleCalendarAuthStatus = null;
         this._googleCalendarBusy = false;
         this._showGoogleCalendarDiagnostics = false;
@@ -30,22 +30,16 @@ export class TimelineView {
      * @param {HTMLElement} container - マウント先のコンテナ
      */
     mount(container) {
-        this.container = container;
-        this._setupEventListeners();
+        super.mount(container);
         this._setupDOMEventListeners();
-        this.render();
         void this._refreshGoogleCalendarAuthStatus();
     }
 
-    /**
-     * EventBusイベントリスナーの設定
-     */
     _setupEventListeners() {
-        // イベント購読
-        const unsub1 = eventBus.on(EVENTS.SCHEDULE_LOADED, () => this.render());
-        const unsub2 = eventBus.on(EVENTS.SCHEDULE_UPDATED, () => this.render());
-
-        this._unsubscribers.push(unsub1, unsub2);
+        this._addSubscriptions(
+            eventBus.on(EVENTS.SCHEDULE_LOADED, () => this.render()),
+            eventBus.on(EVENTS.SCHEDULE_UPDATED, () => this.render())
+        );
     }
 
     /**
@@ -391,16 +385,9 @@ export class TimelineView {
      * クリーンアップ
      */
     unmount() {
-        // EventBus購読解除
-        this._unsubscribers.forEach(unsub => unsub());
-        this._unsubscribers = [];
-
-        // DOMイベントリスナー解除
         if (this.container) {
             this.container.removeEventListener('click', this._handleClick);
             this.container.removeEventListener('dblclick', this._handleDoubleClick);
-            this.container.innerHTML = '';
-            this.container = null;
         }
 
         const googleBtn = document.getElementById('google-calendar-connect-btn');
@@ -412,5 +399,7 @@ export class TimelineView {
         if (diagnostics) {
             diagnostics.removeEventListener('click', this._handleGoogleCalendarDiagnosticsClick);
         }
+
+        super.unmount();
     }
 }
