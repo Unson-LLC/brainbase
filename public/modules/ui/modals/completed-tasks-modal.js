@@ -1,5 +1,6 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { getPriorityLabel } from '../../utils/task-filters.js';
 import { BaseModal } from './base-modal.js';
 
 /**
@@ -67,7 +68,7 @@ export class CompletedTasksModal extends BaseModal {
                             <div class="completed-task-name">${escapeHtml(taskName)}</div>
                             <div class="completed-task-meta">
                                 ${project ? `<span class="task-project">${escapeHtml(project)}</span>` : ''}
-                                ${priority ? `<span class="task-priority priority-${priority}">${this._getPriorityLabel(priority)}</span>` : ''}
+                                ${priority ? `<span class="task-priority priority-${priority}">${getPriorityLabel(priority)}</span>` : ''}
                             </div>
                         </div>
                         <button class="restore-task-btn btn-icon" title="復活">
@@ -119,10 +120,6 @@ export class CompletedTasksModal extends BaseModal {
         return grouped;
     }
 
-    _getPriorityLabel(priority) {
-        const labels = { high: '高', medium: '中', low: '低' };
-        return labels[priority] || priority;
-    }
 
 
     _attachEventHandlers() {

@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger.js';
-import { formatDateYMD, getDefaultDueDate } from '../lib/validation.js';
+import { formatDateYMD, getDefaultDueDate, getPriorityLabel } from '../lib/validation.js';
 
 /**
  * NocoDBController
@@ -154,11 +154,10 @@ export class NocoDBController {
                 ? due.trim()
                 : getDefaultDueDate();
 
-            const priorityMap = { high: '高', medium: '中', low: '低' };
             const fields = {
                 'タイトル': title.trim(),
                 '担当者': normalizedAssignee,
-                '優先度': priorityMap[normalizedPriority] || '中',
+                '優先度': getPriorityLabel(normalizedPriority),
                 '期限': normalizedDue,
                 '説明': typeof description === 'string' ? description : '',
                 'ステータス': '未着手'

@@ -45,3 +45,17 @@ export function getDefaultDueDate() {
     date.setDate(date.getDate() + 7);
     return formatDateYMD(date);
 }
+
+/**
+ * 優先度ラベルマッピング（英語→日本語）
+ */
+export const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
+
+/**
+ * 優先度ラベルを日本語で取得
+ * @param {string} priority
+ * @returns {string}
+ */
+export function getPriorityLabel(priority) {
+    return PRIORITY_LABELS[priority] || priority;
+}
