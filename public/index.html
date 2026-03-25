@@ -816,6 +816,12 @@
             </div>
             <div class="modal-body">
                 <p id="confirm-modal-message"></p>
+                <div id="confirm-manual-copy" class="confirm-manual-copy hidden">
+                    <p id="confirm-manual-copy-message" class="confirm-manual-copy-message">
+                        自動コピーに失敗しました。下の内容を手動でコピーしてください。
+                    </p>
+                    <textarea id="confirm-manual-copy-text" class="confirm-manual-copy-text" readonly></textarea>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" id="confirm-cancel-btn">キャンセル</button>
@@ -1041,7 +1047,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=1774404747"></script>
+    <script type="module" src="app.js?v=1774407497"></script>
     <script>
         lucide.createIcons();
     </script>

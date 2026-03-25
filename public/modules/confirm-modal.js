@@ -9,6 +9,8 @@ const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 const confirmActionBtn = document.getElementById('confirm-action-btn');
 const confirmAiBtn = document.getElementById('confirm-ai-btn');
+const confirmManualCopy = document.getElementById('confirm-manual-copy');
+const confirmManualCopyText = document.getElementById('confirm-manual-copy-text');
 
 const hasConfirmModal = Boolean(
     confirmModal
@@ -21,6 +23,11 @@ const hasConfirmModal = Boolean(
 let resolvePromise = null;
 let confirmResponseMode = 'boolean';
 let pendingAiClipboardText = null;
+
+function setClipboardGuard(durationMs = 2000) {
+    if (typeof window === 'undefined') return;
+    window.__brainbaseClipboardGuardUntil = Date.now() + durationMs;
+}
 
 // Setup event listeners
 if (hasConfirmModal) {
@@ -42,31 +49,88 @@ if (hasConfirmModal) {
     // AI button event listener (for archive with AI check)
     if (confirmAiBtn) {
         confirmAiBtn.addEventListener('click', async () => {
+            console.info('[ArchiveAI] AI confirm button clicked');
             const delivery = await tryCopyAiClipboardText();
+            if (delivery?.mode === 'manual') {
+                console.warn('[ArchiveAI] Clipboard copy failed; showing manual copy fallback');
+                showManualCopyFallback(delivery.prompt);
+                return;
+            }
+            console.info('[ArchiveAI] AI confirm button resolved with delivery:', delivery?.mode || 'none');
             closeConfirm(delivery ? { action: 'ai', delivery } : { action: 'ai' });
         });
     }
 }
 
 async function tryCopyAiClipboardText() {
-    if (!pendingAiClipboardText) return null;
+    if (!pendingAiClipboardText) {
+        console.warn('[ArchiveAI] No pending clipboard text was set');
+        return null;
+    }
 
     try {
         if (navigator?.clipboard?.writeText) {
+            console.info('[ArchiveAI] Attempting navigator.clipboard.writeText');
             await navigator.clipboard.writeText(pendingAiClipboardText);
+            setClipboardGuard();
+            console.info('[ArchiveAI] navigator.clipboard.writeText succeeded');
             return { mode: 'clipboard' };
         }
+        console.warn('[ArchiveAI] navigator.clipboard.writeText is unavailable');
     } catch (error) {
-        console.warn('Failed to copy AI investigation prompt from confirm modal:', error);
+        console.warn('[ArchiveAI] navigator.clipboard.writeText failed:', error);
     }
 
-    return null;
+    if (copyTextWithExecCommand(pendingAiClipboardText)) {
+        setClipboardGuard();
+        console.info('[ArchiveAI] document.execCommand("copy") succeeded');
+        return { mode: 'clipboard' };
+    }
+
+    return {
+        mode: 'manual',
+        prompt: pendingAiClipboardText
+    };
+}
+
+function copyTextWithExecCommand(text) {
+    if (!confirmManualCopyText || typeof document.execCommand !== 'function') {
+        console.warn('[ArchiveAI] document.execCommand("copy") is unavailable');
+        return false;
+    }
+
+    try {
+        confirmManualCopyText.value = text;
+        confirmManualCopyText.focus();
+        confirmManualCopyText.select();
+        confirmManualCopyText.setSelectionRange(0, text.length);
+        return document.execCommand('copy');
+    } catch (error) {
+        console.warn('[ArchiveAI] document.execCommand("copy") failed:', error);
+        return false;
+    }
+}
+
+function showManualCopyFallback(text) {
+    if (!confirmManualCopy || !confirmManualCopyText) return;
+    console.info('[ArchiveAI] Showing manual copy fallback UI');
+    confirmManualCopyText.value = text;
+    confirmManualCopy.classList.remove('hidden');
+    confirmManualCopyText.focus();
+    confirmManualCopyText.select();
+    confirmManualCopyText.setSelectionRange(0, text.length);
 }
 
 function closeConfirm(result) {
     if (!confirmModal) return;
     confirmModal.classList.remove('active');
     confirmModal.classList.remove('confirm-modal--action');
+    if (confirmManualCopy) {
+        confirmManualCopy.classList.add('hidden');
+    }
+    if (confirmManualCopyText) {
+        confirmManualCopyText.value = '';
+    }
     if (confirmActionBtn) {
         confirmActionBtn.style.display = 'none';
     }
@@ -110,6 +174,12 @@ export function showConfirm(message, options = {}) {
     confirmResponseMode = 'boolean';
     pendingAiClipboardText = null;
     confirmModal.classList.remove('confirm-modal--action');
+    if (confirmManualCopy) {
+        confirmManualCopy.classList.add('hidden');
+    }
+    if (confirmManualCopyText) {
+        confirmManualCopyText.value = '';
+    }
 
     // XSS対策: DOMメソッドで構築
     confirmTitle.innerHTML = '';
@@ -176,6 +246,12 @@ export function showConfirmWithAction(message, options = {}) {
     confirmResponseMode = 'action';
     pendingAiClipboardText = aiClipboardText;
     confirmModal.classList.add('confirm-modal--action');
+    if (confirmManualCopy) {
+        confirmManualCopy.classList.add('hidden');
+    }
+    if (confirmManualCopyText) {
+        confirmManualCopyText.value = '';
+    }
 
     // XSS対策: DOMメソッドで構築
     confirmTitle.innerHTML = '';

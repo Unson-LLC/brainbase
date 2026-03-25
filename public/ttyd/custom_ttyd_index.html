@@ -524,16 +524,50 @@
 
         console.log('[LinkProvider] Registering...');
 
-        // Match file paths with or without :line_number
-        // e.g. "public/app.js:123", "README.md", "./src/index.ts", "/abs/path/file.py:42"
+        // Match file paths with or without :line_number.
+        // Supports relative, absolute, and home-relative paths.
         const FILE_EXTS = 'ts|js|tsx|jsx|md|mdx|markdown|json|yml|yaml|py|go|rs|java|cpp|c|h|css|html|txt|sh|toml|cfg|ini|xml|svg';
         const filePathRegex = new RegExp(
-            '(?:^|[\\s\'"(\\[{])' +                    // preceded by start/whitespace/quote/bracket
-            '((?:\\.{0,2}/)?[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))' +  // file path with extension
-            '(?::([0-9]+))?' +                           // optional :line_number
-            '(?=[\\s\'"\\])},;:|]|$)',                   // followed by end/whitespace/delimiter
+            '((?:~\\/|\\.{1,2}\\/|\\/)?[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))(?::([0-9]+))?',
             'g'
         );
+
+        function isValidPathBoundary(char) {
+            return !char || /[\\s'"`([{<>,;|]/.test(char);
+        }
+
+        function isValidPathTerminator(text, index) {
+            const nextChar = text[index] || '';
+            if (!nextChar) return true;
+            if (nextChar === '-' && text[index + 1] === '>') return true;
+            return !/[a-zA-Z0-9_/.~:\\-]/.test(nextChar);
+        }
+
+        function extractFileMatches(lineText) {
+            const matches = [];
+            filePathRegex.lastIndex = 0;
+
+            let match;
+            while ((match = filePathRegex.exec(lineText)) !== null) {
+                const filePath = match[1];
+                const lineNum = match[2] || null;
+                const pathStart = match.index;
+                const fullLen = lineNum ? filePath.length + 1 + lineNum.length : filePath.length;
+                const pathEnd = pathStart + fullLen;
+                const previousChar = pathStart > 0 ? lineText[pathStart - 1] : '';
+                if (!isValidPathBoundary(previousChar) || !isValidPathTerminator(lineText, pathEnd)) {
+                    continue;
+                }
+                matches.push({
+                    filePath,
+                    lineNum,
+                    pathStart,
+                    pathEnd
+                });
+            }
+
+            return matches;
+        }
 
         const disposable = term.registerLinkProvider({
             provideLinks: (y, callback) => {
@@ -545,27 +579,16 @@
                 const lineText = line.translateToString(true);
                 if (!lineText) { callback(undefined); return; }
 
-                const links = [];
-                filePathRegex.lastIndex = 0;
-
-                let match;
-                while ((match = filePathRegex.exec(lineText)) !== null) {
-                    const filePath = match[1];
-                    const lineNum = match[2] || null;
-
-                    // Find actual start index of the file path in the line
-                    const pathStart = lineText.indexOf(filePath, match.index);
-                    if (pathStart < 0) continue;
-
-                    // Include :lineNum in the clickable range if present
-                    const fullLen = lineNum ? filePath.length + 1 + lineNum.length : filePath.length;
-
-                    links.push({
+                const links = extractFileMatches(lineText).map(({ filePath, lineNum, pathStart, pathEnd }) => ({
                         range: {
                             start: { x: pathStart + 1, y },
-                            end: { x: pathStart + fullLen, y }
+                            end: { x: pathEnd, y }
                         },
                         text: lineNum ? filePath + ':' + lineNum : filePath,
+                        decorations: {
+                            underline: true,
+                            pointerCursor: true
+                        },
                         activate: (event, text) => {
                             const colonIdx = text.lastIndexOf(':');
                             let fp = text;
@@ -584,8 +607,7 @@
                                 sessionId
                             }, '*');
                         }
-                    });
-                }
+                    }));
 
                 callback(links.length > 0 ? links : undefined);
             }
@@ -609,6 +631,27 @@
     'use strict';
 
     let lastSelection = '';
+    let scheduledCheck = null;
+
+    function getClipboardGuardUntil() {
+        try {
+            return Math.max(
+                Number(window.__brainbaseClipboardGuardUntil || 0),
+                Number(window.parent?.__brainbaseClipboardGuardUntil || 0)
+            );
+        } catch (error) {
+            return Number(window.__brainbaseClipboardGuardUntil || 0);
+        }
+    }
+
+    function isClipboardGuardActive() {
+        const guardUntil = getClipboardGuardUntil();
+        const active = guardUntil > Date.now();
+        if (active) {
+            console.log('[CopyOnSelect] Clipboard guard active until', new Date(guardUntil).toISOString());
+        }
+        return active;
+    }
 
     async function copyToClipboard(text) {
         try {
@@ -662,6 +705,10 @@
 
     function checkAndSendSelection() {
         try {
+            if (isClipboardGuardActive()) {
+                return;
+            }
+
             // xterm.js uses a global term object
             let selectedText = '';
 
@@ -692,16 +739,27 @@
     function init() {
         console.log('[CopyOnSelect] Initializing copy-on-select...');
 
-        // Poll selection state
-        setInterval(checkAndSendSelection, 300);
-
         // Also listen to mouse and selection events
+        const scheduleCheck = (delay) => {
+            if (scheduledCheck) {
+                clearTimeout(scheduledCheck);
+            }
+            scheduledCheck = setTimeout(() => {
+                scheduledCheck = null;
+                checkAndSendSelection();
+            }, delay);
+        };
+
         document.addEventListener('mouseup', function() {
-            setTimeout(checkAndSendSelection, 50);
+            scheduleCheck(50);
         });
 
         document.addEventListener('selectionchange', function() {
-            setTimeout(checkAndSendSelection, 100);
+            scheduleCheck(100);
+        });
+
+        document.addEventListener('touchend', function() {
+            scheduleCheck(120);
         });
 
         console.log('[CopyOnSelect] Copy-on-select enabled');

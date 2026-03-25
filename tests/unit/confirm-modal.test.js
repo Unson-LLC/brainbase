@@ -8,6 +8,9 @@ describe('confirm-modal', () => {
                     <button class="close-modal-btn">x</button>
                     <h3 id="confirm-modal-title"></h3>
                     <p id="confirm-modal-message"></p>
+                    <div id="confirm-manual-copy" class="confirm-manual-copy hidden">
+                        <textarea id="confirm-manual-copy-text" readonly></textarea>
+                    </div>
                     <div class="modal-footer">
                         <button id="confirm-cancel-btn"></button>
                         <button id="confirm-action-btn" style="display:none"></button>
@@ -45,5 +48,33 @@ describe('confirm-modal', () => {
             delivery: { mode: 'clipboard' }
         });
         expect(writeText).toHaveBeenCalledWith('prompt text');
+    });
+
+    it('showConfirmWithAction呼び出し時_clipboard失敗なら手動コピー欄を表示する', async () => {
+        Object.defineProperty(navigator, 'clipboard', {
+            value: {
+                writeText: vi.fn().mockRejectedValue(new Error('denied'))
+            },
+            configurable: true
+        });
+        document.execCommand = vi.fn().mockReturnValue(false);
+
+        const { showConfirmWithAction } = await import('../../public/modules/confirm-modal.js');
+
+        void showConfirmWithAction('message', {
+            title: '確認',
+            okText: 'OK',
+            cancelText: 'Cancel',
+            actionText: 'Action',
+            aiActionText: 'AI',
+            aiClipboardText: 'prompt text'
+        });
+
+        document.getElementById('confirm-ai-btn').click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(document.getElementById('confirm-modal').classList.contains('active')).toBe(true);
+        expect(document.getElementById('confirm-manual-copy').classList.contains('hidden')).toBe(false);
+        expect(document.getElementById('confirm-manual-copy-text').value).toBe('prompt text');
     });
 });
