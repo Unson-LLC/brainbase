@@ -1364,12 +1364,14 @@ export class App {
                 : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
             ownerLabel = terminalAccess?.ownerViewerLabel || '';
         } else if (xtermActive && xtermStatus?.mode === 'snapshot') {
-            stateClass = 'disconnected';
-            transportState = 'disconnected';
-            presentationMode = 'snapshot';
-            text = '入力: Snapshot表示中';
-            title = `session=${sessionId} snapshot fallback`;
-            snapshotVisible = true;
+            // snapshotモードでもxtermに内容が描画済みなのでlive風に見せる
+            // クリックで再接続をトリガーできるようにする
+            stateClass = 'needs-focus';
+            transportState = 'connected';
+            attentionState = 'needs-focus';
+            presentationMode = 'live';
+            text = '入力: クリックで再接続';
+            title = `session=${sessionId} (click to reconnect)`;
         } else if (xtermActive && xtermStatus?.mode === 'reconnecting') {
             stateClass = 'reconnecting';
             transportState = 'reconnecting';
@@ -1656,6 +1658,13 @@ export class App {
 
             if (this._isMobileTerminalDisplayMode()) {
                 void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+                return;
+            }
+
+            // snapshotモード中にクリックしたら即reconnect
+            if (this._isXtermTransportActive() && this.terminalTransportClient?.status?.mode === 'snapshot') {
+                void this.terminalTransportClient.reconnect().catch(() => {});
+                this._updateTerminalInputStatus();
                 return;
             }
 
