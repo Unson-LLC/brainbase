@@ -3,6 +3,31 @@
  * Goal Seek機能のAPIルーティング
  */
 import express from 'express';
+import { logger } from '../utils/logger.js';
+
+// 既存API互換性維持: false/0/'' などの falsy 値も欠落扱いとする
+const isFieldMissing = (value) => !value;
+
+const respondIfMissingFields = (res, source, fields) => {
+    const data = source || {};
+    const missing = fields.filter((field) => isFieldMissing(data[field]));
+    if (missing.length > 0) {
+        res.status(400).json({
+            error: `Missing required fields: ${missing.join(', ')}`
+        });
+        return true;
+    }
+    return false;
+};
+
+const handleServerError = (res, error, action) => {
+    logger.error(`Failed to ${action}`, { error });
+    res.status(500).json({ error: error.message });
+};
+
+const sendNotFound = (res, entityName) => {
+    return res.status(404).json({ error: `${entityName} not found` });
+};
 
 /**
  * Goal Seek router factory
@@ -11,30 +36,6 @@ import express from 'express';
  */
 export function createGoalSeekRouter(store) {
     const router = express.Router();
-
-    /**
-     * 共通の必須項目チェック
-     * @param {express.Response} res
-     * @param {object} source - リクエストbodyやquery
-     * @param {string[]} fields - 必須キー
-     * @returns {boolean} trueの場合レスポンス済み（以降処理中断）
-     */
-    const respondIfMissingFields = (res, source, fields) => {
-        const data = source || {};
-        const missing = fields.filter((field) => !data[field]);
-        if (missing.length > 0) {
-            res.status(400).json({
-                error: `Missing required fields: ${missing.join(', ')}`
-            });
-            return true;
-        }
-        return false;
-    };
-
-    const handleServerError = (res, error, action) => {
-        console.error(`Failed to ${action}:`, error);
-        res.status(500).json({ error: error.message });
-    };
 
     // ========================================
     // Goals API
@@ -69,7 +70,7 @@ export function createGoalSeekRouter(store) {
             const goal = await store.getGoal(req.params.id);
 
             if (!goal) {
-                return res.status(404).json({ error: 'Goal not found' });
+                return sendNotFound(res, 'Goal');
             }
 
             res.json(goal);
@@ -87,7 +88,7 @@ export function createGoalSeekRouter(store) {
             const goal = await store.updateGoal(req.params.id, req.body);
 
             if (!goal) {
-                return res.status(404).json({ error: 'Goal not found' });
+                return sendNotFound(res, 'Goal');
             }
 
             res.json(goal);
@@ -105,7 +106,7 @@ export function createGoalSeekRouter(store) {
             const deleted = await store.deleteGoal(req.params.id);
 
             if (!deleted) {
-                return res.status(404).json({ error: 'Goal not found' });
+                return sendNotFound(res, 'Goal');
             }
 
             res.json({ success: true });
@@ -164,7 +165,7 @@ export function createGoalSeekRouter(store) {
             const intervention = await store.getIntervention(req.params.id);
 
             if (!intervention) {
-                return res.status(404).json({ error: 'Intervention not found' });
+                return sendNotFound(res, 'Intervention');
             }
 
             res.json(intervention);
@@ -182,7 +183,7 @@ export function createGoalSeekRouter(store) {
             const intervention = await store.updateIntervention(req.params.id, req.body);
 
             if (!intervention) {
-                return res.status(404).json({ error: 'Intervention not found' });
+                return sendNotFound(res, 'Intervention');
             }
 
             res.json(intervention);

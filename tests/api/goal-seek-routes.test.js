@@ -79,6 +79,19 @@ describe('Goal Seek API Routes', () => {
 
             expect(response.body.error).toBeDefined();
         });
+
+        it('必須フィールドにfalseや0が渡された場合も_400を返す', async () => {
+            const response = await request(app)
+                .post('/api/goal-seek/goals')
+                .send({
+                    sessionId: 'session-123',
+                    goalType: false,
+                    target: 0
+                })
+                .expect(400);
+
+            expect(response.body.error).toContain('Missing required fields');
+        });
     });
 
     describe('GET /api/goal-seek/goals/:id', () => {
