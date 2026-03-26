@@ -146,7 +146,16 @@ export class TerminalTransportService {
         ws.on('close', closeConnection);
         ws.on('error', closeConnection);
         ws.on('message', (raw) => {
-            void this._handleMessage(connection, raw.toString());
+            void this._handleMessage(connection, raw.toString()).catch((err) => {
+                logger.error(`[TerminalTransport] message error for ${sessionId}:`, err.message);
+                if (ws.readyState === 1) {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        code: 'INPUT_ERROR',
+                        message: err.message || 'Failed to process terminal input'
+                    }));
+                }
+            });
         });
 
         try {
@@ -381,7 +390,7 @@ export class TerminalTransportService {
 
             // Send Enter to dismiss the overlay
             logger.info(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
-            await this.sessionManager.sendInput(connection.sessionId, 'C-m', 'key').catch(() => {});
+            await this.sessionManager.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
             this.captureCache.invalidate(connection.sessionId);
         }
     }

@@ -36,6 +36,21 @@ function buildService() {
     return { service, sessionManager, captureCache, controlClient, controlRegistry };
 }
 
+function buildMockWs() {
+    const listeners = {};
+    return {
+        readyState: 1,
+        send: vi.fn(),
+        close: vi.fn(() => {
+            if (listeners.close) listeners.close();
+        }),
+        on: vi.fn((event, handler) => {
+            listeners[event] = handler;
+        }),
+        _listeners: listeners
+    };
+}
+
 describe('TerminalTransportService', () => {
     it('input message で tmux sendInput を呼ぶ', async () => {
         const { service, sessionManager, captureCache } = buildService();
@@ -126,22 +141,6 @@ describe('TerminalTransportService', () => {
     });
 
     describe('auto-takeover: 既存接続の即切断', () => {
-        function buildMockWs() {
-            const listeners = {};
-            return {
-                readyState: 1,
-                send: vi.fn(),
-                close: vi.fn(() => {
-                    // close時にcloseリスナーを呼ぶ
-                    if (listeners.close) listeners.close();
-                }),
-                on: vi.fn((event, handler) => {
-                    listeners[event] = handler;
-                }),
-                _listeners: listeners
-            };
-        }
-
         it('同一セッションに別viewerIdで接続時_前の接続がblocked送信+closeされる', async () => {
             const { service, sessionManager } = buildService();
             const terminalAccess = { owner: 'viewer-2' };
@@ -236,6 +235,35 @@ describe('TerminalTransportService', () => {
         }));
 
         expect(controlClient.resize).toHaveBeenCalledWith(120, 40);
+    });
+
+    it('message handler は sendInput 失敗時も error を返して接続を維持する', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true });
+        sessionManager.sendInput.mockRejectedValue(new Error('tmux send failed'));
+
+        const ws = buildMockWs();
+
+        await service._handleConnection(ws, {}, {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Mac'
+        });
+
+        ws._listeners.message(Buffer.from(JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\u001b]11;rgb:0000/0000/0000\u001b\\'
+        })));
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        const errorCall = ws.send.mock.calls.find((call) => {
+            const message = JSON.parse(call[0]);
+            return message.type === 'error' && message.code === 'INPUT_ERROR';
+        });
+
+        expect(errorCall).toBeTruthy();
+        expect(ws.close).not.toHaveBeenCalled();
     });
 
     it('streaming outputをそのままoutputメッセージで転送する', async () => {

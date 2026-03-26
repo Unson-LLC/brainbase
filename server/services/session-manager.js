@@ -1898,21 +1898,56 @@ export class SessionManager {
         );
 
         if (type === 'key') {
-            if (!this.ALLOWED_KEYS.includes(input)) {
-                throw new Error('Key not allowed');
+            if (this.ALLOWED_KEYS.includes(input)) {
+                logger.info(`[session-manager] Executing named key: sessionId="${sessionId}", key="${input}"`);
+                await this._sendNamedKey(sessionId, input);
+                return;
             }
-            const cmd = `tmux send-keys -t "${sessionId}" ${input}`;
-            logger.info(`[session-manager] Executing: ${cmd}`);
-            await this.execPromise(cmd);
-        } else if (type === 'text') {
-            await this._pasteInputFromTempFile(sessionId, input);
-        } else {
+
+            logger.warn('[session-manager] Non-allowlisted key payload received; treating as text', {
+                sessionId,
+                inputPreview: preview
+            });
+        } else if (type !== 'text') {
             throw new Error('Type must be key or text');
         }
+
+        await this._pasteInputFromTempFile(sessionId, input);
     }
 
-    _shellQuote(value) {
-        return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+    async _runTmux(args) {
+        return await new Promise((resolve, reject) => {
+            const child = spawn('tmux', args, {
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            let stdout = '';
+            let stderr = '';
+
+            child.stdout?.on('data', (chunk) => {
+                stdout += chunk.toString();
+            });
+            child.stderr?.on('data', (chunk) => {
+                stderr += chunk.toString();
+            });
+            child.on('error', reject);
+            child.on('close', (code) => {
+                if (code === 0) {
+                    resolve({ stdout, stderr });
+                    return;
+                }
+
+                const detail = stderr.trim() || stdout.trim() || `tmux exited with code ${code}`;
+                const error = new Error(detail);
+                error.code = code;
+                error.stdout = stdout;
+                error.stderr = stderr;
+                reject(error);
+            });
+        });
+    }
+
+    async _sendNamedKey(sessionId, key) {
+        await this._runTmux(['send-keys', '-t', sessionId, key]);
     }
 
     async _pasteInputFromTempFile(sessionId, input) {
@@ -1923,14 +1958,11 @@ export class SessionManager {
         try {
             await fs.promises.writeFile(tempFile, input, 'utf8');
 
-            const loadCommand = `tmux load-buffer -b ${this._shellQuote(bufferName)} ${this._shellQuote(tempFile)}`;
-            const pasteCommand = `tmux paste-buffer -d -b ${this._shellQuote(bufferName)} -t ${this._shellQuote(sessionId)}`;
-
             logger.info(`[session-manager] Executing large paste via temp file: ${tempFile}`);
-            await this.execPromise(loadCommand);
-            await this.execPromise(pasteCommand);
+            await this._runTmux(['load-buffer', '-b', bufferName, tempFile]);
+            await this._runTmux(['paste-buffer', '-d', '-b', bufferName, '-t', sessionId]);
         } finally {
-            await this.execPromise(`tmux delete-buffer -b ${this._shellQuote(bufferName)}`).catch(() => {});
+            await this._runTmux(['delete-buffer', '-b', bufferName]).catch(() => {});
             await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
         }
     }

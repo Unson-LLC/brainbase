@@ -118,4 +118,27 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       expect(execPromiseMock).toHaveBeenCalledWith(expect.stringContaining('kill 44444'));
     });
   });
+
+  describe('sendInput', () => {
+    it('allowlisted key は named key 経路で送信する', async () => {
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', 'Enter', 'key');
+
+      expect(sendNamedKeySpy).toHaveBeenCalledWith('session-1', 'Enter');
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
+    it('allowlist外の key payload は text として扱う', async () => {
+      const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+      const oscPayload = '\u001b]11;rgb:0000/0000/0000\u001b\\';
+
+      await sessionManager.sendInput('session-1', oscPayload, 'key');
+
+      expect(sendNamedKeySpy).not.toHaveBeenCalled();
+      expect(pasteSpy).toHaveBeenCalledWith('session-1', oscPayload);
+    });
+  });
 });
