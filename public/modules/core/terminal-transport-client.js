@@ -1,3 +1,4 @@
+// @ts-check
 import { httpClient } from './http-client.js';
 import { loadXterm } from './xterm-loader.js';
 import { MessageQueue } from './message-queue.js';
@@ -23,7 +24,7 @@ const WS_CLOSE_BLOCKED = 4001;
 export function shouldUseXtermTransport() {
     if (typeof window === 'undefined') return false;
     const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
-    if (/jsdom/i.test(userAgent) || typeof window.__vitest_worker__ !== 'undefined') {
+    if (/jsdom/i.test(userAgent) || typeof /** @type {any} */ (window).__vitest_worker__ !== 'undefined') {
         return false;
     }
     return window.innerWidth > 768;
@@ -288,7 +289,7 @@ export class TerminalTransportClient {
                     case 'error': {
                         cleanup();
                         this._manualClose = true;
-                        const error = new Error(message.message || 'Terminal transport error');
+                        const error = /** @type {Error & { code?: string }} */ (new Error(message.message || 'Terminal transport error'));
                         error.code = message.code || 'TERMINAL_TRANSPORT_ERROR';
                         reject(error);
                         break;
