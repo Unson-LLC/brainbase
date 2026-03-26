@@ -45,6 +45,42 @@ export class NocoDBService {
         }
     }
 
+    _withAuthHeaders(options = {}) {
+        const headers = {
+            'xc-token': this.apiToken,
+            ...(options.headers || {})
+        };
+
+        return {
+            ...options,
+            headers
+        };
+    }
+
+    async _fetchJson(url, fetchOptions = {}, { errorMessage = 'NocoDB API request failed', logError = true } = {}) {
+        const response = await this._fetchWithRetry(url, this._withAuthHeaders(fetchOptions));
+
+        if (!response.ok) {
+            let errorText = '';
+            try {
+                errorText = await response.text();
+            } catch {
+                // ignore
+            }
+
+            if (logError) {
+                logger.error(errorMessage, {
+                    status: response.status,
+                    error: errorText || undefined
+                });
+            }
+
+            throw new Error(`NocoDB API failed: ${response.status}`);
+        }
+
+        return response.json();
+    }
+
     /**
      * 指定プロジェクトの統計を取得（タスク + マイルストーン）
      * @param {string} projectId - NocoDB Project ID
@@ -90,18 +126,11 @@ export class NocoDBService {
 
         // NocoDB v2 API: /api/v2/tables/{tableId}/records
         const url = `${this.baseUrl}/api/v2/tables/${tableId}/records`;
-
-        const response = await this._fetchWithRetry(url, {
-            headers: {
-                'xc-token': this.apiToken
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`NocoDB API failed: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await this._fetchJson(
+            url,
+            {},
+            { errorMessage: `Failed to fetch records for table ${tableName}` }
+        );
         return data.list || [];
     }
 
@@ -122,17 +151,11 @@ export class NocoDBService {
         try {
             // v2 API: テーブル一覧取得
             const url = `${this.baseUrl}/api/v2/meta/bases/${baseId}/tables`;
-            const response = await this._fetchWithRetry(url, {
-                headers: {
-                    'xc-token': this.apiToken
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = await this._fetchJson(
+                url,
+                {},
+                { errorMessage: `Failed to get tables for base ${baseId}`, logError: false }
+            );
             const tables = data.list || [];
 
             // 全テーブルをキャッシュ
