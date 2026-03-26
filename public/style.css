@@ -9868,7 +9868,8 @@ flex-wrap: wrap;
     overflow: hidden;
     width: 100%;
     height: 100%;
-    background-color: var(--bg-primary);
+    background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(2, 6, 23, 0.98) 100%);
 }
 
 .file-viewer {
@@ -9876,15 +9877,17 @@ flex-wrap: wrap;
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    color: #e5eefb;
 }
 
 .file-viewer-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.88);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03);
     flex-shrink: 0;
 }
 
@@ -9893,18 +9896,18 @@ flex-wrap: wrap;
     align-items: center;
     gap: 4px;
     padding: 4px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-secondary);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.55);
+    color: #c7d6ea;
     cursor: pointer;
     font-size: 0.8rem;
     transition: background 0.15s, color 0.15s;
 }
 
 .file-viewer-back:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+    background: rgba(51, 65, 85, 0.9);
+    color: #f8fbff;
 }
 
 .file-viewer-back i {
@@ -9912,9 +9915,25 @@ flex-wrap: wrap;
     height: 14px;
 }
 
+.file-viewer-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.file-viewer-title {
+    font-size: 0.95rem;
+    font-weight: 650;
+    color: #f8fbff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .file-viewer-path {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
+    font-size: 0.76rem;
+    color: #8da2bf;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -9924,13 +9943,16 @@ flex-wrap: wrap;
     flex: 1;
     overflow-y: auto;
     padding: 16px 24px;
+    background:
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 30%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.96) 100%);
 }
 
 .file-viewer-loading,
 .file-viewer-error {
     padding: 24px;
     text-align: center;
-    color: var(--text-secondary);
+    color: #9fb0c8;
 }
 
 .file-viewer-error {
@@ -9939,12 +9961,15 @@ flex-wrap: wrap;
 
 .file-viewer-text {
     margin: 0;
-    padding: 16px;
-    background: var(--bg-tertiary, var(--bg-secondary));
-    border-radius: 6px;
+    padding: 18px 20px;
+    background: rgba(15, 23, 42, 0.86);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     overflow-x: auto;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     line-height: 1.6;
+    color: #dbe7f5;
 }
 
 .file-viewer-text code {
@@ -9954,9 +9979,9 @@ flex-wrap: wrap;
 
 /* Markdown rendered content (GitHub-like style) */
 .file-viewer-markdown {
-    font-size: 0.9rem;
-    line-height: 1.7;
-    color: var(--text-primary);
+    font-size: 0.95rem;
+    line-height: 1.75;
+    color: #dbe7f5;
     word-wrap: break-word;
 }
 
@@ -9970,11 +9995,11 @@ flex-wrap: wrap;
     margin-bottom: 0.5em;
     font-weight: 600;
     line-height: 1.3;
-    color: var(--text-primary);
+    color: #f8fbff;
 }
 
-.file-viewer-markdown h1 { font-size: 1.6rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
-.file-viewer-markdown h2 { font-size: 1.3rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+.file-viewer-markdown h1 { font-size: 1.6rem; border-bottom: 1px solid rgba(148, 163, 184, 0.18); padding-bottom: 0.3em; }
+.file-viewer-markdown h2 { font-size: 1.3rem; border-bottom: 1px solid rgba(148, 163, 184, 0.18); padding-bottom: 0.3em; }
 .file-viewer-markdown h3 { font-size: 1.1rem; }
 
 .file-viewer-markdown p {
@@ -9982,7 +10007,7 @@ flex-wrap: wrap;
 }
 
 .file-viewer-markdown a {
-    color: var(--accent-color);
+    color: #7dd3fc;
     text-decoration: none;
 }
 
@@ -10001,8 +10026,9 @@ flex-wrap: wrap;
 }
 
 .file-viewer-markdown pre {
-    background: var(--bg-tertiary, var(--bg-secondary));
-    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 12px;
     padding: 12px 16px;
     overflow-x: auto;
     margin: 1em 0;
@@ -10019,17 +10045,18 @@ flex-wrap: wrap;
 .file-viewer-markdown code {
     font-family: 'Noto Sans Mono', monospace;
     font-size: 0.85em;
-    background: var(--bg-tertiary, var(--bg-secondary));
+    background: rgba(30, 41, 59, 0.85);
+    color: #f8fbff;
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: 5px;
 }
 
 .file-viewer-markdown blockquote {
     margin: 1em 0;
     padding: 0.5em 1em;
-    border-left: 4px solid var(--accent-color);
-    color: var(--text-secondary);
-    background: var(--bg-tertiary, var(--bg-secondary));
+    border-left: 4px solid #38bdf8;
+    color: #9fb0c8;
+    background: rgba(15, 23, 42, 0.74);
     border-radius: 0 4px 4px 0;
 }
 
@@ -10041,13 +10068,13 @@ flex-wrap: wrap;
 
 .file-viewer-markdown th,
 .file-viewer-markdown td {
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(148, 163, 184, 0.18);
     padding: 8px 12px;
     text-align: left;
 }
 
 .file-viewer-markdown th {
-    background: var(--bg-tertiary, var(--bg-secondary));
+    background: rgba(30, 41, 59, 0.7);
     font-weight: 600;
 }
 
@@ -10059,7 +10086,7 @@ flex-wrap: wrap;
 
 .file-viewer-markdown hr {
     border: none;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
     margin: 1.5em 0;
 }
 

@@ -33,6 +33,8 @@ export class FileViewerView extends BaseView {
         }
 
         const { relativePath, fileName, content, renderedHtml, isMarkdown, loading, error } = fileViewer;
+        const title = fileName || relativePath || '';
+        const subtitle = relativePath && relativePath !== title ? relativePath : '';
 
         let bodyHtml = '';
         if (loading) {
@@ -52,7 +54,10 @@ export class FileViewerView extends BaseView {
                         <i data-lucide="arrow-left"></i>
                         <span>Back</span>
                     </button>
-                    <div class="file-viewer-path" title="${escapeHtml(relativePath || '')}">${escapeHtml(fileName || relativePath || '')}</div>
+                    <div class="file-viewer-meta">
+                        <div class="file-viewer-title" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+                        ${subtitle ? `<div class="file-viewer-path" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</div>` : ''}
+                    </div>
                 </div>
                 <div class="file-viewer-content">
                     ${bodyHtml}
