@@ -2173,7 +2173,9 @@ export class App {
                         };
 
                         // Wire file viewer events to panel switching
-                        const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, () => {
+                        const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, (event) => {
+                            const { sessionId, relativePath } = event.detail || {};
+                            this._syncSidebarToOpenedFile(sessionId, relativePath);
                             this.showFileViewer?.();
                         });
                         const unsubFileClose = eventBus.on(EVENTS.FILE_VIEWER_CLOSED, () => {
@@ -4510,6 +4512,25 @@ export class App {
             if (refreshIds.length === 0) return;
             void this.refreshSessionUiSummaries(refreshIds);
         }, 30_000);
+    }
+
+    _syncSidebarToOpenedFile(sessionId, relativePath) {
+        if (!sessionId || !relativePath) return;
+        const state = appStore.getState();
+        const folderTree = state.folderTree || {};
+        appStore.setState({
+            ui: {
+                ...(state.ui || {}),
+                sidebarPrimaryView: 'folders'
+            },
+            folderTree: {
+                ...folderTree,
+                activeFileBySessionId: {
+                    ...(folderTree.activeFileBySessionId || {}),
+                    [sessionId]: relativePath
+                }
+            }
+        });
     }
 
     /**

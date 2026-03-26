@@ -223,6 +223,7 @@ export const appStore = new Store({
     folderTree: {
         bySessionId: {},
         expandedPaths: {},
+        activeFileBySessionId: {},
         loading: false,
         error: null
     },

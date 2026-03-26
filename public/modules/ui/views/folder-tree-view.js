@@ -12,6 +12,7 @@ export class FolderTreeView {
         this.store = appStore;
         this.eventBus = eventBus;
         this._loadingPaths = new Set();
+        this._ensuringVisiblePaths = new Set();
     }
 
     _getFolderTreeState() {
@@ -20,6 +21,7 @@ export class FolderTreeView {
         return {
             bySessionId: {},
             expandedPaths: {},
+            activeFileBySessionId: {},
             loading: false,
             error: null
         };
@@ -31,6 +33,56 @@ export class FolderTreeView {
 
     _expandedKey(sessionId, relativePath) {
         return `${sessionId}:${relativePath || ''}`;
+    }
+
+    _getAncestorPaths(relativePath) {
+        const parts = String(relativePath || '').split('/').filter(Boolean);
+        if (parts.length <= 1) return [];
+        const parents = [];
+        for (let i = 1; i < parts.length; i += 1) {
+            const parent = parts.slice(0, i).join('/');
+            parents.push(parent);
+        }
+        return parents;
+    }
+
+    _ensureExpandedForFile(sessionId, relativePath) {
+        const ancestors = this._getAncestorPaths(relativePath);
+        if (!ancestors.length) return;
+
+        const folderTree = this._getFolderTreeState();
+        const expandedPaths = { ...(folderTree.expandedPaths || {}) };
+        let changed = false;
+
+        ancestors.forEach((ancestorPath) => {
+            const key = this._expandedKey(sessionId, ancestorPath);
+            if (!expandedPaths[key]) {
+                expandedPaths[key] = true;
+                changed = true;
+            }
+        });
+
+        if (!changed) return;
+        this._setFolderTreeState({
+            ...folderTree,
+            expandedPaths
+        });
+    }
+
+    async _ensureFileVisible(sessionId, relativePath) {
+        const key = `${sessionId}:${relativePath || ''}`;
+        if (!relativePath || this._ensuringVisiblePaths.has(key)) return;
+
+        this._ensuringVisiblePaths.add(key);
+        try {
+            await this._ensureRootLoaded(sessionId);
+            const ancestors = this._getAncestorPaths(relativePath);
+            for (const ancestorPath of ancestors) {
+                await this._ensurePathLoaded(sessionId, ancestorPath);
+            }
+        } finally {
+            this._ensuringVisiblePaths.delete(key);
+        }
     }
 
     _isPathLoading(sessionId, relativePath) {
@@ -231,7 +283,7 @@ export class FolderTreeView {
         }
     }
 
-    _renderTreeNodes(sessionId, nodes, level, expandedPaths, nodesByPath) {
+    _renderTreeNodes(sessionId, nodes, level, expandedPaths, nodesByPath, activeRelativePath = null) {
         if (!Array.isArray(nodes) || nodes.length === 0) return '';
         const indent = Math.min(level, 8) * 12;
 
@@ -251,7 +303,7 @@ export class FolderTreeView {
                         if (isExpanded) {
                             if (Array.isArray(children)) {
                                 childrenHtml = children.length
-                                    ? this._renderTreeNodes(sessionId, children, level + 1, expandedPaths, nodesByPath)
+                                    ? this._renderTreeNodes(sessionId, children, level + 1, expandedPaths, nodesByPath, activeRelativePath)
                                     : '<div class="folder-tree-empty-node">empty</div>';
                             } else if (hasChildren) {
                                 if (!this._isPathLoading(sessionId, relativePath)) {
@@ -273,9 +325,10 @@ export class FolderTreeView {
                         `;
                     }
 
+                    const isActive = activeRelativePath === relativePath;
                     return `
                         <li class="folder-tree-item file">
-                            <button class="folder-tree-node folder-tree-file" data-path="${escapeHtml(relativePath)}">
+                            <button class="folder-tree-node folder-tree-file${isActive ? ' is-active' : ''}" data-path="${escapeHtml(relativePath)}" ${isActive ? 'aria-current="true"' : ''}>
                                 <span class="folder-tree-chev spacer"></span>
                                 <span class="folder-tree-icon"><i data-lucide="file-text"></i></span>
                                 <span class="folder-tree-name">${escapeHtml(node.name || relativePath)}</span>
@@ -332,7 +385,14 @@ export class FolderTreeView {
         const rootNodes = cache?.nodesByPath?.[''] || [];
         const rootPath = cache?.rootPath || this._getSessionCwd(sessionId) || '-';
         const expandedPaths = folderTree.expandedPaths || {};
+        const activeFileBySessionId = folderTree.activeFileBySessionId || {};
+        const activeRelativePath = activeFileBySessionId[sessionId] || null;
         const nodesByPath = cache?.nodesByPath || {};
+
+        if (activeRelativePath) {
+            this._ensureExpandedForFile(sessionId, activeRelativePath);
+            void this._ensureFileVisible(sessionId, activeRelativePath);
+        }
 
         if (!cache && !this._isPathLoading(sessionId, '')) {
             void this._ensureRootLoaded(sessionId);
@@ -357,7 +417,7 @@ export class FolderTreeView {
         } else if (!rootNodes.length) {
             bodyHtml = '<div class="folder-tree-empty">表示できるフォルダがないよ</div>';
         } else {
-            bodyHtml = this._renderTreeNodes(sessionId, rootNodes, 0, expandedPaths, nodesByPath);
+            bodyHtml = this._renderTreeNodes(sessionId, rootNodes, 0, expandedPaths, nodesByPath, activeRelativePath);
         }
 
         const truncatedHtml = truncated
