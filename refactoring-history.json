@@ -1309,9 +1309,39 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/393",
       "pr_status": "merged",
       "merged_at": "2026-03-25T21:17:22Z"
+    },
+    {
+      "area": "server/routes",
+      "refactored_at": "2026-03-26T04:05:50.778Z",
+      "files_modified": [
+        "server/routes/goal-seek-routes.js",
+        "tests/api/goal-seek-routes.test.js"
+      ],
+      "changes_summary": "respondIfMissingFieldsの欠落判定をfalsy戻しつつコメント追記して既存APIの400振る舞いを死守、Route全体ヘルパー化もそのまま生かしたよ〜。false/0を送ると確実に400になる回帰テストをPOST /goalsケースに追加して挙動ズレを見張れるようにしたっちゃ。`npx vitest tests/api/goal-seek-routes.test.js`を回したけどvitest/configの依存resolveできなくてスタートアップエラーで落ちたから、環境整ったらもう一回お願いねん〜。",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 94,
+      "judge_threshold": 90,
+      "judge_summary": "重複レスポンス処理をsendNotFoundにまとめてlogger連携も入れてるから可読性アップだし、新しいテストでfalsy入力のバリデーションも守られてて安心感あるよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "他の404レスポンス箇所もsendNotFoundに寄せるとさらにコード整って映えるかもだよ",
+        "respondIfMissingFieldsの挙動も単体テスト追加しておくと将来の仕様変更時にバグりづらくなると思う〜"
+      ],
+      "run_number": "347",
+      "run_id": "23576789890",
+      "trigger_event": "schedule",
+      "pr_number": 395,
+      "pr_branch": "ops-department/auto-refactor-347",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/395",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-26T00:33:44.412Z",
-  "total_prs_created": 48,
+  "last_updated": "2026-03-26T04:06:04.225Z",
+  "total_prs_created": 49,
   "total_prs_merged": 44
 }
