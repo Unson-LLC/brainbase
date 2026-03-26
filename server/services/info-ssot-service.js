@@ -12,6 +12,103 @@ const ROLE_VALUES = Object.keys(ROLE_RANK);
 const SENSITIVITY_VALUES = ['internal', 'restricted', 'finance', 'hr', 'contract'];
 const HIGH_SENSITIVITY_VALUES = ['finance', 'hr', 'contract'];
 
+const REPORT_SECTION_DEFINITIONS = Object.freeze([
+    {
+        type: 'decision',
+        title: 'Decisions',
+        mapNode: (node) => ({
+            id: node.id,
+            title: node.payload?.title || null,
+            status: node.payload?.status || null,
+            decided_at: node.payload?.decided_at || null
+        })
+    },
+    {
+        type: 'raci_assignment',
+        title: 'RACI',
+        mapNode: (node) => ({
+            id: node.id,
+            role_code: node.payload?.role_code || null,
+            authority_scope: node.payload?.authority_scope || null,
+            sensitivity_min: node.payload?.sensitivity_min || null
+        })
+    },
+    {
+        type: 'person',
+        title: 'People',
+        mapNode: (node) => ({
+            id: node.id,
+            name: node.payload?.name || null
+        })
+    },
+    {
+        type: 'ai_decision',
+        title: 'AI Decisions',
+        mapNode: (node) => ({
+            id: node.id,
+            summary: node.payload?.summary || null,
+            decision_type: node.payload?.decision_type || null,
+            decided_at: node.payload?.decided_at || null,
+            confidence: node.payload?.confidence || null
+        })
+    },
+    {
+        type: 'ai_query',
+        title: 'AI Queries',
+        mapNode: (node) => ({
+            id: node.id,
+            intent: node.payload?.intent || null,
+            query_type: node.payload?.query_type || null,
+            result_count: node.payload?.result_count || null
+        })
+    },
+    {
+        type: 'project',
+        title: 'Projects',
+        mapNode: (node) => ({
+            id: node.id,
+            code: node.payload?.code || null,
+            name: node.payload?.name || null
+        })
+    },
+    {
+        type: 'glossary_term',
+        title: 'Glossary',
+        mapNode: (node) => ({
+            id: node.id,
+            term: node.payload?.term || null,
+            reading: node.payload?.reading || null,
+            correct_form: node.payload?.correct_form || null,
+            incorrect_forms: node.payload?.incorrect_forms || null,
+            category: node.payload?.category || null,
+            description: node.payload?.description || null
+        })
+    },
+    {
+        type: 'kpi',
+        title: 'KPIs',
+        mapNode: (node) => ({
+            id: node.id,
+            metric_name: node.payload?.metric_name || null,
+            target_value: node.payload?.target_value || null,
+            current_value: node.payload?.current_value || null,
+            unit: node.payload?.unit || null,
+            period: node.payload?.period || null
+        })
+    },
+    {
+        type: 'initiative',
+        title: 'Initiatives',
+        mapNode: (node) => ({
+            id: node.id,
+            title: node.payload?.title || null,
+            status: node.payload?.status || null,
+            start_date: node.payload?.start_date || null,
+            end_date: node.payload?.end_date || null
+        })
+    }
+]);
+
 export class InfoSSOTService {
     constructor() {
         this.databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
@@ -163,6 +260,13 @@ export class InfoSSOTService {
         }
     }
 
+    buildReportSections(byType) {
+        return REPORT_SECTION_DEFINITIONS.map(({ type, title, mapNode }) => ({
+            title,
+            items: (byType[type] || []).map(mapNode)
+        }));
+    }
+
     summarizeEntities(records) {
         return records.map(record => {
             const payload = record?.payload || {};
@@ -226,65 +330,7 @@ export class InfoSSOTService {
         const seedNode = nodes.find(node => node.id === seedId) || null;
         const labelFor = (node) => (node ? this.formatEntityLabel(node) : seedId);
 
-        const decisionItems = (byType.decision || []).map(node => ({
-            id: node.id,
-            title: node.payload?.title || null,
-            status: node.payload?.status || null,
-            decided_at: node.payload?.decided_at || null
-        }));
-        const raciItems = (byType.raci_assignment || []).map(node => ({
-            id: node.id,
-            role_code: node.payload?.role_code || null,
-            authority_scope: node.payload?.authority_scope || null,
-            sensitivity_min: node.payload?.sensitivity_min || null
-        }));
-        const personItems = (byType.person || []).map(node => ({
-            id: node.id,
-            name: node.payload?.name || null
-        }));
-        const aiDecisionItems = (byType.ai_decision || []).map(node => ({
-            id: node.id,
-            summary: node.payload?.summary || null,
-            decision_type: node.payload?.decision_type || null,
-            decided_at: node.payload?.decided_at || null,
-            confidence: node.payload?.confidence || null
-        }));
-        const aiQueryItems = (byType.ai_query || []).map(node => ({
-            id: node.id,
-            intent: node.payload?.intent || null,
-            query_type: node.payload?.query_type || null,
-            result_count: node.payload?.result_count || null
-        }));
-        const projectItems = (byType.project || []).map(node => ({
-            id: node.id,
-            code: node.payload?.code || null,
-            name: node.payload?.name || null
-        }));
-        const glossaryItems = (byType.glossary_term || []).map(node => ({
-            id: node.id,
-            term: node.payload?.term || null,
-            reading: node.payload?.reading || null,
-            correct_form: node.payload?.correct_form || null,
-            incorrect_forms: node.payload?.incorrect_forms || null,
-            category: node.payload?.category || null,
-            description: node.payload?.description || null
-        }));
-        const kpiItems = (byType.kpi || []).map(node => ({
-            id: node.id,
-            metric_name: node.payload?.metric_name || null,
-            target_value: node.payload?.target_value || null,
-            current_value: node.payload?.current_value || null,
-            unit: node.payload?.unit || null,
-            period: node.payload?.period || null
-        }));
-        const initiativeItems = (byType.initiative || []).map(node => ({
-            id: node.id,
-            title: node.payload?.title || null,
-            status: node.payload?.status || null,
-            start_date: node.payload?.start_date || null,
-            end_date: node.payload?.end_date || null
-        }));
-
+        const sections = this.buildReportSections(byType);
         return {
             header: {
                 seed_id: seedId,
@@ -296,17 +342,7 @@ export class InfoSSOTService {
                 node_count: nodes.length,
                 edge_count: edges.length
             },
-            sections: [
-                { title: 'Decisions', items: decisionItems },
-                { title: 'RACI', items: raciItems },
-                { title: 'People', items: personItems },
-                { title: 'AI Decisions', items: aiDecisionItems },
-                { title: 'AI Queries', items: aiQueryItems },
-                { title: 'Projects', items: projectItems },
-                { title: 'Glossary', items: glossaryItems },
-                { title: 'KPIs', items: kpiItems },
-                { title: 'Initiatives', items: initiativeItems }
-            ],
+            sections,
             relations: summaryLines || []
         };
     }
