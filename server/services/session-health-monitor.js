@@ -9,6 +9,7 @@
  * - 死亡検出時にcallbackで通知
  * - PTY Watchdogと組み合わせて使用
  */
+import { logger } from '../utils/logger.js';
 
 export class SessionHealthMonitor {
     /**
@@ -60,16 +61,16 @@ export class SessionHealthMonitor {
      */
     start(intervalMs = 60000) {
         if (this._timer) return;
-        console.log(`[SessionHealthMonitor] Starting (interval: ${intervalMs / 1000}s)`);
+        logger.info(`[SessionHealthMonitor] Starting (interval: ${intervalMs / 1000}s)`);
 
         this._timer = setInterval(async () => {
             try {
                 const { dead } = await this.checkHealth();
                 if (dead.length > 0) {
-                    console.warn(`[SessionHealthMonitor] Dead sessions detected: ${dead.join(', ')}`);
+                    logger.warn(`[SessionHealthMonitor] Dead sessions detected: ${dead.join(', ')}`);
                 }
             } catch (err) {
-                console.error('[SessionHealthMonitor] Error:', err.message);
+                logger.error('[SessionHealthMonitor] Error:', err.message);
             }
         }, intervalMs);
     }
@@ -81,7 +82,7 @@ export class SessionHealthMonitor {
         if (this._timer) {
             clearInterval(this._timer);
             this._timer = null;
-            console.log('[SessionHealthMonitor] Stopped');
+            logger.info('[SessionHealthMonitor] Stopped');
         }
     }
 }

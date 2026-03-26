@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "checkJs": false,
+    "strict": false,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
+  },
+  "include": [
+    "modules/core/xterm-loader.js",
+    "modules/core/terminal-transport-client.js"
+  ],
+  "exclude": ["../node_modules"]
+}

@@ -1,8 +1,9 @@
+// @ts-check
 import { httpClient } from './http-client.js';
 import { loadXterm } from './xterm-loader.js';
 import { MessageQueue } from './message-queue.js';
 
-const SNAPSHOT_LINES = 5000;
+const SNAPSHOT_LINES = 400;
 const CONNECT_TIMEOUT_MS = 15000;
 
 // WebSocket reconnection settings (CommandMate pattern)
@@ -23,7 +24,7 @@ const WS_CLOSE_BLOCKED = 4001;
 export function shouldUseXtermTransport() {
     if (typeof window === 'undefined') return false;
     const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
-    if (/jsdom/i.test(userAgent) || typeof window.__vitest_worker__ !== 'undefined') {
+    if (/jsdom/i.test(userAgent) || typeof /** @type {any} */ (window).__vitest_worker__ !== 'undefined') {
         return false;
     }
     return window.innerWidth > 768;
@@ -45,7 +46,8 @@ export class TerminalTransportClient {
             blockedAccess: null,
             connected: false,
             isFocused: false,
-            lastSnapshotAt: null
+            lastSnapshotAt: null,
+            transport: 'snapshot'
         };
         this._resizeHandler = null;
         this._reconnectTimer = null;
@@ -56,6 +58,11 @@ export class TerminalTransportClient {
         this._messageQueue = new MessageQueue();
         this._isViewportPinnedToBottom = true;
         this._pendingSnapshotText = null;
+        this._lastSnapshotText = null;
+        this._pendingEchoText = '';
+        this._forceApplyNextSnapshot = false;
+        this._hiddenDisconnect = false;
+        this._visibilityHandler = null;
     }
 
     async init(hostEl) {
@@ -66,9 +73,10 @@ export class TerminalTransportClient {
         this.terminal = new Terminal({
             fontFamily: 'Menlo, Monaco, monospace',
             fontSize: 14,
-            scrollback: 5000,
+            scrollback: 1000,
             convertEol: true,
             allowTransparency: false,
+            allowProposedApi: true,
             cursorBlink: true,
             theme: {
                 background: '#000000',
@@ -113,6 +121,23 @@ export class TerminalTransportClient {
             }
         };
         window.addEventListener('resize', this._resizeHandler);
+
+        this._visibilityHandler = () => {
+            if (document.hidden) {
+                if (this.ws?.readyState === WebSocket.OPEN) {
+                    this._hiddenDisconnect = true;
+                    this.disconnect({ preserveView: true });
+                    this._manualClose = false;
+                }
+                return;
+            }
+
+            if (this._hiddenDisconnect && this.sessionId) {
+                this._hiddenDisconnect = false;
+                void this.connect(this.sessionId).catch(() => {});
+            }
+        };
+        document.addEventListener('visibilitychange', this._visibilityHandler);
     }
 
     destroy() {
@@ -121,6 +146,10 @@ export class TerminalTransportClient {
         if (this._resizeHandler) {
             window.removeEventListener('resize', this._resizeHandler);
             this._resizeHandler = null;
+        }
+        if (this._visibilityHandler) {
+            document.removeEventListener('visibilitychange', this._visibilityHandler);
+            this._visibilityHandler = null;
         }
         this.terminal?.dispose();
         this.terminal = null;
@@ -175,6 +204,7 @@ export class TerminalTransportClient {
     }
 
     async connect(sessionId) {
+        const switchingSessions = Boolean(this.sessionId && this.sessionId !== sessionId);
         this._connectToken += 1;
         const connectToken = this._connectToken;
         this._manualClose = false;
@@ -182,10 +212,15 @@ export class TerminalTransportClient {
         this.status.mode = 'reconnecting';
         this.status.connected = false;
         this.status.blockedAccess = null;
+        this.status.transport = 'streaming';
         this._emitStatus();
 
         this._clearReconnectTimer();
         this._closeWs();
+
+        if (switchingSessions) {
+            this._prepareForSessionSwitch();
+        }
 
         const initialDimensions = this._measureViewport();
         const wsUrl = this._buildWsUrl(sessionId, initialDimensions);
@@ -224,14 +259,21 @@ export class TerminalTransportClient {
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
                             this.status.mode = 'snapshot';
+                            this.status.transport = 'snapshot';
                         }
                         this._emitStatus();
+                        break;
+                    case 'output':
+                        this._applyOutput(typeof message.data === 'string' ? message.data : '');
                         break;
                     case 'status':
                         this.status.copyMode = Boolean(message.copyMode);
                         if (typeof message.mode === 'string') {
                             this.status.mode = message.mode;
                             this.status.connected = message.mode === 'live';
+                        }
+                        if (typeof message.transport === 'string') {
+                            this.status.transport = message.transport;
                         }
                         this._emitStatus();
                         break;
@@ -240,13 +282,14 @@ export class TerminalTransportClient {
                         this.status.mode = 'blocked';
                         this.status.blockedAccess = message.terminalAccess || null;
                         this.status.connected = false;
+                        this.status.transport = 'snapshot';
                         this._emitStatus();
                         resolve({ mode: 'blocked', terminalAccess: message.terminalAccess || null });
                         break;
                     case 'error': {
                         cleanup();
                         this._manualClose = true;
-                        const error = new Error(message.message || 'Terminal transport error');
+                        const error = /** @type {Error & { code?: string }} */ (new Error(message.message || 'Terminal transport error'));
                         error.code = message.code || 'TERMINAL_TRANSPORT_ERROR';
                         reject(error);
                         break;
@@ -257,6 +300,10 @@ export class TerminalTransportClient {
             });
 
             ws.addEventListener('close', (closeEvent) => {
+                if (this._connectToken !== connectToken || this.ws !== ws) {
+                    cleanup();
+                    return;
+                }
                 cleanup();
                 this._stopKeepalive();
                 this.status.connected = false;
@@ -297,8 +344,11 @@ export class TerminalTransportClient {
             this.status.mode = 'idle';
             this.status.lastSnapshotAt = null;
             this.status.blockedAccess = null;
+            this.status.transport = 'snapshot';
             this._pendingSnapshotText = null;
+            this._pendingEchoText = '';
             this._isViewportPinnedToBottom = true;
+            this._lastSnapshotText = null;
             this.terminal?.reset();
         }
         this._emitStatus();
@@ -313,6 +363,7 @@ export class TerminalTransportClient {
             return;
         }
         await this._ensureInteractiveMode();
+        this._applyLocalEcho(value);
         this.ws.send(JSON.stringify(message));
     }
 
@@ -374,6 +425,7 @@ export class TerminalTransportClient {
                 this.status.lastSnapshotAt = res.capturedAt || new Date().toISOString();
                 this.status.copyMode = Boolean(res.copyMode);
                 this.status.mode = 'snapshot';
+                this.status.transport = 'snapshot';
                 this._emitStatus();
             }
         } catch (error) {
@@ -515,6 +567,19 @@ export class TerminalTransportClient {
     _queueOrApplySnapshot(text) {
         if (!this.terminal) return;
 
+        if (this._forceApplyNextSnapshot) {
+            this._forceApplyNextSnapshot = false;
+            this._isViewportPinnedToBottom = true;
+            this._pendingSnapshotText = null;
+            this._applySnapshot(text, {
+                forceViewportState: {
+                    distanceFromBottom: 0,
+                    wasPinnedToBottom: true
+                }
+            });
+            return;
+        }
+
         if (!this._computeIsViewportPinnedToBottom()) {
             this._isViewportPinnedToBottom = false;
             this._pendingSnapshotText = text || '';
@@ -548,16 +613,71 @@ export class TerminalTransportClient {
         const normalizedText = text || '';
         if (this._lastSnapshotText === normalizedText) return;
         this._lastSnapshotText = normalizedText;
+        this._pendingEchoText = '';
 
         const viewportState = options.forceViewportState || this._captureViewportState();
         // terminal.reset()は内部状態を全破壊してDOMを全再構築するため使わない。
         // 代わりにANSIエスケープで画面クリア+カーソルホーム+スクロールバッファクリア。
         // xterm.jsは変わった行だけDOMを更新する。
-        this.terminal.write('\x1b[2J\x1b[3J\x1b[H' + normalizedText, () => {
-            this.fitAddon?.fit();
-            this._restoreViewportState(viewportState);
+        this._writeToTerminal('\x1b[2J\x1b[3J\x1b[H' + normalizedText, viewportState);
+    }
+
+    _applyOutput(text) {
+        if (!this.terminal || !text) return;
+        const nextText = this._consumePendingEcho(text);
+        if (!nextText) return;
+        this._writeToTerminal(nextText);
+    }
+
+    _applyLocalEcho(text) {
+        if (!this.terminal || !text || this.status.mode !== 'live') return;
+        if (!this._canOptimisticallyEcho(text)) return;
+
+        const normalized = this._normalizeEchoText(text);
+        if (!normalized) return;
+
+        this._pendingEchoText += normalized;
+        this._writeToTerminal(normalized);
+    }
+
+    _canOptimisticallyEcho(text) {
+        if (typeof text !== 'string' || !text) return false;
+        return !/[\u0000-\u0008\u000b-\u001f\u007f\u001b]/.test(text);
+    }
+
+    _normalizeEchoText(text) {
+        return text
+            .replace(/\r?\n/g, '\r\n')
+            .replace(/\t/g, '    ');
+    }
+
+    _consumePendingEcho(text) {
+        if (!this._pendingEchoText) return text;
+        if (!text.startsWith(this._pendingEchoText)) {
+            this._pendingEchoText = '';
+            return text;
+        }
+
+        const remaining = text.slice(this._pendingEchoText.length);
+        this._pendingEchoText = '';
+        return remaining;
+    }
+
+    _writeToTerminal(text, viewportState = null) {
+        if (!this.terminal || !text) return;
+        const nextViewportState = viewportState || this._captureViewportState();
+        this.terminal.write(text, () => {
+            this._restoreViewportState(nextViewportState);
             this._isViewportPinnedToBottom = this._computeIsViewportPinnedToBottom();
         });
+    }
+
+    _prepareForSessionSwitch() {
+        this._forceApplyNextSnapshot = true;
+        this._pendingSnapshotText = null;
+        this._pendingEchoText = '';
+        this._lastSnapshotText = null;
+        this._isViewportPinnedToBottom = true;
     }
 
     _measureViewport() {

@@ -56,6 +56,19 @@ npm run setup
 
 **注意**: `brainbase auth login` は不要。UIのSlackログインだけで十分。
 
+### 3. Google Calendar連携（任意）
+
+タイムラインで Google Calendar を出したいメンバーは、各自の Mac で `gog` を認証する。
+
+```bash
+gog auth credentials <path-to-credentials.json>
+gog auth add <your-email> --services calendar
+```
+
+- brainbase は `gog` の default account を使う
+- Google secrets や refresh token を team 配布する必要はない
+- 予定取得対象を変えたい場合だけ `.env` に `BRAINBASE_GOOGLE_CALENDAR_IDS=primary,<calendarId>` を追加する
+
 ### 5. Wiki同期
 
 ```bash

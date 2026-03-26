@@ -58,17 +58,34 @@ export class GraphAPISource implements EntitySource {
     console.error('[GraphAPISource] Fetching entities from Graph API...');
 
     const token = await this.tokenManager.getToken();
-    const url = `${this.apiUrl}/api/info/graph/entities`;
+    const baseUrl = `${this.apiUrl}/api/info/graph/entities`;
 
-    const response = await this.fetchWithRetry(url, token);
+    // Fetch each entity type separately to avoid LIMIT truncation
+    const types = ['project', 'person', 'org', 'raci', 'app', 'customer', 'decision'];
+    const allEntities: GraphEntity[] = [];
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch entities: ${response.status} ${response.statusText}`);
+    for (const type of types) {
+      const url = `${baseUrl}?type=${type}&limit=500`;
+      const response = await this.fetchWithRetry(url, token);
+
+      if (!response.ok) {
+        console.error(`[GraphAPISource] Failed to fetch ${type}: ${response.status}`);
+        continue;
+      }
+
+      const data = await response.json() as Record<string, unknown>;
+      const records = ((data.entities || data.records || []) as GraphEntity[]).map(r => ({
+        ...r,
+        entity_id: r.entity_id || (r as Record<string, unknown>).id as string,
+        entity_type: r.entity_type || type,
+      }));
+      allEntities.push(...records);
+      if (records.length > 0) {
+        console.error(`[GraphAPISource]   ${type}: ${records.length}`);
+      }
     }
 
-    const data: GraphEntitiesResponse = await response.json();
-    this.entities = data.entities;
-
+    this.entities = allEntities;
     console.error(`[GraphAPISource] Loaded ${this.entities.length} entities from Graph API`);
   }
 

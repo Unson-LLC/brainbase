@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 import { TaskService } from '../../../public/modules/domain/task/task-service.js';
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
@@ -56,13 +57,12 @@ describe('TaskService', () => {
 
         it('should emit TASK_LOADED event', async () => {
             httpClient.get.mockResolvedValue(mockTasks);
-            const listener = vi.fn();
-            eventBus.on(EVENTS.TASK_LOADED, listener);
+            const { listener, getDetail } = listenForEvent(eventBus, EVENTS.TASK_LOADED);
 
             await taskService.loadTasks();
 
             expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail.tasks).toEqual(mockTasks);
+            expect(getDetail().tasks).toEqual(mockTasks);
         });
 
         it('should reuse global cache across session switches', async () => {
@@ -92,13 +92,12 @@ describe('TaskService', () => {
         it('should emit TASK_COMPLETED event', async () => {
             httpClient.put.mockResolvedValue({});
             httpClient.get.mockResolvedValue(mockTasks);
-            const listener = vi.fn();
-            eventBus.on(EVENTS.TASK_COMPLETED, listener);
+            const { listener, getDetail } = listenForEvent(eventBus, EVENTS.TASK_COMPLETED);
 
             await taskService.completeTask('task-123');
 
             expect(listener).toHaveBeenCalled();
-            expect(listener.mock.calls[0][0].detail.taskId).toBe('task-123');
+            expect(getDetail().taskId).toBe('task-123');
         });
 
         it('should invalidate cached tasks before reloading', async () => {

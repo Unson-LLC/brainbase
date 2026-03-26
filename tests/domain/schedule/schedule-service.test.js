@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 import { ScheduleService } from '../../../public/modules/domain/schedule/schedule-service.js';
 import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
@@ -183,7 +184,16 @@ describe('ScheduleService', () => {
 
     describe('google calendar auth', () => {
         it('getGoogleCalendarAuthStatus呼び出し時_API結果をキャッシュする', async () => {
-            const authStatus = { configured: true, connected: true, calendarIds: ['primary'] };
+            const authStatus = {
+                provider: 'gog',
+                configured: true,
+                installed: true,
+                connected: true,
+                defaultAccount: 'gyaru@example.com',
+                calendarIds: ['primary'],
+                reason: 'ready',
+                setupCommands: []
+            };
             httpClient.get.mockResolvedValue(authStatus);
 
             const first = await scheduleService.getGoogleCalendarAuthStatus();
@@ -195,14 +205,17 @@ describe('ScheduleService', () => {
             expect(httpClient.get).toHaveBeenCalledWith('/api/schedule/google/auth-status');
         });
 
-        it('disconnectGoogleCalendar呼び出し時_認証解除後にスケジュール再読み込みする', async () => {
-            httpClient.get.mockResolvedValue(mockSchedule);
-            httpClient.delete.mockResolvedValue({ success: true });
+        it('getGoogleCalendarAuthStatus呼び出し時_force指定_キャッシュを無視して再取得する', async () => {
+            httpClient.get
+                .mockResolvedValueOnce({ provider: 'gog', configured: true, installed: false, connected: false, reason: 'missing_binary', calendarIds: ['primary'], setupCommands: [] })
+                .mockResolvedValueOnce({ provider: 'gog', configured: true, installed: true, connected: true, defaultAccount: 'gyaru@example.com', reason: 'ready', calendarIds: ['primary'], setupCommands: [] });
 
-            await scheduleService.disconnectGoogleCalendar();
+            const first = await scheduleService.getGoogleCalendarAuthStatus();
+            const second = await scheduleService.getGoogleCalendarAuthStatus({ force: true });
 
-            expect(httpClient.delete).toHaveBeenCalledWith('/api/schedule/google/auth');
-            expect(httpClient.get).toHaveBeenCalledWith('/api/schedule/today');
+            expect(first.connected).toBe(false);
+            expect(second.connected).toBe(true);
+            expect(httpClient.get).toHaveBeenCalledTimes(2);
         });
     });
 });

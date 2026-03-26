@@ -83,11 +83,11 @@ export async function saveState(state) {
  * @param {Object} updates - 更新内容
  */
 export async function updateSession(sessionId, updates) {
-  const state = await fetchState();
-  const updatedSessions = state.sessions.map(s =>
-    s.id === sessionId ? { ...s, ...updates } : s
-  );
-  await saveState({ ...state, sessions: updatedSessions });
+  await fetch(`${STATE_ENDPOINT}/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  });
 }
 
 /**

@@ -373,18 +373,22 @@ describe('SessionView', () => {
             expect(after).toEqual(['session-1', 'session-2']);
         });
 
-        it('should schedule full re-render on SESSION_UI_STATE_CHANGED in timeline view', async () => {
+        it('should do differential update (refresh + reorder) on SESSION_UI_STATE_CHANGED in timeline view', async () => {
             appStore.setState({
                 ui: {
                     sessionListView: 'timeline'
                 }
             });
             await new Promise(resolve => queueMicrotask(resolve));
+            const refreshSpy = vi.spyOn(sessionView, '_refreshSessionRows');
+            const reorderSpy = vi.spyOn(sessionView, '_reorderTimelineRows');
             const scheduleSpy = vi.spyOn(sessionView, '_scheduleRender');
 
             await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: ['session-1'] });
 
-            expect(scheduleSpy).toHaveBeenCalled();
+            expect(refreshSpy).toHaveBeenCalledWith(['session-1']);
+            expect(reorderSpy).toHaveBeenCalled();
+            expect(scheduleSpy).not.toHaveBeenCalled();
         });
 
         it('should only refresh affected rows on SESSION_UI_STATE_CHANGED in project view', async () => {

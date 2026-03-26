@@ -1,3 +1,5 @@
+import { refreshIcons } from './ui-helpers.js';
+
 /**
  * Session Handlers
  * セッションリストの共通イベントハンドラー（デスクトップ・モバイル共通）
@@ -22,7 +24,7 @@ export function attachSectionHeaderHandlers(container) {
                 const icon = header.querySelector('i');
                 if (icon) {
                     icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'chevron-right' : 'chevron-down');
-                    if (window.lucide) window.lucide.createIcons();
+                    refreshIcons();
                 }
             }
         });
@@ -47,7 +49,7 @@ export function attachGroupHeaderHandlers(container) {
                     const icon = header.querySelector('.folder-icon i');
                     if (icon) {
                         icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'folder' : 'folder-open');
-                        if (window.lucide) window.lucide.createIcons();
+                        refreshIcons();
                     }
                 }
             }

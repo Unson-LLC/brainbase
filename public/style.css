@@ -92,6 +92,75 @@ body::after {
     overflow: hidden;
 }
 
+/* Activity Bar (Cursor-style vertical icon nav) */
+.activity-bar {
+    width: 48px;
+    min-width: 48px;
+    background-color: rgba(15, 23, 42, 0.95);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    flex-shrink: 0;
+    z-index: 51;
+}
+
+.activity-bar-top, .activity-bar-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.activity-bar-item {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 8px;
+    position: relative;
+    transition: color 0.15s, background 0.15s;
+}
+
+.activity-bar-item:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.activity-bar-item.active {
+    color: var(--text-primary);
+}
+
+.activity-bar-item.active::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 25%;
+    height: 50%;
+    width: 3px;
+    background: var(--accent-color);
+    border-radius: 0 2px 2px 0;
+}
+
+.activity-bar-divider {
+    width: 24px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+.activity-bar-item i {
+    width: 20px;
+    height: 20px;
+}
+
 /* Pane 1: Left Navigation (Sessions) */
 .sidebar {
     width: 260px;
@@ -534,6 +603,20 @@ body::after {
 
 .folder-tree-node:hover {
     background: rgba(255, 255, 255, 0.06);
+}
+
+.folder-tree-file.is-active {
+    background: rgba(59, 130, 246, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.4);
+}
+
+.folder-tree-file.is-active:hover {
+    background: rgba(59, 130, 246, 0.24);
+}
+
+.folder-tree-file.is-active .folder-tree-name,
+.folder-tree-file.is-active .folder-tree-icon {
+    color: #dbeafe;
 }
 
 .folder-tree-chev {
@@ -1598,48 +1681,34 @@ body::after {
 
 .terminal-snapshot-panel {
     position: absolute;
-    inset: 16px;
+    inset: 0;
     z-index: 18;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    border-radius: 14px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(2, 6, 23, 0.94);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-    backdrop-filter: blur(12px);
+    background: #020617;
 }
 
 .terminal-snapshot-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
+    display: none;
 }
 
 .terminal-snapshot-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text-primary);
+    display: none;
 }
 
 .terminal-snapshot-timestamp {
-    font-size: 12px;
-    color: var(--text-secondary);
-    white-space: nowrap;
+    display: none;
 }
 
 .terminal-snapshot-content {
     flex: 1;
     min-height: 0;
     margin: 0;
-    padding: 14px;
+    padding: 8px 10px;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    border-radius: 10px;
-    background: rgba(15, 23, 42, 0.82);
+    background: #020617;
     color: #e2e8f0;
     font: 12px/1.55 'Noto Sans Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 }
@@ -2679,6 +2748,69 @@ body.resizing iframe {
     background: rgba(59, 130, 246, 0.14);
     color: #93c5fd;
     border: 1px solid rgba(59, 130, 246, 0.22);
+}
+
+.timeline-google-diagnostics {
+    margin-bottom: 0.75rem;
+}
+
+.timeline-google-diagnostics-card {
+    padding: 0.8rem 0.9rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.timeline-google-diagnostics-card.is-ready {
+    border-color: rgba(34, 197, 94, 0.28);
+}
+
+.timeline-google-diagnostics-card.is-warning {
+    border-color: rgba(245, 158, 11, 0.28);
+}
+
+.timeline-google-diagnostics-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.45rem;
+}
+
+.timeline-google-diagnostics-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.timeline-google-diagnostics-message,
+.timeline-google-diagnostics-row {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.timeline-google-diagnostics-row + .timeline-google-diagnostics-row {
+    margin-top: 0.2rem;
+}
+
+.timeline-google-diagnostics-commands {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+}
+
+.timeline-google-diagnostics-commands code {
+    display: block;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    color: #cbd5e1;
+    font-size: 0.74rem;
+    white-space: pre-wrap;
+    word-break: break-all;
 }
 
 .timeline-item.past .timeline-content {
@@ -6203,7 +6335,7 @@ body.resizing iframe {
     }
 
     .terminal-snapshot-panel {
-        inset: 10px 10px calc(10px + var(--mobile-input-offset, 120px));
+        inset: 0 0 var(--mobile-terminal-reserve, var(--mobile-input-offset, 120px));
     }
 
     /* Mobile Input Dock */
@@ -6615,7 +6747,11 @@ body.resizing iframe {
         display: flex;
     }
 
-    /* Hide desktop sidebars */
+    /* Hide desktop Activity Bar + sidebars */
+    .activity-bar {
+        display: none !important;
+    }
+
     .sidebar {
         display: none !important;
         width: 0 !important;
@@ -6663,6 +6799,14 @@ body.resizing iframe {
         -webkit-overflow-scrolling: touch;
         touch-action: pan-y;
         padding-bottom: calc(var(--mobile-input-offset) + env(safe-area-inset-bottom, 0));
+        box-sizing: border-box;
+        min-height: 0;
+    }
+
+    .terminal-stage {
+        flex: 1 1 auto;
+        min-height: var(--mobile-terminal-stage-height, 0px);
+        height: var(--mobile-terminal-stage-height, auto);
     }
 
     /* Terminal iframe - full width, fill parent */
@@ -6713,17 +6857,32 @@ body.resizing iframe {
     .console-area.using-snapshot iframe,
     .console-area.using-snapshot #terminal-xterm-host {
         display: none;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
     }
 
     .console-area.using-snapshot .terminal-snapshot-panel {
-        inset: 10px 10px calc(10px + var(--mobile-input-offset, 120px));
+        position: fixed;
+        top: var(--mobile-terminal-stage-top, 0px);
+        left: var(--mobile-terminal-stage-left, 0px);
+        width: var(--mobile-terminal-stage-width, 100vw);
+        height: var(--mobile-terminal-stage-height, 0px);
+        inset: auto;
         display: flex;
+        z-index: 1105;
+        visibility: visible;
+        opacity: 1;
+        isolation: isolate;
+        pointer-events: auto;
     }
 
     .console-area.using-snapshot .terminal-snapshot-content {
         white-space: pre-wrap;
         word-break: break-word;
         overflow-wrap: anywhere;
+        height: 100%;
+        min-height: 100%;
     }
 
     /* Modal adjustments for mobile */
@@ -8395,40 +8554,275 @@ body.resizing iframe {
     height: 18px;
 }
 
-/* Sliding Background Pill — uses JS-counted visible buttons */
+/* Panel toggle: each button has independent active state (no slider) */
 .toggle-bg-slider {
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    width: calc(33.333% - 3px);
-    height: calc(100% - 8px);
+    display: none;
+}
+
+.toggle-option.active {
     background: var(--primary-color);
+    color: var(--text-white);
     border-radius: 6px;
-    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-    z-index: 1;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Slider positions: Console=0, Wiki=1, Feed=2, Dashboard=3 */
-.view-toggle.wiki-active .toggle-bg-slider {
-    transform: translateX(100%);
+/* =========================================
+   Panel Layout: Wiki Drawer, Dashboard Overlay, Sidebar Collapse
+   ========================================= */
+
+/* Info Drawer (Wiki + LiveFeed tabs) */
+.info-drawer {
+    width: 0;
+    height: 100%;
+    background-color: rgba(30, 41, 59, 0.95);
+    border-left: 1px solid transparent;
+    backdrop-filter: blur(20px);
+    transition: width 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
 }
 
-.view-toggle.live-feed-active .toggle-bg-slider {
-    transform: translateX(200%);
+.info-drawer.open {
+    width: 480px;
+    border-left-color: rgba(255, 255, 255, 0.08);
 }
 
-.view-toggle.dashboard-active .toggle-bg-slider {
-    transform: translateX(300%);
+.info-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+    gap: 8px;
 }
 
-.toggle-bg-slider::after {
-    /* Optional: Add a subtle shine/gradient or inner border */
-    content: '';
+.info-drawer-tabs {
+    display: flex;
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.info-drawer-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.info-drawer-tab:hover {
+    color: var(--text-primary);
+}
+
+.info-drawer-tab.active {
+    background: var(--primary-color);
+    color: var(--text-white);
+}
+
+.info-drawer-tab i {
+    width: 14px;
+    height: 14px;
+}
+
+.info-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+}
+
+.info-tab-content {
+    display: none;
+    padding: 16px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.info-tab-content.active {
+    display: block;
+}
+
+/* Commit tree tab content within info drawer */
+.commit-tree-panel-inner {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.commit-tree-panel-inner .commit-tree-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Tasks tab content within info drawer */
+#tasks-tab-content {
+    display: none;
+    padding: 12px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+#tasks-tab-content.active {
+    display: block;
+}
+
+/* Commit tree tab - no extra padding (inner has its own) */
+#commit-tree-tab-content {
+    padding: 0;
+}
+
+/* Context Sidebar Collapse */
+.context-sidebar {
+    transition: width 0.2s ease, opacity 0.2s ease, min-width 0.2s ease;
+}
+
+.context-sidebar.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;
+    opacity: 0;
+    padding: 0;
+    border: none;
+}
+
+.context-sidebar-collapse-btn {
     position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-sidebar-collapse-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.context-sidebar-collapse-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.context-sidebar-expand-btn {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    z-index: 55;
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-sidebar-expand-btn:hover {
+    color: var(--text-primary);
+    background: rgba(30, 41, 59, 1);
+}
+
+.context-sidebar-expand-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.context-sidebar-expand-btn.hidden {
+    display: none;
+}
+
+/* Dashboard Overlay */
+.dashboard-overlay {
+    position: fixed;
     inset: 0;
-    border-radius: inherit;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 200;
+    background-color: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.dashboard-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.dashboard-overlay-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dashboard-overlay-header h2 i {
+    width: 20px;
+    height: 20px;
+}
+
+/* Panel toggle buttons - active state */
+.view-toggle .toggle-option.active {
+    color: var(--text-white);
+    background: var(--primary-color);
+    border-radius: 6px;
+}
+
+/* Dashboard button - visually distinct (fullscreen action) */
+.toggle-option-dashboard {
+    gap: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+    margin-top: 4px;
+    padding-top: 8px !important;
+}
+
+.toggle-option-dashboard .toggle-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.toggle-option-dashboard.active {
+    background: rgba(99, 102, 241, 0.2) !important;
+    color: var(--accent-color, #818cf8) !important;
+    border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
 /* Phase 2: Heatmap & System Resources */
@@ -9375,7 +9769,6 @@ flex-wrap: wrap;
     color: var(--text-primary);
 }
 
-<<<<<<< HEAD
 /* ========================================
    Session Progress Modal
    ======================================== */
@@ -9443,6 +9836,10 @@ flex-wrap: wrap;
 
 .terminal-loading-overlay.hidden {
     opacity: 0;
+    visibility: hidden;
+    display: none;
+    background: transparent;
+    backdrop-filter: none;
     pointer-events: none;
 }
 
@@ -9485,7 +9882,8 @@ flex-wrap: wrap;
     overflow: hidden;
     width: 100%;
     height: 100%;
-    background-color: var(--bg-primary);
+    background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(2, 6, 23, 0.98) 100%);
 }
 
 .file-viewer {
@@ -9493,15 +9891,17 @@ flex-wrap: wrap;
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    color: #e5eefb;
 }
 
 .file-viewer-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.88);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03);
     flex-shrink: 0;
 }
 
@@ -9510,18 +9910,18 @@ flex-wrap: wrap;
     align-items: center;
     gap: 4px;
     padding: 4px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-secondary);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.55);
+    color: #c7d6ea;
     cursor: pointer;
     font-size: 0.8rem;
     transition: background 0.15s, color 0.15s;
 }
 
 .file-viewer-back:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+    background: rgba(51, 65, 85, 0.9);
+    color: #f8fbff;
 }
 
 .file-viewer-back i {
@@ -9529,9 +9929,25 @@ flex-wrap: wrap;
     height: 14px;
 }
 
+.file-viewer-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.file-viewer-title {
+    font-size: 0.95rem;
+    font-weight: 650;
+    color: #f8fbff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .file-viewer-path {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
+    font-size: 0.76rem;
+    color: #8da2bf;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -9541,13 +9957,16 @@ flex-wrap: wrap;
     flex: 1;
     overflow-y: auto;
     padding: 16px 24px;
+    background:
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 30%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.96) 100%);
 }
 
 .file-viewer-loading,
 .file-viewer-error {
     padding: 24px;
     text-align: center;
-    color: var(--text-secondary);
+    color: #9fb0c8;
 }
 
 .file-viewer-error {
@@ -9556,12 +9975,15 @@ flex-wrap: wrap;
 
 .file-viewer-text {
     margin: 0;
-    padding: 16px;
-    background: var(--bg-tertiary, var(--bg-secondary));
-    border-radius: 6px;
+    padding: 18px 20px;
+    background: rgba(15, 23, 42, 0.86);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     overflow-x: auto;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     line-height: 1.6;
+    color: #dbe7f5;
 }
 
 .file-viewer-text code {
@@ -9571,9 +9993,9 @@ flex-wrap: wrap;
 
 /* Markdown rendered content (GitHub-like style) */
 .file-viewer-markdown {
-    font-size: 0.9rem;
-    line-height: 1.7;
-    color: var(--text-primary);
+    font-size: 0.95rem;
+    line-height: 1.75;
+    color: #dbe7f5;
     word-wrap: break-word;
 }
 
@@ -9587,11 +10009,11 @@ flex-wrap: wrap;
     margin-bottom: 0.5em;
     font-weight: 600;
     line-height: 1.3;
-    color: var(--text-primary);
+    color: #f8fbff;
 }
 
-.file-viewer-markdown h1 { font-size: 1.6rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
-.file-viewer-markdown h2 { font-size: 1.3rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+.file-viewer-markdown h1 { font-size: 1.6rem; border-bottom: 1px solid rgba(148, 163, 184, 0.18); padding-bottom: 0.3em; }
+.file-viewer-markdown h2 { font-size: 1.3rem; border-bottom: 1px solid rgba(148, 163, 184, 0.18); padding-bottom: 0.3em; }
 .file-viewer-markdown h3 { font-size: 1.1rem; }
 
 .file-viewer-markdown p {
@@ -9599,7 +10021,7 @@ flex-wrap: wrap;
 }
 
 .file-viewer-markdown a {
-    color: var(--accent-color);
+    color: #7dd3fc;
     text-decoration: none;
 }
 
@@ -9618,8 +10040,9 @@ flex-wrap: wrap;
 }
 
 .file-viewer-markdown pre {
-    background: var(--bg-tertiary, var(--bg-secondary));
-    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 12px;
     padding: 12px 16px;
     overflow-x: auto;
     margin: 1em 0;
@@ -9636,17 +10059,18 @@ flex-wrap: wrap;
 .file-viewer-markdown code {
     font-family: 'Noto Sans Mono', monospace;
     font-size: 0.85em;
-    background: var(--bg-tertiary, var(--bg-secondary));
+    background: rgba(30, 41, 59, 0.85);
+    color: #f8fbff;
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: 5px;
 }
 
 .file-viewer-markdown blockquote {
     margin: 1em 0;
     padding: 0.5em 1em;
-    border-left: 4px solid var(--accent-color);
-    color: var(--text-secondary);
-    background: var(--bg-tertiary, var(--bg-secondary));
+    border-left: 4px solid #38bdf8;
+    color: #9fb0c8;
+    background: rgba(15, 23, 42, 0.74);
     border-radius: 0 4px 4px 0;
 }
 
@@ -9658,13 +10082,13 @@ flex-wrap: wrap;
 
 .file-viewer-markdown th,
 .file-viewer-markdown td {
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(148, 163, 184, 0.18);
     padding: 8px 12px;
     text-align: left;
 }
 
 .file-viewer-markdown th {
-    background: var(--bg-tertiary, var(--bg-secondary));
+    background: rgba(30, 41, 59, 0.7);
     font-weight: 600;
 }
 
@@ -9676,7 +10100,7 @@ flex-wrap: wrap;
 
 .file-viewer-markdown hr {
     border: none;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
     margin: 1.5em 0;
 }
 
@@ -9687,6 +10111,11 @@ flex-wrap: wrap;
 #wiki-panel {
     height: 100%;
     overflow: hidden;
+    padding: 0;
+}
+
+#live-feed-panel {
+    padding: 0;
 }
 
 .wiki-layout {
@@ -10110,6 +10539,259 @@ flex-wrap: wrap;
 
     .wiki-editor {
         padding: 16px;
+    }
+}
+
+/* =========================================
+   Wiki Index (right panel compact index)
+   ========================================= */
+
+.wiki-idx {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.wiki-idx-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.wiki-idx-search {
+    flex: 1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    outline: none;
+}
+
+.wiki-idx-search:focus {
+    border-color: var(--accent-color);
+}
+
+.wiki-idx-refresh {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.wiki-idx-refresh:hover {
+    color: var(--text-primary);
+    background: var(--hover-bg);
+}
+
+.wiki-idx-refresh svg {
+    width: 14px;
+    height: 14px;
+}
+
+.wiki-idx-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.wiki-idx-empty {
+    padding: 24px 16px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.wiki-idx-folder {
+    margin-bottom: 0;
+}
+
+.wiki-idx-folder-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: background 0.1s;
+    user-select: none;
+}
+
+.wiki-idx-folder-header:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.wiki-idx-folder-header.collapsed {
+    opacity: 0.7;
+}
+
+.wiki-idx-folder-header svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.wiki-idx-folder-header .wiki-idx-chevron {
+    width: 10px;
+    height: 10px;
+    opacity: 0.5;
+}
+
+.wiki-idx-folder-label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.wiki-idx-folder-count {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-weight: 400;
+}
+
+.wiki-idx-item {
+    display: flex;
+    align-items: center;
+    padding: 3px 10px 3px 16px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    border-radius: 3px;
+    margin: 0 4px;
+    transition: all 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.wiki-idx-item:hover {
+    background: var(--hover-bg);
+    color: var(--text-primary);
+}
+
+.wiki-idx-item-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* =========================================
+   Wiki Reader Overlay (covers console-area only)
+   console-area already has position:relative — overlay sits inside it.
+   ========================================= */
+
+.wiki-reader-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    background-color: rgba(15, 23, 42, 0.98);
+    backdrop-filter: blur(20px);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.wiki-reader-overlay.open {
+    display: flex;
+}
+
+.wiki-reader-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.wiki-reader-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    flex: 1;
+    overflow: hidden;
+}
+
+.wiki-reader-bc-item {
+    color: var(--text-secondary);
+}
+
+.wiki-reader-bc-item.current {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.wiki-reader-bc-sep {
+    color: var(--text-secondary);
+    opacity: 0.4;
+    margin: 0 4px;
+}
+
+.wiki-reader-bc-title {
+    margin-left: 12px;
+    color: var(--accent-color);
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.wiki-reader-close {
+    flex-shrink: 0;
+}
+
+.wiki-reader-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px;
+}
+
+.wiki-reader-loading {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    padding: 32px;
+    text-align: center;
+}
+
+/* Markdown content styles */
+.wiki-reader-content {
+    line-height: 1.7;
+    font-size: 0.88rem;
+}
+
+.wiki-reader-content h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); }
+.wiki-reader-content h2 { font-size: 1.25rem; font-weight: 600; margin-top: 24px; margin-bottom: 12px; }
+.wiki-reader-content h3 { font-size: 1.05rem; font-weight: 600; margin-top: 20px; margin-bottom: 8px; }
+.wiki-reader-content p { margin-bottom: 12px; }
+.wiki-reader-content ul, .wiki-reader-content ol { margin-bottom: 12px; padding-left: 24px; }
+.wiki-reader-content li { margin-bottom: 4px; }
+.wiki-reader-content code { background: rgba(148, 163, 184, 0.1); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.82rem; }
+.wiki-reader-content pre { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; overflow-x: auto; margin-bottom: 16px; }
+.wiki-reader-content pre code { background: none; padding: 0; }
+.wiki-reader-content table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+.wiki-reader-content th, .wiki-reader-content td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; font-size: 0.82rem; }
+.wiki-reader-content th { background: var(--bg-secondary); font-weight: 600; }
+.wiki-reader-content blockquote { border-left: 3px solid var(--accent-color); padding: 8px 16px; margin: 12px 0; color: var(--text-secondary); background: rgba(59, 130, 246, 0.05); border-radius: 0 6px 6px 0; }
+.wiki-reader-content a { color: var(--accent-color); text-decoration: none; }
+.wiki-reader-content a:hover { text-decoration: underline; }
+.wiki-reader-content img { max-width: 100%; height: auto; border-radius: 4px; }
+.wiki-reader-content hr { border: none; border-top: 1px solid var(--border-color); margin: 1.5em 0; }
+
+@media (max-width: 768px) {
+    .wiki-reader-body {
+        padding: 12px;
     }
 }
 

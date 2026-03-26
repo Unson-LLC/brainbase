@@ -1,3 +1,5 @@
+import { refreshIcons } from './ui-helpers.js';
+
 /**
  * session-indicators.js - Session status indicator management
  *
@@ -105,10 +107,7 @@ export function updateConnectionStatus(isConnected) {
         if (text) text.textContent = 'サーバー未接続';
     }
 
-    // Lucideアイコン再描画
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    refreshIcons();
 }
 
 // --- Core Functions ---

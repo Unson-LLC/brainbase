@@ -10,6 +10,7 @@
  */
 import { promises as fs } from 'fs';
 import path from 'path';
+import { logger } from '../utils/logger.js';
 
 export class WorktreeService {
     /**
@@ -50,7 +51,7 @@ export class WorktreeService {
         try {
             await fs.mkdir(this.worktreesDir, { recursive: true });
         } catch (err) {
-            console.error('Failed to create worktrees directory:', err);
+            logger.error('Failed to create worktrees directory:', err);
         }
     }
 
@@ -87,20 +88,30 @@ export class WorktreeService {
                 throw error;
             }
 
-            console.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
+            logger.warn(`[workspace] Detected stale jj working copy at ${repoPath}, healing before retry`);
             await this.execPromise(`jj -R "${repoPath}" workspace update-stale`);
             return await this.execPromise(fullCommand);
         }
     }
 
-    async _getBookmarkInfos(repoPath, sessionId) {
+    async _getBookmarkInfos(repoPath, sessionId, options = {}) {
+        const { fetchRemote = true } = options;
+
+        if (fetchRemote) {
+            try {
+                await this.execPromise(`jj -R "${repoPath}" git fetch`);
+            } catch (fetchErr) {
+                logger.info(`[getStatus] git fetch failed, continuing: ${fetchErr.message}`);
+            }
+        }
+
         const bookmarkCandidates = [this._getSessionBranchName(sessionId), sessionId];
         const infos = [];
 
         for (const candidate of bookmarkCandidates) {
             try {
                 const { stdout } = await this.execPromise(
-                    `jj -R "${repoPath}" bookmark list "${candidate}" --no-pager`
+                    `jj -R "${repoPath}" bookmark list "${candidate}" --all-remotes --no-pager`
                 );
                 const output = stdout.trim();
                 if (!output || output.includes('No matching bookmarks') || output.includes('(deleted)')) {
@@ -109,7 +120,7 @@ export class WorktreeService {
 
                 infos.push({
                     name: candidate,
-                    pushed: output.includes('@origin') || output.includes(' origin'),
+                    pushed: output.includes('@origin:') || output.includes('origin:'),
                     output
                 });
             } catch {
@@ -213,6 +224,21 @@ export class WorktreeService {
         }
     }
 
+    async _countCommitsAheadOfBase(repoPath, baseRef, targetRef) {
+        if (!baseRef || !targetRef) {
+            return 0;
+        }
+
+        try {
+            const { stdout } = await this.execPromise(
+                `jj -R "${repoPath}" log -r "${baseRef}..${targetRef}" -T '"x\n"' --no-pager --no-graph 2>/dev/null | wc -l`
+            );
+            return parseInt(stdout.trim(), 10) || 0;
+        } catch {
+            return 0;
+        }
+    }
+
     async _resolveArchiveTargetBookmark(sessionId, repoPath, workspacePath, bookmarkInfos) {
         const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
         if (officialBookmark) {
@@ -242,7 +268,8 @@ export class WorktreeService {
         };
     }
 
-    async _collectStatus(sessionId, repoPath, workspacePath, startCommit = null) {
+    async _collectStatus(sessionId, repoPath, workspacePath, startCommit = null, options = {}) {
+        const { fetchRemote = true } = options;
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const bookmarkName = sessionId;
@@ -273,10 +300,17 @@ export class WorktreeService {
                 hasWorkingCopyChanges = false;
             }
 
-            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId);
+            const bookmarkInfos = await this._getBookmarkInfos(repoPath, sessionId, { fetchRemote });
             const officialBookmark = bookmarkInfos.find(info => info.pushed) || null;
             const bookmarkPushed = Boolean(officialBookmark);
+            const mergeTargetRef = officialBookmark?.name || bookmarkInfos[0]?.name || null;
+            const commitsAheadOfBase = await this._countCommitsAheadOfBase(
+                repoPath,
+                mainBranchName,
+                mergeTargetRef
+            );
             const needsIntegration = changesNotPushed > 0 || hasWorkingCopyChanges;
+            const needsMerge = commitsAheadOfBase > 0;
 
             return {
                 exists: true,
@@ -290,10 +324,12 @@ export class WorktreeService {
                 hasWorkingCopyChanges,
                 bookmarkPushed,
                 needsIntegration,
+                needsMerge,
+                commitsAheadOfBase,
                 commitsAhead: changesNotPushed,
                 hasUncommittedChanges: hasWorkingCopyChanges,
                 branchName: this._getSessionBranchName(sessionId),
-                needsMerge: needsIntegration
+                mergeTargetRef
             };
         } catch {
             return {
@@ -364,13 +400,13 @@ export class WorktreeService {
         try {
             await fs.rm(gitWorktreePath, { recursive: true, force: true });
         } catch (err) {
-            console.log(`[workspace] Git metadata cleanup skipped: ${err.message}`);
+            logger.info(`[workspace] Git metadata cleanup skipped: ${err.message}`);
         }
 
         try {
             await this.execPromise(`git -C "${repoPath}" branch -D "${branchName}"`);
         } catch (err) {
-            console.log(`[workspace] Git branch cleanup skipped: ${err.message}`);
+            logger.info(`[workspace] Git branch cleanup skipped: ${err.message}`);
         }
     }
 
@@ -399,10 +435,10 @@ export class WorktreeService {
             // Check if Jujutsu is available
             const isJujutsu = await this._isJujutsuRepo(repoPath);
             if (!isJujutsu) {
-                console.log(`[workspace] Not a jj repo, auto-initializing at ${repoPath}...`);
+                logger.info(`[workspace] Not a jj repo, auto-initializing at ${repoPath}...`);
                 try {
                     await this.execPromise(`cd "${repoPath}" && jj git init --colocate`);
-                    console.log(`[workspace] jj git init --colocate succeeded at ${repoPath}`);
+                    logger.info(`[workspace] jj git init --colocate succeeded at ${repoPath}`);
                     this._jjRepoCache.set(repoPath, true); // 初期化成功をキャッシュ
                 } catch (initErr) {
                     throw new Error(`jj git init failed at ${repoPath}: ${initErr.message}`);
@@ -416,7 +452,7 @@ export class WorktreeService {
                     'workspace list'
                 );
                 if (workspaceList.includes(`${workspaceName}:`)) {
-                    console.log(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
+                    logger.info(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
                     await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
                     const { stdout: startCommit } = await this._execJujutsuWithStaleRetry(
                         workspacePath,
@@ -439,36 +475,38 @@ export class WorktreeService {
                 try {
                     await this._execJujutsuWithStaleRetry(repoPath, 'git fetch');
                 } catch (fetchErr) {
-                    console.log(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
+                    logger.info(`[workspace] git fetch failed, continuing: ${fetchErr.message}`);
                 }
             } else {
-                console.log(`[workspace] git fetch skipped (skipFetch=true)`);
+                logger.info(`[workspace] git fetch skipped (skipFetch=true)`);
             }
+
+            const mainBranchName = await this._getMainBranchName(repoPath);
 
             // Create workspace
             await this._execJujutsuWithStaleRetry(
                 repoPath,
                 `workspace add --name "${workspaceName}" "${workspacePath}"`
             );
-            console.log(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
+            logger.info(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
 
             // Register as git worktree (for git command compatibility)
             try {
                 const { gitWorktreePath } = await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
-                console.log(`[workspace] Registered git worktree at ${gitWorktreePath}`);
+                logger.info(`[workspace] Registered git worktree at ${gitWorktreePath}`);
             } catch (gitErr) {
-                console.log(`[workspace] Git worktree registration failed (non-critical): ${gitErr.message}`);
+                logger.info(`[workspace] Git worktree registration failed (non-critical): ${gitErr.message}`);
             }
 
             // Create bookmark
             try {
                 await this._execJujutsuWithStaleRetry(
                     repoPath,
-                    `bookmark create -r main ${bookmarkName}`
+                    `bookmark create -r ${mainBranchName} ${bookmarkName}`
                 );
-                console.log(`[workspace] Created bookmark: ${bookmarkName}`);
+                logger.info(`[workspace] Created bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
-                console.log(`[workspace] Bookmark creation skipped: ${bookmarkErr.message}`);
+                logger.info(`[workspace] Bookmark creation skipped: ${bookmarkErr.message}`);
             }
 
             // Create symlink for .env if it exists in the source repo
@@ -477,10 +515,10 @@ export class WorktreeService {
             try {
                 await fs.access(sourceEnvPath);
                 await fs.symlink(sourceEnvPath, targetEnvPath);
-                console.log(`Created .env symlink at ${targetEnvPath}`);
+                logger.info(`Created .env symlink at ${targetEnvPath}`);
             } catch (envErr) {
                 if (envErr.code !== 'ENOENT') {
-                    console.log(`Note: Could not create .env symlink: ${envErr.message}`);
+                    logger.info(`Note: Could not create .env symlink: ${envErr.message}`);
                 }
             }
 
@@ -492,16 +530,16 @@ export class WorktreeService {
                 await fs.access(sourceClaudePath);
                 try {
                     await fs.access(targetClaudePath);
-                    console.log(`.claude already exists at ${targetClaudePath}, skipping symlink`);
+                    logger.info(`.claude already exists at ${targetClaudePath}, skipping symlink`);
                 } catch {
                     await fs.symlink(sourceClaudePath, targetClaudePath);
-                    console.log(`Created .claude symlink at ${targetClaudePath}`);
+                    logger.info(`Created .claude symlink at ${targetClaudePath}`);
                 }
             } catch (claudeErr) {
                 if (claudeErr.code === 'ENOENT') {
-                    console.log(`Note: .claude directory not found at ${sourceClaudePath}`);
+                    logger.info(`Note: .claude directory not found at ${sourceClaudePath}`);
                 } else {
-                    console.log(`Note: Could not create .claude symlink: ${claudeErr.message}`);
+                    logger.info(`Note: Could not create .claude symlink: ${claudeErr.message}`);
                 }
             }
 
@@ -512,16 +550,16 @@ export class WorktreeService {
                 await fs.access(sourceMcpPath);
                 try {
                     await fs.access(targetMcpPath);
-                    console.log(`.mcp.json already exists at ${targetMcpPath}, skipping symlink`);
+                    logger.info(`.mcp.json already exists at ${targetMcpPath}, skipping symlink`);
                 } catch {
                     await fs.symlink(sourceMcpPath, targetMcpPath);
-                    console.log(`Created .mcp.json symlink at ${targetMcpPath}`);
+                    logger.info(`Created .mcp.json symlink at ${targetMcpPath}`);
                 }
             } catch (mcpErr) {
                 if (mcpErr.code === 'ENOENT') {
-                    console.log(`Note: .mcp.json not found at ${sourceMcpPath}`);
+                    logger.info(`Note: .mcp.json not found at ${sourceMcpPath}`);
                 } else {
-                    console.log(`Note: Could not create .mcp.json symlink: ${mcpErr.message}`);
+                    logger.info(`Note: Could not create .mcp.json symlink: ${mcpErr.message}`);
                 }
             }
 
@@ -531,7 +569,7 @@ export class WorktreeService {
                 `log -r @ -T 'commit_id' --no-pager`
             );
 
-            console.log(`Created Jujutsu workspace at ${workspacePath}`);
+            logger.info(`Created Jujutsu workspace at ${workspacePath}`);
             return {
                 worktreePath: workspacePath,
                 branchName: this._getSessionBranchName(sessionId),
@@ -540,7 +578,7 @@ export class WorktreeService {
                 workspaceName
             };
         } catch (err) {
-            console.error(`Failed to create workspace for ${sessionId}:`, err.message);
+            logger.error(`Failed to create workspace for ${sessionId}:`, err.message);
             throw err;
         }
     }
@@ -560,32 +598,32 @@ export class WorktreeService {
             // Forget workspace (metadata only)
             try {
                 await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
-                console.log(`[workspace] Forgot workspace: ${workspaceName}`);
+                logger.info(`[workspace] Forgot workspace: ${workspaceName}`);
             } catch (forgetErr) {
-                console.log(`[workspace] Workspace forget skipped: ${forgetErr.message}`);
+                logger.info(`[workspace] Workspace forget skipped: ${forgetErr.message}`);
             }
 
             // Delete bookmark
             try {
                 await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
-                console.log(`[workspace] Deleted bookmark: ${bookmarkName}`);
+                logger.info(`[workspace] Deleted bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
-                console.log(`[workspace] Bookmark deletion skipped: ${bookmarkErr.message}`);
+                logger.info(`[workspace] Bookmark deletion skipped: ${bookmarkErr.message}`);
             }
 
             // Remove physical directory
             try {
                 await fs.rm(workspacePath, { recursive: true, force: true });
-                console.log(`[workspace] Removed physical directory: ${workspacePath}`);
+                logger.info(`[workspace] Removed physical directory: ${workspacePath}`);
             } catch (rmErr) {
-                console.log(`[workspace] Directory removal skipped: ${rmErr.message}`);
+                logger.info(`[workspace] Directory removal skipped: ${rmErr.message}`);
             }
 
             await this._removeGitCompatibility(sessionId, repoPath);
 
             return true;
         } catch (err) {
-            console.error(`Failed to remove workspace for ${sessionId}:`, err.message);
+            logger.error(`Failed to remove workspace for ${sessionId}:`, err.message);
             return false;
         }
     }
@@ -597,11 +635,11 @@ export class WorktreeService {
      * @param {string|null} startCommit - セッション開始時のコミットハッシュ
      * @returns {Promise<Object>} workspace状態情報
      */
-    async getStatus(sessionId, repoPath, startCommit = null) {
+    async getStatus(sessionId, repoPath, startCommit = null, options = {}) {
         const repoName = path.basename(repoPath);
         const workspaceName = `${sessionId}-${repoName}`;
         const workspacePath = path.join(this.worktreesDir, workspaceName);
-        return await this._collectStatus(sessionId, repoPath, workspacePath, startCommit);
+        return await this._collectStatus(sessionId, repoPath, workspacePath, startCommit, options);
     }
 
     async autoHealArchiveState(sessionId, repoPath, workspacePath, startCommit = null) {
@@ -716,7 +754,7 @@ export class WorktreeService {
     }
 
     /**
-     * Jujutsu workspaceをmainにマージ（PR経由）
+     * Jujutsu workspaceをベースブランチにマージ（PR経由）
      * @param {string} sessionId - セッションID
      * @param {string} repoPath - リポジトリパス
      * @param {string|null} sessionName - セッション名（オプション）
@@ -730,7 +768,7 @@ export class WorktreeService {
             const mainBranchName = await this._getMainBranchName(repoPath);
 
             // Push bookmark to remote
-            console.log(`[merge] Pushing bookmark: ${bookmarkName}`);
+            logger.info(`[merge] Pushing bookmark: ${bookmarkName}`);
             try {
                 await this.execPromise(`jj -R "${repoPath}" git push --bookmark "${bookmarkName}"`);
             } catch (pushErr) {
@@ -750,7 +788,7 @@ export class WorktreeService {
             const prTitle = `Merge session: ${displayName}`;
 
             // Create PR
-            console.log(`[merge] Creating PR for ${bookmarkName}`);
+            logger.info(`[merge] Creating PR for ${bookmarkName}`);
             const { stdout: prUrl } = await this.execPromise(
                 `gh pr create --base "${mainBranchName}" --title "${prTitle}" --body "$(cat <<'EOF'
 ## Summary
@@ -767,7 +805,7 @@ EOF
             `);
 
             // Merge PR
-            console.log(`[merge] Merging PR`);
+            logger.info(`[merge] Merging PR`);
             await this.execPromise(`gh pr merge --merge --delete-branch`);
 
             // Cleanup workspace
@@ -777,26 +815,26 @@ EOF
             try {
                 await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
             } catch (forgetErr) {
-                console.log(`[merge] Workspace forget skipped: ${forgetErr.message}`);
+                logger.info(`[merge] Workspace forget skipped: ${forgetErr.message}`);
             }
 
             try {
                 await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
             } catch (bookmarkErr) {
-                console.log(`[merge] Bookmark deletion skipped: ${bookmarkErr.message}`);
+                logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr.message}`);
             }
 
             // Remove physical directory
             try {
                 await fs.rm(workspacePath, { recursive: true, force: true });
             } catch (rmErr) {
-                console.log(`[merge] Directory removal skipped: ${rmErr.message}`);
+                logger.info(`[merge] Directory removal skipped: ${rmErr.message}`);
             }
 
-            console.log(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
+            logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
             return { success: true, message: 'Merged via PR', prUrl: prUrl.trim() };
         } catch (err) {
-            console.error(`Failed to merge workspace for ${sessionId}:`, err.message);
+            logger.error(`Failed to merge workspace for ${sessionId}:`, err.message);
             return { success: false, error: err.message };
         }
     }
@@ -871,7 +909,7 @@ EOF
             const commits = this._parseJujutsuLog(stdout);
             return { commits, repoType: 'jj', worktreePath: workspacePath };
         } catch (err) {
-            console.error(`[commitLog] jj log failed for ${workspacePath}:`, err.message);
+            logger.error(`[commitLog] jj log failed for ${workspacePath}:`, err.message);
             return { commits: [], repoType: 'jj', worktreePath: workspacePath };
         }
     }
@@ -918,7 +956,7 @@ EOF
             }
             return { commits, repoType: 'git', worktreePath: workspacePath };
         } catch (err) {
-            console.error(`[commitLog] git log failed for ${workspacePath}:`, err.message);
+            logger.error(`[commitLog] git log failed for ${workspacePath}:`, err.message);
             return { commits: [], repoType: 'git', worktreePath: workspacePath };
         }
     }
@@ -1011,7 +1049,7 @@ EOF
 
             return workspaces;
         } catch (err) {
-            console.error('Failed to list workspaces:', err.message);
+            logger.error('Failed to list workspaces:', err.message);
             return [];
         }
     }

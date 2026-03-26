@@ -264,6 +264,35 @@ describe('app switchSession runtime handling', () => {
     expect(app.focusTerminal).not.toHaveBeenCalled();
   });
 
+  it('mobileではsnapshot取得前でもplaceholder panelを即時表示する', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    const snapshotPromise = new Promise(() => {});
+    app._loadTerminalSnapshot = vi.fn(() => snapshotPromise);
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    await app.switchSession('session-1');
+
+    const snapshotPanel = document.getElementById('terminal-snapshot-panel');
+    const snapshotContent = document.getElementById('terminal-snapshot-content');
+    expect(snapshotPanel.classList.contains('hidden')).toBe(false);
+    expect(snapshotContent.textContent).toContain('Snapshotを読み込み中');
+    expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(true);
+  });
+
   it('mobileでtapするとdedicated ttyd modalを開く', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);
@@ -296,6 +325,78 @@ describe('app switchSession runtime handling', () => {
     expect(modal.classList.contains('active')).toBe(true);
     expect(modalFrame.src).toContain('/console/session-1/');
     expect(modalFrame.src).toContain('viewerId=viewer-test');
+  });
+
+  it('mobile snapshot panel clickはlive terminal modalを開く', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app._mobileTerminalMode = 'display';
+    const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const snapshotPanel = document.getElementById('terminal-snapshot-panel');
+    snapshotPanel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(openSpy).toHaveBeenCalledWith('session-1');
+  });
+
+  it('mobile status pill clickはlive terminal modalを開く', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app._mobileTerminalMode = 'display';
+    const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const status = document.getElementById('terminal-input-status');
+    status.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(openSpy).toHaveBeenCalledWith('session-1');
+  });
+
+  it('mobile reconnect button clickはlive terminal modalを開く', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app.terminalFrame = document.getElementById('terminal-frame');
+    app.setupTerminalInputUx();
+    app._mobileTerminalMode = 'display';
+    const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const reconnectBtn = document.getElementById('terminal-reconnect-btn');
+    reconnectBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+    expect(openSpy).toHaveBeenCalledWith('session-1');
   });
 
   it('mobile viewport更新時はinteractive modalへlayout messageを送る', async () => {
@@ -498,6 +599,44 @@ describe('app switchSession runtime handling', () => {
     expect(app.reconnectManager._setBlocked).toHaveBeenCalled();
   });
 
+  it('desktop switchSessionは自動フォーカスを再試行しiframe load後も再実行する', async () => {
+    vi.useFakeTimers();
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const terminalFrame = document.getElementById('terminal-frame');
+    app.terminalFrame = terminalFrame;
+    app.setupTerminalInputUx();
+
+    await app.switchSession('session-1');
+
+    expect(app.focusTerminal).toHaveBeenCalledWith('switchSession');
+
+    await vi.advanceTimersByTimeAsync(220);
+    const switchSessionCalls = app.focusTerminal.mock.calls.filter(([reason]) => reason === 'switchSession').length;
+    expect(switchSessionCalls).toBeGreaterThan(1);
+
+    const callCountBeforeLoad = app.focusTerminal.mock.calls.length;
+    terminalFrame.dispatchEvent(new Event('load'));
+    await vi.advanceTimersByTimeAsync(220);
+
+    expect(app.focusTerminal.mock.calls.length).toBeGreaterThan(callCountBeforeLoad);
+    expect(app.focusTerminal).toHaveBeenCalledWith('terminal-frame-load');
+    vi.useRealTimers();
+  });
+
   it('updates session UI state when attention changes while transport stays connected', async () => {
     const emitSpy = vi.spyOn(eventBus, 'emit');
 
@@ -543,5 +682,103 @@ describe('app switchSession runtime handling', () => {
     app._updateTerminalInputStatus();
 
     expect(emitSpy).toHaveBeenCalledWith('session:ui-state-changed', { sessionIds: ['session-1'] });
+  });
+
+  it('loadInitialDataはarchived先頭を飛ばして最初の非archived sessionを選ぶ', async () => {
+    app.sessionService = {
+      loadSessions: vi.fn(async () => {
+        appStore.setState({
+          currentSessionId: null,
+          sessions: [
+            { id: 'session-archived', intendedState: 'archived' },
+            { id: 'session-active', intendedState: 'active' },
+            { id: 'session-paused', intendedState: 'paused' }
+          ]
+        });
+      })
+    };
+    app.taskService = { loadTasks: vi.fn() };
+    app.scheduleService = { loadSchedule: vi.fn() };
+    app.refreshSessionUiSummaries = vi.fn();
+    app.loadSessionData = vi.fn();
+    app._updateSessionGoalBanner = vi.fn();
+
+    const emitSpy = vi.spyOn(eventBus, 'emit').mockImplementation(async (event, detail) => {
+      if (event === 'session:changed') {
+        appStore.setState({ currentSessionId: detail.sessionId });
+      }
+    });
+
+    await app.loadInitialData();
+
+    expect(emitSpy).toHaveBeenCalledWith('session:changed', { sessionId: 'session-active' });
+    expect(appStore.getState().currentSessionId).toBe('session-active');
+    expect(app.loadSessionData).toHaveBeenCalledWith('session-active');
+    expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-active', 'session-paused']);
+  });
+
+  it('loadInitialDataは全sessionがarchivedなら自動選択しない', async () => {
+    app.sessionService = {
+      loadSessions: vi.fn(async () => {
+        appStore.setState({
+          currentSessionId: null,
+          sessions: [
+            { id: 'session-archived-1', intendedState: 'archived' },
+            { id: 'session-archived-2', intendedState: 'archived' }
+          ]
+        });
+      })
+    };
+    app.taskService = { loadTasks: vi.fn() };
+    app.scheduleService = { loadSchedule: vi.fn() };
+    app.refreshSessionUiSummaries = vi.fn();
+    app.loadSessionData = vi.fn();
+    app._updateSessionGoalBanner = vi.fn();
+
+    const emitSpy = vi.spyOn(eventBus, 'emit').mockImplementation(async () => {});
+
+    await app.loadInitialData();
+
+    expect(emitSpy).not.toHaveBeenCalledWith('session:changed', expect.anything());
+    expect(appStore.getState().currentSessionId).toBeNull();
+    expect(app.loadSessionData).not.toHaveBeenCalled();
+    expect(app.taskService.loadTasks).toHaveBeenCalled();
+    expect(app.scheduleService.loadSchedule).toHaveBeenCalled();
+    expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith([]);
+  });
+
+  it('loadInitialDataは一時的なapi/state未準備をretryして非archived sessionを選ぶ', async () => {
+    const loadSessions = vi.fn()
+      .mockRejectedValueOnce(new Error('Service not ready'))
+      .mockImplementationOnce(async () => {
+        appStore.setState({
+          currentSessionId: null,
+          sessions: [
+            { id: 'session-archived', intendedState: 'archived' },
+            { id: 'session-active', intendedState: 'active' }
+          ]
+        });
+      });
+
+    app.sessionService = { loadSessions };
+    app.taskService = { loadTasks: vi.fn() };
+    app.scheduleService = { loadSchedule: vi.fn() };
+    app.refreshSessionUiSummaries = vi.fn();
+    app.loadSessionData = vi.fn();
+    app._updateSessionGoalBanner = vi.fn();
+
+    const emitSpy = vi.spyOn(eventBus, 'emit').mockImplementation(async (event, detail) => {
+      if (event === 'session:changed') {
+        appStore.setState({ currentSessionId: detail.sessionId });
+      }
+    });
+
+    await app.loadInitialData();
+
+    expect(loadSessions).toHaveBeenCalledTimes(2);
+    expect(emitSpy).toHaveBeenCalledWith('session:changed', { sessionId: 'session-active' });
+    expect(appStore.getState().currentSessionId).toBe('session-active');
+    expect(app.loadSessionData).toHaveBeenCalledWith('session-active');
+    expect(app.refreshSessionUiSummaries).toHaveBeenCalledWith(['session-active']);
   });
 });

@@ -2,17 +2,19 @@
  * SessionController
  * セッション関連のHTTPリクエスト処理
  */
-import { exec, execSync } from 'child_process';
+import { exec, execSync, execFileSync } from 'child_process';
 import fs from 'fs/promises';
+import os from 'os';
 import path from 'path';
 import { promisify } from 'util';
+import { logger } from '../utils/logger.js';
 
 const execAsync = promisify(exec);
 const MAX_TREE_DEPTH = 3;
 const DEFAULT_TREE_DEPTH = 2;
 const MAX_TREE_ENTRIES = 200;
 const EXCLUDED_DIRS = new Set(['.git', '.jj', '.worktrees', 'node_modules']);
-const UI_SUMMARY_TTL_MS = 10_000;
+const UI_SUMMARY_TTL_MS = 60_000;
 const TAKEOVER_COOLDOWN_MS = 5000;
 const MAX_FILE_READ_SIZE = 512 * 1024;
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
@@ -28,10 +30,76 @@ export class SessionController {
         this.codeProjectsRoot = typeof options.codeProjectsRoot === 'string' && options.codeProjectsRoot.trim()
             ? options.codeProjectsRoot
             : (this.projectsRoot ? path.join(path.dirname(this.projectsRoot), 'code') : null);
+        this.captureCache = options.captureCache || null;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
         this._uiSummaryCache = new Map();
         this._recentSessionStarts = new Map(); // sessionId -> timestamp
+    }
+
+    _readSystemClipboard() {
+        return execFileSync('pbpaste', {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore']
+        });
+    }
+
+    async _clipboardMatchesExpected(expected, attempts = 5, delayMs = 60) {
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+            try {
+                if (this._readSystemClipboard() === expected) {
+                    return true;
+                }
+            } catch (error) {
+                console.warn('[ArchiveAI] clipboard readback failed:', error.message);
+            }
+
+            if (attempt < attempts - 1) {
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+        }
+
+        return false;
+    }
+
+    async _copyToSystemClipboard(text) {
+        const expected = String(text ?? '');
+
+        try {
+            execFileSync('pbcopy', {
+                input: expected,
+                encoding: 'utf8',
+                stdio: ['pipe', 'ignore', 'ignore']
+            });
+
+            if (await this._clipboardMatchesExpected(expected)) {
+                return { success: true, method: 'pbcopy' };
+            }
+
+            console.warn('[ArchiveAI] pbcopy completed but clipboard readback mismatched; falling back to osascript');
+        } catch (copyError) {
+            console.warn('[ArchiveAI] pbcopy failed:', copyError.message);
+        }
+
+        try {
+            execFileSync('/usr/bin/osascript', [
+                '-e',
+                `set the clipboard to ${JSON.stringify(expected)}`
+            ], {
+                stdio: ['ignore', 'ignore', 'ignore']
+            });
+
+            if (await this._clipboardMatchesExpected(expected)) {
+                return { success: true, method: 'osascript' };
+            }
+
+            console.warn('[ArchiveAI] osascript completed but clipboard readback mismatched; trusting osascript exit status');
+            return { success: true, method: 'osascript' };
+        } catch (copyError) {
+            console.warn('[ArchiveAI] osascript clipboard copy failed:', copyError.message);
+        }
+
+        return { success: false, method: null };
     }
 
     _resolveViewerLabel(req, explicitLabel) {
@@ -78,6 +146,26 @@ export class SessionController {
         return `${normalizedPath}${separator}viewerId=${encodeURIComponent(viewerId)}`;
     }
 
+    _withViewerRuntimeStatus(runtimeStatus, viewerId) {
+        if (!runtimeStatus) return runtimeStatus;
+        const rawInteractiveUrl = runtimeStatus.interactiveUrl || runtimeStatus.proxyPath || null;
+        const interactiveUrl = rawInteractiveUrl
+            ? this._appendViewerIdToProxyPath(rawInteractiveUrl, viewerId)
+            : null;
+        return {
+            ...runtimeStatus,
+            interactiveUrl,
+            proxyPath: interactiveUrl
+        };
+    }
+
+    _getSessionRuntimeStatus(session) {
+        if (typeof this.sessionManager.getRuntimeStatus === 'function') {
+            return this.sessionManager.getRuntimeStatus(session);
+        }
+        return session?.runtimeStatus || {};
+    }
+
     _parseTreeDepth(rawDepth) {
         const parsed = Number.parseInt(rawDepth, 10);
         if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_TREE_DEPTH;
@@ -98,6 +186,134 @@ export class SessionController {
             throw new Error('Invalid path');
         }
         return normalized;
+    }
+
+    _stripWorkspaceNamePrefix(rootPath, relativePath) {
+        const normalizedRelativePath = this._normalizeRelativePath(relativePath);
+        const workspaceName = path.basename(path.resolve(rootPath));
+        if (!workspaceName) return normalizedRelativePath;
+        if (normalizedRelativePath === workspaceName) return '';
+
+        const prefix = `${workspaceName}/`;
+        if (normalizedRelativePath.startsWith(prefix)) {
+            return normalizedRelativePath.slice(prefix.length);
+        }
+
+        return normalizedRelativePath;
+    }
+
+    _resolveWorkspaceFileTarget(rootPath, rawPath) {
+        if (typeof rawPath !== 'string' || rawPath === '') {
+            throw new Error('Invalid path');
+        }
+
+        const trimmed = rawPath.trim();
+        if (!trimmed || trimmed.includes('\0')) {
+            throw new Error('Invalid path');
+        }
+
+        let targetPath;
+        if (trimmed.startsWith('~/')) {
+            targetPath = path.resolve(os.homedir(), trimmed.slice(2));
+        } else if (path.isAbsolute(trimmed)) {
+            targetPath = path.resolve(trimmed);
+        } else {
+            const relativePath = this._stripWorkspaceNamePrefix(rootPath, trimmed);
+            targetPath = path.resolve(rootPath, relativePath);
+        }
+
+        if (!this._isWithinRoot(rootPath, targetPath)) {
+            throw new Error('Invalid path');
+        }
+
+        return {
+            targetPath,
+            relativePath: path.relative(rootPath, targetPath).replace(/\\/g, '/')
+        };
+    }
+
+    async _resolveFilePreviewTarget(session, rawPath) {
+        const workspaceRoot = session?.worktree?.path || session?.path || session?.cwd || null;
+        if (!workspaceRoot) {
+            throw new Error('Session does not have workspace path');
+        }
+        const trimmedRawPath = typeof rawPath === 'string' ? rawPath.trim() : '';
+        const canFallbackOutsidePrimaryRoot = trimmedRawPath.startsWith('/') || trimmedRawPath.startsWith('~/');
+
+        try {
+            const primaryTarget = this._resolveWorkspaceFileTarget(workspaceRoot, rawPath);
+            try {
+                await fs.stat(primaryTarget.targetPath);
+                return primaryTarget;
+            } catch (error) {
+                if (error?.code !== 'ENOENT') {
+                    throw error;
+                }
+            }
+        } catch (error) {
+            if (error?.message !== 'Invalid path' || !canFallbackOutsidePrimaryRoot) {
+                throw error;
+            }
+        }
+
+        const repoHint = session?.worktree?.repo || null;
+        const projectHint = repoHint ? path.basename(repoHint) : null;
+        const repoCandidates = repoHint
+            ? this._buildRepoPathCandidates(repoHint, projectHint)
+            : [];
+        const workspaceRootCandidates = this._buildWorkspaceRootCandidates(session);
+
+        for (const repoRoot of [...repoCandidates, ...workspaceRootCandidates]) {
+            if (!repoRoot || repoRoot === workspaceRoot) continue;
+
+            try {
+                const candidateTarget = this._resolveWorkspaceFileTarget(repoRoot, rawPath);
+                await fs.stat(candidateTarget.targetPath);
+                return candidateTarget;
+            } catch (error) {
+                if (error?.code === 'ENOENT' || error?.message === 'Invalid path') {
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        const notFoundError = new Error('ENOENT');
+        notFoundError.code = 'ENOENT';
+        throw notFoundError;
+    }
+
+    async _resolveTreeNavigationTarget(session, targetPath) {
+        const workspaceRoot = session?.worktree?.path || session?.path || session?.cwd || null;
+        const repoHint = session?.worktree?.repo || null;
+        const projectHint = repoHint ? path.basename(repoHint) : null;
+        const candidateRoots = [
+            workspaceRoot,
+            ...this._buildRepoPathCandidates(repoHint, projectHint),
+            ...this._buildWorkspaceRootCandidates(session)
+        ].filter(Boolean);
+
+        const seen = new Set();
+        for (const root of candidateRoots) {
+            const normalizedRoot = path.normalize(root);
+            if (seen.has(normalizedRoot)) continue;
+            seen.add(normalizedRoot);
+
+            if (!await this._pathExists(normalizedRoot)) continue;
+            if (!this._isWithinRoot(normalizedRoot, targetPath)) continue;
+
+            return {
+                treeNavigable: true,
+                treeRootPath: normalizedRoot,
+                treeRelativePath: path.relative(normalizedRoot, targetPath).replace(/\\/g, '/')
+            };
+        }
+
+        return {
+            treeNavigable: false,
+            treeRootPath: null,
+            treeRelativePath: null
+        };
     }
 
     async _pathExists(candidatePath) {
@@ -159,6 +375,28 @@ export class SessionController {
                 addCandidate(path.join(rootPath, segment));
             }
         }
+
+        return candidates;
+    }
+
+    _buildWorkspaceRootCandidates(session) {
+        const candidates = [];
+        const seen = new Set();
+        const addCandidate = (candidate) => {
+            if (typeof candidate !== 'string' || !candidate.trim()) return;
+            const normalized = path.normalize(candidate);
+            if (seen.has(normalized)) return;
+            seen.add(normalized);
+            candidates.push(normalized);
+        };
+
+        const workspaceRoot = session?.worktree?.path || session?.path || session?.cwd || null;
+        const repoHint = session?.worktree?.repo || null;
+
+        addCandidate(this.projectsRoot ? path.dirname(this.projectsRoot) : null);
+        addCandidate(this.codeProjectsRoot ? path.dirname(this.codeProjectsRoot) : null);
+        addCandidate(workspaceRoot ? path.dirname(path.dirname(workspaceRoot)) : null);
+        addCandidate(repoHint ? path.dirname(path.dirname(repoHint)) : null);
 
         return candidates;
     }
@@ -285,7 +523,8 @@ export class SessionController {
             const status = await this.worktreeService.getStatus(
                 session.id,
                 repoPath,
-                session.worktree?.startCommit || null
+                session.worktree?.startCommit || null,
+                { fetchRemote: false }
             );
             const changesNotPushed = status.changesNotPushed || 0;
             const hasWorkingCopyChanges = Boolean(status.hasWorkingCopyChanges);
@@ -303,7 +542,7 @@ export class SessionController {
                 updatedAt: new Date().toISOString()
             };
         } catch (error) {
-            console.error('Failed to build session UI summary:', error);
+            logger.error('Failed to build session UI summary:', error);
             return baseSummary;
         }
     }
@@ -337,7 +576,7 @@ export class SessionController {
                 return newState;
             } catch (err) {
                 if (err.message.includes('State conflict') && i < maxRetries - 1) {
-                    console.warn(`[SessionController] Retry ${i + 1}/${maxRetries} due to conflict`);
+                    logger.warn(`[SessionController] Retry ${i + 1}/${maxRetries} due to conflict`);
                     await new Promise(resolve => setTimeout(resolve, 100 * (i + 1))); // Exponential backoff
                     continue;
                 }
@@ -411,7 +650,7 @@ export class SessionController {
         const resolvedPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
 
         // Add runtime status
-        const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
+        const runtimeStatus = this._getSessionRuntimeStatus(session);
 
         res.json({
             ...session,
@@ -444,18 +683,75 @@ export class SessionController {
         }
 
         const ownership = this.sessionManager.ensureTerminalOwnership(id, viewerId, viewerLabel);
-        const runtimeStatus = {
-            ...(session.runtimeStatus || {}),
-            proxyPath: ownership.allowed
-                ? this._appendViewerIdToProxyPath(session.runtimeStatus?.proxyPath || null, viewerId)
-                : null
-        };
+        const runtimeStatus = ownership.allowed
+            ? this._withViewerRuntimeStatus(session.runtimeStatus || {}, viewerId)
+            : this._withViewerRuntimeStatus({
+                ...(session.runtimeStatus || {}),
+                interactiveUrl: null,
+                proxyPath: null
+            }, viewerId);
 
         res.json({
             sessionId: id,
             runtimeStatus,
             terminalAccess: ownership.terminalAccess
         });
+    };
+
+    ensureTerminalRuntime = async (req, res) => {
+        const { id } = req.params;
+        const { initialCommand, cwd, engine, viewerId } = req.body || {};
+        const state = this.stateStore.get();
+        const session = state.sessions?.find((item) => item.id === id);
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+        if (session.intendedState === 'archived') {
+            return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+
+        try {
+            const resolvedCwd = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
+            await this.sessionManager.ensureSessionRuntime({
+                sessionId: id,
+                cwd: typeof resolvedCwd === 'string' && resolvedCwd.trim()
+                    ? resolvedCwd
+                    : (typeof cwd === 'string' && cwd.trim() ? cwd : undefined),
+                initialCommand: typeof initialCommand === 'string' ? initialCommand : (session.initialCommand || ''),
+                engine: typeof engine === 'string' && engine.trim() ? engine : (session.engine || 'claude')
+            });
+
+            if (session.intendedState !== 'active') {
+                await this._updateStateWithRetry((currentState) => {
+                    const updatedSessions = (currentState.sessions || []).map((currentSession) =>
+                        currentSession.id === id
+                            ? {
+                                ...currentSession,
+                                intendedState: 'active',
+                                pausedAt: null,
+                                pausedReason: null,
+                                updatedAt: new Date().toISOString()
+                            }
+                            : currentSession
+                    );
+                    return { ...currentState, sessions: updatedSessions };
+                });
+            }
+
+            const updatedSession = this.sessionManager.getSessionById(id);
+            const terminalAccess = typeof viewerId === 'string' && viewerId.trim()
+                ? this.sessionManager.getTerminalAccessState(id, viewerId.trim())
+                : null;
+            res.json({
+                sessionId: id,
+                runtimeStatus: this._withViewerRuntimeStatus(updatedSession?.runtimeStatus || null, viewerId),
+                terminalAccess
+            });
+        } catch (error) {
+            console.error('Failed to ensure terminal runtime:', error);
+            res.status(500).json({ error: error.message || 'Failed to ensure terminal runtime' });
+        }
     };
 
     releaseTerminal = (req, res) => {
@@ -501,22 +797,36 @@ export class SessionController {
         }
 
         try {
-            const [text, colorText, copyMode] = await Promise.all([
-                this.sessionManager.getContent(id, lines),
-                this.sessionManager.getContentWithColors(id, lines).catch(() => null),
-                this.sessionManager.getPaneMode(id).catch(() => false),
-            ]);
-            const payload = {
+            const payload = this.captureCache
+                ? await this.captureCache.getSnapshot(id, {
+                    lines,
+                    includeColors: true,
+                    includeCopyMode: true
+                })
+                : await (async () => {
+                    const [text, colorText, copyMode] = await Promise.all([
+                        this.sessionManager.getContent(id, lines),
+                        this.sessionManager.getContentWithColors(id, lines).catch(() => null),
+                        this.sessionManager.getPaneMode(id).catch(() => false),
+                    ]);
+                    return {
+                        text,
+                        colorText,
+                        copyMode,
+                        capturedAt: new Date().toISOString()
+                    };
+                })();
+            const response = {
                 sessionId: id,
-                text,
-                copyMode,
-                capturedAt: new Date().toISOString(),
+                text: payload.text,
+                copyMode: payload.copyMode,
+                capturedAt: payload.capturedAt,
                 terminalAccess: ownership.terminalAccess
             };
-            if (colorText) payload.colorText = colorText;
-            res.json(payload);
+            if (payload.colorText) response.colorText = payload.colorText;
+            res.json(response);
         } catch (error) {
-            console.error(`Failed to get terminal snapshot for ${id}:`, error.message);
+            logger.error(`Failed to get terminal snapshot for ${id}:`, error.message);
             res.status(500).json({ error: error.message || 'Failed to capture terminal snapshot' });
         }
     };
@@ -532,8 +842,8 @@ export class SessionController {
     start = async (req, res) => {
         const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false } = req.body;
         const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
-        console.log(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
-        console.log(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
+        logger.debug(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
+        logger.debug(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
 
         if (!sessionId) {
             return res.status(400).json({ error: 'sessionId is required' });
@@ -546,7 +856,7 @@ export class SessionController {
         const currentState = this.stateStore.get();
         const targetSession = (currentState.sessions || []).find(s => s.id === sessionId);
         if (targetSession?.intendedState === 'archived') {
-            console.log(`[start] Rejected: session ${sessionId} is archived`);
+            logger.info(`[start] Rejected: session ${sessionId} is archived`);
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
         }
 
@@ -584,7 +894,7 @@ export class SessionController {
                     const lastStartedAt = this._recentSessionStarts.get(sessionId) || 0;
                     const startedAgoMs = Date.now() - lastStartedAt;
                     if (startedAgoMs >= 0 && startedAgoMs < TAKEOVER_COOLDOWN_MS) {
-                        console.log(`[takeover] Session ${sessionId}: skipped restart during cooldown (${startedAgoMs}ms since last start)`);
+                        logger.info(`[takeover] Session ${sessionId}: skipped restart during cooldown (${startedAgoMs}ms since last start)`);
                         return res.json({
                             port: existingSession.port,
                             proxyPath: this._appendViewerIdToProxyPath(`/console/${sessionId}`, viewerId),
@@ -594,7 +904,7 @@ export class SessionController {
                         });
                     }
 
-                    console.log(`[takeover] Session ${sessionId}: restarting ttyd for new client (killing pid ${pid})`);
+                    logger.info(`[takeover] Session ${sessionId}: restarting ttyd for new client (killing pid ${pid})`);
                     await this.sessionManager.stopTtyd(sessionId, { preserveTmux: true });
                     await new Promise(resolve => setTimeout(resolve, 300));
                 }
@@ -637,10 +947,18 @@ export class SessionController {
             res.json({
                 ...result,
                 proxyPath: this._appendViewerIdToProxyPath(result.proxyPath, viewerId),
+                runtimeStatus: this._withViewerRuntimeStatus(
+                    this._getSessionRuntimeStatus(
+                        this.stateStore.get().sessions?.find((session) => session.id === sessionId)
+                        || targetSession
+                        || { id: sessionId, intendedState: 'active' }
+                    ),
+                    viewerId
+                ),
                 terminalAccess: ownership.terminalAccess
             });
         } catch (error) {
-            console.error('Failed to start session:', error);
+            logger.error('Failed to start session:', error);
             res.status(500).json({ error: error.message || 'Failed to allocate port' });
         }
     };
@@ -682,7 +1000,7 @@ export class SessionController {
                 res.status(404).json({ error: 'Session not found or already stopped' });
             }
         } catch (error) {
-            console.error(`[stop] Error stopping session ${id}:`, error);
+            logger.error(`[stop] Error stopping session ${id}:`, error);
             res.status(500).json({ error: 'Failed to stop session', detail: error.message });
         }
     };
@@ -740,7 +1058,7 @@ export class SessionController {
             try {
                 await this.sessionManager.stopTtyd(id);
             } catch (ttydError) {
-                console.error(`[archive] Failed to stop ttyd for ${id}:`, ttydError.message);
+                logger.error(`[archive] Failed to stop ttyd for ${id}:`, ttydError.message);
             }
 
             // Archive: Update intendedState to archived (リトライ付き)
@@ -753,7 +1071,7 @@ export class SessionController {
 
             res.json({ success: true });
         } catch (error) {
-            console.error(`[archive] Error archiving session ${id}:`, error);
+            logger.error(`[archive] Error archiving session ${id}:`, error);
             res.status(500).json({ error: 'Failed to archive session', detail: error.message });
         }
     };
@@ -797,7 +1115,7 @@ export class SessionController {
                     const fallbackPath = session.worktree?.path || session.path || session.cwd;
                     if (await this._pathExists(fallbackPath)) {
                         restoredWorkspacePath = fallbackPath;
-                        console.warn(
+                        logger.warn(
                             `[restore] Failed to recreate worktree for ${id}, reusing existing workspace: ${fallbackPath}. ${worktreeError.message}`
                         );
                     } else {
@@ -845,7 +1163,7 @@ export class SessionController {
                 proxyPath: result.proxyPath
             });
         } catch (error) {
-            console.error('Failed to restore session:', error);
+            logger.error('Failed to restore session:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -892,6 +1210,7 @@ export class SessionController {
 
 ${status.changesNotPushed > 0 ? `- ${status.changesNotPushed}件のchangeがremoteにpushされてません` : ''}
 ${status.hasWorkingCopyChanges ? '- working copyに未完了のchangeがあります' : ''}
+${status.needsMerge ? `- ${status.mainBranch || 'base branch'} に未マージのcommitが${status.commitsAheadOfBase || 0}件あります` : ''}
 ${!status.bookmarkPushed && status.bookmarkName ? `- bookmark '${status.bookmarkName}' はローカルのみに存在します` : ''}
 ${status.autoHealReason && status.autoHealReason !== 'healed' ? `- 自動修復スキップ理由: ${status.autoHealReason}` : ''}
 
@@ -912,16 +1231,8 @@ ${jjBookmarks}
 
 この状況を分析して、必要な対処（マージ、push、統合など）を実行してください。`;
 
-            let copiedByServer = false;
-            try {
-                execSync('pbcopy', {
-                    input: message,
-                    stdio: ['pipe', 'ignore', 'ignore']
-                });
-                copiedByServer = true;
-            } catch (copyError) {
-                console.warn('Server-side clipboard copy failed:', copyError.message);
-            }
+            const clipboardResult = await this._copyToSystemClipboard(message);
+            const copiedByServer = clipboardResult.success;
 
             res.json({
                 success: true,
@@ -929,10 +1240,11 @@ ${jjBookmarks}
                     ? 'AIへの依頼内容をコピーしました。チャットでペーストして送信してください。'
                     : 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。',
                 copiedByServer,
+                clipboardMethod: clipboardResult.method,
                 clipboardContent: message
             });
         } catch (error) {
-            console.error('Failed to ask AI for integration:', error);
+            logger.error('Failed to ask AI for integration:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -953,7 +1265,7 @@ ${jjBookmarks}
             await this.sessionManager.sendInput(id, input, type);
             res.json({ success: true });
         } catch (err) {
-            console.error(`Failed to send input to ${id}:`, err.message);
+            logger.error(`Failed to send input to ${id}:`, err.message);
             res.status(500).json({ error: err.message || 'Failed to send input' });
         }
     };
@@ -1001,7 +1313,7 @@ ${jjBookmarks}
             await this.sessionManager.scrollSession(id, direction, steps);
             res.json({ success: true });
         } catch (err) {
-            console.error(`Failed to scroll ${id}:`, err.message);
+            logger.error(`Failed to scroll ${id}:`, err.message);
             res.status(500).json({ error: err.message || 'Failed to scroll' });
         }
     };
@@ -1018,7 +1330,7 @@ ${jjBookmarks}
             await this.sessionManager.selectPane(id, direction);
             res.json({ success: true });
         } catch (err) {
-            console.error(`Failed to select pane for ${id}:`, err.message);
+            logger.error(`Failed to select pane for ${id}:`, err.message);
             res.status(500).json({ error: err.message || 'Failed to select pane' });
         }
     };
@@ -1034,7 +1346,7 @@ ${jjBookmarks}
             await this.sessionManager.exitCopyMode(id);
             res.json({ success: true });
         } catch (err) {
-            console.error(`Failed to exit copy mode for ${id}:`, err.message);
+            logger.error(`Failed to exit copy mode for ${id}:`, err.message);
             res.status(500).json({ error: err.message || 'Failed to exit copy mode' });
         }
     };
@@ -1119,7 +1431,7 @@ ${jjBookmarks}
             const resolvedRepoPath = await this._resolveRepoPath(repoPath, project);
 
             if (resolvedRepoPath !== repoPath) {
-                console.warn(`[createWithWorktree] Repo path fallback for ${sessionId}: ${repoPath} -> ${resolvedRepoPath}`);
+                logger.warn(`[createWithWorktree] Repo path fallback for ${sessionId}: ${repoPath} -> ${resolvedRepoPath}`);
             }
 
             // Create worktree (skipFetch=trueで2-3秒短縮)
@@ -1186,7 +1498,7 @@ ${jjBookmarks}
                         sessions: (currentState.sessions || []).filter(s => s.id !== sessionId)
                     }));
                 } catch (rollbackError) {
-                    console.error(`[createWithWorktree] Rollback failed:`, rollbackError);
+                    logger.error(`[createWithWorktree] Rollback failed:`, rollbackError);
                 }
                 this.worktreeService.remove(sessionId, resolvedRepoPath).catch(() => {});
                 throw ttydResult.reason;
@@ -1194,7 +1506,7 @@ ${jjBookmarks}
 
             // state更新失敗時は警告のみ（セッションは使える）
             if (stateResult.status === 'rejected') {
-                console.warn('[createWithWorktree] state update failed (session is usable):', stateResult.reason);
+                logger.warn('[createWithWorktree] state update failed (session is usable):', stateResult.reason);
             }
 
             const result = ttydResult.value;
@@ -1210,7 +1522,7 @@ ${jjBookmarks}
                 branchName
             });
         } catch (error) {
-            console.error('Failed to create session with worktree:', error);
+            logger.error('Failed to create session with worktree:', error);
             this._updateProgress(sessionId, 'error', 0, 'セッション作成に失敗');
             res.status(500).json({ error: error.message || 'Failed to create worktree' });
         }
@@ -1243,7 +1555,7 @@ ${jjBookmarks}
             );
             res.json(status);
         } catch (error) {
-            console.error('Failed to get worktree status:', error);
+            logger.error('Failed to get worktree status:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -1296,7 +1608,8 @@ ${jjBookmarks}
             const status = await this.worktreeService.getStatus(
                 id,
                 repoPath,
-                session.worktree?.startCommit || null
+                session.worktree?.startCommit || null,
+                { fetchRemote: false }
             );
 
             const changesNotPushed = status.changesNotPushed || 0;
@@ -1319,7 +1632,7 @@ ${jjBookmarks}
                 currentDirectory: context.currentDirectory || status.worktreePath || null
             });
         } catch (error) {
-            console.error('Failed to get session context:', error);
+            logger.error('Failed to get session context:', error);
             res.json(context);
         }
     };
@@ -1359,11 +1672,29 @@ ${jjBookmarks}
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        const rootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+        const sessionRootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
             || session.worktree?.path
             || session.path;
+        const requestedRootPath = typeof req.query.root === 'string' && req.query.root.trim()
+            ? path.normalize(req.query.root.trim())
+            : null;
+        let rootPath = sessionRootPath;
         if (!rootPath) {
             return res.status(400).json({ error: 'Session does not have workspace path' });
+        }
+
+        if (requestedRootPath) {
+            const repoHint = session?.worktree?.repo || null;
+            const projectHint = repoHint ? path.basename(repoHint) : null;
+            const allowedRoots = [
+                sessionRootPath,
+                ...this._buildRepoPathCandidates(repoHint, projectHint),
+                ...this._buildWorkspaceRootCandidates(session)
+            ].filter(Boolean).map((candidate) => path.normalize(candidate));
+            if (!allowedRoots.includes(requestedRootPath)) {
+                return res.status(400).json({ error: 'Invalid root override' });
+            }
+            rootPath = requestedRootPath;
         }
 
         try {
@@ -1395,7 +1726,7 @@ ${jjBookmarks}
             if (error.message === 'Invalid path') {
                 return res.status(400).json({ error: 'Invalid path' });
             }
-            console.error('Failed to get folder tree:', error);
+            logger.error('Failed to get folder tree:', error);
             res.status(500).json({ error: error.message || 'Failed to get folder tree' });
         }
     };
@@ -1419,18 +1750,9 @@ ${jjBookmarks}
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        const rootPath = session.worktree?.path || session.path;
-        if (!rootPath) {
-            return res.status(400).json({ error: 'Session does not have workspace path' });
-        }
-
         try {
-            const relativePath = this._normalizeRelativePath(rawPath);
-            const targetPath = path.resolve(rootPath, relativePath);
-
-            if (!this._isWithinRoot(rootPath, targetPath)) {
-                return res.status(400).json({ error: 'Invalid path: outside session workspace' });
-            }
+            const { relativePath, targetPath } = await this._resolveFilePreviewTarget(session, rawPath);
+            const { treeNavigable, treeRootPath, treeRelativePath } = await this._resolveTreeNavigationTarget(session, targetPath);
 
             const stat = await fs.stat(targetPath);
             if (stat.size > MAX_FILE_READ_SIZE) {
@@ -1459,6 +1781,9 @@ ${jjBookmarks}
             res.json({
                 sessionId: id,
                 relativePath,
+                treeNavigable,
+                treeRootPath,
+                treeRelativePath,
                 fileName,
                 content,
                 size: stat.size,
@@ -1471,7 +1796,7 @@ ${jjBookmarks}
             if (error.message === 'Invalid path') {
                 return res.status(400).json({ error: 'Invalid path' });
             }
-            console.error('Failed to get file content:', error);
+            logger.error('Failed to get file content:', error);
             res.status(500).json({ error: error.message || 'Failed to read file' });
         }
     };
@@ -1500,7 +1825,7 @@ ${jjBookmarks}
             const result = await this.worktreeService.updateLocalMain(session.worktree.repo, { autoStash });
             res.json(result);
         } catch (error) {
-            console.error('Failed to update local main:', error);
+            logger.error('Failed to update local main:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -1547,7 +1872,7 @@ ${jjBookmarks}
 
             res.json(result);
         } catch (error) {
-            console.error('Failed to merge worktree:', error);
+            logger.error('Failed to merge worktree:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -1585,7 +1910,7 @@ ${jjBookmarks}
             }
             res.json(result);
         } catch (error) {
-            console.error('Failed to get commit log:', error);
+            logger.error('Failed to get commit log:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -1648,7 +1973,7 @@ ${jjBookmarks}
                 res.status(500).json({ error: 'Failed to delete worktree' });
             }
         } catch (error) {
-            console.error('Failed to delete worktree:', error);
+            logger.error('Failed to delete worktree:', error);
             res.status(500).json({ error: error.message });
         }
     };
@@ -1671,7 +1996,7 @@ ${jjBookmarks}
             const { stdout } = await execAsync('git branch --show-current', { cwd });
             return stdout.trim() || 'main';
         } catch (error) {
-            console.error('[SessionController] Failed to get git branch:', error);
+            logger.error('[SessionController] Failed to get git branch:', error);
             return null;
         }
     }

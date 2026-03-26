@@ -1,3 +1,5 @@
+import { refreshIcons } from '../ui-helpers.js';
+
 /**
  * Settings UI Module
  *
@@ -28,7 +30,7 @@ export class SettingsUI {
     // DOM要素を取得
     this.modal = document.getElementById('settings-modal');
     this.modalContent = document.getElementById('settings-view');
-    this.settingsBtn = document.getElementById('settings-btn');
+    this.settingsBtn = document.getElementById('ab-settings-btn');
     this.closeBtn = document.getElementById('close-settings-btn');
 
     // Settings Modal の構造を初期化（Plugin Architecture対応）
@@ -99,10 +101,7 @@ export class SettingsUI {
       await this.onOpenCallback();
     }
 
-    // Lucide icons再初期化（動的にタブが追加された場合のため）
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
+    refreshIcons();
   }
 
   /**
@@ -143,10 +142,7 @@ export class SettingsUI {
       `)
       .join('');
 
-    // Lucide icons再初期化
-    if (typeof lucide !== 'undefined') {
-      lucide.createIcons();
-    }
+    refreshIcons();
 
     // タブクリックイベントを再設定
     this._setupTabClickListeners();

@@ -31,7 +31,7 @@ export class HealthController {
 
             res.status(statusCode).json(response);
         } catch (error) {
-            console.error('Health check failed:', error);
+            logger.error('Health check failed:', error);
             res.status(503).json({
                 status: 'unhealthy',
                 timestamp: new Date().toISOString(),

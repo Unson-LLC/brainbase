@@ -56,3 +56,14 @@ export function formatTime(time) {
 export function iconHtml(name, className = '') {
     return `<i data-lucide="${name}" class="${className}"></i>`;
 }
+
+/**
+ * Lucideアイコンを（再）初期化する
+ * グローバルの lucide が読み込まれていない場合は何もしない
+ * @param {Object} [opts] - lucide.createIcons に渡すオプション（root, nodes 等）
+ */
+export function refreshIcons(opts) {
+    if (window.lucide) {
+        window.lucide.createIcons(opts);
+    }
+}

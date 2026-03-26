@@ -20,7 +20,7 @@ export class FileViewerService {
     async openFile(sessionId, relativePath) {
         try {
             const result = await this.sessionService.getFileContent(sessionId, relativePath);
-            const { fileName, content, size, isMarkdown } = result;
+            const { fileName, content, size, isMarkdown, treeNavigable, treeRootPath, treeRelativePath } = result;
 
             const rendered = isMarkdown ? this._renderMarkdown(content) : null;
 
@@ -33,6 +33,9 @@ export class FileViewerService {
                     renderedHtml: rendered,
                     size,
                     isMarkdown,
+                    treeNavigable: Boolean(treeNavigable),
+                    treeRootPath: treeRootPath || null,
+                    treeRelativePath: treeRelativePath || null,
                     loading: false,
                     error: null
                 }
@@ -41,6 +44,9 @@ export class FileViewerService {
             await this.eventBus.emit(EVENTS.FILE_VIEWER_OPENED, {
                 sessionId,
                 relativePath,
+                treeNavigable: Boolean(treeNavigable),
+                treeRootPath: treeRootPath || null,
+                treeRelativePath: treeRelativePath || null,
                 fileName,
                 isMarkdown
             });

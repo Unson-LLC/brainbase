@@ -1,3 +1,5 @@
+import { refreshIcons } from './ui-helpers.js';
+
 // Confirm modal module
 
 const confirmModal = document.getElementById('confirm-modal');
@@ -7,6 +9,8 @@ const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 const confirmActionBtn = document.getElementById('confirm-action-btn');
 const confirmAiBtn = document.getElementById('confirm-ai-btn');
+const confirmManualCopy = document.getElementById('confirm-manual-copy');
+const confirmManualCopyText = document.getElementById('confirm-manual-copy-text');
 
 const hasConfirmModal = Boolean(
     confirmModal
@@ -38,7 +42,10 @@ if (hasConfirmModal) {
 
     // AI button event listener (for archive with AI check)
     if (confirmAiBtn) {
-        confirmAiBtn.addEventListener('click', () => closeConfirm({ action: 'ai' }));
+        confirmAiBtn.addEventListener('click', () => {
+            console.info('[ArchiveAI] AI confirm button clicked');
+            closeConfirm({ action: 'ai' });
+        });
     }
 }
 
@@ -46,6 +53,12 @@ function closeConfirm(result) {
     if (!confirmModal) return;
     confirmModal.classList.remove('active');
     confirmModal.classList.remove('confirm-modal--action');
+    if (confirmManualCopy) {
+        confirmManualCopy.classList.add('hidden');
+    }
+    if (confirmManualCopyText) {
+        confirmManualCopyText.value = '';
+    }
     if (confirmActionBtn) {
         confirmActionBtn.style.display = 'none';
     }
@@ -87,6 +100,12 @@ export function showConfirm(message, options = {}) {
     } = options;
     confirmResponseMode = 'boolean';
     confirmModal.classList.remove('confirm-modal--action');
+    if (confirmManualCopy) {
+        confirmManualCopy.classList.add('hidden');
+    }
+    if (confirmManualCopyText) {
+        confirmManualCopyText.value = '';
+    }
 
     // XSS対策: DOMメソッドで構築
     confirmTitle.innerHTML = '';
@@ -109,10 +128,7 @@ export function showConfirm(message, options = {}) {
         confirmOkBtn.className = 'btn-primary';
     }
 
-    // Initialize lucide icon
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    refreshIcons();
 
     confirmModal.classList.add('active');
 
@@ -130,6 +146,7 @@ export function showConfirm(message, options = {}) {
  * @param {string} options.cancelText - Cancel button text (default: 'キャンセル')
  * @param {string} options.actionText - Action button text (default: 'アクション')
  * @param {string} options.aiActionText - AI action button text (optional, enables 4-button mode)
+ * @param {string|null} options.aiClipboardText - Deprecated: browser clipboard fallback用の互換オプション
  * @param {boolean} options.danger - Use danger button style for OK (default: true)
  * @returns {Promise<{action: 'ok'|'cancel'|'action'|'ai'}>} - Resolves to action type
  */
@@ -149,10 +166,17 @@ export function showConfirmWithAction(message, options = {}) {
         cancelText = 'キャンセル',
         actionText = 'アクション',
         aiActionText = null,
+        aiClipboardText = null,
         danger = true
     } = options;
     confirmResponseMode = 'action';
     confirmModal.classList.add('confirm-modal--action');
+    if (confirmManualCopy) {
+        confirmManualCopy.classList.add('hidden');
+    }
+    if (confirmManualCopyText) {
+        confirmManualCopyText.value = '';
+    }
 
     // XSS対策: DOMメソッドで構築
     confirmTitle.innerHTML = '';
@@ -186,10 +210,7 @@ export function showConfirmWithAction(message, options = {}) {
         confirmOkBtn.className = 'btn-primary';
     }
 
-    // Initialize lucide icon
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
+    refreshIcons();
 
     confirmModal.classList.add('active');
 

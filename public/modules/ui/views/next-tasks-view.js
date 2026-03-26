@@ -1,44 +1,29 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { refreshIcons, formatDueDate } from '../../ui-helpers.js';
+import { isTaskInProgress } from '../../utils/task-filters.js';
+import { BaseView } from './base-view.js';
 
 /**
  * Next Tasks表示のUIコンポーネント
  */
-export class NextTasksView {
+export class NextTasksView extends BaseView {
     constructor({ taskService }) {
+        super();
         this.taskService = taskService;
-        this.container = null;
-        this._unsubscribers = [];
         this.showAll = false;
     }
 
-    /**
-     * DOMコンテナにマウント
-     * @param {HTMLElement} container - マウント先のコンテナ
-     */
-    mount(container) {
-        this.container = container;
-        this._setupEventListeners();
-        this.render();
-    }
-
-    /**
-     * イベントリスナーの設定
-     */
     _setupEventListeners() {
-        // イベント購読
-        const unsub1 = eventBus.on(EVENTS.TASK_LOADED, () => this.render());
-        const unsub2 = eventBus.on(EVENTS.TASK_COMPLETED, () => this.render());
-        const unsub3 = eventBus.on(EVENTS.TASK_DELETED, () => this.render());
-        const unsub4 = eventBus.on(EVENTS.TASK_FILTER_CHANGED, () => this.render());
-        const unsub5 = eventBus.on(EVENTS.TASK_UPDATED, () => this.render());
-
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+        this._addSubscriptions(
+            eventBus.on(EVENTS.TASK_LOADED, () => this.render()),
+            eventBus.on(EVENTS.TASK_COMPLETED, () => this.render()),
+            eventBus.on(EVENTS.TASK_DELETED, () => this.render()),
+            eventBus.on(EVENTS.TASK_FILTER_CHANGED, () => this.render()),
+            eventBus.on(EVENTS.TASK_UPDATED, () => this.render())
+        );
     }
 
-    /**
-     * Next Tasksをレンダリング
-     */
     render() {
         if (!this.container) return;
 
@@ -51,26 +36,17 @@ export class NextTasksView {
             return;
         }
 
-        // 現行版と同じ構造: ラッパーなしで直接タスクアイテムを挿入
         let html = '';
         tasks.forEach(task => {
             html += this._renderNextTaskItem(task);
         });
 
         this.container.innerHTML = html;
-
-        // Lucideアイコンを初期化
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
-
+        refreshIcons();
         this._updateRemainingToggle(remainingCount);
         this._attachEventHandlers();
     }
 
-    /**
-     * 残タスク表示ボタンの更新
-     */
     _updateRemainingToggle(remainingCount) {
         const toggleEl = document.getElementById('remaining-tasks-toggle');
         const countEl = document.getElementById('remaining-count');
@@ -83,19 +59,11 @@ export class NextTasksView {
         }
     }
 
-    /**
-     * 残タスク表示ボタンを非表示
-     */
     _hideRemainingToggle() {
         const toggleEl = document.getElementById('remaining-tasks-toggle');
         if (toggleEl) toggleEl.style.display = 'none';
     }
 
-    /**
-     * Next Task ItemのHTML生成
-     * @param {Object} task - タスクオブジェクト
-     * @returns {string} HTML文字列
-     */
     _renderNextTaskItem(task) {
         const priorityBadge = task.priority
             ? `<span class="next-task-priority ${task.priority}">${task.priority}</span>`
@@ -103,14 +71,12 @@ export class NextTasksView {
 
         const deadlineHtml = this._formatDeadline(task.deadline || task.due);
         const isOverdue = this._isOverdue(task.deadline || task.due);
-        const isInProgress = task.status === 'in-progress' || task.status === 'in_progress' || task.status === 'doing';
+        const isInProgress = isTaskInProgress(task);
 
-        // Status badge for in-progress
         const statusBadge = isInProgress
             ? '<span class="next-task-status in-progress">進行中</span>'
             : '';
 
-        // Build class list
         const classList = ['next-task-item'];
         if (isOverdue) classList.push('overdue');
         if (isInProgress) classList.push('in-progress');
@@ -149,60 +115,24 @@ export class NextTasksView {
         `;
     }
 
-    /**
-     * 期限をフォーマット
-     * @param {string|null} deadline - 期限日
-     * @returns {string} HTML文字列
-     */
     _formatDeadline(deadline) {
         if (!deadline) return '';
 
-        const due = new Date(deadline);
-        due.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        let text;
+        const text = formatDueDate(deadline);
         let cssClass = 'next-task-deadline';
-
-        if (due < today) {
-            text = '期限切れ';
-            cssClass += ' overdue';
-        } else if (due.getTime() === today.getTime()) {
-            text = '今日';
-            cssClass += ' urgent';
-        } else if (due.getTime() === tomorrow.getTime()) {
-            text = '明日';
-        } else {
-            text = `${due.getMonth() + 1}/${due.getDate()}`;
-        }
+        if (text === '期限切れ') cssClass += ' overdue';
+        else if (text === '今日') cssClass += ' urgent';
 
         return `<span class="${cssClass}"><i data-lucide="calendar"></i> ${text}</span>`;
     }
 
-    /**
-     * 期限切れかどうか判定
-     * @param {string|null} deadline - 期限日
-     * @returns {boolean}
-     */
     _isOverdue(deadline) {
-        if (!deadline) return false;
-        const due = new Date(deadline);
-        due.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return due < today;
+        return deadline ? formatDueDate(deadline) === '期限切れ' : false;
     }
 
-    /**
-     * DOMイベントハンドラーをアタッチ
-     */
     _attachEventHandlers() {
-        // Checkbox - Complete task
         this.container.querySelectorAll('.next-task-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('click', async (e) => {
+            checkbox.addEventListener('click', async () => {
                 const taskId = checkbox.dataset.id;
                 if (taskId) {
                     await this.taskService.completeTask(taskId);
@@ -210,7 +140,6 @@ export class NextTasksView {
             });
         });
 
-        // Start button - Emit START_TASK event
         this.container.querySelectorAll('.start-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -221,7 +150,6 @@ export class NextTasksView {
             });
         });
 
-        // Edit button - Emit EDIT_TASK event
         this.container.querySelectorAll('.edit-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -236,7 +164,6 @@ export class NextTasksView {
             });
         });
 
-        // Delete button
         this.container.querySelectorAll('.delete-task-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -247,7 +174,6 @@ export class NextTasksView {
             });
         });
 
-        // Restore button - Restore in_progress task to todo
         this.container.querySelectorAll('.restore-task-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -258,25 +184,12 @@ export class NextTasksView {
             });
         });
 
-        // Show more tasks button (別要素なのでdocument.querySelectorを使用)
         const showMoreBtn = document.getElementById('show-more-tasks');
         if (showMoreBtn) {
             showMoreBtn.addEventListener('click', () => {
                 this.showAll = true;
                 this.render();
             });
-        }
-    }
-
-    /**
-     * クリーンアップ
-     */
-    unmount() {
-        this._unsubscribers.forEach(unsub => unsub());
-        this._unsubscribers = [];
-        if (this.container) {
-            this.container.innerHTML = '';
-            this.container = null;
         }
     }
 }

@@ -2,6 +2,25 @@ import { describe, expect, it, vi } from 'vitest';
 import { TerminalTransportService } from '../../../server/services/terminal-transport-service.js';
 
 function buildService() {
+    const captureCache = {
+        getSnapshot: vi.fn(async () => ({
+            text: 'snapshot',
+            colorText: null,
+            copyMode: false,
+            capturedAt: '2026-03-23T00:00:00.000Z'
+        })),
+        invalidate: vi.fn()
+    };
+    const controlClient = {
+        on: vi.fn(),
+        off: vi.fn(),
+        resize: vi.fn(),
+        touch: vi.fn()
+    };
+    const controlRegistry = {
+        acquire: vi.fn(() => controlClient),
+        release: vi.fn()
+    };
     const sessionManager = {
         sendInput: vi.fn(async () => {}),
         resizeSessionWindow: vi.fn(async () => {}),
@@ -13,18 +32,34 @@ function buildService() {
         getPaneMode: vi.fn(async () => false)
     };
 
-    const service = new TerminalTransportService({ sessionManager });
-    return { service, sessionManager };
+    const service = new TerminalTransportService({ sessionManager, captureCache, controlRegistry });
+    return { service, sessionManager, captureCache, controlClient, controlRegistry };
+}
+
+function buildMockWs() {
+    const listeners = {};
+    return {
+        readyState: 1,
+        send: vi.fn(),
+        close: vi.fn(() => {
+            if (listeners.close) listeners.close();
+        }),
+        on: vi.fn((event, handler) => {
+            listeners[event] = handler;
+        }),
+        _listeners: listeners
+    };
 }
 
 describe('TerminalTransportService', () => {
     it('input message で tmux sendInput を呼ぶ', async () => {
-        const { service, sessionManager } = buildService();
+        const { service, sessionManager, captureCache } = buildService();
         const connection = {
             sessionId: 'session-1',
             viewerId: 'viewer-1',
             viewerLabel: 'Local / Mac',
-            ws: { readyState: 1, send: vi.fn() }
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'snapshot'
         };
 
         await service._handleMessage(connection, JSON.stringify({
@@ -35,11 +70,17 @@ describe('TerminalTransportService', () => {
 
         expect(sessionManager.sendInput).toHaveBeenCalledWith('session-1', 'hello', 'text');
         expect(sessionManager.touchTerminalOwnership).toHaveBeenCalledWith('session-1', 'viewer-1', 'Local / Mac');
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('snapshotメッセージにcolorTextフィールドが含まれる', async () => {
-        const { service, sessionManager } = buildService();
-        sessionManager.getContentWithColors.mockResolvedValue('\x1b[32mgreen\x1b[0m');
+    it('ready送信時のみcolorText付きsnapshotを返す', async () => {
+        const { service, captureCache } = buildService();
+        captureCache.getSnapshot.mockResolvedValue({
+            text: 'snapshot',
+            colorText: '\x1b[32mgreen\x1b[0m',
+            copyMode: false,
+            capturedAt: '2026-03-23T00:00:00.000Z'
+        });
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -50,10 +91,11 @@ describe('TerminalTransportService', () => {
             ws,
             lastSnapshot: null,
             lastCopyMode: null,
-            lastCliState: null
+            lastCliState: null,
+            transport: 'streaming'
         };
 
-        await service._pollConnection(connection);
+        await service._sendReady(connection);
 
         const snapshotCall = ws.send.mock.calls.find(call => {
             const msg = JSON.parse(call[0]);
@@ -65,9 +107,14 @@ describe('TerminalTransportService', () => {
         expect(msg.text).toBe('snapshot');
     });
 
-    it('colorTextがnullの場合snapshotにcolorTextフィールドを含めない', async () => {
-        const { service, sessionManager } = buildService();
-        sessionManager.getContentWithColors.mockResolvedValue(null);
+    it('steady-state polling snapshotにはcolorTextを含めない', async () => {
+        const { service, captureCache } = buildService();
+        captureCache.getSnapshot.mockResolvedValue({
+            text: 'snapshot-next',
+            colorText: null,
+            copyMode: false,
+            capturedAt: '2026-03-23T00:00:00.000Z'
+        });
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -76,9 +123,10 @@ describe('TerminalTransportService', () => {
             cols: 80,
             rows: 24,
             ws,
-            lastSnapshot: null,
+            lastSnapshot: 'snapshot-prev',
             lastCopyMode: null,
-            lastCliState: null
+            lastCliState: null,
+            transport: 'snapshot'
         };
 
         await service._pollConnection(connection);
@@ -93,22 +141,6 @@ describe('TerminalTransportService', () => {
     });
 
     describe('auto-takeover: 既存接続の即切断', () => {
-        function buildMockWs() {
-            const listeners = {};
-            return {
-                readyState: 1,
-                send: vi.fn(),
-                close: vi.fn(() => {
-                    // close時にcloseリスナーを呼ぶ
-                    if (listeners.close) listeners.close();
-                }),
-                on: vi.fn((event, handler) => {
-                    listeners[event] = handler;
-                }),
-                _listeners: listeners
-            };
-        }
-
         it('同一セッションに別viewerIdで接続時_前の接続がblocked送信+closeされる', async () => {
             const { service, sessionManager } = buildService();
             const terminalAccess = { owner: 'viewer-2' };
@@ -184,14 +216,16 @@ describe('TerminalTransportService', () => {
     });
 
     it('resize message で sessionManager.resizeSessionWindow を呼ぶ', async () => {
-        const { service, sessionManager } = buildService();
+        const { service, controlClient } = buildService();
         const connection = {
             sessionId: 'session-1',
             viewerId: 'viewer-1',
             viewerLabel: 'Local / Mac',
             cols: 80,
             rows: 24,
-            ws: { readyState: 1, send: vi.fn() }
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming',
+            controlClient
         };
 
         await service._handleMessage(connection, JSON.stringify({
@@ -200,6 +234,60 @@ describe('TerminalTransportService', () => {
             rows: 40
         }));
 
-        expect(sessionManager.resizeSessionWindow).toHaveBeenCalledWith('session-1', 120, 40);
+        expect(controlClient.resize).toHaveBeenCalledWith(120, 40);
+    });
+
+    it('message handler は sendInput 失敗時も error を返して接続を維持する', async () => {
+        const { service, sessionManager } = buildService();
+        sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true });
+        sessionManager.sendInput.mockRejectedValue(new Error('tmux send failed'));
+
+        const ws = buildMockWs();
+
+        await service._handleConnection(ws, {}, {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Mac'
+        });
+
+        ws._listeners.message(Buffer.from(JSON.stringify({
+            type: 'input',
+            inputType: 'text',
+            value: '\u001b]11;rgb:0000/0000/0000\u001b\\'
+        })));
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        const errorCall = ws.send.mock.calls.find((call) => {
+            const message = JSON.parse(call[0]);
+            return message.type === 'error' && message.code === 'INPUT_ERROR';
+        });
+
+        expect(errorCall).toBeTruthy();
+        expect(ws.close).not.toHaveBeenCalled();
+    });
+
+    it('streaming outputをそのままoutputメッセージで転送する', async () => {
+        const { service, controlClient } = buildService();
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws,
+            transport: 'snapshot',
+            closed: false
+        };
+
+        await service._startStreaming(connection);
+
+        const outputHandler = controlClient.on.mock.calls.find(([event]) => event === 'output')[1];
+        outputHandler('\u001b[32mhello\u001b[0m');
+
+        expect(ws.send).toHaveBeenCalledWith(JSON.stringify({
+            type: 'output',
+            data: '\u001b[32mhello\u001b[0m'
+        }));
     });
 });

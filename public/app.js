@@ -19,9 +19,11 @@ import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
+import { refreshIcons } from './modules/ui-helpers.js';
 import { createSessionId } from './modules/session-manager.js';
 import { setupFileOpenerShortcuts } from './modules/file-opener.js';
 import { setupTerminalContextMenuListener, setupXtermContextMenu } from './modules/iframe-contextmenu-handler.js';
+import { isBrowserPreviewablePath, resolvePreviewRelativePath } from './modules/file-preview-config.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
 import { ansiToHtml } from './modules/utils/ansi-to-html.js';
@@ -54,7 +56,8 @@ import { setupTaskTabs } from './modules/ui/task-tabs.js';
 import { setupSessionViewToggle } from './modules/ui/session-view-toggle.js';
 import { setupSidebarPrimaryToggle } from './modules/ui/sidebar-primary-toggle.js';
 import { setupViewNavigation } from './modules/ui/view-navigation.js';
-import { renderViewToggle } from './modules/ui/view-toggle.js';
+import { renderViewToggle, renderPanelToggles } from './modules/ui/view-toggle.js';
+import { setupPanelLayout } from './modules/ui/panel-layout-manager.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
 import { MobileInputController } from './modules/ui/mobile-input-controller.js';
@@ -553,6 +556,7 @@ export class App {
         this.mobileInputController = null;
         this.terminalInteractionService = null;
         this._sessionSwitchToken = 0;
+        this._terminalAutoFocusTimers = new Set();
         this.viewerId = getTerminalViewerId();
         this.viewerLabel = getTerminalViewerLabel();
     }
@@ -567,6 +571,35 @@ export class App {
 
     _shouldAutoFocusTerminalSurface() {
         return !this.isMobile();
+    }
+
+    _clearScheduledTerminalAutoFocus() {
+        this._terminalAutoFocusTimers.forEach(timerId => window.clearTimeout(timerId));
+        this._terminalAutoFocusTimers.clear();
+    }
+
+    _scheduleTerminalAutoFocus(reason = 'unknown', delays = [75, 200]) {
+        if (!this._shouldAutoFocusTerminalSurface()) return;
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+
+        delays.forEach((delay) => {
+            const timerId = window.setTimeout(() => {
+                this._terminalAutoFocusTimers.delete(timerId);
+                if (appStore.getState().currentSessionId !== sessionId) return;
+                if (!this._shouldAutoFocusTerminalSurface() || !this._isConsoleVisible()) return;
+                this.focusTerminal(reason);
+            }, delay);
+            this._terminalAutoFocusTimers.add(timerId);
+        });
+    }
+
+    _triggerTerminalAutoFocus(reason = 'unknown', delays = [75, 200]) {
+        this._clearScheduledTerminalAutoFocus();
+        if (!this._shouldAutoFocusTerminalSurface()) return;
+        if (!appStore.getState().currentSessionId) return;
+        this.focusTerminal(reason);
+        this._scheduleTerminalAutoFocus(reason, delays);
     }
 
     _isMobileTerminalDisplayMode() {
@@ -823,6 +856,39 @@ export class App {
         return await this.sessionService.refreshSessionUiSummaries(sessionIds);
     }
 
+    _collectVisibleSessionIds(container) {
+        if (!container || !container.isConnected) return [];
+        const containerRect = container.getBoundingClientRect();
+        if (containerRect.width <= 0 || containerRect.height <= 0) return [];
+
+        return Array.from(container.querySelectorAll('.session-child-row[data-id]'))
+            .filter((row) => {
+                const rect = row.getBoundingClientRect();
+                return rect.height > 0
+                    && rect.bottom >= containerRect.top
+                    && rect.top <= containerRect.bottom;
+            })
+            .map((row) => row.dataset.id)
+            .filter(Boolean);
+    }
+
+    _getSessionUiSummaryRefreshIds() {
+        const ids = new Set();
+        const state = appStore.getState();
+        if (state.currentSessionId) {
+            ids.add(state.currentSessionId);
+        }
+
+        for (const containerId of ['session-list', 'mobile-session-list']) {
+            const container = document.getElementById(containerId);
+            for (const sessionId of this._collectVisibleSessionIds(container)) {
+                ids.add(sessionId);
+            }
+        }
+
+        return Array.from(ids);
+    }
+
     _runDeferredSessionSwitchWork(sessionId, switchToken) {
         if (switchToken !== this._sessionSwitchToken) return;
         if (appStore.getState().currentSessionId !== sessionId) return;
@@ -898,19 +964,32 @@ export class App {
             this.hideTerminalLoadingOverlay();
             return { ok: true };
         } catch (error) {
-            if (error?.code === 'SESSION_NOT_RUNNING') {
-                console.warn('Xterm transport reported SESSION_NOT_RUNNING, falling back to ttyd:', error);
-                this.terminalTransportClient.disconnect({ preserveView: false });
-                this.terminalTransportClient.hide();
-                this._showTtydIframe();
-                return { ok: false, fallback: true };
-            }
-            console.warn('Xterm transport unavailable, falling back to ttyd:', error);
+            console.warn('Xterm transport unavailable:', error);
             this.terminalTransportClient.disconnect({ preserveView: false });
-            this.terminalTransportClient.hide();
-            this._showTtydIframe();
-            return { ok: false, fallback: true };
+            this.terminalTransportClient.show();
+            this._showXtermTransport();
+            this._terminalTransportStatus = {
+                mode: 'disconnected',
+                copyMode: false,
+                blockedAccess: null,
+                connected: false,
+                isFocused: false,
+                lastSnapshotAt: null,
+                transport: 'streaming'
+            };
+            this._updateTerminalInputStatus();
+            return { ok: false, error };
         }
+    }
+
+    async _ensureDesktopTerminalRuntime(session) {
+        if (!session?.id) return null;
+        return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
+            initialCommand: session.initialCommand || '',
+            cwd: session.path,
+            engine: session.engine || 'claude',
+            viewerId: this.viewerId
+        });
     }
 
     async _preferXtermForCurrentSession() {
@@ -1072,6 +1151,7 @@ export class App {
     }
 
     _renderTerminalSnapshotPanel({ visible = false, snapshot = null, title = 'Snapshot fallback' } = {}) {
+        this._cacheTerminalUiElements();
         if (!this.terminalSnapshotPanelEl || !this.terminalSnapshotContentEl) return;
 
         // 前回と同じ内容ならDOM操作スキップ
@@ -1094,15 +1174,25 @@ export class App {
         if (this.terminalSnapshotTitleEl) {
             this.terminalSnapshotTitleEl.textContent = title;
         }
-        if (snapshot?.colorText) {
+        const snapshotText = this._normalizeTerminalSnapshotText(snapshot?.text);
+        if (this.isMobile()) {
+            this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
+        } else if (snapshot?.colorText) {
             this.terminalSnapshotContentEl.innerHTML = ansiToHtml(snapshot.colorText);
         } else {
-            this.terminalSnapshotContentEl.textContent = snapshot?.text || 'Snapshotを読み込み中...';
+            this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
         }
         if (this.terminalSnapshotTimestampEl) {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
         this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
+    }
+
+    _normalizeTerminalSnapshotText(text) {
+        if (typeof text !== 'string') return '';
+        return text
+            .replace(/\r\n/g, '\n')
+            .replace(/(?:\n[ \t]*){4,}$/u, '\n\n');
     }
 
     _syncTerminalSnapshotPanel({ sessionId, visible, title }) {
@@ -1159,6 +1249,7 @@ export class App {
     }
 
     _updateTerminalInputStatus() {
+        this._cacheTerminalUiElements();
         if (!this.terminalInputStatusEl) return;
 
         if (!this._isConsoleVisible()) {
@@ -1273,12 +1364,14 @@ export class App {
                 : '別の viewer がこのセッションを表示中。クリックで引き継ぎ';
             ownerLabel = terminalAccess?.ownerViewerLabel || '';
         } else if (xtermActive && xtermStatus?.mode === 'snapshot') {
-            stateClass = 'disconnected';
-            transportState = 'disconnected';
-            presentationMode = 'snapshot';
-            text = '入力: Snapshot表示中';
-            title = `session=${sessionId} snapshot fallback`;
-            snapshotVisible = true;
+            // snapshotモードでもxtermに内容が描画済みなのでlive風に見せる
+            // クリックで再接続をトリガーできるようにする
+            stateClass = 'needs-focus';
+            transportState = 'connected';
+            attentionState = 'needs-focus';
+            presentationMode = 'live';
+            text = '入力: クリックで再接続';
+            title = `session=${sessionId} (click to reconnect)`;
         } else if (xtermActive && xtermStatus?.mode === 'reconnecting') {
             stateClass = 'reconnecting';
             transportState = 'reconnecting';
@@ -1414,9 +1507,7 @@ export class App {
         );
     }
 
-    setupTerminalInputUx() {
-        if (!this.terminalFrame) return;
-
+    _cacheTerminalUiElements() {
         this.terminalHeaderEl = document.getElementById('terminal-header');
         this.terminalInputStatusEl = document.getElementById('terminal-input-status');
         this.terminalTransportPillEl = document.getElementById('terminal-transport-pill');
@@ -1433,6 +1524,12 @@ export class App {
         this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
         this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
         this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
+    }
+
+    setupTerminalInputUx() {
+        if (!this.terminalFrame) return;
+
+        this._cacheTerminalUiElements();
         const consoleArea = document.getElementById('console-area');
         const closeMobileLiveTerminalBtn = document.getElementById('close-mobile-live-terminal-btn');
 
@@ -1496,27 +1593,53 @@ export class App {
         this._terminalInputUxCleanup.push(unsubMobileInputSent);
 
         // Handle OPEN_FILE from terminal link clicks
-        const MARKDOWN_EXTS = new Set(['.md', '.mdx', '.markdown']);
         const onOpenFileMessage = (event) => {
             if (event.origin !== window.location.origin) return;
             if (event.data?.type !== 'OPEN_FILE') return;
 
-            const { filePath, line, sessionId: msgSessionId } = event.data;
+            const {
+                filePath,
+                previewPath,
+                previewable,
+                line,
+                sessionId: msgSessionId
+            } = event.data;
             if (!filePath) return;
+            console.log('[OPEN_FILE] received', {
+                filePath,
+                previewPath,
+                previewable,
+                line,
+                sessionId: msgSessionId || null
+            });
 
             const currentSessionId = msgSessionId || appStore.getState().currentSessionId;
-            const ext = filePath.lastIndexOf('.') >= 0 ? filePath.slice(filePath.lastIndexOf('.')).toLowerCase() : '';
+            const session = appStore.getState().sessions.find(s => s.id === currentSessionId);
+            const workspaceRoot = session?.worktree?.path || session?.path || null;
+            const previewRelativePath = previewPath
+                || resolvePreviewRelativePath(filePath, workspaceRoot, currentSessionId)
+                || null;
+            const shouldOpenInBrowser = Boolean(previewRelativePath)
+                || Boolean(previewable)
+                || isBrowserPreviewablePath(filePath);
+            console.log('[OPEN_FILE] resolved', {
+                currentSessionId,
+                workspaceRoot,
+                previewRelativePath,
+                shouldOpenInBrowser
+            });
 
-            if (MARKDOWN_EXTS.has(ext) && this.fileViewerService) {
-                this.fileViewerService.openFile(currentSessionId, filePath);
-            } else {
-                // Fallback: open in default app via API
-                fetch('/api/open-file', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: filePath, mode: 'cursor', line, sessionId: currentSessionId })
-                }).catch(err => console.error('[OPEN_FILE] Error:', err));
+            if (shouldOpenInBrowser && this.fileViewerService) {
+                void this.fileViewerService.openFile(currentSessionId, previewRelativePath || filePath);
+                this.showFileViewer?.();
+                return;
             }
+
+            fetch('/api/open-file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: filePath, mode: 'file', line, sessionId: currentSessionId })
+            }).catch(err => console.error('[OPEN_FILE] Error:', err));
         };
         window.addEventListener('message', onOpenFileMessage);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onOpenFileMessage));
@@ -1534,11 +1657,14 @@ export class App {
             if (e.target?.closest?.('button')) return;
 
             if (this._isMobileTerminalDisplayMode()) {
-                const snapshotContent = e.target?.closest?.('#terminal-snapshot-content');
-                if (snapshotContent) {
-                    return;
-                }
                 void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+                return;
+            }
+
+            // snapshotモード中にクリックしたら即reconnect
+            if (this._isXtermTransportActive() && this.terminalTransportClient?.status?.mode === 'snapshot') {
+                void this.terminalTransportClient.reconnect().catch(() => {});
+                this._updateTerminalInputStatus();
                 return;
             }
 
@@ -1588,12 +1714,73 @@ export class App {
         this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchmove', onConsoleTouchMove, { passive: true }));
         this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchend', onConsoleTouchEnd, { passive: true }));
 
+        const onSnapshotClick = (event) => {
+            if (!this._isMobileTerminalDisplayMode()) return;
+            if (this._isEditableTarget(event.target)) return;
+            const overlayState = this._getTerminalOverlayState();
+            if (overlayState.choiceActive || overlayState.dropActive) return;
+            event.stopPropagation();
+            void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+        };
+        this.terminalSnapshotPanelEl?.addEventListener('click', onSnapshotClick, true);
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('click', onSnapshotClick, true));
+
+        const onSnapshotTouchStart = (event) => {
+            if (!this._isMobileTerminalDisplayMode()) return;
+            if (this._isEditableTarget(event.target)) return;
+            this._mobileTapTracking = {
+                startX: event.touches?.[0]?.clientX ?? 0,
+                startY: event.touches?.[0]?.clientY ?? 0,
+                moved: false
+            };
+        };
+        const onSnapshotTouchMove = (event) => {
+            if (!this._mobileTapTracking) return;
+            const touch = event.touches?.[0];
+            if (!touch) return;
+            const dx = Math.abs(touch.clientX - this._mobileTapTracking.startX);
+            const dy = Math.abs(touch.clientY - this._mobileTapTracking.startY);
+            if (dx > 8 || dy > 8) {
+                this._mobileTapTracking.moved = true;
+            }
+        };
+        const onSnapshotTouchEnd = (event) => {
+            if (!this._isMobileTerminalDisplayMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
+                this._mobileTapTracking = null;
+                return;
+            }
+            if (this._isEditableTarget(event.target)) {
+                this._mobileTapTracking = null;
+                return;
+            }
+            const overlayState = this._getTerminalOverlayState();
+            if (!overlayState.any) {
+                event.stopPropagation();
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+            }
+            this._mobileTapTracking = null;
+        };
+        this.terminalSnapshotPanelEl?.addEventListener('touchstart', onSnapshotTouchStart, { passive: true });
+        this.terminalSnapshotPanelEl?.addEventListener('touchmove', onSnapshotTouchMove, { passive: true });
+        this.terminalSnapshotPanelEl?.addEventListener('touchend', onSnapshotTouchEnd, { passive: true });
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('touchstart', onSnapshotTouchStart, { passive: true }));
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('touchmove', onSnapshotTouchMove, { passive: true }));
+        this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('touchend', onSnapshotTouchEnd, { passive: true }));
+
         const onMobileLiveTerminalLoad = () => {
             if (this._mobileTerminalMode !== 'interactive') return;
             this.scheduleTerminalFrameLayoutSync(this._latestMobileViewportLayout);
         };
         this.mobileLiveTerminalFrameEl?.addEventListener('load', onMobileLiveTerminalLoad);
         this._terminalInputUxCleanup.push(() => this.mobileLiveTerminalFrameEl?.removeEventListener('load', onMobileLiveTerminalLoad));
+
+        const onTerminalFrameLoad = () => {
+            this._scheduleTerminalInputStatusUpdate();
+            if (this._mobileTerminalMode === 'interactive') return;
+            this._scheduleTerminalAutoFocus('terminal-frame-load', [60, 180]);
+        };
+        this.terminalFrame?.addEventListener('load', onTerminalFrameLoad);
+        this._terminalInputUxCleanup.push(() => this.terminalFrame?.removeEventListener('load', onTerminalFrameLoad));
 
         const onMobileLiveTerminalClose = (event) => {
             event?.preventDefault?.();
@@ -1623,6 +1810,11 @@ export class App {
             e.preventDefault();
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
+
+            if (this._isMobileTerminalDisplayMode()) {
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+                return;
+            }
 
             const xtermActive = this._isXtermTransportActive();
             if ((xtermActive && this._terminalTransportStatus?.blockedAccess?.state === 'blocked')
@@ -1662,6 +1854,10 @@ export class App {
 
         const onReconnectClick = (e) => {
             e.preventDefault();
+            if (this._isMobileTerminalDisplayMode()) {
+                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
+                return;
+            }
             if (this._isXtermTransportActive()) {
                 void this.terminalTransportClient?.reconnect().catch(() => {});
                 return;
@@ -1905,24 +2101,67 @@ export class App {
             slots: {
                 'nav:view-toggle': {
                     mount: ({ container }) => {
-                        const cleanupToggle = renderViewToggle(container);
+                        const cleanupToggle = renderPanelToggles(container);
+
+                        // Setup panel layout manager
+                        const panelLayout = setupPanelLayout({ store: appStore, eventBus });
+                        this._panelLayout = panelLayout;
+
+                        // Wire Activity Bar buttons
+                        const abSessionsBtn = document.getElementById('ab-sessions-btn');
+                        const abDashboardBtn = document.getElementById('ab-dashboard-btn');
+                        const abWikiBtn = document.getElementById('ab-wiki-btn');
+                        const abLivefeedBtn = document.getElementById('ab-livefeed-btn');
+                        const abCommitTreeBtn = document.getElementById('ab-commit-tree-btn');
+                        const abTasksBtn = document.getElementById('ab-tasks-btn');
+
+                        const onSessionsClick = () => panelLayout.closeAllPanels();
+                        const onDashboardClick = () => panelLayout.toggleDashboard();
+                        const onWikiClick = () => panelLayout.toggleInfoDrawer('wiki');
+                        const onLivefeedClick = () => panelLayout.toggleInfoDrawer('live-feed');
+                        const onCommitTreeClick = () => panelLayout.toggleInfoDrawer('commit-tree');
+                        const onTasksClick = () => panelLayout.toggleInfoDrawer('tasks');
+
+                        if (abSessionsBtn) abSessionsBtn.addEventListener('click', onSessionsClick);
+                        if (abDashboardBtn) abDashboardBtn.addEventListener('click', onDashboardClick);
+                        if (abWikiBtn) abWikiBtn.addEventListener('click', onWikiClick);
+                        if (abLivefeedBtn) abLivefeedBtn.addEventListener('click', onLivefeedClick);
+                        if (abCommitTreeBtn) abCommitTreeBtn.addEventListener('click', onCommitTreeClick);
+                        if (abTasksBtn) abTasksBtn.addEventListener('click', onTasksClick);
+
+                        // Wire close buttons inside drawer/overlay
+                        const infoCloseBtn = document.getElementById('info-drawer-close');
+                        const dashCloseBtn = document.getElementById('dashboard-overlay-close');
+                        if (infoCloseBtn) infoCloseBtn.addEventListener('click', panelLayout.closeAllPanels);
+                        if (dashCloseBtn) dashCloseBtn.addEventListener('click', panelLayout.toggleDashboard);
+
                         return () => {
                             cleanupToggle?.();
+                            panelLayout.cleanup();
+                            if (abSessionsBtn) abSessionsBtn.removeEventListener('click', onSessionsClick);
+                            if (abDashboardBtn) abDashboardBtn.removeEventListener('click', onDashboardClick);
+                            if (abWikiBtn) abWikiBtn.removeEventListener('click', onWikiClick);
+                            if (abLivefeedBtn) abLivefeedBtn.removeEventListener('click', onLivefeedClick);
+                            if (abCommitTreeBtn) abCommitTreeBtn.removeEventListener('click', onCommitTreeClick);
+                            if (abTasksBtn) abTasksBtn.removeEventListener('click', onTasksClick);
+                            if (infoCloseBtn) infoCloseBtn.removeEventListener('click', panelLayout.closeAllPanels);
+                            if (dashCloseBtn) dashCloseBtn.removeEventListener('click', panelLayout.toggleDashboard);
                         };
                     }
                 },
                 'view:dashboard': {
                     manageVisibility: false,
                     mount: async ({ container }) => {
-                        const dashboardBtn = document.getElementById('nav-dashboard-btn');
+                        const abDashboardBtn = document.getElementById('ab-dashboard-btn');
                         const mobileDashboardBtn = document.getElementById('mobile-dashboard-btn');
-                        if (dashboardBtn) {
-                            dashboardBtn.style.display = '';
+                        if (abDashboardBtn) {
+                            abDashboardBtn.style.display = '';
                         }
                         if (mobileDashboardBtn) {
                             mobileDashboardBtn.style.display = '';
                         }
 
+                        // Setup backward-compatible navigation helpers
                         const { cleanup, showConsole, showDashboard, showFileViewer, showWiki } = setupViewNavigation({
                             onDashboardActivated: () => {
                                 this.dashboardController?.init();
@@ -1932,19 +2171,73 @@ export class App {
                             }
                         });
                         this.showConsole = showConsole;
-                        this.showDashboard = showDashboard;
+                        this.showDashboard = () => {
+                            this._panelLayout?.toggleDashboard();
+                            this.dashboardController?.init();
+                        };
                         this.showFileViewer = showFileViewer;
-                        this.showWiki = showWiki;
+                        this.showWiki = () => {
+                            this._panelLayout?.toggleInfoDrawer('wiki');
+                            this.wikiService?.loadPages();
+                        };
 
                         // Wire file viewer events to panel switching
-                        const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, () => {
+                        const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, (event) => {
+                            const {
+                                sessionId,
+                                relativePath,
+                                treeNavigable = true,
+                                treeRootPath = null,
+                                treeRelativePath = null
+                            } = event.detail || {};
+                            this._syncSidebarToOpenedFile(
+                                sessionId,
+                                treeRelativePath || relativePath,
+                                treeNavigable,
+                                treeRootPath
+                            );
                             this.showFileViewer?.();
                         });
                         const unsubFileClose = eventBus.on(EVENTS.FILE_VIEWER_CLOSED, () => {
+                            const state = appStore.getState();
+                            const currentSessionId = state.currentSessionId || null;
+                            const folderTree = state.folderTree || {};
+                            const activeFileBySessionId = {
+                                ...(folderTree.activeFileBySessionId || {})
+                            };
+                            const rootOverrideBySessionId = {
+                                ...(folderTree.rootOverrideBySessionId || {})
+                            };
+                            if (currentSessionId) {
+                                delete activeFileBySessionId[currentSessionId];
+                                delete rootOverrideBySessionId[currentSessionId];
+                            }
+                            appStore.setState({
+                                ui: {
+                                    ...(state.ui || {}),
+                                    sidebarPrimaryView: 'sessions'
+                                },
+                                folderTree: {
+                                    ...folderTree,
+                                    activeFileBySessionId,
+                                    rootOverrideBySessionId
+                                }
+                            });
                             this.showConsole?.();
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();
+
+                        // Wire dashboard init on panel toggle
+                        const unsubPanelToggle = eventBus.on(EVENTS.PANEL_TOGGLED, (e) => {
+                            if (e.detail?.panel === 'dashboard' && e.detail?.open) {
+                                this.dashboardController?.init();
+                            }
+                            if (e.detail?.panel === 'info' && e.detail?.open && e.detail?.tab === 'wiki') {
+                                this.wikiService?.loadPages();
+                            }
+                        });
+                        this.unsubscribers.push(unsubPanelToggle);
 
                         return () => {
                             cleanup?.();
@@ -1961,7 +2254,6 @@ export class App {
                                 this.dashboardController.destroy();
                             }
                             this.dashboardController = null;
-                            container.style.display = 'none';
                         };
                     }
                 }
@@ -2176,7 +2468,7 @@ export class App {
         try {
             const { getSessionSelectableProjects, projectMappingReady } = await import('./modules/project-mapping.js');
             await projectMappingReady;
-            const projects = getSessionSelectableProjects();
+            const projects = getSessionSelectableProjects(this.authManager?.access?.projectCodes);
             console.log('[App] Initializing project select with projects:', projects);
 
             // Clear existing options
@@ -2309,7 +2601,7 @@ export class App {
             }
 
             if (this._shouldAutoFocusTerminalSurface()) {
-                this.focusTerminal('session-changed');
+                this._triggerTerminalAutoFocus('session-changed');
             }
 
             scheduleAfterNextPaint(() => {
@@ -2557,9 +2849,7 @@ export class App {
                     document.body.insertBefore(banner, appContainer);
 
                     // Re-render lucide icons
-                    if (window.lucide && window.lucide.createIcons) {
-                        window.lucide.createIcons();
-                    }
+                    refreshIcons();
                 }
             }
         } else {
@@ -2593,10 +2883,10 @@ export class App {
             };
         }
 
-        // Settings button
-        const settingsBtn = document.getElementById('settings-btn');
-        if (settingsBtn) {
-            settingsBtn.onclick = async () => {
+        // Settings button (Activity Bar)
+        const abSettingsBtn = document.getElementById('ab-settings-btn');
+        if (abSettingsBtn) {
+            abSettingsBtn.onclick = async () => {
                 if (this.settingsCore && this.settingsCore.ui) {
                     await this.settingsCore.ui.openModal();
                 }
@@ -2726,7 +3016,7 @@ export class App {
         }
 
         if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
+            refreshIcons();
         }
     }
 
@@ -3102,7 +3392,7 @@ export class App {
             renderMobileSessionList();
             sessionsSheetOverlay?.classList.add('active');
             sessionsBottomSheet?.classList.add('active');
-            lucide.createIcons();
+            refreshIcons();
         };
 
         const refreshMobileSessionListIfOpen = () => {
@@ -3120,10 +3410,10 @@ export class App {
         this.unsubscribers.push(unsubscribeMobileSessionView);
 
         const renderMobileTasksContent = ({ activeTab } = {}) => {
-            const contextSidebar = document.getElementById('context-sidebar');
-            if (!mobileTasksContent || !contextSidebar) return;
+            const tasksTabContent = document.getElementById('tasks-tab-content');
+            if (!mobileTasksContent || !tasksTabContent) return;
 
-            mobileTasksContent.innerHTML = contextSidebar.innerHTML;
+            mobileTasksContent.innerHTML = tasksTabContent.innerHTML;
 
             if (activeTab) {
                 const tabButtons = mobileTasksContent.querySelectorAll('.task-tab');
@@ -3149,7 +3439,7 @@ export class App {
                 }
             });
 
-            lucide.createIcons();
+            refreshIcons();
         };
 
         // Open Tasks bottom sheet
@@ -3159,7 +3449,7 @@ export class App {
             renderMobileTasksContent();
             tasksSheetOverlay?.classList.add('active');
             tasksBottomSheet?.classList.add('active');
-            lucide.createIcons();
+            refreshIcons();
         };
 
         // Close Tasks bottom sheet
@@ -3186,8 +3476,8 @@ export class App {
             closeTasksSheet();
             closeSettingsPanel();
 
-            const dashboardBtn = document.getElementById('nav-dashboard-btn');
-            const isDashboardActive = dashboardBtn?.classList.contains('active');
+            const abDashBtn = document.getElementById('ab-dashboard-btn');
+            const isDashboardActive = abDashBtn?.classList.contains('active');
             if (isDashboardActive) {
                 this.showConsole?.();
                 return;
@@ -3466,6 +3756,9 @@ export class App {
                     this._terminalLastNavigateAt = Date.now();
                 }
                 this._syncMobileSnapshotPolling({ immediate: true, force: true });
+                // Render the snapshot surface immediately so mobile users do not see a blank
+                // terminal area while the first snapshot fetch is still in flight.
+                this._updateTerminalInputStatus();
                 this._setCurrentSessionUiState({
                     transport: terminalAccess?.state === 'blocked' ? 'blocked' : 'connected',
                     attention: 'none'
@@ -3474,6 +3767,30 @@ export class App {
             }
 
             if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+                try {
+                    await this._ensureDesktopTerminalRuntime(session);
+                } catch (error) {
+                    console.error('Failed to ensure desktop terminal runtime:', error);
+                    this.terminalTransportClient?.disconnect({ preserveView: false });
+                    this.terminalTransportClient?.show();
+                    this._showXtermTransport();
+                    this._terminalTransportStatus = {
+                        mode: 'disconnected',
+                        copyMode: false,
+                        blockedAccess: null,
+                        connected: false,
+                        isFocused: false,
+                        lastSnapshotAt: null,
+                        transport: 'streaming'
+                    };
+                    this._updateTerminalInputStatus();
+                    this._setCurrentSessionUiState({
+                        transport: 'disconnected',
+                        attention: 'none'
+                    });
+                    return;
+                }
+
                 const transportResult = await this._connectXtermTransport(session);
                 if (transportResult.ok) {
                     this.reconnectManager?.setCurrentSession(sessionId);
@@ -3484,7 +3801,7 @@ export class App {
                         attention: 'none'
                     });
                     if (this._shouldAutoFocusTerminalSurface()) {
-                        this.focusTerminal('switchSession');
+                        this._triggerTerminalAutoFocus('switchSession');
                     }
 
                     return;
@@ -3505,6 +3822,12 @@ export class App {
                     this._updateTerminalInputStatus();
                     return;
                 }
+
+                this._setCurrentSessionUiState({
+                    transport: 'disconnected',
+                    attention: 'none'
+                });
+                return;
             }
 
             this.terminalTransportClient?.disconnect({ preserveView: false });
@@ -3543,7 +3866,7 @@ export class App {
                     attention: 'none'
                 });
                 if (this._shouldAutoFocusTerminalSurface()) {
-                    this.focusTerminal('switchSession');
+                    this._triggerTerminalAutoFocus('switchSession');
                 }
             } else {
                 console.error('No proxyPath available for session:', sessionId);
@@ -3586,11 +3909,44 @@ export class App {
     /**
      * Initial data load
      */
+    _resolveInitialSessionId(currentSessionId, sessions = []) {
+        const sessionList = Array.isArray(sessions) ? sessions : [];
+        const currentSession = currentSessionId
+            ? sessionList.find((session) => session.id === currentSessionId)
+            : null;
+
+        if (currentSession && currentSession.intendedState !== 'archived') {
+            return currentSession.id;
+        }
+
+        return sessionList.find((session) => session.intendedState !== 'archived')?.id || null;
+    }
+
+    async _loadSessionsForStartup(maxAttempts = 3, delayMs = 350) {
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return await this.sessionService.loadSessions();
+            } catch (error) {
+                lastError = error;
+                if (attempt >= maxAttempts) break;
+                console.warn(
+                    `Sessions not available during startup (attempt ${attempt}/${maxAttempts}), retrying...`,
+                    error.message
+                );
+                await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+            }
+        }
+
+        throw lastError || new Error('Failed to load sessions during startup');
+    }
+
     async loadInitialData() {
         try {
             // Load all sessions (404エラーは許容)
             try {
-                await this.sessionService.loadSessions();
+                await this._loadSessionsForStartup();
             } catch (error) {
                 console.warn('Sessions not available, using empty state:', error.message);
             }
@@ -3598,11 +3954,18 @@ export class App {
             // Get current session from store
             let { currentSessionId, sessions } = appStore.getState();
 
-            // If no current session, select the first session automatically
-            if (!currentSessionId && sessions && sessions.length > 0) {
-                currentSessionId = sessions[0].id;
-                console.log('Auto-selecting first session:', currentSessionId);
+            const resolvedCurrentSessionId = this._resolveInitialSessionId(currentSessionId, sessions);
+            const shouldAutoSelectInitialSession = resolvedCurrentSessionId !== currentSessionId;
+            if (shouldAutoSelectInitialSession) {
+                currentSessionId = resolvedCurrentSessionId;
+            }
+
+            // Auto-select the first non-archived session when the current selection is missing or invalid.
+            if (shouldAutoSelectInitialSession && currentSessionId) {
+                console.log('Auto-selecting initial session:', currentSessionId);
                 await eventBus.emit(EVENTS.SESSION_CHANGED, { sessionId: currentSessionId });
+            } else if (shouldAutoSelectInitialSession) {
+                appStore.setState({ currentSessionId: null });
             }
 
             if (sessions && sessions.length > 0) {
@@ -3695,13 +4058,7 @@ export class App {
         // 4.6. Update app version display (include runtime info)
         await this.updateAppVersionDisplay();
 
-        // 5. Load initial data
-        await this.loadInitialData();
-
-        // 6. Initialize file upload (Drag & Drop, Clipboard)
-        initFileUpload(() => appStore.getState().currentSessionId);
-
-        // 6.5. Initialize terminal reconnect manager
+        // 5. Initialize terminal reconnect manager before session auto-selection.
         const terminalFrame = document.getElementById('terminal-frame');
         const terminalXtermHost = document.getElementById('terminal-xterm-host');
         if (terminalFrame) {
@@ -3727,16 +4084,28 @@ export class App {
                     }
                 });
                 await this.terminalTransportClient.init(terminalXtermHost);
-                await this._preferXtermForCurrentSession();
                 if (this.terminalTransportClient.terminal) {
                     setupXtermContextMenu(this.terminalTransportClient.terminal);
                 }
             }
             this.setupTerminalInputUx();
-            if (currentSessionId && this.isMobile()) {
-                await this.switchSession(currentSessionId);
-            }
         }
+
+        // 6. Load initial data
+        await this.loadInitialData();
+
+        const currentSessionId = appStore.getState().currentSessionId;
+        if (currentSessionId) {
+            this.reconnectManager?.setCurrentSession(currentSessionId);
+        }
+        if (currentSessionId && this.isMobile()) {
+            await this.switchSession(currentSessionId);
+        } else if (currentSessionId && this._shouldUseXtermTransport()) {
+            await this._preferXtermForCurrentSession();
+        }
+
+        // 6.5. Initialize file upload (Drag & Drop, Clipboard)
+        initFileUpload(() => appStore.getState().currentSessionId);
 
         const onPageHide = () => {
             void this.releaseTerminalOwnership(appStore.getState().currentSessionId);
@@ -4180,14 +4549,57 @@ export class App {
         }
 
         this.sessionUiSummaryIntervalId = setInterval(() => {
+            if (document.hidden) return;
             const state = appStore.getState();
             if (state.ui?.sidebarPrimaryView !== 'sessions') return;
-            const activeIds = (state.sessions || [])
-                .filter((session) => session.intendedState !== 'archived')
-                .map((session) => session.id);
-            if (activeIds.length === 0) return;
-            void this.refreshSessionUiSummaries(activeIds);
-        }, 15_000);
+            const refreshIds = this._getSessionUiSummaryRefreshIds();
+            if (refreshIds.length === 0) return;
+            void this.refreshSessionUiSummaries(refreshIds);
+        }, 30_000);
+    }
+
+    _syncSidebarToOpenedFile(sessionId, relativePath, treeNavigable = true, treeRootPath = null) {
+        if (!sessionId) return;
+        const state = appStore.getState();
+        const folderTree = state.folderTree || {};
+        const activeFileBySessionId = {
+            ...(folderTree.activeFileBySessionId || {})
+        };
+        const rootOverrideBySessionId = {
+            ...(folderTree.rootOverrideBySessionId || {})
+        };
+        const bySessionId = {
+            ...(folderTree.bySessionId || {})
+        };
+        const previousRootOverride = rootOverrideBySessionId[sessionId] || null;
+        if (treeNavigable && relativePath) {
+            activeFileBySessionId[sessionId] = relativePath;
+            if (treeRootPath) {
+                rootOverrideBySessionId[sessionId] = treeRootPath;
+            } else {
+                delete rootOverrideBySessionId[sessionId];
+            }
+        } else {
+            delete activeFileBySessionId[sessionId];
+            delete rootOverrideBySessionId[sessionId];
+        }
+        const nextRootOverride = rootOverrideBySessionId[sessionId] || null;
+        if (previousRootOverride !== nextRootOverride) {
+            delete bySessionId[sessionId];
+        }
+
+        appStore.setState({
+            ui: {
+                ...(state.ui || {}),
+                sidebarPrimaryView: treeNavigable ? 'folders' : (state.ui?.sidebarPrimaryView || 'sessions')
+            },
+            folderTree: {
+                ...folderTree,
+                bySessionId,
+                activeFileBySessionId,
+                rootOverrideBySessionId
+            }
+        });
     }
 
     /**
@@ -4273,7 +4685,7 @@ export class App {
         });
 
         overlay.classList.add('active');
-        lucide.createIcons();
+        refreshIcons();
 
         closeBtn.onclick = () => this.closeChoiceOverlay();
     }
@@ -4366,6 +4778,7 @@ export class App {
             window.cancelAnimationFrame(this._terminalFrameLayoutSyncRaf);
             this._terminalFrameLayoutSyncRaf = null;
         }
+        this._clearScheduledTerminalAutoFocus();
 
         // Stop choice detection
         this.stopChoiceDetection();

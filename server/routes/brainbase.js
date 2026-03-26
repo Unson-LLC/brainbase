@@ -10,28 +10,11 @@ import { StorageService } from '../services/storage-service.js';
 import { NocoDBService } from '../services/nocodb-service.js';
 import { logger } from '../utils/logger.js';
 import { cacheMiddleware } from '../middleware/cache.js';
+import { asyncHandler } from '../lib/async-handler.js';
+import { BrainbaseActionController, ACTION_TYPES, ACTION_STATUS } from '../controllers/brainbase-action-controller.js';
 
-/**
- * アクション型定義
- * Story 3: 介入判断を実行に移す
- */
-export const ACTION_TYPES = {
-    MTG_INVITE: { id: 'mtg_invite', label: 'MTG招集', icon: '📅' },
-    REASSIGN: { id: 'reassign', label: '担当変更', icon: '👤' },
-    DEADLINE_CHANGE: { id: 'deadline_change', label: '期限変更', icon: '📆' },
-    UNBLOCK: { id: 'unblock', label: 'ブロック解除', icon: '🔓' },
-    ESCALATE: { id: 'escalate', label: 'エスカレーション', icon: '⚡' }
-};
-
-/**
- * アクションステータス定義
- */
-export const ACTION_STATUS = {
-    PENDING: 'pending',     // 発行済み・未実行
-    APPROVED: 'approved',   // 承認済み
-    EXECUTED: 'executed',   // 実行完了
-    FAILED: 'failed'        // 実行失敗
-};
+// Re-export for backward compatibility
+export { ACTION_TYPES, ACTION_STATUS };
 
 /**
  * brainbaseダッシュボードAPIルーター
@@ -70,188 +53,45 @@ export function createBrainbaseRouter(options = {}) {
      * GET /api/brainbase
      * すべての監視情報を一括取得
      */
-    router.get('/', async (req, res) => {
-        try {
-            const [github, system, tasks, worktrees, projects] = await Promise.all([
-                getGitHubInfo(),
-                systemService.getSystemStatus(),
-                // DISABLED: storageService.getStorageSummary() causes memory leak (du process accumulation)
-                // storageService.getStorageSummary(),
-                getTasksInfo(),
-                getWorktreesInfo(),
-                getProjectsWithHealth(),
-            ]);
+    router.get('/', asyncHandler(async (req, res) => {
+        const [github, system, tasks, worktrees, projects] = await Promise.all([
+            getGitHubInfo(), systemService.getSystemStatus(),
+            getTasksInfo(), getWorktreesInfo(), getProjectsWithHealth(),
+        ]);
+        res.json({ github, system, tasks, worktrees, projects, timestamp: new Date().toISOString() });
+    }));
 
-            res.json({
-                github,
-                system,
-                // storage: null, // Disabled to prevent memory leak
-                tasks,
-                worktrees,
-                projects,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error) {
-            logger.error('Error fetching dashboard data', { error });
-            res.status(500).json({ error: 'Failed to fetch dashboard data' });
-        }
-    });
+    router.get('/github/runners', asyncHandler(async (req, res) => {
+        res.json(await githubService.getSelfHostedRunners());
+    }));
 
-    /**
-     * GET /api/brainbase/github/runners
-     * GitHub Actionsセルフホストランナー情報
-     */
-    router.get('/github/runners', async (req, res) => {
-        try {
-            const runners = await githubService.getSelfHostedRunners();
-            res.json(runners);
-        } catch (error) {
-            logger.error('Error fetching runners', { error });
-            res.status(500).json({ error: 'Failed to fetch runners' });
-        }
-    });
+    router.get('/github/workflows', asyncHandler(async (req, res) => {
+        res.json(await githubService.getWorkflowRuns(parseInt(req.query.limit) || 10));
+    }));
 
-    /**
-     * GET /api/brainbase/github/workflows
-     * GitHub Actionsワークフロー実行履歴
-     */
-    router.get('/github/workflows', async (req, res) => {
-        try {
-            const limit = parseInt(req.query.limit) || 10;
-            const workflows = await githubService.getWorkflowRuns(limit);
-            res.json(workflows);
-        } catch (error) {
-            logger.error('Error fetching workflows', { error });
-            res.status(500).json({ error: 'Failed to fetch workflows' });
-        }
-    });
+    router.get('/system', asyncHandler(async (req, res) => {
+        res.json(await systemService.getSystemStatus());
+    }));
 
-    /**
-     * GET /api/brainbase/system
-     * システムリソース情報
-     */
-    router.get('/system', async (req, res) => {
-        try {
-            const system = await systemService.getSystemStatus();
-            res.json(system);
-        } catch (error) {
-            logger.error('Error fetching system status', { error });
-            res.status(500).json({ error: 'Failed to fetch system status' });
-        }
-    });
+    router.get('/system-health', asyncHandler(async (req, res) => {
+        res.json({ success: true, data: await githubService.getHealthcheckStatus() });
+    }));
 
-    /**
-     * GET /api/brainbase/system-health
-     * healthcheckワークフローの実行結果取得（mana + runners）
-     */
-    router.get('/system-health', async (req, res) => {
-        try {
-            const healthStatus = await githubService.getHealthcheckStatus();
-            res.json({
-                success: true,
-                data: healthStatus,
-            });
-        } catch (error) {
-            logger.error('Error fetching system health', { error });
-            res.status(500).json({
-                success: false,
-                error: 'Failed to fetch system health',
-            });
-        }
-    });
+    router.get('/storage', asyncHandler(async (req, res) => {
+        res.json(await storageService.getStorageSummary());
+    }));
 
-    /**
-     * GET /api/brainbase/storage
-     * ストレージ情報取得（キャッシュ付き、TTL: 5分）
-     * NOTE: メモリリーク対策として専用エンドポイントでのみ取得可能。
-     *       `/api/brainbase/overview` では引き続き無効化されている。
-     */
-    router.get('/storage', async (req, res) => {
-        try {
-            const storage = await storageService.getStorageSummary();
-            res.json(storage);
-        } catch (error) {
-            logger.error('Error fetching storage info', { error });
-            res.status(500).json({ error: 'Failed to fetch storage info' });
-        }
-    });
+    router.get('/tasks', asyncHandler(async (req, res) => {
+        res.json(await getTasksInfo());
+    }));
 
-    /**
-     * GET /api/brainbase/tasks
-     * タスク管理ステータス
-     */
-    router.get('/tasks', async (req, res) => {
-        try {
-            const tasks = await getTasksInfo();
-            res.json(tasks);
-        } catch (error) {
-            logger.error('Error fetching tasks', { error });
-            res.status(500).json({ error: 'Failed to fetch tasks' });
-        }
-    });
+    router.get('/worktrees', asyncHandler(async (req, res) => {
+        res.json(await getWorktreesInfo());
+    }));
 
-    /**
-     * GET /api/brainbase/worktrees
-     * Worktree情報
-     */
-    router.get('/worktrees', async (req, res) => {
-        try {
-            const worktrees = await getWorktreesInfo();
-            res.json(worktrees);
-        } catch (error) {
-            logger.error('Error fetching worktrees', { error });
-            res.status(500).json({ error: 'Failed to fetch worktrees' });
-        }
-    });
-
-    /**
-     * GET /api/brainbase/projects
-     * 全プロジェクトの健全性スコアを返却（NocoDB実データ使用）
-     */
-    router.get('/projects', async (req, res) => {
-        try {
-            // 1. config.ymlからプロジェクト一覧（project_id必須）
-            const config = await configParser.getAll();
-            const projects = (config.projects?.projects || [])
-                .filter(p => !p.archived && p.nocodb?.project_id)
-                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
-
-            // 2. NocoDBから統計取得
-            const stats = await Promise.all(
-                projects.map(p => nocodbService.getProjectStats(p.project_id))
-            );
-
-            // 3. 健全性スコア計算
-            const healthScores = stats.map((stat, i) => {
-                const taskCompletion = stat.completionRate || 0;
-                const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
-                const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
-                const milestoneProgress = stat.averageProgress || 0;
-
-                const healthScore = Math.round(
-                    (taskCompletion * 0.3) +
-                    (overdueScore * 0.2) +
-                    (blockedScore * 0.2) +
-                    (milestoneProgress * 0.3)
-                );
-
-                return {
-                    id: projects[i].id,
-                    name: projects[i].id,
-                    healthScore,
-                    overdue: stat.overdue,
-                    blocked: stat.blocked,
-                    completionRate: taskCompletion,
-                    manaScore: 92 // 固定値（Phase 3でmana統合）
-                };
-            });
-
-            res.json(healthScores.sort((a, b) => b.healthScore - a.healthScore));
-        } catch (error) {
-            logger.error('Failed to fetch projects', { error });
-            res.status(500).json({ error: 'Failed to fetch projects' });
-        }
-    });
+    router.get('/projects', asyncHandler(async (req, res) => {
+        res.json(await getProjectsWithHealth());
+    }));
 
     /**
      * GET /api/brainbase/critical-alerts
@@ -1025,112 +865,11 @@ export function createBrainbaseRouter(options = {}) {
     }
 
     // ==================== Actions API (Story 3) ====================
-
-    /**
-     * POST /api/brainbase/actions
-     * アクションを発行（NocoDBに記録）
-     * Story 3: 介入判断を実行に移す
-     */
-    router.post('/actions', async (req, res) => {
-        try {
-            const { project, taskId, tableId, actionType, details } = req.body;
-
-            // バリデーション
-            if (!project || !taskId || !tableId || !actionType) {
-                return res.status(400).json({
-                    error: 'Missing required fields',
-                    message: 'project, taskId, tableId, actionType are required'
-                });
-            }
-
-            // アクション種別の検証
-            const validTypes = Object.values(ACTION_TYPES).map(t => t.id);
-            if (!validTypes.includes(actionType)) {
-                return res.status(400).json({
-                    error: 'Invalid action type',
-                    message: `Valid types: ${validTypes.join(', ')}`
-                });
-            }
-
-            // NocoDBにアクション記録
-            const action = await nocodbService.createAction({
-                project,
-                taskId: parseInt(taskId, 10),
-                tableId,
-                actionType,
-                details: details || {},
-                status: ACTION_STATUS.PENDING,
-                createdAt: new Date().toISOString()
-            });
-
-            logger.info('Action created', { project, taskId, actionType });
-            res.json({ success: true, action });
-        } catch (error) {
-            logger.error('Failed to create action', { error });
-            res.status(500).json({ error: 'Failed to create action' });
-        }
-    });
-
-    /**
-     * GET /api/brainbase/actions
-     * 発行済みアクション一覧を取得
-     * Story 3: 介入判断を実行に移す
-     */
-    router.get('/actions', async (req, res) => {
-        try {
-            const { project } = req.query;
-            const limit = parseInt(req.query.limit) || 50;
-
-            const result = await nocodbService.getActions(project, limit);
-
-            res.json(result);
-        } catch (error) {
-            logger.error('Failed to fetch actions', { error });
-            res.status(500).json({
-                error: 'Failed to fetch actions',
-                actions: [],
-                total: 0
-            });
-        }
-    });
-
-    /**
-     * PATCH /api/brainbase/actions/:actionId/status
-     * アクションのステータスを更新
-     * Story 3: 介入判断を実行に移す
-     */
-    router.patch('/actions/:actionId/status', async (req, res) => {
-        try {
-            const { actionId } = req.params;
-            const { status } = req.body;
-
-            // ステータスの検証
-            const validStatuses = Object.values(ACTION_STATUS);
-            if (!validStatuses.includes(status)) {
-                return res.status(400).json({
-                    error: 'Invalid status',
-                    message: `Valid statuses: ${validStatuses.join(', ')}`
-                });
-            }
-
-            await nocodbService.updateActionStatus(parseInt(actionId, 10), status);
-
-            logger.info('Action status updated', { actionId, status });
-            res.json({ success: true });
-        } catch (error) {
-            logger.error('Failed to update action status', { error });
-            res.status(500).json({ error: 'Failed to update action status' });
-        }
-    });
-
-    /**
-     * GET /api/brainbase/action-types
-     * アクション種別一覧を取得
-     * Story 3: 介入判断を実行に移す
-     */
-    router.get('/action-types', (req, res) => {
-        res.json(ACTION_TYPES);
-    });
+    const actionController = new BrainbaseActionController(nocodbService);
+    router.post('/actions', actionController.create);
+    router.get('/actions', actionController.list);
+    router.patch('/actions/:actionId/status', actionController.updateStatus);
+    router.get('/action-types', actionController.getTypes);
 
     return router;
 }

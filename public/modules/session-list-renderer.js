@@ -188,11 +188,20 @@ export function renderSessionRowHTML(session, options = {}) {
     })
     : '';
 
-  const attentionBadge = '';
+  const attentionLabelMap = {
+    'needs-input': { text: 'Input', className: 'attention-input', title: 'Waiting for input' }
+  };
+
+  const attentionBadge = (attention !== 'none' && attentionLabelMap[attention])
+    ? renderChip(attentionLabelMap[attention].text, {
+      className: `session-attention-badge ${attentionLabelMap[attention].className}`,
+      title: attentionLabelMap[attention].title
+    })
+    : '';
 
   // マージボタン: worktreeがあり、アーカイブされていない場合のみ表示
   const mergeButton = hasWorktree && session.intendedState !== 'archived'
-    ? '<button class="merge-session-btn" title="Merge to main"><i data-lucide="git-merge"></i></button>'
+    ? '<button class="merge-session-btn" title="Merge to base branch"><i data-lucide="git-merge"></i></button>'
     : '';
 
   const commitTreeButton = session.intendedState !== 'archived'
@@ -211,7 +220,7 @@ export function renderSessionRowHTML(session, options = {}) {
 
   // ドロップダウンメニュー項目
   const mergeMenuItem = hasWorktree && session.intendedState !== 'archived'
-    ? '<button class="dropdown-item merge-session-btn"><i data-lucide="git-merge"></i>Merge to main</button>'
+    ? '<button class="dropdown-item merge-session-btn"><i data-lucide="git-merge"></i>Merge to base branch</button>'
     : '';
 
   const commitTreeMenuItem = session.intendedState !== 'archived'

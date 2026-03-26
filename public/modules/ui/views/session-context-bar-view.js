@@ -1,24 +1,27 @@
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
+import { AdaptivePoller } from '../../core/adaptive-poller.js';
+import { getSessionStatus } from '../../session-ui-state.js';
 import { escapeHtml } from '../../ui-helpers.js';
+import { BaseView } from './base-view.js';
 
 /**
  * SessionContextBarView
  * 現在の作業コンテキストを上部バーに表示
  */
-export class SessionContextBarView {
+export class SessionContextBarView extends BaseView {
     constructor({ sessionService, pollIntervalMs = 8000 }) {
+        super();
         this.sessionService = sessionService;
         this.pollIntervalMs = pollIntervalMs;
         this.switchDelayMs = 150;
-        this.container = null;
         this._requestId = 0;
-        this._unsubscribers = [];
         this._pollTimer = null;
         this._refreshTimer = null;
         this._expanded = false;
         this._currentContext = null;
-        this._refreshTimer = null;
+        this._poller = null;
+        this._visibilityHandler = null;
     }
 
     mount(container) {
@@ -27,35 +30,62 @@ export class SessionContextBarView {
         this._renderEmpty('セッション未選択');
         this.refresh({ forceLoading: true });
         this._startPolling();
+        this._visibilityHandler = () => {
+            if (document.hidden) {
+                this._stopPolling();
+                return;
+            }
+            this._startPolling();
+            this._syncPollerActivity();
+            void this.refresh();
+        };
+        document.addEventListener('visibilitychange', this._visibilityHandler);
     }
 
     _setupEventListeners() {
-        const unsub1 = appStore.subscribeToSelector(
-            (state) => state.currentSessionId,
-            () => this._scheduleRefresh({ forceLoading: false, delayMs: this.switchDelayMs })
-        );
-
         const refresh = () => this.refresh();
-        const unsub2 = eventBus.on(EVENTS.SESSION_LOADED, refresh);
-        const unsub3 = eventBus.on(EVENTS.SESSION_UPDATED, refresh);
-        const unsub4 = eventBus.on(EVENTS.SESSION_ARCHIVED, refresh);
-        const unsub5 = eventBus.on(EVENTS.SESSION_CREATED, refresh);
-
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5);
+        this._addSubscriptions(
+            appStore.subscribeToSelector(
+                (state) => state.currentSessionId,
+                () => this._scheduleRefresh({ forceLoading: false, delayMs: this.switchDelayMs })
+            ),
+            eventBus.on(EVENTS.SESSION_LOADED, refresh),
+            eventBus.on(EVENTS.SESSION_UPDATED, refresh),
+            eventBus.on(EVENTS.SESSION_ARCHIVED, refresh),
+            eventBus.on(EVENTS.SESSION_CREATED, refresh),
+            eventBus.on(EVENTS.SESSION_UI_STATE_CHANGED, () => this._syncPollerActivity())
+        );
     }
 
     _startPolling() {
-        this._stopPolling();
-        this._pollTimer = setInterval(() => {
-            this.refresh();
-        }, this.pollIntervalMs);
+        if (this._poller) {
+            this._poller.start();
+            return;
+        }
+        this._poller = new AdaptivePoller(() => {
+            if (document.hidden) return;
+            void this.refresh();
+        }, {
+            activeIntervalMs: 3000,
+            idleIntervalMs: 30000
+        });
+        this._poller.start();
+        this._syncPollerActivity();
     }
 
     _stopPolling() {
-        if (this._pollTimer) {
-            clearInterval(this._pollTimer);
-            this._pollTimer = null;
-        }
+        this._poller?.stop();
+    }
+
+    _syncPollerActivity() {
+        const sessionId = appStore.getState().currentSessionId;
+        const hookStatus = sessionId ? getSessionStatus(sessionId) : null;
+        const isActive = Boolean(
+            hookStatus?.status === 'working'
+            || hookStatus?.isWorking
+            || (hookStatus?.activeTurnIds?.length || 0) > 0
+        );
+        this._poller?.setActive(isActive);
     }
 
     _scheduleRefresh(options = {}) {
@@ -227,15 +257,14 @@ export class SessionContextBarView {
 
     unmount() {
         this._stopPolling();
+        if (this._visibilityHandler) {
+            document.removeEventListener('visibilitychange', this._visibilityHandler);
+            this._visibilityHandler = null;
+        }
         if (this._refreshTimer) {
             clearTimeout(this._refreshTimer);
             this._refreshTimer = null;
         }
-        this._unsubscribers.forEach((unsub) => unsub());
-        this._unsubscribers = [];
-        if (this.container) {
-            this.container.innerHTML = '';
-            this.container = null;
-        }
+        super.unmount();
     }
 }

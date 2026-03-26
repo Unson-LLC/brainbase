@@ -178,10 +178,44 @@ describe('SessionView', () => {
             expect(writeText).toHaveBeenCalledWith('test prompt');
         });
 
-        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_consoleフォールバック', async () => {
+        it('_deliverInvestigationPrompt呼び出し時_mobile入力より先にclipboardを優先する', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+            window.mobileInputController = {
+                insertTextAtCursor: vi.fn().mockReturnValue(true)
+            };
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'clipboard' });
+            expect(writeText).toHaveBeenCalledWith('test prompt');
+            expect(window.mobileInputController.insertTextAtCursor).not.toHaveBeenCalled();
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboard失敗_入力欄へフォールバック', async () => {
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+            const insertSpy = vi.spyOn(sessionView, '_insertTextIntoActiveEditable').mockReturnValue(true);
+            Object.defineProperty(navigator, 'clipboard', {
+                value: { writeText },
+                configurable: true
+            });
+
+            const result = await sessionView._deliverInvestigationPrompt('test prompt');
+
+            expect(result).toEqual({ mode: 'inserted' });
+            expect(insertSpy).toHaveBeenCalledWith('test prompt');
+            warnSpy.mockRestore();
+        });
+
+        it('_deliverInvestigationPrompt呼び出し時_clipboardも挿入も失敗_consoleフォールバック', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
             const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
             const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+            vi.spyOn(sessionView, '_insertTextIntoActiveEditable').mockReturnValue(false);
             Object.defineProperty(navigator, 'clipboard', {
                 value: { writeText },
                 configurable: true
@@ -192,6 +226,94 @@ describe('SessionView', () => {
             expect(result).toEqual({ mode: 'console' });
             warnSpy.mockRestore();
             logSpy.mockRestore();
+        });
+
+        it('_generateInvestigationPrompt呼び出し時_未マージcommitを含める', () => {
+            const prompt = sessionView._generateInvestigationPrompt({
+                changesNotPushed: 0,
+                hasWorkingCopyChanges: false,
+                bookmarkPushed: true,
+                needsMerge: true,
+                commitsAheadOfBase: 2,
+                mainBranch: 'develop'
+            }, 'session-test');
+
+            expect(prompt).toContain('develop に未マージのcommit: 2件');
+            expect(prompt).toContain('セッションID: session-test');
+        });
+
+        it('_handleArchiveAiAction呼び出し時_server側pbcopy成功ならserver-clipboardを返す', async () => {
+            const deliverSpy = vi.spyOn(sessionView, '_deliverInvestigationPrompt').mockResolvedValue({ mode: 'clipboard' });
+            sessionView.sessionService.askAiToResolveIntegration.mockResolvedValue({
+                success: true,
+                message: 'AIへの依頼内容をコピーしました。チャットでペーストして送信してください。',
+                copiedByServer: true
+            });
+
+            const status = {
+                changesNotPushed: 1,
+                hasWorkingCopyChanges: true,
+                bookmarkPushed: false,
+                bookmarkName: 'bookmark-a',
+                needsMerge: true,
+                commitsAheadOfBase: 2,
+                mainBranch: 'develop'
+            };
+
+            const result = await sessionView._handleArchiveAiAction('session-target', status);
+
+            expect(deliverSpy).not.toHaveBeenCalled();
+            expect(sessionView.sessionService.askAiToResolveIntegration).toHaveBeenCalledWith('session-target', status);
+            expect(result).toEqual({
+                delivery: { mode: 'server-clipboard' },
+                aiResult: {
+                    success: true,
+                    message: 'AIへの依頼内容をコピーしました。チャットでペーストして送信してください。',
+                    copiedByServer: true
+                }
+            });
+        });
+
+        it('_handleArchiveAiAction呼び出し時_server側コピー不可ならブラウザ側へフォールバックする', async () => {
+            const deliverSpy = vi.spyOn(sessionView, '_deliverInvestigationPrompt').mockResolvedValue({ mode: 'clipboard' });
+            sessionView.sessionService.askAiToResolveIntegration.mockResolvedValue({
+                success: true,
+                message: 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。',
+                copiedByServer: false,
+                clipboardContent: 'server prompt'
+            });
+
+            const result = await sessionView._handleArchiveAiAction('session-target', { changesNotPushed: 1 });
+
+            expect(deliverSpy).toHaveBeenCalledWith('server prompt');
+            expect(result).toEqual({
+                delivery: { mode: 'clipboard' },
+                aiResult: {
+                    success: true,
+                    message: 'AIへの依頼内容を生成しました。ブラウザ側でコピーして送信してください。',
+                    copiedByServer: false,
+                    clipboardContent: 'server prompt'
+                }
+            });
+        });
+
+        it('_handleArchiveAiAction呼び出し時_AI失敗でもクリップボード配信結果を保持する', async () => {
+            vi.spyOn(sessionView, '_deliverInvestigationPrompt').mockResolvedValue({ mode: 'clipboard' });
+            sessionView.sessionService.askAiToResolveIntegration.mockRejectedValue(new Error('network down'));
+
+            const result = await sessionView._handleArchiveAiAction('session-target', {
+                changesNotPushed: 1,
+                hasWorkingCopyChanges: false,
+                bookmarkPushed: true
+            });
+
+            expect(result).toEqual({
+                delivery: { mode: 'clipboard' },
+                aiResult: {
+                    success: false,
+                    error: 'AI依頼に失敗しました'
+                }
+            });
         });
     });
 });

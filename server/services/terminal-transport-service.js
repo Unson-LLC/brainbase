@@ -1,8 +1,11 @@
 import { WebSocketServer } from 'ws';
-import { detectCliState, detectCliStateWithColors } from './cli-pattern-detector.js';
+import { detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';
+import { TmuxCaptureCache } from './tmux-capture-cache.js';
+import { TmuxControlRegistry } from './tmux-control-registry.js';
+import { logger } from '../utils/logger.js';
 
-const DEFAULT_SNAPSHOT_LINES = 5000;
+const DEFAULT_SNAPSHOT_LINES = 400;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
@@ -35,9 +38,11 @@ function buildTerminalWsMatch(urlString = '') {
 }
 
 export class TerminalTransportService {
-    constructor({ sessionManager, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS }) {
+    constructor({ sessionManager, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS, captureCache = null, controlRegistry = null }) {
         this.sessionManager = sessionManager;
         this.pollIntervalMs = pollIntervalMs;
+        this.captureCache = captureCache || new TmuxCaptureCache({ sessionManager });
+        this.controlRegistry = controlRegistry || new TmuxControlRegistry();
         this.activeConnections = new Map(); // sessionId → { viewerId, ws, connection }
         this.wss = new WebSocketServer({ noServer: true });
         this.wss.on('connection', (ws, request, clientInfo) => {
@@ -51,7 +56,7 @@ export class TerminalTransportService {
 
     handleUpgrade(request, socket, head) {
         const clientInfo = buildTerminalWsMatch(request?.url || request?.originalUrl || '');
-        console.log(`[TerminalTransport] handleUpgrade: url=${request?.url}, clientInfo=${JSON.stringify(clientInfo)}`);
+        logger.info(`[TerminalTransport] handleUpgrade: url=${request?.url}, clientInfo=${JSON.stringify(clientInfo)}`);
         if (!clientInfo) {
             socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
             socket.destroy();
@@ -59,14 +64,14 @@ export class TerminalTransportService {
         }
 
         this.wss.handleUpgrade(request, socket, head, (ws) => {
-            console.log(`[TerminalTransport] WebSocket upgraded for ${clientInfo.sessionId}, viewerId=${clientInfo.viewerId}`);
+            logger.info(`[TerminalTransport] WebSocket upgraded for ${clientInfo.sessionId}, viewerId=${clientInfo.viewerId}`);
             this.wss.emit('connection', ws, request, clientInfo);
         });
     }
 
     async _handleConnection(ws, request, clientInfo) {
         const { sessionId, viewerId, viewerLabel, cols, rows } = clientInfo;
-        console.log(`[TerminalTransport] _handleConnection: session=${sessionId}, viewer=${viewerId}, wsState=${ws.readyState}`);
+        logger.info(`[TerminalTransport] _handleConnection: session=${sessionId}, viewer=${viewerId}, wsState=${ws.readyState}`);
         if (!sessionId || !viewerId) {
             ws.send(JSON.stringify({ type: 'error', code: 'INVALID_REQUEST', message: 'sessionId and viewerId are required' }));
             ws.close();
@@ -74,7 +79,7 @@ export class TerminalTransportService {
         }
 
         const ownership = this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
-        console.log(`[TerminalTransport] ownership check: allowed=${ownership.allowed}, session=${sessionId}, wsState=${ws.readyState}`);
+        logger.info(`[TerminalTransport] ownership check: allowed=${ownership.allowed}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!ownership.allowed) {
             ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
             ws.close();
@@ -89,12 +94,12 @@ export class TerminalTransportService {
         }
 
         if (ws.readyState !== 1) {
-            console.warn(`[TerminalTransport] WebSocket already closed before tmux check, session=${sessionId}`);
+            logger.warn(`[TerminalTransport] WebSocket already closed before tmux check, session=${sessionId}`);
             return;
         }
 
         const tmuxRunning = await this.sessionManager.isTmuxSessionRunning(sessionId);
-        console.log(`[TerminalTransport] tmux check: running=${tmuxRunning}, session=${sessionId}, wsState=${ws.readyState}`);
+        logger.info(`[TerminalTransport] tmux check: running=${tmuxRunning}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!tmuxRunning) {
             if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'error', code: 'SESSION_NOT_RUNNING', message: 'tmux session not found' }));
             ws.close();
@@ -112,7 +117,10 @@ export class TerminalTransportService {
             lastSnapshot: null,
             lastCopyMode: null,
             lastCliState: null,
-            pollTimer: null
+            pollTimer: null,
+            transport: 'snapshot',
+            controlClient: null,
+            streamCleanup: null
         };
 
         this.activeConnections.set(sessionId, { viewerId, ws, connection });
@@ -124,6 +132,10 @@ export class TerminalTransportService {
                 clearInterval(connection.pollTimer);
                 connection.pollTimer = null;
             }
+            if (typeof connection.streamCleanup === 'function') {
+                connection.streamCleanup();
+                connection.streamCleanup = null;
+            }
             // activeConnectionsから削除（自分の接続の場合のみ）
             const current = this.activeConnections.get(sessionId);
             if (current && current.ws === ws) {
@@ -134,7 +146,16 @@ export class TerminalTransportService {
         ws.on('close', closeConnection);
         ws.on('error', closeConnection);
         ws.on('message', (raw) => {
-            void this._handleMessage(connection, raw.toString());
+            void this._handleMessage(connection, raw.toString()).catch((err) => {
+                logger.error(`[TerminalTransport] message error for ${sessionId}:`, err.message);
+                if (ws.readyState === 1) {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        code: 'INPUT_ERROR',
+                        message: err.message || 'Failed to process terminal input'
+                    }));
+                }
+            });
         });
 
         try {
@@ -142,11 +163,9 @@ export class TerminalTransportService {
                 await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
             await this._sendReady(connection);
-            connection.pollTimer = setInterval(() => {
-                void this._pollConnection(connection);
-            }, this.pollIntervalMs);
+            await this._startStreaming(connection);
         } catch (err) {
-            console.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
+            logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
             if (ws.readyState === 1) {
                 ws.send(JSON.stringify({ type: 'error', code: 'INTERNAL_ERROR', message: err.message }));
             }
@@ -157,7 +176,7 @@ export class TerminalTransportService {
     async _sendReady(connection) {
         const { sessionId, viewerId, viewerLabel, ws, cols, rows } = connection;
         this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
-        const snapshot = await this._getSnapshotPayload(sessionId);
+        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
         connection.lastSnapshot = snapshot.text;
         connection.lastCopyMode = snapshot.copyMode;
         if (ws.readyState !== 1) return;
@@ -177,8 +196,75 @@ export class TerminalTransportService {
         ws.send(JSON.stringify({
             type: 'status',
             mode: 'live',
-            copyMode: snapshot.copyMode
+            copyMode: snapshot.copyMode,
+            transport: 'streaming'
         }));
+    }
+
+    async _startStreaming(connection) {
+        if (connection.closed) return;
+
+        try {
+            const client = this.controlRegistry.acquire(connection.sessionId);
+            connection.controlClient = client;
+            connection.transport = 'streaming';
+
+            const handleOutput = (data) => {
+                if (connection.closed || connection.ws.readyState !== 1 || !data) return;
+                connection.ws.send(JSON.stringify({
+                    type: 'output',
+                    data
+                }));
+            };
+            const handleFailure = () => {
+                void this._fallbackToPolling(connection);
+            };
+
+            client.on('output', handleOutput);
+            client.on('error', handleFailure);
+            client.on('exit', handleFailure);
+
+            connection.streamCleanup = () => {
+                client.off('output', handleOutput);
+                client.off('error', handleFailure);
+                client.off('exit', handleFailure);
+                this.controlRegistry.release(connection.sessionId, client);
+            };
+
+            if (connection.cols && connection.rows) {
+                client.resize(connection.cols, connection.rows);
+            }
+        } catch (error) {
+            logger.warn(`[TerminalTransport] streaming start failed for ${connection.sessionId}: ${error.message}`);
+            await this._fallbackToPolling(connection);
+        }
+    }
+
+    async _fallbackToPolling(connection) {
+        if (connection.closed || connection.transport === 'snapshot') return;
+
+        if (typeof connection.streamCleanup === 'function') {
+            connection.streamCleanup();
+            connection.streamCleanup = null;
+        }
+        connection.controlClient = null;
+        connection.transport = 'snapshot';
+
+        if (connection.ws.readyState === 1) {
+            connection.ws.send(JSON.stringify({
+                type: 'status',
+                mode: 'snapshot',
+                copyMode: connection.lastCopyMode || false,
+                transport: 'snapshot'
+            }));
+        }
+
+        await this._pollConnection(connection);
+        if (!connection.pollTimer) {
+            connection.pollTimer = setInterval(() => {
+                void this._pollConnection(connection);
+            }, this.pollIntervalMs);
+        }
     }
 
     async _pollConnection(connection) {
@@ -209,7 +295,6 @@ export class TerminalTransportService {
                 text: snapshot.text,
                 capturedAt: snapshot.capturedAt
             };
-            if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
             ws.send(JSON.stringify(pollSnapshotMsg));
         }
 
@@ -222,8 +307,9 @@ export class TerminalTransportService {
             connection.lastCliState = cliState;
             ws.send(JSON.stringify({
                 type: 'status',
-                mode: 'live',
+                mode: 'snapshot',
                 copyMode: snapshot.copyMode,
+                transport: 'snapshot',
                 cliState
             }));
         }
@@ -237,35 +323,47 @@ export class TerminalTransportService {
         switch (message.type) {
             case 'ping': {
                 if (ws.readyState === 1) {
-                    ws.send(JSON.stringify({ type: 'status', mode: 'live', copyMode: connection.lastCopyMode || false }));
+                    ws.send(JSON.stringify({
+                        type: 'status',
+                        mode: connection.transport === 'streaming' ? 'live' : 'snapshot',
+                        copyMode: connection.lastCopyMode || false,
+                        transport: connection.transport
+                    }));
                 }
                 return;
             }
             case 'input': {
                 const inputType = message.inputType === 'key' ? 'key' : 'text';
                 await this.sessionManager.sendInput(sessionId, message.value, inputType);
+                this.captureCache.invalidate(sessionId);
                 this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 
-                // Pasted text detection (CommandMate pattern):
-                // After sending text, check if terminal shows paste overlay and auto-dismiss
                 if (inputType === 'text' && message.value && message.value.includes('\n')) {
-                    await this._handlePastedTextOverlay(connection);
+                    void this._handlePastedTextOverlay(connection);
                 }
 
-                await this._pollConnection(connection);
+                if (connection.transport !== 'streaming') {
+                    await this._pollConnection(connection);
+                }
                 return;
             }
             case 'resize': {
                 const cols = Number(message.cols);
                 const rows = Number(message.rows);
-                await this.sessionManager.resizeSessionWindow(sessionId, cols, rows);
+                this.captureCache.invalidate(sessionId);
                 if (Number.isFinite(cols) && cols > 0) {
                     connection.cols = cols;
                 }
                 if (Number.isFinite(rows) && rows > 0) {
                     connection.rows = rows;
                 }
-                await this._pollConnection(connection);
+
+                if (connection.transport === 'streaming' && connection.controlClient) {
+                    connection.controlClient.resize(cols, rows);
+                } else {
+                    await this.sessionManager.resizeSessionWindow(sessionId, cols, rows);
+                    await this._pollConnection(connection);
+                }
                 return;
             }
             default:
@@ -291,23 +389,18 @@ export class TerminalTransportService {
             }
 
             // Send Enter to dismiss the overlay
-            console.log(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
-            await this.sessionManager.sendInput(connection.sessionId, 'C-m', 'key').catch(() => {});
+            logger.info(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
+            await this.sessionManager.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
+            this.captureCache.invalidate(connection.sessionId);
         }
     }
 
-    async _getSnapshotPayload(sessionId) {
-        const [text, colorText, copyMode] = await Promise.all([
-            this.sessionManager.getContent(sessionId, DEFAULT_SNAPSHOT_LINES),
-            this.sessionManager.getContentWithColors(sessionId, DEFAULT_SNAPSHOT_LINES).catch(() => null),
-            this.sessionManager.getPaneMode(sessionId).catch(() => false),
-        ]);
-        return {
-            text,
-            colorText,
-            copyMode,
-            capturedAt: new Date().toISOString()
-        };
+    async _getSnapshotPayload(sessionId, options = {}) {
+        return await this.captureCache.getSnapshot(sessionId, {
+            lines: DEFAULT_SNAPSHOT_LINES,
+            includeColors: options.includeColors === true,
+            includeCopyMode: options.includeCopyMode !== false
+        });
     }
 }
 

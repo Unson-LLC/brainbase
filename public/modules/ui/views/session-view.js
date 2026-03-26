@@ -7,7 +7,7 @@ import { deriveSessionUiState } from '../../session-ui-state.js';
 import { FolderTreeView } from './folder-tree-view.js';
 import { showConfirm, showConfirmWithAction } from '../../confirm-modal.js';
 import { showError, showInfo, showSuccess } from '../../toast.js';
-import { escapeHtml } from '../../ui-helpers.js';
+import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 
 /**
  * セッション表示のUIコンポーネント
@@ -126,9 +126,7 @@ export class SessionView {
                 enableDrag
             });
             currentRow.replaceWith(nextRow);
-            if (window.lucide) {
-                window.lucide.createIcons({ root: nextRow });
-            }
+            refreshIcons({ root: nextRow });
         }
     }
 
@@ -262,9 +260,7 @@ export class SessionView {
         }
 
         // Lucideアイコンを初期化
-        if (window.lucide) {
-            window.lucide.createIcons({ root: this.container });
-        }
+        refreshIcons({ root: this.container });
     }
 
     /**
@@ -432,7 +428,7 @@ export class SessionView {
             const icon = header.querySelector('i');
             if (icon) {
                 icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'chevron-right' : 'chevron-down');
-                if (window.lucide) window.lucide.createIcons();
+                refreshIcons();
             }
         });
 
@@ -478,7 +474,7 @@ export class SessionView {
                 projectSessionsDiv.style.display = isCurrentlyExpanded ? 'none' : 'block';
                 const icon = headerEl.querySelector('.folder-icon i');
                 icon.setAttribute('data-lucide', isCurrentlyExpanded ? 'folder' : 'folder-open');
-                if (window.lucide) window.lucide.createIcons();
+                refreshIcons();
             }
         });
 
@@ -601,20 +597,35 @@ export class SessionView {
                     const result = await this.sessionService.archiveSession(session.id);
                     if (result?.needsConfirmation) {
                         const status = result.status || {};
-                        const details = [];
+                        const criticalDetails = [];
+                        const infoDetails = [];
 
-                        // Jujutsu概念でステータス表示
+                        // Jujutsu概念でステータス表示（重要な警告のみ）
                         if (status.changesNotPushed > 0) {
-                            details.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
-                        }
-                        if (!status.bookmarkPushed && status.bookmarkName) {
-                            details.push(`bookmark '${status.bookmarkName}' がremoteにありません`);
+                            criticalDetails.push(`${status.changesNotPushed}件のchangeがremoteにpushされてません`);
                         }
                         if (status.hasWorkingCopyChanges) {
-                            details.push('working copyに未完了のchangeがあります');
+                            criticalDetails.push('working copyに未完了のchangeがあります');
+                        }
+                        if (status.needsMerge) {
+                            const baseBranch = status.mainBranch || 'base branch';
+                            const mergeCount = status.commitsAheadOfBase || 0;
+                            criticalDetails.push(
+                                mergeCount > 0
+                                    ? `${baseBranch} に未マージのcommitが${mergeCount}件あります`
+                                    : `${baseBranch} に未マージのchangeがあります`
+                            );
                         }
 
-                        const detailText = details.length ? `\n\n${details.map((detail) => `・${detail}`).join('\n')}` : '';
+                        // 補足情報（bookmarkのみ、needsIntegrationがtrueの場合のみ表示）
+                        if (!status.bookmarkPushed && status.bookmarkName && (status.changesNotPushed > 0 || status.hasWorkingCopyChanges || status.needsMerge)) {
+                            infoDetails.push(`bookmark '${status.bookmarkName}' はローカルのみに存在します`);
+                        }
+
+                        const criticalText = criticalDetails.length ? `\n\n${criticalDetails.map((detail) => `・${detail}`).join('\n')}` : '';
+                        const infoText = infoDetails.length ? `\n\n補足:\n${infoDetails.map((detail) => `  ${detail}`).join('\n')}` : '';
+                        const detailText = criticalText + infoText;
+                        const investigationPrompt = this._generateInvestigationPrompt(status, session.id);
                         const confirmResult = await showConfirmWithAction(
                             `統合が必要な変更があります。そのままアーカイブしますか？${detailText}`,
                             {
@@ -622,12 +633,40 @@ export class SessionView {
                                 okText: 'そのままアーカイブ',
                                 cancelText: 'キャンセル',
                                 actionText: 'pushして統合',
+                                aiActionText: '🤖 AIに確認して対処',
+                                aiClipboardText: investigationPrompt,
                                 danger: true
                             }
                         );
                         const selectedAction = typeof confirmResult === 'object' && confirmResult !== null
                             ? confirmResult.action
                             : (confirmResult ? 'ok' : 'cancel');
+
+                        if (selectedAction === 'ai') {
+                            console.info('[ArchiveAI] SessionView received AI action for session:', session.id, 'delivery:', confirmResult?.delivery?.mode || 'none');
+                            const aiActionResult = await this._handleArchiveAiAction(
+                                session.id,
+                                status,
+                                typeof confirmResult === 'object' && confirmResult !== null ? confirmResult.delivery || null : null
+                            );
+                            console.info('[ArchiveAI] SessionView AI action result:', {
+                                sessionId: session.id,
+                                deliveryMode: aiActionResult.delivery?.mode,
+                                aiSuccess: Boolean(aiActionResult.aiResult?.success)
+                            });
+                            if (aiActionResult.aiResult?.success) {
+                                showSuccess(aiActionResult.aiResult.message || 'AI向けの調査プロンプトを準備しました');
+                            } else if (aiActionResult.delivery.mode === 'clipboard') {
+                                showInfo('AI依頼は失敗しましたが、調査プロンプトをクリップボードにコピーしました');
+                            } else if (aiActionResult.delivery.mode === 'manual') {
+                                showInfo('自動コピーに失敗したため、調査プロンプトを画面上に表示しています');
+                            } else if (aiActionResult.delivery.mode === 'inserted') {
+                                showInfo('AI依頼は失敗しましたが、調査プロンプトを入力欄に挿入しました');
+                            } else {
+                                showError(aiActionResult.aiResult?.error || 'AI依頼に失敗しました');
+                            }
+                            return;
+                        }
 
                         if (selectedAction === 'action') {
                             // pushして統合
@@ -689,16 +728,6 @@ export class SessionView {
                 e.stopPropagation();
                 closeDropdown();
                 eventBus.emit(EVENTS.MERGE_SESSION, { sessionId: session.id });
-            });
-        }
-
-        // Goal setup button
-        const goalSetupBtn = row.querySelector('.goal-setup-btn');
-        if (goalSetupBtn) {
-            goalSetupBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                closeDropdown();
-                eventBus.emit(EVENTS.GOAL_SEEK_OPEN, { session });
             });
         }
 
@@ -815,6 +844,15 @@ export class SessionView {
      * @returns {Promise<{mode: 'inserted'|'clipboard'|'console'}>}
      */
     async _deliverInvestigationPrompt(prompt) {
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(prompt);
+                return { mode: 'clipboard' };
+            }
+        } catch (error) {
+            console.warn('Failed to copy investigation prompt to clipboard:', error);
+        }
+
         const controller = window.mobileInputController || window.brainbaseApp?.mobileInputController;
         if (controller && typeof controller.insertTextAtCursor === 'function') {
             const inserted = controller.insertTextAtCursor(prompt);
@@ -827,18 +865,47 @@ export class SessionView {
             return { mode: 'inserted' };
         }
 
-        try {
-            if (navigator?.clipboard?.writeText) {
-                await navigator.clipboard.writeText(prompt);
-                return { mode: 'clipboard' };
-            }
-        } catch (error) {
-            console.warn('Failed to copy investigation prompt to clipboard:', error);
-        }
-
         console.log('[Archive Investigation Prompt]');
         console.log(prompt);
         return { mode: 'console' };
+    }
+
+    /**
+     * アーカイブ前の統合調査プロンプトを配信し、可能ならAI依頼も実行
+     * localhostサーバーのpbcopy成功を最優先し、失敗時のみブラウザ側へフォールバックする
+     * @param {string} sessionId
+     * @param {Object} status
+     * @param {{mode: 'inserted'|'clipboard'|'console'|'manual'|'server-clipboard', prompt?: string}|null} initialDelivery
+     * @returns {Promise<{delivery: {mode: 'inserted'|'clipboard'|'console'|'manual'|'server-clipboard'}, aiResult: Object|null}>}
+     */
+    async _handleArchiveAiAction(sessionId, status, initialDelivery = null) {
+        const prompt = this._generateInvestigationPrompt(status, sessionId);
+
+        try {
+            const aiResult = await this.sessionService.askAiToResolveIntegration(sessionId, status);
+            if (aiResult?.copiedByServer) {
+                console.info('[ArchiveAI] Server-side pbcopy succeeded for session:', sessionId);
+                return {
+                    delivery: { mode: 'server-clipboard' },
+                    aiResult
+                };
+            }
+
+            const fallbackPrompt = aiResult?.clipboardContent || prompt;
+            const delivery = initialDelivery || await this._deliverInvestigationPrompt(fallbackPrompt);
+            console.info('[ArchiveAI] Server-side pbcopy unavailable; used browser fallback:', delivery.mode);
+            return { delivery, aiResult };
+        } catch (error) {
+            console.error('Failed to ask AI:', error);
+            const delivery = initialDelivery || await this._deliverInvestigationPrompt(prompt);
+            return {
+                delivery,
+                aiResult: {
+                    success: false,
+                    error: 'AI依頼に失敗しました'
+                }
+            };
+        }
     }
 
     /**
@@ -895,13 +962,17 @@ export class SessionView {
     /**
      * 診断プロンプトを生成（Jujutsu概念）
      * @param {Object} status - { changesNotPushed, hasWorkingCopyChanges, bookmarkPushed, bookmarkName }
+     * @param {string} sessionId
      * @returns {string} - フォーマット済みプロンプト
      */
-    _generateInvestigationPrompt(status) {
+    _generateInvestigationPrompt(status, sessionId = null) {
         const issues = [];
 
         if (status.changesNotPushed > 0) {
             issues.push(`- remoteにpushされてないchange: ${status.changesNotPushed}件`);
+        }
+        if (status.needsMerge) {
+            issues.push(`- ${status.mainBranch || 'base branch'} に未マージのcommit: ${status.commitsAheadOfBase || 0}件`);
         }
         if (!status.bookmarkPushed && status.bookmarkName) {
             issues.push(`- bookmark '${status.bookmarkName}' がremoteにない`);
@@ -919,6 +990,6 @@ ${issueList}
 これらの問題を解決してアーカイブ可能な状態にする方法を教えてください。
 Jujutsuコマンド（jj）を使用してください。
 
-セッションID: ${window.location.hash.slice(1) || '不明'}`;
+セッションID: ${sessionId || window.location.hash.slice(1) || '不明'}`;
     }
 }

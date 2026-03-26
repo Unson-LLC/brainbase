@@ -127,4 +127,59 @@ describe('SessionController.getFileContent', () => {
         await controller.getFileContent(req, res);
         expect(res.status).toHaveBeenCalledWith(404);
     });
+
+    it('workspace親配下の絶対パスをプレビューできる', async () => {
+        stateStore.get.mockReturnValue({
+            sessions: [
+                {
+                    id: 'session-1',
+                    name: 'Test',
+                    worktree: {
+                        path: '/Users/ksato/workspace/projects/brainbase-worktree',
+                        repo: '/Users/ksato/workspace/code/brainbase'
+                    }
+                }
+            ]
+        });
+        controller = new SessionController(
+            { resolveSessionWorkspacePath: vi.fn() },
+            {},
+            stateStore,
+            {
+                projectsRoot: '/Users/ksato/workspace/projects',
+                codeProjectsRoot: '/Users/ksato/workspace/code'
+            }
+        );
+        req.query.path = '/Users/ksato/workspace/common/talks/example.md';
+
+        mockStat.mockImplementation(async (targetPath) => {
+            if (String(targetPath) === '/Users/ksato/workspace/common/talks/example.md') {
+                return { size: 16 };
+            }
+            const err = new Error('ENOENT');
+            err.code = 'ENOENT';
+            throw err;
+        });
+        const content = '# Example';
+        const contentBuf = Buffer.from(content);
+        const mockFd = {
+            read: vi.fn().mockImplementation((buffer, offset, length) => {
+                const toCopy = Math.min(length, contentBuf.length);
+                contentBuf.copy(buffer, offset, 0, toCopy);
+                return Promise.resolve({ bytesRead: toCopy, buffer });
+            }),
+            close: vi.fn().mockResolvedValue()
+        };
+        mockOpen.mockResolvedValue(mockFd);
+        mockReadFile.mockResolvedValue(content);
+
+        await controller.getFileContent(req, res);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            relativePath: 'common/talks/example.md',
+            fileName: 'example.md',
+            content,
+            isMarkdown: true
+        }));
+    });
 });

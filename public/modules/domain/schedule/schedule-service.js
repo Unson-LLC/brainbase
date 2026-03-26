@@ -149,25 +149,4 @@ export class ScheduleService {
         this.googleCalendarAuthStatus = await this.httpClient.get('/api/schedule/google/auth-status');
         return this.googleCalendarAuthStatus;
     }
-
-    buildGoogleCalendarAuthUrl(origin = window.location.origin) {
-        const safeOrigin = origin || (typeof window !== 'undefined' ? window.location.origin : '');
-        const params = new URLSearchParams({ origin });
-        if (!safeOrigin) {
-            params.delete('origin');
-        } else {
-            params.set('origin', safeOrigin);
-        }
-        return `/api/schedule/google/start?${params.toString()}`;
-    }
-
-    async disconnectGoogleCalendar() {
-        await this.httpClient.delete('/api/schedule/google/auth');
-        this.googleCalendarAuthStatus = {
-            ...(this.googleCalendarAuthStatus || {}),
-            connected: false
-        };
-        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
-        await this.loadSchedule();
-    }
 }

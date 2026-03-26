@@ -92,7 +92,7 @@
       "pr_number": 28,
       "pr_branch": "ops-department/weekly-review-7",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/28",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     },
     {
@@ -120,7 +120,7 @@
       "pr_number": 29,
       "pr_branch": "ops-department/weekly-review-8",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/29",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     },
     {
@@ -149,7 +149,7 @@
       "pr_number": 30,
       "pr_branch": "ops-department/weekly-review-9",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/30",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     },
     {
@@ -177,11 +177,11 @@
       "pr_number": 31,
       "pr_branch": "ops-department/weekly-review-10",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/31",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     }
   ],
-  "last_updated": "2026-02-24T00:20:01.237Z",
+  "last_updated": "2026-03-25T03:51:31.772Z",
   "total_prs_created": 8,
   "total_prs_merged": 1
 }

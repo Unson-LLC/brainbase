@@ -2,6 +2,13 @@
  * NocoDBTaskAdapter
  * NocoDB形式 ⇔ 内部タスク形式の変換
  */
+import { PRIORITY_LABELS, getPriorityLabel } from '../../utils/task-filters.js';
+
+// 逆引きマップ（日本語→英語）をPRIORITY_LABELSから生成
+const PRIORITY_REVERSE = Object.fromEntries(
+    Object.entries(PRIORITY_LABELS).map(([k, v]) => [v, k])
+);
+
 export class NocoDBTaskAdapter {
     /**
      * NocoDBレコード → 内部タスク形式
@@ -19,12 +26,11 @@ export class NocoDBTaskAdapter {
             title: fields['タイトル'] || 'Untitled',
             name: fields['タイトル'] || 'Untitled',
             status: this._mapStatus(fields['ステータス']),
-            priority: this._mapPriority(fields['優先度']),
+            priority: PRIORITY_REVERSE[fields['優先度']] || 'medium',
             deadline: fields['期限'] || null,
             due: fields['期限'] || null,
             description: fields['説明'] || '',
             assignee: fields['担当者'] || '',
-            // コンテキスト情報（manaから議事録ベースで登録されたタスク）
             context: fields['背景'] || '',
             meetingDate: fields['会議日'] || null,
             meetingTitle: fields['会議タイトル'] || '',
@@ -37,8 +43,6 @@ export class NocoDBTaskAdapter {
 
     /**
      * 内部ステータス → NocoDBステータス
-     * @param {string} status - 内部ステータス
-     * @returns {string} NocoDBステータス
      */
     toNocoDBStatus(status) {
         const map = {
@@ -62,30 +66,6 @@ export class NocoDBTaskAdapter {
     }
 
     /**
-     * NocoDB優先度 → 内部優先度
-     */
-    _mapPriority(nocoPriority) {
-        const map = {
-            '高': 'high',
-            '中': 'medium',
-            '低': 'low'
-        };
-        return map[nocoPriority] || 'medium';
-    }
-
-    /**
-     * 内部優先度 → NocoDB優先度
-     */
-    toNocoDBPriority(priority) {
-        const map = {
-            'high': '高',
-            'medium': '中',
-            'low': '低'
-        };
-        return map[priority] || priority;
-    }
-
-    /**
      * 内部フィールド → NocoDBフィールド形式
      * @param {Object} updates - 更新データ { name, priority, due, description, status }
      * @returns {Object} NocoDBフィールド形式
@@ -93,7 +73,7 @@ export class NocoDBTaskAdapter {
     toNocoDBFields(updates) {
         const fields = {};
         if (updates.name) fields['タイトル'] = updates.name;
-        if (updates.priority) fields['優先度'] = this.toNocoDBPriority(updates.priority);
+        if (updates.priority) fields['優先度'] = getPriorityLabel(updates.priority);
         if (updates.due !== undefined) fields['期限'] = updates.due || null;
         if (updates.description !== undefined) fields['説明'] = updates.description;
         if (updates.status) fields['ステータス'] = this.toNocoDBStatus(updates.status);

@@ -1,10 +1,21 @@
+// @ts-check
+
+/**
+ * @typedef {Object} XtermModules
+ * @property {new (...args: any[]) => any} Terminal - xterm.js Terminal constructor
+ * @property {new (...args: any[]) => any} FitAddon - FitAddon constructor
+ * @property {new (...args: any[]) => any} WebLinksAddon - WebLinksAddon constructor
+ */
+
 const XTERM_JS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js';
 const XTERM_CSS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css';
 const XTERM_FIT_URL = 'https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js';
 const XTERM_WEBLINKS_URL = 'https://unpkg.com/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js';
 
+/** @type {Promise<XtermModules> | null} */
 let loadPromise = null;
 
+/** @param {string} href */
 function ensureStyle(href) {
     const existing = document.querySelector(`link[data-bb-xterm="${href}"]`);
     if (existing) return;
@@ -15,9 +26,13 @@ function ensureStyle(href) {
     document.head.appendChild(link);
 }
 
+/**
+ * @param {string} src
+ * @returns {Promise<void>}
+ */
 function loadScript(src) {
     return new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[data-bb-xterm="${src}"]`);
+        const existing = /** @type {HTMLScriptElement | null} */ (document.querySelector(`script[data-bb-xterm="${src}"]`));
         if (existing) {
             if (existing.dataset.loaded === 'true') {
                 resolve();
@@ -41,6 +56,10 @@ function loadScript(src) {
     });
 }
 
+/**
+ * Load xterm.js and addons from CDN.
+ * @returns {Promise<XtermModules>}
+ */
 export async function loadXterm() {
     if (loadPromise) return await loadPromise;
 
@@ -50,9 +69,9 @@ export async function loadXterm() {
         await loadScript(XTERM_FIT_URL);
         await loadScript(XTERM_WEBLINKS_URL);
 
-        const Terminal = window.Terminal;
-        const FitAddon = window.FitAddon?.FitAddon || window.FitAddon;
-        const WebLinksAddon = window.WebLinksAddon?.WebLinksAddon || window.WebLinksAddon;
+        const Terminal = /** @type {any} */ (window).Terminal;
+        const FitAddon = /** @type {any} */ (window).FitAddon?.FitAddon || /** @type {any} */ (window).FitAddon;
+        const WebLinksAddon = /** @type {any} */ (window).WebLinksAddon?.WebLinksAddon || /** @type {any} */ (window).WebLinksAddon;
         if (!Terminal || !FitAddon) {
             throw new Error('xterm.js globals are not available');
         }

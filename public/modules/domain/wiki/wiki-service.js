@@ -1,33 +1,43 @@
 /**
- * Wiki Service
- * Placeholder implementation for Wiki functionality
+ * Wiki Service (Client)
+ * サーバーの /api/wiki エンドポイントに接続
  */
+import { httpClient } from '../../core/http-client.js';
 
 export class WikiService {
-  constructor() {
-    this.pages = [];
-  }
+    constructor() {
+        this._base = '/api/wiki';
+    }
 
-  async getPages() {
-    return this.pages;
-  }
+    async getPages() {
+        try {
+            return await httpClient.get(`${this._base}/pages`);
+        } catch {
+            return [];
+        }
+    }
 
-  async getPage(id) {
-    return null;
-  }
+    async getPage(path) {
+        try {
+            return await httpClient.get(`${this._base}/page?path=${encodeURIComponent(path)}`);
+        } catch {
+            return null;
+        }
+    }
 
-  async createPage(data) {
-    // Placeholder
-    return { id: Date.now(), ...data };
-  }
+    async savePage(path, content) {
+        try {
+            return await httpClient.post(`${this._base}/page`, { path, content });
+        } catch {
+            return null;
+        }
+    }
 
-  async updatePage(id, data) {
-    // Placeholder
-    return { id, ...data };
-  }
-
-  async deletePage(id) {
-    // Placeholder
-    return true;
-  }
+    async deletePage(path) {
+        try {
+            return await httpClient.delete(`${this._base}/page?path=${encodeURIComponent(path)}`);
+        } catch {
+            return null;
+        }
+    }
 }

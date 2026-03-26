@@ -3,6 +3,31 @@
  */
 
 /**
+ * 優先度ラベルマッピング（英語→日本語）
+ */
+export const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
+
+/**
+ * 優先度ラベルを日本語で取得
+ * @param {string} priority - 英語優先度 ('high', 'medium', 'low')
+ * @returns {string} 日本語ラベル
+ */
+export function getPriorityLabel(priority) {
+    return PRIORITY_LABELS[priority] || priority;
+}
+
+/**
+ * タスクが進行中かどうか判定
+ * ステータスの表記揺れ (in-progress, in_progress, doing) を吸収する
+ * @param {Object} task - タスクオブジェクト
+ * @returns {boolean}
+ */
+export function isTaskInProgress(task) {
+    const s = task?.status;
+    return s === 'in-progress' || s === 'in_progress' || s === 'doing';
+}
+
+/**
  * 優先度でタスクをフィルタリング
  * @param {Array} tasks - タスク配列
  * @param {string} priority - フィルタする優先度 ('high', 'medium', 'low', 'critical', 'highest', 'normal')

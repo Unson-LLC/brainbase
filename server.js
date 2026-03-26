@@ -36,6 +36,8 @@ import { InboxParser } from './lib/inbox-parser.js';
 // Import services
 import { SessionManager } from './server/services/session-manager.js';
 import { TerminalTransportService } from './server/services/terminal-transport-service.js';
+import { TmuxCaptureCache } from './server/services/tmux-capture-cache.js';
+import { TmuxControlRegistry } from './server/services/tmux-control-registry.js';
 import { WorktreeService } from './server/services/worktree-service.js';
 import { InfoSSOTService } from './server/services/info-ssot-service.js';
 import { AuthService } from './server/services/auth-service.js';
@@ -257,9 +259,7 @@ await ensureDir(SCHEDULES_DIR);
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
-const googleCalendarService = new GoogleCalendarService({
-    tokenPath: path.join(VAR_DIR, 'google-calendar-token.json')
-});
+const googleCalendarService = new GoogleCalendarService();
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR, { googleCalendarService });
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
@@ -480,7 +480,13 @@ const sessionManager = new SessionManager({
     worktreeService,  // Phase 2: Archived session cleanup用
     uiPort: PORT
 });
-const terminalTransportService = new TerminalTransportService({ sessionManager });
+const tmuxCaptureCache = new TmuxCaptureCache({ sessionManager });
+const tmuxControlRegistry = new TmuxControlRegistry();
+const terminalTransportService = new TerminalTransportService({
+    sessionManager,
+    captureCache: tmuxCaptureCache,
+    controlRegistry: tmuxControlRegistry
+});
 
 const conversationLinker = new ConversationLinker({ stateStore, sessionManager });
 
@@ -700,7 +706,8 @@ app.use('/api/sessions', createSessionRouter(
     conversationLinker,
     {
         projectsRoot: PROJECTS_ROOT,
-        codeProjectsRoot: path.join(path.dirname(PROJECTS_ROOT), 'code')
+        codeProjectsRoot: path.join(path.dirname(PROJECTS_ROOT), 'code'),
+        captureCache: tmuxCaptureCache
     }
 ));
 app.use('/api/brainbase', createBrainbaseRouter({

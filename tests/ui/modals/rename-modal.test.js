@@ -182,6 +182,28 @@ describe('RenameModal', () => {
             expect(modal.modalElement.classList.contains('active')).toBe(false);
         });
 
+        it('save呼び出し時_永続化完了前にモーダルが閉じる', async () => {
+            let resolveSave;
+            mockSessionService.updateSession.mockReturnValue(new Promise((resolve) => {
+                resolveSave = resolve;
+            }));
+
+            const modal = new RenameModal({ sessionService: mockSessionService });
+            modal.mount();
+            modal.open({ id: 'session-1', name: 'Old Name' });
+
+            const input = document.getElementById('rename-session-input');
+            input.value = 'New Name';
+
+            const savePromise = modal.save();
+
+            expect(modal.modalElement.classList.contains('active')).toBe(false);
+            expect(mockSessionService.updateSession).toHaveBeenCalledWith('session-1', { name: 'New Name' });
+
+            resolveSave({});
+            await savePromise;
+        });
+
         it('Enterキー押下時_saveが呼ばれる', async () => {
             const modal = new RenameModal({ sessionService: mockSessionService });
             modal.mount();

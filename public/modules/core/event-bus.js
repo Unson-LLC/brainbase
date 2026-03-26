@@ -244,6 +244,7 @@ export const EVENTS = {
     // Commit Tree関連
     COMMIT_LOG_LOADED: 'commit-tree:loaded',
     COMMIT_TREE_PANEL_TOGGLED: 'commit-tree:panel-toggled',
+    COMMIT_TREE_PANEL_TOGGLE_REQUESTED: 'commit-tree:toggle-requested',
 
     // UI関連
     INBOX_TOGGLED: 'inbox:toggled',
@@ -318,6 +319,9 @@ export const EVENTS = {
     NOTIFICATION_FALLBACK: 'notification:fallback',
     NOTIFICATION_REQUEST: 'notification:request',
     NOTIFICATION_SEND: 'notification:send',
+
+    // Panel関連
+    PANEL_TOGGLED: 'panel:toggled',
 
     // Wiki関連
     WIKI_PAGES_LOADED: 'wiki:pages-loaded',

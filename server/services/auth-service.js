@@ -330,9 +330,8 @@ export class AuthService {
                 [slackUserId]
             );
             logger.info(`[AUTH] findUserBySlackId: users table rows=${rows.length}`);
-            if (rows[0]) return rows[0];
 
-            // Fallback to auth_grants table
+            // Always check auth_grants for role, project_codes, clearance
             const { rows: grantRows } = await client.query(
                 `SELECT person_id, person_name as name, slack_user_id, slack_workspace_id as workspace_id,
                         role, project_codes, clearance, active as status
@@ -343,6 +342,21 @@ export class AuthService {
                 [slackUserId]
             );
             logger.info(`[AUTH] findUserBySlackId: auth_grants rows=${grantRows.length}`);
+
+            if (rows[0]) {
+                const user = rows[0];
+                // Enrich users record with auth_grants fields (clearance, project_codes, role)
+                if (grantRows[0]) {
+                    const grant = grantRows[0];
+                    user.clearance = user.clearance || grant.clearance;
+                    user.project_codes = user.project_codes || grant.project_codes;
+                    if (!user.role || user.role === 'member') {
+                        user.role = grant.role || user.role;
+                    }
+                }
+                return user;
+            }
+
             if (grantRows[0]) {
                 const grant = grantRows[0];
                 const ROLE_TO_LEVEL = { ceo: 100, gm: 50, member: 10 };

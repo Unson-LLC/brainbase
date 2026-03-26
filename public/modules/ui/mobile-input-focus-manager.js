@@ -83,6 +83,35 @@ export class MobileInputFocusManager {
         bottomNav.style.display = keyboardOpen ? 'none' : 'flex';
     }
 
+    updateTerminalReserve(viewportHeight, viewportTop = 0) {
+        const stageRect = document.getElementById('terminal-stage')?.getBoundingClientRect();
+        const consoleRect = document.querySelector('.console-area')?.getBoundingClientRect();
+        const visualBottom = (viewportTop || this.viewport?.offsetTop || 0) + (viewportHeight || this.viewport?.height || window.innerHeight);
+        const overlays = [
+            this.elements.dock,
+            document.getElementById('mobile-bottom-nav')
+        ].filter(Boolean);
+
+        const visibleRects = overlays
+            .filter((el) => window.getComputedStyle(el).display !== 'none')
+            .map((el) => el.getBoundingClientRect())
+            .filter((rect) => rect.height > 0);
+
+        const obstructionTop = visibleRects.length > 0
+            ? Math.min(...visibleRects.map((rect) => rect.top))
+            : visualBottom;
+        const stageTop = stageRect?.top || consoleRect?.top || (viewportTop || this.viewport?.offsetTop || 0);
+        const reserve = Math.max(0, Math.round(visualBottom - obstructionTop));
+        const stageHeight = Math.max(0, Math.round(obstructionTop - stageTop));
+
+        document.body.style.setProperty('--mobile-terminal-reserve', `${reserve}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-height', `${stageHeight}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-top', `${Math.round(stageTop)}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-left', `${Math.round(consoleRect?.left || 0)}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-width', `${Math.round(consoleRect?.width || window.innerWidth)}px`);
+        return reserve;
+    }
+
     scheduleKeyboardSync() {
         this.clearKeyboardSync();
         this.keyboardSyncTimer = window.setTimeout(() => {
@@ -165,8 +194,9 @@ export class MobileInputFocusManager {
             document.documentElement.style.setProperty('--vv-top', `${Math.round(this.viewport.offsetTop || 0)}px`);
             document.documentElement.style.setProperty('--vv-left', `${Math.round(this.viewport.offsetLeft || 0)}px`);
             document.body.classList.toggle('keyboard-open', keyboardOpen);
+            const terminalReserve = this.updateTerminalReserve(visualHeight, this.viewport.offsetTop || 0);
             this.lastKeyboardOffset = offset;
-            this.lastKeyboardData = { baseline, heightDelta, rawOffset, offset, keyboardOpen, dockGap, visualHeight };
+            this.lastKeyboardData = { baseline, heightDelta, rawOffset, offset, keyboardOpen, dockGap, visualHeight, terminalReserve };
             this.updateKeyboardDebug(this.lastKeyboardData);
             this.onViewportChange?.({
                 width: Math.round(this.viewport.width || window.innerWidth),
@@ -225,6 +255,7 @@ export class MobileInputFocusManager {
         const mainRect = document.querySelector('.main-content')?.getBoundingClientRect();
         const bodyStyles = window.getComputedStyle(document.body);
         const mobileOffset = bodyStyles.getPropertyValue('--mobile-input-offset').trim();
+        const terminalReserve = bodyStyles.getPropertyValue('--mobile-terminal-reserve').trim();
         const keyboardOffset = bodyStyles.getPropertyValue('--keyboard-offset').trim();
         const visualHeight = data.visualHeight || this.viewport.height || window.innerHeight;
         const dockGap = typeof data.dockGap === 'number'
@@ -247,6 +278,7 @@ export class MobileInputFocusManager {
             `consoleH=${consoleRect ? Math.round(consoleRect.height) : 0}`,
             `mainH=${mainRect ? Math.round(mainRect.height) : 0}`,
             `mobOff=${mobileOffset || '0'}`,
+            `termRes=${terminalReserve || '0'}`,
             `keyOff=${keyboardOffset || '0'}`
         ];
         this.keyboardDebug.textContent = lines.join(' ');

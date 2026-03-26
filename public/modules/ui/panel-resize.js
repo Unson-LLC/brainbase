@@ -27,17 +27,7 @@ export function initPanelResize() {
     const leftCleanup = initLeftPanelResize();
     if (leftCleanup) cleanupFns.push(leftCleanup);
 
-    // コミットツリーパネルのリサイズ
-    const commitTreeCleanup = initCommitTreePanelResize();
-    if (commitTreeCleanup) cleanupFns.push(commitTreeCleanup);
-
-    // コミットツリーパネルの開閉
-    const commitTreeToggleCleanup = initCommitTreePanelToggle();
-    if (commitTreeToggleCleanup) cleanupFns.push(commitTreeToggleCleanup);
-
-    // 右パネルのリサイズ
-    const rightCleanup = initRightPanelResize();
-    if (rightCleanup) cleanupFns.push(rightCleanup);
+    // Note: Commit tree panel and context sidebar are now Info Drawer tabs (no standalone resize needed)
 
     return () => {
         cleanupFns.forEach(fn => fn());
@@ -67,119 +57,8 @@ function initLeftPanelResize() {
     });
 }
 
-/**
- * コミットツリーパネルのリサイズを初期化
- */
-function initCommitTreePanelResize() {
-    const handle = document.getElementById('commit-tree-resize-handle');
-    const panel = document.getElementById('commit-tree-panel');
-
-    if (!handle || !panel) {
-        return null;
-    }
-
-    return setupHorizontalResize({
-        handle,
-        panel,
-        storageKey: STORAGE_KEYS.COMMIT_TREE,
-        minWidth: DEFAULTS.COMMIT_TREE.min,
-        maxWidth: DEFAULTS.COMMIT_TREE.max,
-        defaultWidth: DEFAULTS.COMMIT_TREE.width,
-        direction: 'right'
-    });
-}
-
-/**
- * コミットツリーパネル開閉トグルを初期化
- */
-function initCommitTreePanelToggle() {
-    const panel = document.getElementById('commit-tree-panel');
-    const resizeHandle = document.getElementById('commit-tree-resize-handle');
-    const collapseBtn = document.getElementById('toggle-commit-tree-panel');
-    const expandBtn = document.getElementById('commit-tree-expand-btn');
-    const iconEl = collapseBtn?.querySelector('i');
-
-    if (!panel || !resizeHandle || !collapseBtn || !expandBtn) {
-        return null;
-    }
-
-    const setCollapsed = (collapsed, { persist = true } = {}) => {
-        panel.classList.toggle('is-collapsed', collapsed);
-        panel.style.display = collapsed ? 'none' : 'flex';
-        resizeHandle.classList.toggle('hidden', collapsed);
-        expandBtn.classList.toggle('hidden', !collapsed);
-        expandBtn.classList.toggle('active', collapsed);
-
-        if (!collapsed) {
-            const savedWidth = parseInt(localStorage.getItem(STORAGE_KEYS.COMMIT_TREE) || '', 10);
-            const width = Number.isFinite(savedWidth)
-                ? Math.max(DEFAULTS.COMMIT_TREE.min, Math.min(DEFAULTS.COMMIT_TREE.max, savedWidth))
-                : DEFAULTS.COMMIT_TREE.width;
-            panel.style.width = `${width}px`;
-        }
-
-        collapseBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-        collapseBtn.setAttribute('title', collapsed ? 'コミットパネルを開く' : 'コミットパネルを閉じる');
-        collapseBtn.setAttribute('aria-label', collapsed ? 'コミットパネルを開く' : 'コミットパネルを閉じる');
-
-        if (iconEl) {
-            iconEl.setAttribute('data-lucide', collapsed ? 'chevron-left' : 'chevron-right');
-        }
-
-        if (persist) {
-            localStorage.setItem(STORAGE_KEYS.COMMIT_TREE_COLLAPSED, collapsed ? '1' : '0');
-        }
-
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
-
-        void eventBus.emit(EVENTS.COMMIT_TREE_PANEL_TOGGLED, { collapsed });
-    };
-
-    const onCollapseClick = () => {
-        const collapsed = panel.style.display === 'none';
-        setCollapsed(!collapsed);
-    };
-
-    const onExpandClick = () => {
-        setCollapsed(false);
-    };
-
-    collapseBtn.addEventListener('click', onCollapseClick);
-    expandBtn.addEventListener('click', onExpandClick);
-
-    const initialCollapsed = localStorage.getItem(STORAGE_KEYS.COMMIT_TREE_COLLAPSED) === '1';
-    setCollapsed(initialCollapsed, { persist: false });
-
-    return () => {
-        collapseBtn.removeEventListener('click', onCollapseClick);
-        expandBtn.removeEventListener('click', onExpandClick);
-    };
-}
-
-/**
- * 右パネルのリサイズを初期化
- */
-function initRightPanelResize() {
-    const handle = document.getElementById('right-panel-resize-handle');
-    const panel = document.getElementById('context-sidebar');
-
-    if (!handle || !panel) {
-        console.warn('[PanelResize] Right panel elements not found');
-        return null;
-    }
-
-    return setupHorizontalResize({
-        handle,
-        panel,
-        storageKey: STORAGE_KEYS.RIGHT,
-        minWidth: DEFAULTS.RIGHT.min,
-        maxWidth: DEFAULTS.RIGHT.max,
-        defaultWidth: DEFAULTS.RIGHT.width,
-        direction: 'right' // パネルが右側にある
-    });
-}
+// Note: initCommitTreePanelResize, initCommitTreePanelToggle, initRightPanelResize
+// have been removed — Commit Tree and Context Sidebar are now Info Drawer tabs.
 
 /**
  * 水平リサイズのセットアップ

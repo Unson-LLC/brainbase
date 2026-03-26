@@ -1,8 +1,5 @@
-function escapeHtml(value) {
-    const div = document.createElement('div');
-    div.textContent = value ?? '';
-    return div.innerHTML;
-}
+import { escapeHtml } from '../../ui-helpers.js';
+import { getPriorityLabel } from '../../utils/task-filters.js';
 
 function statusSpecificFields(item) {
     if (!item) return '';
@@ -78,9 +75,7 @@ function buildingVisual(buildingId) {
     return map[buildingId] || { icon: '棟', accent: 'neutral', x: '0%', y: '0%' };
 }
 
-function severityLabel(severity) {
-    return severity === 'high' ? '高' : severity === 'medium' ? '中' : '低';
-}
+const severityLabel = getPriorityLabel;
 
 export class LeadConsoleView {
     constructor({ root, onBuildingSelect, onAnomalySelect, onActorSelect, onOptionSelect, onAction, onToggleActors, onFocusActorInitiative }) {

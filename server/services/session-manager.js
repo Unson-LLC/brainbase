@@ -8,6 +8,7 @@ import net from 'net';
 import os from 'os';
 import path from 'path';
 import yaml from 'js-yaml';
+import { logger } from '../utils/logger.js';
 import { TerminalOutputParser } from './terminal-output-parser.js';
 import { gracefulCleanup } from '../lib/graceful-cleanup.js';
 import { SessionHealthMonitor } from './session-health-monitor.js';
@@ -354,18 +355,18 @@ export class SessionManager {
      */
     async restoreActiveSessions() {
         try {
-            console.log('[restoreActiveSessions] Restoring active sessions from state.json...');
+            logger.info('[restoreActiveSessions] Restoring active sessions from state.json...');
 
             const state = this.stateStore.get();
             const sessions = state.sessions || [];
             if (sessions.length === 0) {
-                console.log('[restoreActiveSessions] No sessions in state.json');
+                logger.info('[restoreActiveSessions] No sessions in state.json');
                 return;
             }
 
             // intendedState === 'active' のセッションを抽出
             const activeSessions = sessions.filter(s => s.intendedState === 'active');
-            console.log(`[restoreActiveSessions] Found ${activeSessions.length} active session(s) in state.json`);
+            logger.info(`[restoreActiveSessions] Found ${activeSessions.length} active session(s) in state.json`);
 
             if (activeSessions.length === 0) {
                 return;
@@ -415,12 +416,12 @@ export class SessionManager {
                 // If tmux is missing, don't auto-recreate. Pause + kill stray ttyd (prevents wrong log linkage).
                 if (!hasTmux) {
                     if (candidates.length > 0) {
-                        console.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Killing ${candidates.length} ttyd process(es) and pausing session.`);
+                        logger.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Killing ${candidates.length} ttyd process(es) and pausing session.`);
                         for (const proc of candidates) {
                             await this.execPromise(`kill ${proc.pid}`).catch(() => {});
                         }
                     } else {
-                        console.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Pausing session.`);
+                        logger.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Pausing session.`);
                     }
                     pauseSessionIds.add(sessionId);
                     this.activeSessions.delete(sessionId);
@@ -459,7 +460,7 @@ export class SessionManager {
                     // Kill duplicates (best-effort)
                     for (const proc of candidates) {
                         if (proc.pid === keep.pid) continue;
-                        console.warn(`[restoreActiveSessions] Duplicate ttyd for ${sessionId}: killing pid ${proc.pid} (keeping ${keep.pid})`);
+                        logger.warn(`[restoreActiveSessions] Duplicate ttyd for ${sessionId}: killing pid ${proc.pid} (keeping ${keep.pid})`);
                         await this.execPromise(`kill ${proc.pid}`).catch(() => {});
                     }
 
@@ -468,7 +469,7 @@ export class SessionManager {
                         await this._saveTtydProcessInfo(sessionId, { port: keep.port, pid: keep.pid, engine });
                     }
 
-                    console.log(`[restoreActiveSessions] Restored session ${sessionId}: PID ${keep.pid}, Port ${keep.port}`);
+                    logger.info(`[restoreActiveSessions] Restored session ${sessionId}: PID ${keep.pid}, Port ${keep.port}`);
                     continue;
                 }
 
@@ -480,12 +481,12 @@ export class SessionManager {
                 try {
                     // Use persisted port for reconnection stability (UI URLs stay valid)
                     const preferredPort = session?.ttydProcess?.port;
-                    console.log(`[restoreActiveSessions] Reconnecting ttyd for ${sessionId} (preferredPort: ${preferredPort}, engine: ${engine})`);
+                    logger.info(`[restoreActiveSessions] Reconnecting ttyd for ${sessionId} (preferredPort: ${preferredPort}, engine: ${engine})`);
 
                     await this._restartTtydForExistingTmux(sessionId, preferredPort, engine);
-                    console.log(`[restoreActiveSessions] Successfully reconnected ttyd for ${sessionId}`);
+                    logger.info(`[restoreActiveSessions] Successfully reconnected ttyd for ${sessionId}`);
                 } catch (err) {
-                    console.error(`[restoreActiveSessions] Failed to reconnect ttyd for ${sessionId}:`, err);
+                    logger.error(`[restoreActiveSessions] Failed to reconnect ttyd for ${sessionId}:`, err);
                 }
             }
 
@@ -505,10 +506,10 @@ export class SessionManager {
                     };
                 });
                 await this.stateStore.update({ ...currentState, sessions: updatedSessions });
-                console.warn(`[restoreActiveSessions] Paused ${pauseSessionIds.size} session(s) with missing TMUX`);
+                logger.warn(`[restoreActiveSessions] Paused ${pauseSessionIds.size} session(s) with missing TMUX`);
             }
 
-            console.log(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
+            logger.info(`[restoreActiveSessions] Total restored/started: ${this.activeSessions.size} session(s)`);
 
             // Update nextPort to avoid port conflicts with restored sessions
             // 既存セッションがUIポート帯でも、新規セッションは40000番台から開始
@@ -519,13 +520,13 @@ export class SessionManager {
             if (ports.length > 0) {
                 const maxPort = Math.max(40000, ...ports);
                 this.nextPort = maxPort + 1;
-                console.log(`[restoreActiveSessions] Updated nextPort to ${this.nextPort} (max existing port: ${maxPort})`);
+                logger.info(`[restoreActiveSessions] Updated nextPort to ${this.nextPort} (max existing port: ${maxPort})`);
             }
 
             // Best-effort: orphan/duplicate cleanup
             await this.cleanupOrphans();
         } catch (err) {
-            console.error('[restoreActiveSessions] Error:', err);
+            logger.error('[restoreActiveSessions] Error:', err);
         }
     }
 
@@ -539,17 +540,17 @@ export class SessionManager {
      */
     async cleanupOrphans() {
         try {
-            console.log('[cleanupOrphans] Checking for orphaned/duplicate ttyd processes...');
+            logger.info('[cleanupOrphans] Checking for orphaned/duplicate ttyd processes...');
 
             // 1. 全てのttydプロセスを取得
             const { stdout } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
             if (!stdout.trim()) {
-                console.log('[cleanupOrphans] No ttyd processes found');
+                logger.info('[cleanupOrphans] No ttyd processes found');
                 return;
             }
 
             const lines = stdout.trim().split('\n');
-            console.log(`[cleanupOrphans] Found ${lines.length} ttyd process(es)`);
+            logger.info(`[cleanupOrphans] Found ${lines.length} ttyd process(es)`);
 
             // 2. 保護対象: state.json の intendedState === 'active' または 'paused'
             const state = this.stateStore.get();
@@ -558,7 +559,7 @@ export class SessionManager {
                     .filter(s => s.intendedState === 'active' || s.intendedState === 'paused')
                     .map(s => s.id)
             );
-            console.log(`[cleanupOrphans] Found ${protectedSessionIds.size} active/paused session(s) in state.json`);
+            logger.info(`[cleanupOrphans] Found ${protectedSessionIds.size} active/paused session(s) in state.json`);
 
             // 3. state.json / in-memory の正PIDマップ
             const statePidBySessionId = new Map();
@@ -605,7 +606,7 @@ export class SessionManager {
                 if (protectedSessionIds.has(sessionId)) continue;
 
                 for (const proc of procs) {
-                    console.log(`[cleanupOrphans] Killing orphaned ttyd process: PID ${proc.pid} (sessionId: ${sessionId})`);
+                    logger.info(`[cleanupOrphans] Killing orphaned ttyd process: PID ${proc.pid} (sessionId: ${sessionId})`);
                     await this.execPromise(`kill ${proc.pid}`).catch(() => {});
                     killed++;
                 }
@@ -631,11 +632,11 @@ export class SessionManager {
                     keepPid = Math.max(...procs.map(p => p.pid));
                 }
 
-                console.warn(`[cleanupOrphans] Duplicate ttyd detected for ${sessionId}. Keeping pid=${keepPid}, killing ${procs.length - 1} process(es).`);
+                logger.warn(`[cleanupOrphans] Duplicate ttyd detected for ${sessionId}. Keeping pid=${keepPid}, killing ${procs.length - 1} process(es).`);
 
                 for (const proc of procs) {
                     if (proc.pid === keepPid) continue;
-                    console.log(`[cleanupOrphans] Killing duplicate ttyd process: PID ${proc.pid} (sessionId: ${sessionId})`);
+                    logger.info(`[cleanupOrphans] Killing duplicate ttyd process: PID ${proc.pid} (sessionId: ${sessionId})`);
                     await this.execPromise(`kill ${proc.pid}`).catch(() => {});
                     killed++;
                 }
@@ -650,9 +651,9 @@ export class SessionManager {
                 }
             }
 
-            console.log(`[cleanupOrphans] Cleaned up ${killed} orphaned/duplicate ttyd process(es)`);
+            logger.info(`[cleanupOrphans] Cleaned up ${killed} orphaned/duplicate ttyd process(es)`);
         } catch (err) {
-            console.error('[cleanupOrphans] Error:', err);
+            logger.error('[cleanupOrphans] Error:', err);
         }
     }
 
@@ -694,7 +695,7 @@ export class SessionManager {
             try {
                 await this._checkPortListening(port);
                 const elapsedMs = Date.now() - startTime;
-                console.log(`[ttyd] Port ${port} ready after ${elapsedMs}ms`);
+                logger.info(`[ttyd] Port ${port} ready after ${elapsedMs}ms`);
                 return;
             } catch (err) {
                 await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
@@ -782,7 +783,7 @@ export class SessionManager {
      */
     reportActivity(sessionId, status, reportedAt, metadata = {}) {
         if (status !== 'working' && status !== 'done') {
-            console.warn(`[Hook] Ignoring invalid status for ${sessionId}: ${status}`);
+            logger.warn(`[Hook] Ignoring invalid status for ${sessionId}: ${status}`);
             return;
         }
 
@@ -790,7 +791,7 @@ export class SessionManager {
         const lifecycle = typeof metadata.lifecycle === 'string' ? metadata.lifecycle : '';
         const eventType = typeof metadata.eventType === 'string' ? metadata.eventType : '';
         const turnId = typeof metadata.turnId === 'string' ? metadata.turnId.trim() : '';
-        console.log(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp} (${lifecycle || 'legacy'}${turnId ? `:${turnId}` : ''})`);
+        logger.info(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp} (${lifecycle || 'legacy'}${turnId ? `:${turnId}` : ''})`);
 
         const currentHookData = this._normalizeHookData(this.hookStatus.get(sessionId)) || {
             lastWorkingAt: 0,
@@ -816,7 +817,7 @@ export class SessionManager {
             if (turnId) {
                 activeTurnIds.delete(turnId);
             } else if (activeTurnIds.size > 0) {
-                console.warn(`[Hook] Ignoring ambiguous turn_completed without turnId for ${sessionId}; keeping ${activeTurnIds.size} active turn(s)`);
+                logger.warn(`[Hook] Ignoring ambiguous turn_completed without turnId for ${sessionId}; keeping ${activeTurnIds.size} active turn(s)`);
             }
 
             if (turnId || activeTurnIds.size === 0) {
@@ -974,6 +975,22 @@ export class SessionManager {
         return (state.sessions || []).find(session => session.id === sessionId) || null;
     }
 
+    _resolveScriptPath(scriptName) {
+        const candidates = [
+            path.join(this.serverDir, 'scripts', scriptName),
+            path.join(this.serverDir, scriptName),
+            path.join(this.serverDir, '..', 'scripts', scriptName),
+        ];
+
+        for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+
+        return candidates[0];
+    }
+
     /**
      * 起動準備完了フラグを設定
      */
@@ -1011,25 +1028,44 @@ export class SessionManager {
         ]);
     }
 
+    _isTmuxSessionRunningSync(sessionId) {
+        if (!sessionId) return false;
+        try {
+            execSync(`tmux has-session -t "${sessionId}" 2>/dev/null`, { stdio: 'ignore' });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     /**
      * セッションのランタイム状態を取得
      * @param {Object} session - セッション情報
-     * @returns {{ttydRunning: boolean, needsRestart: boolean}}
+     * @returns {{interactiveTransport: string, interactiveReady: boolean, interactiveUrl: string|null, needsRestart: boolean, port: number|null, ttydRunning: boolean, proxyPath: string|null}}
      */
     getRuntimeStatus(session) {
         const sessionId = session?.id;
+        const intendedState = session?.intendedState;
         const activeEntry = this.activeSessions.get(session?.id);
         const activePid = activeEntry?.process?.pid || activeEntry?.pid;
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
         const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
-        const needsRestart = session.intendedState === 'active' && !ttydRunning;
+        const shouldCheckTmux = intendedState === 'active' && !ttydRunning;
+        const tmuxRunning = shouldCheckTmux ? this._isTmuxSessionRunningSync(sessionId) : false;
+        const needsRestart = intendedState === 'active' && !ttydRunning && !tmuxRunning;
         const port = activeEntry?.port || session?.ttydProcess?.port || null;
+        const interactiveTransport = ttydRunning ? 'ttyd' : (tmuxRunning ? 'xterm' : 'none');
+        const interactiveReady = ttydRunning || tmuxRunning;
+        const interactiveUrl = ttydRunning && sessionId ? `/console/${sessionId}` : null;
 
         return {
+            interactiveTransport,
+            interactiveReady,
+            interactiveUrl,
             ttydRunning,
             needsRestart,
-            proxyPath: ttydRunning && sessionId ? `/console/${sessionId}` : null,
+            proxyPath: interactiveUrl,
             port
         };
     }
@@ -1052,6 +1088,67 @@ export class SessionManager {
         };
     }
 
+    async ensureSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude' }) {
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw new Error('sessionId is required');
+        }
+        if (!['claude', 'codex'].includes(engine)) {
+            throw new Error('engine must be "claude" or "codex"');
+        }
+
+        if (await this._isTmuxSessionRunning(sessionId)) {
+            return { startedExisting: true };
+        }
+
+        if (cwd && !fs.existsSync(cwd)) {
+            throw new Error(`Working directory does not exist: ${cwd}`);
+        }
+
+        const scriptPath = this._resolveScriptPath('ensure_session_runtime.sh');
+        const spawnOptions = {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: {
+                ...process.env,
+                LANG: 'en_US.UTF-8',
+                LC_ALL: 'en_US.UTF-8'
+            }
+        };
+        const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
+        if (resolvedUiPort) {
+            spawnOptions.env.BRAINBASE_PORT = String(resolvedUiPort);
+        }
+        if (cwd) {
+            spawnOptions.cwd = cwd;
+        }
+
+        await new Promise((resolve, reject) => {
+            const child = spawn('bash', [scriptPath, sessionId, initialCommand || '', engine], spawnOptions);
+            let stderr = '';
+
+            child.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            child.on('error', reject);
+            child.on('exit', (code) => {
+                if (code === 0) {
+                    resolve();
+                    return;
+                }
+                reject(new Error(stderr.trim() || `ensure_session_runtime exited with code ${code}`));
+            });
+        });
+
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+            if (await this._isTmuxSessionRunning(sessionId)) {
+                return { startedExisting: false };
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        throw new Error(`tmux session did not become ready: ${sessionId}`);
+    }
+
     /**
      * ttydプロセスを起動
      * @param {Object} options - 起動オプション
@@ -1063,9 +1160,11 @@ export class SessionManager {
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
     async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
+        await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine });
+
         // 並行起動防止ロック: 同じセッションに対する同時呼び出しを防止
         if (this.startLocks.has(sessionId)) {
-            console.log(`[startTtyd] Lock active for ${sessionId}, waiting for existing start to complete`);
+            logger.info(`[startTtyd] Lock active for ${sessionId}, waiting for existing start to complete`);
             return await this.startLocks.get(sessionId);
         }
 
@@ -1095,7 +1194,7 @@ export class SessionManager {
                 };
             }
             // Process is dead but entry remains in map — clean up and proceed to new launch
-            console.warn(`[startTtyd] Stale entry for ${sessionId}: pid ${pid} is dead. Cleaning up and relaunching.`);
+            logger.warn(`[startTtyd] Stale entry for ${sessionId}: pid ${pid} is dead. Cleaning up and relaunching.`);
             this.activeSessions.delete(sessionId);
         }
 
@@ -1105,15 +1204,15 @@ export class SessionManager {
             // Try preferred port first (from state.json)
             port = await this.findFreePort(preferredPort);
             if (port !== preferredPort) {
-                console.log(`[startTtyd] Preferred port ${preferredPort} in use, allocated ${port} instead`);
+                logger.info(`[startTtyd] Preferred port ${preferredPort} in use, allocated ${port} instead`);
             }
         } else {
             port = await this.findFreePort(this.nextPort);
             this.nextPort = port + 1;
         }
 
-        console.log(`Starting ttyd for session '${sessionId}' on port ${port} with engine '${engine}'...`);
-        if (cwd) console.log(`Working directory: ${cwd}`);
+        logger.info(`Starting ttyd for session '${sessionId}' on port ${port} with engine '${engine}'...`);
+        if (cwd) logger.info(`Working directory: ${cwd}`);
 
         // Validate working directory exists
         if (cwd && !fs.existsSync(cwd)) {
@@ -1121,9 +1220,7 @@ export class SessionManager {
         }
 
         // Spawn ttyd with Base Path
-        const scriptPath = fs.existsSync(path.join(this.serverDir, 'scripts', 'login_script.sh'))
-            ? path.join(this.serverDir, 'scripts', 'login_script.sh')
-            : path.join(this.serverDir, 'login_script.sh');
+        const scriptPath = this._resolveScriptPath('login_script.sh');
         const customIndexPath = fs.existsSync(path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html'))
             ? path.join(this.serverDir, 'public', 'ttyd', 'custom_ttyd_index.html')
             : path.join(this.serverDir, 'custom_ttyd_index.html');
@@ -1242,32 +1339,32 @@ export class SessionManager {
         };
 
         const ttydPath = resolveTtydPath();
-        console.log(`[ttyd:${sessionId}] Command: ${ttydPath}`);
-        console.log(`[ttyd:${sessionId}] Args: ${JSON.stringify(args)}`);
-        console.log(`[ttyd:${sessionId}] CWD: ${spawnOptions.cwd || 'default'}`);
+        logger.info(`[ttyd:${sessionId}] Command: ${ttydPath}`);
+        logger.info(`[ttyd:${sessionId}] Args: ${JSON.stringify(args)}`);
+        logger.info(`[ttyd:${sessionId}] CWD: ${spawnOptions.cwd || 'default'}`);
         const ttyd = spawn(ttydPath, args, spawnOptions);
 
 
         ttyd.stdout.on('data', (data) => {
-            console.log(`[ttyd:${sessionId}] ${data}`);
+            logger.info(`[ttyd:${sessionId}] ${data}`);
         });
 
         ttyd.stderr.on('data', (data) => {
-            console.error(`[ttyd:${sessionId}] ${data}`);
+            logger.error(`[ttyd:${sessionId}] ${data}`);
         });
 
         ttyd.on('error', (err) => {
-            console.error(`Failed to start ttyd for ${sessionId}:`, err);
+            logger.error(`Failed to start ttyd for ${sessionId}:`, err);
         });
 
         ttyd.on('exit', async (code, signal) => {
-            console.log(`ttyd for ${sessionId} exited with code ${code}${signal ? ` signal ${signal}` : ''}`);
+            logger.info(`ttyd for ${sessionId} exited with code ${code}${signal ? ` signal ${signal}` : ''}`);
 
             // If a newer ttyd has been started for this session, ignore stale exits.
             const activeEntry = this.activeSessions.get(sessionId);
             const activePid = activeEntry?.process?.pid || activeEntry?.pid;
             if (activePid && ttyd.pid && activePid !== ttyd.pid) {
-                console.log(`[ttyd:${sessionId}] Ignoring exit for stale pid ${ttyd.pid} (active pid ${activePid})`);
+                logger.info(`[ttyd:${sessionId}] Ignoring exit for stale pid ${ttyd.pid} (active pid ${activePid})`);
                 return;
             }
 
@@ -1312,9 +1409,9 @@ export class SessionManager {
         // Step 2: ttyd完全起動確認（ポートリッスン開始を待機）
         try {
             await this.waitForTtydReady(port, 10000, 100);
-            console.log(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
+            logger.info(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
         } catch (error) {
-            console.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
+            logger.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
             await this.stopTtyd(sessionId);
             throw new Error(`ttyd startup timeout: ${error.message}`);
         }
@@ -1338,7 +1435,7 @@ export class SessionManager {
             throw new Error(`TMUX session ${sessionId} not found. Cannot reconnect ttyd.`);
         }
 
-        console.log(`[_restartTtydForExistingTmux] Reconnecting ttyd to existing tmux: ${sessionId}`);
+        logger.info(`[_restartTtydForExistingTmux] Reconnecting ttyd to existing tmux: ${sessionId}`);
 
         // login_script.shは既存tmuxセッションを検出してattachする
         // initialCommandは空文字（既存セッションだから）
@@ -1365,7 +1462,7 @@ export class SessionManager {
 
         const sessionData = this.activeSessions.get(sessionId);
         const pid = sessionData.process?.pid || sessionData.pid;
-        console.log(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
+        logger.info(`Stopping ttyd process for session ${sessionId} (port ${sessionData.port}, pid ${pid}, preserveTmux=${preserveTmux})`);
 
         // Graceful Partial Cleanup: 各ステップが失敗しても後続を続行
         const steps = [];
@@ -1422,7 +1519,7 @@ export class SessionManager {
 
         const result = await gracefulCleanup(sessionId, steps);
         if (result.warnings.length > 0) {
-            console.warn(`[stopTtyd] Partial cleanup for ${sessionId}:`, result.warnings);
+            logger.warn(`[stopTtyd] Partial cleanup for ${sessionId}:`, result.warnings);
         }
 
         return true;
@@ -1435,11 +1532,11 @@ export class SessionManager {
     async cleanupSessionResources(sessionId) {
         // Input validation
         if (!sessionId || typeof sessionId !== 'string') {
-            console.error('[Cleanup] Invalid sessionId:', sessionId);
+            logger.error('[Cleanup] Invalid sessionId:', sessionId);
             return;
         }
 
-        console.log(`[Cleanup] Starting cleanup for session ${sessionId}...`);
+        logger.info(`[Cleanup] Starting cleanup for session ${sessionId}...`);
 
         let processesKilled = 0;
 
@@ -1451,10 +1548,10 @@ export class SessionManager {
             );
             if (stdout.trim()) {
                 panePids = stdout.trim().split('\n').filter(p => p.trim());
-                console.log(`[Cleanup] Collected ${panePids.length} pane PID(s) for ${sessionId}: ${panePids.join(', ')}`);
+                logger.info(`[Cleanup] Collected ${panePids.length} pane PID(s) for ${sessionId}: ${panePids.join(', ')}`);
             }
         } catch (err) {
-            console.log(`[Cleanup] Could not collect pane PIDs for ${sessionId}:`, err.message);
+            logger.info(`[Cleanup] Could not collect pane PIDs for ${sessionId}:`, err.message);
         }
 
         // 2. 子プロセスツリーを全て取得（pgrep -P で再帰的に）
@@ -1472,14 +1569,14 @@ export class SessionManager {
         // 3. TMUXセッション削除
         try {
             await this.execPromise(`tmux kill-session -t "${sessionId}" 2>/dev/null`);
-            console.log(`[Cleanup] TMUX session deleted: ${sessionId}`);
+            logger.info(`[Cleanup] TMUX session deleted: ${sessionId}`);
         } catch (err) {
-            console.log(`[Cleanup] TMUX session ${sessionId} already deleted or not found`);
+            logger.info(`[Cleanup] TMUX session ${sessionId} already deleted or not found`);
         }
 
         // 4. 収集したプロセスを全てkill（SIGTERM → 待機 → SIGKILL）
         if (allPids.size > 0) {
-            console.log(`[Cleanup] Killing ${allPids.size} process(es) for ${sessionId}: ${[...allPids].join(', ')}`);
+            logger.info(`[Cleanup] Killing ${allPids.size} process(es) for ${sessionId}: ${[...allPids].join(', ')}`);
             for (const pid of allPids) {
                 try {
                     await this.execPromise(`kill -TERM ${pid} 2>/dev/null`);
@@ -1492,14 +1589,14 @@ export class SessionManager {
                 if (this._isProcessRunning(parseInt(pid))) {
                     try {
                         await this.execPromise(`kill -9 ${pid} 2>/dev/null`);
-                        console.log(`[Cleanup] Force killed PID ${pid}`);
+                        logger.info(`[Cleanup] Force killed PID ${pid}`);
                     } catch (_) {}
                 }
             }
             processesKilled = allPids.size;
         }
 
-        console.log(`[Cleanup] Completed for ${sessionId} (Processes killed: ${processesKilled})`);
+        logger.info(`[Cleanup] Completed for ${sessionId} (Processes killed: ${processesKilled})`);
     }
 
     /**
@@ -1519,7 +1616,7 @@ export class SessionManager {
                     // TMUX削除
                     try {
                         await this.execPromise(`tmux kill-session -t "${session.id}" 2>/dev/null`);
-                        console.log(`[Cleanup] Deleted TMUX for paused session ${session.id} (24h TTL)`);
+                        logger.info(`[Cleanup] Deleted TMUX for paused session ${session.id} (24h TTL)`);
                     } catch (err) {
                         // エラーは無視（TMUXが既に削除されている可能性がある）
                     }
@@ -1532,7 +1629,7 @@ export class SessionManager {
                     );
 
                     await this.stateStore.update({ ...state, sessions: updatedSessions });
-                    console.log(`[Cleanup] Marked TMUX cleaned for paused session ${session.id}`);
+                    logger.info(`[Cleanup] Marked TMUX cleaned for paused session ${session.id}`);
                 }
             }
         }
@@ -1552,7 +1649,7 @@ export class SessionManager {
                 const archivedTime = new Date(session.archivedAt).getTime();
 
                 if (now - archivedTime > ARCHIVED_TTL) {
-                    console.log(`[Cleanup] Deleting archived session ${session.id} (30d TTL)`);
+                    logger.info(`[Cleanup] Deleting archived session ${session.id} (30d TTL)`);
 
                     // Worktreeがあれば削除（非同期、エラー無視）
                     if (session.worktree && this.worktreeService) {
@@ -1568,7 +1665,7 @@ export class SessionManager {
         if (sessionsToKeep.length < state.sessions.length) {
             await this.stateStore.update({ ...state, sessions: sessionsToKeep });
             const deletedCount = state.sessions.length - sessionsToKeep.length;
-            console.log(`[Cleanup] Removed ${deletedCount} archived session(s) (30d TTL)`);
+            logger.info(`[Cleanup] Removed ${deletedCount} archived session(s) (30d TTL)`);
         }
     }
 
@@ -1583,7 +1680,7 @@ export class SessionManager {
             const sessions = state.sessions || [];
             const hasSession = sessions.some(session => session.id === sessionId);
             if (!hasSession) {
-                console.warn(`[ttydProcess] Skip save: session ${sessionId} not found in state`);
+                logger.warn(`[ttydProcess] Skip save: session ${sessionId} not found in state`);
                 return;
             }
 
@@ -1601,9 +1698,9 @@ export class SessionManager {
                     : session
             );
             await this.stateStore.update({ ...state, sessions: updatedSessions });
-            console.log(`[ttydProcess] Saved for ${sessionId}: port=${port}, pid=${pid}`);
+            logger.info(`[ttydProcess] Saved for ${sessionId}: port=${port}, pid=${pid}`);
         } catch (err) {
-            console.error(`[ttydProcess] Failed to save for ${sessionId}:`, err.message);
+            logger.error(`[ttydProcess] Failed to save for ${sessionId}:`, err.message);
         }
     }
 
@@ -1621,9 +1718,9 @@ export class SessionManager {
                     : session
             );
             await this.stateStore.update({ ...state, sessions: updatedSessions });
-            console.log(`[ttydProcess] Cleared for ${sessionId}`);
+            logger.info(`[ttydProcess] Cleared for ${sessionId}`);
         } catch (err) {
-            console.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
+            logger.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
         }
     }
 
@@ -1658,10 +1755,10 @@ export class SessionManager {
             if (!changed) return false;
 
             await this.stateStore.update({ ...state, sessions: updatedSessions });
-            console.log(`[ttydProcess] Cleared for ${sessionId}${Number.isFinite(pid) ? ` (pid=${pid})` : ''}`);
+            logger.info(`[ttydProcess] Cleared for ${sessionId}${Number.isFinite(pid) ? ` (pid=${pid})` : ''}`);
             return true;
         } catch (err) {
-            console.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
+            logger.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
             return false;
         }
     }
@@ -1796,39 +1893,64 @@ export class SessionManager {
         const preview = input.length > 120
             ? `${input.slice(0, 120)}...`
             : input;
-        console.log(
+        logger.info(
             `[session-manager] sendInput: sessionId="${sessionId}", type="${type}", bytes=${inputBytes}, preview=${JSON.stringify(preview)}`
         );
 
         if (type === 'key') {
-            if (!this.ALLOWED_KEYS.includes(input)) {
-                throw new Error('Key not allowed');
-            }
-            const cmd = `tmux send-keys -t "${sessionId}" ${input}`;
-            console.log(`[session-manager] Executing: ${cmd}`);
-            await this.execPromise(cmd);
-        } else if (type === 'text') {
-            if (inputBytes > INPUT_TEMPFILE_THRESHOLD_BYTES) {
-                await this._pasteLargeInputFromTempFile(sessionId, input);
+            if (this.ALLOWED_KEYS.includes(input)) {
+                logger.info(`[session-manager] Executing named key: sessionId="${sessionId}", key="${input}"`);
+                await this._sendNamedKey(sessionId, input);
                 return;
             }
 
-            // Use -l for literal text (don't interpret special keys)
-            // Escape double quotes in input
-            const escaped = input.replace(/"/g, '\\"');
-            const cmd = `tmux send-keys -t "${sessionId}" -l "${escaped}"`;
-            console.log(`[session-manager] Executing: ${cmd}`);
-            await this.execPromise(cmd);
-        } else {
+            logger.warn('[session-manager] Non-allowlisted key payload received; treating as text', {
+                sessionId,
+                inputPreview: preview
+            });
+        } else if (type !== 'text') {
             throw new Error('Type must be key or text');
         }
+
+        await this._pasteInputFromTempFile(sessionId, input);
     }
 
-    _shellQuote(value) {
-        return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+    async _runTmux(args) {
+        return await new Promise((resolve, reject) => {
+            const child = spawn('tmux', args, {
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            let stdout = '';
+            let stderr = '';
+
+            child.stdout?.on('data', (chunk) => {
+                stdout += chunk.toString();
+            });
+            child.stderr?.on('data', (chunk) => {
+                stderr += chunk.toString();
+            });
+            child.on('error', reject);
+            child.on('close', (code) => {
+                if (code === 0) {
+                    resolve({ stdout, stderr });
+                    return;
+                }
+
+                const detail = stderr.trim() || stdout.trim() || `tmux exited with code ${code}`;
+                const error = new Error(detail);
+                error.code = code;
+                error.stdout = stdout;
+                error.stderr = stderr;
+                reject(error);
+            });
+        });
     }
 
-    async _pasteLargeInputFromTempFile(sessionId, input) {
+    async _sendNamedKey(sessionId, key) {
+        await this._runTmux(['send-keys', '-t', sessionId, key]);
+    }
+
+    async _pasteInputFromTempFile(sessionId, input) {
         const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'brainbase-input-'));
         const tempFile = path.join(tempDir, 'paste.txt');
         const bufferName = `brainbase-${sessionId}-${Date.now()}`;
@@ -1836,14 +1958,11 @@ export class SessionManager {
         try {
             await fs.promises.writeFile(tempFile, input, 'utf8');
 
-            const loadCommand = `tmux load-buffer -b ${this._shellQuote(bufferName)} ${this._shellQuote(tempFile)}`;
-            const pasteCommand = `tmux paste-buffer -d -b ${this._shellQuote(bufferName)} -t ${this._shellQuote(sessionId)}`;
-
-            console.log(`[session-manager] Executing large paste via temp file: ${tempFile}`);
-            await this.execPromise(loadCommand);
-            await this.execPromise(pasteCommand);
+            logger.info(`[session-manager] Executing large paste via temp file: ${tempFile}`);
+            await this._runTmux(['load-buffer', '-b', bufferName, tempFile]);
+            await this._runTmux(['paste-buffer', '-d', '-b', bufferName, '-t', sessionId]);
         } finally {
-            await this.execPromise(`tmux delete-buffer -b ${this._shellQuote(bufferName)}`).catch(() => {});
+            await this._runTmux(['delete-buffer', '-b', bufferName]).catch(() => {});
             await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
         }
     }
@@ -1897,14 +2016,14 @@ export class SessionManager {
      */
     startPtyWatchdog(intervalMs = 600000) {
         if (this._ptyWatchdogTimer) return;
-        console.log(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
+        logger.info(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
 
         // Session health monitor (CommandMate pattern): detect dead tmux sessions
         this._healthMonitor = new SessionHealthMonitor(this, {
             onDeadSession: (sessionId) => {
-                console.warn(`[PTY Watchdog] Dead session detected: ${sessionId}, cleaning up...`);
+                logger.warn(`[PTY Watchdog] Dead session detected: ${sessionId}, cleaning up...`);
                 this.stopTtyd(sessionId).catch(err => {
-                    console.error(`[PTY Watchdog] Cleanup failed for ${sessionId}:`, err.message);
+                    logger.error(`[PTY Watchdog] Cleanup failed for ${sessionId}:`, err.message);
                 });
             }
         });
@@ -1923,14 +2042,14 @@ export class SessionManager {
                 const usage = (usedPty / maxPty * 100).toFixed(1);
                 const level = usedPty > maxPty * 0.8 ? 'CRITICAL' : usedPty > maxPty * 0.6 ? 'WARNING' : 'OK';
 
-                console.log(`[PTY Watchdog] ${level}: ${usedPty}/${maxPty} PTYs used (${usage}%)`);
+                logger.info(`[PTY Watchdog] ${level}: ${usedPty}/${maxPty} PTYs used (${usage}%)`);
 
                 if (level === 'CRITICAL') {
-                    console.error(`[PTY Watchdog] CRITICAL: PTY usage at ${usage}%! Running orphan cleanup...`);
+                    logger.error(`[PTY Watchdog] CRITICAL: PTY usage at ${usage}%! Running orphan cleanup...`);
                     await this.cleanupOrphans();
                 }
             } catch (err) {
-                console.error('[PTY Watchdog] Error:', err.message);
+                logger.error('[PTY Watchdog] Error:', err.message);
             }
         }, intervalMs);
     }
@@ -1946,7 +2065,7 @@ export class SessionManager {
         if (this._ptyWatchdogTimer) {
             clearInterval(this._ptyWatchdogTimer);
             this._ptyWatchdogTimer = null;
-            console.log('[PTY Watchdog] Stopped');
+            logger.info('[PTY Watchdog] Stopped');
         }
     }
 
@@ -1956,12 +2075,12 @@ export class SessionManager {
      */
     async cleanup() {
         this.stopPtyWatchdog();
-        console.log('[SessionManager] Starting graceful cleanup (preserve tmux)...');
+        logger.info('[SessionManager] Starting graceful cleanup (preserve tmux)...');
         const sessionIds = [...this.activeSessions.keys()];
         for (const sessionId of sessionIds) {
-            console.log(`[SessionManager] Stopping ttyd for session: ${sessionId}`);
+            logger.info(`[SessionManager] Stopping ttyd for session: ${sessionId}`);
             await this.stopTtyd(sessionId, { preserveTmux: true });
         }
-        console.log(`[SessionManager] Graceful cleanup complete (${sessionIds.length} session(s))`);
+        logger.info(`[SessionManager] Graceful cleanup complete (${sessionIds.length} session(s))`);
     }
 }
