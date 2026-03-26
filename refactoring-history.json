@@ -1339,9 +1339,37 @@
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/395",
       "pr_status": "merged",
       "merged_at": "2026-03-26T04:06:08Z"
+    },
+    {
+      "area": "server/services",
+      "refactored_at": "2026-03-26T09:28:15.246Z",
+      "files_modified": [
+        "server/services/nocodb-service.js"
+      ],
+      "changes_summary": "共通の_authヘッダーとJSON取得ヘルパ生やして、records/tableId系のNocoDB fetchをそっちに寄せたから重複キモ減って読みやすさ爆上げだよ〜♡",
+      "tier": "small",
+      "hotspot_since_days": 30,
+      "hotspot_score": 0,
+      "cooldown_days": 30,
+      "refactor_timeout_ms": 1200000,
+      "judge_score": 95,
+      "judge_threshold": 90,
+      "judge_summary": "共通ヘッダー付与とJSON取得処理をヘルパーにまとめてくれて、重複が減って読みやすくなってて超いい感じだよ〜",
+      "judge_must_fix": [],
+      "judge_suggestions": [
+        "エラーthrow時にレスポンス本文の概要も含めると、呼び出し側まで原因追いやすくなるかもだよ"
+      ],
+      "run_number": "349",
+      "run_id": "23586861768",
+      "trigger_event": "schedule",
+      "pr_number": 396,
+      "pr_branch": "ops-department/auto-refactor-349",
+      "pr_url": "https://github.com/Unson-LLC/brainbase/pull/396",
+      "pr_status": "open",
+      "merged_at": null
     }
   ],
-  "last_updated": "2026-03-26T06:29:48.912Z",
-  "total_prs_created": 49,
+  "last_updated": "2026-03-26T09:28:27.097Z",
+  "total_prs_created": 50,
   "total_prs_merged": 45
 }
