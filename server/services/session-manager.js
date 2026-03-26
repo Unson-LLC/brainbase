@@ -1905,17 +1905,7 @@ export class SessionManager {
             logger.info(`[session-manager] Executing: ${cmd}`);
             await this.execPromise(cmd);
         } else if (type === 'text') {
-            if (inputBytes > INPUT_TEMPFILE_THRESHOLD_BYTES) {
-                await this._pasteLargeInputFromTempFile(sessionId, input);
-                return;
-            }
-
-            // Use -l for literal text (don't interpret special keys)
-            // Escape double quotes in input
-            const escaped = input.replace(/"/g, '\\"');
-            const cmd = `tmux send-keys -t "${sessionId}" -l "${escaped}"`;
-            logger.info(`[session-manager] Executing: ${cmd}`);
-            await this.execPromise(cmd);
+            await this._pasteInputFromTempFile(sessionId, input);
         } else {
             throw new Error('Type must be key or text');
         }
@@ -1925,7 +1915,7 @@ export class SessionManager {
         return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
     }
 
-    async _pasteLargeInputFromTempFile(sessionId, input) {
+    async _pasteInputFromTempFile(sessionId, input) {
         const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'brainbase-input-'));
         const tempFile = path.join(tempDir, 'paste.txt');
         const bufferName = `brainbase-${sessionId}-${Date.now()}`;

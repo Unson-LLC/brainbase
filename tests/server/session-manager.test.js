@@ -318,7 +318,7 @@ describe('SessionManager', () => {
     fs.rmSync(resolvedDir, { recursive: true, force: true });
   });
 
-  it('sendInput呼び出し時_短文テキストはtmux send-keys -lを使う', async () => {
+  it('sendInput呼び出し時_短文テキストはtemp file経由でpaste-bufferする', async () => {
     const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
     const manager = new SessionManager({
       serverDir: '/tmp',
@@ -326,11 +326,18 @@ describe('SessionManager', () => {
       stateStore: createStateStore(),
       worktreeService: {}
     });
+    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-short');
+    const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
 
     await manager.sendInput('session-1', 'hello world', 'text');
 
-    expect(execPromise).toHaveBeenCalledTimes(1);
-    expect(execPromise).toHaveBeenCalledWith('tmux send-keys -t "session-1" -l "hello world"');
+    expect(mkdtempSpy).toHaveBeenCalled();
+    expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-short/paste.txt', 'hello world', 'utf8');
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux load-buffer -b'));
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux paste-buffer -d -b'));
+    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux delete-buffer -b'));
+    expect(rmSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-short', { recursive: true, force: true });
   });
 
   it('sendInput呼び出し時_長文テキストはtemp file経由でpaste-bufferする', async () => {
@@ -353,5 +360,22 @@ describe('SessionManager', () => {
     expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux paste-buffer -d -b'));
     expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux delete-buffer -b'));
     expect(rmSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test', { recursive: true, force: true });
+  });
+
+  it('sendInput呼び出し時_shell展開文字を含んでもそのままwriteFileされる', async () => {
+    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise,
+      stateStore: createStateStore(),
+      worktreeService: {}
+    });
+    vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-literal');
+    const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
+
+    await manager.sendInput('session-1', 'alpha $HOME `echo hi`', 'text');
+
+    expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-literal/paste.txt', 'alpha $HOME `echo hi`', 'utf8');
   });
 });
