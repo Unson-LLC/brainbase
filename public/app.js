@@ -2174,11 +2174,46 @@ export class App {
 
                         // Wire file viewer events to panel switching
                         const unsubFileOpen = eventBus.on(EVENTS.FILE_VIEWER_OPENED, (event) => {
-                            const { sessionId, relativePath } = event.detail || {};
-                            this._syncSidebarToOpenedFile(sessionId, relativePath);
+                            const {
+                                sessionId,
+                                relativePath,
+                                treeNavigable = true,
+                                treeRootPath = null,
+                                treeRelativePath = null
+                            } = event.detail || {};
+                            this._syncSidebarToOpenedFile(
+                                sessionId,
+                                treeRelativePath || relativePath,
+                                treeNavigable,
+                                treeRootPath
+                            );
                             this.showFileViewer?.();
                         });
                         const unsubFileClose = eventBus.on(EVENTS.FILE_VIEWER_CLOSED, () => {
+                            const state = appStore.getState();
+                            const currentSessionId = state.currentSessionId || null;
+                            const folderTree = state.folderTree || {};
+                            const activeFileBySessionId = {
+                                ...(folderTree.activeFileBySessionId || {})
+                            };
+                            const rootOverrideBySessionId = {
+                                ...(folderTree.rootOverrideBySessionId || {})
+                            };
+                            if (currentSessionId) {
+                                delete activeFileBySessionId[currentSessionId];
+                                delete rootOverrideBySessionId[currentSessionId];
+                            }
+                            appStore.setState({
+                                ui: {
+                                    ...(state.ui || {}),
+                                    sidebarPrimaryView: 'sessions'
+                                },
+                                folderTree: {
+                                    ...folderTree,
+                                    activeFileBySessionId,
+                                    rootOverrideBySessionId
+                                }
+                            });
                             this.showConsole?.();
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
@@ -4514,21 +4549,46 @@ export class App {
         }, 30_000);
     }
 
-    _syncSidebarToOpenedFile(sessionId, relativePath) {
-        if (!sessionId || !relativePath) return;
+    _syncSidebarToOpenedFile(sessionId, relativePath, treeNavigable = true, treeRootPath = null) {
+        if (!sessionId) return;
         const state = appStore.getState();
         const folderTree = state.folderTree || {};
+        const activeFileBySessionId = {
+            ...(folderTree.activeFileBySessionId || {})
+        };
+        const rootOverrideBySessionId = {
+            ...(folderTree.rootOverrideBySessionId || {})
+        };
+        const bySessionId = {
+            ...(folderTree.bySessionId || {})
+        };
+        const previousRootOverride = rootOverrideBySessionId[sessionId] || null;
+        if (treeNavigable && relativePath) {
+            activeFileBySessionId[sessionId] = relativePath;
+            if (treeRootPath) {
+                rootOverrideBySessionId[sessionId] = treeRootPath;
+            } else {
+                delete rootOverrideBySessionId[sessionId];
+            }
+        } else {
+            delete activeFileBySessionId[sessionId];
+            delete rootOverrideBySessionId[sessionId];
+        }
+        const nextRootOverride = rootOverrideBySessionId[sessionId] || null;
+        if (previousRootOverride !== nextRootOverride) {
+            delete bySessionId[sessionId];
+        }
+
         appStore.setState({
             ui: {
                 ...(state.ui || {}),
-                sidebarPrimaryView: 'folders'
+                sidebarPrimaryView: treeNavigable ? 'folders' : (state.ui?.sidebarPrimaryView || 'sessions')
             },
             folderTree: {
                 ...folderTree,
-                activeFileBySessionId: {
-                    ...(folderTree.activeFileBySessionId || {}),
-                    [sessionId]: relativePath
-                }
+                bySessionId,
+                activeFileBySessionId,
+                rootOverrideBySessionId
             }
         });
     }

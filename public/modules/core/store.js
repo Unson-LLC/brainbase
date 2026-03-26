@@ -224,6 +224,7 @@ export const appStore = new Store({
         bySessionId: {},
         expandedPaths: {},
         activeFileBySessionId: {},
+        rootOverrideBySessionId: {},
         loading: false,
         error: null
     },

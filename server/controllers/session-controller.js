@@ -283,6 +283,39 @@ export class SessionController {
         throw notFoundError;
     }
 
+    async _resolveTreeNavigationTarget(session, targetPath) {
+        const workspaceRoot = session?.worktree?.path || session?.path || session?.cwd || null;
+        const repoHint = session?.worktree?.repo || null;
+        const projectHint = repoHint ? path.basename(repoHint) : null;
+        const candidateRoots = [
+            workspaceRoot,
+            ...this._buildRepoPathCandidates(repoHint, projectHint),
+            ...this._buildWorkspaceRootCandidates(session)
+        ].filter(Boolean);
+
+        const seen = new Set();
+        for (const root of candidateRoots) {
+            const normalizedRoot = path.normalize(root);
+            if (seen.has(normalizedRoot)) continue;
+            seen.add(normalizedRoot);
+
+            if (!await this._pathExists(normalizedRoot)) continue;
+            if (!this._isWithinRoot(normalizedRoot, targetPath)) continue;
+
+            return {
+                treeNavigable: true,
+                treeRootPath: normalizedRoot,
+                treeRelativePath: path.relative(normalizedRoot, targetPath).replace(/\\/g, '/')
+            };
+        }
+
+        return {
+            treeNavigable: false,
+            treeRootPath: null,
+            treeRelativePath: null
+        };
+    }
+
     async _pathExists(candidatePath) {
         if (typeof candidatePath !== 'string' || !candidatePath.trim()) {
             return false;
@@ -1639,11 +1672,29 @@ ${jjBookmarks}
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        const rootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+        const sessionRootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
             || session.worktree?.path
             || session.path;
+        const requestedRootPath = typeof req.query.root === 'string' && req.query.root.trim()
+            ? path.normalize(req.query.root.trim())
+            : null;
+        let rootPath = sessionRootPath;
         if (!rootPath) {
             return res.status(400).json({ error: 'Session does not have workspace path' });
+        }
+
+        if (requestedRootPath) {
+            const repoHint = session?.worktree?.repo || null;
+            const projectHint = repoHint ? path.basename(repoHint) : null;
+            const allowedRoots = [
+                sessionRootPath,
+                ...this._buildRepoPathCandidates(repoHint, projectHint),
+                ...this._buildWorkspaceRootCandidates(session)
+            ].filter(Boolean).map((candidate) => path.normalize(candidate));
+            if (!allowedRoots.includes(requestedRootPath)) {
+                return res.status(400).json({ error: 'Invalid root override' });
+            }
+            rootPath = requestedRootPath;
         }
 
         try {
@@ -1701,6 +1752,7 @@ ${jjBookmarks}
 
         try {
             const { relativePath, targetPath } = await this._resolveFilePreviewTarget(session, rawPath);
+            const { treeNavigable, treeRootPath, treeRelativePath } = await this._resolveTreeNavigationTarget(session, targetPath);
 
             const stat = await fs.stat(targetPath);
             if (stat.size > MAX_FILE_READ_SIZE) {
@@ -1729,6 +1781,9 @@ ${jjBookmarks}
             res.json({
                 sessionId: id,
                 relativePath,
+                treeNavigable,
+                treeRootPath,
+                treeRelativePath,
                 fileName,
                 content,
                 size: stat.size,

@@ -22,6 +22,7 @@ export class FolderTreeView {
             bySessionId: {},
             expandedPaths: {},
             activeFileBySessionId: {},
+            rootOverrideBySessionId: {},
             loading: false,
             error: null
         };
@@ -102,6 +103,11 @@ export class FolderTreeView {
         return bySessionId[sessionId] || null;
     }
 
+    _getRootOverride(sessionId) {
+        const folderTree = this._getFolderTreeState();
+        return folderTree.rootOverrideBySessionId?.[sessionId] || null;
+    }
+
     _stripNode(node = {}) {
         return {
             name: node.name || '',
@@ -150,6 +156,8 @@ export class FolderTreeView {
             const params = new URLSearchParams();
             if (relativePath) params.set('path', relativePath);
             params.set('depth', String(depth));
+            const rootOverride = this._getRootOverride(sessionId);
+            if (rootOverride) params.set('root', rootOverride);
             const query = params.toString();
             const response = await this.sessionService.getSessionFolderTree(sessionId, query ? `?${query}` : '');
 
@@ -362,6 +370,40 @@ export class FolderTreeView {
         });
     }
 
+    _scrollActiveFileIntoView(container) {
+        if (!container) return;
+        const activeNode = container.querySelector('.folder-tree-file.is-active');
+        if (!activeNode) return;
+
+        const resolveScrollableAncestor = (node, stopAt) => {
+            let current = node?.parentElement || null;
+            while (current) {
+                const style = window.getComputedStyle(current);
+                const isScrollable = /(auto|scroll)/.test(style.overflowY || '')
+                    && current.scrollHeight > current.clientHeight;
+                if (isScrollable) return current;
+                if (current === stopAt) break;
+                current = current.parentElement;
+            }
+            return null;
+        };
+
+        const scrollContainer = resolveScrollableAncestor(activeNode, container) || container;
+
+        requestAnimationFrame(() => {
+            const nodeRect = activeNode.getBoundingClientRect();
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const nodeTop = nodeRect.top - containerRect.top + scrollContainer.scrollTop;
+            const nodeHeight = nodeRect.height;
+            const viewportHeight = scrollContainer.clientHeight;
+            const targetTop = Math.max(nodeTop - ((viewportHeight - nodeHeight) / 2), 0);
+            scrollContainer.scrollTo({
+                top: targetTop,
+                behavior: 'smooth'
+            });
+        });
+    }
+
     render(container) {
         if (!container) return;
 
@@ -383,7 +425,7 @@ export class FolderTreeView {
         const folderTree = this._getFolderTreeState();
         const cache = this._getSessionCache(sessionId);
         const rootNodes = cache?.nodesByPath?.[''] || [];
-        const rootPath = cache?.rootPath || this._getSessionCwd(sessionId) || '-';
+        const rootPath = cache?.rootPath || this._getRootOverride(sessionId) || this._getSessionCwd(sessionId) || '-';
         const expandedPaths = folderTree.expandedPaths || {};
         const activeFileBySessionId = folderTree.activeFileBySessionId || {};
         const activeRelativePath = activeFileBySessionId[sessionId] || null;
@@ -435,6 +477,7 @@ export class FolderTreeView {
         `;
 
         this._bindEvents(container, sessionId);
+        this._scrollActiveFileIntoView(container);
         refreshIcons();
     }
 }
