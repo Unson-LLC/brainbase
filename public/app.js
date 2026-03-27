@@ -607,6 +607,7 @@ export class App {
     }
 
     _showXtermTransport() {
+        this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.remove('hidden');
         this.terminalFrame?.classList.add('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -629,6 +630,7 @@ export class App {
     }
 
     _showTtydIframe() {
+        this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -637,12 +639,28 @@ export class App {
         consoleArea?.classList.remove('using-snapshot');
     }
 
+    _restoreSnapshotPanelPosition() {
+        const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        if (panel && this._snapshotPanelOriginalParent && panel.parentElement === document.body) {
+            this._snapshotPanelOriginalParent.appendChild(panel);
+            this._snapshotPanelOriginalParent = null;
+        }
+    }
+
     _showMobileTerminalDisplay() {
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
         consoleArea?.classList.add('using-snapshot');
+
+        // iOS Safari: overflow:hidden ancestors clip fixed-position text rendering.
+        // Move snapshot panel to body so it escapes the clipping context.
+        const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        if (panel && panel.parentElement !== document.body) {
+            this._snapshotPanelOriginalParent = panel.parentElement;
+            document.body.appendChild(panel);
+        }
     }
 
     _isConsoleVisible() {
@@ -1185,13 +1203,18 @@ export class App {
         if (this.terminalSnapshotTimestampEl) {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
-        this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
+        if (this.isMobile()) {
+            this.terminalSnapshotContentEl.scrollTop = 0;
+        } else {
+            this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
+        }
     }
 
     _normalizeTerminalSnapshotText(text) {
         if (typeof text !== 'string') return '';
         return text
             .replace(/\r\n/g, '\n')
+            .replace(/^(?:\s*\n)+/, '')
             .replace(/(?:\n[ \t]*){4,}$/u, '\n\n');
     }
 
