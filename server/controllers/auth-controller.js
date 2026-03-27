@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger.js';
+import { clearAuthCookies, getAuthTokensFromRequest, setAuthCookies } from '../lib/auth-cookies.js';
 
 const STORAGE_TOKEN_KEY = 'brainbase.auth.token';
 const STORAGE_ACCESS_KEY = 'brainbase.auth.access';
@@ -242,6 +243,12 @@ export class AuthController {
                 }
             };
 
+            setAuthCookies(res, req, this.authService, {
+                accessToken: token,
+                refreshToken,
+                targetOrigin: stateResult.origin
+            });
+
             if (wantsHtmlResponse(req)) {
                 const redirectTo = resolveRedirectPath(req.query.redirect || stateResult.origin);
                 const postMessageOrigin = resolvePostMessageOrigin(stateResult.origin);
@@ -265,11 +272,16 @@ export class AuthController {
             this.authService.assertReady();
             const header = req.headers.authorization || '';
             const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-            const refreshToken = req.body?.refresh_token || req.body?.refreshToken || bearer;
+            const { refreshToken: cookieRefreshToken } = getAuthTokensFromRequest(req);
+            const refreshToken = req.body?.refresh_token || req.body?.refreshToken || bearer || cookieRefreshToken;
             if (!refreshToken) {
                 return res.status(400).json({ error: 'refresh_token is required' });
             }
             const payload = await this.authService.refreshSession(refreshToken);
+            setAuthCookies(res, req, this.authService, {
+                accessToken: payload.token,
+                refreshToken: payload.refresh_token || refreshToken
+            });
             return res.json(payload);
         } catch (error) {
             logger.error('Refresh token exchange failed', { error });
@@ -287,6 +299,7 @@ export class AuthController {
                 eventType: 'AUTH_LOGOUT',
                 metadata: {}
             });
+            clearAuthCookies(res, req);
             return res.json({ ok: true });
         } catch (error) {
             logger.error('Logout failed', { error });
@@ -297,7 +310,13 @@ export class AuthController {
     verify = async (req, res) => {
         try {
             const access = req.access || {};
-            return res.json({ ok: true, access });
+            const exp = req.auth?.exp ? new Date(req.auth.exp * 1000).toISOString() : null;
+            return res.json({
+                ok: true,
+                access,
+                sessionExpiresAt: exp,
+                authMode: req.authSource || 'unknown'
+            });
         } catch (error) {
             logger.error('Verify failed', { error });
             return res.status(500).json({ error: error.message || 'Verify failed' });
@@ -378,6 +397,11 @@ export class AuthController {
                     workspace_id: user.workspace_id,
                     source: 'token_exchange'
                 }
+            });
+
+            setAuthCookies(res, req, this.authService, {
+                accessToken: token,
+                refreshToken
             });
 
             return res.json({

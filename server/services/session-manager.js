@@ -14,6 +14,74 @@ import { gracefulCleanup } from '../lib/graceful-cleanup.js';
 import { SessionHealthMonitor } from './session-health-monitor.js';
 
 const INPUT_TEMPFILE_THRESHOLD_BYTES = 16 * 1024;
+const TASK_BRIEF_MAX_LENGTH = 56;
+const TASK_BRIEF_MIN_LENGTH = 8;
+const PROMPT_BUFFER_MAX_LENGTH = 4000;
+const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
+const NATURAL_LANGUAGE_HINT_PATTERN = /\b(please|fix|make|update|improve|investigate|check|review|implement|show|change|add|remove|explain|summarize|help|need|want|should|could)\b/i;
+const SHELL_COMMAND_PREFIXES = new Set([
+    'git', 'jj', 'npm', 'pnpm', 'yarn', 'bun', 'node', 'npx', 'ls', 'cd', 'cat', 'sed', 'rg',
+    'find', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'bash', 'zsh', 'sh', 'python', 'python3', 'uv',
+    'docker', 'tmux', 'claude', 'codex', 'curl'
+]);
+
+function normalizeTaskBriefCandidate(rawValue) {
+    if (typeof rawValue !== 'string') return '';
+
+    return rawValue
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .map((line) => line.replace(/^[-*•>\d.)\s]+/, '').trim())
+        .filter(Boolean)
+        .find((line) => {
+            if (!line) return false;
+            if (/[\x00-\x08\x0b-\x1f\x7f]/.test(line)) return false;
+            if (/^\/[\w:-]+$/.test(line)) return false;
+            if (/^https?:\/\//.test(line)) return false;
+            if (/^(~|\.{1,2}|\/)?[\w./-]+$/.test(line)) return false;
+            return true;
+        }) || '';
+}
+
+function looksLikeShellCommand(candidate) {
+    if (!candidate || CJK_PATTERN.test(candidate)) return false;
+    if (/[`$|&;<>]/.test(candidate)) return true;
+
+    const tokens = candidate.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return false;
+
+    const firstToken = tokens[0].toLowerCase();
+    if (SHELL_COMMAND_PREFIXES.has(firstToken)) return true;
+
+    const optionTokenCount = tokens.filter((token) => token.startsWith('-')).length;
+    if (optionTokenCount >= 2) return true;
+
+    return false;
+}
+
+function deriveTaskBriefFromPrompt(prompt) {
+    const candidate = normalizeTaskBriefCandidate(prompt);
+    if (!candidate || candidate.length < TASK_BRIEF_MIN_LENGTH) return null;
+
+    const sentence = candidate.split(/(?<=[。.!?！？])\s+/)[0]?.trim() || candidate;
+    const compact = sentence.replace(/\s+/g, ' ').trim();
+    if (!compact || compact.length < TASK_BRIEF_MIN_LENGTH) return null;
+    if (!CJK_PATTERN.test(compact) && !NATURAL_LANGUAGE_HINT_PATTERN.test(compact) && looksLikeShellCommand(compact)) {
+        return null;
+    }
+
+    return compact.length > TASK_BRIEF_MAX_LENGTH
+        ? `${compact.slice(0, TASK_BRIEF_MAX_LENGTH - 1)}…`
+        : compact;
+}
+
+function trimPromptBuffer(value) {
+    if (typeof value !== 'string') return '';
+    return value.length > PROMPT_BUFFER_MAX_LENGTH
+        ? value.slice(value.length - PROMPT_BUFFER_MAX_LENGTH)
+        : value;
+}
 
 export class SessionManager {
     /**
@@ -33,9 +101,10 @@ export class SessionManager {
 
         // セッション状態
         this.activeSessions = new Map(); // sessionId -> { port, process }
-        this.hookStatus = new Map(); // sessionId -> { status, timestamp, lastWorkingAt, lastDoneAt, lastActivityAt, lastEventType, activeTurnIds }
+        this.hookStatus = new Map(); // sessionId -> { status, timestamp, lastWorkingAt, lastDoneAt, lastActivityAt, lastEventType, activeTurnIds, liveActivity }
         this.startLocks = new Map(); // sessionId -> Promise (並行起動防止ロック)
         this.terminalOwners = new Map(); // sessionId -> { viewerId, viewerLabel, claimedAt, lastSeenAt }
+        this.promptBuffers = new Map(); // sessionId -> string
         // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
@@ -52,6 +121,153 @@ export class SessionManager {
         // 許可されたキー
         this.ALLOWED_KEYS = ['M-Enter', 'C-c', 'C-d', 'C-l', 'C-u', 'Enter', 'Escape', 'Up', 'Down', 'Left', 'Right', 'Tab', 'S-Tab', 'BTab'];
         this.TERMINAL_OWNER_TTL_MS = 10 * 60 * 1000;
+    }
+
+    _appendPromptBuffer(sessionId, chunk) {
+        if (!sessionId || typeof chunk !== 'string' || !chunk) return;
+        const previous = this.promptBuffers.get(sessionId) || '';
+        this.promptBuffers.set(sessionId, trimPromptBuffer(`${previous}${chunk}`));
+    }
+
+    _backspacePromptBuffer(sessionId) {
+        const previous = this.promptBuffers.get(sessionId) || '';
+        if (!previous) return;
+        const next = Array.from(previous).slice(0, -1).join('');
+        if (next) {
+            this.promptBuffers.set(sessionId, next);
+            return;
+        }
+        this.promptBuffers.delete(sessionId);
+    }
+
+    _clearPromptBuffer(sessionId) {
+        this.promptBuffers.delete(sessionId);
+    }
+
+    async _persistSessionLiveSummary(sessionId, { taskBrief = null, assistantSnippet = null } = {}, timestamp = Date.now()) {
+        if (!sessionId || (!taskBrief && !assistantSnippet)) return false;
+        const currentState = this.stateStore.get();
+        const updatedAtIso = new Date(timestamp).toISOString();
+        const hookStatusData = this._normalizeHookData(this.hookStatus.get(sessionId));
+        const hookTaskBrief = hookStatusData?.liveActivity?.taskBrief || null;
+        const hookAssistantSnippet = hookStatusData?.liveActivity?.assistantSnippet || null;
+        const nextHookStatus = hookStatusData
+            ? {
+                ...hookStatusData,
+                liveActivity: {
+                    ...(hookStatusData.liveActivity || {}),
+                    ...(taskBrief ? { taskBrief } : {}),
+                    ...(assistantSnippet ? {
+                        assistantSnippet,
+                        assistantSnippetUpdatedAt: timestamp
+                    } : {}),
+                    updatedAt: Math.max(hookStatusData.liveActivity?.updatedAt || 0, timestamp)
+                }
+            }
+            : null;
+        let changed = false;
+        const updatedSessions = (currentState.sessions || []).map((session) => {
+            if (session.id !== sessionId) return session;
+
+            const needsTaskBriefUpdate = Boolean(taskBrief) && session.taskBrief !== taskBrief;
+            const needsAssistantSnippetUpdate = Boolean(assistantSnippet) && session.lastAssistantSnippet !== assistantSnippet;
+            const needsHookStatusUpdate = Boolean(nextHookStatus) && (
+                (Boolean(taskBrief) && hookTaskBrief !== taskBrief)
+                || (Boolean(assistantSnippet) && hookAssistantSnippet !== assistantSnippet)
+            );
+            if (!needsTaskBriefUpdate && !needsAssistantSnippetUpdate && !needsHookStatusUpdate) return session;
+
+            changed = true;
+            return {
+                ...session,
+                ...(needsHookStatusUpdate ? { hookStatus: nextHookStatus } : {}),
+                ...(needsTaskBriefUpdate ? {
+                    taskBrief,
+                    taskBriefUpdatedAt: updatedAtIso
+                } : {}),
+                ...(needsAssistantSnippetUpdate ? {
+                    lastAssistantSnippet: assistantSnippet,
+                    lastAssistantSnippetAt: updatedAtIso
+                } : {}),
+                updatedAt: updatedAtIso
+            };
+        });
+
+        if (nextHookStatus) {
+            this.hookStatus.set(sessionId, nextHookStatus);
+        }
+
+        if (changed) {
+            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        }
+
+        return changed;
+    }
+
+    async _persistSessionTaskBrief(sessionId, taskBrief, timestamp = Date.now()) {
+        if (!sessionId || !taskBrief) return false;
+        return this._persistSessionLiveSummary(sessionId, { taskBrief }, timestamp);
+    }
+
+    async _persistAssistantSnippet(sessionId, assistantSnippet, timestamp = Date.now()) {
+        if (!sessionId || !assistantSnippet) return false;
+        return this._persistSessionLiveSummary(sessionId, { assistantSnippet }, timestamp);
+    }
+
+    async _finalizePromptBuffer(sessionId, timestamp = Date.now()) {
+        const prompt = (this.promptBuffers.get(sessionId) || '').trim();
+        this.promptBuffers.delete(sessionId);
+        if (!prompt) return null;
+
+        const taskBrief = deriveTaskBriefFromPrompt(prompt);
+        if (!taskBrief) return null;
+
+        await this._persistSessionTaskBrief(sessionId, taskBrief, timestamp);
+        return taskBrief;
+    }
+
+    async _capturePromptInput(sessionId, input, type) {
+        const timestamp = Date.now();
+        if (type === 'key') {
+            if (input === 'Enter' || input === 'M-Enter') {
+                await this._finalizePromptBuffer(sessionId, timestamp);
+                return;
+            }
+
+            if (input === 'C-c' || input === 'C-d' || input === 'Escape') {
+                this._clearPromptBuffer(sessionId);
+            }
+            return;
+        }
+
+        if (typeof input !== 'string' || !input) return;
+        if (input === '\x7f') {
+            this._backspacePromptBuffer(sessionId);
+            return;
+        }
+
+        const normalized = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (/[\x00-\x08\x0b-\x1f\x7f]/.test(normalized.replace(/\n/g, ''))) {
+            if (/[\x03\x1b]/.test(normalized)) {
+                this._clearPromptBuffer(sessionId);
+            }
+            return;
+        }
+
+        if (!normalized.includes('\n')) {
+            this._appendPromptBuffer(sessionId, normalized);
+            return;
+        }
+
+        const parts = normalized.split('\n');
+        for (let index = 0; index < parts.length; index += 1) {
+            if (parts[index]) {
+                this._appendPromptBuffer(sessionId, parts[index]);
+            }
+            if (index < parts.length - 1) {
+                await this._finalizePromptBuffer(sessionId, timestamp);
+            }
+        }
     }
 
     _normalizeViewerId(viewerId) {
@@ -378,27 +594,29 @@ export class SessionManager {
             ).catch(() => ({ stdout: '' }));
             const tmuxSessions = new Set(tmuxOut.trim().split('\n').filter(Boolean));
 
-            // Collect ttyd processes once
-            const { stdout: psOut } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
-            const ttydLines = psOut.trim() ? psOut.trim().split('\n') : [];
-
+            // Collect ttyd processes once (skip in xterm-only mode)
             const ttydProcsBySessionId = new Map();
-            for (const line of ttydLines) {
-                const parts = line.trim().split(/\s+/);
-                const pid = parseInt(parts[1], 10);
-                if (!Number.isFinite(pid)) continue;
+            if (!this._isXtermOnlyMode()) {
+                const { stdout: psOut } = await this.execPromise('ps aux | grep ttyd | grep -v grep').catch(() => ({ stdout: '' }));
+                const ttydLines = psOut.trim() ? psOut.trim().split('\n') : [];
 
-                const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
-                const sessionId = sessionMatch ? sessionMatch[1] : null;
-                if (!sessionId) continue;
+                for (const line of ttydLines) {
+                    const parts = line.trim().split(/\s+/);
+                    const pid = parseInt(parts[1], 10);
+                    if (!Number.isFinite(pid)) continue;
 
-                const portMatch = line.match(/-p\s+(\d+)/);
-                const port = portMatch ? parseInt(portMatch[1], 10) : null;
-                if (!Number.isFinite(port)) continue;
+                    const sessionMatch = line.match(/-b\s+\/console\/(session-\d+)/);
+                    const sessionId = sessionMatch ? sessionMatch[1] : null;
+                    if (!sessionId) continue;
 
-                const list = ttydProcsBySessionId.get(sessionId) || [];
-                list.push({ pid, port, line });
-                ttydProcsBySessionId.set(sessionId, list);
+                    const portMatch = line.match(/-p\s+(\d+)/);
+                    const port = portMatch ? parseInt(portMatch[1], 10) : null;
+                    if (!Number.isFinite(port)) continue;
+
+                    const list = ttydProcsBySessionId.get(sessionId) || [];
+                    list.push({ pid, port, line });
+                    ttydProcsBySessionId.set(sessionId, list);
+                }
             }
 
             const pauseSessionIds = new Set();
@@ -425,6 +643,12 @@ export class SessionManager {
                     }
                     pauseSessionIds.add(sessionId);
                     this.activeSessions.delete(sessionId);
+                    continue;
+                }
+
+                // xterm-only mode: tmuxが生きていればOK、ttyd再接続は不要
+                if (this._isXtermOnlyMode()) {
+                    logger.info(`[restoreActiveSessions] xterm-only: tmux alive for ${sessionId}`);
                     continue;
                 }
 
@@ -767,6 +991,7 @@ export class SessionManager {
                 lastDoneAt: normalized.lastDoneAt,
                 lastActivityAt: normalized.lastActivityAt,
                 lastEventType: normalized.lastEventType,
+                liveActivity: normalized.liveActivity,
                 activeTurnCount,
                 timestamp: normalized.timestamp
             };
@@ -798,7 +1023,8 @@ export class SessionManager {
             lastDoneAt: 0,
             lastActivityAt: 0,
             lastEventType: null,
-            activeTurnIds: []
+            activeTurnIds: [],
+            liveActivity: null
         };
 
         let lastWorkingAt = currentHookData.lastWorkingAt;
@@ -835,6 +1061,14 @@ export class SessionManager {
         }
 
         const effectiveStatus = activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt ? 'working' : 'done';
+        const liveActivity = this._deriveLiveActivity({
+            status: effectiveStatus,
+            timestamp,
+            metadata,
+            currentHookData,
+            eventType: lastEventType,
+            activeTurnIds
+        });
 
         const hookStatusData = {
             status: effectiveStatus,
@@ -843,11 +1077,23 @@ export class SessionManager {
             lastDoneAt,
             lastActivityAt,
             lastEventType,
-            activeTurnIds: Array.from(activeTurnIds)
+            activeTurnIds: Array.from(activeTurnIds),
+            liveActivity
         };
 
         this.hookStatus.set(sessionId, hookStatusData);
         this._persistHookStatus(sessionId, hookStatusData, timestamp);
+
+        const reportedTaskBrief = typeof liveActivity?.taskBrief === 'string' ? liveActivity.taskBrief : null;
+        const reportedAssistantSnippet = typeof liveActivity?.assistantSnippet === 'string' ? liveActivity.assistantSnippet : null;
+        if (reportedTaskBrief || reportedAssistantSnippet) {
+            this._persistSessionLiveSummary(sessionId, {
+                taskBrief: reportedTaskBrief,
+                assistantSnippet: reportedAssistantSnippet
+            }, timestamp).catch((error) => {
+                logger.warn(`[Hook] Failed to persist live summary for ${sessionId}: ${error.message}`);
+            });
+        }
     }
 
     /**
@@ -906,6 +1152,7 @@ export class SessionManager {
                     .filter(Boolean)
             ))
             : [];
+        const liveActivity = this._normalizeLiveActivity(hookData.liveActivity);
 
         return {
             ...hookData,
@@ -915,8 +1162,136 @@ export class SessionManager {
             lastDoneAt,
             lastActivityAt,
             lastEventType,
-            activeTurnIds
+            activeTurnIds,
+            liveActivity
         };
+    }
+
+    _normalizeLiveActivity(liveActivity) {
+        if (!liveActivity || typeof liveActivity !== 'object') return null;
+        const normalizeString = (value) => {
+            if (typeof value !== 'string') return null;
+            const normalized = value.trim().replace(/\s+/g, ' ');
+            return normalized || null;
+        };
+        const updatedAt = Number.isFinite(liveActivity.updatedAt) ? liveActivity.updatedAt : 0;
+
+        const normalized = {
+            activityKind: normalizeString(liveActivity.activityKind),
+            taskBrief: normalizeString(liveActivity.taskBrief),
+            assistantSnippet: normalizeString(liveActivity.assistantSnippet),
+            currentStep: normalizeString(liveActivity.currentStep),
+            latestEvidence: normalizeString(liveActivity.latestEvidence),
+            statusTone: normalizeString(liveActivity.statusTone),
+            updatedAt,
+            assistantSnippetUpdatedAt: Number.isFinite(liveActivity.assistantSnippetUpdatedAt)
+                ? liveActivity.assistantSnippetUpdatedAt
+                : 0
+        };
+
+        if (!normalized.activityKind && !normalized.taskBrief && !normalized.assistantSnippet && !normalized.currentStep && !normalized.latestEvidence) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    _deriveLiveActivity({ status, timestamp, metadata = {}, currentHookData = {}, eventType = '', activeTurnIds = new Set() }) {
+        const normalizeString = (value) => {
+            if (typeof value !== 'string') return null;
+            const normalized = value.trim().replace(/\s+/g, ' ');
+            return normalized || null;
+        };
+        const previous = this._normalizeLiveActivity(currentHookData.liveActivity);
+        const activityKind = normalizeString(metadata.activityKind) || this._deriveActivityKind(eventType, status);
+        const currentStep = normalizeString(metadata.currentStep) || this._deriveCurrentStep(activityKind, eventType, status);
+        const latestEvidence = normalizeString(metadata.latestEvidence) || previous?.latestEvidence || null;
+        const taskBrief = normalizeString(metadata.taskBrief) || previous?.taskBrief || null;
+        const assistantSnippet = normalizeString(metadata.assistantSnippet) || previous?.assistantSnippet || null;
+
+        if (!activityKind && !currentStep && !latestEvidence && !taskBrief && !assistantSnippet) {
+            return previous;
+        }
+
+        let statusTone = 'idle';
+        if (status === 'working' || activeTurnIds.size > 0) {
+            statusTone = activityKind === 'waiting_input' ? 'waiting' : 'working';
+        } else if (activityKind === 'waiting_input') {
+            statusTone = 'waiting';
+        } else if (status === 'done') {
+            statusTone = 'done';
+        }
+
+        return {
+            activityKind,
+            taskBrief,
+            assistantSnippet,
+            currentStep,
+            latestEvidence,
+            statusTone,
+            updatedAt: timestamp,
+            assistantSnippetUpdatedAt: assistantSnippet ? timestamp : (previous?.assistantSnippetUpdatedAt || 0)
+        };
+    }
+
+    _deriveActivityKind(eventType, status) {
+        switch (eventType) {
+        case 'item/fileChange/outputDelta':
+            return 'editing_file';
+        case 'item/commandExecution/outputDelta':
+        case 'exec_command_output_delta':
+            return 'running_command';
+        case 'assistant-message':
+        case 'assistant-response':
+        case 'assistant-message-complete':
+        case 'assistant-response-complete':
+        case 'item/agentMessage/delta':
+        case 'item/assistantMessage/delta':
+        case 'agent_message_delta':
+            return 'reasoning';
+        case 'user-input-requested':
+        case 'user_input_requested':
+        case 'request-user-input':
+        case 'request_input':
+        case 'waiting-for-user-input':
+        case 'waiting_for_user_input':
+            return 'waiting_input';
+        case 'agent-turn-start':
+        case 'agent-turn-begin':
+        case 'turn/started':
+        case 'task_started':
+            return 'task_started';
+        case 'agent-turn-complete':
+        case 'task_complete':
+        case 'codex/event/task_complete':
+        case 'turn/completed':
+            return 'task_completed';
+        default:
+            return status === 'working' ? 'working' : status === 'done' ? 'done' : null;
+        }
+    }
+
+    _deriveCurrentStep(activityKind, eventType, status) {
+        switch (activityKind) {
+        case 'editing_file':
+            return 'ファイルを更新中';
+        case 'running_command':
+            return 'コマンドを実行中';
+        case 'reasoning':
+            return '回答と方針を組み立て中';
+        case 'waiting_input':
+            return '入力待ち';
+        case 'task_started':
+            return '依頼を受けて作業開始';
+        case 'task_completed':
+            return eventType === 'turn/completed' ? 'ターンが完了' : '作業が一区切り完了';
+        case 'working':
+            return '作業中';
+        case 'done':
+            return '完了';
+        default:
+            return status === 'working' ? '作業中' : status === 'done' ? '完了' : null;
+        }
     }
 
     _persistHookStatus(sessionId, hookStatusData, timestamp = Date.now()) {
@@ -1039,11 +1414,35 @@ export class SessionManager {
     }
 
     /**
+     * xterm-only mode: ttydをスキップしWebSocket直接接続のみ使用
+     * @returns {boolean}
+     */
+    _isXtermOnlyMode() {
+        return process.env.BRAINBASE_TERMINAL_TRANSPORT === 'xterm';
+    }
+
+    /**
      * セッションのランタイム状態を取得
      * @param {Object} session - セッション情報
      * @returns {{interactiveTransport: string, interactiveReady: boolean, interactiveUrl: string|null, needsRestart: boolean, port: number|null, ttydRunning: boolean, proxyPath: string|null}}
      */
     getRuntimeStatus(session) {
+        if (this._isXtermOnlyMode()) {
+            const sessionId = session?.id;
+            const intendedState = session?.intendedState;
+            const tmuxRunning = intendedState === 'active'
+                ? this._isTmuxSessionRunningSync(sessionId)
+                : false;
+            return {
+                interactiveTransport: tmuxRunning ? 'xterm' : 'none',
+                interactiveReady: tmuxRunning,
+                interactiveUrl: null,
+                ttydRunning: false,
+                needsRestart: intendedState === 'active' && !tmuxRunning,
+                proxyPath: null,
+                port: null
+            };
+        }
         const sessionId = session?.id;
         const intendedState = session?.intendedState;
         const activeEntry = this.activeSessions.get(session?.id);
@@ -1161,6 +1560,12 @@ export class SessionManager {
      */
     async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
         await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine });
+
+        // xterm-only mode: tmuxだけ確保してttydはスキップ
+        if (this._isXtermOnlyMode()) {
+            logger.info(`[startTtyd] xterm-only mode: skipping ttyd for ${sessionId}`);
+            return { port: null, proxyPath: null, startedExisting: false, xtermOnly: true };
+        }
 
         // 並行起動防止ロック: 同じセッションに対する同時呼び出しを防止
         if (this.startLocks.has(sessionId)) {
@@ -1459,6 +1864,8 @@ export class SessionManager {
         if (!this.activeSessions.has(sessionId)) {
             return false;
         }
+
+        this._clearPromptBuffer(sessionId);
 
         const sessionData = this.activeSessions.get(sessionId);
         const pid = sessionData.process?.pid || sessionData.pid;
@@ -1896,6 +2303,7 @@ export class SessionManager {
         logger.info(
             `[session-manager] sendInput: sessionId="${sessionId}", type="${type}", bytes=${inputBytes}, preview=${JSON.stringify(preview)}`
         );
+        await this._capturePromptInput(sessionId, input, type);
 
         if (type === 'key') {
             if (this.ALLOWED_KEYS.includes(input)) {

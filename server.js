@@ -64,7 +64,7 @@ import { WikiService } from './server/services/wiki-service.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
-import { requireAuth } from './server/middleware/auth.js';
+import { requireAuth, resolveAuthContext } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
 import { gracefulCleanup } from './server/lib/graceful-cleanup.js';
 
@@ -753,6 +753,26 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', (request, socket, head) => {
+    const authResult = resolveAuthContext(request, authService);
+    if (!authResult?.ok) {
+        // localhost WebSocket接続は開発環境で認証バイパス
+        const host = (request.headers?.host || '').toLowerCase();
+        const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('[::1]');
+        if (isLocal && process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
+            request.auth = null;
+            request.access = { role: 'ceo', projectCodes: [], clearance: [], level: 3 };
+            request.authSource = 'localhost-bypass';
+        } else {
+            socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+            socket.destroy();
+            return;
+        }
+    } else {
+        request.auth = authResult.auth || null;
+        request.access = authResult.access || null;
+        request.authSource = authResult.authSource || null;
+    }
+
     if (terminalTransportService.isTerminalTransportRequest(request)) {
         terminalTransportService.handleUpgrade(request, socket, head);
         return;
