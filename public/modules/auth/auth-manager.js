@@ -42,6 +42,9 @@ export class AuthManager {
         this.refreshToken = null;
         this.csrfSessionId = null;
         this.authBaseURL = authBaseURL || '';
+        this.sessionAuthenticated = false;
+        this.authMode = null;
+        this.sessionExpiresAt = null;
         this._messageListenerBound = false;
         this._loginPopup = null;
         this._verifying = false;
@@ -72,6 +75,26 @@ export class AuthManager {
             }
         }
 
+        if (this.httpClient?.clearAuthToken) {
+            this.httpClient.clearAuthToken();
+        }
+        this.token = null;
+        this.access = access || null;
+
+        this._setVerifying(true);
+        const hasCookieSession = await this.verifyToken({ token: null });
+        this._setVerifying(false);
+        if (hasCookieSession) {
+            this.setSession({
+                token: null,
+                access: this.access || access,
+                refreshToken: this.refreshToken,
+                persist: false,
+                sessionAuthenticated: true
+            });
+            return;
+        }
+
         if (refreshToken) {
             this._setVerifying(true);
             const refreshed = await this.refreshSession({ refreshToken });
@@ -85,10 +108,23 @@ export class AuthManager {
         this.clearSession({ persist: false });
     }
 
-    setSession({ token, access = null, refreshToken = this.refreshToken, persist = true } = {}) {
+    setSession({
+        token,
+        access = null,
+        refreshToken = this.refreshToken,
+        persist = true,
+        sessionAuthenticated = null,
+        authMode = this.authMode,
+        sessionExpiresAt = this.sessionExpiresAt
+    } = {}) {
         this.token = token || null;
         this.access = access || null;
         this.refreshToken = refreshToken || null;
+        this.sessionAuthenticated = sessionAuthenticated == null
+            ? Boolean(this.token || this.access)
+            : Boolean(sessionAuthenticated);
+        this.authMode = authMode || (this.token ? 'token' : (this.sessionAuthenticated ? 'session' : null));
+        this.sessionExpiresAt = sessionExpiresAt || null;
 
         if (persist && typeof window !== 'undefined' && window.localStorage) {
             if (this.token) {
@@ -120,6 +156,9 @@ export class AuthManager {
         this.token = null;
         this.access = null;
         this.refreshToken = null;
+        this.sessionAuthenticated = false;
+        this.authMode = null;
+        this.sessionExpiresAt = null;
 
         if (persist && typeof window !== 'undefined' && window.localStorage) {
             window.localStorage.removeItem(this.storageKeys.token);
@@ -147,7 +186,7 @@ export class AuthManager {
     }
 
     async verifyToken({ token = this.token } = {}) {
-        if (!token || typeof window === 'undefined') return false;
+        if (typeof window === 'undefined') return false;
         const authBase = this.resolveAuthBaseURL() || window.location.origin;
         let url;
         try {
@@ -157,16 +196,30 @@ export class AuthManager {
         }
 
         try {
-            const response = await fetch(url.toString(), {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!response.ok) return false;
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const response = await fetch(url.toString(), { headers });
+            if (!response.ok) {
+                this.sessionAuthenticated = false;
+                if (!token) {
+                    this.authMode = null;
+                    this.sessionExpiresAt = null;
+                }
+                return false;
+            }
             const data = await response.json().catch(() => null);
             if (data?.access) {
                 this.access = data.access;
             }
+            this.sessionAuthenticated = true;
+            this.authMode = data?.authMode || (token ? 'token' : 'session');
+            this.sessionExpiresAt = data?.sessionExpiresAt || null;
             return data?.ok === true || response.status === 200;
         } catch (error) {
+            this.sessionAuthenticated = false;
+            if (!token) {
+                this.authMode = null;
+                this.sessionExpiresAt = null;
+            }
             return false;
         }
     }
@@ -226,19 +279,22 @@ export class AuthManager {
     }
 
     async refreshSession({ refreshToken = this.refreshToken } = {}) {
-        if (!refreshToken || typeof window === 'undefined') return false;
+        if (typeof window === 'undefined') return false;
         const authBase = this.resolveAuthBaseURL() || window.location.origin;
         const useRemote = this._shouldUseRemoteAuth(authBase);
 
         if (this.httpClient?.post && !useRemote) {
             try {
-                const data = await this.httpClient.post('/api/auth/refresh', { refresh_token: refreshToken });
+                const body = refreshToken ? { refresh_token: refreshToken } : {};
+                const data = await this.httpClient.post('/api/auth/refresh', body);
                 if (!data?.token) return false;
                 this.setSession({
                     token: data.token,
                     refreshToken: data.refresh_token || refreshToken,
                     access: data.access || this.access,
-                    persist: true
+                    persist: true,
+                    sessionAuthenticated: true,
+                    authMode: 'token'
                 });
                 return true;
             } catch (error) {
@@ -266,7 +322,7 @@ export class AuthManager {
             const response = await fetch(url.toString(), {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ refresh_token: refreshToken })
+                body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {})
             });
             if (!response.ok) return false;
             const data = await response.json().catch(() => null);
@@ -275,7 +331,9 @@ export class AuthManager {
                 token: data.token,
                 refreshToken: data.refresh_token || refreshToken,
                 access: data.access || this.access,
-                persist: true
+                persist: true,
+                sessionAuthenticated: true,
+                authMode: 'token'
             });
             return true;
         } catch (error) {
@@ -370,7 +428,15 @@ export class AuthManager {
             const ok = await this.verifyToken({ token });
             this._setVerifying(false);
             if (ok) {
-                this.setSession({ token, access: this.access || access, refreshToken: this.refreshToken, persist: true });
+                this.setSession({
+                    token,
+                    access: this.access || access,
+                    refreshToken: this.refreshToken,
+                    persist: true,
+                    sessionAuthenticated: true,
+                    authMode: this.authMode || 'token',
+                    sessionExpiresAt: this.sessionExpiresAt
+                });
             } else if (this.refreshToken) {
                 const refreshed = await this.refreshSession({ refreshToken: this.refreshToken });
                 if (!refreshed) {
@@ -426,9 +492,10 @@ export class AuthManager {
             status: this.getStatus(),
             token: this.token,
             access: this.access,
+            authMode: this.authMode,
             exp,
             iat,
-            expiresAt: exp ? new Date(exp * 1000) : null
+            expiresAt: this.sessionExpiresAt || (exp ? new Date(exp * 1000) : null)
         };
     }
 
@@ -438,6 +505,9 @@ export class AuthManager {
 
     getStatus() {
         if (this._verifying) return 'checking';
+        if (this.sessionAuthenticated && (!this.token || !this.isTokenExpired(this.token))) {
+            return 'authenticated';
+        }
         if (!this.token) return 'anonymous';
         if (this.isTokenExpired(this.token)) return 'expired';
         return 'authenticated';

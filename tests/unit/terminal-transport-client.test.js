@@ -1,8 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalTransportClient, shouldUseXtermTransport } from '../../public/modules/core/terminal-transport-client.js';
+import { httpClient } from '../../public/modules/core/http-client.js';
 
 describe('terminal-transport-client', () => {
+  const flushMicrotasks = async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+
+  beforeEach(() => {
+    vi.spyOn(httpClient, 'get').mockResolvedValue({ ok: true, access: { role: 'member' } });
+  });
+
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -136,6 +147,19 @@ describe('terminal-transport-client', () => {
       type: 'resize',
       cols: 98,
       rows: 32
+    });
+  });
+
+  it('認証切れ状態でconnect時_AUTH_REQUIREDを投げる', async () => {
+    vi.spyOn(httpClient, 'get').mockRejectedValue(new Error('HTTP Error: 401 Unauthorized'));
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Cloudflare / Mac'
+    });
+
+    await expect(client.connect('session-1')).rejects.toMatchObject({
+      code: 'AUTH_REQUIRED'
     });
   });
 
@@ -369,6 +393,7 @@ describe('terminal-transport-client', () => {
     client.sessionId = 'session-1';
 
     const connectPromise = client.connect('session-2');
+    await flushMicrotasks();
     const socket = sockets[0];
     socket._emit('message', {
       data: JSON.stringify({ type: 'ready', sessionId: 'session-2', cols: 98, rows: 32 })
@@ -558,6 +583,7 @@ describe('terminal-transport-client', () => {
     client.terminal = { cols: 98, rows: 32 };
 
     const firstConnect = client.connect('session-1');
+    await flushMicrotasks();
     const firstSocket = sockets[0];
     firstSocket._emit('message', {
       data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
@@ -568,6 +594,7 @@ describe('terminal-transport-client', () => {
     await firstConnect;
 
     const secondConnect = client.connect('session-1');
+    await flushMicrotasks();
     const secondSocket = sockets[1];
 
     secondSocket._emit('message', {

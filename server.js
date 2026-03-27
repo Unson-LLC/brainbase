@@ -57,9 +57,11 @@ import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
+import { createLearningRouter } from './server/routes/learning.js';
 import { createSetupRouter } from './server/routes/setup.js';
 import { createWikiRouter } from './server/routes/wiki.js';
 import { GoogleCalendarService } from './server/services/google-calendar-service.js';
+import { LearningService } from './server/services/learning-service.js';
 import { WikiService } from './server/services/wiki-service.js';
 
 // Import middleware
@@ -271,6 +273,11 @@ const authService = new AuthService();
 // Wiki Service (content stored in PostgreSQL, no filesystem dependency)
 const wikiService = new WikiService({
     pool: infoSSOTService.pool  // 同じDB接続プールを共有
+});
+const learningService = new LearningService({
+    pool: infoSSOTService.pool,
+    wikiService,
+    repoRoot: __dirname
 });
 
 // Middleware
@@ -720,6 +727,7 @@ app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
+app.use('/api/learning', requireAuth(authService), createLearningRouter(learningService));
 app.use('/api/wiki', requireAuth(authService), createWikiRouter(wikiService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {

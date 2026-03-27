@@ -222,6 +222,8 @@ export class TerminalTransportClient {
             this._prepareForSessionSwitch();
         }
 
+        await this._ensureAuthenticated();
+
         const initialDimensions = this._measureViewport();
         const wsUrl = this._buildWsUrl(sessionId, initialDimensions);
         const ws = new WebSocket(wsUrl);
@@ -707,6 +709,16 @@ export class TerminalTransportClient {
             url.searchParams.set('rows', String(dimensions.rows));
         }
         return url.toString();
+    }
+
+    async _ensureAuthenticated() {
+        try {
+            await httpClient.get('/api/auth/verify');
+        } catch (error) {
+            const authError = new Error('Authentication required');
+            authError.code = 'AUTH_REQUIRED';
+            throw authError;
+        }
     }
 
     _parseMessage(raw) {

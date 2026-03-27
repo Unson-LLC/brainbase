@@ -20,6 +20,7 @@ export class AuthService {
         this.pool = this.databaseUrl ? new Pool({ connectionString: this.databaseUrl }) : null;
         this.jwtSecret = process.env.BRAINBASE_JWT_SECRET || '';
         this.refreshSecret = process.env.BRAINBASE_REFRESH_SECRET || this.jwtSecret || '';
+        this.accessTtlSeconds = Number(process.env.BRAINBASE_ACCESS_TTL_SECONDS || 60 * 60);
         this.refreshTtlSeconds = Number(process.env.BRAINBASE_REFRESH_TTL_SECONDS || 60 * 60 * 24 * 30);
         this.stateSecret = process.env.BRAINBASE_AUTH_STATE_SECRET || this.jwtSecret || '';
 
@@ -442,7 +443,7 @@ export class AuthService {
 
     issueToken(payload) {
         const now = Math.floor(Date.now() / 1000);
-        const exp = now + 60 * 60;
+        const exp = now + this.accessTtlSeconds;
         return jwt.sign(
             { ...payload, iat: now, exp },
             this.jwtSecret
