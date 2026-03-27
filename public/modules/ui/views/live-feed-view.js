@@ -15,8 +15,8 @@ export class LiveFeedView {
         this._container = container;
         this.liveFeedService.start();
         this._render();
-        this._unsubEntry = this.liveFeedService.onEntry((entry) => {
-            this._prependEntry(entry);
+        this._unsubEntry = this.liveFeedService.onEntry(() => {
+            this._renderList();
         });
     }
 
@@ -29,37 +29,39 @@ export class LiveFeedView {
 
     _renderEntry(entry) {
         const time = this._formatTime(entry.timestamp);
-        const detail = entry.detail
-            ? `<div class="feed-item-detail">${escapeHtml(entry.detail)}</div>`
+        const taskBrief = entry.taskBrief
+            ? `<div class="feed-item-task">${escapeHtml(entry.taskBrief)}</div>`
             : '';
+        const currentStep = entry.currentStep
+            ? `<div class="feed-item-step">${escapeHtml(entry.currentStep)}</div>`
+            : '';
+        const latestEvidence = entry.latestEvidence
+            ? `<div class="feed-item-evidence">${escapeHtml(entry.latestEvidence)}</div>`
+            : '';
+        const statusToneClass = entry.statusTone ? ` feed-item-tone-${entry.statusTone}` : '';
         return `<div class="feed-item">
-            <div class="feed-item-icon"><i data-lucide="${entry.icon}"></i></div>
+            <div class="feed-item-icon${statusToneClass}"><i data-lucide="${entry.icon}"></i></div>
             <div class="feed-item-content">
                 <div class="feed-item-label">${escapeHtml(entry.label)}</div>
-                ${detail}
+                ${taskBrief}
+                ${currentStep}
+                ${latestEvidence}
             </div>
             <div class="feed-item-time">${time}</div>
         </div>`;
     }
 
-    _prependEntry(entry) {
+    _renderList() {
         if (!this._container) return;
         const list = this._container.querySelector('.live-feed-list');
         if (!list) return;
-
-        const empty = list.querySelector('.live-feed-empty');
-        if (empty) empty.remove();
-
-        const div = document.createElement('div');
-        div.innerHTML = this._renderEntry(entry);
-        const el = div.firstElementChild;
-        list.prepend(el);
-
-        while (list.children.length > 200) {
-            list.lastElementChild.remove();
-        }
-
-        refreshIcons({ nodes: [el] });
+        const entries = this.liveFeedService.getEntries();
+        list.innerHTML = entries.length > 0
+            ? entries.map((entry) => this._renderEntry(entry)).join('')
+            : `<div class="live-feed-empty">
+                <p>セッションの動きを待機中...</p>
+            </div>`;
+        refreshIcons({ nodes: [list] });
     }
 
     _render() {

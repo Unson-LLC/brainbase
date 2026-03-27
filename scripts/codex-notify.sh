@@ -104,6 +104,220 @@ PY
   ) >/dev/null 2>&1 &
 }
 
+build_report_payload() {
+  local report_status="$1"
+  local report_at="$2"
+  local report_lifecycle="$3"
+  local report_event_type="$4"
+  local report_turn_id="$5"
+  local report_activity_kind="$6"
+  local report_task_brief="$7"
+  local report_current_step="$8"
+  local report_latest_evidence="$9"
+  local report_assistant_snippet="${10}"
+
+  REPORT_STATUS="$report_status" \
+  REPORT_REPORTED_AT="$report_at" \
+  REPORT_LIFECYCLE="$report_lifecycle" \
+  REPORT_EVENT_TYPE="$report_event_type" \
+  REPORT_TURN_ID="$report_turn_id" \
+  REPORT_ACTIVITY_KIND="$report_activity_kind" \
+  REPORT_TASK_BRIEF="$report_task_brief" \
+  REPORT_CURRENT_STEP="$report_current_step" \
+  REPORT_LATEST_EVIDENCE="$report_latest_evidence" \
+  REPORT_ASSISTANT_SNIPPET="$report_assistant_snippet" \
+  BRAINBASE_SESSION_ID="$BRAINBASE_SESSION_ID" \
+  python3 - <<'PY'
+import json
+import os
+
+def clean(name):
+    value = os.environ.get(name, "")
+    value = " ".join(value.split())
+    return value or None
+
+payload = {
+    "sessionId": os.environ["BRAINBASE_SESSION_ID"],
+    "status": os.environ["REPORT_STATUS"],
+    "reportedAt": int(os.environ["REPORT_REPORTED_AT"] or "0"),
+}
+
+optional_fields = {
+    "lifecycle": clean("REPORT_LIFECYCLE"),
+    "eventType": clean("REPORT_EVENT_TYPE"),
+    "turnId": clean("REPORT_TURN_ID"),
+    "activityKind": clean("REPORT_ACTIVITY_KIND"),
+    "taskBrief": clean("REPORT_TASK_BRIEF"),
+    "assistantSnippet": clean("REPORT_ASSISTANT_SNIPPET"),
+    "currentStep": clean("REPORT_CURRENT_STEP"),
+    "latestEvidence": clean("REPORT_LATEST_EVIDENCE"),
+}
+
+for key, value in optional_fields.items():
+    if value:
+        payload[key] = value
+
+print(json.dumps(payload, ensure_ascii=False))
+PY
+}
+
+post_activity_report() {
+  local port="$1"
+  local report_status="$2"
+  local report_at="$3"
+  local report_lifecycle="$4"
+  local report_event_type="$5"
+  local report_turn_id="$6"
+  local report_activity_kind="$7"
+  local report_task_brief="$8"
+  local report_current_step="$9"
+  local report_latest_evidence="${10}"
+  local report_assistant_snippet="${11}"
+  local payload_json=""
+
+  payload_json="$(build_report_payload "$report_status" "$report_at" "$report_lifecycle" "$report_event_type" "$report_turn_id" "$report_activity_kind" "$report_task_brief" "$report_current_step" "$report_latest_evidence" "$report_assistant_snippet")"
+  curl -X POST "http://localhost:${port}/api/sessions/report_activity" \
+    -H "Content-Type: application/json" \
+    -d "$payload_json" \
+    --max-time 1 >/dev/null 2>&1 || true &
+}
+
+derive_activity_fields() {
+  local raw_payload="$1"
+  local raw_event_type="$2"
+
+  PAYLOAD="$raw_payload" EVENT_TYPE="$raw_event_type" python3 - <<'PY'
+import json
+import os
+import re
+import sys
+
+payload = os.environ.get("PAYLOAD", "")
+event_type = os.environ.get("EVENT_TYPE", "")
+
+def sanitize(value, max_len=120):
+    if not isinstance(value, str):
+        return ""
+    value = re.sub(r"\s+", " ", value).strip()
+    if len(value) <= max_len:
+        return value
+    return value[: max_len - 1] + "…"
+
+def is_japanese_text(value):
+    return isinstance(value, str) and bool(re.search(r"[\u3040-\u30ff\u3400-\u9fff]", value))
+
+def load_json(value):
+    value = (value or "").strip()
+    if not value:
+        return {}
+    try:
+        return json.loads(value)
+    except Exception:
+        return {}
+
+def first_string(*values):
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return sanitize(value)
+    return ""
+
+def get_nested(obj, *path):
+    current = obj
+    for key in path:
+        if not isinstance(current, dict):
+            return ""
+        current = current.get(key)
+    return current
+
+def extract_text(node):
+    if isinstance(node, str):
+        return sanitize(node)
+    if isinstance(node, dict):
+        for key in ("text", "delta", "stdout", "stderr", "message", "summary"):
+            value = node.get(key)
+            if isinstance(value, str) and value.strip():
+                return sanitize(value)
+            if isinstance(value, dict):
+                nested = extract_text(value)
+                if nested:
+                    return nested
+        content = node.get("content")
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text)
+            if parts:
+                return sanitize(" ".join(parts))
+    return ""
+
+data = load_json(payload)
+kind = ""
+step = ""
+evidence = ""
+assistant_snippet = ""
+
+if event_type == "item/fileChange/outputDelta":
+    kind = "editing_file"
+    step = "ファイルを更新中"
+    evidence = first_string(
+        get_nested(data, "params", "item", "path"),
+        get_nested(data, "params", "path"),
+        get_nested(data, "item", "path"),
+        get_nested(data, "path"),
+        extract_text(data),
+    )
+elif event_type in {"item/commandExecution/outputDelta", "exec_command_output_delta"}:
+    kind = "running_command"
+    step = "コマンドを実行中"
+    evidence = first_string(
+        get_nested(data, "params", "item", "command"),
+        get_nested(data, "params", "command"),
+        get_nested(data, "item", "command"),
+        get_nested(data, "command"),
+        extract_text(data),
+    )
+elif event_type in {
+    "assistant-message",
+    "assistant-response",
+    "assistant-message-complete",
+    "assistant-response-complete",
+    "item/agentMessage/delta",
+    "item/assistantMessage/delta",
+    "agent_message_delta",
+}:
+    kind = "reasoning"
+    assistant_snippet = extract_text(data)
+    step = assistant_snippet if is_japanese_text(assistant_snippet) else ""
+    evidence = ""
+elif event_type in {
+    "user-input-requested",
+    "user_input_requested",
+    "request-user-input",
+    "request_input",
+    "waiting-for-user-input",
+    "waiting_for_user_input",
+}:
+    kind = "waiting_input"
+    step = "入力待ち"
+elif event_type in {"agent-turn-start", "agent-turn-begin", "turn/started", "task_started"}:
+    kind = "task_started"
+    step = "依頼を受けて作業開始"
+elif event_type in {"agent-turn-complete", "task_complete", "codex/event/task_complete", "turn/completed"}:
+    kind = "task_completed"
+    step = "作業が一区切り完了"
+else:
+    kind = "working"
+    step = "作業中"
+    evidence = extract_text(data)
+
+assistant_snippet = sanitize(assistant_snippet, 120) if is_japanese_text(assistant_snippet) else ""
+print(f"{sanitize(kind, 40)}\t{sanitize(step, 80)}\t{sanitize(evidence, 120)}\t{assistant_snippet}")
+PY
+}
+
 event_type=""
 is_done_event=false
 lifecycle=""
@@ -196,6 +410,11 @@ PY
   if [ -z "$is_commit_event" ]; then
     is_commit_event="0"
   fi
+  activity_kind=""
+  current_step=""
+  latest_evidence=""
+  assistant_snippet=""
+  IFS=$'\t' read -r activity_kind current_step latest_evidence assistant_snippet <<< "$(derive_activity_fields "$payload" "$event_type")"
 
   # Keep Codex thread id in tmux session env for status-right.
   if [ -n "$thread_id" ] && [ -n "$BRAINBASE_SESSION_ID" ] && command -v tmux >/dev/null 2>&1; then
@@ -217,10 +436,7 @@ PY
     if [ -n "$TURN_STATE_FILE" ]; then
       echo "$REPORTED_AT" > "$TURN_STATE_FILE" 2>/dev/null || true
     fi
-    curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
-      -H "Content-Type: application/json" \
-      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
-      --max-time 1 >/dev/null 2>&1 || true &
+    post_activity_report "$PORT" "working" "$REPORTED_AT" "$lifecycle" "$event_type" "$turn_id" "$activity_kind" "" "$current_step" "$latest_evidence" "$assistant_snippet"
     ;;
   esac
 
@@ -235,10 +451,7 @@ PY
     assistant-message|assistant-response|assistant-message-complete|assistant-response-complete|item/agentMessage/delta|item/assistantMessage/delta|agent_message_delta|item/commandExecution/outputDelta|exec_command_output_delta|item/fileChange/outputDelta|item/completed)
     lifecycle="heartbeat"
     if [ -z "$turn_id" ] || [ -f "$TURN_STATE_FILE" ]; then
-      curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
-        -H "Content-Type: application/json" \
-        -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
-        --max-time 1 >/dev/null 2>&1 || true &
+      post_activity_report "$PORT" "working" "$REPORTED_AT" "$lifecycle" "$event_type" "$turn_id" "$activity_kind" "" "$current_step" "$latest_evidence" "$assistant_snippet"
     fi
     ;;
   esac
@@ -256,14 +469,8 @@ PY
     fi
     # codexはagent-turn-startを送らないため、doneの前にworkingを報告してlastWorkingAtを確保
     WORKING_AT=$(( REPORTED_AT - 1000 ))
-    curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
-      -H "Content-Type: application/json" \
-      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"working\", \"reportedAt\": $WORKING_AT, \"lifecycle\": \"turn_started\", \"eventType\": \"${event_type}-synthetic\", \"turnId\": \"${turn_id}\"}" \
-      --max-time 1 >/dev/null 2>&1 || true
-    curl -X POST "http://localhost:${PORT}/api/sessions/report_activity" \
-      -H "Content-Type: application/json" \
-      -d "{\"sessionId\": \"$BRAINBASE_SESSION_ID\", \"status\": \"done\", \"reportedAt\": $REPORTED_AT, \"lifecycle\": \"${lifecycle}\", \"eventType\": \"${event_type}\", \"turnId\": \"${turn_id}\"}" \
-      --max-time 1 >/dev/null 2>&1 || true &
+    post_activity_report "$PORT" "working" "$WORKING_AT" "turn_started" "${event_type}-synthetic" "$turn_id" "task_started" "" "依頼を受けて作業開始" "$latest_evidence" "$assistant_snippet"
+    post_activity_report "$PORT" "done" "$REPORTED_AT" "$lifecycle" "$event_type" "$turn_id" "$activity_kind" "" "$current_step" "$latest_evidence" "$assistant_snippet"
 
     if [ -f "$COMMIT_STATE_FILE" ]; then
       curl -X POST "http://localhost:${PORT}/api/sessions/${BRAINBASE_SESSION_ID}/commit-notify" \

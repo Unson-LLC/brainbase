@@ -15,6 +15,17 @@ import os from 'os';
 import readline from 'readline';
 import { logger } from '../utils/logger.js';
 
+const JAPANESE_TEXT_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
+
+function sanitizeSnippet(value, maxLength = 120) {
+    if (typeof value !== 'string') return null;
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (!normalized || !JAPANESE_TEXT_PATTERN.test(normalized)) return null;
+    return normalized.length > maxLength
+        ? `${normalized.slice(0, maxLength - 1)}…`
+        : normalized;
+}
+
 export class ConversationLinker {
     /**
      * @param {Object} options
@@ -142,6 +153,104 @@ export class ConversationLinker {
         }
     }
 
+    async getLastClaudeAssistantSnippet(jsonlPath) {
+        let stream;
+        let lastSnippet = null;
+        try {
+            stream = createReadStream(jsonlPath);
+            const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+            try {
+                for await (const line of rl) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (!['assistant', 'assistant_message'].includes(data.type)) continue;
+                        const content = data.message?.content ?? data.content;
+                        const text = typeof content === 'string'
+                            ? content
+                            : Array.isArray(content)
+                                ? content
+                                    .map((item) => typeof item === 'string' ? item : item?.text)
+                                    .filter(Boolean)
+                                    .join(' ')
+                                : '';
+                        const snippet = sanitizeSnippet(text);
+                        if (snippet) lastSnippet = snippet;
+                    } catch {
+                        // Skip malformed lines
+                    }
+                }
+                return lastSnippet;
+            } finally {
+                rl.close();
+                stream.destroy();
+            }
+        } catch {
+            return null;
+        } finally {
+            if (stream && !stream.destroyed) stream.destroy();
+        }
+    }
+
+    async getLastCodexAssistantSnippet(jsonlPath) {
+        let stream;
+        let lastSnippet = null;
+        try {
+            stream = createReadStream(jsonlPath);
+            const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+            const extractText = (node) => {
+                if (typeof node === 'string') return node;
+                if (Array.isArray(node)) {
+                    return node
+                        .map((item) => extractText(item))
+                        .filter(Boolean)
+                        .join(' ');
+                }
+                if (node && typeof node === 'object') {
+                    for (const key of ['text', 'delta', 'message', 'summary']) {
+                        const snippet = extractText(node[key]);
+                        if (snippet) return snippet;
+                    }
+                    return extractText(node.content);
+                }
+                return '';
+            };
+
+            try {
+                for await (const line of rl) {
+                    try {
+                        const data = JSON.parse(line);
+                        const eventType = data.type || data.method || data.event?.type || data.notification?.type || data.params?.type;
+                        if (![
+                            'assistant-message',
+                            'assistant-response',
+                            'assistant-message-complete',
+                            'assistant-response-complete',
+                            'item/agentMessage/delta',
+                            'item/assistantMessage/delta',
+                            'agent_message_delta'
+                        ].includes(eventType)) {
+                            continue;
+                        }
+                        const snippet = sanitizeSnippet(extractText(data));
+                        if (snippet) lastSnippet = snippet;
+                    } catch {
+                        // Skip malformed lines
+                    }
+                }
+                return lastSnippet;
+            } finally {
+                rl.close();
+                stream.destroy();
+            }
+        } catch {
+            return null;
+        } finally {
+            if (stream && !stream.destroyed) stream.destroy();
+        }
+    }
+
     /**
      * Codex CLI のセッションファイルから cwd を読み取る
      * jsonl の最初の行に session_meta があり、cwd が含まれる
@@ -207,7 +316,12 @@ export class ConversationLinker {
                 try {
                     const summary = await this._linkSession(session, codexIndex);
                     if (summary) {
-                        updatedSessions.push({ ...session, conversationSummary: summary });
+                        updatedSessions.push({
+                            ...session,
+                            ...(summary.lastAssistantSnippet ? { lastAssistantSnippet: summary.lastAssistantSnippet } : {}),
+                            ...(summary.lastAssistantSnippetAt ? { lastAssistantSnippetAt: summary.lastAssistantSnippetAt } : {}),
+                            conversationSummary: summary
+                        });
                         updated++;
                     } else {
                         updatedSessions.push(session);
@@ -325,12 +439,6 @@ export class ConversationLinker {
         }
         totalConversations += codexConversations.length;
 
-        // 変更がない場合はスキップ
-        const existing = session.conversationSummary;
-        if (existing && existing.totalConversations === totalConversations) {
-            return null; // No change
-        }
-
         // 最新の会話を特定
         const allConversations = [...claudeConversations, ...codexConversations];
         allConversations.sort((a, b) => {
@@ -341,11 +449,40 @@ export class ConversationLinker {
 
         const lastConversation = allConversations[0] || null;
         const engines = [...new Set(allConversations.map(c => c.engine))];
+        let lastAssistantSnippet = session.lastAssistantSnippet || null;
+        let lastAssistantSnippetAt = session.lastAssistantSnippetAt || null;
+
+        if (lastConversation?.engine === 'claude' && claudeLogDir) {
+            const claudeJsonl = path.join(claudeLogDir, `${lastConversation.conversationId}.jsonl`);
+            if (existsSync(claudeJsonl)) {
+                lastAssistantSnippet = await this.getLastClaudeAssistantSnippet(claudeJsonl);
+                lastAssistantSnippetAt = lastConversation.lastActivity || null;
+            }
+        } else if (lastConversation?.engine === 'codex') {
+            const codexFile = codexFiles.find((filePath) => path.basename(filePath, '.jsonl').replace(/^rollout-/, '') === lastConversation.conversationId);
+            if (codexFile) {
+                lastAssistantSnippet = await this.getLastCodexAssistantSnippet(codexFile);
+                lastAssistantSnippetAt = lastConversation.lastActivity || null;
+            }
+        }
+
+        // 変更がない場合はスキップ
+        const existing = session.conversationSummary;
+        if (
+            existing
+            && existing.totalConversations === totalConversations
+            && (session.lastAssistantSnippet || null) === (lastAssistantSnippet || null)
+            && (session.lastAssistantSnippetAt || null) === (lastAssistantSnippetAt || null)
+        ) {
+            return null; // No change
+        }
 
         return {
             totalConversations,
             engines,
             lastConversation,
+            lastAssistantSnippet,
+            lastAssistantSnippetAt,
             claudeLogDir: claudeLogDir || null,
             codexLogFiles: codexFiles.length > 0 ? codexFiles : null,
             linkedAt: new Date().toISOString()
