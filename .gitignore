@@ -4,12 +4,16 @@ npm-debug.log*
 
 # Environment variables
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Editor directories
 .vscode/
 .idea/
+
+# Private data
+meetings/
 
 # OS files
 .DS_Store
