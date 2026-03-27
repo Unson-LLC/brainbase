@@ -18,6 +18,64 @@ const UI_SUMMARY_TTL_MS = 60_000;
 const TAKEOVER_COOLDOWN_MS = 5000;
 const MAX_FILE_READ_SIZE = 512 * 1024;
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
+const TASK_BRIEF_MAX_LENGTH = 56;
+const TASK_BRIEF_MIN_LENGTH = 8;
+const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
+const NATURAL_LANGUAGE_HINT_PATTERN = /\b(please|fix|make|update|improve|investigate|check|review|implement|show|change|add|remove|explain|summarize|help|need|want|should|could)\b/i;
+const SHELL_COMMAND_PREFIXES = new Set([
+    'git', 'jj', 'npm', 'pnpm', 'yarn', 'bun', 'node', 'npx', 'ls', 'cd', 'cat', 'sed', 'rg',
+    'find', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'bash', 'zsh', 'sh', 'python', 'python3', 'uv',
+    'docker', 'tmux', 'claude', 'codex', 'curl'
+]);
+
+function normalizeTaskBriefCandidate(rawValue) {
+    if (typeof rawValue !== 'string') return '';
+
+    return rawValue
+        .replace(/\r/g, '\n')
+        .split('\n')
+        .map((line) => line.trim())
+        .map((line) => line.replace(/^[-*•>\d.)\s]+/, '').trim())
+        .filter(Boolean)
+        .find((line) => {
+            if (!line) return false;
+            if (/[\x00-\x08\x0b-\x1f\x7f]/.test(line)) return false;
+            if (/^\/[\w:-]+$/.test(line)) return false;
+            if (/^https?:\/\//.test(line)) return false;
+            if (/^(~|\.{1,2}|\/)?[\w./-]+$/.test(line)) return false;
+            return true;
+        }) || '';
+}
+
+function looksLikeShellCommand(candidate) {
+    if (!candidate || CJK_PATTERN.test(candidate)) return false;
+    if (/[`$|&;<>]/.test(candidate)) return true;
+
+    const tokens = candidate.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return false;
+
+    const firstToken = tokens[0].toLowerCase();
+    if (SHELL_COMMAND_PREFIXES.has(firstToken)) return true;
+
+    const optionTokenCount = tokens.filter((token) => token.startsWith('-')).length;
+    return optionTokenCount >= 2;
+}
+
+function deriveTaskBriefFromPrompt(prompt) {
+    const candidate = normalizeTaskBriefCandidate(prompt);
+    if (!candidate || candidate.length < TASK_BRIEF_MIN_LENGTH) return null;
+
+    const sentence = candidate.split(/(?<=[。.!?！？])\s+/)[0]?.trim() || candidate;
+    const compact = sentence.replace(/\s+/g, ' ').trim();
+    if (!compact || compact.length < TASK_BRIEF_MIN_LENGTH) return null;
+    if (!CJK_PATTERN.test(compact) && !NATURAL_LANGUAGE_HINT_PATTERN.test(compact) && looksLikeShellCommand(compact)) {
+        return null;
+    }
+
+    return compact.length > TASK_BRIEF_MAX_LENGTH
+        ? `${compact.slice(0, TASK_BRIEF_MAX_LENGTH - 1)}…`
+        : compact;
+}
 
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore, options = {}) {
@@ -594,7 +652,19 @@ export class SessionController {
      * Hookからのactivity報告を受信
      */
     reportActivity = async (req, res) => {
-        const { sessionId, status, reportedAt, lifecycle, eventType, turnId } = req.body;
+        const {
+            sessionId,
+            status,
+            reportedAt,
+            lifecycle,
+            eventType,
+            turnId,
+            activityKind,
+            taskBrief,
+            assistantSnippet,
+            currentStep,
+            latestEvidence
+        } = req.body;
         if (!sessionId || !status) {
             return res.status(400).json({ error: 'Missing sessionId or status' });
         }
@@ -602,7 +672,12 @@ export class SessionController {
         this.sessionManager.reportActivity(sessionId, status, reportedAt, {
             lifecycle,
             eventType,
-            turnId
+            turnId,
+            activityKind,
+            taskBrief,
+            assistantSnippet,
+            currentStep,
+            latestEvidence
         });
         res.json({ success: true });
     };
@@ -877,8 +952,9 @@ export class SessionController {
             }
 
             // テイクオーバー: 既存ttydが起動中なら再起動して新クライアントに接続を譲る
+            // xterm-only mode: ttydテイクオーバー不要
             const existingSession = this.sessionManager.activeSessions.get(sessionId);
-            if (existingSession) {
+            if (!this.sessionManager._isXtermOnlyMode() && existingSession) {
                 const pid = existingSession.process?.pid || existingSession.pid;
                 if (pid && this.sessionManager._isProcessRunning(pid)) {
                     if (!forceTakeover) {
@@ -1452,6 +1528,7 @@ ${jjBookmarks}
             // Update state BEFORE starting ttyd.
             // This allows ttyd start to persist pid/port and login_script.sh to resolve correct CWD.
             const now = new Date().toISOString();
+            const taskBrief = deriveTaskBriefFromPrompt(initialCommand);
             const newSession = {
                 id: sessionId,
                 name: name || sessionId,
@@ -1466,6 +1543,7 @@ ${jjBookmarks}
                 initialCommand,
                 engine,
                 intendedState: 'active',
+                ...(taskBrief ? { taskBrief, taskBriefUpdatedAt: now } : {}),
                 createdAt: now,
                 updatedAt: now
             };

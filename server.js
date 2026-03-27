@@ -57,14 +57,16 @@ import { createNocoDBRouter } from './server/routes/nocodb.js';
 import { createHealthRouter } from './server/routes/health.js';
 import { createAuthRouter } from './server/routes/auth.js';
 import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
+import { createLearningRouter } from './server/routes/learning.js';
 import { createSetupRouter } from './server/routes/setup.js';
 import { createWikiRouter } from './server/routes/wiki.js';
 import { GoogleCalendarService } from './server/services/google-calendar-service.js';
+import { LearningService } from './server/services/learning-service.js';
 import { WikiService } from './server/services/wiki-service.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
-import { requireAuth } from './server/middleware/auth.js';
+import { requireAuth, resolveAuthContext } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
 import { gracefulCleanup } from './server/lib/graceful-cleanup.js';
 
@@ -271,6 +273,11 @@ const authService = new AuthService();
 // Wiki Service (content stored in PostgreSQL, no filesystem dependency)
 const wikiService = new WikiService({
     pool: infoSSOTService.pool  // 同じDB接続プールを共有
+});
+const learningService = new LearningService({
+    pool: infoSSOTService.pool,
+    wikiService,
+    repoRoot: __dirname
 });
 
 // Middleware
@@ -720,6 +727,7 @@ app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
+app.use('/api/learning', requireAuth(authService), createLearningRouter(learningService));
 app.use('/api/wiki', requireAuth(authService), createWikiRouter(wikiService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {
@@ -753,6 +761,26 @@ const server = app.listen(PORT, async () => {
 
 // Handle WebSocket Upgrades
 server.on('upgrade', (request, socket, head) => {
+    const authResult = resolveAuthContext(request, authService);
+    if (!authResult?.ok) {
+        // localhost WebSocket接続は開発環境で認証バイパス
+        const host = (request.headers?.host || '').toLowerCase();
+        const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('[::1]');
+        if (isLocal && process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
+            request.auth = null;
+            request.access = { role: 'ceo', projectCodes: [], clearance: [], level: 3 };
+            request.authSource = 'localhost-bypass';
+        } else {
+            socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+            socket.destroy();
+            return;
+        }
+    } else {
+        request.auth = authResult.auth || null;
+        request.access = authResult.access || null;
+        request.authSource = authResult.authSource || null;
+    }
+
     if (terminalTransportService.isTerminalTransportRequest(request)) {
         terminalTransportService.handleUpgrade(request, socket, head);
         return;

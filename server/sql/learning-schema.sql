@@ -37,6 +37,21 @@ CREATE INDEX IF NOT EXISTS idx_learning_episodes_processed_at
 CREATE INDEX IF NOT EXISTS idx_learning_episodes_project_id
     ON learning_episodes (project_id);
 
+CREATE TABLE IF NOT EXISTS learning_artifact_ingestions (
+    id text PRIMARY KEY,
+    adapter_name text NOT NULL,
+    source_path text NOT NULL,
+    fingerprint text NOT NULL,
+    episode_id text NOT NULL REFERENCES learning_episodes(id) ON DELETE CASCADE,
+    ingested_at timestamptz NOT NULL DEFAULT NOW(),
+    last_seen_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_artifact_ingestions_unique
+    ON learning_artifact_ingestions (adapter_name, source_path, fingerprint);
+CREATE INDEX IF NOT EXISTS idx_learning_artifact_ingestions_episode
+    ON learning_artifact_ingestions (episode_id);
+
 CREATE TABLE IF NOT EXISTS promotion_candidates (
     id text PRIMARY KEY,
     pillar text NOT NULL,

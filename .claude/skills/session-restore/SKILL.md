@@ -1,3 +1,8 @@
+---
+name: session-restore
+description: "brainbaseセッション復旧コマンド生成"
+---
+
 # brainbaseセッション復旧コマンド生成
 
 左パネルに表示されているセッション名から、復旧コマンドを即座に生成する。

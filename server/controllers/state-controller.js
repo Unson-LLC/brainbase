@@ -13,7 +13,7 @@ const ALLOWED_SESSION_FIELDS = [
     // 基本情報
     'id', 'name', 'path', 'cwd', 'worktree', 'initialCommand',
     'engine', 'intendedState', 'createdAt', 'archivedAt', 'merged', 'mergedAt',
-    'updatedAt',
+    'updatedAt', 'taskBrief', 'taskBriefUpdatedAt', 'lastAssistantSnippet', 'lastAssistantSnippetAt',
     // Schema v2 追加フィールド
     'lastAccessedAt', 'pausedAt', 'pausedReason', 'tmuxMissingAt', 'tmuxCleanedAt',
     // Schema v3 追加フィールド

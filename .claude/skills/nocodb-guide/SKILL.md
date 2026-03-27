@@ -1,3 +1,8 @@
+---
+name: nocodb-guide
+description: "NocoDB操作ガイド"
+---
+
 # NocoDB 操作ガイド
 
 NocoDBのデータ登録・更新・レポート生成に関する標準フォーマットとルール。

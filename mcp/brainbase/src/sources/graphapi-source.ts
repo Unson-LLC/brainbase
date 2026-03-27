@@ -74,11 +74,14 @@ export class GraphAPISource implements EntitySource {
       }
 
       const data = await response.json() as Record<string, unknown>;
-      const records = ((data.entities || data.records || []) as GraphEntity[]).map(r => ({
+      const records = ((data.entities || data.records || []) as GraphEntity[]).map(r => {
+        const raw = r as unknown as Record<string, unknown>;
+        return ({
         ...r,
-        entity_id: r.entity_id || (r as Record<string, unknown>).id as string,
+        entity_id: r.entity_id || raw.id as string,
         entity_type: r.entity_type || type,
-      }));
+      });
+      });
       allEntities.push(...records);
       if (records.length > 0) {
         console.error(`[GraphAPISource]   ${type}: ${records.length}`);

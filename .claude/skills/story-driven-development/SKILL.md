@@ -1,6 +1,6 @@
 ---
 name: story-driven-development
-description: ストーリー駆動開発。トリガー: 「BFD-xxxをストーリーに」「STR-xxxを実装」「TSK-xxxを実装」「ストーリーに落とし込む」「タスク分解案をNocoDBに登録」「タスクをNocoDBに登録」。docs/management/stories/のストーリー作成と実装をサポート。
+description: "ストーリー駆動開発。トリガー: 「BFD-xxxをストーリーに」「STR-xxxを実装」「TSK-xxxを実装」「ストーリーに落とし込む」「タスク分解案をNocoDBに登録」「タスクをNocoDBに登録」。docs/management/stories/のストーリー作成と実装をサポート。"
 ---
 
 # ストーリー駆動開発スキル

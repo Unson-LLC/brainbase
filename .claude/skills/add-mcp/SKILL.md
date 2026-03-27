@@ -1,3 +1,8 @@
+---
+name: add-mcp
+description: "MCP Server追加ガイド"
+---
+
 # MCP Server 追加ガイド（一発成功版）
 
 **Version**: 1.0.0

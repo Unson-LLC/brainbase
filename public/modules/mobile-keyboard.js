@@ -10,6 +10,15 @@ import { appStore } from './core/store.js';
  * キーボード表示時の対応を初期化
  */
 export function initMobileKeyboard({ terminalInput = null } = {}) {
+    // Legacy 4-key software keyboard is superseded by the mobile input dock.
+    // Keep the DOM hidden so it never leaks into desktop or modern mobile layouts.
+    const legacyKeyboard = document.getElementById('mobile-keyboard');
+    if (legacyKeyboard) {
+        legacyKeyboard.classList.remove('visible');
+        legacyKeyboard.setAttribute('hidden', 'hidden');
+        legacyKeyboard.setAttribute('aria-hidden', 'true');
+    }
+
     // Setup virtual keyboard key handlers
     setupVirtualKeyboardHandlers(terminalInput);
     // デスクトップでは何もしない

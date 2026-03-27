@@ -11016,6 +11016,22 @@ flex-wrap: wrap;
     height: 14px;
 }
 
+.feed-item-icon.feed-item-tone-working {
+    color: var(--accent-color);
+}
+
+.feed-item-icon.feed-item-tone-waiting {
+    color: var(--warning-color);
+}
+
+.feed-item-icon.feed-item-tone-done {
+    color: var(--success-color);
+}
+
+.feed-item-icon.feed-item-tone-blocked {
+    color: var(--danger-color);
+}
+
 .feed-item-content {
     flex: 1;
     min-width: 0;
@@ -11030,7 +11046,24 @@ flex-wrap: wrap;
     color: var(--text-primary);
 }
 
-.feed-item-detail {
+.feed-item-task {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.feed-item-step {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.feed-item-evidence {
     font-size: 11px;
     color: var(--text-secondary);
     font-family: var(--font-mono);

@@ -1,3 +1,8 @@
+---
+name: x-follower-growth-3months
+description: "Xフォロワー3ヶ月成長メソッド"
+---
+
 # X Follower Growth 3 Months
 
 個人開発者が3ヶ月でXフォロワー3000人増やす実践メソッド。

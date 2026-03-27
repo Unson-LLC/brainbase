@@ -74,6 +74,8 @@
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "@vitest/coverage-v8": "^4.0.16",
+    "eslint": "^9.39.4",
+    "eslint-plugin-import": "^2.32.0",
     "jsdom": "^27.3.0",
     "supertest": "^7.1.4",
     "typescript": "^6.0.2",

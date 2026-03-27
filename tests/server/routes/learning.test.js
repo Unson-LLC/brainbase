@@ -12,7 +12,9 @@ describe('learning routes', () => {
             recordEpisode: vi.fn(async (payload) => ({ id: 'lep_1', ...payload })),
             proposePromotions: vi.fn(async () => [{ id: 'prm_1', pillar: 'wiki' }]),
             listPromotions: vi.fn(async () => [{ id: 'prm_1', pillar: 'wiki', status: 'evaluated' }]),
-            markPromotionApplied: vi.fn(async () => ({ success: true }))
+            getPromotion: vi.fn(async () => ({ id: 'prm_1', pillar: 'wiki', status: 'evaluated' })),
+            markPromotionApplied: vi.fn(async () => ({ success: true })),
+            markPromotionRejected: vi.fn(async () => ({ success: true }))
         };
 
         app = express();
@@ -30,10 +32,11 @@ describe('learning routes', () => {
     });
 
     it('POST /promotions/propose proposes candidates', async () => {
-        const res = await request(app).post('/api/learning/promotions/propose').send({});
+        const res = await request(app).post('/api/learning/promotions/propose').send({ applyMode: 'manual' });
 
         expect(res.status).toBe(200);
         expect(res.body.candidates).toHaveLength(1);
+        expect(service.proposePromotions).toHaveBeenCalledWith({ applyMode: 'manual' });
     });
 
     it('GET /promotions lists candidates by status', async () => {
@@ -45,5 +48,21 @@ describe('learning routes', () => {
             pillar: undefined,
             apply_mode: undefined
         });
+    });
+
+    it('GET /promotions/:id returns one candidate', async () => {
+        const res = await request(app).get('/api/learning/promotions/prm_1');
+
+        expect(res.status).toBe(200);
+        expect(service.getPromotion).toHaveBeenCalledWith('prm_1');
+    });
+
+    it('POST /promotions/:id/reject rejects one candidate', async () => {
+        const res = await request(app)
+            .post('/api/learning/promotions/prm_1/reject')
+            .send({ reason: 'not useful' });
+
+        expect(res.status).toBe(200);
+        expect(service.markPromotionRejected).toHaveBeenCalledWith('prm_1', 'not useful');
     });
 });

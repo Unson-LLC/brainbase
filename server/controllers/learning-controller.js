@@ -15,9 +15,11 @@ export class LearningController {
         }
     };
 
-    proposePromotions = async (_req, res) => {
+    proposePromotions = async (req, res) => {
         try {
-            const result = await this.learningService.proposePromotions();
+            const result = await this.learningService.proposePromotions({
+                applyMode: req.body?.applyMode
+            });
             res.json({ candidates: result });
         } catch (error) {
             logger.error('Failed to propose learning promotions', { error });
@@ -39,6 +41,19 @@ export class LearningController {
         }
     };
 
+    getPromotion = async (req, res) => {
+        try {
+            const result = await this.learningService.getPromotion(req.params.id);
+            if (!result) {
+                return res.status(404).json({ error: 'Promotion candidate not found' });
+            }
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to get learning promotion', { error });
+            res.status(500).json({ error: 'Failed to get learning promotion' });
+        }
+    };
+
     markApplied = async (req, res) => {
         try {
             const result = await this.learningService.markPromotionApplied(req.params.id);
@@ -49,6 +64,19 @@ export class LearningController {
         } catch (error) {
             logger.error('Failed to mark learning promotion as applied', { error });
             res.status(500).json({ error: 'Failed to mark learning promotion as applied' });
+        }
+    };
+
+    rejectPromotion = async (req, res) => {
+        try {
+            const result = await this.learningService.markPromotionRejected(req.params.id, req.body?.reason);
+            if (!result.success) {
+                return res.status(404).json({ error: 'Promotion candidate not found' });
+            }
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to reject learning promotion', { error });
+            res.status(500).json({ error: 'Failed to reject learning promotion' });
         }
     };
 }

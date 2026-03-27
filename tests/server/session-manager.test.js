@@ -281,6 +281,31 @@ describe('SessionManager', () => {
     expect(status.activeTurnCount).toBe(2);
   });
 
+  it('reportActivity呼び出し時_live feed向けの作業要約を保持する', () => {
+    const manager = createManager();
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      eventType: 'item/commandExecution/outputDelta',
+      activityKind: 'running_command',
+      assistantSnippet: '右パネルの表示ノイズを取り除いています',
+      currentStep: 'テストを実行中',
+      latestEvidence: 'npx vitest run tests/unit/live-feed-service.test.js'
+    });
+
+    const status = manager.getSessionStatus()['session-1'];
+    expect(status.liveActivity).toEqual({
+      activityKind: 'running_command',
+      taskBrief: null,
+      assistantSnippet: '右パネルの表示ノイズを取り除いています',
+      currentStep: 'テストを実行中',
+      latestEvidence: 'npx vitest run tests/unit/live-feed-service.test.js',
+      statusTone: 'working',
+      updatedAt: now,
+      assistantSnippetUpdatedAt: now
+    });
+  });
+
   it('resolveSessionWorkspacePath_tmuxのcurrent_pathでstale pathを補正する', async () => {
     const resolvedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-session-'));
     let state = {
@@ -319,13 +344,13 @@ describe('SessionManager', () => {
   });
 
   it('sendInput呼び出し時_短文テキストはtemp file経由でpaste-bufferする', async () => {
-    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
     const manager = new SessionManager({
       serverDir: '/tmp',
-      execPromise,
+      execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {}
     });
+    const runTmuxSpy = vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-short');
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
     const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
@@ -334,20 +359,20 @@ describe('SessionManager', () => {
 
     expect(mkdtempSpy).toHaveBeenCalled();
     expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-short/paste.txt', 'hello world', 'utf8');
-    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux load-buffer -b'));
-    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux paste-buffer -d -b'));
-    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux delete-buffer -b'));
+    expect(runTmuxSpy).toHaveBeenCalledWith(['load-buffer', '-b', expect.stringContaining('brainbase-session-1-'), '/tmp/brainbase-input-test-short/paste.txt']);
+    expect(runTmuxSpy).toHaveBeenCalledWith(['paste-buffer', '-d', '-b', expect.stringContaining('brainbase-session-1-'), '-t', 'session-1']);
+    expect(runTmuxSpy).toHaveBeenCalledWith(['delete-buffer', '-b', expect.stringContaining('brainbase-session-1-')]);
     expect(rmSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-short', { recursive: true, force: true });
   });
 
   it('sendInput呼び出し時_長文テキストはtemp file経由でpaste-bufferする', async () => {
-    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
     const manager = new SessionManager({
       serverDir: '/tmp',
-      execPromise,
+      execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {}
     });
+    const runTmuxSpy = vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test');
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
     const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
@@ -356,20 +381,20 @@ describe('SessionManager', () => {
 
     expect(mkdtempSpy).toHaveBeenCalled();
     expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test/paste.txt', 'a'.repeat(20000), 'utf8');
-    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux load-buffer -b'));
-    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux paste-buffer -d -b'));
-    expect(execPromise).toHaveBeenCalledWith(expect.stringContaining('tmux delete-buffer -b'));
+    expect(runTmuxSpy).toHaveBeenCalledWith(['load-buffer', '-b', expect.stringContaining('brainbase-session-1-'), '/tmp/brainbase-input-test/paste.txt']);
+    expect(runTmuxSpy).toHaveBeenCalledWith(['paste-buffer', '-d', '-b', expect.stringContaining('brainbase-session-1-'), '-t', 'session-1']);
+    expect(runTmuxSpy).toHaveBeenCalledWith(['delete-buffer', '-b', expect.stringContaining('brainbase-session-1-')]);
     expect(rmSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test', { recursive: true, force: true });
   });
 
   it('sendInput呼び出し時_shell展開文字を含んでもそのままwriteFileされる', async () => {
-    const execPromise = vi.fn().mockResolvedValue({ stdout: '' });
     const manager = new SessionManager({
       serverDir: '/tmp',
-      execPromise,
+      execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {}
     });
+    vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-literal');
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
     vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
@@ -377,5 +402,91 @@ describe('SessionManager', () => {
     await manager.sendInput('session-1', 'alpha $HOME `echo hi`', 'text');
 
     expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-literal/paste.txt', 'alpha $HOME `echo hi`', 'utf8');
+  });
+
+  it('sendInput呼び出し時_入力確定でtaskBriefを更新する', async () => {
+    let state = { sessions: [{ id: 'session-1' }, { id: 'session-2' }] };
+    const stateStore = {
+      get: () => state,
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: '' }),
+      stateStore,
+      worktreeService: {}
+    });
+    vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
+    vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-taskbrief');
+    vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
+
+    await manager.sendInput('session-1', 'Live Feedで何の作業をしているか分かるようにして', 'text');
+    await manager.sendInput('session-1', 'Enter', 'key');
+
+    expect(state.sessions[0].taskBrief).toBe('Live Feedで何の作業をしているか分かるようにして');
+    expect(state.sessions[0].taskBriefUpdatedAt).toBeTruthy();
+  });
+
+  it('reportActivity呼び出し時_assistantSnippetをsessionに保存する', () => {
+    let state = { sessions: [{ id: 'session-1' }] };
+    const stateStore = {
+      get: () => state,
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: '' }),
+      stateStore,
+      worktreeService: {}
+    });
+    const now = Date.now();
+
+    manager.reportActivity('session-1', 'working', now, {
+      eventType: 'assistant-message',
+      activityKind: 'reasoning',
+      assistantSnippet: 'この表示から transport ノイズを外します'
+    });
+
+    expect(state.sessions[0].lastAssistantSnippet).toBe('この表示から transport ノイズを外します');
+    expect(state.sessions[0].lastAssistantSnippetAt).toBeTruthy();
+  });
+
+  it('sendInput呼び出し時_shellっぽい短文では既存taskBriefを上書きしない', async () => {
+    let state = {
+      sessions: [{
+        id: 'session-1',
+        taskBrief: 'サーバが落ちる原因を調べる',
+        taskBriefUpdatedAt: '2026-03-27T00:00:00.000Z'
+      }, { id: 'session-2' }]
+    };
+    const stateStore = {
+      get: () => state,
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: '' }),
+      stateStore,
+      worktreeService: {}
+    });
+    vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
+    vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-command');
+    vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
+
+    await manager.sendInput('session-1', 'git status', 'text');
+    await manager.sendInput('session-1', 'Enter', 'key');
+
+    expect(state.sessions[0].taskBrief).toBe('サーバが落ちる原因を調べる');
   });
 });

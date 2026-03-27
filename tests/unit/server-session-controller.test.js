@@ -32,6 +32,7 @@ describe('SessionController (Server)', () => {
       getContentWithColors: vi.fn(async () => null),
       getPaneMode: vi.fn(),
       isTmuxSessionRunning: vi.fn(),
+      _isXtermOnlyMode: vi.fn(() => false),
       _isProcessRunning: vi.fn(),
       resolveSessionWorkspacePath: vi.fn(async (sessionOrId) => {
         if (typeof sessionOrId === 'string') {
@@ -813,7 +814,11 @@ describe('SessionController (Server)', () => {
           reportedAt: 1234567890,
           lifecycle: 'turn_started',
           eventType: 'agent-turn-start',
-          turnId: 'turn-1'
+          turnId: 'turn-1',
+          activityKind: 'running_command',
+          assistantSnippet: 'いま表示のノイズを切り分けています',
+          currentStep: 'テストを実行中',
+          latestEvidence: 'npx vitest run'
         }
       };
 
@@ -826,7 +831,12 @@ describe('SessionController (Server)', () => {
         {
           lifecycle: 'turn_started',
           eventType: 'agent-turn-start',
-          turnId: 'turn-1'
+          turnId: 'turn-1',
+          activityKind: 'running_command',
+          taskBrief: undefined,
+          assistantSnippet: 'いま表示のノイズを切り分けています',
+          currentStep: 'テストを実行中',
+          latestEvidence: 'npx vitest run'
         }
       );
       expect(mockRes.json).toHaveBeenCalledWith({ success: true });

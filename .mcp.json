@@ -5,8 +5,7 @@
       "args": ["-y", "chrome-devtools-mcp@latest"]
     },
     "brainbase": {
-      "command": "npx",
-      "args": ["tsx", "mcp/brainbase/src/index.ts"],
+      "command": "/Users/ksato/workspace/code/brainbase/scripts/run-brainbase-mcp.sh",
       "env": {
         "BRAINBASE_ENTITY_SOURCE": "graphapi",
         "BRAINBASE_GRAPH_API_URL": "https://graph.brain-base.work",
