@@ -1203,11 +1203,7 @@ export class App {
         if (this.terminalSnapshotTimestampEl) {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
-        if (this.isMobile()) {
-            this.terminalSnapshotContentEl.scrollTop = 0;
-        } else {
-            this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
-        }
+        this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
     }
 
     _normalizeTerminalSnapshotText(text) {
@@ -1215,7 +1211,8 @@ export class App {
         return text
             .replace(/\r\n/g, '\n')
             .replace(/^(?:\s*\n)+/, '')
-            .replace(/(?:\n[ \t]*){4,}$/u, '\n\n');
+            .replace(/(?:\n[ \t]*){3,}/g, '\n\n')
+            .trimEnd();
     }
 
     _syncTerminalSnapshotPanel({ sessionId, visible, title }) {
