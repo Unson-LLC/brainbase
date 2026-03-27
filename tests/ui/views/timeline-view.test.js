@@ -109,6 +109,9 @@ describe('TimelineView', () => {
             timelineView.render();
 
             expect(container.innerHTML).toContain('現在');
+            const nowMarker = container.querySelector('.timeline-now');
+            expect(nowMarker).toBeTruthy();
+            expect(nowMarker.querySelector('.timeline-now-label')).toBeTruthy();
         });
 
         it('should highlight current event', () => {
