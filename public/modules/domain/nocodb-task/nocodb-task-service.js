@@ -3,6 +3,10 @@ import { appStore } from '../../core/store.js';
 import { NocoDBTaskAdapter } from './nocodb-task-adapter.js';
 import { NocoDBTaskRepository } from './nocodb-task-repository.js';
 
+const UNASSIGNED_FILTER_VALUE = '__unassigned__';
+const PRIORITY_SORT_ORDER = { high: 0, medium: 1, low: 2 };
+const DEFAULT_PRIORITY_RANK = 2;
+
 /**
  * NocoDBTaskService
  * NocoDBタスクのビジネスロジック
@@ -71,31 +75,17 @@ export class NocoDBTaskService {
      * @param {string} newStatus - 新しいステータス (pending/in_progress/completed)
      */
     async updateStatus(taskId, newStatus) {
-        const task = this._findTaskOrThrow(taskId);
+        const fields = this.adapter.toNocoDBFields({ status: newStatus });
 
-        const nocoStatus = this.adapter.toNocoDBStatus(newStatus);
-
-        try {
-            await this.repository.updateTask(
-                task.nocodbRecordId,
-                task.nocodbBaseId,
-                { 'ステータス': nocoStatus }
-            );
-
-            // ローカル状態更新
-            task.status = newStatus;
-
-            // Store更新
-            this._syncTasksToStore();
-
-            // イベント発火
-            eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
-
-            return task;
-        } catch (error) {
-            this._handleMutationError('updateStatus', error, 'Failed to update task');
-            throw error;
-        }
+        return this._applyTaskMutation({
+            taskId,
+            fields,
+            context: 'updateStatus',
+            fallbackMessage: 'Failed to update task',
+            localMutator: task => {
+                this._applyLocalTaskUpdates(task, { status: newStatus });
+            }
+        });
     }
 
     /**
@@ -104,36 +94,17 @@ export class NocoDBTaskService {
      * @param {Object} updates - 更新データ { name, priority, due, description }
      */
     async updateTask(taskId, updates) {
-        const task = this._findTaskOrThrow(taskId);
-
-        // 内部形式→NocoDB形式に変換
         const nocoFields = this.adapter.toNocoDBFields(updates);
 
-        try {
-            await this.repository.updateTask(
-                task.nocodbRecordId,
-                task.nocodbBaseId,
-                nocoFields
-            );
-
-            // ローカル状態更新
-            if (updates.name) task.title = updates.name;
-            if (updates.priority) task.priority = updates.priority;
-            if (updates.due !== undefined) task.due = updates.due;
-            if (updates.description !== undefined) task.description = updates.description;
-            if (updates.assignee !== undefined) task.assignee = updates.assignee;
-
-            // Store更新
-            this._syncTasksToStore();
-
-            // イベント発火
-            eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
-
-            return task;
-        } catch (error) {
-            this._handleMutationError('updateTask', error, 'Failed to update task');
-            throw error;
-        }
+        return this._applyTaskMutation({
+            taskId,
+            fields: nocoFields,
+            context: 'updateTask',
+            fallbackMessage: 'Failed to update task',
+            localMutator: task => {
+                this._applyLocalTaskUpdates(task, updates);
+            }
+        });
     }
 
     /**
@@ -212,53 +183,9 @@ export class NocoDBTaskService {
      * @returns {Array}
      */
     getFilteredTasks(filters = {}) {
-        let result = [...this.tasks];
-        const unassignedValue = '__unassigned__';
-
-        // プロジェクトフィルタ
-        if (filters.project) {
-            result = result.filter(t => t.project === filters.project);
-        }
-
-        // ステータスフィルタ
-        if (filters.status) {
-            result = result.filter(t => t.status === filters.status);
-        }
-
-        // 完了タスク非表示
-        if (filters.hideCompleted) {
-            result = result.filter(t => t.status !== 'completed');
-        }
-
-        // 優先度フィルタ
-        if (filters.priority) {
-            result = result.filter(t => t.priority === filters.priority);
-        }
-
-        // 担当者フィルタ
-        if (filters.assignee === unassignedValue) {
-            result = result.filter(t => !t.assignee);
-        } else if (filters.assignee) {
-            const assignee = filters.assignee.toLowerCase();
-            result = result.filter(t => t.assignee?.toLowerCase() === assignee);
-        }
-
-        // テキスト検索
-        if (filters.searchText) {
-            const text = filters.searchText.toLowerCase();
-            result = result.filter(t =>
-                t.title?.toLowerCase().includes(text) ||
-                t.description?.toLowerCase().includes(text)
-            );
-        }
-
-        // 優先度でソート（high > medium > low）
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        result.sort((a, b) => {
-            return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
-        });
-
-        return result;
+        const normalizedFilters = this._normalizeFilters(filters);
+        const filtered = this.tasks.filter(task => this._matchesFilters(task, normalizedFilters));
+        return this._sortByPriority(filtered);
     }
 
     /**
@@ -283,5 +210,125 @@ export class NocoDBTaskService {
      */
     getError() {
         return this.error;
+    }
+
+    async _applyTaskMutation({ taskId, fields, context, fallbackMessage, localMutator }) {
+        const task = this._findTaskOrThrow(taskId);
+
+        try {
+            await this.repository.updateTask(
+                task.nocodbRecordId,
+                task.nocodbBaseId,
+                fields
+            );
+
+            if (typeof localMutator === 'function') {
+                localMutator(task);
+            }
+
+            this._syncTasksToStore();
+            eventBus.emit(EVENTS.NOCODB_TASK_UPDATED, { task });
+
+            return task;
+        } catch (error) {
+            this._handleMutationError(context, error, fallbackMessage);
+            throw error;
+        }
+    }
+
+    _applyLocalTaskUpdates(task, updates = {}) {
+        if (!updates) {
+            return;
+        }
+
+        if (updates.name) {
+            task.title = updates.name;
+            task.name = updates.name;
+        }
+        if (updates.priority) {
+            task.priority = updates.priority;
+        }
+        if ('due' in updates) {
+            task.due = updates.due;
+            task.deadline = updates.due;
+        }
+        if ('description' in updates) {
+            task.description = updates.description ?? '';
+        }
+        if ('assignee' in updates) {
+            task.assignee = updates.assignee ?? '';
+        }
+        if (updates.status) {
+            task.status = updates.status;
+        }
+    }
+
+    _normalizeFilters(filters = {}) {
+        const rawAssignee = typeof filters.assignee === 'string' ? filters.assignee.trim() : undefined;
+        const searchText = typeof filters.searchText === 'string'
+            ? filters.searchText.trim().toLowerCase()
+            : '';
+
+        return {
+            project: typeof filters.project === 'string' ? filters.project : '',
+            status: typeof filters.status === 'string' ? filters.status : '',
+            hideCompleted: Boolean(filters.hideCompleted),
+            priority: typeof filters.priority === 'string' ? filters.priority : '',
+            isUnassignedFilter: rawAssignee === UNASSIGNED_FILTER_VALUE,
+            assigneeLower: rawAssignee && rawAssignee !== UNASSIGNED_FILTER_VALUE
+                ? rawAssignee.toLowerCase()
+                : '',
+            searchText,
+            hasSearchText: Boolean(searchText)
+        };
+    }
+
+    _matchesFilters(task, filters) {
+        if (filters.project && task.project !== filters.project) {
+            return false;
+        }
+
+        if (filters.status && task.status !== filters.status) {
+            return false;
+        }
+
+        if (filters.hideCompleted && task.status === 'completed') {
+            return false;
+        }
+
+        if (filters.priority && task.priority !== filters.priority) {
+            return false;
+        }
+
+        if (filters.isUnassignedFilter) {
+            if (task.assignee) {
+                return false;
+            }
+        } else if (filters.assigneeLower) {
+            const assignee = task.assignee?.toLowerCase() || '';
+            if (assignee !== filters.assigneeLower) {
+                return false;
+            }
+        }
+
+        if (filters.hasSearchText && !this._taskMatchesSearch(task, filters.searchText)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    _taskMatchesSearch(task, text) {
+        const title = typeof task.title === 'string' ? task.title.toLowerCase() : '';
+        const description = typeof task.description === 'string' ? task.description.toLowerCase() : '';
+        return title.includes(text) || description.includes(text);
+    }
+
+    _sortByPriority(tasks) {
+        return tasks.sort((a, b) => {
+            const aPriority = PRIORITY_SORT_ORDER[a.priority] ?? DEFAULT_PRIORITY_RANK;
+            const bPriority = PRIORITY_SORT_ORDER[b.priority] ?? DEFAULT_PRIORITY_RANK;
+            return aPriority - bPriority;
+        });
     }
 }
