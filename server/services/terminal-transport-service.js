@@ -287,7 +287,7 @@ export class TerminalTransportService {
             return;
         }
 
-        const snapshot = await this._getSnapshotPayload(sessionId);
+        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
         if (snapshot.text !== connection.lastSnapshot) {
             connection.lastSnapshot = snapshot.text;
             const pollSnapshotMsg = {
@@ -295,6 +295,7 @@ export class TerminalTransportService {
                 text: snapshot.text,
                 capturedAt: snapshot.capturedAt
             };
+            if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
             ws.send(JSON.stringify(pollSnapshotMsg));
         }
 

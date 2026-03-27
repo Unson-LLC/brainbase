@@ -107,11 +107,11 @@ describe('TerminalTransportService', () => {
         expect(msg.text).toBe('snapshot');
     });
 
-    it('steady-state polling snapshotにはcolorTextを含めない', async () => {
+    it('steady-state polling snapshotにcolorTextを含める', async () => {
         const { service, captureCache } = buildService();
         captureCache.getSnapshot.mockResolvedValue({
             text: 'snapshot-next',
-            colorText: null,
+            colorText: '\x1b[32msnapshot-next\x1b[0m',
             copyMode: false,
             capturedAt: '2026-03-23T00:00:00.000Z'
         });
@@ -137,7 +137,7 @@ describe('TerminalTransportService', () => {
         });
         expect(snapshotCall).toBeTruthy();
         const msg = JSON.parse(snapshotCall[0]);
-        expect(msg).not.toHaveProperty('colorText');
+        expect(msg).toHaveProperty('colorText');
     });
 
     describe('auto-takeover: 既存接続の即切断', () => {
