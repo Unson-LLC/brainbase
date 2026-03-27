@@ -1,3 +1,8 @@
+---
+name: x-article-buzz-strategy
+description: "X Article バズ戦略"
+---
+
 # X Article Buzz Strategy
 
 X記事（Article）機能を活用してバズを生み出す戦略。32万ビューの実績に基づく。
