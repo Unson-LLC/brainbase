@@ -915,7 +915,7 @@ export class SessionController {
      * ttydプロセスを起動
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false } = req.body;
+        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false, forceTtyd = false } = req.body;
         const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
         logger.debug(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         logger.debug(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
@@ -1004,6 +1004,7 @@ export class SessionController {
             }
 
             // ttydプロセス起動
+            if (forceTtyd) startOptions.forceTtyd = true;
             const result = await this.sessionManager.startTtyd(startOptions);
             this._recentSessionStarts.set(sessionId, Date.now());
 

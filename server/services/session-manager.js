@@ -1558,11 +1558,11 @@ export class SessionManager {
      * @param {number} [options.preferredPort] - 優先ポート番号（再利用用）
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
-    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort }) {
+    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, forceTtyd = false }) {
         await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine });
 
-        // xterm-only mode: tmuxだけ確保してttydはスキップ
-        if (this._isXtermOnlyMode()) {
+        // xterm-only mode: tmuxだけ確保してttydはスキップ（モバイルのforceTtyd時は除外）
+        if (this._isXtermOnlyMode() && !forceTtyd) {
             logger.info(`[startTtyd] xterm-only mode: skipping ttyd for ${sessionId}`);
             return { port: null, proxyPath: null, startedExisting: false, xtermOnly: true };
         }

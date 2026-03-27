@@ -3639,7 +3639,9 @@ export class App {
             };
         }
 
-        const res = await httpClient.post('/api/sessions/start', this._buildTerminalStartPayload(session));
+        const payload = this._buildTerminalStartPayload(session);
+        if (options.forceTtyd) payload.forceTtyd = true;
+        const res = await httpClient.post('/api/sessions/start', payload);
         return {
             proxyPath: res?.proxyPath ? this._getViewerProxyPath(res.proxyPath, res.port) : null,
             terminalAccess: res?.terminalAccess || terminalAccess || null
@@ -3686,7 +3688,7 @@ export class App {
         this._stopMobileSnapshotPolling();
         this.mobileLiveTerminalModalEl.classList.add('active');
 
-        const result = await this._openSessionInTtydFrame(sessionId, this.mobileLiveTerminalFrameEl);
+        const result = await this._openSessionInTtydFrame(sessionId, this.mobileLiveTerminalFrameEl, { forceTtyd: true });
         if (!result.ok) {
             if (result.blocked) {
                 this.reconnectManager?.setCurrentSession(sessionId);
