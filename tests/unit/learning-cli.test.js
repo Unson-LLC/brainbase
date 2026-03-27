@@ -2,7 +2,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { materializePromotions, renderPromotionManifest } from '../../cli/learning.js';
+import {
+    collectBulletLines,
+    deriveReviewOutcome,
+    materializePromotions,
+    normalizeVerifyFirstArtifact,
+    renderPromotionManifest
+} from '../../cli/learning.js';
 
 describe('learning CLI helpers', () => {
     let tempDir;
@@ -61,5 +67,44 @@ describe('learning CLI helpers', () => {
 
         expect(result.some(file => file.endsWith('docs/learning-promotions/prm_1.md'))).toBe(true);
         expect(fs.existsSync(path.join(tempDir, '.claude/skills/test-skill/SKILL.md'))).toBe(true);
+    });
+
+    it('extracts bullet steps from markdown', () => {
+        expect(collectBulletLines('- first\n- second\nplain')).toEqual(['first', 'second']);
+    });
+
+    it('normalizes a verify-first bug directory into a review episode payload', () => {
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-verify-first-'));
+        fs.writeFileSync(path.join(tempDir, 'review_report.json'), JSON.stringify({
+            review_result: {
+                phase3: { status: 'critical', issues: ['バグタイプ特定不足'] }
+            },
+            replan_details: [
+                { issue: 'バグタイプ特定不足', feedback: '候補を追加して再検証する' }
+            ]
+        }), 'utf-8');
+        fs.writeFileSync(path.join(tempDir, 'phase5_root_cause.md'), '# Root Cause\n再接続条件を固定していなかった。', 'utf-8');
+        fs.writeFileSync(path.join(tempDir, 'phase6_fix.md'), '- xterm を再fitする\n- resize は戻る時だけ走らせる', 'utf-8');
+
+        const payload = normalizeVerifyFirstArtifact(tempDir, { projectId: 'brainbase' });
+
+        expect(payload.source_type).toBe('review');
+        expect(payload.outcome).toBe('failure');
+        expect(payload.promotion_hint).toBe('both');
+        expect(payload.evidence.proposed_rule).toContain('再接続条件');
+        expect(payload.evidence.proposed_steps).toContain('xterm を再fitする');
+        expect(payload.ingestion.adapter_name).toBe('verify-first');
+    });
+
+    it('derives review outcome from review statuses', () => {
+        expect(deriveReviewOutcome({
+            review_result: { phase1: { status: 'critical' } }
+        })).toBe('failure');
+        expect(deriveReviewOutcome({
+            review_result: { phase1: { status: 'minor' } }
+        })).toBe('partial');
+        expect(deriveReviewOutcome({
+            review_result: { phase1: { status: 'approved' } }
+        })).toBe('success');
     });
 });

@@ -11,6 +11,7 @@ const LEARNING_SCHEMA_PATH = path.join(__dirname, '..', 'sql', 'learning-schema.
 const SOURCE_TYPES = new Set(['review', 'explicit_learn']);
 const OUTCOMES = new Set(['success', 'failure', 'partial']);
 const PROMOTION_HINTS = new Set(['auto', 'wiki', 'skill', 'both']);
+const APPLY_MODES = new Set(['auto', 'manual']);
 const SYSTEM_WIKI_ACCESS = {
     role: 'ceo',
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
@@ -84,6 +85,27 @@ function hasExplicitConflict(evidence = {}) {
         || evidence.contradiction
         || evidence.requires_manual_review
     );
+}
+
+function normalizeApplyMode(value) {
+    return APPLY_MODES.has(value) ? value : 'manual';
+}
+
+function normalizeIngestion(payload = {}) {
+    if (!payload || typeof payload !== 'object') return null;
+    const adapterName = typeof payload.adapter_name === 'string' ? payload.adapter_name.trim() : '';
+    const sourcePath = typeof payload.source_path === 'string' ? payload.source_path.trim() : '';
+    const fingerprint = typeof payload.fingerprint === 'string' ? payload.fingerprint.trim() : '';
+
+    if (!adapterName || !sourcePath || !fingerprint) {
+        return null;
+    }
+
+    return {
+        adapter_name: adapterName,
+        source_path: sourcePath,
+        fingerprint
+    };
 }
 
 export function classifyWikiDocumentType(episode) {
@@ -260,7 +282,8 @@ export class LearningService {
             outcome,
             summary,
             evidence: payload.evidence && typeof payload.evidence === 'object' ? payload.evidence : {},
-            promotion_hint: promotionHint
+            promotion_hint: promotionHint,
+            ingestion: normalizeIngestion(payload.ingestion)
         };
     }
 
@@ -268,6 +291,14 @@ export class LearningService {
         this.assertReady();
         await this.ensureSchema();
         const episode = this.normalizeEpisode(payload);
+        if (episode.ingestion) {
+            const existing = await this._findEpisodeByIngestion(episode.ingestion);
+            if (existing) {
+                await this._touchArtifactIngestion(episode.ingestion);
+                return { ...existing, deduped: true, ingestion: episode.ingestion };
+            }
+        }
+
         const id = `lep_${ulid()}`;
 
         await this.pool.query(
@@ -290,7 +321,22 @@ export class LearningService {
             ]
         );
 
-        return { id, ...episode };
+        if (episode.ingestion) {
+            await this.pool.query(
+                `INSERT INTO learning_artifact_ingestions (
+                    id, adapter_name, source_path, fingerprint, episode_id, ingested_at, last_seen_at
+                ) VALUES ($1,$2,$3,$4,$5,NOW(),NOW())`,
+                [
+                    `lig_${ulid()}`,
+                    episode.ingestion.adapter_name,
+                    episode.ingestion.source_path,
+                    episode.ingestion.fingerprint,
+                    id
+                ]
+            );
+        }
+
+        return { id, ...episode, deduped: false };
     }
 
     async listPromotions({ status, pillar, apply_mode } = {}) {
@@ -324,12 +370,24 @@ export class LearningService {
             values
         );
 
-        return rows.map((row) => ({
-            ...row,
-            source_episode_ids: toArray(row.source_episode_ids),
-            linked_candidate_ids: toArray(row.linked_candidate_ids),
-            evaluation_summary: row.evaluation_summary || {}
-        }));
+        return rows.map((row) => this._mapCandidateRow(row));
+    }
+
+    async getPromotion(candidateId) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const { rows } = await this.pool.query(
+            `SELECT id, pillar, target_ref, status, source_episode_ids, linked_wiki_candidate_id,
+                    linked_candidate_ids, proposed_content, evaluation_summary, risk_level, doc_type,
+                    target_project_id, apply_mode, apply_error, materialized_ref, created_at, updated_at
+             FROM promotion_candidates
+             WHERE id = $1
+             LIMIT 1`,
+            [candidateId]
+        );
+
+        return rows[0] ? this._mapCandidateRow(rows[0]) : null;
     }
 
     async markPromotionApplied(candidateId) {
@@ -340,6 +398,19 @@ export class LearningService {
              SET status = 'applied', updated_at = NOW()
              WHERE id = $1`,
             [candidateId]
+        );
+        return { success: rowCount > 0 };
+    }
+
+    async markPromotionRejected(candidateId, reason = null) {
+        this.assertReady();
+        await this.ensureSchema();
+        const normalizedReason = typeof reason === 'string' && reason.trim() ? reason.trim() : null;
+        const { rowCount } = await this.pool.query(
+            `UPDATE promotion_candidates
+             SET status = 'rejected', apply_error = $2, updated_at = NOW()
+             WHERE id = $1`,
+            [candidateId, normalizedReason]
         );
         return { success: rowCount > 0 };
     }
@@ -372,7 +443,58 @@ export class LearningService {
              LIMIT 1`,
             [pillar, targetRef]
         );
-        return rows[0] || null;
+        return rows[0] ? this._mapCandidateRow(rows[0]) : null;
+    }
+
+    async _findEpisodeByIngestion(ingestion) {
+        const { rows } = await this.pool.query(
+            `SELECT le.id, le.source_type, le.project_id, le.session_id, le.task_id, le.skill_refs,
+                    le.wiki_refs, le.outcome, le.summary, le.evidence, le.promotion_hint
+             FROM learning_artifact_ingestions li
+             JOIN learning_episodes le ON le.id = li.episode_id
+             WHERE li.adapter_name = $1
+               AND li.source_path = $2
+               AND li.fingerprint = $3
+             LIMIT 1`,
+            [
+                ingestion.adapter_name,
+                ingestion.source_path,
+                ingestion.fingerprint
+            ]
+        );
+        if (!rows[0]) return null;
+        const row = rows[0];
+        return {
+            ...row,
+            skill_refs: toArray(row.skill_refs),
+            wiki_refs: toArray(row.wiki_refs),
+            evidence: row.evidence || {},
+            promotion_hint: row.promotion_hint || 'auto'
+        };
+    }
+
+    async _touchArtifactIngestion(ingestion) {
+        await this.pool.query(
+            `UPDATE learning_artifact_ingestions
+             SET last_seen_at = NOW()
+             WHERE adapter_name = $1
+               AND source_path = $2
+               AND fingerprint = $3`,
+            [
+                ingestion.adapter_name,
+                ingestion.source_path,
+                ingestion.fingerprint
+            ]
+        );
+    }
+
+    _mapCandidateRow(row) {
+        return {
+            ...row,
+            source_episode_ids: toArray(row.source_episode_ids),
+            linked_candidate_ids: toArray(row.linked_candidate_ids),
+            evaluation_summary: row.evaluation_summary || {}
+        };
     }
 
     _buildEvaluationSummary({ episode, pillar, linkedWikiCandidateId = null, docType = null }) {
@@ -397,6 +519,13 @@ export class LearningService {
             return Boolean(linkedWikiCandidateId || toArray(episode.wiki_refs).length > 0);
         }
         return true;
+    }
+
+    _resolveCandidateApplyMode({ requestedApplyMode = 'manual', pillar, episode, linkedWikiCandidateId = null }) {
+        if (normalizeApplyMode(requestedApplyMode) === 'manual') {
+            return 'manual';
+        }
+        return this._shouldAutoApply({ pillar, episode, linkedWikiCandidateId }) ? 'auto' : 'manual';
     }
 
     async _insertCandidate(candidate) {
@@ -458,7 +587,7 @@ export class LearningService {
         );
     }
 
-    async _createWikiCandidate(episode) {
+    async _createWikiCandidate(episode, requestedApplyMode = 'manual') {
         const docType = classifyWikiDocumentType(episode);
         const targetRef = deriveCanonicalWikiTargetRef(episode, docType);
         const existing = await this._findCandidateByTarget('wiki', targetRef);
@@ -479,7 +608,11 @@ export class LearningService {
             risk_level: this._buildRiskLevel(episode, 'wiki'),
             doc_type: docType,
             target_project_id: episode.project_id,
-            apply_mode: this._shouldAutoApply({ pillar: 'wiki', episode }) ? 'auto' : 'manual',
+            apply_mode: this._resolveCandidateApplyMode({
+                requestedApplyMode,
+                pillar: 'wiki',
+                episode
+            }),
             apply_error: null,
             materialized_ref: null
         };
@@ -487,7 +620,7 @@ export class LearningService {
         return candidate;
     }
 
-    async _createSkillCandidate(episode, linkedWikiCandidate = null) {
+    async _createSkillCandidate(episode, linkedWikiCandidate = null, requestedApplyMode = 'manual') {
         const targetRef = deriveSkillTargetRef(episode);
         const existing = await this._findCandidateByTarget('skill', targetRef);
         if (existing) {
@@ -516,11 +649,12 @@ export class LearningService {
             risk_level: this._buildRiskLevel(episode, 'skill'),
             doc_type: 'procedure',
             target_project_id: episode.project_id,
-            apply_mode: this._shouldAutoApply({
+            apply_mode: this._resolveCandidateApplyMode({
+                requestedApplyMode,
                 pillar: 'skill',
                 episode,
                 linkedWikiCandidateId: linkedWikiCandidate?.id || null
-            }) ? 'auto' : 'manual',
+            }),
             apply_error: null,
             materialized_ref: null
         };
@@ -588,12 +722,13 @@ export class LearningService {
         };
     }
 
-    async proposePromotions() {
+    async proposePromotions({ applyMode = 'manual' } = {}) {
         this.assertReady();
         await this.ensureSchema();
 
         const episodes = await this._loadPendingEpisodes();
         const created = [];
+        const resolvedApplyMode = normalizeApplyMode(applyMode);
 
         for (const episode of episodes) {
             try {
@@ -602,7 +737,7 @@ export class LearningService {
                 let wikiCandidate = null;
 
                 if (wikiNeeded) {
-                    wikiCandidate = await this._createWikiCandidate(episode);
+                    wikiCandidate = await this._createWikiCandidate(episode, resolvedApplyMode);
                     created.push(
                         wikiCandidate.apply_mode === 'auto'
                             ? await this._applyWikiCandidate(wikiCandidate, episode)
@@ -611,7 +746,7 @@ export class LearningService {
                 }
 
                 if (skillNeeded) {
-                    const skillCandidate = await this._createSkillCandidate(episode, wikiCandidate);
+                    const skillCandidate = await this._createSkillCandidate(episode, wikiCandidate, resolvedApplyMode);
                     created.push(
                         skillCandidate.apply_mode === 'auto'
                             ? await this._applySkillCandidate(skillCandidate)

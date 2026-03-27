@@ -82,6 +82,7 @@ describe('LearningService', () => {
                 if (sql.includes('CREATE TABLE') || sql.includes('ALTER TABLE') || sql.includes('CREATE INDEX')) {
                     return { rows: [], rowCount: 0 };
                 }
+                if (sql.includes('FROM learning_artifact_ingestions li')) return { rows: selectQueue.shift() || [] };
                 if (sql.includes('SELECT id, source_type')) return { rows: selectQueue.shift() || [] };
                 if (sql.includes('SELECT id, pillar')) return { rows: selectQueue.shift() || [] };
                 return { rows: [], rowCount: 1 };
@@ -110,7 +111,7 @@ describe('LearningService', () => {
         expect(pool.query).toHaveBeenCalled();
     });
 
-    it('proposePromotions creates wiki and linked skill candidates and auto-applies both', async () => {
+    it('proposePromotions defaults to manual candidates', async () => {
         selectQueue.push([
             {
                 id: 'lep_1',
@@ -135,9 +136,40 @@ describe('LearningService', () => {
         const result = await service.proposePromotions();
 
         expect(result).toHaveLength(2);
-        expect(result.every((candidate) => candidate.status === 'applied')).toBe(true);
+        expect(result.every((candidate) => candidate.status === 'evaluated')).toBe(true);
+        expect(result.every((candidate) => candidate.apply_mode === 'manual')).toBe(true);
         expect(result.some((candidate) => candidate.pillar === 'wiki' && candidate.doc_type === 'architecture')).toBe(true);
         expect(result.some((candidate) => candidate.pillar === 'skill')).toBe(true);
+        expect(wikiService.savePage).not.toHaveBeenCalled();
+        expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(false);
+    });
+
+    it('proposePromotions can auto-apply when explicitly requested', async () => {
+        selectQueue.push([
+            {
+                id: 'lep_auto',
+                source_type: 'review',
+                project_id: 'brainbase',
+                session_id: 'sess_auto',
+                task_id: 'task_auto',
+                skill_refs: ['.claude/skills/recovery/SKILL.md'],
+                wiki_refs: [],
+                outcome: 'failure',
+                summary: '障害回避の手順と原則を標準化する',
+                promotion_hint: 'both',
+                evidence: {
+                    proposed_rule: '再接続条件を固定する',
+                    proposed_steps: '再接続後に fit を同期する'
+                }
+            }
+        ]);
+        selectQueue.push([]);
+        selectQueue.push([]);
+
+        const result = await service.proposePromotions({ applyMode: 'auto' });
+
+        expect(result).toHaveLength(2);
+        expect(result.every((candidate) => candidate.status === 'applied')).toBe(true);
         expect(wikiService.savePage).toHaveBeenCalled();
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(true);
     });
@@ -195,5 +227,65 @@ describe('LearningService', () => {
 
         expect(skillCandidate.apply_mode).toBe('manual');
         expect(skillCandidate.status).toBe('evaluated');
+    });
+
+    it('recordEpisode dedupes artifact ingestions by adapter/source/fingerprint', async () => {
+        selectQueue.push([
+            {
+                id: 'lep_existing',
+                source_type: 'review',
+                project_id: 'brainbase',
+                session_id: null,
+                task_id: 'bug-1',
+                skill_refs: [],
+                wiki_refs: [],
+                outcome: 'failure',
+                summary: '既存 episode',
+                evidence: {},
+                promotion_hint: 'auto'
+            }
+        ]);
+
+        const result = await service.recordEpisode({
+            source_type: 'review',
+            outcome: 'failure',
+            summary: 'duplicate',
+            ingestion: {
+                adapter_name: 'verify-first',
+                source_path: '/tmp/verify-first-bugs/bug-1/review_report.json',
+                fingerprint: 'abc123'
+            }
+        });
+
+        expect(result.id).toBe('lep_existing');
+        expect(result.deduped).toBe(true);
+    });
+
+    it('can fetch and reject a promotion candidate', async () => {
+        selectQueue.push([
+            {
+                id: 'prm_1',
+                pillar: 'wiki',
+                target_ref: 'architecture/test',
+                status: 'evaluated',
+                source_episode_ids: ['lep_1'],
+                linked_wiki_candidate_id: null,
+                linked_candidate_ids: [],
+                proposed_content: '# test',
+                evaluation_summary: { wiki_first_passed: true },
+                risk_level: 'low',
+                doc_type: 'architecture',
+                target_project_id: 'brainbase',
+                apply_mode: 'manual',
+                apply_error: null,
+                materialized_ref: null
+            }
+        ]);
+
+        const candidate = await service.getPromotion('prm_1');
+        expect(candidate.id).toBe('prm_1');
+
+        const result = await service.markPromotionRejected('prm_1', 'not needed');
+        expect(result.success).toBe(true);
     });
 });

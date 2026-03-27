@@ -7,6 +7,15 @@
 
 まずはこの順で見るのが自然。
 
+0. `docs/architecture/brainbase-foundation.md`
+   - Brainbase 全体の基本構成
+   - 何が正本か
+   - `wiki` / `skills` / `docs` / DB の役割分担
+   - sync の意味
+0.5 `docs/architecture/feedback-loop.md`
+   - `episode` / `candidate` / `promotion` の定義
+   - wiki と skills の切り分け原理
+   - 自動改善ループの考え方
 1. `docs/frames/`
    - 世界観、前提、語彙、設計原則
 2. `docs/stories/`
@@ -46,6 +55,8 @@
 設計の責務分解を書く場所。
 ここには **どの責務がどこにあり、何を正本にし、どう投影するか** を書く。
 
+- Brainbase 基本構成
+- Brainbase フィードバックループ
 - UI コンセプト
 - ランタイム構成
 - ズーム契約
@@ -172,6 +183,7 @@
 
 ## 次にやると良いこと
 
+- まず [Brainbase 基本構成](./architecture/brainbase-foundation.md) と [Brainbase フィードバックループ](./architecture/feedback-loop.md) を入口として扱う
 - `docs/README.md` を入口にして、新規文書作成時に分類を先に決める
 - `UnsonOS` 系は、主題ごとに `story / architecture / spec` が揃っているかを定期チェックする
 - 調査メモが増えたら `spikes/` へ移し、正本の設計と混ぜない

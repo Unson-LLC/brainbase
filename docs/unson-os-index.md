@@ -13,6 +13,11 @@
 
 ## 入口
 
+### Brainbase 前提
+
+- [Brainbase 基本構成](./architecture/brainbase-foundation.md)
+- [Brainbase フィードバックループ](./architecture/feedback-loop.md)
+
 ### フレーム
 
 - [UnsonOS ランタイム UI フレーム](./frames/unson-os-runtime-ui-frame.md)
@@ -74,10 +79,12 @@
 
 ### まず全体像を掴みたいとき
 
-1. フレーム
-2. UI コンセプト
-3. ズーム契約
-4. 正準ドメイン
+1. Brainbase 基本構成
+2. Brainbase フィードバックループ
+3. フレーム
+4. UI コンセプト
+5. ズーム契約
+6. 正準ドメイン
 
 ### 現場責任者から実装したいとき
 
@@ -103,6 +110,10 @@
 - `Story` は体験と受け入れ条件
 - `Architecture` は責務と境界
 - `Spec` は実装詳細
+
+## 迷ったときの入口
+
+「これは wiki に行くのか、skills に行くのか」「feedback loop はどう回るのか」で迷ったら、先に [Brainbase 基本構成](./architecture/brainbase-foundation.md) と [Brainbase フィードバックループ](./architecture/feedback-loop.md) を見る。
 
 `UnsonOS` 系の文書を足すときは、まずこの索引に追記する。
 
