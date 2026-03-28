@@ -6787,6 +6787,26 @@ body.resizing iframe {
         min-height: 0;
         overflow: auto;
     }
+    /* モバイル: Backボタン非表示、余白削減 */
+    .mobile-files-preview .file-viewer-back {
+        display: none;
+    }
+    .mobile-files-preview .file-viewer-header {
+        padding: 8px 4px;
+        gap: 8px;
+    }
+    .mobile-files-preview .file-viewer-content {
+        padding: 8px 4px;
+    }
+    .mobile-files-preview .file-viewer-text {
+        border-radius: 6px;
+        padding: 12px 8px;
+        font-size: 0.82rem;
+    }
+    .mobile-files-preview .file-viewer-markdown {
+        font-size: 0.92rem;
+        line-height: 1.5;
+    }
     .mobile-files-preview .file-viewer-empty {
         display: flex;
         align-items: center;
