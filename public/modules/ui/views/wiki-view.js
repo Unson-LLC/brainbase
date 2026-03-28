@@ -202,8 +202,14 @@ export class WikiView {
     // --- Overlay (covers console-area only) ---
 
     _ensureOverlay() {
-        if (document.getElementById('wiki-reader-overlay')) {
-            this._overlay = document.getElementById('wiki-reader-overlay');
+        const existing = document.getElementById('wiki-reader-overlay');
+        if (existing) {
+            this._overlay = existing;
+            // If mounted in a mobile tab, move the overlay there
+            const mobileTabParent = this._container?.closest('.mobile-tab-content');
+            if (mobileTabParent && existing.parentElement !== mobileTabParent) {
+                mobileTabParent.appendChild(existing);
+            }
             return;
         }
         const overlay = document.createElement('div');
