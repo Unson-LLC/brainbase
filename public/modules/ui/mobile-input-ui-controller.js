@@ -421,10 +421,6 @@ export class MobileInputUIController {
 
         const payload = rawValue.endsWith('\n') ? rawValue.slice(0, -1) : rawValue;
 
-        // DEBUG: 送信先セッションIDと入力内容をログ出力
-        console.log('[mobile-input] Sending to sessionId:', sessionId);
-        console.log('[mobile-input] Payload:', payload);
-
         try {
             await this.terminalInput.sendInput(sessionId, payload);
 
