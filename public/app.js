@@ -1213,6 +1213,35 @@ export class App {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
         this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
+        this._bindSnapshotLinks();
+    }
+
+    _bindSnapshotLinks() {
+        if (!this.terminalSnapshotContentEl) return;
+
+        this.terminalSnapshotContentEl.querySelectorAll('.snapshot-url-link').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(el.href, '_blank', 'noopener');
+            });
+        });
+
+        this.terminalSnapshotContentEl.querySelectorAll('.snapshot-file-link').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const filePath = el.dataset.path;
+                if (!filePath) return;
+                const line = el.dataset.line ? parseInt(el.dataset.line, 10) : undefined;
+                window.postMessage({
+                    type: 'OPEN_FILE',
+                    filePath,
+                    line,
+                    sessionId: appStore.getState().currentSessionId
+                }, window.location.origin);
+            });
+        });
     }
 
     _normalizeTerminalSnapshotText(text) {
@@ -1660,9 +1689,15 @@ export class App {
 
             if (shouldOpenInBrowser && this.fileViewerService) {
                 void this.fileViewerService.openFile(currentSessionId, previewRelativePath || filePath);
-                this.showFileViewer?.();
+                if (this.isMobile() && this.mobileTabController) {
+                    this.mobileTabController.switchTab('files');
+                } else {
+                    this.showFileViewer?.();
+                }
                 return;
             }
+
+            if (this.isMobile()) return;
 
             fetch('/api/open-file', {
                 method: 'POST',

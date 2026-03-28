@@ -74,4 +74,41 @@ describe('ansiToHtml', () => {
         expect(result).toContain('red</span>');
         expect(result).toContain('blue</span>');
     });
+
+    // --- リンク検出テスト ---
+
+    it('URLをクリック可能なリンクに変換する', () => {
+        const result = ansiToHtml('see https://example.com/path for details');
+        expect(result).toContain('<a class="snapshot-url-link"');
+        expect(result).toContain('href="https://example.com/path"');
+        expect(result).toContain('target="_blank"');
+    });
+
+    it('ファイルパスをクリック可能な要素に変換する', () => {
+        const result = ansiToHtml('edit ./src/app.js:42');
+        expect(result).toContain('<span class="snapshot-file-link"');
+        expect(result).toContain('data-path="./src/app.js"');
+        expect(result).toContain('data-line="42"');
+    });
+
+    it('ANSI色付きテキスト内のリンクも検出する', () => {
+        const input = '\x1b[32mhttps://example.com\x1b[0m';
+        const result = ansiToHtml(input);
+        expect(result).toContain('<a class="snapshot-url-link"');
+        expect(result).toContain('https://example.com');
+    });
+
+    it('ファイルパス（行番号なし）を検出する', () => {
+        const result = ansiToHtml('modified server/routes/api.ts');
+        expect(result).toContain('<span class="snapshot-file-link"');
+        expect(result).toContain('data-path="server/routes/api.ts"');
+        expect(result).not.toContain('data-line');
+    });
+
+    it('リンクでないテキストはそのまま', () => {
+        const result = ansiToHtml('hello world 123');
+        expect(result).toBe('hello world 123');
+        expect(result).not.toContain('<a');
+        expect(result).not.toContain('snapshot-file-link');
+    });
 });

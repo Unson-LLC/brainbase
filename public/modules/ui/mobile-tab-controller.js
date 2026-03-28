@@ -114,11 +114,46 @@ export class MobileTabController {
                 el.textContent = 'セッションを選択してください';
                 return;
             }
+            this._filesEl = el;
+
+            // Create tree + preview containers
+            el.innerHTML = `
+                <div class="mobile-files-tree"></div>
+                <div class="mobile-files-preview hidden"></div>
+            `;
+            const treeContainer = el.querySelector('.mobile-files-tree');
+            const previewContainer = el.querySelector('.mobile-files-preview');
+
+            // Mount FolderTreeView
             const { FolderTreeView } = await import('./views/folder-tree-view.js');
             const fileViewerService = this._container.get('fileViewerService');
             const sessionService = this._container.get('sessionService');
-            const view = new FolderTreeView({ sessionService, fileViewerService });
-            view.render(el);
+            this._folderTreeView = new FolderTreeView({ sessionService, fileViewerService });
+            this._folderTreeView.render(treeContainer);
+
+            // Mount FileViewerView into preview container
+            const { FileViewerView } = await import('./views/file-viewer-view.js');
+            this._fileViewerView = new FileViewerView({ fileViewerService });
+            this._fileViewerView.mount(previewContainer);
+
+            // Subscribe to fileViewer state to toggle tree/preview
+            this._fileViewerUnsubscribe = appStore.subscribeToSelector(
+                (state) => state.fileViewer,
+                (fileViewer) => {
+                    if (!this._filesEl) return;
+                    const tree = this._filesEl.querySelector('.mobile-files-tree');
+                    const preview = this._filesEl.querySelector('.mobile-files-preview');
+                    if (!tree || !preview) return;
+
+                    if (fileViewer && (fileViewer.content != null || fileViewer.loading)) {
+                        tree.classList.add('hidden');
+                        preview.classList.remove('hidden');
+                    } else {
+                        tree.classList.remove('hidden');
+                        preview.classList.add('hidden');
+                    }
+                }
+            );
         } catch (error) {
             el.textContent = 'Files の読み込みに失敗しました';
             console.error('Failed to mount files tab:', error);
