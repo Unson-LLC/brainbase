@@ -1193,9 +1193,7 @@ export class App {
             this.terminalSnapshotTitleEl.textContent = title;
         }
         const snapshotText = this._normalizeTerminalSnapshotText(snapshot?.text);
-        if (this.isMobile()) {
-            this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
-        } else if (snapshot?.colorText) {
+        if (snapshot?.colorText) {
             this.terminalSnapshotContentEl.innerHTML = ansiToHtml(snapshot.colorText);
         } else {
             this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
