@@ -233,6 +233,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, key);
+            eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'cursor', sessionId });
         } catch (error) {
             console.error(`Failed to send ${key} key:`, error);
             showError(`${key}キーの送信に失敗したよ`);
@@ -693,6 +694,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, 'Enter');
+            eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'enter', sessionId });
         } catch (error) {
             console.error('Failed to send Enter key:', error);
             showError('Enterキーの送信に失敗したよ');
@@ -752,6 +754,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, 'C-l');
+            eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'clear', sessionId });
             showSuccess('画面クリア送信');
         } catch (error) {
             console.error('Failed to send Clear:', error);
@@ -770,6 +773,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, 'Escape');
+            eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'escape', sessionId });
             showSuccess('Escape送信');
         } catch (error) {
             console.error('Failed to send Escape:', error);
@@ -789,6 +793,7 @@ export class MobileInputUIController {
         try {
             // BTab (Backtab) の方がtmuxで確実に認識される
             await this.terminalInput.sendKey(sessionId, 'BTab');
+            eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'shift-tab', sessionId });
             showSuccess('Shift+Tab送信');
         } catch (error) {
             console.error('Failed to send Shift+Tab:', error);
