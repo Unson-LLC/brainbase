@@ -12,7 +12,8 @@
     "modules/core/*.js",
     "modules/ui-helpers.js",
     "modules/utils/*.js",
-    "modules/domain/**/*.js"
+    "modules/domain/**/*.js",
+    "modules/ui/views/base-view.js"
   ],
   "exclude": ["../node_modules"]
 }
