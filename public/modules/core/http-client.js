@@ -1,3 +1,4 @@
+// @ts-check
 import { createTraceId } from './trace-id.js';
 
 /**
@@ -7,9 +8,11 @@ import { createTraceId } from './trace-id.js';
  */
 export class HttpClient {
     /**
-     * @param {Object} config - 設定オブジェクト
-     * @param {string} config.baseURL - ベースURL
-     * @param {Object} config.headers - デフォルトヘッダー
+     * @param {Object} [config] - 設定オブジェクト
+     * @param {string} [config.baseURL] - ベースURL
+     * @param {Object} [config.headers] - デフォルトヘッダー
+     * @param {string|null} [config.authToken] - 認証トークン
+     * @param {Function|null} [config.onUnauthorized] - 401時のコールバック
      */
     constructor(config = {}) {
         this.baseURL = (config.baseURL || '').replace(/\/+$/, '');
@@ -21,6 +24,7 @@ export class HttpClient {
         this._csrfTokenPromise = null;
         this._authToken = config.authToken || null;
         this._onUnauthorized = config.onUnauthorized || null;
+        this.defaultTimeout = 30000;
     }
 
     /**
@@ -187,7 +191,7 @@ export class HttpClient {
                 const isLoginUrl = response.url && /login|auth|signin/i.test(response.url);
 
                 if (isHtml || isLoginUrl) {
-                    const authError = new Error('Authentication required');
+                    const authError = /** @type {Error & { status?: number, redirectUrl?: string }} */ (new Error('Authentication required'));
                     authError.status = 401;
                     authError.redirectUrl = response.url;
                     if (!suppressAuthError && typeof this._onUnauthorized === 'function') {
@@ -341,7 +345,7 @@ export class HttpClient {
 function resolveDefaultBaseURL() {
     if (typeof window === 'undefined') return '';
     if (Object.prototype.hasOwnProperty.call(window, '__BRAINBASE_API_BASE_URL')) {
-        const explicit = window.__BRAINBASE_API_BASE_URL;
+        const explicit = /** @type {any} */ (window).__BRAINBASE_API_BASE_URL;
         if (typeof explicit === 'string') {
             return explicit.replace(/\/+$/, '');
         }

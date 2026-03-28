@@ -12,7 +12,9 @@
     "modules/core/xterm-loader.js",
     "modules/core/terminal-transport-client.js",
     "modules/core/event-bus.js",
-    "modules/core/store.js"
+    "modules/core/store.js",
+    "modules/core/http-client.js",
+    "modules/core/session-data-cache.js"
   ],
   "exclude": ["../node_modules"]
 }
