@@ -3524,6 +3524,10 @@ export class App {
             closeSessionsSheet();
             eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
         });
+        // Bottom nav +New button
+        document.getElementById('mobile-new-session-btn')?.addEventListener('click', () => {
+            eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
+        });
         // Desktop New Session button
         const addSessionBtn = document.getElementById('add-session-btn');
         addSessionBtn?.addEventListener('click', () => {
