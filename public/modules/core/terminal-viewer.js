@@ -1,3 +1,4 @@
+// @ts-check
 const VIEWER_ID_STORAGE_KEY = 'brainbase-terminal-viewer-id';
 
 function normalizeConsoleBasePath(proxyPath) {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 追跡用IDを生成
  * @param {string} prefix

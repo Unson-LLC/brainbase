@@ -1,3 +1,4 @@
+// @ts-check
 export class TerminalInteractionService {
     constructor({
         httpClient,
@@ -90,9 +91,9 @@ export class TerminalInteractionService {
         const availability = this.getAvailability(sessionId);
         if (availability.canSend) return;
 
-        const error = new Error(availability.reason === 'blocked'
+        const error = /** @type {Error & { code?: string }} */ (new Error(availability.reason === 'blocked'
             ? 'Terminal is blocked by another viewer'
-            : 'Terminal input is unavailable');
+            : 'Terminal input is unavailable'));
         error.code = availability.reason === 'blocked' ? 'TERMINAL_BLOCKED' : 'TERMINAL_INPUT_UNAVAILABLE';
         throw error;
     }

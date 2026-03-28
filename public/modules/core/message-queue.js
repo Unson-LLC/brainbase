@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WebSocketメッセージキュー（CommandMate移植）
  *
