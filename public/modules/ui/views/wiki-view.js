@@ -218,10 +218,13 @@ export class WikiView {
             </div>
             <div class="wiki-reader-body"></div>
         `;
-        // Insert inside console-area (which has position:relative)
-        // so the overlay covers only the terminal area
+        // Insert overlay: if mounted in a mobile tab content, use that container;
+        // otherwise use console-area (desktop) or body as fallback.
+        const mobileTabParent = this._container?.closest('.mobile-tab-content');
         const consoleArea = document.getElementById('console-area');
-        if (consoleArea) {
+        if (mobileTabParent) {
+            mobileTabParent.appendChild(overlay);
+        } else if (consoleArea) {
             consoleArea.appendChild(overlay);
         } else {
             document.body.appendChild(overlay);
