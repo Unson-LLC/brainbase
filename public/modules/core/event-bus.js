@@ -253,6 +253,7 @@ export const EVENTS = {
     MOBILE_INPUT_OPENED: 'mobile-input:opened',
     MOBILE_INPUT_CLOSED: 'mobile-input:closed',
     MOBILE_INPUT_SENT: 'mobile-input:sent',
+    MOBILE_TAB_CHANGED: 'mobile:tab-changed',
     MOBILE_INPUT_DRAFT_SAVED: 'mobile-input:draft-saved',
 
     // Recovery関連 (Auto-Claude RecoveryManager pattern)

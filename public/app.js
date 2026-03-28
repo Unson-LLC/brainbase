@@ -61,6 +61,7 @@ import { setupPanelLayout } from './modules/ui/panel-layout-manager.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
 import { MobileInputController } from './modules/ui/mobile-input-controller.js';
+import { MobileTabController } from './modules/ui/mobile-tab-controller.js';
 
 // Modals
 import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
@@ -660,6 +661,14 @@ export class App {
         if (panel && panel.parentElement !== document.body) {
             this._snapshotPanelOriginalParent = panel.parentElement;
             document.body.appendChild(panel);
+        }
+        // Offset snapshot panel below mobile tab bar
+        if (panel) {
+            const tabBar = document.getElementById('mobile-tab-bar');
+            const tabBarH = tabBar ? tabBar.offsetHeight : 0;
+            if (tabBarH > 0) {
+                document.body.style.setProperty('--mobile-tab-bar-height', `${tabBarH}px`);
+            }
         }
     }
 
@@ -3353,7 +3362,7 @@ export class App {
         const tasksBottomSheet = document.getElementById('tasks-bottom-sheet');
         const closeSessionsSheetBtn = document.getElementById('close-sessions-sheet');
         const closeTasksSheetBtn = document.getElementById('close-tasks-sheet');
-        const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn');
+        const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn') || document.getElementById('mobile-new-session-btn');
         const mobileSessionList = document.getElementById('mobile-session-list');
         const mobileTasksContent = document.getElementById('mobile-tasks-content');
         const settingsUI = this.settingsCore?.ui;
@@ -4160,6 +4169,14 @@ export class App {
 
         // 13. Setup mobile input UI (Dock/Composer)
         this.initMobileInput();
+
+        // 14. Setup mobile tab bar
+        if (this.isMobile()) {
+            this.mobileTabController = new MobileTabController({
+                container: this.container
+            });
+            this.mobileTabController.init();
+        }
 
         console.log('brainbase-ui started successfully');
     }

@@ -6327,6 +6327,14 @@ body.resizing iframe {
     display: none;
 }
 
+/* Mobile Tab Bar + Content: hidden on desktop */
+.mobile-tab-bar {
+    display: none;
+}
+.mobile-tab-content {
+    display: none;
+}
+
 /* Bottom Navigation Bar (Mobile Only) */
 .mobile-bottom-nav {
     display: none;
@@ -6602,6 +6610,89 @@ body.resizing iframe {
 
     .terminal-snapshot-panel {
         inset: 0 0 var(--mobile-terminal-reserve, var(--mobile-input-offset, 120px));
+    }
+
+    /* --- Mobile Tab Bar --- */
+    .mobile-tab-bar {
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 0;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+        position: fixed;
+        top: var(--mobile-terminal-stage-top, 39px);
+        left: 0;
+        right: 0;
+        z-index: 1200;
+    }
+    .mobile-tab-bar::-webkit-scrollbar {
+        display: none;
+    }
+    .mobile-tab {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        transition: color 0.15s, border-color 0.15s;
+    }
+    .mobile-tab i {
+        width: 16px;
+        height: 16px;
+    }
+    .mobile-tab.active {
+        color: var(--accent-color);
+        border-bottom-color: var(--accent-color);
+    }
+
+    /* --- Mobile Tab Content --- */
+    .mobile-tab-content {
+        display: none;
+        position: fixed;
+        top: calc(var(--mobile-terminal-stage-top, 39px) + var(--mobile-tab-bar-height, 47px));
+        left: 0;
+        right: 0;
+        bottom: calc(56px + env(safe-area-inset-bottom, 0));
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 12px;
+        background: var(--bg-primary);
+        z-index: 1150;
+    }
+    .mobile-tab-content.active {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Non-terminal tab active: hide console + input dock */
+    body.mobile-tab-active .console-area {
+        display: none !important;
+    }
+    body.mobile-tab-active #file-viewer-panel {
+        display: none !important;
+    }
+    body.mobile-tab-active .mobile-input-dock {
+        display: none !important;
+    }
+
+    /* Bottom nav +New button */
+    .mobile-bottom-nav-primary {
+        background: var(--accent-color) !important;
+        color: #fff !important;
+        border-radius: 12px !important;
     }
 
     /* Mobile Input Dock */
@@ -7128,13 +7219,14 @@ body.resizing iframe {
         pointer-events: none;
     }
 
-    .console-area.using-snapshot .terminal-snapshot-panel {
+    .console-area.using-snapshot .terminal-snapshot-panel,
+    body > .terminal-snapshot-panel {
         position: fixed;
-        top: var(--mobile-terminal-stage-top, 0px);
+        inset: auto;
+        top: calc(var(--mobile-terminal-stage-top, 0px) + var(--mobile-tab-bar-height, 47px));
         left: var(--mobile-terminal-stage-left, 0px);
         width: var(--mobile-terminal-stage-width, 100vw);
-        height: var(--mobile-terminal-stage-height, 100vh);
-        inset: auto;
+        height: calc(var(--mobile-terminal-stage-height, 100vh) - var(--mobile-tab-bar-height, 47px));
         display: flex;
         z-index: 1105;
         visibility: visible;
@@ -7143,7 +7235,8 @@ body.resizing iframe {
         pointer-events: auto;
     }
 
-    .console-area.using-snapshot .terminal-snapshot-content {
+    .console-area.using-snapshot .terminal-snapshot-content,
+    body > .terminal-snapshot-panel .terminal-snapshot-content {
         white-space: pre-wrap;
         word-break: break-word;
         overflow-wrap: anywhere;

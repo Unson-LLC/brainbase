@@ -726,9 +726,9 @@ app.use('/api/brainbase', createBrainbaseRouter({
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
-app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
-app.use('/api/learning', requireAuth(authService), createLearningRouter(learningService));
-app.use('/api/wiki', requireAuth(authService), createWikiRouter(wikiService));
+app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
+app.use('/api/learning', createLearningRouter(learningService));
+app.use('/api/wiki', createWikiRouter(wikiService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {
     brainbaseRoot: BRAINBASE_ROOT,
