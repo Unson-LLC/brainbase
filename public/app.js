@@ -1781,6 +1781,7 @@ export class App {
         const onSnapshotClick = (event) => {
             if (!this._isMobileTerminalDisplayMode()) return;
             if (this._isEditableTarget(event.target)) return;
+            if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.choiceActive || overlayState.dropActive) return;
             event.stopPropagation();
@@ -1792,6 +1793,7 @@ export class App {
         const onSnapshotTouchStart = (event) => {
             if (!this._isMobileTerminalDisplayMode()) return;
             if (this._isEditableTarget(event.target)) return;
+            if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             this._mobileTapTracking = {
                 startX: event.touches?.[0]?.clientX ?? 0,
                 startY: event.touches?.[0]?.clientY ?? 0,
