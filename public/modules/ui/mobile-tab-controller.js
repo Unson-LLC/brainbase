@@ -1,5 +1,6 @@
 import { eventBus, EVENTS } from '../core/event-bus.js';
 import { appStore } from '../core/store.js';
+import { refreshIcons } from '../ui-helpers.js';
 
 const TAB_IDS = ['terminal', 'files', 'wiki', 'tasks', 'feed'];
 
@@ -9,6 +10,12 @@ export class MobileTabController {
         this._mountedTabs = new Set();
         this._activeTab = 'terminal';
         this._tabBar = null;
+        this._filesEl = null;
+        this._filesSubMode = 'tree'; // 'tree' | 'viewer'
+        this._folderTreeView = null;
+        this._fileViewerView = null;
+        this._folderTreeUnsubscribe = null;
+        this._fileViewerUnsubscribe = null;
     }
 
     init() {
@@ -29,8 +36,12 @@ export class MobileTabController {
         });
     }
 
-    switchTab(tab) {
-        if (!TAB_IDS.includes(tab) || tab === this._activeTab) return;
+    switchTab(tab, options = {}) {
+        if (!TAB_IDS.includes(tab)) return;
+
+        // Allow re-entry to files tab to switch sub-mode
+        if (tab === this._activeTab && tab !== 'files') return;
+
         this._activeTab = tab;
 
         // Update tab bar buttons
@@ -56,11 +67,20 @@ export class MobileTabController {
             this._mountedTabs.add(tab);
         }
 
-        eventBus.emit(EVENTS.MOBILE_TAB_CHANGED, { tab });
-
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
+        // Files tab sub-mode switching
+        if (tab === 'files' && options.showViewer) {
+            this._setFilesSubMode('viewer');
         }
+
+        eventBus.emit(EVENTS.MOBILE_TAB_CHANGED, { tab });
+        refreshIcons();
+    }
+
+    /**
+     * Switch to Files tab and show file viewer directly
+     */
+    showFileViewer() {
+        this.switchTab('files', { showViewer: true });
     }
 
     async _mountTab(tab) {
@@ -116,11 +136,28 @@ export class MobileTabController {
             }
             this._filesEl = el;
 
-            // Create tree + preview containers
+            // Sub-tab bar + containers
             el.innerHTML = `
+                <div class="mobile-files-subtabs">
+                    <button class="mobile-files-subtab active" data-submode="tree">
+                        <i data-lucide="folder-tree"></i> Tree
+                    </button>
+                    <button class="mobile-files-subtab" data-submode="viewer">
+                        <i data-lucide="file-text"></i> Viewer
+                    </button>
+                </div>
                 <div class="mobile-files-tree"></div>
                 <div class="mobile-files-preview hidden"></div>
             `;
+
+            // Sub-tab click handlers
+            el.querySelectorAll('.mobile-files-subtab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const mode = btn.dataset.submode;
+                    if (mode) this._setFilesSubMode(mode);
+                });
+            });
+
             const treeContainer = el.querySelector('.mobile-files-tree');
             const previewContainer = el.querySelector('.mobile-files-preview');
 
@@ -146,37 +183,50 @@ export class MobileTabController {
                 }
             );
 
-            // Subscribe to fileViewer state to toggle tree/preview
+            // Subscribe to fileViewer state — auto-switch to viewer when file opens
             this._fileViewerUnsubscribe = appStore.subscribeToSelector(
                 (state) => state.fileViewer,
                 (fileViewer) => {
-                    if (!this._filesEl) return;
-                    const tree = this._filesEl.querySelector('.mobile-files-tree');
-                    const preview = this._filesEl.querySelector('.mobile-files-preview');
-                    if (!tree || !preview) return;
-
                     if (fileViewer && (fileViewer.content != null || fileViewer.loading)) {
-                        tree.classList.add('hidden');
-                        preview.classList.remove('hidden');
-                    } else {
-                        tree.classList.remove('hidden');
-                        preview.classList.add('hidden');
+                        this._setFilesSubMode('viewer');
                     }
                 }
             );
+
+            refreshIcons({ nodes: [el] });
         } catch (error) {
             el.textContent = 'Files の読み込みに失敗しました';
             console.error('Failed to mount files tab:', error);
         }
     }
 
+    _setFilesSubMode(mode) {
+        if (!this._filesEl) return;
+        this._filesSubMode = mode;
+
+        const tree = this._filesEl.querySelector('.mobile-files-tree');
+        const preview = this._filesEl.querySelector('.mobile-files-preview');
+        if (!tree || !preview) return;
+
+        if (mode === 'viewer') {
+            tree.classList.add('hidden');
+            preview.classList.remove('hidden');
+        } else {
+            tree.classList.remove('hidden');
+            preview.classList.add('hidden');
+        }
+
+        // Update sub-tab active state
+        this._filesEl.querySelectorAll('.mobile-files-subtab').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.submode === mode);
+        });
+    }
+
     _mountTasksTab(el) {
         const tasksContent = document.getElementById('tasks-tab-content');
         if (tasksContent) {
             el.innerHTML = tasksContent.innerHTML;
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
+            refreshIcons();
         } else {
             el.textContent = 'Tasks の読み込みに失敗しました';
         }
@@ -184,22 +234,7 @@ export class MobileTabController {
 
     _refreshActiveTab() {
         if (this._activeTab === 'files') {
-            // Cleanup existing subscriptions
-            if (this._folderTreeUnsubscribe) {
-                this._folderTreeUnsubscribe();
-                this._folderTreeUnsubscribe = null;
-            }
-            if (this._fileViewerUnsubscribe) {
-                this._fileViewerUnsubscribe();
-                this._fileViewerUnsubscribe = null;
-            }
-            if (this._fileViewerView) {
-                this._fileViewerView.unmount?.();
-                this._fileViewerView = null;
-            }
-            this._folderTreeView = null;
-            this._filesEl = null;
-
+            this._cleanupFiles();
             this._mountedTabs.delete('files');
             const el = document.getElementById('mobile-tab-content-files');
             if (el) {
@@ -208,5 +243,22 @@ export class MobileTabController {
                 this._mountedTabs.add('files');
             }
         }
+    }
+
+    _cleanupFiles() {
+        if (this._folderTreeUnsubscribe) {
+            this._folderTreeUnsubscribe();
+            this._folderTreeUnsubscribe = null;
+        }
+        if (this._fileViewerUnsubscribe) {
+            this._fileViewerUnsubscribe();
+            this._fileViewerUnsubscribe = null;
+        }
+        if (this._fileViewerView) {
+            this._fileViewerView.unmount?.();
+            this._fileViewerView = null;
+        }
+        this._folderTreeView = null;
+        this._filesEl = null;
     }
 }

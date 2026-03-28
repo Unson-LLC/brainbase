@@ -6736,7 +6736,36 @@ body.resizing iframe {
         flex-direction: column;
     }
 
-    /* Mobile Files tab: tree/preview toggle */
+    /* Mobile Files tab: sub-tabs + tree/preview */
+    .mobile-files-subtabs {
+        display: flex;
+        gap: 4px;
+        padding: 0 0 8px;
+        border-bottom: 1px solid var(--border-color, #1e293b);
+        margin-bottom: 8px;
+        flex-shrink: 0;
+    }
+    .mobile-files-subtab {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: transparent;
+        border: 1px solid var(--border-color, #334155);
+        border-radius: 6px;
+        color: var(--text-secondary, #94a3b8);
+        font-size: 13px;
+        cursor: pointer;
+    }
+    .mobile-files-subtab.active {
+        background: var(--accent-color, #3b82f6);
+        border-color: var(--accent-color, #3b82f6);
+        color: #fff;
+    }
+    .mobile-files-subtab svg { width: 14px; height: 14px; }
+
     .mobile-files-tree,
     .mobile-files-preview {
         flex: 1;
@@ -6757,6 +6786,14 @@ body.resizing iframe {
         flex: 1;
         min-height: 0;
         overflow: auto;
+    }
+    .mobile-files-preview .file-viewer-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-secondary, #64748b);
+        font-size: 14px;
     }
 
     /* Non-terminal tab active: hide console + input dock */

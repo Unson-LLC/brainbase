@@ -1690,7 +1690,7 @@ export class App {
             if (shouldOpenInBrowser && this.fileViewerService) {
                 void this.fileViewerService.openFile(currentSessionId, previewRelativePath || filePath);
                 if (this.isMobile() && this.mobileTabController) {
-                    this.mobileTabController.switchTab('files');
+                    this.mobileTabController.showFileViewer();
                 } else {
                     this.showFileViewer?.();
                 }
@@ -3530,6 +3530,10 @@ export class App {
         const openSessionsSheet = () => {
             closeTasksSheet();
             closeSettingsPanel();
+            // Non-terminalタブ表示中はTerminalに戻す（シートを閉じた後にタブが残る問題の防止）
+            if (this.mobileTabController && this.mobileTabController._activeTab !== 'terminal') {
+                this.mobileTabController.switchTab('terminal');
+            }
             renderMobileSessionList();
             sessionsSheetOverlay?.classList.add('active');
             sessionsBottomSheet?.classList.add('active');
