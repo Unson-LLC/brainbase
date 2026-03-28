@@ -1713,6 +1713,27 @@ body::after {
     font: 12px/1.55 'Noto Sans Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 }
 
+/* Snapshot link styles */
+.snapshot-url-link {
+    color: #60a5fa;
+    text-decoration: underline;
+    text-decoration-color: rgba(96, 165, 250, 0.4);
+    cursor: pointer;
+}
+.snapshot-url-link:hover { text-decoration-color: #60a5fa; }
+
+.snapshot-file-link {
+    color: #a78bfa;
+    text-decoration: underline;
+    text-decoration-color: rgba(167, 139, 250, 0.4);
+    cursor: pointer;
+    border-radius: 2px;
+}
+.snapshot-file-link:hover {
+    text-decoration-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+}
+
 /* Drag & Drop Overlay */
 .drop-overlay {
     display: none;
@@ -6713,6 +6734,29 @@ body.resizing iframe {
     .mobile-tab-content.active {
         display: flex;
         flex-direction: column;
+    }
+
+    /* Mobile Files tab: tree/preview toggle */
+    .mobile-files-tree,
+    .mobile-files-preview {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .mobile-files-tree.hidden,
+    .mobile-files-preview.hidden {
+        display: none;
+    }
+    .mobile-files-preview .file-viewer {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .mobile-files-preview .file-viewer-content {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
     }
 
     /* Non-terminal tab active: hide console + input dock */
