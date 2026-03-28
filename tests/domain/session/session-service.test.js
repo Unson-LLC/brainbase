@@ -4,6 +4,7 @@ import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { addSession } from '../../../public/modules/state-api.js';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 
 // モジュールをモック化
 vi.mock('../../../public/modules/core/http-client.js', () => ({
