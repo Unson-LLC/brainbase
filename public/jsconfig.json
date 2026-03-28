@@ -10,7 +10,9 @@
   },
   "include": [
     "modules/core/xterm-loader.js",
-    "modules/core/terminal-transport-client.js"
+    "modules/core/terminal-transport-client.js",
+    "modules/core/event-bus.js",
+    "modules/core/store.js"
   ],
   "exclude": ["../node_modules"]
 }

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * アプリケーション全体のイベント通信基盤
  * Native EventTargetを活用したシンプルな実装
@@ -74,7 +75,7 @@ export class EventBus extends EventTarget {
         this._lastEventId = meta.eventId;
 
         // デバッグモード時のログ出力
-        if (typeof window !== 'undefined' && window.__EVENTBUS_DEBUG__) {
+        if (typeof window !== 'undefined' && /** @type {any} */ (window).__EVENTBUS_DEBUG__) {
             console.log(`[EventBus] ${eventName}`, {
                 eventId: meta.eventId,
                 correlationId: meta.correlationId,
@@ -137,8 +138,8 @@ export class EventBus extends EventTarget {
     /**
      * イベント購読（同期ハンドラー）
      * @param {string} eventName - イベント名
-     * @param {Function} callback - コールバック関数
-     * @returns {Function} - 購読解除関数
+     * @param {EventListener} callback - コールバック関数
+     * @returns {() => void} - 購読解除関数
      */
     on(eventName, callback) {
         this.addEventListener(eventName, callback);
@@ -148,7 +149,7 @@ export class EventBus extends EventTarget {
     /**
      * イベント購読解除（同期ハンドラー）
      * @param {string} eventName - イベント名
-     * @param {Function} callback - コールバック関数
+     * @param {EventListener} callback - コールバック関数
      */
     off(eventName, callback) {
         this.removeEventListener(eventName, callback);
@@ -216,7 +217,6 @@ export const EVENTS = {
     MERGE_SESSION: 'session:merge',
     RENAME_SESSION: 'session:rename',
     CREATE_SESSION: 'session:create',
-    SESSION_UI_STATE_CHANGED: 'session:ui-state-changed',
     FOLDER_TREE_LOADED: 'folder-tree:loaded',
     FOLDER_TREE_NODE_TOGGLED: 'folder-tree:node-toggled',
     FOLDER_TREE_FILE_OPENED: 'folder-tree:file-opened',
