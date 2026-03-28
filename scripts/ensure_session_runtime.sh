@@ -190,6 +190,7 @@ sync_codex_prompts_link() {
 
 tmux set -g escape-time 0 2>/dev/null || true
 tmux set -g default-terminal "tmux-256color" 2>/dev/null || true
+tmux set -g allow-passthrough on 2>/dev/null || true
 tmux set -g mouse off 2>/dev/null || true
 tmux set -g history-limit 5000 2>/dev/null || true
 
