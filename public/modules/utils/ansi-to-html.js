@@ -80,11 +80,20 @@ function buildStyle(state) {
 export function ansiToHtml(text) {
     if (!text || typeof text !== 'string') return '';
 
-    // Step 1: HTMLエスケープ（XSS防止）
-    const escaped = escapeHtml(text);
+    // Step 1: 非SGR ANSIシーケンスを除去（カーソル移動、画面クリア等）
+    // これらはターミナルエミュレータの制御用で、HTML表示では不要
+    let cleaned = text;
+    // CSI sequences ending with letters other than 'm' (cursor move, erase, scroll etc.)
+    cleaned = cleaned.replace(/\x1b\[\??[0-9;]*[A-HJKSTfhlnr]/g, '');
+    // OSC sequences: \x1b] ... (\x07 or \x1b\\) — window title etc.
+    cleaned = cleaned.replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
+    // Single-character escape sequences (\x1bM, \x1bE etc.) but NOT \x1b[ or \x1b]
+    cleaned = cleaned.replace(/\x1b[^[\]]/g, '');
 
-    // Step 2: ANSIシーケンスをHTMLに変換
-    // エスケープ済みテキスト中のANSIシーケンスを処理
+    // Step 2: HTMLエスケープ（XSS防止）
+    const escaped = escapeHtml(cleaned);
+
+    // Step 3: ANSIシーケンス(SGR)をHTMLに変換
     // Note: \x1b はHTMLエスケープに影響されない制御文字
     const SGR_RE = /\x1b\[([\d;]*)m/g;
     const state = { color: null, bold: false, dim: false };

@@ -122,4 +122,40 @@ describe('ansiToHtml', () => {
         expect(result).toContain('snapshot-file-link');
         expect(result).toContain('data-path="src/utils/helper.c"');
     });
+
+    // --- 非SGRシーケンス除去テスト ---
+
+    it('カーソル移動シーケンスを除去する', () => {
+        const input = 'line1\x1b[Aline2';
+        const result = ansiToHtml(input);
+        expect(result).toBe('line1line2');
+        expect(result).not.toContain('\x1b');
+    });
+
+    it('画面クリア・行クリアシーケンスを除去する', () => {
+        const input = '\x1b[2Jhello\x1b[K';
+        const result = ansiToHtml(input);
+        expect(result).toBe('hello');
+    });
+
+    it('OSCシーケンス（ウィンドウタイトル等）を除去する', () => {
+        const input = '\x1b]0;my title\x07hello';
+        const result = ansiToHtml(input);
+        expect(result).toBe('hello');
+    });
+
+    it('SGR + 非SGRが混在する場合、色は保持して制御シーケンスのみ除去', () => {
+        const input = '\x1b[32mgreen\x1b[A\x1b[Ktext\x1b[0m';
+        const result = ansiToHtml(input);
+        expect(result).toContain('green');
+        expect(result).toContain('text');
+        expect(result).not.toContain('\x1b[A');
+        expect(result).not.toContain('\x1b[K');
+    });
+
+    it('カーソル表示/非表示シーケンスを除去する', () => {
+        const input = '\x1b[?25lhello\x1b[?25h';
+        const result = ansiToHtml(input);
+        expect(result).toBe('hello');
+    });
 });
