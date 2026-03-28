@@ -49,7 +49,7 @@ export class InboxView {
      */
     async _loadSlackMembers() {
         try {
-            const members = await this.httpClient.get('/api/config/slack/members');
+            const members = await this.httpClient.get('/api/config/slack/members', { suppressAuthError: true });
             if (Array.isArray(members)) {
                 for (const m of members) {
                     if (m.slack_id && m.brainbase_name) {

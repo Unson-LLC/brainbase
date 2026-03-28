@@ -713,7 +713,7 @@ export class TerminalTransportClient {
 
     async _ensureAuthenticated() {
         try {
-            await httpClient.get('/api/auth/verify');
+            await httpClient.get('/api/auth/verify', { suppressAuthError: true });
         } catch {
             // Authentication not available — proceed anyway.
             // WebSocket upgrade handler on the server will determine access.

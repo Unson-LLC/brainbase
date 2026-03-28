@@ -20,7 +20,7 @@ export class InboxService {
     async loadInbox() {
         const [notifications, learningCandidates] = await Promise.all([
             this.httpClient.get('/api/inbox/pending'),
-            this.httpClient.get('/api/learning/promotions?status=evaluated&apply_mode=manual').catch(() => [])
+            this.httpClient.get('/api/learning/promotions?status=evaluated&apply_mode=manual', { suppressAuthError: true }).catch(() => [])
         ]);
         const items = [
             ...(Array.isArray(learningCandidates) ? learningCandidates.map((candidate) => ({
