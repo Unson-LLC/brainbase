@@ -6,6 +6,7 @@ import { createLearningRouter } from '../../../server/routes/learning.js';
 describe('learning routes', () => {
     let app;
     let service;
+    let healthService;
 
     beforeEach(() => {
         service = {
@@ -16,10 +17,13 @@ describe('learning routes', () => {
             applyPromotion: vi.fn(async () => ({ success: true, candidate: { id: 'prm_1' } })),
             markPromotionRejected: vi.fn(async () => ({ success: true }))
         };
+        healthService = {
+            getHealth: vi.fn(async () => ({ status: 'healthy' }))
+        };
 
         app = express();
         app.use(express.json());
-        app.use('/api/learning', createLearningRouter(service));
+        app.use('/api/learning', createLearningRouter(service, healthService));
     });
 
     it('POST /episodes records an episode', async () => {
@@ -71,5 +75,13 @@ describe('learning routes', () => {
 
         expect(res.status).toBe(200);
         expect(service.markPromotionRejected).toHaveBeenCalledWith('prm_1', 'not useful');
+    });
+
+    it('GET /health returns learning job health', async () => {
+        const res = await request(app).get('/api/learning/health');
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('healthy');
+        expect(healthService.getHealth).toHaveBeenCalled();
     });
 });

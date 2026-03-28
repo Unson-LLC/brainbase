@@ -62,6 +62,7 @@ import { createSetupRouter } from './server/routes/setup.js';
 import { createWikiRouter } from './server/routes/wiki.js';
 import { GoogleCalendarService } from './server/services/google-calendar-service.js';
 import { LearningService } from './server/services/learning-service.js';
+import { LearningHealthService } from './server/services/learning-health-service.js';
 import { WikiService } from './server/services/wiki-service.js';
 
 // Import middleware
@@ -278,6 +279,9 @@ const learningService = new LearningService({
     pool: infoSSOTService.pool,
     wikiService,
     repoRoot: __dirname
+});
+const learningHealthService = new LearningHealthService({
+    stateDir: path.join(VAR_DIR, 'learning')
 });
 
 // Middleware
@@ -727,7 +731,7 @@ app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
-app.use('/api/learning', createLearningRouter(learningService));
+app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
 app.use('/api/wiki', createWikiRouter(wikiService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {

@@ -18,11 +18,13 @@ export class InboxService {
      * @returns {Promise<Array>} Inboxアイテム配列
      */
     async loadInbox() {
-        const [notifications, learningCandidates] = await Promise.all([
+        const [notifications, learningCandidates, learningHealth] = await Promise.all([
             this.httpClient.get('/api/inbox/pending'),
-            this.httpClient.get('/api/learning/promotions?status=evaluated&apply_mode=manual', { suppressAuthError: true }).catch(() => [])
+            this.httpClient.get('/api/learning/promotions?status=evaluated&apply_mode=manual', { suppressAuthError: true }).catch(() => []),
+            this.getLearningHealth().catch(() => null)
         ]);
         const items = [
+            ...this._buildHealthAlertItems(learningHealth),
             ...(Array.isArray(learningCandidates) ? learningCandidates.map((candidate) => ({
                 kind: 'learning',
                 id: candidate.id,
@@ -43,6 +45,10 @@ export class InboxService {
         this.store.setState({ inbox: items });
         await this.eventBus.emit(EVENTS.INBOX_LOADED, { items });
         return items;
+    }
+
+    async getLearningHealth() {
+        return this.httpClient.get('/api/learning/health', { suppressAuthError: true });
     }
 
     /**
@@ -87,5 +93,28 @@ export class InboxService {
     getInboxCount() {
         const { inbox } = this.store.getState();
         return inbox ? inbox.length : 0;
+    }
+
+    _buildHealthAlertItems(health) {
+        if (!health || health.status === 'healthy') return [];
+        return [{
+            kind: 'health_alert',
+            id: `health-${health.issue_key || health.status}`,
+            issueKey: health.issue_key || health.status,
+            healthStatus: health.status,
+            title: health.status === 'unconfigured'
+                ? '学習の日次ジョブが未設定です'
+                : health.status === 'error'
+                    ? '学習の日次ジョブでエラーが発生しています'
+                    : '学習の日次ジョブが止まっています',
+            message: health.message || '',
+            lastSuccessAt: health.last_success_at || null,
+            expectedRunAt: health.expected_run_at || null,
+            lastExitStatus: health.last_exit_status,
+            summaryPath: health.summary_path || '',
+            stdoutLogPath: health.stdout_log_path || '',
+            stderrLogPath: health.stderr_log_path || '',
+            updatedAt: health.expected_run_at || health.last_success_at || null
+        }];
     }
 }

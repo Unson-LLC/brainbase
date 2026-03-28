@@ -1,8 +1,9 @@
 import { logger } from '../utils/logger.js';
 
 export class LearningController {
-    constructor(learningService) {
+    constructor(learningService, learningHealthService = null) {
         this.learningService = learningService;
+        this.learningHealthService = learningHealthService;
     }
 
     recordEpisode = async (req, res) => {
@@ -77,6 +78,19 @@ export class LearningController {
         } catch (error) {
             logger.error('Failed to reject learning promotion', { error });
             res.status(500).json({ error: 'Failed to reject learning promotion' });
+        }
+    };
+
+    getHealth = async (req, res) => {
+        try {
+            if (!this.learningHealthService) {
+                return res.status(503).json({ error: 'Learning health service not configured' });
+            }
+            const result = await this.learningHealthService.getHealth();
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to get learning health', { error });
+            res.status(500).json({ error: 'Failed to get learning health' });
         }
     };
 }

@@ -54,12 +54,14 @@ describe('InboxService', () => {
         it('loadInbox呼び出し時_API経由でInboxアイテムを取得してStoreを更新する', async () => {
             httpClient.get
                 .mockResolvedValueOnce(mockInboxItems)
-                .mockResolvedValueOnce([]);
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce({ status: 'healthy' });
 
             const result = await inboxService.loadInbox();
 
             expect(httpClient.get).toHaveBeenCalledWith('/api/inbox/pending');
-            expect(httpClient.get).toHaveBeenCalledWith('/api/learning/promotions?status=evaluated&apply_mode=manual');
+            expect(httpClient.get).toHaveBeenCalledWith('/api/learning/promotions?status=evaluated&apply_mode=manual', { suppressAuthError: true });
+            expect(httpClient.get).toHaveBeenCalledWith('/api/learning/health', { suppressAuthError: true });
             expect(appStore.getState().inbox).toEqual(mockInboxItems);
             expect(result).toEqual(mockInboxItems);
         });
@@ -67,7 +69,8 @@ describe('InboxService', () => {
         it('loadInbox呼び出し時_INBOX_LOADEDイベントが発火される', async () => {
             httpClient.get
                 .mockResolvedValueOnce(mockInboxItems)
-                .mockResolvedValueOnce([]);
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce({ status: 'healthy' });
             const listener = vi.fn();
             eventBus.on(EVENTS.INBOX_LOADED, listener);
 
@@ -83,7 +86,8 @@ describe('InboxService', () => {
             httpClient.post.mockResolvedValue({});
             httpClient.get
                 .mockResolvedValueOnce([mockInboxItems[1]])
-                .mockResolvedValueOnce([]);
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce({ status: 'healthy' });
 
             await inboxService.markAsDone('inbox-1');
 
@@ -95,7 +99,8 @@ describe('InboxService', () => {
             httpClient.post.mockResolvedValue({});
             httpClient.get
                 .mockResolvedValueOnce([mockInboxItems[1]])
-                .mockResolvedValueOnce([]);
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce({ status: 'healthy' });
             const listener = vi.fn();
             eventBus.on(EVENTS.INBOX_ITEM_COMPLETED, listener);
 
@@ -111,7 +116,8 @@ describe('InboxService', () => {
             httpClient.post.mockResolvedValue({});
             httpClient.get
                 .mockResolvedValueOnce([])
-                .mockResolvedValueOnce([]);
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce({ status: 'healthy' });
 
             await inboxService.markAllAsDone();
 
@@ -126,7 +132,8 @@ describe('InboxService', () => {
             httpClient.post.mockResolvedValue({});
             httpClient.get
                 .mockResolvedValueOnce([])
-                .mockResolvedValueOnce([]);
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce({ status: 'healthy' });
 
             await inboxService.markAllAsDone();
 
@@ -167,11 +174,34 @@ describe('InboxService', () => {
                         evaluation_summary: {},
                         proposed_content: '# recovery'
                     }
-                ]);
+                ])
+                .mockResolvedValueOnce({ status: 'healthy' });
 
             const result = await inboxService.loadInbox();
 
             expect(result[0].kind).toBe('learning');
+            expect(result[1].kind).toBe('notification');
+        });
+
+        it('loadInbox呼び出し時_health alert を先頭にマージする', async () => {
+            httpClient.get
+                .mockResolvedValueOnce(mockInboxItems)
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce({
+                    status: 'stale',
+                    issue_key: 'stale:2026-03-28',
+                    message: '学習の日次ジョブが予定どおり更新されていません。',
+                    expected_run_at: '2026-03-28T12:00:00.000Z',
+                    last_success_at: '2026-03-27T12:00:00.000Z',
+                    last_exit_status: 0,
+                    summary_path: '/tmp/daily-summary.json',
+                    stdout_log_path: '/tmp/learning-stdout.log',
+                    stderr_log_path: '/tmp/learning-stderr.log'
+                });
+
+            const result = await inboxService.loadInbox();
+
+            expect(result[0].kind).toBe('health_alert');
             expect(result[1].kind).toBe('notification');
         });
     });

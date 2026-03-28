@@ -172,6 +172,24 @@ describe('InboxView', () => {
             expect(inboxList.innerHTML).toContain('スキル');
             expect(inboxList.innerHTML).toContain('README画像ルール');
         });
+
+        it('render呼び出し時_health alert はシステム警告セクションに表示される', () => {
+            const items = [
+                {
+                    id: 'health-stale',
+                    kind: 'health_alert',
+                    title: '学習の日次ジョブが止まっています',
+                    message: '学習の日次ジョブが予定どおり更新されていません。'
+                }
+            ];
+            appStore.setState({ inbox: items });
+
+            inboxView.render();
+
+            const inboxList = document.getElementById('inbox-list');
+            expect(inboxList.innerHTML).toContain('システム警告');
+            expect(inboxList.innerHTML).toContain('学習の日次ジョブが止まっています');
+        });
     });
 
     describe('event handling', () => {

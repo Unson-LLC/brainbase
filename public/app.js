@@ -117,6 +117,8 @@ function isTrustedTerminalOrigin(origin) {
     }
 }
 
+const LEARNING_HEALTH_DISMISS_KEY = 'brainbase.learningHealth.dismissedIssueKey';
+
 /**
  * Terminal Reconnect Manager
  * Handles iframe disconnection detection and automatic reconnection
@@ -2829,6 +2831,7 @@ export class App {
 
         // Setup test mode banner
         this.setupTestModeBanner();
+        this.setupLearningHealthBanner();
     }
 
     /**
@@ -2885,6 +2888,80 @@ export class App {
                 banner.remove();
             }
         }
+    }
+
+    setupLearningHealthBanner() {
+        this.refreshLearningHealthBanner();
+    }
+
+    async refreshLearningHealthBanner() {
+        try {
+            const health = await this.inboxService?.getLearningHealth?.();
+            this.updateLearningHealthBanner(health);
+        } catch {
+            this.updateLearningHealthBanner(null);
+        }
+    }
+
+    updateLearningHealthBanner(health) {
+        let banner = document.getElementById('learning-health-banner');
+        const issueKey = health?.issue_key || null;
+        if (!health || health.status === 'healthy' || this.isLearningHealthIssueDismissed(issueKey)) {
+            if (banner) banner.remove();
+            return;
+        }
+
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'learning-health-banner';
+            banner.className = 'learning-health-banner';
+            banner.innerHTML = `
+                <div class="learning-health-banner-content">
+                    <div class="learning-health-banner-copy">
+                        <i data-lucide="triangle-alert"></i>
+                        <span id="learning-health-banner-message"></span>
+                    </div>
+                    <div class="learning-health-banner-actions">
+                        <button id="learning-health-open-inbox-btn" class="learning-health-banner-btn" type="button">Bellで見る</button>
+                        <button id="learning-health-dismiss-btn" class="learning-health-banner-btn" type="button">閉じる</button>
+                    </div>
+                </div>
+            `;
+            const appContainer = document.querySelector('.app-container');
+            const testModeBanner = document.getElementById('test-mode-banner');
+            if (appContainer) {
+                if (testModeBanner) {
+                    testModeBanner.insertAdjacentElement('afterend', banner);
+                } else {
+                    document.body.insertBefore(banner, appContainer);
+                }
+            }
+
+            banner.querySelector('#learning-health-open-inbox-btn')?.addEventListener('click', () => {
+                this.views?.inboxView?.inboxTriggerBtn?.click?.();
+            });
+            banner.querySelector('#learning-health-dismiss-btn')?.addEventListener('click', () => {
+                this.dismissLearningHealthIssue(banner.dataset.issueKey || null);
+                banner.remove();
+            });
+        }
+
+        banner.dataset.issueKey = issueKey || '';
+        const messageEl = banner.querySelector('#learning-health-banner-message');
+        if (messageEl) {
+            messageEl.textContent = health.message || '学習の日次ジョブが予定どおり動いていません。';
+        }
+        refreshIcons();
+    }
+
+    dismissLearningHealthIssue(issueKey) {
+        if (!issueKey) return;
+        localStorage.setItem(LEARNING_HEALTH_DISMISS_KEY, issueKey);
+    }
+
+    isLearningHealthIssueDismissed(issueKey) {
+        if (!issueKey) return false;
+        return localStorage.getItem(LEARNING_HEALTH_DISMISS_KEY) === issueKey;
     }
 
     /**
@@ -4090,6 +4167,7 @@ export class App {
 
         // 4.6. Update app version display (include runtime info)
         await this.updateAppVersionDisplay();
+        await this.refreshLearningHealthBanner();
 
         // 5. Initialize terminal reconnect manager before session auto-selection.
         const terminalFrame = document.getElementById('terminal-frame');
@@ -4654,6 +4732,7 @@ export class App {
                 if (this.views.inboxView && this.views.inboxView.loadInbox) {
                     await this.views.inboxView.loadInbox();
                 }
+                await this.refreshLearningHealthBanner();
                 console.log('Periodic refresh completed');
             } catch (error) {
                 console.error('Periodic refresh failed:', error);

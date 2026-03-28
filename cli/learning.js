@@ -533,6 +533,7 @@ export async function runDailyLearning(argv = []) {
     const ingestResult = await ingestReviewArtifacts(argv);
     const candidates = await listPromotions({ status: 'evaluated', apply_mode: 'manual' });
     const summary = {
+        generated_at: new Date().toISOString(),
         ingest: ingestResult,
         inbox: buildInboxSummary(candidates)
     };

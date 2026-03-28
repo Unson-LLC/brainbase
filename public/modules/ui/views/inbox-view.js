@@ -2,6 +2,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 import { LearningCandidateModal } from '../modals/learning-candidate-modal.js';
+import { HealthAlertModal } from '../modals/health-alert-modal.js';
 
 /**
  * Inbox（通知）表示のUIコンポーネント
@@ -26,6 +27,7 @@ export class InboxView {
             onApply: async (item) => this.inboxService.applyLearningCandidate(item.candidateId),
             onReject: async (item) => this.inboxService.rejectLearningCandidate(item.candidateId)
         });
+        this.healthAlertModal = new HealthAlertModal();
     }
 
     /**
@@ -162,8 +164,9 @@ export class InboxView {
         }
 
         if (this.inboxListEl) {
+            const healthAlertItems = this.inboxItems.filter((item) => item.kind === 'health_alert');
             const learningItems = this.inboxItems.filter((item) => item.kind === 'learning');
-            const notificationItems = this.inboxItems.filter((item) => item.kind !== 'learning');
+            const notificationItems = this.inboxItems.filter((item) => item.kind === 'notification');
 
             if (this.markAllDoneBtn) {
                 this.markAllDoneBtn.style.display = notificationItems.length > 0 ? 'inline-flex' : 'none';
@@ -221,7 +224,37 @@ export class InboxView {
                 `;
             };
 
+            const renderHealthAlert = (item) => {
+                const escapedId = escapeHtml(item.id || '');
+                const title = escapeHtml(item.title || '学習ジョブの状態に問題があります');
+                const message = escapeHtml(item.message || '');
+                const updatedAt = escapeHtml(item.updatedAt ? new Intl.DateTimeFormat('ja-JP', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }).format(new Date(item.updatedAt)) : '');
+                return `
+                    <button class="inbox-item inbox-health-alert-item" data-health-id="${escapedId}" type="button">
+                        <div class="inbox-learning-badges">
+                            <span class="inbox-learning-pill inbox-health-pill">システム警告</span>
+                            ${updatedAt ? `<span class="inbox-item-time">${updatedAt}</span>` : ''}
+                        </div>
+                        <div class="inbox-learning-title">${title}</div>
+                        <div class="inbox-learning-preview">${message}</div>
+                    </button>
+                `;
+            };
+
             const sections = [];
+            if (healthAlertItems.length > 0) {
+                sections.push(`
+                    <div class="inbox-section">
+                        <div class="inbox-section-title">システム警告</div>
+                        ${healthAlertItems.map(renderHealthAlert).join('')}
+                    </div>
+                `);
+            }
             if (learningItems.length > 0) {
                 sections.push(`
                     <div class="inbox-section">
@@ -254,6 +287,15 @@ export class InboxView {
                     const item = this.inboxItems.find((candidate) => candidate.candidateId === button.dataset.learningId);
                     if (item) {
                         this.learningCandidateModal.open(item);
+                    }
+                };
+            });
+
+            this.inboxListEl.querySelectorAll('[data-health-id]').forEach((button) => {
+                button.onclick = () => {
+                    const item = this.inboxItems.find((candidate) => candidate.id === button.dataset.healthId);
+                    if (item) {
+                        this.healthAlertModal.open(item);
                     }
                 };
             });
