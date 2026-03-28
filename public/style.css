@@ -7271,7 +7271,7 @@ body.resizing iframe {
         top: var(--mobile-tab-bar-height, 47px);
         left: 0;
         right: 0;
-        bottom: calc(var(--mobile-terminal-reserve, 120px) + 56px + env(safe-area-inset-bottom, 0));
+        bottom: var(--mobile-terminal-reserve, 120px);
         display: flex;
         z-index: 1105;
         visibility: visible;
