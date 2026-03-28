@@ -4142,7 +4142,7 @@ body.resizing iframe {
     position: fixed;
     inset: 0;
     background-color: rgba(0, 0, 0, 0.6);
-    z-index: 1100;
+    z-index: 1500;
     align-items: center;
     justify-content: center;
 }
@@ -6391,7 +6391,7 @@ body.resizing iframe {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 1001;
+    z-index: 1300;
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
@@ -6414,7 +6414,7 @@ body.resizing iframe {
     max-height: 80vh;
     background: var(--bg-secondary);
     border-radius: 16px 16px 0 0;
-    z-index: 1002;
+    z-index: 1400;
     transform: translateY(100%);
     transition: transform 0.3s ease, visibility 0.3s;
     display: flex;
