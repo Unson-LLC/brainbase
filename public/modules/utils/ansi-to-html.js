@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 軽量 ANSI→HTML コンバータ
  *

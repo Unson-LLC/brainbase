@@ -9,7 +9,9 @@
     "skipLibCheck": true
   },
   "include": [
-    "modules/core/*.js"
+    "modules/core/*.js",
+    "modules/ui-helpers.js",
+    "modules/utils/*.js"
   ],
   "exclude": ["../node_modules"]
 }

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * ui-helpers.js - UI utility functions
  *
@@ -43,7 +44,7 @@ export function escapeHtml(str) {
 export function formatTime(time) {
     if (!time) return '';
     const date = new Date(time);
-    if (isNaN(date.getTime())) return time;
+    if (isNaN(date.getTime())) return String(time);
     return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -63,7 +64,7 @@ export function iconHtml(name, className = '') {
  * @param {Object} [opts] - lucide.createIcons に渡すオプション（root, nodes 等）
  */
 export function refreshIcons(opts) {
-    if (window.lucide) {
-        window.lucide.createIcons(opts);
+    if (/** @type {any} */ (window).lucide) {
+        /** @type {any} */ (window).lucide.createIcons(opts);
     }
 }
