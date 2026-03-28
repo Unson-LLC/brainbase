@@ -99,113 +99,103 @@ export function createBrainbaseRouter(options = {}) {
      * クエリパラメータ: ?test=true でテストデータを返す
      */
     // TTL: 5分（頻繁に変わらないデータ）
-    router.get('/critical-alerts', cacheMiddleware(300), async (req, res) => {
-        try {
-            // テストモード: モックデータを返す
-            if (req.query.test === 'true') {
-                return res.json({
-                    alerts: [
-                        { type: 'blocker', severity: 'critical', project: 'salestailor', task: 'API認証の実装が外部依存でブロック', owner: 'tanaka', days_blocked: 7 },
-                        { type: 'overdue', severity: 'critical', project: 'zeims', task: 'UIリファクタリング', owner: 'yamada', days_overdue: 5 },
-                        { type: 'blocker', severity: 'critical', project: 'tech-knight', task: 'インフラ移行待ち', owner: 'suzuki', days_blocked: 14 },
-                        { type: 'overdue', severity: 'warning', project: 'brainbase', task: 'ドキュメント整備', owner: 'sato', days_overdue: 2 },
-                    ],
-                    total_critical: 3,
-                    total_warning: 1
-                });
-            }
-
-            // 1. config.ymlからプロジェクト一覧（project_id必須）
-            const config = await configParser.getAll();
-            const projects = (config.projects?.projects || [])
-                .filter(p => !p.archived && p.nocodb?.project_id)
-                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
-
-            // 2. NocoDBからCritical Alerts取得
-            const alerts = await nocodbService.getCriticalAlerts(projects);
-
-            res.json(alerts);
-        } catch (error) {
-            logger.error('Failed to fetch critical alerts', { error });
-            res.status(500).json({ error: 'Failed to fetch critical alerts' });
+    router.get('/critical-alerts', cacheMiddleware(300), asyncHandler(async (req, res) => {
+        // テストモード: モックデータを返す
+        if (req.query.test === 'true') {
+            return res.json({
+                alerts: [
+                    { type: 'blocker', severity: 'critical', project: 'salestailor', task: 'API認証の実装が外部依存でブロック', owner: 'tanaka', days_blocked: 7 },
+                    { type: 'overdue', severity: 'critical', project: 'zeims', task: 'UIリファクタリング', owner: 'yamada', days_overdue: 5 },
+                    { type: 'blocker', severity: 'critical', project: 'tech-knight', task: 'インフラ移行待ち', owner: 'suzuki', days_blocked: 14 },
+                    { type: 'overdue', severity: 'warning', project: 'brainbase', task: 'ドキュメント整備', owner: 'sato', days_overdue: 2 },
+                ],
+                total_critical: 3,
+                total_warning: 1
+            });
         }
-    });
+
+        // 1. config.ymlからプロジェクト一覧（project_id必須）
+        const config = await configParser.getAll();
+        const projects = (config.projects?.projects || [])
+            .filter(p => !p.archived && p.nocodb?.project_id)
+            .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
+
+        // 2. NocoDBからCritical Alerts取得
+        const alerts = await nocodbService.getCriticalAlerts(projects);
+
+        res.json(alerts);
+            }));
 
     /**
      * GET /api/brainbase/strategic-overview
      * 戦略的意思決定支援情報（プロジェクト優先度 + リソース配分）
      */
     // TTL: 5分（頻繁に変わらないデータ）
-    router.get('/strategic-overview', cacheMiddleware(300), async (req, res) => {
-        try {
-            // 1. config.ymlからプロジェクト一覧
-            const config = await configParser.getAll();
-            const projects = (config.projects?.projects || [])
-                .filter(p => !p.archived && p.nocodb?.project_id)
-                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
+    router.get('/strategic-overview', cacheMiddleware(300), asyncHandler(async (req, res) => {
+        // 1. config.ymlからプロジェクト一覧
+        const config = await configParser.getAll();
+        const projects = (config.projects?.projects || [])
+            .filter(p => !p.archived && p.nocodb?.project_id)
+            .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
 
-            // 2. NocoDBから統計取得
-            const stats = await Promise.all(
-                projects.map(p => nocodbService.getProjectStats(p.project_id))
+        // 2. NocoDBから統計取得
+        const stats = await Promise.all(
+            projects.map(p => nocodbService.getProjectStats(p.project_id))
+        );
+
+        // 3. 健全性スコア計算 + トレンド分析（暫定: モックデータ）
+        const projectsWithScore = stats.map((stat, i) => {
+            const taskCompletion = stat.completionRate || 0;
+            const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
+            const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
+            const milestoneProgress = stat.averageProgress || 0;
+
+            const healthScore = Math.round(
+                (taskCompletion * 0.3) +
+                (overdueScore * 0.2) +
+                (blockedScore * 0.2) +
+                (milestoneProgress * 0.3)
             );
 
-            // 3. 健全性スコア計算 + トレンド分析（暫定: モックデータ）
-            const projectsWithScore = stats.map((stat, i) => {
-                const taskCompletion = stat.completionRate || 0;
-                const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
-                const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
-                const milestoneProgress = stat.averageProgress || 0;
+            // トレンド判定（Week 5-6で履歴データから算出予定）
+            // 暫定: health scoreに基づく簡易判定
+            let trend = 'stable';
+            let change = 0;
+            if (healthScore >= 80) {
+                trend = 'up';
+                change = Math.floor(Math.random() * 5) + 1;
+            } else if (healthScore < 60) {
+                trend = 'down';
+                change = -(Math.floor(Math.random() * 8) + 1);
+            }
 
-                const healthScore = Math.round(
-                    (taskCompletion * 0.3) +
-                    (overdueScore * 0.2) +
-                    (blockedScore * 0.2) +
-                    (milestoneProgress * 0.3)
-                );
+            // 推奨アクション生成
+            const recommendations = generateRecommendations(healthScore, stat);
 
-                // トレンド判定（Week 5-6で履歴データから算出予定）
-                // 暫定: health scoreに基づく簡易判定
-                let trend = 'stable';
-                let change = 0;
-                if (healthScore >= 80) {
-                    trend = 'up';
-                    change = Math.floor(Math.random() * 5) + 1;
-                } else if (healthScore < 60) {
-                    trend = 'down';
-                    change = -(Math.floor(Math.random() * 8) + 1);
-                }
+            return {
+                name: projects[i].id,
+                health_score: healthScore,
+                trend,
+                change,
+                overdue: stat.overdue,
+                blocked: stat.blocked,
+                completion_rate: taskCompletion,
+                milestone_progress: milestoneProgress,
+                recommendations
+            };
+        });
 
-                // 推奨アクション生成
-                const recommendations = generateRecommendations(healthScore, stat);
+        // 4. ボトルネック検出（タスク数でのリソース配分分析）
+        const bottlenecks = detectBottlenecks(projectsWithScore);
 
-                return {
-                    name: projects[i].id,
-                    health_score: healthScore,
-                    trend,
-                    change,
-                    overdue: stat.overdue,
-                    blocked: stat.blocked,
-                    completion_rate: taskCompletion,
-                    milestone_progress: milestoneProgress,
-                    recommendations
-                };
-            });
+        // 5. 優先度順にソート
+        projectsWithScore.sort((a, b) => b.health_score - a.health_score);
 
-            // 4. ボトルネック検出（タスク数でのリソース配分分析）
-            const bottlenecks = detectBottlenecks(projectsWithScore);
-
-            // 5. 優先度順にソート
-            projectsWithScore.sort((a, b) => b.health_score - a.health_score);
-
-            res.json({
-                projects: projectsWithScore,
-                bottlenecks
-            });
-        } catch (error) {
-            logger.error('Failed to fetch strategic overview', { error });
-            res.status(500).json({ error: 'Failed to fetch strategic overview' });
-        }
-    });
+        res.json({
+            projects: projectsWithScore,
+            bottlenecks
+        });
+            }));
 
     /**
      * GET /api/brainbase/trends
@@ -219,28 +209,23 @@ export function createBrainbaseRouter(options = {}) {
      *   - snapshots: 過去N日間のスナップショット一覧
      *   - trend_analysis: トレンド分析結果（up/down/stable, health_score変化量, alert_level）
      */
-    router.get('/trends', async (req, res) => {
-        try {
-            const projectId = req.query.project_id;
-            const days = parseInt(req.query.days) || 30;
+    router.get('/trends', asyncHandler(async (req, res) => {
+        const projectId = req.query.project_id;
+        const days = parseInt(req.query.days) || 30;
 
-            // バリデーション
-            if (!projectId) {
-                return res.status(400).json({
-                    error: 'project_id is required',
-                    message: 'Please provide a project_id query parameter'
-                });
-            }
-
-            // NocoDBからトレンドデータ取得
-            const trends = await nocodbService.getTrends(projectId, days);
-
-            res.json(trends);
-        } catch (error) {
-            logger.error('Failed to fetch trends', { error, projectId: req.query.project_id });
-            res.status(500).json({ error: 'Failed to fetch trends' });
+        // バリデーション
+        if (!projectId) {
+            return res.status(400).json({
+                error: 'project_id is required',
+                message: 'Please provide a project_id query parameter'
+            });
         }
-    });
+
+        // NocoDBからトレンドデータ取得
+        const trends = await nocodbService.getTrends(projectId, days);
+
+        res.json(trends);
+            }));
 
     /**
      * GET /api/brainbase/trends/heatmap
@@ -255,114 +240,109 @@ export function createBrainbaseRouter(options = {}) {
      *   - chronic_alerts: 慢性的止まりプロジェクトのアラート配列
      */
     // TTL: 10分（週次データなので頻繁に変わらない）
-    router.get('/trends/heatmap', cacheMiddleware(600), async (req, res) => {
-        try {
-            const weeks = parseInt(req.query.weeks) || 8;
+    router.get('/trends/heatmap', cacheMiddleware(600), asyncHandler(async (req, res) => {
+        const weeks = parseInt(req.query.weeks) || 8;
 
-            // テストモード: モックデータを返す
-            if (req.query.test === 'true') {
-                const generateTestHeatmap = (projectId, baseHealth, trend) => {
-                    const weekData = [];
-                    let health = baseHealth;
-                    for (let i = 1; i <= weeks; i++) {
-                        health += trend === 'up' ? Math.floor(Math.random() * 5) :
-                                  trend === 'down' ? -Math.floor(Math.random() * 8) :
-                                  (Math.random() > 0.5 ? 2 : -2);
-                        health = Math.max(20, Math.min(100, health));
-                        weekData.push({
-                            week: `W${i}`,
-                            health_score: health,
-                            status: health >= 80 ? 'healthy' : health >= 60 ? 'warning' : 'critical',
-                            data_points: 7
-                        });
+        // テストモード: モックデータを返す
+        if (req.query.test === 'true') {
+            const generateTestHeatmap = (projectId, baseHealth, trend) => {
+                const weekData = [];
+                let health = baseHealth;
+                for (let i = 1; i <= weeks; i++) {
+                    health += trend === 'up' ? Math.floor(Math.random() * 5) :
+                              trend === 'down' ? -Math.floor(Math.random() * 8) :
+                              (Math.random() > 0.5 ? 2 : -2);
+                    health = Math.max(20, Math.min(100, health));
+                    weekData.push({
+                        week: `W${i}`,
+                        health_score: health,
+                        status: health >= 80 ? 'healthy' : health >= 60 ? 'warning' : 'critical',
+                        data_points: 7
+                    });
+                }
+                return {
+                    project_id: projectId,
+                    weeks: weekData,
+                    trend_analysis: {
+                        trend,
+                        health_score_change: weekData[weeks-1].health_score - weekData[0].health_score,
+                        alert_level: trend === 'down' && health < 60 ? 'chronic' : 'none',
+                        chronic_stall: trend === 'down' && health < 60 ? { days: 18, threshold: 60 } : null
                     }
-                    return {
-                        project_id: projectId,
-                        weeks: weekData,
-                        trend_analysis: {
-                            trend,
-                            health_score_change: weekData[weeks-1].health_score - weekData[0].health_score,
-                            alert_level: trend === 'down' && health < 60 ? 'chronic' : 'none',
-                            chronic_stall: trend === 'down' && health < 60 ? { days: 18, threshold: 60 } : null
-                        }
-                    };
                 };
+            };
 
-                const testHeatmap = [
-                    generateTestHeatmap('salestailor', 75, 'up'),
-                    generateTestHeatmap('zeims', 65, 'stable'),
-                    generateTestHeatmap('tech-knight', 55, 'down'),
-                    generateTestHeatmap('baao', 80, 'up'),
-                    generateTestHeatmap('brainbase', 70, 'stable'),
-                    generateTestHeatmap('dialogai', 45, 'down'),
-                ];
+            const testHeatmap = [
+                generateTestHeatmap('salestailor', 75, 'up'),
+                generateTestHeatmap('zeims', 65, 'stable'),
+                generateTestHeatmap('tech-knight', 55, 'down'),
+                generateTestHeatmap('baao', 80, 'up'),
+                generateTestHeatmap('brainbase', 70, 'stable'),
+                generateTestHeatmap('dialogai', 45, 'down'),
+            ];
 
-                const chronicAlerts = testHeatmap
-                    .filter(p => p.trend_analysis.chronic_stall)
-                    .map(p => ({ project_id: p.project_id, stall_info: p.trend_analysis.chronic_stall }));
-
-                return res.json({
-                    heatmap: testHeatmap,
-                    chronic_alerts: chronicAlerts,
-                    weeks_requested: weeks,
-                    generated_at: new Date().toISOString()
-                });
-            }
-
-            const days = weeks * 7;
-
-            // 1. config.ymlからプロジェクト一覧（project_id必須）
-            const config = await configParser.getAll();
-            const projects = (config.projects?.projects || [])
-                .filter(p => !p.archived && p.nocodb?.project_id)
-                .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
-
-            // 2. 各プロジェクトのトレンドを並列取得
-            const heatmapData = await Promise.all(
-                projects.map(async (project) => {
-                    try {
-                        const trends = await nocodbService.getTrends(project.project_id, days);
-                        const weeklyData = aggregateToWeekly(trends.snapshots, weeks);
-                        return {
-                            project_id: project.id,
-                            weeks: weeklyData,
-                            trend_analysis: trends.trend_analysis
-                        };
-                    } catch (error) {
-                        logger.error(`Failed to get trends for project ${project.id}`, { error });
-                        return {
-                            project_id: project.id,
-                            weeks: [],
-                            trend_analysis: {
-                                trend: 'unknown',
-                                health_score_change: 0,
-                                alert_level: 'none',
-                                chronic_stall: null
-                            }
-                        };
-                    }
-                })
-            );
-
-            // 3. 慢性的止まりプロジェクト抽出
-            const chronicAlerts = heatmapData
+            const chronicAlerts = testHeatmap
                 .filter(p => p.trend_analysis.chronic_stall)
-                .map(p => ({
-                    project_id: p.project_id,
-                    stall_info: p.trend_analysis.chronic_stall
-                }));
+                .map(p => ({ project_id: p.project_id, stall_info: p.trend_analysis.chronic_stall }));
 
-            res.json({
-                heatmap: heatmapData,
+            return res.json({
+                heatmap: testHeatmap,
                 chronic_alerts: chronicAlerts,
                 weeks_requested: weeks,
                 generated_at: new Date().toISOString()
             });
-        } catch (error) {
-            logger.error('Failed to fetch trends heatmap', { error });
-            res.status(500).json({ error: 'Failed to fetch trends heatmap' });
         }
-    });
+
+        const days = weeks * 7;
+
+        // 1. config.ymlからプロジェクト一覧（project_id必須）
+        const config = await configParser.getAll();
+        const projects = (config.projects?.projects || [])
+            .filter(p => !p.archived && p.nocodb?.project_id)
+            .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
+
+        // 2. 各プロジェクトのトレンドを並列取得
+        const heatmapData = await Promise.all(
+            projects.map(async (project) => {
+                try {
+                    const trends = await nocodbService.getTrends(project.project_id, days);
+                    const weeklyData = aggregateToWeekly(trends.snapshots, weeks);
+                    return {
+                        project_id: project.id,
+                        weeks: weeklyData,
+                        trend_analysis: trends.trend_analysis
+                    };
+                } catch (error) {
+                    logger.error(`Failed to get trends for project ${project.id}`, { error });
+                    return {
+                        project_id: project.id,
+                        weeks: [],
+                        trend_analysis: {
+                            trend: 'unknown',
+                            health_score_change: 0,
+                            alert_level: 'none',
+                            chronic_stall: null
+                        }
+                    };
+                }
+            })
+        );
+
+        // 3. 慢性的止まりプロジェクト抽出
+        const chronicAlerts = heatmapData
+            .filter(p => p.trend_analysis.chronic_stall)
+            .map(p => ({
+                project_id: p.project_id,
+                stall_info: p.trend_analysis.chronic_stall
+            }));
+
+        res.json({
+            heatmap: heatmapData,
+            chronic_alerts: chronicAlerts,
+            weeks_requested: weeks,
+            generated_at: new Date().toISOString()
+        });
+            }));
 
     /**
      * 日次データを週次に集約
@@ -418,117 +398,112 @@ export function createBrainbaseRouter(options = {}) {
      * @query {string} workflow_id - ワークフローID（オプション: 指定なしで全体統計）
      */
     // TTL: 5分（GitHub API rate limit対策）
-    router.get('/mana-workflow-stats', cacheMiddleware(300), async (req, res) => {
-        try {
-            const { workflow_id } = req.query;
+    router.get('/mana-workflow-stats', cacheMiddleware(300), asyncHandler(async (req, res) => {
+        const { workflow_id } = req.query;
 
-            // workflow_id → GitHub Actionsファイル名のマッピング
-            const WORKFLOW_MAPPING = {
-                'm1': { file: 'mana-m1-morning.yml', name: 'M1: 朝のブリーフィング' },
-                'm2': { file: 'mana-m2-blocker.yml', name: 'M2: ブロッカー早期発見' },
-                'm3': { file: 'mana-m3-reminder.yml', name: 'M3: 期限前リマインド' },
-                'm4': { file: 'mana-m4-overdue.yml', name: 'M4: 期限超過アラート' },
-                'm5': { file: 'mana-m5-context.yml', name: 'M5: コンテキスト収集' },
-                'm6': { file: 'mana-m6-progress.yml', name: 'M6: 進捗レポート' },
-                'm7': { file: 'mana-m7-executive.yml', name: 'M7: エグゼクティブサマリー' },
-                'm8': { file: 'mana-m8-gm.yml', name: 'M8: GM向けレポート' },
-                'm9': { file: 'mana-m9-weekly.yml', name: 'M9: 週次レポート' },
-                'm10': { file: 'mana-m10-reminder.yml', name: 'M10: リマインダー' },
-                'm11': { file: 'mana-m11-followup.yml', name: 'M11: フォローアップ' },
-                'm12': { file: 'mana-m12-onboarding.yml', name: 'M12: オンボーディング' }
-            };
+        // workflow_id → GitHub Actionsファイル名のマッピング
+        const WORKFLOW_MAPPING = {
+            'm1': { file: 'mana-m1-morning.yml', name: 'M1: 朝のブリーフィング' },
+            'm2': { file: 'mana-m2-blocker.yml', name: 'M2: ブロッカー早期発見' },
+            'm3': { file: 'mana-m3-reminder.yml', name: 'M3: 期限前リマインド' },
+            'm4': { file: 'mana-m4-overdue.yml', name: 'M4: 期限超過アラート' },
+            'm5': { file: 'mana-m5-context.yml', name: 'M5: コンテキスト収集' },
+            'm6': { file: 'mana-m6-progress.yml', name: 'M6: 進捗レポート' },
+            'm7': { file: 'mana-m7-executive.yml', name: 'M7: エグゼクティブサマリー' },
+            'm8': { file: 'mana-m8-gm.yml', name: 'M8: GM向けレポート' },
+            'm9': { file: 'mana-m9-weekly.yml', name: 'M9: 週次レポート' },
+            'm10': { file: 'mana-m10-reminder.yml', name: 'M10: リマインダー' },
+            'm11': { file: 'mana-m11-followup.yml', name: 'M11: フォローアップ' },
+            'm12': { file: 'mana-m12-onboarding.yml', name: 'M12: オンボーディング' }
+        };
 
-            // バリデーション: workflow_idが空文字列の場合はエラー
-            if (workflow_id === '') {
-                return res.status(400).json({
-                    error: 'Invalid workflow_id',
-                    message: 'workflow_id cannot be an empty string'
-                });
-            }
+        // バリデーション: workflow_idが空文字列の場合はエラー
+        if (workflow_id === '') {
+            return res.status(400).json({
+                error: 'Invalid workflow_id',
+                message: 'workflow_id cannot be an empty string'
+            });
+        }
 
-            // テストモード: モックデータを返す
-            if (req.query.test === 'true') {
-                const mapping = WORKFLOW_MAPPING[workflow_id];
-                // テスト用: ランダムな成功率を生成
-                const successRate = Math.floor(Math.random() * 40) + 60; // 60-100%
-                const totalExecutions = Math.floor(Math.random() * 50) + 10; // 10-60
-                const successCount = Math.floor(totalExecutions * successRate / 100);
-                const failureCount = totalExecutions - successCount;
-
-                return res.json({
-                    workflow_id: workflow_id,
-                    workflow_name: mapping?.name || workflow_id,
-                    stats: {
-                        success_rate: successRate,
-                        total_executions: totalExecutions,
-                        total_success: successCount,
-                        total_failure: failureCount,
-                        avg_duration_ms: Math.floor(Math.random() * 2000) + 500
-                    }
-                });
-            }
-
-            // GitHub Actions履歴を取得
+        // テストモード: モックデータを返す
+        if (req.query.test === 'true') {
             const mapping = WORKFLOW_MAPPING[workflow_id];
-            if (!mapping) {
-                return res.status(400).json({
-                    error: 'Unknown workflow_id',
-                    message: `workflow_id '${workflow_id}' is not recognized`
-                });
-            }
+            // テスト用: ランダムな成功率を生成
+            const successRate = Math.floor(Math.random() * 40) + 60; // 60-100%
+            const totalExecutions = Math.floor(Math.random() * 50) + 10; // 10-60
+            const successCount = Math.floor(totalExecutions * successRate / 100);
+            const failureCount = totalExecutions - successCount;
 
-            const ghCommand = `gh run list --workflow=${mapping.file} --limit 30 --json conclusion,createdAt,status`;
-
-            let runs = [];
-            try {
-                // manaリポジトリで実行（GitHub Actionsがある場所）
-                const execOptions = {
-                    encoding: 'utf-8',
-                    timeout: 10000
-                };
-                if (manaRepoPath) {
-                    execOptions.cwd = manaRepoPath;
+            return res.json({
+                workflow_id: workflow_id,
+                workflow_name: mapping?.name || workflow_id,
+                stats: {
+                    success_rate: successRate,
+                    total_executions: totalExecutions,
+                    total_success: successCount,
+                    total_failure: failureCount,
+                    avg_duration_ms: Math.floor(Math.random() * 2000) + 500
                 }
-                const output = execSync(ghCommand, execOptions);
-                runs = JSON.parse(output);
-            } catch (ghError) {
-                logger.warn('gh CLI failed, returning empty stats', { error: ghError.message, workflow_id });
-                // gh CLIが失敗した場合は空のデータを返す
-                return res.json({
-                    workflow_id: workflow_id,
-                    workflow_name: mapping.name,
-                    stats: {
-                        success_rate: 0,
-                        total_executions: 0,
-                        total_success: 0,
-                        total_failure: 0,
-                        avg_duration_ms: 0
-                    }
-                });
+            });
+        }
+
+        // GitHub Actions履歴を取得
+        const mapping = WORKFLOW_MAPPING[workflow_id];
+        if (!mapping) {
+            return res.status(400).json({
+                error: 'Unknown workflow_id',
+                message: `workflow_id '${workflow_id}' is not recognized`
+            });
+        }
+
+        const ghCommand = `gh run list --workflow=${mapping.file} --limit 30 --json conclusion,createdAt,status`;
+
+        let runs = [];
+        try {
+            // manaリポジトリで実行（GitHub Actionsがある場所）
+            const execOptions = {
+                encoding: 'utf-8',
+                timeout: 10000
+            };
+            if (manaRepoPath) {
+                execOptions.cwd = manaRepoPath;
             }
-
-            // 統計を計算
-            const total = runs.length;
-            const success = runs.filter(r => r.conclusion === 'success').length;
-            const failure = runs.filter(r => r.conclusion === 'failure').length;
-            const successRate = total > 0 ? Math.round((success / total) * 100) : 0;
-
-            res.json({
+            const output = execSync(ghCommand, execOptions);
+            runs = JSON.parse(output);
+        } catch (ghError) {
+            logger.warn('gh CLI failed, returning empty stats', { error: ghError.message, workflow_id });
+            // gh CLIが失敗した場合は空のデータを返す
+            return res.json({
                 workflow_id: workflow_id,
                 workflow_name: mapping.name,
                 stats: {
-                    success_rate: successRate,
-                    total_executions: total,
-                    total_success: success,
-                    total_failure: failure,
-                    avg_duration_ms: 0 // GitHub APIでは取得不可
+                    success_rate: 0,
+                    total_executions: 0,
+                    total_success: 0,
+                    total_failure: 0,
+                    avg_duration_ms: 0
                 }
             });
-        } catch (error) {
-            logger.error('Failed to get Mana workflow stats', { error, workflow_id: req.query.workflow_id });
-            res.status(500).json({ error: 'Failed to get Mana workflow stats' });
         }
-    });
+
+        // 統計を計算
+        const total = runs.length;
+        const success = runs.filter(r => r.conclusion === 'success').length;
+        const failure = runs.filter(r => r.conclusion === 'failure').length;
+        const successRate = total > 0 ? Math.round((success / total) * 100) : 0;
+
+        res.json({
+            workflow_id: workflow_id,
+            workflow_name: mapping.name,
+            stats: {
+                success_rate: successRate,
+                total_executions: total,
+                total_success: success,
+                total_failure: failure,
+                avg_duration_ms: 0 // GitHub APIでは取得不可
+            }
+        });
+            }));
 
     /**
      * GET /api/brainbase/mana-message-history
@@ -538,117 +513,104 @@ export function createBrainbaseRouter(options = {}) {
      * @query {string} target_id - 送信先ID（任意）
      * @query {string} status - statusフィルタ（任意）
      */
-    router.get('/mana-message-history', cacheMiddleware(30), async (req, res) => {
-        try {
-            const workflowId = req.query.workflow_id || req.query.workflowId;
-            if (!workflowId || typeof workflowId !== 'string') {
-                return res.status(400).json({
-                    error: 'Invalid workflow_id',
-                    message: 'workflow_id is required'
-                });
-            }
-
-            const limitRaw = parseInt(req.query.limit, 10);
-            const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 20;
-            const targetId = req.query.target_id || req.query.targetId || null;
-            const status = req.query.status || null;
-
-            const client = getManaHistoryClient();
-
-            const expressionValues = { ':pk': workflowId };
-            const expressionNames = {};
-            const filters = [];
-
-            if (targetId) {
-                expressionValues[':target_id'] = targetId;
-                filters.push('target_id = :target_id');
-            }
-            if (status) {
-                expressionValues[':status'] = status;
-                expressionNames['#status'] = 'status';
-                filters.push('#status = :status');
-            }
-
-            const queryInput = {
-                TableName: manaHistoryConfig.tableName,
-                KeyConditionExpression: 'pk = :pk',
-                ExpressionAttributeValues: expressionValues,
-                ScanIndexForward: false,
-                Limit: limit
-            };
-
-            if (filters.length > 0) {
-                queryInput.FilterExpression = filters.join(' AND ');
-                if (Object.keys(expressionNames).length > 0) {
-                    queryInput.ExpressionAttributeNames = expressionNames;
-                }
-            }
-
-            const result = await client.send(new QueryCommand(queryInput));
-            const items = (result.Items || []).map((item) => ({
-                workflow_id: item.mx_id || item.pk,
-                sent_at: item.sent_at,
-                target_type: item.target_type,
-                target_id: item.target_id,
-                status: item.status,
-                text: item.text,
-                excerpt: item.excerpt,
-                error: item.error,
-                project_id: item.project_id,
-                message_ts: item.message_ts,
-                channel_id: item.channel_id,
-                thread_ts: item.thread_ts,
-                workspace: item.workspace,
-                run_id: item.run_id,
-                task_ids: item.task_ids
-            }));
-
-            res.json({
-                workflow_id: workflowId,
-                count: items.length,
-                items
-            });
-        } catch (error) {
-            logger.error('Failed to fetch mana message history', { error });
-            res.status(500).json({
-                error: 'Failed to fetch mana message history',
-                message: error?.message || 'Unknown error'
+    router.get('/mana-message-history', cacheMiddleware(30), asyncHandler(async (req, res) => {
+        const workflowId = req.query.workflow_id || req.query.workflowId;
+        if (!workflowId || typeof workflowId !== 'string') {
+            return res.status(400).json({
+                error: 'Invalid workflow_id',
+                message: 'workflow_id is required'
             });
         }
-    });
+
+        const limitRaw = parseInt(req.query.limit, 10);
+        const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 20;
+        const targetId = req.query.target_id || req.query.targetId || null;
+        const status = req.query.status || null;
+
+        const client = getManaHistoryClient();
+
+        const expressionValues = { ':pk': workflowId };
+        const expressionNames = {};
+        const filters = [];
+
+        if (targetId) {
+            expressionValues[':target_id'] = targetId;
+            filters.push('target_id = :target_id');
+        }
+        if (status) {
+            expressionValues[':status'] = status;
+            expressionNames['#status'] = 'status';
+            filters.push('#status = :status');
+        }
+
+        const queryInput = {
+            TableName: manaHistoryConfig.tableName,
+            KeyConditionExpression: 'pk = :pk',
+            ExpressionAttributeValues: expressionValues,
+            ScanIndexForward: false,
+            Limit: limit
+        };
+
+        if (filters.length > 0) {
+            queryInput.FilterExpression = filters.join(' AND ');
+            if (Object.keys(expressionNames).length > 0) {
+                queryInput.ExpressionAttributeNames = expressionNames;
+            }
+        }
+
+        const result = await client.send(new QueryCommand(queryInput));
+        const items = (result.Items || []).map((item) => ({
+            workflow_id: item.mx_id || item.pk,
+            sent_at: item.sent_at,
+            target_type: item.target_type,
+            target_id: item.target_id,
+            status: item.status,
+            text: item.text,
+            excerpt: item.excerpt,
+            error: item.error,
+            project_id: item.project_id,
+            message_ts: item.message_ts,
+            channel_id: item.channel_id,
+            thread_ts: item.thread_ts,
+            workspace: item.workspace,
+            run_id: item.run_id,
+            task_ids: item.task_ids
+        }));
+
+        res.json({
+            workflow_id: workflowId,
+            count: items.length,
+            items
+        });
+            }));
 
     /**
      * GET /api/brainbase/projects/:id/stats
      * 指定プロジェクトの統計を返す
      * @param {string} id - プロジェクトID（config.ymlのprojects[].id）
      */
-    router.get('/projects/:id/stats', async (req, res) => {
-        try {
-            const { id } = req.params;
+    router.get('/projects/:id/stats', asyncHandler(async (req, res) => {
+        const { id } = req.params;
 
-            // 1. config.ymlからプロジェクト一覧を取得
-            const config = await configParser.getAll();
-            const projects = config.projects?.projects || [];
+        // 1. config.ymlからプロジェクト一覧を取得
+        const config = await configParser.getAll();
+        const projects = config.projects?.projects || [];
 
-            // 2. 指定されたIDのプロジェクトを検索
-            const project = projects.find(p => p.id === id);
+        // 2. 指定されたIDのプロジェクトを検索
+        const project = projects.find(p => p.id === id);
 
-            if (!project || project.archived || !project.nocodb?.project_id) {
-                return res.status(404).json({
-                    error: 'Project not found',
-                    message: `Project '${id}' not found or archived`
-                });
-            }
-
-            // 3. NocoDBから統計取得
-            const stats = await nocodbService.getProjectStats(project.nocodb.project_id);
-
-            res.json(stats);
-        } catch (error) {
-            logger.error('Failed to fetch project stats', { error, projectId: req.params.id });
-            res.status(404).json({ error: 'Failed to fetch project stats' });
+        if (!project || project.archived || !project.nocodb?.project_id) {
+            return res.status(404).json({
+                error: 'Project not found',
+                message: `Project '${id}' not found or archived`
+            });
         }
-    });
+
+        // 3. NocoDBから統計取得
+        const stats = await nocodbService.getProjectStats(project.nocodb.project_id);
+
+        res.json(stats);
+            }));
 
     // ==================== Helper Functions ====================
 
