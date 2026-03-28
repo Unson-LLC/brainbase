@@ -260,7 +260,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
             CLAUDE_RESUME_FLAG="--resume $RESUME_SESSION_ID"
         fi
         if [ -n "$INITIAL_CMD" ]; then
-            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions %s "$(cat %q; rm -f %q)"' \
+            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions --permission-mode auto %s "$(cat %q; rm -f %q)"' \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
                 "$CLAUDE_BIN" \
@@ -269,7 +269,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
                 "$INITIAL_CMD_FILE"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         else
-            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions %s" \
+            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions --permission-mode auto %s" \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
                 "$CLAUDE_BIN" \
