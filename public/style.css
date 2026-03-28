@@ -7243,13 +7243,14 @@ body.resizing iframe {
         padding-right: 0;
         width: var(--vvw, 100vw);
         max-width: 100%;
-        /* BUG-002: height: 100dvhを削除し、flexで親を埋める */
+        /* flexで親を埋めるが、ドック+ナビ分を引いて高さ制限 */
         flex: 1;
-        overflow: auto;
+        overflow: hidden;
         /* iOS Safari でスムーズなスクロールを有効化 */
         -webkit-overflow-scrolling: touch;
         touch-action: pan-y;
-        padding-bottom: calc(var(--mobile-input-offset) + env(safe-area-inset-bottom, 0));
+        /* padding-bottomではなくmax-heightでドック領域を確保（iframeが被らない） */
+        max-height: calc(var(--vvh, 100dvh) - var(--mobile-input-offset, 120px) - 56px - env(safe-area-inset-bottom, 0px));
         box-sizing: border-box;
         min-height: 0;
     }
