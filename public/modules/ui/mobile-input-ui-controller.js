@@ -388,6 +388,9 @@ export class MobileInputUIController {
         document.body.classList.toggle('mobile-input-expanded', expanded);
         dockMore.textContent = expanded ? '×' : '≡';
 
+        // expanded時はドックが大きくなるので、ターミナル領域のoffsetを拡大
+        document.body.style.setProperty('--mobile-input-offset', expanded ? '280px' : '120px');
+
         // expanded時: キーボードを強制的に閉じる
         if (expanded && dockInput) {
             dockInput.blur();
