@@ -1,3 +1,4 @@
+// @ts-check
 import { EVENTS } from '../../core/event-bus.js';
 import { BaseModal } from './base-modal.js';
 
@@ -27,17 +28,17 @@ export class TimelineItemModal extends BaseModal {
         this.currentItemId = null;
         this._clearForm();
 
-        const titleEl = document.getElementById('timeline-modal-title');
+        const titleEl = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-modal-title'));
         if (titleEl) {
             titleEl.textContent = 'タイムライン項目を追加';
         }
 
-        const typeInput = document.getElementById('timeline-item-type');
+        const typeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-type'));
         if (typeInput) {
             typeInput.value = 'manual';
         }
 
-        const timestampInput = document.getElementById('timeline-item-timestamp');
+        const timestampInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-timestamp'));
         if (timestampInput) {
             timestampInput.value = this._formatDateTimeLocal(new Date());
         }
@@ -51,16 +52,16 @@ export class TimelineItemModal extends BaseModal {
         this.isEditMode = true;
         this.currentItemId = item.id;
 
-        const titleEl = document.getElementById('timeline-modal-title');
+        const titleEl = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-modal-title'));
         if (titleEl) {
             titleEl.textContent = 'タイムライン項目を編集';
         }
 
-        const idInput = document.getElementById('timeline-item-id');
-        const titleInput = document.getElementById('timeline-item-title');
-        const typeInput = document.getElementById('timeline-item-type');
-        const contentInput = document.getElementById('timeline-item-content');
-        const timestampInput = document.getElementById('timeline-item-timestamp');
+        const idInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-id'));
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-title'));
+        const typeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-type'));
+        const contentInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-content'));
+        const timestampInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-timestamp'));
 
         if (idInput) idInput.value = item.id || '';
         if (titleInput) titleInput.value = item.title || '';
@@ -82,10 +83,10 @@ export class TimelineItemModal extends BaseModal {
     async save() {
         if (!this._validate()) return;
 
-        const titleInput = document.getElementById('timeline-item-title');
-        const typeInput = document.getElementById('timeline-item-type');
-        const contentInput = document.getElementById('timeline-item-content');
-        const timestampInput = document.getElementById('timeline-item-timestamp');
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-title'));
+        const typeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-type'));
+        const contentInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-content'));
+        const timestampInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-timestamp'));
 
         const data = {
             title: titleInput?.value?.trim() || '',
@@ -109,11 +110,11 @@ export class TimelineItemModal extends BaseModal {
     _clearForm() {
         const ids = ['timeline-item-id', 'timeline-item-title', 'timeline-item-content', 'timeline-item-timestamp'];
         ids.forEach(id => {
-            const el = document.getElementById(id);
+            const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
             if (el) el.value = '';
         });
 
-        const typeInput = document.getElementById('timeline-item-type');
+        const typeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-type'));
         if (typeInput) typeInput.value = 'manual';
 
         this._clearValidationErrors();
@@ -122,7 +123,7 @@ export class TimelineItemModal extends BaseModal {
     _validate() {
         this._clearValidationErrors();
 
-        const titleInput = document.getElementById('timeline-item-title');
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-title'));
         const title = titleInput?.value?.trim() || '';
 
         if (!title) {
@@ -134,7 +135,7 @@ export class TimelineItemModal extends BaseModal {
     }
 
     _clearValidationErrors() {
-        const titleInput = document.getElementById('timeline-item-title');
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-title'));
         if (titleInput) titleInput.classList.remove('error');
     }
 
@@ -148,7 +149,7 @@ export class TimelineItemModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const saveBtn = document.getElementById('save-timeline-item-btn');
+        const saveBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('save-timeline-item-btn'));
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }

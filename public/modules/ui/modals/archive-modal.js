@@ -1,3 +1,4 @@
+// @ts-check
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { showConfirm } from '../../confirm-modal.js';
@@ -38,13 +39,13 @@ export class ArchiveModal extends BaseModal {
 
         this._updateProjectFilter();
 
-        const searchInput = document.getElementById('archive-search');
+        const searchInput = /** @type {HTMLInputElement|null} */ (document.getElementById('archive-search'));
         if (searchInput) {
             searchInput.value = '';
             this.searchTerm = '';
         }
 
-        const projectFilterEl = document.getElementById('archive-project-filter');
+        const projectFilterEl = /** @type {HTMLInputElement|null} */ (document.getElementById('archive-project-filter'));
         if (projectFilterEl) {
             projectFilterEl.value = '';
             this.projectFilter = '';
@@ -59,7 +60,7 @@ export class ArchiveModal extends BaseModal {
     }
 
     _updateProjectFilter() {
-        const projectFilterEl = document.getElementById('archive-project-filter');
+        const projectFilterEl = /** @type {HTMLInputElement|null} */ (document.getElementById('archive-project-filter'));
         if (!projectFilterEl) return;
 
         const archivedSessions = this.sessionService.getArchivedSessions('', '');
@@ -82,8 +83,8 @@ export class ArchiveModal extends BaseModal {
             this.projectFilter
         );
 
-        const archiveListEl = document.getElementById('archive-list');
-        const archiveEmptyEl = document.getElementById('archive-empty');
+        const archiveListEl = /** @type {HTMLInputElement|null} */ (document.getElementById('archive-list'));
+        const archiveEmptyEl = /** @type {HTMLInputElement|null} */ (document.getElementById('archive-empty'));
 
         if (!archiveListEl || !archiveEmptyEl) return;
 
@@ -144,18 +145,18 @@ export class ArchiveModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const searchInput = document.getElementById('archive-search');
+        const searchInput = /** @type {HTMLInputElement|null} */ (document.getElementById('archive-search'));
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
-                this.searchTerm = e.target.value;
+                this.searchTerm = /** @type {HTMLInputElement} */ (e.target).value;
                 this._renderList();
             });
         }
 
-        const projectFilterEl = document.getElementById('archive-project-filter');
+        const projectFilterEl = /** @type {HTMLInputElement|null} */ (document.getElementById('archive-project-filter'));
         if (projectFilterEl) {
             projectFilterEl.addEventListener('change', (e) => {
-                this.projectFilter = e.target.value;
+                this.projectFilter = /** @type {HTMLInputElement} */ (e.target).value;
                 this._renderList();
             });
         }
@@ -166,7 +167,7 @@ export class ArchiveModal extends BaseModal {
         unarchiveBtns.forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const sessionId = btn.dataset.id;
+                const sessionId = /** @type {HTMLElement} */ (btn).dataset.id;
                 if (sessionId) {
                     await this.sessionService.unarchiveSession(sessionId);
                     this._renderList();
@@ -178,7 +179,7 @@ export class ArchiveModal extends BaseModal {
         deleteBtns.forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const sessionId = btn.dataset.id;
+                const sessionId = /** @type {HTMLElement} */ (btn).dataset.id;
                 if (!sessionId) return;
                 const confirmed = await showConfirm(
                     'このセッションを完全に削除しますか？',

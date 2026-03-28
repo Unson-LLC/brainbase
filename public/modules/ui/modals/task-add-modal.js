@@ -1,3 +1,4 @@
+// @ts-check
 import { appStore } from '../../core/store.js';
 import { BaseModal } from './base-modal.js';
 
@@ -25,7 +26,7 @@ export class TaskAddModal extends BaseModal {
         await this._clearForm();
         this.modalElement.classList.add('active');
 
-        const titleInput = document.getElementById('add-task-title');
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-title'));
         if (titleInput) {
             setTimeout(() => titleInput.focus(), 100);
         }
@@ -37,11 +38,11 @@ export class TaskAddModal extends BaseModal {
     }
 
     async _clearForm() {
-        const titleInput = document.getElementById('add-task-title');
-        const assigneeInput = document.getElementById('add-task-assignee');
-        const priorityInput = document.getElementById('add-task-priority');
-        const dueInput = document.getElementById('add-task-due');
-        const descriptionInput = document.getElementById('add-task-description');
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-title'));
+        const assigneeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-assignee'));
+        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-priority'));
+        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-due'));
+        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-description'));
 
         if (titleInput) titleInput.value = '';
         if (assigneeInput) assigneeInput.value = this._getDefaultAssignee();
@@ -54,12 +55,12 @@ export class TaskAddModal extends BaseModal {
     }
 
     async save() {
-        const titleInput = document.getElementById('add-task-title');
-        const assigneeInput = document.getElementById('add-task-assignee');
-        const projectInput = document.getElementById('add-task-project');
-        const priorityInput = document.getElementById('add-task-priority');
-        const dueInput = document.getElementById('add-task-due');
-        const descriptionInput = document.getElementById('add-task-description');
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-title'));
+        const assigneeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-assignee'));
+        const projectInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-project'));
+        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-priority'));
+        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-due'));
+        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-description'));
 
         const title = titleInput?.value?.trim() || '';
         let assignee = assigneeInput?.value?.trim() || '';
@@ -132,7 +133,7 @@ export class TaskAddModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const saveBtn = document.getElementById('save-add-task-btn');
+        const saveBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('save-add-task-btn'));
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }
@@ -141,7 +142,7 @@ export class TaskAddModal extends BaseModal {
     }
 
     _setModalTitle() {
-        const titleEl = document.getElementById('add-task-modal-title');
+        const titleEl = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-modal-title'));
         if (!titleEl) return;
         titleEl.textContent = this.mode === 'nocodb' ? 'プロジェクトタスク追加' : 'ローカルタスク追加';
     }
@@ -181,7 +182,7 @@ export class TaskAddModal extends BaseModal {
     }
 
     async _populateProjectSelect() {
-        const projectInput = document.getElementById('add-task-project');
+        const projectInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-project'));
         if (!projectInput) return;
 
         await this._loadProjects();
@@ -216,7 +217,7 @@ export class TaskAddModal extends BaseModal {
             projectInput.appendChild(option);
         });
 
-        const optionValues = Array.from(projectInput.options).map(opt => opt.value);
+        const optionValues = Array.from(/** @type {any} */ (projectInput).options).map((/** @type {any} */ opt) => opt.value);
         if (previousValue && optionValues.includes(previousValue)) {
             projectInput.value = previousValue;
         } else {

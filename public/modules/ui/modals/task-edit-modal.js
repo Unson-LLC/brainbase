@@ -1,3 +1,4 @@
+// @ts-check
 import { BaseModal } from './base-modal.js';
 
 /**
@@ -19,12 +20,12 @@ export class TaskEditModal extends BaseModal {
 
         this.currentTaskId = task.id;
 
-        const idInput = document.getElementById('edit-task-id');
-        const titleInput = document.getElementById('edit-task-title');
-        const projectInput = document.getElementById('edit-task-project');
-        const priorityInput = document.getElementById('edit-task-priority');
-        const dueInput = document.getElementById('edit-task-due');
-        const descriptionInput = document.getElementById('edit-task-description');
+        const idInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-id'));
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-title'));
+        const projectInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-project'));
+        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-priority'));
+        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-due'));
+        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-description'));
 
         const taskName = task.name || task.title || '';
         const taskDue = task.due || task.deadline || '';
@@ -47,11 +48,11 @@ export class TaskEditModal extends BaseModal {
     async save() {
         if (!this.currentTaskId) return;
 
-        const titleInput = document.getElementById('edit-task-title');
-        const projectInput = document.getElementById('edit-task-project');
-        const priorityInput = document.getElementById('edit-task-priority');
-        const dueInput = document.getElementById('edit-task-due');
-        const descriptionInput = document.getElementById('edit-task-description');
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-title'));
+        const projectInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-project'));
+        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-priority'));
+        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-due'));
+        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-description'));
 
         const updates = {
             title: titleInput?.value || '',
@@ -70,7 +71,7 @@ export class TaskEditModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const saveBtn = document.getElementById('save-task-btn');
+        const saveBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('save-task-btn'));
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }

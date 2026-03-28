@@ -1,3 +1,4 @@
+// @ts-check
 import { BaseModal } from './base-modal.js';
 
 const ERROR_ID = 'edit-schedule-error';
@@ -27,9 +28,9 @@ export class ScheduleEditModal extends BaseModal {
 
         this.currentEventId = eventId;
 
-        const startInput = document.getElementById('edit-schedule-start');
-        const endInput = document.getElementById('edit-schedule-end');
-        const titleInput = document.getElementById('edit-schedule-title');
+        const startInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-schedule-start'));
+        const endInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-schedule-end'));
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-schedule-title'));
 
         if (startInput) startInput.value = event.start || '';
         if (endInput) endInput.value = event.end || '';
@@ -51,9 +52,9 @@ export class ScheduleEditModal extends BaseModal {
     async save() {
         if (!this.currentEventId) return;
 
-        const startInput = document.getElementById('edit-schedule-start');
-        const endInput = document.getElementById('edit-schedule-end');
-        const titleInput = document.getElementById('edit-schedule-title');
+        const startInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-schedule-start'));
+        const endInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-schedule-end'));
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-schedule-title'));
 
         const start = startInput?.value?.trim() || '';
         const end = endInput?.value?.trim() || '';
@@ -106,12 +107,12 @@ export class ScheduleEditModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const saveBtn = document.getElementById('save-edit-schedule-btn');
+        const saveBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('save-edit-schedule-btn'));
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }
 
-        const deleteBtn = document.getElementById('delete-schedule-btn');
+        const deleteBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('delete-schedule-btn'));
         if (deleteBtn) {
             deleteBtn.addEventListener('click', () => this.delete());
         }

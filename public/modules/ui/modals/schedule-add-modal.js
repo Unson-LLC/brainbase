@@ -1,3 +1,4 @@
+// @ts-check
 import { BaseModal } from './base-modal.js';
 
 const ERROR_ID = 'add-schedule-error';
@@ -17,7 +18,7 @@ export class ScheduleAddModal extends BaseModal {
         this._clearForm();
         this.modalElement.classList.add('active');
 
-        const startInput = document.getElementById('add-schedule-start');
+        const startInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-schedule-start'));
         if (startInput) {
             setTimeout(() => startInput.focus(), 100);
         }
@@ -29,9 +30,9 @@ export class ScheduleAddModal extends BaseModal {
     }
 
     _clearForm() {
-        const startInput = document.getElementById('add-schedule-start');
-        const endInput = document.getElementById('add-schedule-end');
-        const titleInput = document.getElementById('add-schedule-title');
+        const startInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-schedule-start'));
+        const endInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-schedule-end'));
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-schedule-title'));
 
         if (startInput) startInput.value = '';
         if (endInput) endInput.value = '';
@@ -41,9 +42,9 @@ export class ScheduleAddModal extends BaseModal {
     }
 
     async save() {
-        const startInput = document.getElementById('add-schedule-start');
-        const endInput = document.getElementById('add-schedule-end');
-        const titleInput = document.getElementById('add-schedule-title');
+        const startInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-schedule-start'));
+        const endInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-schedule-end'));
+        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-schedule-title'));
 
         const start = startInput?.value?.trim() || '';
         const end = endInput?.value?.trim() || '';
@@ -77,7 +78,7 @@ export class ScheduleAddModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const saveBtn = document.getElementById('save-add-schedule-btn');
+        const saveBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('save-add-schedule-btn'));
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }

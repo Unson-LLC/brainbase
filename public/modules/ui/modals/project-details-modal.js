@@ -1,10 +1,11 @@
+// @ts-check
 import { LineChart } from '../../components/line-chart.js';
 
 export class ProjectDetailsModal {
     constructor() {
-        this.modal = document.getElementById('project-details-modal');
+        this.modal = /** @type {HTMLInputElement|null} */ (document.getElementById('project-details-modal'));
         this.closeBtns = this.modal.querySelectorAll('.close-modal-btn');
-        this.openBtn = document.getElementById('open-project-btn');
+        this.openBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('open-project-btn'));
 
         this.setupEventListeners();
     }
@@ -13,7 +14,7 @@ export class ProjectDetailsModal {
         if (!this.modal) return;
 
         this.closeBtns.forEach(btn => {
-            btn.onclick = () => this.close();
+            /** @type {HTMLElement} */ (btn).onclick = () => this.close();
         });
 
         // Close on background click
@@ -41,14 +42,14 @@ export class ProjectDetailsModal {
         this.modal.style.display = 'none';
 
         // Clear graph to prevent duplicate overlapping on re-open
-        const graphContainer = document.getElementById('modal-trend-graph');
+        const graphContainer = /** @type {HTMLInputElement|null} */ (document.getElementById('modal-trend-graph'));
         if (graphContainer) graphContainer.innerHTML = '';
     }
 
     render(project) {
         // Headers
         document.getElementById('project-modal-title').textContent = project.name;
-        const badge = document.getElementById('project-modal-badge');
+        const badge = /** @type {HTMLInputElement|null} */ (document.getElementById('project-modal-badge'));
         badge.textContent = `Health: ${project.healthScore}%`;
 
         // Dynamic Badge Color
@@ -75,13 +76,13 @@ export class ProjectDetailsModal {
             // Switch to console view logic if needed, or trigger global event
             // For now just logs, user might want specialized navigation later
             console.log(`Opening console for ${project.name}`);
-            const consoleBtn = document.getElementById('nav-console-btn');
+            const consoleBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('nav-console-btn'));
             if (consoleBtn) consoleBtn.click();
         };
     }
 
     renderTrendGraph(project) {
-        const container = document.getElementById('modal-trend-graph');
+        const container = /** @type {HTMLInputElement|null} */ (document.getElementById('modal-trend-graph'));
         if (!container) return;
         container.innerHTML = '';
 
@@ -104,7 +105,7 @@ export class ProjectDetailsModal {
     }
 
     renderTaskList(project) {
-        const list = document.getElementById('modal-task-list');
+        const list = /** @type {HTMLInputElement|null} */ (document.getElementById('modal-task-list'));
         list.innerHTML = '';
 
         // Generate dummy critical tasks
@@ -129,7 +130,7 @@ export class ProjectDetailsModal {
     }
 
     renderActionList(project) {
-        const list = document.getElementById('modal-action-list');
+        const list = /** @type {HTMLInputElement|null} */ (document.getElementById('modal-action-list'));
         list.innerHTML = '';
 
         const actions = [];
