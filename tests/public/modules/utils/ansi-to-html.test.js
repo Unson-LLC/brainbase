@@ -111,4 +111,15 @@ describe('ansiToHtml', () => {
         expect(result).not.toContain('<a');
         expect(result).not.toContain('snapshot-file-link');
     });
+
+    it('単語の一部が拡張子にマッチする誤検出を防ぐ', () => {
+        const result = ansiToHtml('gmail.com user@example.c cursorvers.c');
+        expect(result).not.toContain('snapshot-file-link');
+    });
+
+    it('スラッシュを含むパスは検出する', () => {
+        const result = ansiToHtml('src/utils/helper.c');
+        expect(result).toContain('snapshot-file-link');
+        expect(result).toContain('data-path="src/utils/helper.c"');
+    });
 });

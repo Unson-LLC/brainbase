@@ -145,8 +145,9 @@ export function ansiToHtml(text) {
 const URL_RE = /https?:\/\/[^\s<>&"']+/g;
 
 const FILE_EXTS = 'markdown|mdx|tsx|jsx|json|yaml|yml|toml|html|css|txt|svg|xml|ini|cfg|env|sql|bash|md|mjs|cjs|js|ts|py|rb|go|rs|java|kt|swift|php|cpp|hpp|cc|sh|zsh|c|h|log';
+// パスに / を含むことを必須にして誤検出を防ぐ（gmail.c 等）
 const FILE_PATH_RE = new RegExp(
-    '((?:~\\/|\\.{1,2}\\/|\\/)?[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))(?::([0-9]+))?',
+    '((?:~\\/|\\.{1,2}\\/|\\/)[a-zA-Z0-9_][a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + ')|[a-zA-Z0-9_][a-zA-Z0-9_\\-]*\\/[a-zA-Z0-9_/.\\-]*\\.(?:' + FILE_EXTS + '))(?::([0-9]+))?',
     'g'
 );
 
