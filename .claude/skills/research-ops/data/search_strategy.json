@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "last_updated": "2026-03-28",
+  "queries": [
+    {
+      "id": "q1",
+      "query": "\"Claude Code\" OR \"claude-code\" tips tricks workflow lang:en",
+      "label": "Claude Code ハック",
+      "enabled": true,
+      "signal_history": []
+    },
+    {
+      "id": "q2",
+      "query": "\"agentic coding\" OR \"AI coding agent\" best practices 2026",
+      "label": "エージェント開発",
+      "enabled": true,
+      "signal_history": []
+    },
+    {
+      "id": "q3",
+      "query": "\"cursor\" OR \"windsurf\" OR \"copilot\" productivity",
+      "label": "競合ツール動向",
+      "enabled": true,
+      "signal_history": []
+    },
+    {
+      "id": "q4",
+      "query": "\"MCP server\" OR \"model context protocol\" new",
+      "label": "MCP エコシステム",
+      "enabled": true,
+      "signal_history": []
+    },
+    {
+      "id": "q5",
+      "query": "\"AI development\" workflow automation agent",
+      "label": "汎用AI開発手法",
+      "enabled": true,
+      "signal_history": []
+    }
+  ],
+  "watchlist": [
+    { "username": "alexalbert__", "note": "Anthropic CEO", "added": "2026-03-28" },
+    { "username": "aaborgia", "note": "Anthropic", "added": "2026-03-28" },
+    { "username": "swyx", "note": "AI Engineering", "added": "2026-03-28" },
+    { "username": "karpathy", "note": "AI/ML", "added": "2026-03-28" },
+    { "username": "sdtoyer", "note": "Claude Code lead", "added": "2026-03-28" }
+  ],
+  "url_deepdive_threshold": {
+    "min_likes": 50,
+    "min_impressions": 5000
+  },
+  "cost_limit_per_run_usd": 5.0
+}

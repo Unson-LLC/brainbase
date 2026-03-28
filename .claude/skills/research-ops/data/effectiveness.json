@@ -1,0 +1,10 @@
+{
+  "runs": [],
+  "aggregate": {
+    "total_findings": 0,
+    "total_adopt": 0,
+    "total_experiment": 0,
+    "total_skip": 0,
+    "total_cost_usd": 0
+  }
+}
