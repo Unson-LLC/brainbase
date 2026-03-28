@@ -4,6 +4,8 @@
  */
 import { httpClient } from '../../core/http-client.js';
 
+const AUTH_OPTS = { suppressAuthError: true };
+
 export class WikiService {
     constructor() {
         this._base = '/api/wiki';
@@ -11,7 +13,7 @@ export class WikiService {
 
     async getPages() {
         try {
-            return await httpClient.get(`${this._base}/pages`);
+            return await httpClient.get(`${this._base}/pages`, AUTH_OPTS);
         } catch {
             return [];
         }
@@ -19,7 +21,7 @@ export class WikiService {
 
     async getPage(path) {
         try {
-            return await httpClient.get(`${this._base}/page?path=${encodeURIComponent(path)}`);
+            return await httpClient.get(`${this._base}/page?path=${encodeURIComponent(path)}`, AUTH_OPTS);
         } catch {
             return null;
         }
@@ -27,7 +29,7 @@ export class WikiService {
 
     async savePage(path, content) {
         try {
-            return await httpClient.post(`${this._base}/page`, { path, content });
+            return await httpClient.post(`${this._base}/page`, { path, content }, AUTH_OPTS);
         } catch {
             return null;
         }
@@ -35,7 +37,7 @@ export class WikiService {
 
     async deletePage(path) {
         try {
-            return await httpClient.delete(`${this._base}/page?path=${encodeURIComponent(path)}`);
+            return await httpClient.delete(`${this._base}/page?path=${encodeURIComponent(path)}`, AUTH_OPTS);
         } catch {
             return null;
         }

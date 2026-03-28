@@ -1982,14 +1982,9 @@ export class App {
     async initAuth() {
         this.authManager = new AuthManager({ httpClient, store: appStore, eventBus });
 
-        let authErrorShown = false;
         httpClient.setUnauthorizedHandler(() => {
             this.authManager?.clearSession();
-            if (!authErrorShown) {
-                authErrorShown = true;
-                showError('認証が必要です。Settings > 認証からログインしてください。');
-                setTimeout(() => { authErrorShown = false; }, 30000);
-            }
+            showError('認証が必要です。Settings > 認証からログインしてください。');
         });
 
         await this.authManager.initFromStorage();

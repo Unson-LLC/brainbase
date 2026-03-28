@@ -121,6 +121,7 @@ export class HttpClient {
             traceId: providedTraceId,
             allowNotModified = false,
             timeout: requestTimeout,
+            suppressAuthError = false,
             ...fetchOptions
         } = options;
         const fullURL = `${this.baseURL}${url}`;
@@ -189,7 +190,7 @@ export class HttpClient {
                     const authError = new Error('Authentication required');
                     authError.status = 401;
                     authError.redirectUrl = response.url;
-                    if (typeof this._onUnauthorized === 'function') {
+                    if (!suppressAuthError && typeof this._onUnauthorized === 'function') {
                         try { this._onUnauthorized(); } catch (_) {}
                     }
                     throw authError;
@@ -197,7 +198,7 @@ export class HttpClient {
             }
 
             if (!response.ok) {
-                if (response.status === 401 && typeof this._onUnauthorized === 'function') {
+                if (response.status === 401 && !suppressAuthError && typeof this._onUnauthorized === 'function') {
                     try {
                         this._onUnauthorized();
                     } catch (error) {
