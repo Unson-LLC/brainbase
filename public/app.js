@@ -771,7 +771,9 @@ export class App {
     }
 
     async _refreshMobileSnapshotDisplay({ force = false } = {}) {
-        if (!this._isMobileTerminalDisplayMode() || this._mobileSnapshotInFlight) return;
+        if (!this._isMobileTerminalDisplayMode()) return;
+        // force=true（ユーザー操作起因）の場合はin-flightガードをバイパス
+        if (this._mobileSnapshotInFlight && !force) return;
         const sessionId = appStore.getState().currentSessionId;
         if (!sessionId) {
             this._stopMobileSnapshotPolling();
@@ -780,7 +782,15 @@ export class App {
 
         this._mobileSnapshotInFlight = true;
         try {
-            await this._loadTerminalSnapshot(sessionId, { force });
+            const snapshot = await this._loadTerminalSnapshot(sessionId, { force });
+            // snapshot取得後に直接DOMを更新（_updateTerminalInputStatus経由だと遅延する）
+            if (snapshot && appStore.getState().currentSessionId === sessionId) {
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot,
+                    title: 'Terminal display'
+                });
+            }
         } catch (error) {
             console.warn('Failed to refresh mobile terminal snapshot:', error);
         } finally {
