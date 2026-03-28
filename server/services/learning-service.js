@@ -17,6 +17,7 @@ const SYSTEM_WIKI_ACCESS = {
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'],
     projectCodes: []
 };
+const PROJECT_ID_PATTERN = /^prj_[a-z0-9]+$/i;
 
 const WIKI_ROUTE_RULES = [
     { docType: 'decisions', keywords: ['decision', 'adr', '採択', '採用', '判断', '方針決定', 'guardrail'] },
@@ -67,6 +68,53 @@ function slugify(value) {
 function truncate(value, max = 120) {
     if (!value) return '';
     return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function uniqueStrings(values = []) {
+    return Array.from(new Set(toArray(values)));
+}
+
+function extractFirstHeading(markdown = '') {
+    if (typeof markdown !== 'string' || !markdown.trim()) return '';
+    const lines = markdown.split('\n');
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line || line === '---') continue;
+        if (line.startsWith('# ')) {
+            return line.replace(/^#\s+/, '').trim();
+        }
+    }
+    return '';
+}
+
+function extractFrontmatterValue(markdown = '', key) {
+    if (typeof markdown !== 'string' || !markdown.startsWith('---')) return '';
+    const lines = markdown.split('\n');
+    for (let index = 1; index < lines.length; index += 1) {
+        const line = lines[index];
+        if (line.trim() === '---') break;
+        const match = line.match(new RegExp(`^${key}:\\s*(.+)$`));
+        if (match) {
+            return match[1].trim();
+        }
+    }
+    return '';
+}
+
+function deriveCandidateTitle(candidate) {
+    if (!candidate || typeof candidate !== 'object') return '';
+    if (candidate.pillar === 'skill') {
+        const skillName = extractFrontmatterValue(candidate.proposed_content, 'name');
+        if (skillName) return skillName;
+    }
+
+    return extractFirstHeading(candidate.proposed_content) || candidate.target_ref || '';
+}
+
+function deriveSourcePreview(episode) {
+    if (!episode) return '';
+    const preview = episode.summary || episode.evidence?.proposed_rule || episode.evidence?.proposed_steps || '';
+    return truncate(String(preview).replace(/\s+/g, ' ').trim(), 100);
 }
 
 function getEpisodeText(episode) {
@@ -370,13 +418,21 @@ export class LearningService {
             values
         );
 
-        return rows.map((row) => this._mapCandidateRow(row));
+        const candidates = rows.map((row) => this._mapCandidateRow(row));
+        return this._enrichCandidates(candidates);
     }
 
     async getPromotion(candidateId) {
         this.assertReady();
         await this.ensureSchema();
 
+        const row = await this._findCandidateRowById(candidateId);
+        if (!row) return null;
+        const [candidate] = await this._enrichCandidates([this._mapCandidateRow(row)]);
+        return candidate;
+    }
+
+    async _findCandidateRowById(candidateId) {
         const { rows } = await this.pool.query(
             `SELECT id, pillar, target_ref, status, source_episode_ids, linked_wiki_candidate_id,
                     linked_candidate_ids, proposed_content, evaluation_summary, risk_level, doc_type,
@@ -386,8 +442,35 @@ export class LearningService {
              LIMIT 1`,
             [candidateId]
         );
+        return rows[0] || null;
+    }
 
-        return rows[0] ? this._mapCandidateRow(rows[0]) : null;
+    async applyPromotion(candidateId) {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const row = await this._findCandidateRowById(candidateId);
+        if (!row) {
+            return { success: false, notFound: true };
+        }
+        const candidate = this._mapCandidateRow(row);
+
+        const [episode] = await this._loadEpisodesByIds(candidate.source_episode_ids);
+        if (!episode) {
+            throw new Error(`Source episode not found for candidate ${candidateId}`);
+        }
+
+        if (candidate.pillar === 'wiki') {
+            const applied = await this._applyWikiCandidate(candidate, episode);
+            return { success: true, candidate: applied };
+        }
+
+        if (candidate.pillar === 'skill') {
+            const applied = await this._applySkillCandidate(candidate);
+            return { success: true, candidate: applied };
+        }
+
+        throw new Error(`Unsupported candidate pillar: ${candidate.pillar}`);
     }
 
     async markPromotionApplied(candidateId) {
@@ -495,6 +578,48 @@ export class LearningService {
             linked_candidate_ids: toArray(row.linked_candidate_ids),
             evaluation_summary: row.evaluation_summary || {}
         };
+    }
+
+    async _loadEpisodesByIds(ids = []) {
+        const uniqueIds = uniqueStrings(ids);
+        if (uniqueIds.length === 0) return [];
+
+        const { rows } = await this.pool.query(
+            `SELECT id, source_type, project_id, session_id, task_id, skill_refs, wiki_refs,
+                    outcome, summary, evidence, promotion_hint
+             FROM learning_episodes
+             WHERE id = ANY($1::text[])`,
+            [uniqueIds]
+        );
+
+        return rows.map((row) => ({
+            ...row,
+            skill_refs: toArray(row.skill_refs),
+            wiki_refs: toArray(row.wiki_refs),
+            evidence: row.evidence || {},
+            promotion_hint: row.promotion_hint || 'auto'
+        }));
+    }
+
+    async _enrichCandidates(candidates = []) {
+        if (candidates.length === 0) return [];
+        const episodeIds = uniqueStrings(candidates.flatMap((candidate) => candidate.source_episode_ids));
+        const episodes = await this._loadEpisodesByIds(episodeIds);
+        const episodeMap = new Map(episodes.map((episode) => [episode.id, episode]));
+
+        return candidates.map((candidate) => {
+            const sourceEpisode = candidate.source_episode_ids
+                .map((id) => episodeMap.get(id))
+                .find(Boolean) || null;
+
+            return {
+                ...candidate,
+                title: deriveCandidateTitle(candidate),
+                source_preview: deriveSourcePreview(sourceEpisode),
+                source_type: sourceEpisode?.source_type || null,
+                outcome: sourceEpisode?.outcome || null
+            };
+        });
     }
 
     _buildEvaluationSummary({ episode, pillar, linkedWikiCandidateId = null, docType = null }) {
@@ -677,8 +802,13 @@ export class LearningService {
         };
 
         await this.wikiService.savePage(access, candidate.target_ref, candidate.proposed_content);
-        if (episode.project_id) {
+        if (episode.project_id && PROJECT_ID_PATTERN.test(episode.project_id)) {
             await this.wikiService.setPageAccess(candidate.target_ref, { projectId: episode.project_id });
+        } else if (episode.project_id) {
+            logger.warn('Skipping wiki page access binding because learning episode project_id is not a DB project id', {
+                candidateId: candidate.id,
+                projectId: episode.project_id
+            });
         }
 
         await this._updateCandidate(candidate.id, {

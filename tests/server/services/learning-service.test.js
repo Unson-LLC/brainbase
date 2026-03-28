@@ -288,4 +288,90 @@ describe('LearningService', () => {
         const result = await service.markPromotionRejected('prm_1', 'not needed');
         expect(result.success).toBe(true);
     });
+
+    it('getPromotion enriches candidate with preview metadata', async () => {
+        selectQueue.push([
+            {
+                id: 'prm_meta',
+                pillar: 'skill',
+                target_ref: '.claude/skills/recovery/SKILL.md',
+                status: 'evaluated',
+                source_episode_ids: ['lep_meta'],
+                linked_wiki_candidate_id: null,
+                linked_candidate_ids: [],
+                proposed_content: `---\nname: recovery\n---\n\n# recovery\n`,
+                evaluation_summary: { wiki_first_passed: true },
+                risk_level: 'low',
+                doc_type: 'procedure',
+                target_project_id: 'brainbase',
+                apply_mode: 'manual',
+                apply_error: null,
+                materialized_ref: null
+            }
+        ]);
+        selectQueue.push([
+            {
+                id: 'lep_meta',
+                source_type: 'explicit_learn',
+                project_id: 'brainbase',
+                session_id: null,
+                task_id: null,
+                skill_refs: [],
+                wiki_refs: [],
+                outcome: 'success',
+                summary: 'UI learning candidate smoke test',
+                evidence: {},
+                promotion_hint: 'both'
+            }
+        ]);
+
+        const candidate = await service.getPromotion('prm_meta');
+
+        expect(candidate.title).toBe('recovery');
+        expect(candidate.source_preview).toBe('UI learning candidate smoke test');
+        expect(candidate.source_type).toBe('explicit_learn');
+        expect(candidate.outcome).toBe('success');
+    });
+
+    it('applyPromotion writes wiki and skill candidates through service handlers', async () => {
+        selectQueue.push([
+            {
+                id: 'prm_apply',
+                pillar: 'wiki',
+                target_ref: 'architecture/test-rule',
+                status: 'evaluated',
+                source_episode_ids: ['lep_apply'],
+                linked_wiki_candidate_id: null,
+                linked_candidate_ids: [],
+                proposed_content: '# test-rule',
+                evaluation_summary: {},
+                risk_level: 'low',
+                doc_type: 'architecture',
+                target_project_id: 'brainbase',
+                apply_mode: 'manual',
+                apply_error: null,
+                materialized_ref: null
+            }
+        ]);
+        selectQueue.push([
+            {
+                id: 'lep_apply',
+                source_type: 'review',
+                project_id: 'brainbase',
+                session_id: null,
+                task_id: null,
+                skill_refs: [],
+                wiki_refs: [],
+                outcome: 'failure',
+                summary: 'rule',
+                evidence: {},
+                promotion_hint: 'wiki'
+            }
+        ]);
+
+        const result = await service.applyPromotion('prm_apply');
+
+        expect(result.success).toBe(true);
+        expect(wikiService.savePage).toHaveBeenCalled();
+    });
 });

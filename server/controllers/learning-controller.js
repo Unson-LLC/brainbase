@@ -56,14 +56,14 @@ export class LearningController {
 
     markApplied = async (req, res) => {
         try {
-            const result = await this.learningService.markPromotionApplied(req.params.id);
-            if (!result.success) {
+            const result = await this.learningService.applyPromotion(req.params.id);
+            if (result.notFound || !result.success) {
                 return res.status(404).json({ error: 'Promotion candidate not found' });
             }
             res.json(result);
         } catch (error) {
-            logger.error('Failed to mark learning promotion as applied', { error });
-            res.status(500).json({ error: 'Failed to mark learning promotion as applied' });
+            logger.error('Failed to apply learning promotion', { error });
+            res.status(500).json({ error: 'Failed to apply learning promotion' });
         }
     };
 

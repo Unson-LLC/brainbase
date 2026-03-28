@@ -18,7 +18,28 @@ export class InboxService {
      * @returns {Promise<Array>} Inboxアイテム配列
      */
     async loadInbox() {
-        const items = await this.httpClient.get('/api/inbox/pending');
+        const [notifications, learningCandidates] = await Promise.all([
+            this.httpClient.get('/api/inbox/pending'),
+            this.httpClient.get('/api/learning/promotions?status=evaluated&apply_mode=manual').catch(() => [])
+        ]);
+        const items = [
+            ...(Array.isArray(learningCandidates) ? learningCandidates.map((candidate) => ({
+                kind: 'learning',
+                id: candidate.id,
+                candidateId: candidate.id,
+                pillar: candidate.pillar,
+                title: candidate.title || candidate.target_ref || '学習候補',
+                targetRef: candidate.target_ref,
+                sourcePreview: candidate.source_preview || '',
+                sourceType: candidate.source_type || null,
+                outcome: candidate.outcome || null,
+                riskLevel: candidate.risk_level || 'low',
+                evaluationSummary: candidate.evaluation_summary || {},
+                proposedContent: candidate.proposed_content || '',
+                updatedAt: candidate.updated_at || candidate.created_at || null
+            })) : []),
+            ...(Array.isArray(notifications) ? notifications.map((item) => ({ ...item, kind: 'notification' })) : [])
+        ];
         this.store.setState({ inbox: items });
         await this.eventBus.emit(EVENTS.INBOX_LOADED, { items });
         return items;
@@ -45,6 +66,18 @@ export class InboxService {
         await this.httpClient.post('/api/inbox/mark-all-done');
         await this.loadInbox(); // リロード
         return { success: true, count: beforeCount };
+    }
+
+    async applyLearningCandidate(candidateId) {
+        await this.httpClient.post(`/api/learning/promotions/${candidateId}/apply`);
+        await this.loadInbox();
+        return { success: true, candidateId };
+    }
+
+    async rejectLearningCandidate(candidateId) {
+        await this.httpClient.post(`/api/learning/promotions/${candidateId}/reject`, {});
+        await this.loadInbox();
+        return { success: true, candidateId };
     }
 
     /**

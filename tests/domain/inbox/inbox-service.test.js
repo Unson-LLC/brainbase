@@ -22,6 +22,7 @@ describe('InboxService', () => {
         mockInboxItems = [
             {
                 id: 'inbox-1',
+                kind: 'notification',
                 sender: 'テストユーザー',
                 channel: 'general',
                 message: 'テストメッセージ1',
@@ -29,6 +30,7 @@ describe('InboxService', () => {
             },
             {
                 id: 'inbox-2',
+                kind: 'notification',
                 sender: '田中',
                 channel: 'dev',
                 message: 'テストメッセージ2',
@@ -50,17 +52,22 @@ describe('InboxService', () => {
 
     describe('loadInbox', () => {
         it('loadInbox呼び出し時_API経由でInboxアイテムを取得してStoreを更新する', async () => {
-            httpClient.get.mockResolvedValue(mockInboxItems);
+            httpClient.get
+                .mockResolvedValueOnce(mockInboxItems)
+                .mockResolvedValueOnce([]);
 
             const result = await inboxService.loadInbox();
 
             expect(httpClient.get).toHaveBeenCalledWith('/api/inbox/pending');
+            expect(httpClient.get).toHaveBeenCalledWith('/api/learning/promotions?status=evaluated&apply_mode=manual');
             expect(appStore.getState().inbox).toEqual(mockInboxItems);
             expect(result).toEqual(mockInboxItems);
         });
 
         it('loadInbox呼び出し時_INBOX_LOADEDイベントが発火される', async () => {
-            httpClient.get.mockResolvedValue(mockInboxItems);
+            httpClient.get
+                .mockResolvedValueOnce(mockInboxItems)
+                .mockResolvedValueOnce([]);
             const listener = vi.fn();
             eventBus.on(EVENTS.INBOX_LOADED, listener);
 
@@ -74,7 +81,9 @@ describe('InboxService', () => {
     describe('markAsDone', () => {
         it('markAsDone呼び出し時_API経由でアイテムを完了済みにしてInboxを再読み込みする', async () => {
             httpClient.post.mockResolvedValue({});
-            httpClient.get.mockResolvedValue([mockInboxItems[1]]); // 1件目を削除した状態
+            httpClient.get
+                .mockResolvedValueOnce([mockInboxItems[1]])
+                .mockResolvedValueOnce([]);
 
             await inboxService.markAsDone('inbox-1');
 
@@ -84,7 +93,9 @@ describe('InboxService', () => {
 
         it('markAsDone呼び出し時_INBOX_ITEM_COMPLETEDイベントが発火される', async () => {
             httpClient.post.mockResolvedValue({});
-            httpClient.get.mockResolvedValue([mockInboxItems[1]]);
+            httpClient.get
+                .mockResolvedValueOnce([mockInboxItems[1]])
+                .mockResolvedValueOnce([]);
             const listener = vi.fn();
             eventBus.on(EVENTS.INBOX_ITEM_COMPLETED, listener);
 
@@ -98,7 +109,9 @@ describe('InboxService', () => {
     describe('markAllAsDone', () => {
         it('markAllAsDone呼び出し時_API経由で全アイテムを完了済みにしてInboxを再読み込みする', async () => {
             httpClient.post.mockResolvedValue({});
-            httpClient.get.mockResolvedValue([]); // 全件削除した状態
+            httpClient.get
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce([]);
 
             await inboxService.markAllAsDone();
 
@@ -111,7 +124,9 @@ describe('InboxService', () => {
             appStore.setState({ inbox: mockInboxItems });
 
             httpClient.post.mockResolvedValue({});
-            httpClient.get.mockResolvedValue([]);
+            httpClient.get
+                .mockResolvedValueOnce([])
+                .mockResolvedValueOnce([]);
 
             await inboxService.markAllAsDone();
 
@@ -134,6 +149,30 @@ describe('InboxService', () => {
             const count = inboxService.getInboxCount();
 
             expect(count).toBe(0);
+        });
+
+        it('loadInbox呼び出し時_learning candidate を先頭にマージする', async () => {
+            httpClient.get
+                .mockResolvedValueOnce(mockInboxItems)
+                .mockResolvedValueOnce([
+                    {
+                        id: 'prm_1',
+                        pillar: 'skill',
+                        target_ref: '.claude/skills/recovery/SKILL.md',
+                        title: 'recovery',
+                        source_preview: 'UI learning candidate smoke test',
+                        source_type: 'explicit_learn',
+                        outcome: 'success',
+                        risk_level: 'low',
+                        evaluation_summary: {},
+                        proposed_content: '# recovery'
+                    }
+                ]);
+
+            const result = await inboxService.loadInbox();
+
+            expect(result[0].kind).toBe('learning');
+            expect(result[1].kind).toBe('notification');
         });
     });
 });

@@ -109,8 +109,8 @@ describe('InboxView', () => {
 
         it('render呼び出し時_inbox項目あり_項目が表示される', () => {
             const items = [
-                { id: '1', message: 'Test Message 1', sender: 'Alice', channel: 'general' },
-                { id: '2', message: 'Test Message 2', sender: 'Bob', channel: 'random' }
+                { id: '1', kind: 'notification', message: 'Test Message 1', sender: 'Alice', channel: 'general' },
+                { id: '2', kind: 'notification', message: 'Test Message 2', sender: 'Bob', channel: 'random' }
             ];
             appStore.setState({ inbox: items });
 
@@ -127,7 +127,7 @@ describe('InboxView', () => {
 
         it('render呼び出し時_HTMLエスケープが適用される', () => {
             const items = [
-                { id: '1', message: '<script>alert("XSS")</script>', sender: 'Hacker', channel: 'test' }
+                { id: '1', kind: 'notification', message: '<script>alert("XSS")</script>', sender: 'Hacker', channel: 'test' }
             ];
             appStore.setState({ inbox: items });
 
@@ -140,7 +140,7 @@ describe('InboxView', () => {
 
         it('render呼び出し時_slackUrlがある場合_リンクが表示される', () => {
             const items = [
-                { id: '1', message: 'Test', sender: 'User', channel: 'general', slackUrl: 'https://slack.com/archives/C123' }
+                { id: '1', kind: 'notification', message: 'Test', sender: 'User', channel: 'general', slackUrl: 'https://slack.com/archives/C123' }
             ];
             appStore.setState({ inbox: items });
 
@@ -150,6 +150,28 @@ describe('InboxView', () => {
             expect(inboxList.innerHTML).toContain('Slackで開く');
             expect(inboxList.innerHTML).toContain('https://slack.com/archives/C123');
         });
+
+        it('render呼び出し時_learning candidate は日本語ラベルで表示される', () => {
+            const items = [
+                {
+                    id: 'prm_1',
+                    candidateId: 'prm_1',
+                    kind: 'learning',
+                    pillar: 'skill',
+                    riskLevel: 'low',
+                    title: 'README画像ルール',
+                    sourcePreview: 'README の画像解決ルールを固定する'
+                }
+            ];
+            appStore.setState({ inbox: items });
+
+            inboxView.render();
+
+            const inboxList = document.getElementById('inbox-list');
+            expect(inboxList.innerHTML).toContain('学習候補');
+            expect(inboxList.innerHTML).toContain('スキル');
+            expect(inboxList.innerHTML).toContain('README画像ルール');
+        });
     });
 
     describe('event handling', () => {
@@ -157,7 +179,7 @@ describe('InboxView', () => {
             inboxView.mount();
 
             const items = [
-                { id: '1', message: 'Test', sender: 'User', channel: 'general' }
+                { id: '1', kind: 'notification', message: 'Test', sender: 'User', channel: 'general' }
             ];
             appStore.setState({ inbox: items }); // mount後にstateを設定（Store購読でrender()が呼ばれる）
         });

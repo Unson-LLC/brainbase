@@ -9,6 +9,7 @@ export function createLearningRouter(learningService) {
     router.post('/promotions/propose', controller.proposePromotions);
     router.get('/promotions', controller.listPromotions);
     router.get('/promotions/:id', controller.getPromotion);
+    router.post('/promotions/:id/apply', controller.markApplied);
     router.post('/promotions/:id/reject', controller.rejectPromotion);
     router.post('/promotions/:id/applied', controller.markApplied);
 

@@ -13,7 +13,7 @@ describe('learning routes', () => {
             proposePromotions: vi.fn(async () => [{ id: 'prm_1', pillar: 'wiki' }]),
             listPromotions: vi.fn(async () => [{ id: 'prm_1', pillar: 'wiki', status: 'evaluated' }]),
             getPromotion: vi.fn(async () => ({ id: 'prm_1', pillar: 'wiki', status: 'evaluated' })),
-            markPromotionApplied: vi.fn(async () => ({ success: true })),
+            applyPromotion: vi.fn(async () => ({ success: true, candidate: { id: 'prm_1' } })),
             markPromotionRejected: vi.fn(async () => ({ success: true }))
         };
 
@@ -55,6 +55,13 @@ describe('learning routes', () => {
 
         expect(res.status).toBe(200);
         expect(service.getPromotion).toHaveBeenCalledWith('prm_1');
+    });
+
+    it('POST /promotions/:id/apply applies one candidate', async () => {
+        const res = await request(app).post('/api/learning/promotions/prm_1/apply');
+
+        expect(res.status).toBe(200);
+        expect(service.applyPromotion).toHaveBeenCalledWith('prm_1');
     });
 
     it('POST /promotions/:id/reject rejects one candidate', async () => {
