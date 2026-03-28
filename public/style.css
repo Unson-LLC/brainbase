@@ -6879,6 +6879,11 @@ body.resizing iframe {
         right: 0;
     }
 
+    /* expanded時はドックが大きくなるので、ターミナル領域のoffsetを拡大 */
+    body:has(.mobile-input-dock.expanded) {
+        --mobile-input-offset: 280px;
+    }
+
     /* Sessionsボタンを非表示（ボトムナビから行けるため不要） */
     .mobile-input-dock.expanded #mobile-dock-sessions {
         display: none;
