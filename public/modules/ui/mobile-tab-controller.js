@@ -136,6 +136,16 @@ export class MobileTabController {
             this._fileViewerView = new FileViewerView({ fileViewerService });
             this._fileViewerView.mount(previewContainer);
 
+            // Subscribe to folderTree state to re-render on load/error
+            this._folderTreeUnsubscribe = appStore.subscribeToSelector(
+                (state) => state.folderTree,
+                () => {
+                    if (this._folderTreeView && treeContainer) {
+                        this._folderTreeView.render(treeContainer);
+                    }
+                }
+            );
+
             // Subscribe to fileViewer state to toggle tree/preview
             this._fileViewerUnsubscribe = appStore.subscribeToSelector(
                 (state) => state.fileViewer,
@@ -174,6 +184,22 @@ export class MobileTabController {
 
     _refreshActiveTab() {
         if (this._activeTab === 'files') {
+            // Cleanup existing subscriptions
+            if (this._folderTreeUnsubscribe) {
+                this._folderTreeUnsubscribe();
+                this._folderTreeUnsubscribe = null;
+            }
+            if (this._fileViewerUnsubscribe) {
+                this._fileViewerUnsubscribe();
+                this._fileViewerUnsubscribe = null;
+            }
+            if (this._fileViewerView) {
+                this._fileViewerView.unmount?.();
+                this._fileViewerView = null;
+            }
+            this._folderTreeView = null;
+            this._filesEl = null;
+
             this._mountedTabs.delete('files');
             const el = document.getElementById('mobile-tab-content-files');
             if (el) {
