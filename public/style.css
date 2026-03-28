@@ -6998,6 +6998,14 @@ body.resizing iframe {
         max-height: calc(var(--vvh, 100dvh) - var(--mobile-input-offset, 120px));
     }
 
+    /* キーボード表示時: スナップショットをvisualViewport内に収める */
+    body.keyboard-open > .terminal-snapshot-panel,
+    body.keyboard-open .console-area.using-snapshot .terminal-snapshot-panel {
+        bottom: var(--mobile-terminal-reserve, 120px);
+        max-height: calc(var(--vvh, 100dvh) - var(--mobile-tab-bar-height, 47px) - var(--mobile-terminal-reserve, 120px));
+        min-height: 100px;
+    }
+
     .mobile-input-row {
         display: flex;
         align-items: center;

@@ -1071,7 +1071,14 @@
 
     <script type="module" src="app.js?v=1774709000"></script>
     <script>
-        lucide.createIcons();
+        // defer scripts (lucide等) のロード後に実行
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        } else {
+            document.addEventListener('DOMContentLoaded', () => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        }
     </script>
 </body>
 
