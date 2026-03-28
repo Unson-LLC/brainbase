@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * QA Loop Service - Auto-Claude QA Loop pattern implementation
  *
@@ -336,6 +337,7 @@ export class QAService {
         return {
             status: QA_STATUS.REPLAN,
             replanPrompt,
+        // @ts-expect-error runtime-extended result object
             attemptCount: count + 1
         };
     }

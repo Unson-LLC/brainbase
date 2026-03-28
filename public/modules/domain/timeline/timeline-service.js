@@ -1,3 +1,4 @@
+// @ts-check
 import { EVENTS } from '../../core/event-bus.js';
 import { TimelineItem, generateTimelineId } from './timeline-item.js';
 

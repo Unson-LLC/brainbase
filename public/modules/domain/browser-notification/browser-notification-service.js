@@ -1,3 +1,4 @@
+// @ts-check
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 
@@ -54,7 +55,7 @@ export class BrowserNotificationService {
 
         // NOTIFICATION_SEND イベントで通知送信
         const unsubSend = this.eventBus.on(EVENTS.NOTIFICATION_SEND, async (event) => {
-            const { title, options } = event.detail;
+            const { title, options } = /** @type {CustomEvent} */ (event).detail;
             this.notify(title, options);
         });
         this._unsubscribeFunctions.push(unsubSend);

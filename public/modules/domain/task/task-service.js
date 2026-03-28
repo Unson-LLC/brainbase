@@ -1,3 +1,4 @@
+// @ts-check
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
@@ -128,10 +129,10 @@ export class TaskService {
 
     /**
      * Next Tasks取得（フォーカスタスク以外のタスク）
-     * @param {Object} options - オプション
-     * @param {boolean} options.showAll - 全件表示するか（デフォルト: false、上限10件）
-     * @param {string} options.owner - オーナーフィルター（任意）
-     * @returns {Array} Next Tasks配列
+     * @param {Object} [options] - オプション
+     * @param {boolean} [options.showAll] - 全件表示するか（デフォルト: false、上限10件）
+     * @param {string} [options.owner] - オーナーフィルター（任意）
+     * @returns {{ tasks: Array, totalCount: number, remainingCount: number }}
      */
     getNextTasks(options = {}) {
         const { showAll = false, owner = null } = options;
@@ -264,7 +265,7 @@ export class TaskService {
         return completed.sort((a, b) => {
             const dateA = a.updated ? new Date(a.updated) : (a.created ? new Date(a.created) : new Date(0));
             const dateB = b.updated ? new Date(b.updated) : (b.created ? new Date(b.created) : new Date(0));
-            return dateB - dateA;
+            return dateB.getTime() - dateA.getTime();
         });
     }
 

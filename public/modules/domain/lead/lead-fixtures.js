@@ -1,3 +1,4 @@
+// @ts-check
 function deepClone(value) {
     if (typeof structuredClone === 'function') {
         return structuredClone(value);

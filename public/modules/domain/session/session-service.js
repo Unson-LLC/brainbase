@@ -1,3 +1,4 @@
+// @ts-check
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
@@ -17,8 +18,9 @@ import { pruneSessionUiState, setSessionSummaryMap } from '../../session-ui-stat
  */
 export class SessionService {
     /**
-     * @param {Object} options - オプション
-     * @param {Object} options.recoveryService - RecoveryService（オプション）
+     * @param {Object} [options] - オプション
+     * @param {Object} [options.recoveryService] - RecoveryService
+     * @param {boolean} [options.skipMergeCheck] - マージチェックをスキップ
      */
     constructor(options = {}) {
         this.httpClient = httpClient;
@@ -521,7 +523,7 @@ export class SessionService {
 
             const dateA = new Date(getDateValue(a));
             const dateB = new Date(getDateValue(b));
-            return dateB - dateA;
+            return dateB.getTime() - dateA.getTime();
         });
 
         console.log('[DEBUG] getArchivedSessions - Returning:', sorted.length, 'sessions');
@@ -594,8 +596,8 @@ export class SessionService {
     /**
      * セッションをアーカイブ（worktreeマージチェック付き）
      * @param {string} sessionId - アーカイブするセッションのID
-     * @param {Object} options - オプション
-     * @param {boolean} options.skipMergeCheck - マージチェックをスキップするか
+     * @param {Object} [options] - オプション
+     * @param {boolean} [options.skipMergeCheck] - マージチェックをスキップするか
      * @returns {Promise<{success?: boolean, needsConfirmation?: boolean, status?: Object}>}
      */
     async archiveSession(sessionId, options = {}) {

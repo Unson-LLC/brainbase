@@ -1,3 +1,4 @@
+// @ts-check
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { NocoDBTaskAdapter } from './nocodb-task-adapter.js';
