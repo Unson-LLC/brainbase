@@ -205,10 +205,10 @@ export class WikiView {
         const existing = document.getElementById('wiki-reader-overlay');
         if (existing) {
             this._overlay = existing;
-            // If mounted in a mobile tab, move the overlay there
-            const mobileTabParent = this._container?.closest('.mobile-tab-content');
-            if (mobileTabParent && existing.parentElement !== mobileTabParent) {
-                mobileTabParent.appendChild(existing);
+            // If mounted in a mobile tab, ensure overlay is on body (not inside console-area)
+            const isMobileTab = Boolean(this._container?.closest('.mobile-tab-content'));
+            if (isMobileTab && existing.parentElement !== document.body) {
+                document.body.appendChild(existing);
             }
             return;
         }
@@ -224,12 +224,12 @@ export class WikiView {
             </div>
             <div class="wiki-reader-body"></div>
         `;
-        // Insert overlay: if mounted in a mobile tab content, use that container;
-        // otherwise use console-area (desktop) or body as fallback.
-        const mobileTabParent = this._container?.closest('.mobile-tab-content');
+        // Insert overlay: mobile uses body (container.innerHTML gets overwritten by _render);
+        // desktop uses console-area so overlay only covers terminal area.
+        const isMobileTab = Boolean(this._container?.closest('.mobile-tab-content'));
         const consoleArea = document.getElementById('console-area');
-        if (mobileTabParent) {
-            mobileTabParent.appendChild(overlay);
+        if (isMobileTab) {
+            document.body.appendChild(overlay);
         } else if (consoleArea) {
             consoleArea.appendChild(overlay);
         } else {

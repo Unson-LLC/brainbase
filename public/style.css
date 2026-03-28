@@ -2148,6 +2148,20 @@ body::after {
     background: linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03));
 }
 
+.inbox-health-alert-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    cursor: pointer;
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.08), rgba(127, 29, 29, 0.05));
+}
+
+.inbox-health-alert-item:hover {
+    border-color: rgba(248, 113, 113, 0.4);
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(127, 29, 29, 0.08));
+}
+
 .inbox-learning-badges {
     display: flex;
     align-items: center;
@@ -2172,6 +2186,17 @@ body::after {
 .inbox-learning-pill-risk {
     background: rgba(16, 185, 129, 0.14);
     color: #79e1b6;
+}
+
+.inbox-health-pill,
+.learning-pill-warning {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+}
+
+.learning-pill-danger {
+    background: rgba(239, 68, 68, 0.16);
+    color: #fca5a5;
 }
 
 .inbox-learning-title {
@@ -2228,6 +2253,12 @@ body::after {
     border-bottom: 1px solid rgba(148, 163, 184, 0.16);
     background:
         radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 38%),
+        linear-gradient(180deg, rgba(15, 23, 38, 0.96), rgba(15, 23, 38, 0.88));
+}
+
+.learning-candidate-modal-header-warning {
+    background:
+        radial-gradient(circle at top left, rgba(245, 158, 11, 0.18), transparent 38%),
         linear-gradient(180deg, rgba(15, 23, 38, 0.96), rgba(15, 23, 38, 0.88));
 }
 
@@ -2337,6 +2368,10 @@ body::after {
     padding: 16px 22px 20px;
     border-top: 1px solid rgba(148, 163, 184, 0.16);
     background: rgba(15, 23, 38, 0.94);
+}
+
+.learning-candidate-modal-dialog-compact {
+    width: min(720px, calc(100vw - 32px));
 }
 
 @media (max-width: 720px) {
@@ -6691,6 +6726,13 @@ body.resizing iframe {
         display: none !important;
     }
 
+    /* Wiki reader overlay: body直下の場合はfixedで全画面 */
+    body > .wiki-reader-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1450;
+    }
+
     /* Bottom nav +New button */
     .mobile-bottom-nav-primary {
         background: var(--accent-color) !important;
@@ -9255,9 +9297,73 @@ body.resizing iframe {
     border-bottom: 2px solid #b45309;
 }
 
+.learning-health-banner {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: #fef2f2;
+    padding: 8px 20px;
+    font-weight: 500;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    z-index: 9998;
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
+    border-bottom: 1px solid rgba(127, 29, 29, 0.8);
+}
+
+.learning-health-banner-content {
+    width: min(1120px, calc(100vw - 24px));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.learning-health-banner-copy {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.learning-health-banner-copy span {
+    line-height: 1.45;
+}
+
+.learning-health-banner-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.learning-health-banner-btn {
+    border: 1px solid rgba(254, 226, 226, 0.35);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.learning-health-banner-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
 /* TEST_MODEバナー表示時のapp-containerオフセット */
 body:has(.test-mode-banner) .app-container {
     margin-top: 42px;
+}
+
+body:has(.learning-health-banner) .app-container {
+    margin-top: 42px;
+}
+
+body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
+    margin-top: 84px;
 }
 
 .test-mode-banner-content {
@@ -9283,8 +9389,28 @@ body:has(.test-mode-banner) .app-container {
         font-size: 0.75rem;
     }
 
+    .learning-health-banner {
+        padding: 6px 12px;
+        font-size: 0.75rem;
+    }
+
     .test-mode-banner-content {
         gap: 6px;
+    }
+
+    .learning-health-banner-content {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .learning-health-banner-actions {
+        width: 100%;
+    }
+
+    .learning-health-banner-btn {
+        flex: 1;
+        text-align: center;
     }
 
     .test-mode-banner-content i {
@@ -9294,6 +9420,14 @@ body:has(.test-mode-banner) .app-container {
 
     body:has(.test-mode-banner) .app-container {
         margin-top: 36px;
+    }
+
+    body:has(.learning-health-banner) .app-container {
+        margin-top: 48px;
+    }
+
+    body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
+        margin-top: 84px;
     }
 }
 
