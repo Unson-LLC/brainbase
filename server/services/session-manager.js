@@ -1714,7 +1714,8 @@ export class SessionManager {
             env: {
                 ...process.env,  // Inherit parent process environment
                 LANG: 'en_US.UTF-8',
-                LC_ALL: 'en_US.UTF-8'
+                LC_ALL: 'en_US.UTF-8',
+                TERM: 'tmux-256color'  // 絵文字・CJK文字幅を正しく処理
             }
         };
 
