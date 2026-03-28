@@ -4130,11 +4130,13 @@ export class App {
             }
 
             if (sessions && sessions.length > 0) {
-                void this.refreshSessionUiSummaries(
-                    sessions
+                // モバイルは現在のセッションだけ取得（起動高速化）
+                const summaryIds = this.isMobile() && currentSessionId
+                    ? [currentSessionId]
+                    : sessions
                         .filter((session) => session.intendedState !== 'archived')
-                        .map((session) => session.id)
-                );
+                        .map((session) => session.id);
+                void this.refreshSessionUiSummaries(summaryIds);
             }
 
             if (currentSessionId) {
@@ -4191,6 +4193,11 @@ export class App {
 
         // 1. Initialize services
         this.initServices();
+
+        // 1.5. Restore cached sessions for instant UI (stale-while-revalidate)
+        if (this.sessionService?.restoreFromCache()) {
+            console.log('[Startup] Restored sessions from cache');
+        }
 
         // 2. Initialize views
         this.initViews();

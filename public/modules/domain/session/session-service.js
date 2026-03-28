@@ -16,6 +16,8 @@ import { pruneSessionUiState, setSessionSummaryMap } from '../../session-ui-stat
  * - セッション作成時に前回の失敗情報を確認
  * - スタック検出時にSTUCK_DETECTEDイベントを発火
  */
+const SESSION_CACHE_KEY = 'bb:session-state-cache:v1';
+
 export class SessionService {
     /**
      * @param {Object} [options] - オプション
@@ -36,6 +38,51 @@ export class SessionService {
      * セッション一覧取得
      * @returns {Promise<Array>} セッション配列
      */
+    /**
+     * localStorageからキャッシュ済みセッション状態を即座に復元
+     * API応答を待たずにUIを表示できる（stale-while-revalidate）
+     */
+    restoreFromCache() {
+        try {
+            const raw = localStorage.getItem(SESSION_CACHE_KEY);
+            if (!raw) return false;
+            const cached = JSON.parse(raw);
+            if (!cached?.sessions?.length) return false;
+            // 1時間以上古いキャッシュは無視
+            if (cached.cachedAt && Date.now() - cached.cachedAt > 3600000) return false;
+            this.store.setState({
+                sessions: cached.sessions,
+                testMode: cached.testMode || false,
+                preferences: cached.preferences || {}
+            });
+            if (cached.currentSessionId) {
+                this.store.setState({ currentSessionId: cached.currentSessionId });
+            }
+            pruneSessionUiState(cached.sessions.map(s => s.id));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _saveToCache(state) {
+        try {
+            const { sessions, testMode, preferences, currentSessionId } = this.store.getState();
+            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
+                sessions: (sessions || []).map(s => ({
+                    id: s.id, name: s.name, project: s.project, path: s.path,
+                    intendedState: s.intendedState, engine: s.engine,
+                    worktree: s.worktree, createdAt: s.createdAt,
+                    archivedAt: s.archivedAt, pausedReason: s.pausedReason
+                })),
+                testMode,
+                preferences,
+                currentSessionId,
+                cachedAt: Date.now()
+            }));
+        } catch { /* quota exceeded等は無視 */ }
+    }
+
     async loadSessions(options = {}) {
         const { silent = false } = options;
         const state = await this.httpClient.get('/api/state');
@@ -74,6 +121,7 @@ export class SessionService {
 
         this.store.setState({ sessions, testMode, preferences });
         pruneSessionUiState(sessions.map((session) => session.id));
+        this._saveToCache();
         if (!silent) {
             await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         }
