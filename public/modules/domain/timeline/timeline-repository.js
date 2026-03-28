@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * TimelineRepository
  * Timeline APIとの通信を抽象化

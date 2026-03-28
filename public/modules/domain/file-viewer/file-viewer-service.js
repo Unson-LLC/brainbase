@@ -1,3 +1,4 @@
+// @ts-check
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 
@@ -101,8 +102,8 @@ export class FileViewerService {
      */
     _renderMarkdown(content) {
         if (typeof window === 'undefined') return content;
-        const marked = window.marked;
-        const DOMPurify = window.DOMPurify;
+        const marked = /** @type {any} */ (window).marked;
+        const DOMPurify = /** @type {any} */ (window).DOMPurify;
 
         if (!marked || !DOMPurify) {
             // fallback: エスケープして返す

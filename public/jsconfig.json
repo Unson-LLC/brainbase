@@ -11,7 +11,8 @@
   "include": [
     "modules/core/*.js",
     "modules/ui-helpers.js",
-    "modules/utils/*.js"
+    "modules/utils/*.js",
+    "modules/domain/**/*.js"
   ],
   "exclude": ["../node_modules"]
 }

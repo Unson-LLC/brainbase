@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * NocoDBTaskRepository
  * NocoDB APIとの通信を抽象化

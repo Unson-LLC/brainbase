@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Wiki Service (Client)
  * サーバーの /api/wiki エンドポイントに接続

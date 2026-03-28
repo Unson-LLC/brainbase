@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * CommitTreeService
  * コミットログの取得とStore更新を管理
