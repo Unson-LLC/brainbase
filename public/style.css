@@ -6548,7 +6548,10 @@ body.resizing iframe {
         --mobile-input-offset: 120px;
     }
 
-    /* Session Context Bar: モバイルで横スクロール */
+    /* Session Context Bar: モバイルではタブバーがあるので非表示 */
+    .session-context-bar {
+        display: none;
+    }
     .session-context-bar-inner {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -6623,7 +6626,7 @@ body.resizing iframe {
         border-bottom: 1px solid var(--border-color);
         flex-shrink: 0;
         position: fixed;
-        top: var(--mobile-terminal-stage-top, 39px);
+        top: 0;
         left: 0;
         right: 0;
         z-index: 1200;
@@ -6662,7 +6665,7 @@ body.resizing iframe {
     .mobile-tab-content {
         display: none;
         position: fixed;
-        top: calc(var(--mobile-terminal-stage-top, 39px) + var(--mobile-tab-bar-height, 47px));
+        top: var(--mobile-tab-bar-height, 47px);
         left: 0;
         right: 0;
         bottom: calc(56px + env(safe-area-inset-bottom, 0));
@@ -7223,10 +7226,10 @@ body.resizing iframe {
     body > .terminal-snapshot-panel {
         position: fixed;
         inset: auto;
-        top: calc(var(--mobile-terminal-stage-top, 0px) + var(--mobile-tab-bar-height, 47px));
-        left: var(--mobile-terminal-stage-left, 0px);
-        width: var(--mobile-terminal-stage-width, 100vw);
-        height: calc(var(--mobile-terminal-stage-height, 100vh) - var(--mobile-tab-bar-height, 47px));
+        top: var(--mobile-tab-bar-height, 47px);
+        left: 0;
+        right: 0;
+        bottom: calc(var(--mobile-terminal-reserve, 120px) + 56px + env(safe-area-inset-bottom, 0));
         display: flex;
         z-index: 1105;
         visibility: visible;
