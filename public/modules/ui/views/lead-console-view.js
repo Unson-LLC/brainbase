@@ -1,3 +1,4 @@
+// @ts-check
 import { escapeHtml } from '../../ui-helpers.js';
 import { getPriorityLabel } from '../../utils/task-filters.js';
 

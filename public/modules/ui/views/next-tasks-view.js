@@ -1,3 +1,4 @@
+// @ts-check
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { refreshIcons, formatDueDate } from '../../ui-helpers.js';
@@ -48,8 +49,8 @@ export class NextTasksView extends BaseView {
     }
 
     _updateRemainingToggle(remainingCount) {
-        const toggleEl = document.getElementById('remaining-tasks-toggle');
-        const countEl = document.getElementById('remaining-count');
+        const toggleEl = /** @type {HTMLElement|null} */ (document.getElementById('remaining-tasks-toggle'));
+        const countEl = /** @type {HTMLElement|null} */ (document.getElementById('remaining-count'));
 
         if (remainingCount > 0 && !this.showAll) {
             if (toggleEl) toggleEl.style.display = 'block';
@@ -60,7 +61,7 @@ export class NextTasksView extends BaseView {
     }
 
     _hideRemainingToggle() {
-        const toggleEl = document.getElementById('remaining-tasks-toggle');
+        const toggleEl = /** @type {HTMLElement|null} */ (document.getElementById('remaining-tasks-toggle'));
         if (toggleEl) toggleEl.style.display = 'none';
     }
 
@@ -133,7 +134,7 @@ export class NextTasksView extends BaseView {
     _attachEventHandlers() {
         this.container.querySelectorAll('.next-task-checkbox').forEach(checkbox => {
             checkbox.addEventListener('click', async () => {
-                const taskId = checkbox.dataset.id;
+                const taskId = /** @type {HTMLElement} */ (checkbox).dataset.id;
                 if (taskId) {
                     await this.taskService.completeTask(taskId);
                 }
@@ -143,7 +144,7 @@ export class NextTasksView extends BaseView {
         this.container.querySelectorAll('.start-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const taskId = btn.dataset.id;
+                const taskId = /** @type {HTMLElement} */ (btn).dataset.id;
                 if (taskId) {
                     eventBus.emit(EVENTS.START_TASK, { taskId });
                 }
@@ -153,7 +154,7 @@ export class NextTasksView extends BaseView {
         this.container.querySelectorAll('.edit-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const taskId = btn.dataset.id;
+                const taskId = /** @type {HTMLElement} */ (btn).dataset.id;
                 if (taskId) {
                     const { tasks } = appStore.getState();
                     const task = tasks.find(t => t.id === taskId);
@@ -167,7 +168,7 @@ export class NextTasksView extends BaseView {
         this.container.querySelectorAll('.delete-task-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const taskId = btn.dataset.id;
+                const taskId = /** @type {HTMLElement} */ (btn).dataset.id;
                 if (taskId && confirm('このタスクを削除しますか？')) {
                     await this.taskService.deleteTask(taskId);
                 }
@@ -177,14 +178,14 @@ export class NextTasksView extends BaseView {
         this.container.querySelectorAll('.restore-task-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const taskId = btn.dataset.id;
+                const taskId = /** @type {HTMLElement} */ (btn).dataset.id;
                 if (taskId) {
                     await this.taskService.updateTask(taskId, { status: 'todo' });
                 }
             });
         });
 
-        const showMoreBtn = document.getElementById('show-more-tasks');
+        const showMoreBtn = /** @type {HTMLElement|null} */ (document.getElementById('show-more-tasks'));
         if (showMoreBtn) {
             showMoreBtn.addEventListener('click', () => {
                 this.showAll = true;

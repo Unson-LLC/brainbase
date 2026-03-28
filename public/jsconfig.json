@@ -13,7 +13,7 @@
     "modules/ui-helpers.js",
     "modules/utils/*.js",
     "modules/domain/**/*.js",
-    "modules/ui/views/base-view.js",
+    "modules/ui/views/*.js",
     "modules/ui/modals/*.js"
   ],
   "exclude": ["../node_modules"]
