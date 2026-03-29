@@ -247,6 +247,9 @@ describe('StateStore - Concurrency', () => {
         });
 
         it('primaryが存在しない場合、.bakから復旧する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // state.jsonを削除（存在しない状態）
             await fs.rm(stateFilePath, { force: true });
 
@@ -272,6 +275,9 @@ describe('StateStore - Concurrency', () => {
         });
 
         it('primaryと.bakが存在しない場合、.cleanから復旧する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // state.jsonと.bakを削除
             await fs.rm(stateFilePath, { force: true });
             await fs.rm(stateFilePath + '.bak', { force: true });
@@ -300,6 +306,9 @@ describe('StateStore - Concurrency', () => {
         });
 
         it('全てのバックアップが存在しない場合、デフォルトstateを使用する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // 全てのバックアップを削除
             await fs.rm(stateFilePath, { force: true });
             await fs.rm(stateFilePath + '.bak', { force: true });
