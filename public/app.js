@@ -680,6 +680,19 @@ export class App {
         return window.getComputedStyle(consoleArea).display !== 'none';
     }
 
+    _scheduleTerminalViewportSync() {
+        scheduleAfterNextPaint(() => {
+            if (!this._isConsoleVisible()) return;
+
+            if (this._isXtermTransportActive()) {
+                void this.terminalTransportClient?.syncViewportSize();
+                return;
+            }
+
+            window.dispatchEvent(new Event('resize'));
+        });
+    }
+
     _isEditableTarget(target) {
         const el = target instanceof Element ? target : null;
         if (!el) return false;
@@ -2300,6 +2313,7 @@ export class App {
                                 }
                             });
                             this.showConsole?.();
+                            this._scheduleTerminalViewportSync();
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();
