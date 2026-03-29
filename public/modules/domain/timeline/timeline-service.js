@@ -14,6 +14,13 @@ export class TimelineService {
         this._unsubscribers = [];
     }
 
+    /** タイムラインのitemsを更新してストアに反映 */
+    _updateItems(updater) {
+        const { timeline } = this.store.getState();
+        const items = updater(timeline?.items || []);
+        this.store.setState({ timeline: { ...timeline, items } });
+    }
+
     /**
      * 今日のタイムラインを取得
      * @returns {Promise<Object>}
@@ -83,12 +90,7 @@ export class TimelineService {
         const result = await this.repository.createItem(item.toJSON());
 
         if (result.success) {
-            // ストアに追加
-            const { timeline } = this.store.getState();
-            const items = [...(timeline?.items || []), result.item];
-            this.store.setState({
-                timeline: { ...timeline, items }
-            });
+            this._updateItems(items => [...items, result.item]);
             await this.eventBus.emit(EVENTS.TIMELINE_ITEM_CREATED, { item: result.item });
         }
 
@@ -105,14 +107,9 @@ export class TimelineService {
         const result = await this.repository.updateItem(id, updates);
 
         if (result.success) {
-            // ストアを更新
-            const { timeline } = this.store.getState();
-            const items = (timeline?.items || []).map(item =>
+            this._updateItems(items => items.map(item =>
                 item.id === id ? { ...item, ...result.item } : item
-            );
-            this.store.setState({
-                timeline: { ...timeline, items }
-            });
+            ));
             await this.eventBus.emit(EVENTS.TIMELINE_ITEM_UPDATED, { item: result.item });
         }
 
@@ -128,12 +125,7 @@ export class TimelineService {
         const result = await this.repository.deleteItem(id);
 
         if (result.success) {
-            // ストアから削除
-            const { timeline } = this.store.getState();
-            const items = (timeline?.items || []).filter(item => item.id !== id);
-            this.store.setState({
-                timeline: { ...timeline, items }
-            });
+            this._updateItems(items => items.filter(item => item.id !== id));
             await this.eventBus.emit(EVENTS.TIMELINE_ITEM_DELETED, { id });
         }
 
