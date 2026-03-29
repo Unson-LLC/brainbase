@@ -264,8 +264,7 @@ export class TerminalTransportClient {
                         this._retryCount = 0;
                         this.status.mode = 'live';
                         this.status.connected = true;
-                        // streaming初期ダンプをバッファして、snapshotの後に
-                        // 一括でクリア→描画する（真っ暗防止+重複防止）
+                        console.log('[TTC] ready received, starting output buffering');
                         this._startOutputBuffering();
                         this._emitStatus();
                         this._startKeepalive();
@@ -273,7 +272,10 @@ export class TerminalTransportClient {
                         void this.syncViewportSize();
                         resolve({ mode: 'live' });
                         break;
-                    case 'snapshot':
+                    case 'snapshot': {
+                        const snapshotField = message.colorText ? 'colorText' : 'text';
+                        const snapshotLen = (message.colorText || message.text || '').length;
+                        console.log(`[TTC] snapshot received: field=${snapshotField}, len=${snapshotLen}, connected=${this.status.connected}, buffering=${this._outputBuffer !== null}`);
                         this._queueOrApplySnapshot(message.colorText || message.text || '');
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
@@ -282,9 +284,13 @@ export class TerminalTransportClient {
                         }
                         this._emitStatus();
                         break;
-                    case 'output':
+                    }
+                    case 'output': {
+                        const outputLen = (typeof message.data === 'string' ? message.data : '').length;
+                        console.log(`[TTC] output received: len=${outputLen}, buffering=${this._outputBuffer !== null}, bufferLen=${this._outputBuffer?.length ?? 'N/A'}`);
                         this._applyOutput(typeof message.data === 'string' ? message.data : '');
                         break;
+                    }
                     case 'status':
                         this.status.copyMode = Boolean(message.copyMode);
                         if (typeof message.mode === 'string') {
@@ -319,15 +325,16 @@ export class TerminalTransportClient {
             });
 
             ws.addEventListener('close', (closeEvent) => {
+                const closeCode = closeEvent?.code;
+                console.log(`[TTC] ws close: code=${closeCode}, stale=${this._connectToken !== connectToken}`);
                 if (this._connectToken !== connectToken || this.ws !== ws) {
                     cleanup();
                     return;
                 }
                 cleanup();
                 this._stopKeepalive();
+                this._stopOutputBuffering();
                 this.status.connected = false;
-
-                const closeCode = closeEvent?.code;
 
                 // 4001 = ownership taken over: treat as blocked even if blocked message was missed
                 if (closeCode === WS_CLOSE_BLOCKED) {
@@ -734,7 +741,15 @@ export class TerminalTransportClient {
         this._outputFlushTimer = null;
         const buffered = this._outputBuffer;
         this._outputBuffer = null;
-        if (!this.terminal || !buffered) return;
+        if (!this.terminal) {
+            console.log('[TTC] flushOutputBuffer: no terminal');
+            return;
+        }
+        if (!buffered) {
+            console.log('[TTC] flushOutputBuffer: empty buffer, keeping snapshot');
+            return;
+        }
+        console.log(`[TTC] flushOutputBuffer: clearing xterm + writing ${buffered.length} bytes`);
         // バッファにデータがある→streamingが動いてる→クリアして描画
         this._lastSnapshotText = null;
         this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
