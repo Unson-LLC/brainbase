@@ -15,13 +15,7 @@ export class TimelineListView extends BaseView {
     }
 
     _setupEventListeners() {
-        this._addSubscriptions(
-            this.eventBus.on(EVENTS.TIMELINE_LOADED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_ITEM_CREATED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_ITEM_UPDATED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_ITEM_DELETED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_FILTER_CHANGED, () => this.render())
-        );
+        this._renderOn(this.eventBus, EVENTS.TIMELINE_LOADED, EVENTS.TIMELINE_ITEM_CREATED, EVENTS.TIMELINE_ITEM_UPDATED, EVENTS.TIMELINE_ITEM_DELETED, EVENTS.TIMELINE_FILTER_CHANGED);
     }
 
     /**

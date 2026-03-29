@@ -68,4 +68,15 @@ export class BaseView {
     _addSubscriptions(...unsubscribers) {
         this._unsubscribers.push(...unsubscribers);
     }
+
+    /**
+     * 指定イベント発火時にrender()を自動呼び出し（購読管理付き）
+     * @param {import('../../core/event-bus.js').EventBus} bus - EventBusインスタンス
+     * @param {...string} events - イベント名
+     */
+    _renderOn(bus, ...events) {
+        this._addSubscriptions(
+            ...events.map(event => bus.on(event, () => this.render()))
+        );
+    }
 }

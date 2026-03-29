@@ -16,13 +16,7 @@ export class NextTasksView extends BaseView {
     }
 
     _setupEventListeners() {
-        this._addSubscriptions(
-            eventBus.on(EVENTS.TASK_LOADED, () => this.render()),
-            eventBus.on(EVENTS.TASK_COMPLETED, () => this.render()),
-            eventBus.on(EVENTS.TASK_DELETED, () => this.render()),
-            eventBus.on(EVENTS.TASK_FILTER_CHANGED, () => this.render()),
-            eventBus.on(EVENTS.TASK_UPDATED, () => this.render())
-        );
+        this._renderOn(eventBus, EVENTS.TASK_LOADED, EVENTS.TASK_COMPLETED, EVENTS.TASK_DELETED, EVENTS.TASK_FILTER_CHANGED, EVENTS.TASK_UPDATED);
     }
 
     render() {

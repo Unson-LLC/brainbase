@@ -36,10 +36,7 @@ export class TimelineView extends BaseView {
     }
 
     _setupEventListeners() {
-        this._addSubscriptions(
-            eventBus.on(EVENTS.SCHEDULE_LOADED, () => this.render()),
-            eventBus.on(EVENTS.SCHEDULE_UPDATED, () => this.render())
-        );
+        this._renderOn(eventBus, EVENTS.SCHEDULE_LOADED, EVENTS.SCHEDULE_UPDATED);
     }
 
     /**
