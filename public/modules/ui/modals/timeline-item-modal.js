@@ -57,18 +57,12 @@ export class TimelineItemModal extends BaseModal {
             titleEl.textContent = 'タイムライン項目を編集';
         }
 
-        const idInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-id'));
-        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-title'));
-        const typeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-type'));
-        const contentInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-content'));
-        const timestampInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-timestamp'));
-
-        if (idInput) idInput.value = item.id || '';
-        if (titleInput) titleInput.value = item.title || '';
-        if (typeInput) typeInput.value = item.type || 'manual';
-        if (contentInput) contentInput.value = item.content || '';
-        if (timestampInput && item.timestamp) {
-            timestampInput.value = this._formatDateTimeLocal(new Date(item.timestamp));
+        this._setVal('timeline-item-id', item.id || '');
+        this._setVal('timeline-item-title', item.title || '');
+        this._setVal('timeline-item-type', item.type || 'manual');
+        this._setVal('timeline-item-content', item.content || '');
+        if (item.timestamp) {
+            this._setVal('timeline-item-timestamp', this._formatDateTimeLocal(new Date(item.timestamp)));
         }
 
         this.modalElement.classList.add('active');
@@ -83,16 +77,12 @@ export class TimelineItemModal extends BaseModal {
     async save() {
         if (!this._validate()) return;
 
-        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-title'));
-        const typeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-type'));
-        const contentInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-content'));
-        const timestampInput = /** @type {HTMLInputElement|null} */ (document.getElementById('timeline-item-timestamp'));
-
+        const tsVal = this._val('timeline-item-timestamp');
         const data = {
-            title: titleInput?.value?.trim() || '',
-            type: typeInput?.value || 'manual',
-            content: contentInput?.value?.trim() || '',
-            timestamp: timestampInput?.value ? new Date(timestampInput.value).toISOString() : new Date().toISOString()
+            title: this._val('timeline-item-title'),
+            type: this._val('timeline-item-type') || 'manual',
+            content: this._val('timeline-item-content'),
+            timestamp: tsVal ? new Date(tsVal).toISOString() : new Date().toISOString()
         };
 
         try {
