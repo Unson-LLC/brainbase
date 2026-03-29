@@ -63,6 +63,7 @@ export class TerminalTransportClient {
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
         this._visibilityHandler = null;
+        this._clearOnFirstOutput = false;
     }
 
     async init(hostEl) {
@@ -262,6 +263,10 @@ export class TerminalTransportClient {
                         this._retryCount = 0;
                         this.status.mode = 'live';
                         this.status.connected = true;
+                        // streaming開始: tmux control modeの初期ダンプが
+                        // 全画面を%outputで送信するので、最初のoutput前に
+                        // xterm.jsをクリアして重複表示を防止。
+                        this._clearOnFirstOutput = true;
                         this._emitStatus();
                         this._startKeepalive();
                         this._flushMessageQueue();
@@ -363,6 +368,7 @@ export class TerminalTransportClient {
             this._pendingEchoText = '';
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
+            this._clearOnFirstOutput = false;
             this.terminal?.reset();
         }
         this._emitStatus();
@@ -638,6 +644,13 @@ export class TerminalTransportClient {
 
     _applyOutput(text) {
         if (!this.terminal || !text) return;
+        if (this._clearOnFirstOutput) {
+            // streaming接続直後の初回output。tmux control modeの初期ダンプが
+            // ペイン全内容を含むため、先にxterm.jsをクリアして重複防止。
+            this._clearOnFirstOutput = false;
+            this._lastSnapshotText = null;
+            this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
+        }
         const nextText = this._consumePendingEcho(text);
         if (!nextText) return;
         this._writeToTerminal(nextText);
