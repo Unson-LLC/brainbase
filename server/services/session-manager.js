@@ -1050,7 +1050,10 @@ export class SessionManager {
                 lastDoneAt = Math.max(lastDoneAt, timestamp);
             }
         } else if (lifecycle === 'heartbeat') {
-            if (activeTurnIds.size > 0 || lastWorkingAt > lastDoneAt) {
+            // >= で初回heartbeat（両方0）でもworkingとして記録。
+            // Codexのcodex-wrapper-startが初回heartbeatだが、> だと
+            // lastWorkingAt=0のまま→getSessionStatusでスキップされるバグがあった。
+            if (activeTurnIds.size > 0 || lastWorkingAt >= lastDoneAt) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             }
         } else if (status === 'working') {
