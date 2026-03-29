@@ -63,7 +63,8 @@ export class TerminalTransportClient {
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
         this._visibilityHandler = null;
-        this._clearOnFirstOutput = false;
+        this._outputBuffer = null;       // streaming初期ダンプのバッファ
+        this._outputFlushTimer = null;   // バッファフラッシュタイマー
     }
 
     async init(hostEl) {
@@ -263,10 +264,9 @@ export class TerminalTransportClient {
                         this._retryCount = 0;
                         this.status.mode = 'live';
                         this.status.connected = true;
-                        // streaming開始: tmux control modeの初期ダンプが
-                        // 全画面を%outputで送信するので、最初のoutput前に
-                        // xterm.jsをクリアして重複表示を防止。
-                        this._clearOnFirstOutput = true;
+                        // streaming初期ダンプをバッファして、snapshotの後に
+                        // 一括でクリア→描画する（真っ暗防止+重複防止）
+                        this._startOutputBuffering();
                         this._emitStatus();
                         this._startKeepalive();
                         this._flushMessageQueue();
@@ -368,7 +368,7 @@ export class TerminalTransportClient {
             this._pendingEchoText = '';
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
-            this._clearOnFirstOutput = false;
+            this._stopOutputBuffering();
             this.terminal?.reset();
         }
         this._emitStatus();
@@ -644,12 +644,10 @@ export class TerminalTransportClient {
 
     _applyOutput(text) {
         if (!this.terminal || !text) return;
-        if (this._clearOnFirstOutput) {
-            // streaming開始直後。snapshotはそのまま残して、tmux control mode
-            // の初期ダンプ（カーソル位置制御含む）で自然に上書きさせる。
-            // クリアすると初期ダンプが複数チャンクに分かれた場合に真っ暗になる。
-            this._clearOnFirstOutput = false;
-            this._lastSnapshotText = null;
+        // バッファモード中: outputを貯めてタイマーで一括描画
+        if (this._outputBuffer !== null) {
+            this._outputBuffer += text;
+            return;
         }
         const nextText = this._consumePendingEcho(text);
         if (!nextText) return;
@@ -705,6 +703,42 @@ export class TerminalTransportClient {
         this._pendingEchoText = '';
         this._lastSnapshotText = null;
         this._isViewportPinnedToBottom = true;
+        this._stopOutputBuffering();
+    }
+
+    /**
+     * streaming初期ダンプのバッファリングを開始。
+     * snapshotが即表示された後、200ms間outputをバッファし、
+     * タイマー発火時にxterm.jsをクリア→バッファを一括描画する。
+     * これにより：
+     * - snapshot即表示（真っ暗にならない）
+     * - 初期ダンプがバッファされてからクリア→描画（重複なし）
+     */
+    _startOutputBuffering() {
+        this._stopOutputBuffering();
+        this._outputBuffer = '';
+        this._outputFlushTimer = setTimeout(() => {
+            this._flushOutputBuffer();
+        }, 200);
+    }
+
+    _stopOutputBuffering() {
+        if (this._outputFlushTimer) {
+            clearTimeout(this._outputFlushTimer);
+            this._outputFlushTimer = null;
+        }
+        this._outputBuffer = null;
+    }
+
+    _flushOutputBuffer() {
+        this._outputFlushTimer = null;
+        const buffered = this._outputBuffer;
+        this._outputBuffer = null;
+        if (!this.terminal || !buffered) return;
+        // バッファにデータがある→streamingが動いてる→クリアして描画
+        this._lastSnapshotText = null;
+        this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
+        this._writeToTerminal(buffered);
     }
 
     _measureViewport() {
