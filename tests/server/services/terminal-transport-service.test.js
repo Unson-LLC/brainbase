@@ -73,7 +73,7 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('ready送信時にsnapshotも送る（初期表示+streaming失敗時のフォールバック）', async () => {
+    it('ready送信時にsnapshotを送らない（streaming初期ダンプに任せる）', async () => {
         const { service } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
@@ -83,7 +83,6 @@ describe('TerminalTransportService', () => {
             cols: 80,
             rows: 24,
             ws,
-            closed: false,
             lastSnapshot: null,
             lastCopyMode: null,
             lastCliState: null,
@@ -94,7 +93,7 @@ describe('TerminalTransportService', () => {
 
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
         expect(sentTypes).toContain('ready');
-        expect(sentTypes).toContain('snapshot');
+        expect(sentTypes).not.toContain('snapshot');
     });
 
     it('steady-state polling snapshotにcolorTextを含める', async () => {
@@ -256,9 +255,8 @@ describe('TerminalTransportService', () => {
         expect(ws.close).not.toHaveBeenCalled();
     });
 
-    it('streaming outputは初期ダンプ抑制後にoutputメッセージで転送する', async () => {
-        vi.useFakeTimers();
-        const { service, controlClient, captureCache } = buildService();
+    it('streaming outputをそのままoutputメッセージで転送する', async () => {
+        const { service, controlClient } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -273,13 +271,6 @@ describe('TerminalTransportService', () => {
 
         await service._startStreaming(connection);
 
-        // 初期ダンプ抑制中: outputリスナーはまだ登録されていない
-        const outputBeforeGrace = controlClient.on.mock.calls.find(([event]) => event === 'output');
-        expect(outputBeforeGrace).toBeUndefined();
-
-        // 1秒経過: outputリスナーが登録される
-        await vi.advanceTimersByTimeAsync(1000);
-
         const outputHandler = controlClient.on.mock.calls.find(([event]) => event === 'output')[1];
         outputHandler('\u001b[32mhello\u001b[0m');
 
@@ -287,7 +278,5 @@ describe('TerminalTransportService', () => {
             type: 'output',
             data: '\u001b[32mhello\u001b[0m'
         }));
-
-        vi.useRealTimers();
     });
 });

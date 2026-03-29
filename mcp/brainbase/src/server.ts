@@ -15,6 +15,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import {
   buildIndex,
+  createEmptyIndex,
   getEntity,
   getEntitiesByType,
   searchEntities,
@@ -26,9 +27,13 @@ import { loadConfig } from './config.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import { TokenManager } from './auth/token-manager.js';
 import { filterWikiPages } from './tools/wiki-search.js';
+import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 
 // Global index (built once at startup)
 let entityIndex: EntityIndex;
+
+// Brainbase API URL for mesh tools (MCP runs out-of-process, so we use REST)
+const brainbaseApiUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013';
 
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
@@ -454,20 +459,25 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
   console.error('[brainbase] Using Graph API source');
 
-  // Build index from source
+  // Keep wiki resources/tools available even when the graph API is down.
   console.error(`[brainbase] Building index...`);
-  entityIndex = await buildIndex(source);
+  try {
+    entityIndex = await buildIndex(source);
 
-  console.error(`[brainbase] Index built:`);
-  console.error(`  - Projects: ${entityIndex.projects.size}`);
-  console.error(`  - People: ${entityIndex.people.size}`);
-  console.error(`  - Orgs: ${entityIndex.orgs.size}`);
-  console.error(`  - RACI: ${entityIndex.raci.size}`);
-  console.error(`  - Apps: ${entityIndex.apps.size}`);
-  console.error(`  - Customers: ${entityIndex.customers.size}`);
-  console.error(`  - Decisions: ${entityIndex.decisions.size}`);
-  console.error(`  - Person aliases: ${entityIndex.aliasToPersonId.size}`);
-  console.error(`  - Org aliases: ${entityIndex.aliasToOrgId.size}`);
+    console.error(`[brainbase] Index built:`);
+    console.error(`  - Projects: ${entityIndex.projects.size}`);
+    console.error(`  - People: ${entityIndex.people.size}`);
+    console.error(`  - Orgs: ${entityIndex.orgs.size}`);
+    console.error(`  - RACI: ${entityIndex.raci.size}`);
+    console.error(`  - Apps: ${entityIndex.apps.size}`);
+    console.error(`  - Customers: ${entityIndex.customers.size}`);
+    console.error(`  - Decisions: ${entityIndex.decisions.size}`);
+    console.error(`  - Person aliases: ${entityIndex.aliasToPersonId.size}`);
+    console.error(`  - Org aliases: ${entityIndex.aliasToOrgId.size}`);
+  } catch (error) {
+    console.error('[brainbase] Index build failed, continuing with empty graph index:', error);
+    entityIndex = createEmptyIndex();
+  }
 
   // Create the MCP server
   const server = new Server(
@@ -526,14 +536,16 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools };
+    return { tools: [...tools, ...meshTools] };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     try {
-      const result = await handleToolCall(name, args as Record<string, unknown>);
+      // Try mesh tools first; they return null for unknown tool names.
+      const meshResult = await handleMeshToolCall(name, args as Record<string, unknown>, brainbaseApiUrl);
+      const result = meshResult ?? await handleToolCall(name, args as Record<string, unknown>);
       return {
         content: [
           {

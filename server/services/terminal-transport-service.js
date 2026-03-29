@@ -1,4 +1,3 @@
-// @ts-check
 import { WebSocketServer } from 'ws';
 import { detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';
@@ -187,19 +186,9 @@ export class TerminalTransportService {
             cols,
             rows
         }));
-
-        // snapshot を即送信（streaming失敗時のフォールバック兼、初期表示用）。
-        // streaming成功時はクライアント側の _clearOnFirstOutput が初回output前に
-        // xterm.jsをクリアするため、二重描画にはならない。
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
-        if (ws.readyState !== 1 || connection.closed) return;
-        const readySnapshotMsg = {
-            type: 'snapshot',
-            text: snapshot.text,
-            capturedAt: snapshot.capturedAt
-        };
-        if (snapshot.colorText) readySnapshotMsg.colorText = snapshot.colorText;
-        ws.send(JSON.stringify(readySnapshotMsg));
+        // snapshot は streaming 失敗時の _fallbackToPolling でのみ送信。
+        // streaming 成功時は tmux control mode の初期ダンプが画面全体を
+        // %output で送信するため、snapshot 不要（二重描画防止）。
     }
 
     async _startStreaming(connection) {
@@ -221,26 +210,11 @@ export class TerminalTransportService {
                 void this._fallbackToPolling(connection);
             };
 
-            // 初期ダンプ抑制: tmuxは接続直後にペイン全内容を%outputで送信するが、
-            // snapshotが既に表示されているため不要。1秒後にoutputリスナーを登録して
-            // 以降のリアルタイム出力だけを転送する。
-            const INITIAL_DUMP_GRACE_MS = 1000;
-            connection._dumpGraceTimer = setTimeout(() => {
-                connection._dumpGraceTimer = null;
-                if (connection.closed) return;
-                client.on('output', handleOutput);
-                // 1秒間のリアルタイム更新を補完するためsnapshotを1回送信
-                void this._sendRefreshSnapshot(connection);
-            }, INITIAL_DUMP_GRACE_MS);
-
+            client.on('output', handleOutput);
             client.on('error', handleFailure);
             client.on('exit', handleFailure);
 
             connection.streamCleanup = () => {
-                if (connection._dumpGraceTimer) {
-                    clearTimeout(connection._dumpGraceTimer);
-                    connection._dumpGraceTimer = null;
-                }
                 client.off('output', handleOutput);
                 client.off('error', handleFailure);
                 client.off('exit', handleFailure);
@@ -410,16 +384,6 @@ export class TerminalTransportService {
             await this.sessionManager.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
             this.captureCache.invalidate(connection.sessionId);
         }
-    }
-
-    async _sendRefreshSnapshot(connection) {
-        if (connection.closed || connection.ws.readyState !== 1) return;
-        this.captureCache.invalidate(connection.sessionId);
-        const snapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true });
-        if (connection.closed || connection.ws.readyState !== 1) return;
-        const msg = { type: 'snapshot', text: snapshot.text, capturedAt: snapshot.capturedAt };
-        if (snapshot.colorText) msg.colorText = snapshot.colorText;
-        connection.ws.send(JSON.stringify(msg));
     }
 
     async _getSnapshotPayload(sessionId, options = {}) {
