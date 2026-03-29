@@ -57,6 +57,7 @@ export class ScheduleService {
      * スケジュールを再読み込みして通知
      */
     async _refreshAndNotify() {
+        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this.loadSchedule();
         await this.eventBus.emit(EVENTS.SCHEDULE_UPDATED, this.getTimeline());
     }
@@ -99,7 +100,6 @@ export class ScheduleService {
             ...eventData,
             source: eventData.source || 'manual'
         });
-        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
         return event;
     }
@@ -113,7 +113,6 @@ export class ScheduleService {
     async updateEvent(eventId, updates) {
         const date = this._getTodayDate();
         const event = await this.httpClient.put(`/api/schedule/${date}/events/${eventId}`, updates);
-        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
         return event;
     }
@@ -126,7 +125,6 @@ export class ScheduleService {
     async deleteEvent(eventId) {
         const date = this._getTodayDate();
         await this.httpClient.delete(`/api/schedule/${date}/events/${eventId}`);
-        sessionDataCache.invalidateType('schedule', SCHEDULE_CACHE_SCOPE);
         await this._refreshAndNotify();
     }
 
