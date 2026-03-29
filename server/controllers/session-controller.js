@@ -731,12 +731,8 @@ export class SessionController {
             return res.status(400).json({ error: 'Session ID is required' });
         }
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         const resolvedPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
 
@@ -792,12 +788,8 @@ export class SessionController {
     ensureTerminalRuntime = async (req, res) => {
         const { id } = req.params;
         const { initialCommand, cwd, engine, viewerId } = req.body || {};
-        const state = this.stateStore.get();
-        const session = state.sessions?.find((item) => item.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
         if (session.intendedState === 'archived') {
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
         }
@@ -1107,12 +1099,8 @@ export class SessionController {
         const { skipMergeCheck } = req.body;
 
         try {
-            const state = this.stateStore.get();
-            const session = state.sessions?.find(s => s.id === id);
-
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
+            const session = this._findSessionOrFail(id, res);
+            if (!session) return;
 
             // Check if workspace needs integration (Jujutsu: push needed)
             if (session.worktree?.repo && !skipMergeCheck) {
@@ -1177,12 +1165,8 @@ export class SessionController {
         const { id } = req.params;
         const { engine: requestEngine } = req.body;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (session.intendedState !== 'archived') {
             return res.status(400).json({ error: 'Session is not archived' });
@@ -1627,12 +1611,8 @@ ${jjBookmarks}
         const { id } = req.params;
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
@@ -1657,12 +1637,8 @@ ${jjBookmarks}
      */
     getContext = async (req, res) => {
         const { id } = req.params;
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         const repoPath = session.worktree?.repo || null;
         const workspacePath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
@@ -1756,12 +1732,8 @@ ${jjBookmarks}
         const { id } = req.params;
         const rawPath = req.query.path || '';
         const depth = this._parseTreeDepth(req.query.depth);
-        const state = this.stateStore.get();
-        const session = state.sessions?.find((s) => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         const sessionRootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
             || session.worktree?.path
@@ -1834,12 +1806,8 @@ ${jjBookmarks}
             return res.status(400).json({ error: 'path query parameter is required' });
         }
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find((s) => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         try {
             const { relativePath, targetPath } = await this._resolveFilePreviewTarget(session, rawPath);
@@ -1901,12 +1869,8 @@ ${jjBookmarks}
         const { autoStash = false } = req.body || {};
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
@@ -1929,12 +1893,8 @@ ${jjBookmarks}
         const { id } = req.params;
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
@@ -1976,12 +1936,8 @@ ${jjBookmarks}
         const { id } = req.params;
         const limit = parseInt(req.query.limit) || 50;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         try {
             let result;
@@ -2032,12 +1988,8 @@ ${jjBookmarks}
         const { id } = req.params;
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
