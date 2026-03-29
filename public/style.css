@@ -4520,6 +4520,10 @@ body.resizing iframe {
     padding: 14px 16px;
 }
 
+.confirm-manual-copy.hidden {
+    display: none;
+}
+
 #confirm-modal .modal-footer {
     padding: 14px 18px 18px;
     border-top: 1px solid rgba(148, 163, 184, 0.22);
