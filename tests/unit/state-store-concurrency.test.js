@@ -123,6 +123,9 @@ describe('StateStore - Concurrency', () => {
         });
 
         it('ファイルが存在しない場合はpersist()が成功する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // state.jsonを削除
             await fs.rm(stateFilePath, { force: true });
 
