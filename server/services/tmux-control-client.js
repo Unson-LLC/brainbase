@@ -1,3 +1,4 @@
+// @ts-check
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * CSRF Protection Middleware
  *
@@ -10,7 +11,13 @@
 import crypto from 'crypto';
 import { logger } from '../utils/logger.js';
 
+/** @typedef {{ token: string, createdAt: number }} StoredToken */
+/** @typedef {{ method?: string, path?: string, headers?: Record<string, string | string[] | undefined> }} RequestLike */
+/** @typedef {{ json: (body: unknown) => unknown, status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
+/** @typedef {(error?: unknown) => unknown} NextLike */
+
 // Session-based token store (In production, use Redis or session store)
+/** @type {Map<string, StoredToken>} */
 const tokens = new Map();
 
 // Token expiration time (1 hour)
@@ -73,19 +80,22 @@ setInterval(cleanupExpiredTokens, 15 * 60 * 1000);
  * @returns {Function} Express middleware
  */
 export function csrfMiddleware() {
+    /** @type {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown} */
     return (req, res, next) => {
         // Skip safe methods
-        if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        if (['GET', 'HEAD', 'OPTIONS'].includes(req.method || '')) {
             return next();
         }
 
         // Skip Device Code Flow endpoints (CLI-based, no CSRF token available)
-        if (req.path.startsWith('/api/auth/device/')) {
+        if (req.path?.startsWith('/api/auth/device/')) {
             return next();
         }
 
-        const token = req.headers['x-csrf-token'];
-        const sessionId = req.headers['x-session-id'] || 'default';
+        const tokenHeader = req.headers?.['x-csrf-token'];
+        const sessionHeader = req.headers?.['x-session-id'];
+        const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
+        const sessionId = Array.isArray(sessionHeader) ? (sessionHeader[0] || 'default') : (sessionHeader || 'default');
 
         // In development, log warning but allow request
         if (process.env.NODE_ENV !== 'production') {
@@ -103,14 +113,14 @@ export function csrfMiddleware() {
             });
         }
 
-        if (!validateCsrfToken(sessionId, token)) {
+        if (!token || !validateCsrfToken(sessionId, token)) {
             return res.status(403).json({
                 error: 'Forbidden',
                 message: 'Invalid CSRF token'
             });
         }
 
-        next();
+        return next();
     };
 }
 
@@ -118,11 +128,12 @@ export function csrfMiddleware() {
  * CSRF Token Endpoint Handler
  * GET /api/csrf-token でトークンを取得
  *
- * @param {Request} req
- * @param {Response} res
+ * @param {RequestLike} req
+ * @param {ResponseLike} res
  */
 export function csrfTokenHandler(req, res) {
-    const sessionId = req.headers['x-session-id'] || 'default';
+    const sessionHeader = req.headers?.['x-session-id'];
+    const sessionId = Array.isArray(sessionHeader) ? (sessionHeader[0] || 'default') : (sessionHeader || 'default');
     const token = generateCsrfToken(sessionId);
     res.json({ token });
 }

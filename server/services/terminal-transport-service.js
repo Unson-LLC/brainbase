@@ -1,3 +1,4 @@
+// @ts-check
 import { WebSocketServer } from 'ws';
 import { detectCliStateWithColors } from './cli-pattern-detector.js';
 import { detectPastedTextOverlay } from './pasted-text-detector.js';

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * SessionManager
  * セッション管理とttyd/tmuxプロセス管理を担当

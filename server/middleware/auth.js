@@ -1,6 +1,16 @@
+// @ts-check
 import { getAuthTokensFromRequest, getHeader } from '../lib/auth-cookies.js';
 import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 
+/** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
+/** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
+/** @typedef {(error?: unknown) => unknown} NextLike */
+/** @typedef {{ verifyToken: (token: string) => Record<string, unknown> }} AuthServiceLike */
+
+/**
+ * @param {RequestLike} req
+ * @param {AuthServiceLike} authService
+ */
 export function resolveAuthContext(req, authService) {
     if (req?.method === 'OPTIONS') {
         return { ok: true, bypass: true };
@@ -90,11 +100,15 @@ export function resolveAuthContext(req, authService) {
             access,
             authSource: bearerToken ? 'bearer' : 'cookie'
         };
-    } catch (error) {
+    } catch {
         return { ok: false, status: 401, error: 'Invalid token' };
     }
 }
 
+/**
+ * @param {AuthServiceLike} authService
+ * @returns {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown}
+ */
 export function requireAuth(authService) {
     return (req, res, next) => {
         const result = resolveAuthContext(req, authService);

@@ -1,3 +1,4 @@
+// @ts-check
 import { TmuxControlClient } from './tmux-control-client.js';
 
 export class TmuxControlRegistry {

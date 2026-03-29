@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * セッション名自動生成ユーティリティ（サーバー側）
  *
@@ -7,7 +8,7 @@
 
 /**
  * パスからプロジェクト名を抽出（サーバー側用、簡易版）
- * @param {Object} session - セッションオブジェクト
+ * @param {SessionLike} session - セッションオブジェクト
  * @returns {string} プロジェクト名
  */
 function getProjectFromSession(session) {
@@ -27,16 +28,21 @@ function getProjectFromSession(session) {
 }
 
 /** RegExp特殊文字をエスケープ */
+/**
+ * @param {string} str
+ * @returns {string}
+ */
 function escapeRegExp(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
  * 既存セッション名を遡及リネーム（名前が空 or session-{ts} 形式のもの）
- * @param {Array} sessions - 全セッション配列
- * @returns {Array} 名前が更新されたセッション配列
+ * @param {SessionLike[]} sessions - 全セッション配列
+ * @returns {SessionLike[]} 名前が更新されたセッション配列
  */
 export function retroactiveRename(sessions) {
+    /** @type {Record<string, number>} */
     const seqCounters = {};
 
     // createdAt 順にソート（古い順）
@@ -62,10 +68,10 @@ export function retroactiveRename(sessions) {
             const pattern = new RegExp(`^${escapeRegExp(prefix)}-(\\d+)$`);
             const match = name.match(pattern);
             if (match) {
-                const seq = parseInt(match[1], 10);
+                const seq = parseInt(match[1] || '0', 10);
                 seqCounters[prefix] = Math.max(seqCounters[prefix] || 0, seq);
             }
-            updatedMap.set(session.id, session);
+            updatedMap.set(session.id || '', session);
             continue;
         }
 
@@ -79,9 +85,19 @@ export function retroactiveRename(sessions) {
         seqCounters[prefix] = (seqCounters[prefix] || 0) + 1;
         const newName = `${prefix}-${seqCounters[prefix]}`;
 
-        updatedMap.set(session.id, { ...session, name: newName });
+        updatedMap.set(session.id || '', { ...session, name: newName });
     }
 
     // 元の順序を保持して返す
-    return sessions.map(s => updatedMap.get(s.id) || s);
+    return sessions.map(s => updatedMap.get(s.id || '') || s);
 }
+/**
+ * @typedef {Object} SessionLike
+ * @property {string} [id]
+ * @property {string} [project]
+ * @property {string} [path]
+ * @property {{ path?: string }} [worktree]
+ * @property {string} [name]
+ * @property {string | number | Date} [created]
+ * @property {string | number | Date} [createdAt]
+ */

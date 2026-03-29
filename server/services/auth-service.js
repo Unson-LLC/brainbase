@@ -1,3 +1,4 @@
+// @ts-check
 import crypto from 'crypto';
 import { Pool } from 'pg';
 import { ulid } from 'ulid';

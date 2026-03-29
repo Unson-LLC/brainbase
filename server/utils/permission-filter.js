@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Permission Filtering Utilities
  *
@@ -10,11 +11,15 @@
  * - 業務委託制限判定
  */
 
+/** @typedef {'PUBLIC' | 'PROJECT_SENSITIVE' | 'INTERNAL' | 'CONFIDENTIAL'} SecurityLevel */
+/** @typedef {{ level: number, employmentType: string, projects: string[] }} PermissionUser */
+/** @typedef {{ securityLevel: SecurityLevel, projectId?: string, internalOnly?: boolean }} PermissionContent */
+
 class PermissionFilter {
     /**
      * SecurityLevel判定
      * @param {number} userLevel - ユーザーのアクセスレベル（1〜4）
-     * @param {string} contentSecurityLevel - コンテンツのセキュリティレベル
+     * @param {SecurityLevel | string} contentSecurityLevel - コンテンツのセキュリティレベル
      * @returns {boolean} アクセス可能かどうか
      */
     checkSecurityLevel(userLevel, contentSecurityLevel) {
@@ -25,7 +30,7 @@ class PermissionFilter {
             'CONFIDENTIAL': 4
         };
 
-        const requiredLevel = securityLevelMap[contentSecurityLevel];
+        const requiredLevel = securityLevelMap[/** @type {SecurityLevel} */ (contentSecurityLevel)];
         if (requiredLevel === undefined) {
             // 未定義のセキュリティレベルはPUBLIC扱い
             return userLevel >= 1;
@@ -71,14 +76,8 @@ class PermissionFilter {
 
     /**
      * 複合権限チェック（統合ヘルパー）
-     * @param {Object} user - ユーザー情報
-     * @param {number} user.level - アクセスレベル
-     * @param {string} user.employmentType - 雇用形態
-     * @param {Array<string>} user.projects - アサイン済みプロジェクト
-     * @param {Object} content - コンテンツ情報
-     * @param {string} content.securityLevel - セキュリティレベル
-     * @param {string} content.projectId - プロジェクトID
-     * @param {boolean} content.internalOnly - 内部限定フラグ
+     * @param {PermissionUser} user - ユーザー情報
+     * @param {PermissionContent} content - コンテンツ情報
      * @returns {boolean} アクセス可能かどうか
      */
     hasAccessToContent(user, content) {
@@ -93,7 +92,7 @@ class PermissionFilter {
         }
 
         // 業務委託制限チェック
-        if (!this.checkContractorRestriction(user.employmentType, content.internalOnly)) {
+        if (!this.checkContractorRestriction(user.employmentType, content.internalOnly ?? false)) {
             return false;
         }
 

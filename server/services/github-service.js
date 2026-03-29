@@ -1,3 +1,4 @@
+// @ts-check
 import { Octokit } from '@octokit/rest';
 import { logger } from '../utils/logger.js';
 

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 構造化エラーハンドリング
  * CommandMateのAppErrorパターンをbrainbaseに移植
@@ -41,16 +42,19 @@ export const ErrorCodes = {
     TIMEOUT: { code: 'TIMEOUT', statusCode: 504 },
 };
 
+/** @typedef {{ code: string, statusCode: number }} ErrorCodeEntry */
+/** @typedef {Record<string, unknown>} UnknownRecord */
+/** @typedef {{ details?: UnknownRecord | null, cause?: Error }} AppErrorOptions */
+/** @typedef {{ code: string, message: string, statusCode: number, timestamp: string, details?: UnknownRecord | null, cause?: string }} AppErrorLog */
+
 /**
  * 構造化アプリケーションエラー
  */
 export class AppError extends Error {
     /**
      * @param {string} message - エラーメッセージ（クライアントに表示）
-     * @param {{ code: string, statusCode: number }} errorCode - ErrorCodesのエントリ
-     * @param {Object} [options]
-     * @param {Object} [options.details] - ログ専用の詳細情報（クライアントには返さない）
-     * @param {Error} [options.cause] - 原因となったエラー
+     * @param {ErrorCodeEntry} errorCode - ErrorCodesのエントリ
+     * @param {AppErrorOptions} [options] - ログ専用の詳細情報と原因エラー
      */
     constructor(message, errorCode, options = {}) {
         super(message);
@@ -80,8 +84,10 @@ export class AppError extends Error {
 
     /**
      * ログ用オブジェクト（details含む）
+     * @returns {AppErrorLog}
      */
     toLog() {
+        /** @type {AppErrorLog} */
         const log = {
             code: this.code,
             message: this.message,
@@ -92,13 +98,15 @@ export class AppError extends Error {
             log.details = this.details;
         }
         if (this.cause) {
-            log.cause = this.cause.message;
+            log.cause = this.cause instanceof Error ? this.cause.message : String(this.cause);
         }
         return log;
     }
 
     /**
      * AppErrorインスタンスかどうか判定
+     * @param {unknown} error
+     * @returns {error is AppError}
      */
     static isAppError(error) {
         return error instanceof AppError;
@@ -106,13 +114,22 @@ export class AppError extends Error {
 
     // ---- Factory Methods ----
 
+    /**
+     * @param {string} resource
+     * @param {string} id
+     */
     static notFound(resource, id) {
+        const dynamicCode = /** @type {Record<string, ErrorCodeEntry>} */ (ErrorCodes)[`${resource.toUpperCase()}_NOT_FOUND`];
         return new AppError(
             `${resource} '${id}' not found`,
-            ErrorCodes[`${resource.toUpperCase()}_NOT_FOUND`] || ErrorCodes.SESSION_NOT_FOUND
+            /** @type {ErrorCodeEntry | undefined} */ (dynamicCode) || ErrorCodes.SESSION_NOT_FOUND
         );
     }
 
+    /**
+     * @param {string} message
+     * @param {UnknownRecord} [details]
+     */
     static validation(message, details) {
         return new AppError(message, ErrorCodes.VALIDATION_ERROR, { details });
     }
@@ -121,10 +138,18 @@ export class AppError extends Error {
         return new AppError(message, ErrorCodes.UNAUTHORIZED);
     }
 
+    /**
+     * @param {string} message
+     * @param {UnknownRecord} [details]
+     */
     static conflict(message, details) {
         return new AppError(message, ErrorCodes.CONFLICT, { details });
     }
 
+    /**
+     * @param {string} [message]
+     * @param {Error} [cause]
+     */
     static internal(message = 'Internal server error', cause) {
         return new AppError(message, ErrorCodes.INTERNAL_ERROR, { cause });
     }

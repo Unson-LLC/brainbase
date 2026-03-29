@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * タスク概要（task brief）の導出ユーティリティ
  * session-controller.js と session-manager.js から共通化
@@ -13,6 +14,10 @@ const SHELL_COMMAND_PREFIXES = new Set([
     'docker', 'tmux', 'claude', 'codex', 'curl'
 ]);
 
+/**
+ * @param {unknown} rawValue
+ * @returns {string}
+ */
 export function normalizeTaskBriefCandidate(rawValue) {
     if (typeof rawValue !== 'string') return '';
 
@@ -32,6 +37,10 @@ export function normalizeTaskBriefCandidate(rawValue) {
         }) || '';
 }
 
+/**
+ * @param {string} candidate
+ * @returns {boolean}
+ */
 export function looksLikeShellCommand(candidate) {
     if (!candidate || CJK_PATTERN.test(candidate)) return false;
     if (/[`$|&;<>]/.test(candidate)) return true;
@@ -46,6 +55,10 @@ export function looksLikeShellCommand(candidate) {
     return optionTokenCount >= 2;
 }
 
+/**
+ * @param {string} prompt
+ * @returns {string | null}
+ */
 export function deriveTaskBriefFromPrompt(prompt) {
     const candidate = normalizeTaskBriefCandidate(prompt);
     if (!candidate || candidate.length < TASK_BRIEF_MIN_LENGTH) return null;

@@ -1,3 +1,4 @@
+// @ts-check
 import { exec } from 'child_process';
 import util from 'util';
 import os from 'os';

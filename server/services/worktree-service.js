@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WorktreeService
  * Jujutsu workspace操作を管理するサービス（Git worktreeから移行）

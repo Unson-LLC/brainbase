@@ -1,19 +1,24 @@
+// @ts-check
 /**
  * 共通バリデーションユーティリティ
  */
 
+/** @typedef {Record<string, unknown>} UnknownRecord */
+/** @typedef {'high' | 'medium' | 'low'} PriorityKey */
+
 /**
  * オブジェクトから許可されたフィールドのみを抽出する
  *
- * @param {Object} obj - 入力オブジェクト
+ * @param {UnknownRecord | null | undefined} obj - 入力オブジェクト
  * @param {string[]} allowedFields - 許可するフィールド名の配列
- * @returns {Object|null} フィルタ済みオブジェクト（入力が不正または有効フィールドが0件の場合はnull）
+ * @returns {UnknownRecord|null} フィルタ済みオブジェクト（入力が不正または有効フィールドが0件の場合はnull）
  */
 export function pickAllowedFields(obj, allowedFields) {
     if (!obj || typeof obj !== 'object') {
         return null;
     }
 
+    /** @type {UnknownRecord} */
     const picked = {};
     for (const key of allowedFields) {
         if (key in obj) {
@@ -57,7 +62,7 @@ export const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
  * @returns {string}
  */
 export function getPriorityLabel(priority) {
-    return PRIORITY_LABELS[priority] || priority;
+    return PRIORITY_LABELS[/** @type {PriorityKey} */ (priority)] || priority;
 }
 
 /**
