@@ -73,14 +73,8 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('ready送信時のみcolorText付きsnapshotを返す', async () => {
-        const { service, captureCache } = buildService();
-        captureCache.getSnapshot.mockResolvedValue({
-            text: 'snapshot',
-            colorText: '\x1b[32mgreen\x1b[0m',
-            copyMode: false,
-            capturedAt: '2026-03-23T00:00:00.000Z'
-        });
+    it('ready送信時にsnapshotを送らない（streaming初期ダンプに任せる）', async () => {
+        const { service } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -97,14 +91,9 @@ describe('TerminalTransportService', () => {
 
         await service._sendReady(connection);
 
-        const snapshotCall = ws.send.mock.calls.find(call => {
-            const msg = JSON.parse(call[0]);
-            return msg.type === 'snapshot';
-        });
-        expect(snapshotCall).toBeTruthy();
-        const msg = JSON.parse(snapshotCall[0]);
-        expect(msg.colorText).toBe('\x1b[32mgreen\x1b[0m');
-        expect(msg.text).toBe('snapshot');
+        const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
+        expect(sentTypes).toContain('ready');
+        expect(sentTypes).not.toContain('snapshot');
     });
 
     it('steady-state polling snapshotにcolorTextを含める', async () => {

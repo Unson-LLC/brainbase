@@ -162,11 +162,10 @@ export class TerminalTransportService {
             if (cols && rows) {
                 await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
-            // readyメッセージ + snapshot を先に送信（初期表示用）
+            // readyメッセージだけ先に送信（snapshotはstreaming失敗時のみ）
             await this._sendReady(connection);
-            // streaming開始（成功すればtmux control modeでリアルタイム出力）
-            // tmux control modeの初期ダンプで画面が再描画されるため、
-            // snapshotとの多少の重複はxterm.jsのoverwriteで吸収される
+            // streaming開始。tmux control modeが接続時にペイン全内容を
+            // %outputで送信するため、snapshotは不要（二重描画防止）
             await this._startStreaming(connection);
         } catch (err) {
             logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
@@ -180,9 +179,6 @@ export class TerminalTransportService {
     async _sendReady(connection) {
         const { sessionId, viewerId, viewerLabel, ws, cols, rows } = connection;
         this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
-        connection.lastSnapshot = snapshot.text;
-        connection.lastCopyMode = snapshot.copyMode;
         if (ws.readyState !== 1) return;
         ws.send(JSON.stringify({
             type: 'ready',
@@ -190,19 +186,9 @@ export class TerminalTransportService {
             cols,
             rows
         }));
-        const snapshotMsg = {
-            type: 'snapshot',
-            text: snapshot.text,
-            capturedAt: snapshot.capturedAt
-        };
-        if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
-        ws.send(JSON.stringify(snapshotMsg));
-        ws.send(JSON.stringify({
-            type: 'status',
-            mode: 'live',
-            copyMode: snapshot.copyMode,
-            transport: 'streaming'
-        }));
+        // snapshot は streaming 失敗時の _fallbackToPolling でのみ送信。
+        // streaming 成功時は tmux control mode の初期ダンプが画面全体を
+        // %output で送信するため、snapshot 不要（二重描画防止）。
     }
 
     async _startStreaming(connection) {
