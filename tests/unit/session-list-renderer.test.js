@@ -18,6 +18,29 @@ describe('session-list-renderer', () => {
       expect(html).toContain('session-child-row');
       expect(html).toContain('Test Session');
       expect(html).toContain('data-id="session-123"');
+      expect(html).toContain('draggable="false"');
+    });
+
+    it('should move draggable attribute to drag handle only', () => {
+      const session = {
+        id: 'session-drag',
+        name: 'Drag Session'
+      };
+
+      const draggableHtml = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'general',
+        isDraggable: true
+      });
+      const nonDraggableHtml = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'general',
+        isDraggable: false
+      });
+
+      expect(draggableHtml).toContain('<span class="drag-handle" title="Drag to reorder" draggable="true">');
+      expect(draggableHtml).toContain('class="session-child-row');
+      expect(nonDraggableHtml).toContain('<span class="drag-handle" title="Drag to reorder" draggable="false">');
     });
 
     it('should add active class when isActive is true', () => {
