@@ -1,0 +1,71 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import sodium from 'libsodium-wrappers';
+import { seal, unseal, sign, verify } from '../../../server/mesh/crypto/envelope-crypto.js';
+import { generateKeyPair, exportPublicKeys } from '../../../server/mesh/crypto/key-manager.js';
+
+describe('envelope-crypto', () => {
+  let senderKp;
+  let recipientKp;
+  let recipientPub;
+
+  beforeAll(async () => {
+    await sodium.ready;
+    senderKp = await generateKeyPair();
+    recipientKp = await generateKeyPair();
+    recipientPub = exportPublicKeys(recipientKp);
+  });
+
+  describe('seal / unseal round-trip', () => {
+    it('encrypts and decrypts plaintext correctly', async () => {
+      const plaintext = 'Hello, mesh world!';
+
+      const encrypted = await seal(plaintext, recipientPub.boxPub);
+      expect(typeof encrypted).toBe('string');
+      expect(encrypted).not.toBe(plaintext);
+
+      const decrypted = await unseal(encrypted, recipientKp.boxKeyPair);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it('handles JSON payloads', async () => {
+      const payload = JSON.stringify({ question: 'What is your status?', scope: 'general' });
+
+      const encrypted = await seal(payload, recipientPub.boxPub);
+      const decrypted = await unseal(encrypted, recipientKp.boxKeyPair);
+
+      expect(JSON.parse(decrypted)).toEqual({ question: 'What is your status?', scope: 'general' });
+    });
+  });
+
+  describe('sign', () => {
+    it('produces a base64 string', () => {
+      const message = 'test message to sign';
+      const signature = sign(message, senderKp.signKeyPair);
+
+      expect(typeof signature).toBe('string');
+      // Verify it decodes to 64 bytes (Ed25519 signature size)
+      const sigBytes = sodium.from_base64(signature);
+      expect(sigBytes.length).toBe(64);
+    });
+  });
+
+  describe('verify', () => {
+    it('returns true for a valid signature', () => {
+      const message = 'authentic message';
+      const senderPub = exportPublicKeys(senderKp);
+      const signature = sign(message, senderKp.signKeyPair);
+
+      const result = verify(message, signature, senderPub.signPub);
+      expect(result).toBe(true);
+    });
+
+    it('returns false for a tampered message', () => {
+      const message = 'original message';
+      const senderPub = exportPublicKeys(senderKp);
+      const signature = sign(message, senderKp.signKeyPair);
+
+      const result = verify('tampered message', signature, senderPub.signPub);
+      expect(result).toBe(false);
+    });
+  });
+});
