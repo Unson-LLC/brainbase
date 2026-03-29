@@ -237,8 +237,8 @@ export function renderSessionRowHTML(session, options = {}) {
   const archiveIcon = session.intendedState === 'archived' ? 'archive-restore' : 'archive';
 
   return `
-    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}${transportClass}${attentionClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="${draggableAttr}">
-      <span class="drag-handle" title="Drag to reorder"><i data-lucide="grip-vertical"></i></span>
+    <div class="session-child-row${activeClass}${archivedClass}${worktreeClass}${pausedClass}${transportClass}${attentionClass}" data-id="${session.id}" data-project="${project}" data-engine="${engine}" draggable="false">
+      <span class="drag-handle" title="Drag to reorder" draggable="${draggableAttr}"><i data-lucide="grip-vertical"></i></span>
       ${activityIndicator}
       <div class="session-row-main">
         <div class="session-name-container">

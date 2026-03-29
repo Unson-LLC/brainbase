@@ -1441,13 +1441,18 @@ body::after {
     background-color: rgba(59, 130, 246, 0.1);
 }
 
-.session-child-row[draggable="true"] {
+.drag-handle[draggable="true"] {
     user-select: none;
+    cursor: grab;
 }
 
-.session-child-row[draggable="false"] .drag-handle {
+.session-child-row .drag-handle[draggable="false"] {
     opacity: 0;
     pointer-events: none;
+    padding: 0;
+    margin-left: 0;
+    width: 0;
+    cursor: default;
 }
 
 /* =========================================

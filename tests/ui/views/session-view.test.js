@@ -257,6 +257,63 @@ describe('SessionView', () => {
                 expect(mockSessionService.pauseSession).toHaveBeenCalledWith('session-1');
             });
         });
+
+        it('should close menus and switch session on row click', async () => {
+            const closeMenusSpy = vi.spyOn(sessionView, '_closeAllMenus');
+            const row = container.querySelector('.session-child-row');
+
+            row.click();
+
+            await vi.waitFor(() => {
+                expect(closeMenusSpy).toHaveBeenCalled();
+                expect(mockSessionService.switchSession).toHaveBeenCalledWith('session-1');
+            });
+        });
+
+        it('should not switch session when drag handle is clicked', async () => {
+            const dragHandle = container.querySelector('.drag-handle');
+
+            dragHandle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            await new Promise(resolve => queueMicrotask(resolve));
+            expect(mockSessionService.switchSession).not.toHaveBeenCalled();
+        });
+
+        it('should attach dragstart and dragend to drag handle only', () => {
+            appStore.setState({
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' }
+                ],
+                ui: { sessionListView: 'project' }
+            });
+            sessionView.render();
+
+            const row = container.querySelector('.session-child-row');
+            const dragHandle = row.querySelector('.drag-handle');
+            const dragStartDataTransfer = {
+                effectAllowed: '',
+                setData: vi.fn(),
+                setDragImage: vi.fn()
+            };
+            const dragStartEvent = new Event('dragstart', { bubbles: true });
+            Object.defineProperty(dragStartEvent, 'dataTransfer', {
+                value: dragStartDataTransfer
+            });
+
+            dragHandle.dispatchEvent(dragStartEvent);
+
+            expect(sessionView.draggedSessionId).toBe('session-1');
+            expect(row.classList.contains('dragging')).toBe(true);
+            expect(dragStartDataTransfer.effectAllowed).toBe('move');
+            expect(dragStartDataTransfer.setData).toHaveBeenCalledWith('text/plain', 'session-1');
+            expect(dragStartDataTransfer.setDragImage).toHaveBeenCalledWith(row, 0, 0);
+
+            const dragEndEvent = new Event('dragend', { bubbles: true });
+            dragHandle.dispatchEvent(dragEndEvent);
+
+            expect(sessionView.draggedSessionId).toBeNull();
+            expect(row.classList.contains('dragging')).toBe(false);
+        });
     });
 
     describe('event subscriptions', () => {
