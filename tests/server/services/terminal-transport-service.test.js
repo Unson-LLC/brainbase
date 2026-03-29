@@ -73,7 +73,7 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('ready送信時にsnapshotを送らない（streaming初期ダンプに任せる）', async () => {
+    it('ready送信時にsnapshotも送る（初期表示+streaming失敗時のフォールバック）', async () => {
         const { service } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
@@ -83,6 +83,7 @@ describe('TerminalTransportService', () => {
             cols: 80,
             rows: 24,
             ws,
+            closed: false,
             lastSnapshot: null,
             lastCopyMode: null,
             lastCliState: null,
@@ -93,7 +94,7 @@ describe('TerminalTransportService', () => {
 
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
         expect(sentTypes).toContain('ready');
-        expect(sentTypes).not.toContain('snapshot');
+        expect(sentTypes).toContain('snapshot');
     });
 
     it('steady-state polling snapshotにcolorTextを含める', async () => {
