@@ -178,8 +178,12 @@ export class SessionView {
             state => state.currentSessionId,
             () => this._scheduleRender()
         );
+        const unsub11 = appStore.subscribeToSelector(
+            state => Boolean(state.fileViewer),
+            () => this._scheduleRender()
+        );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub6b, unsub7, unsub8, unsub9, unsub10);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub6b, unsub7, unsub8, unsub9, unsub10, unsub11);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {

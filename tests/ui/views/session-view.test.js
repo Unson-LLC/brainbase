@@ -168,6 +168,38 @@ describe('SessionView', () => {
             expect(container.querySelector('[data-id="session-1"]')?.classList.contains('active')).toBe(false);
         });
 
+        it('should restore active session styling when file viewer closes without changing currentSessionId', async () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', project: 'test', intendedState: 'active' }
+            ];
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                fileViewer: {
+                    sessionId: 'session-1',
+                    relativePath: 'README.md',
+                    fileName: 'README.md',
+                    content: '# Hello',
+                    loading: false,
+                    error: null
+                },
+                ui: { sidebarPrimaryView: 'sessions', sessionListView: 'timeline' }
+            });
+
+            sessionView.render();
+
+            const activeRow = container.querySelector('[data-id="session-1"]');
+            activeRow.classList.remove('active');
+
+            appStore.setState({ fileViewer: null });
+
+            await vi.waitFor(() => {
+                expect(container.querySelector('[data-id="session-1"]')?.classList.contains('active')).toBe(true);
+            });
+            expect(appStore.getState().currentSessionId).toBe('session-1');
+        });
+
         it('should group sessions by project', () => {
             const mockSessions = [
                 { id: 'session-1', name: 'Session 1', project: 'brainbase', intendedState: 'active', path: '.worktrees/session-1-brainbase' },
