@@ -849,18 +849,29 @@ export class SessionService {
      */
     async saveSessionOrder(sessions) {
         try {
-            // Get current state from backend
+            // Only send ID order — let the server reorder its own authoritative data
+            const orderedIds = sessions.map(s => s.id);
+
+            // Get current state from backend (authoritative source)
             const state = await this.httpClient.get('/api/state');
+            const serverSessions = state.sessions || [];
 
-            // Update sessions array with new order
-            const updatedState = {
-                ...state,
-                sessions
-            };
+            // Reorder server sessions to match client order
+            const sessionMap = new Map(serverSessions.map(s => [s.id, s]));
+            const reordered = [];
+            for (const id of orderedIds) {
+                const s = sessionMap.get(id);
+                if (s) {
+                    reordered.push(s);
+                    sessionMap.delete(id);
+                }
+            }
+            // Append any sessions not in the client order (e.g., newly created)
+            for (const s of sessionMap.values()) {
+                reordered.push(s);
+            }
 
-            // Save to backend
-            await this.httpClient.post('/api/state', updatedState);
-
+            await this.httpClient.post('/api/state', { ...state, sessions: reordered });
             console.log('Session order saved successfully');
         } catch (error) {
             console.error('Failed to save session order:', error);
