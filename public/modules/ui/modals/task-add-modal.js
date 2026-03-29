@@ -25,11 +25,7 @@ export class TaskAddModal extends BaseModal {
         this._setModalTitle();
         await this._clearForm();
         this.modalElement.classList.add('active');
-
-        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-title'));
-        if (titleInput) {
-            setTimeout(() => titleInput.focus(), 100);
-        }
+        setTimeout(() => this._focus('add-task-title'), 100);
     }
 
     close() {
@@ -38,67 +34,44 @@ export class TaskAddModal extends BaseModal {
     }
 
     async _clearForm() {
-        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-title'));
-        const assigneeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-assignee'));
-        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-priority'));
-        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-due'));
-        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-description'));
-
-        if (titleInput) titleInput.value = '';
-        if (assigneeInput) assigneeInput.value = this._getDefaultAssignee();
+        this._setVal('add-task-title', '');
+        this._setVal('add-task-assignee', this._getDefaultAssignee());
         await this._populateProjectSelect();
-        if (priorityInput) priorityInput.value = 'medium';
-        if (dueInput) dueInput.value = this._getDefaultDueDate();
-        if (descriptionInput) descriptionInput.value = '';
-
+        this._setVal('add-task-priority', 'medium');
+        this._setVal('add-task-due', this._getDefaultDueDate());
+        this._setVal('add-task-description', '');
         this._hideError(ERROR_ID);
     }
 
     async save() {
-        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-title'));
-        const assigneeInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-assignee'));
-        const projectInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-project'));
-        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-priority'));
-        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-due'));
-        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('add-task-description'));
-
-        const title = titleInput?.value?.trim() || '';
-        let assignee = assigneeInput?.value?.trim() || '';
-        let priority = priorityInput?.value || '';
-        let due = dueInput?.value || '';
+        const title = this._val('add-task-title');
+        let assignee = this._val('add-task-assignee');
+        let priority = this._val('add-task-priority');
+        let due = this._val('add-task-due');
+        const description = this._val('add-task-description');
 
         if (!title) {
             this._showError(ERROR_ID, 'タスク名は必須です');
-            titleInput?.focus();
+            this._focus('add-task-title');
             return;
         }
         if (!assignee) {
             assignee = this._getDefaultAssignee();
-            if (assigneeInput) assigneeInput.value = assignee;
+            this._setVal('add-task-assignee', assignee);
         }
         if (!priority) {
             priority = 'medium';
-            if (priorityInput) priorityInput.value = priority;
+            this._setVal('add-task-priority', priority);
         }
         if (!due) {
             due = this._getDefaultDueDate();
-            if (dueInput) dueInput.value = due;
-        }
-        if (!assignee) {
-            this._showError(ERROR_ID, '担当者は必須です');
-            assigneeInput?.focus();
-            return;
-        }
-        if (!due) {
-            this._showError(ERROR_ID, '期限は必須です');
-            dueInput?.focus();
-            return;
+            this._setVal('add-task-due', due);
         }
 
-        const project = projectInput?.value || (this.mode === 'nocodb' ? '' : 'general');
+        const project = this._val('add-task-project') || (this.mode === 'nocodb' ? '' : 'general');
         if (!project) {
             this._showError(ERROR_ID, 'プロジェクトは必須です');
-            projectInput?.focus();
+            this._focus('add-task-project');
             return;
         }
 
@@ -108,21 +81,11 @@ export class TaskAddModal extends BaseModal {
                     throw new Error('NocoDBタスクサービスが初期化されていません');
                 }
                 await this.nocodbTaskService.createTask({
-                    projectId: project,
-                    title,
-                    assignee,
-                    priority,
-                    due,
-                    description: descriptionInput?.value || ''
+                    projectId: project, title, assignee, priority, due, description
                 });
             } else {
                 await this.taskService.createTask({
-                    title,
-                    project,
-                    priority,
-                    due,
-                    description: descriptionInput?.value || '',
-                    owner: assignee
+                    title, project, priority, due, description, owner: assignee
                 });
             }
             this.close();

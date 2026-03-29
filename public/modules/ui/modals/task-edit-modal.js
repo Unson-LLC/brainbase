@@ -19,23 +19,12 @@ export class TaskEditModal extends BaseModal {
         if (!this.modalElement) return;
 
         this.currentTaskId = task.id;
-
-        const idInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-id'));
-        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-title'));
-        const projectInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-project'));
-        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-priority'));
-        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-due'));
-        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-description'));
-
-        const taskName = task.name || task.title || '';
-        const taskDue = task.due || task.deadline || '';
-
-        if (idInput) idInput.value = task.id || '';
-        if (titleInput) titleInput.value = taskName;
-        if (projectInput) projectInput.value = task.project || '';
-        if (priorityInput) priorityInput.value = task.priority || 'medium';
-        if (dueInput) dueInput.value = taskDue;
-        if (descriptionInput) descriptionInput.value = task.description || '';
+        this._setVal('edit-task-id', task.id || '');
+        this._setVal('edit-task-title', task.name || task.title || '');
+        this._setVal('edit-task-project', task.project || '');
+        this._setVal('edit-task-priority', task.priority || 'medium');
+        this._setVal('edit-task-due', task.due || task.deadline || '');
+        this._setVal('edit-task-description', task.description || '');
 
         this.modalElement.classList.add('active');
     }
@@ -48,18 +37,12 @@ export class TaskEditModal extends BaseModal {
     async save() {
         if (!this.currentTaskId) return;
 
-        const titleInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-title'));
-        const projectInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-project'));
-        const priorityInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-priority'));
-        const dueInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-due'));
-        const descriptionInput = /** @type {HTMLInputElement|null} */ (document.getElementById('edit-task-description'));
-
         const updates = {
-            title: titleInput?.value || '',
-            project: projectInput?.value || '',
-            priority: priorityInput?.value || 'medium',
-            deadline: dueInput?.value || null,
-            description: descriptionInput?.value || ''
+            title: this._val('edit-task-title'),
+            project: this._val('edit-task-project'),
+            priority: this._val('edit-task-priority') || 'medium',
+            deadline: this._val('edit-task-due') || null,
+            description: this._val('edit-task-description')
         };
 
         try {

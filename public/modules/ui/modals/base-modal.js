@@ -135,4 +135,34 @@ export class BaseModal {
     _attachEventHandlers() {
         // サブクラスでoverrideする
     }
+
+    // ── Form Field Helpers ──────────────────────────────
+
+    /**
+     * フォームフィールドの値を取得（trim済み）
+     * @param {string} fieldId - フィールドのDOM ID
+     * @returns {string}
+     */
+    _val(fieldId) {
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(fieldId));
+        return el?.value?.trim() || '';
+    }
+
+    /**
+     * フォームフィールドに値を設定
+     * @param {string} fieldId - フィールドのDOM ID
+     * @param {string} value - 設定する値
+     */
+    _setVal(fieldId, value) {
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(fieldId));
+        if (el) el.value = value;
+    }
+
+    /**
+     * フォームフィールドにフォーカス
+     * @param {string} fieldId - フィールドのDOM ID
+     */
+    _focus(fieldId) {
+        /** @type {HTMLInputElement|null} */ (document.getElementById(fieldId))?.focus();
+    }
 }
