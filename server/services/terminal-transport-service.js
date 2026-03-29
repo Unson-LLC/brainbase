@@ -162,7 +162,11 @@ export class TerminalTransportService {
             if (cols && rows) {
                 await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
+            // readyメッセージ + snapshot を先に送信（初期表示用）
             await this._sendReady(connection);
+            // streaming開始（成功すればtmux control modeでリアルタイム出力）
+            // tmux control modeの初期ダンプで画面が再描画されるため、
+            // snapshotとの多少の重複はxterm.jsのoverwriteで吸収される
             await this._startStreaming(connection);
         } catch (err) {
             logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);

@@ -62,7 +62,6 @@ export class TerminalTransportClient {
         this._pendingEchoText = '';
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
-        this._clearOnNextOutput = false;
         this._visibilityHandler = null;
     }
 
@@ -271,16 +270,6 @@ export class TerminalTransportClient {
                         this._emitStatus();
                         break;
                     case 'output':
-                        if (this._clearOnNextOutput) {
-                            // streaming確立後の最初のoutput: tmux control modeが
-                            // ペイン全内容を再送するため、snapshotと重複する。
-                            // 先にxterm.jsをクリアしてから書き込む。
-                            this._clearOnNextOutput = false;
-                            this._lastSnapshotText = null;
-                            if (this.terminal) {
-                                this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
-                            }
-                        }
                         this._applyOutput(typeof message.data === 'string' ? message.data : '');
                         break;
                     case 'status':
@@ -290,10 +279,6 @@ export class TerminalTransportClient {
                             this.status.connected = message.mode === 'live';
                         }
                         if (typeof message.transport === 'string') {
-                            // streaming確立 → 次のoutputでxterm.jsをクリア
-                            if (message.transport === 'streaming') {
-                                this._clearOnNextOutput = true;
-                            }
                             this.status.transport = message.transport;
                         }
                         this._emitStatus();
