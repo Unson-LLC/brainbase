@@ -26,6 +26,15 @@ for (const envPath of envPaths) {
     }
 }
 
+// Crash guards: log and keep running instead of silent death
+import { logger as crashLogger } from './server/utils/logger.js';
+process.on('uncaughtException', (err) => {
+    crashLogger.error('[CRASH] uncaughtException:', err);
+});
+process.on('unhandledRejection', (reason) => {
+    crashLogger.error('[CRASH] unhandledRejection:', reason);
+});
+
 // Import our modules
 import { TaskParser } from './lib/task-parser.js';
 import { ScheduleParser } from './lib/schedule-parser.js';
