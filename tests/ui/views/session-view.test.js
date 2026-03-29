@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SessionView } from '../../../public/modules/ui/views/session-view.js';
 import { SessionService } from '../../../public/modules/domain/session/session-service.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
@@ -43,6 +43,9 @@ describe('SessionView', () => {
     let container;
 
     beforeEach(() => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 0));
+        vi.stubGlobal('cancelAnimationFrame', (id) => clearTimeout(id));
+
         // DOM準備
         document.body.innerHTML = `
             <div id="test-container"></div>
@@ -69,6 +72,10 @@ describe('SessionView', () => {
         });
 
         vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
     });
 
     describe('mount', () => {
@@ -139,6 +146,26 @@ describe('SessionView', () => {
 
             const activeElement = container.querySelector('[data-id="session-1"]');
             expect(activeElement.classList.contains('active')).toBe(true);
+        });
+
+        it('should update active session when currentSessionId changes', async () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', project: 'test', intendedState: 'active' }
+            ];
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                ui: { sidebarPrimaryView: 'sessions', sessionListView: 'timeline' }
+            });
+
+            sessionView.render();
+            appStore.setState({ currentSessionId: 'session-2' });
+
+            await vi.waitFor(() => {
+                expect(container.querySelector('[data-id="session-2"]')?.classList.contains('active')).toBe(true);
+            });
+            expect(container.querySelector('[data-id="session-1"]')?.classList.contains('active')).toBe(false);
         });
 
         it('should group sessions by project', () => {
