@@ -14,6 +14,7 @@ import { TerminalTransportClient, shouldUseXtermTransport } from './modules/core
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
+import { SettingsExtensions } from './modules/settings/settings-extensions.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
@@ -100,6 +101,7 @@ export class App {
         this.refreshIntervalId = null;
         this.sessionUiSummaryIntervalId = null;
         this.settingsCore = null; // Settings Plugin Architecture
+        this.settingsExtensions = null;
         this.reconnectManager = null; // Terminal Reconnect Manager
         this.terminalTransportClient = null;
         this.terminalXtermHost = null;
@@ -145,6 +147,14 @@ export class App {
         this._terminalAutoFocusTimers = new Set();
         this.viewerId = getTerminalViewerId();
         this.viewerLabel = getTerminalViewerLabel();
+        this.settingsExtensions = new SettingsExtensions({
+            store: appStore,
+            httpClient,
+            compressImage,
+            showSuccess,
+            showError,
+            showInfo
+        });
     }
 
     _shouldUseXtermTransport() {
@@ -2470,8 +2480,8 @@ export class App {
         // Setup global UI button handlers
         await this.setupGlobalButtons();
 
-        // Setup terminal toolbar buttons
-        this.setupTerminalToolbar();
+        // Setup settings-related UI extensions
+        this.settingsExtensions?.setupSettingsExtensions();
 
         // Setup test mode banner
         this.setupTestModeBanner();
@@ -2817,256 +2827,6 @@ export class App {
             onViewportChange: (layout) => this._handleMobileViewportChange(layout)
         });
         this.mobileInputController.init();
-    }
-
-    /**
-     * Setup terminal toolbar button handlers
-     */
-    setupTerminalToolbar() {
-        // Paste from clipboard button
-        const pasteTerminalBtn = document.getElementById('paste-terminal-btn');
-        if (pasteTerminalBtn) {
-            pasteTerminalBtn.onclick = async () => {
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    // Try to read clipboard items (supports both text and images)
-                    const clipboardItems = await navigator.clipboard.read();
-
-                    for (const item of clipboardItems) {
-                        // Check for image
-                        const imageType = item.types.find(type => type.startsWith('image/'));
-                        if (imageType) {
-                            showInfo('画像を圧縮中...');
-
-                            const blob = await item.getType(imageType);
-
-                            // 圧縮前のサイズ
-                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
-
-                            // 画像を圧縮
-                            const compressedBlob = await compressImage(blob);
-
-                            // 圧縮後のサイズ
-                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
-
-                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
-
-                            // Upload compressed image to server
-                            const formData = new FormData();
-                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
-
-                            const uploadRes = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                            if (!uploadRes.ok) {
-                                showError('画像のアップロードに失敗しました');
-                                return;
-                            }
-
-                            const { path: imagePath } = await uploadRes.json();
-
-                            // Send image path to terminal with Enter key
-                            await fetch(`/api/sessions/${currentSessionId}/input`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
-                            });
-
-                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
-                            return;
-                        }
-
-                        // Check for text
-                        if (item.types.includes('text/plain')) {
-                            const textBlob = await item.getType('text/plain');
-                            const text = await textBlob.text();
-
-                            if (!text) {
-                                showInfo('クリップボードが空です');
-                                return;
-                            }
-
-                            // Show paste confirm modal for text
-                            const modal = document.getElementById('paste-confirm-modal');
-                            const preview = document.getElementById('paste-preview-text');
-                            const confirmBtn = document.getElementById('paste-confirm-btn');
-                            const cancelBtn = document.getElementById('paste-cancel-btn');
-
-                            if (!modal || !preview || !confirmBtn || !cancelBtn) {
-                                // Fallback: paste directly without modal
-                                await this.pasteTextToTerminal(currentSessionId, text);
-                                return;
-                            }
-
-                            // Show preview
-                            const displayText = text.length > 500 ? text.substring(0, 500) + '\n...(省略)...' : text;
-                            preview.textContent = displayText;
-                            modal.classList.add('active');
-
-                            // Wait for user action
-                            const confirmed = await new Promise((resolve) => {
-                                const confirm = () => {
-                                    cleanup();
-                                    resolve(true);
-                                };
-                                const cancel = () => {
-                                    cleanup();
-                                    resolve(false);
-                                };
-                                const cleanup = () => {
-                                    confirmBtn.removeEventListener('click', confirm);
-                                    cancelBtn.removeEventListener('click', cancel);
-                                };
-
-                                confirmBtn.addEventListener('click', confirm);
-                                cancelBtn.addEventListener('click', cancel);
-                            });
-
-                            modal.classList.remove('active');
-
-                            // Paste if confirmed
-                            if (confirmed) {
-                                await this.pasteTextToTerminal(currentSessionId, text);
-                            }
-                            return;
-                        }
-                    }
-
-                    showInfo('クリップボードが空です');
-                } catch (error) {
-                    console.error('Failed to paste:', error);
-                    if (error.name === 'NotAllowedError') {
-                        showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
-                    } else {
-                        showError('ペーストに失敗しました');
-                    }
-                }
-            };
-        }
-
-        // Upload image button
-        const uploadImageBtn = document.getElementById('upload-image-btn');
-        const imageFileInput = document.getElementById('image-file-input');
-        if (uploadImageBtn && imageFileInput) {
-            uploadImageBtn.onclick = () => {
-                imageFileInput.click();
-            };
-
-            // Handle file selection
-            imageFileInput.onchange = async (e) => {
-                const files = e.target.files;
-                if (files && files.length > 0) {
-                    await this.handleFileUpload(files);
-                }
-                // Reset input so same file can be selected again
-                imageFileInput.value = '';
-            };
-        }
-
-        // Send Escape button
-        const sendEscapeBtn = document.getElementById('send-escape-btn');
-        if (sendEscapeBtn) {
-            sendEscapeBtn.onclick = async () => {
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'Escape',
-                        type: 'key'
-                    });
-                } catch (error) {
-                    console.error('Failed to send Escape:', error);
-                    showError('Escapeキーの送信に失敗しました');
-                }
-            };
-        }
-
-        // Send Clear button (Ctrl+L)
-        const sendClearBtn = document.getElementById('send-clear-btn');
-        if (sendClearBtn) {
-            sendClearBtn.onclick = async () => {
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'C-l',
-                        type: 'key'
-                    });
-                } catch (error) {
-                    console.error('Failed to send Clear:', error);
-                    showError('クリアコマンドの送信に失敗しました');
-                }
-            };
-        }
-    }
-
-    /**
-     * Paste text to terminal
-     */
-    async pasteTextToTerminal(sessionId, text) {
-        try {
-            await httpClient.post(`/api/sessions/${sessionId}/input`, {
-                input: text,
-                type: 'text'
-            });
-            showSuccess('貼り付けました');
-        } catch (error) {
-            console.error('Failed to paste text:', error);
-            showError('テキストの貼り付けに失敗しました');
-        }
-    }
-
-    /**
-     * Handle file upload
-     */
-    async handleFileUpload(files) {
-        const currentSessionId = appStore.getState().currentSessionId;
-        if (!currentSessionId) {
-            showInfo('セッションを選択してください');
-            return;
-        }
-
-        const file = files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            // Upload file
-            const uploadRes = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!uploadRes.ok) throw new Error('Upload failed');
-
-            const { path } = await uploadRes.json();
-
-            // Paste path into terminal
-            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                input: path,
-                type: 'text'
-            });
-
-            showSuccess('ファイルをアップロードしました');
-        } catch (error) {
-            console.error('File upload failed:', error);
-            showError('ファイルアップロードに失敗しました');
-        }
     }
 
     /**
