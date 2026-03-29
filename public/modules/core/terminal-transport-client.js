@@ -645,11 +645,11 @@ export class TerminalTransportClient {
     _applyOutput(text) {
         if (!this.terminal || !text) return;
         if (this._clearOnFirstOutput) {
-            // streaming接続直後の初回output。tmux control modeの初期ダンプが
-            // ペイン全内容を含むため、先にxterm.jsをクリアして重複防止。
+            // streaming開始直後。snapshotはそのまま残して、tmux control mode
+            // の初期ダンプ（カーソル位置制御含む）で自然に上書きさせる。
+            // クリアすると初期ダンプが複数チャンクに分かれた場合に真っ暗になる。
             this._clearOnFirstOutput = false;
             this._lastSnapshotText = null;
-            this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
         }
         const nextText = this._consumePendingEcho(text);
         if (!nextText) return;
