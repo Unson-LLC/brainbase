@@ -68,7 +68,7 @@ export class TerminalTransportClient {
 
     async init(hostEl) {
         this.hostEl = hostEl;
-        const { Terminal, FitAddon, WebLinksAddon } = await loadXterm();
+        const { Terminal, FitAddon, WebLinksAddon, Unicode11Addon } = await loadXterm();
         if (this.terminal) return;
 
         this.terminal = new Terminal({
@@ -90,6 +90,10 @@ export class TerminalTransportClient {
         this.terminal.loadAddon(this.fitAddon);
         if (WebLinksAddon) {
             this.terminal.loadAddon(new WebLinksAddon());
+        }
+        if (Unicode11Addon) {
+            this.terminal.loadAddon(new Unicode11Addon());
+            this.terminal.unicode.activeVersion = '11';
         }
         this.terminal.open(hostEl);
         this.fitAddon.fit();

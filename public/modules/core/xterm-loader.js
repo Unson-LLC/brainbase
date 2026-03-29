@@ -5,12 +5,14 @@
  * @property {new (...args: any[]) => any} Terminal - xterm.js Terminal constructor
  * @property {new (...args: any[]) => any} FitAddon - FitAddon constructor
  * @property {new (...args: any[]) => any} WebLinksAddon - WebLinksAddon constructor
+ * @property {new (...args: any[]) => any} Unicode11Addon - Unicode11 width tables addon
  */
 
 const XTERM_JS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js';
 const XTERM_CSS_URL = 'https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css';
 const XTERM_FIT_URL = 'https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js';
 const XTERM_WEBLINKS_URL = 'https://unpkg.com/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js';
+const XTERM_UNICODE11_URL = 'https://unpkg.com/@xterm/addon-unicode11@0.8.0/lib/addon-unicode11.js';
 
 /** @type {Promise<XtermModules> | null} */
 let loadPromise = null;
@@ -68,15 +70,17 @@ export async function loadXterm() {
         await loadScript(XTERM_JS_URL);
         await loadScript(XTERM_FIT_URL);
         await loadScript(XTERM_WEBLINKS_URL);
+        await loadScript(XTERM_UNICODE11_URL);
 
         const Terminal = /** @type {any} */ (window).Terminal;
         const FitAddon = /** @type {any} */ (window).FitAddon?.FitAddon || /** @type {any} */ (window).FitAddon;
         const WebLinksAddon = /** @type {any} */ (window).WebLinksAddon?.WebLinksAddon || /** @type {any} */ (window).WebLinksAddon;
+        const Unicode11Addon = /** @type {any} */ (window).Unicode11Addon?.Unicode11Addon || /** @type {any} */ (window).Unicode11Addon;
         if (!Terminal || !FitAddon) {
             throw new Error('xterm.js globals are not available');
         }
 
-        return { Terminal, FitAddon, WebLinksAddon };
+        return { Terminal, FitAddon, WebLinksAddon, Unicode11Addon };
     })();
 
     return await loadPromise;
