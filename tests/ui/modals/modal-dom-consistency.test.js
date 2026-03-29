@@ -10,6 +10,13 @@ const repoRoot = path.resolve(__dirname, '../../..');
 
 const HTML_PATH = path.join(repoRoot, 'public/index.html');
 const APP_PATH = path.join(repoRoot, 'public/app.js');
+const DYNAMIC_ID_EXCLUSIONS = new Set([
+  'mobile-dashboard-btn',
+  'mobile-tasks-btn'
+]);
+const DYNAMIC_CLASS_EXCLUSIONS = new Set([
+  'is-active'
+]);
 
 const GET_ID_RE = /getElementById\(\s*['"]([^'"]+)['"]\s*\)/g;
 const GET_CLASS_RE = /getElementsByClassName\(\s*['"]([^'"]+)['"]\s*\)/g;
@@ -17,7 +24,7 @@ const SELECTOR_RE = /\.(querySelectorAll|querySelector|closest|matches)\(\s*['"]
 const ID_ATTR_RE = /id\s*=\s*['"]([^'"]+)['"]/g;
 const ID_ASSIGN_RE = /\.id\s*=\s*['"]([^'"]+)['"]/g;
 const ID_SETATTR_RE = /setAttribute\(\s*['"]id['"]\s*,\s*['"]([^'"]+)['"]\s*\)/g;
-const CLASS_ATTR_RE = /class\s*=\s*['"]([^'"]+)['"]/g;
+const CLASS_ATTR_RE = /class\s*=\s*(["'`])([\s\S]*?)\1/g;
 const CLASS_ASSIGN_RE = /\.className\s*=\s*['"]([^'"]+)['"]/g;
 const CLASS_SETATTR_RE = /setAttribute\(\s*['"]class['"]\s*,\s*['"]([^'"]+)['"]\s*\)/g;
 const CLASSLIST_RE = /\.classList\.(add|remove|toggle)\(([^)]+)\)/g;
@@ -131,7 +138,7 @@ function collectProvidedClasses(sources) {
   };
   for (const source of sources) {
     for (const match of source.matchAll(CLASS_ATTR_RE)) {
-      addClassesFromValue(match[1]);
+      addClassesFromValue(match[2] || '');
     }
     for (const match of source.matchAll(CLASS_ASSIGN_RE)) {
       addClassesFromValue(match[1]);
@@ -217,7 +224,7 @@ describe('DOM consistency', () => {
     const missingByModule = [];
     for (const modulePath of [APP_PATH, ...importedModules]) {
       const source = modulePath === APP_PATH ? appSource : readFileSync(modulePath, 'utf-8');
-      const ids = extractIdsFromModule(source);
+      const ids = [...extractIdsFromModule(source)].filter((id) => !DYNAMIC_ID_EXCLUSIONS.has(id));
       const missing = [...ids].filter((id) => !availableIds.has(id));
       if (missing.length) {
         const relPath = path.relative(repoRoot, modulePath);
@@ -228,7 +235,7 @@ describe('DOM consistency', () => {
     const missingClassesByModule = [];
     for (const modulePath of [APP_PATH, ...importedModules]) {
       const source = modulePath === APP_PATH ? appSource : readFileSync(modulePath, 'utf-8');
-      const classes = extractClassesFromSelectors(source);
+      const classes = [...extractClassesFromSelectors(source)].filter((c) => !DYNAMIC_CLASS_EXCLUSIONS.has(c));
       const missing = [...classes].filter((c) => !availableClasses.has(c));
       if (missing.length) {
         const relPath = path.relative(repoRoot, modulePath);

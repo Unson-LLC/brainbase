@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TerminalTransportClient } from '../../public/modules/core/terminal-transport-client.js';
+import { httpClient } from '../../public/modules/core/http-client.js';
 
 /**
  * WebSocket再接続の改善テスト
@@ -46,6 +47,17 @@ function createMockWs(options = {}) {
     return ws;
 }
 
+function emitReady(ws, sessionId = 'test-session') {
+    ws._emit('message', {
+        data: JSON.stringify({ type: 'ready', sessionId })
+    });
+}
+
+async function flushMicrotasks() {
+    await Promise.resolve();
+    await Promise.resolve();
+}
+
 function createClient(overrides = {}) {
     const client = new TerminalTransportClient({
         viewerId: 'viewer-test',
@@ -63,9 +75,11 @@ describe('WebSocket再接続改善（CommandMate移植）', () => {
         vi.stubGlobal('window', {
             location: { protocol: 'http:', host: 'localhost:31013', hostname: 'localhost' }
         });
+        vi.spyOn(httpClient, 'get').mockResolvedValue({ ok: true, access: { role: 'member' } });
     });
 
     afterEach(() => {
+        vi.restoreAllMocks();
         vi.useRealTimers();
         vi.unstubAllGlobals();
     });
@@ -108,8 +122,11 @@ describe('WebSocket再接続改善（CommandMate移植）', () => {
         });
 
         it('接続成功時にリトライカウントがリセットされる', async () => {
-            const mockWs = createMockWs({ autoReady: true });
-            const MockWSConstructor = function () { return mockWs; };
+            let mockWs = null;
+            const MockWSConstructor = function () {
+                mockWs = createMockWs();
+                return mockWs;
+            };
             MockWSConstructor.OPEN = 1;
             MockWSConstructor.CONNECTING = 0;
             vi.stubGlobal('WebSocket', MockWSConstructor);
@@ -117,7 +134,10 @@ describe('WebSocket再接続改善（CommandMate移植）', () => {
             const client = createClient();
             client._retryCount = 5;
 
-            await client.connect('test-session');
+            const connectPromise = client.connect('test-session');
+            await flushMicrotasks();
+            emitReady(mockWs);
+            await connectPromise;
 
             expect(client._retryCount).toBe(0);
         });
@@ -125,14 +145,20 @@ describe('WebSocket再接続改善（CommandMate移植）', () => {
 
     describe('keepalive ping', () => {
         it('接続後にkeepalive pingが定期的に送信される', async () => {
-            const mockWs = createMockWs({ autoReady: true });
-            const MockWSConstructor = function () { return mockWs; };
+            let mockWs = null;
+            const MockWSConstructor = function () {
+                mockWs = createMockWs();
+                return mockWs;
+            };
             MockWSConstructor.OPEN = 1;
             MockWSConstructor.CONNECTING = 0;
             vi.stubGlobal('WebSocket', MockWSConstructor);
 
             const client = createClient();
-            await client.connect('test-session');
+            const connectPromise = client.connect('test-session');
+            await flushMicrotasks();
+            emitReady(mockWs);
+            await connectPromise;
 
             // Advance time by keepalive interval (30s)
             vi.advanceTimersByTime(30000);
@@ -142,14 +168,20 @@ describe('WebSocket再接続改善（CommandMate移植）', () => {
         });
 
         it('disconnect時にkeepalive timerがクリアされる', async () => {
-            const mockWs = createMockWs({ autoReady: true });
-            const MockWSConstructor = function () { return mockWs; };
+            let mockWs = null;
+            const MockWSConstructor = function () {
+                mockWs = createMockWs();
+                return mockWs;
+            };
             MockWSConstructor.OPEN = 1;
             MockWSConstructor.CONNECTING = 0;
             vi.stubGlobal('WebSocket', MockWSConstructor);
 
             const client = createClient();
-            await client.connect('test-session');
+            const connectPromise = client.connect('test-session');
+            await flushMicrotasks();
+            emitReady(mockWs);
+            await connectPromise;
             client.disconnect();
 
             expect(client._keepaliveTimer).toBeNull();
