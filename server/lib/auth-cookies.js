@@ -1,7 +1,7 @@
 const ACCESS_COOKIE_NAME = 'brainbase_session';
 const REFRESH_COOKIE_NAME = 'brainbase_refresh';
 
-function getHeader(req, name) {
+export function getHeader(req, name) {
     if (!req) return '';
     if (typeof req.get === 'function') {
         return req.get(name) || '';

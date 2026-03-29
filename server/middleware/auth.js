@@ -1,17 +1,5 @@
-import { getAuthTokensFromRequest } from '../lib/auth-cookies.js';
+import { getAuthTokensFromRequest, getHeader } from '../lib/auth-cookies.js';
 import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
-
-function getHeader(req, name) {
-    if (!req) return '';
-    if (typeof req.get === 'function') {
-        return req.get(name) || '';
-    }
-    const key = String(name).toLowerCase();
-    const headers = req.headers || {};
-    const value = headers[key];
-    if (Array.isArray(value)) return value[0] || '';
-    return value || '';
-}
 
 export function resolveAuthContext(req, authService) {
     if (req?.method === 'OPTIONS') {
