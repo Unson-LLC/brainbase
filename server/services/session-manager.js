@@ -270,16 +270,19 @@ export class SessionManager {
         }
     }
 
+    /** 文字列をtrim+null化する共通ノーマライザ */
+    _normalizeString(value) {
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        return trimmed || null;
+    }
+
     _normalizeViewerId(viewerId) {
-        if (typeof viewerId !== 'string') return null;
-        const normalized = viewerId.trim();
-        return normalized || null;
+        return this._normalizeString(viewerId);
     }
 
     _normalizeViewerLabel(viewerLabel) {
-        if (typeof viewerLabel !== 'string') return null;
-        const normalized = viewerLabel.trim();
-        return normalized || null;
+        return this._normalizeString(viewerLabel);
     }
 
     _getTerminalOwnerEntry(sessionId) {
