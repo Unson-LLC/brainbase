@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -108,7 +109,7 @@ describe('key-manager', () => {
   describe('exportPublicKeys', () => {
     it('returns base64 strings for signPub and boxPub', async () => {
       const kp = await generateKeyPair();
-      const pub = exportPublicKeys(kp);
+      const pub = await exportPublicKeys(kp);
 
       expect(pub).toHaveProperty('signPub');
       expect(pub).toHaveProperty('boxPub');

@@ -37,7 +37,7 @@ export class MeshService extends EventEmitter {
    * Start the mesh service: connect to relay and register this peer.
    */
   async start() {
-    const { signPub, boxPub } = exportPublicKeys(this.keyManager);
+    const { signPub, boxPub } = await exportPublicKeys(this.keyManager);
 
     this.relay = new RelayClient({
       relayUrl: this.relayUrl,

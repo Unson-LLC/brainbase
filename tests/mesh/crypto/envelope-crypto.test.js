@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, beforeAll } from 'vitest';
 import sodium from 'libsodium-wrappers';
 import { seal, unseal, sign, verify } from '../../../server/mesh/crypto/envelope-crypto.js';
@@ -12,7 +13,7 @@ describe('envelope-crypto', () => {
     await sodium.ready;
     senderKp = await generateKeyPair();
     recipientKp = await generateKeyPair();
-    recipientPub = exportPublicKeys(recipientKp);
+    recipientPub = await exportPublicKeys(recipientKp);
   });
 
   describe('seal / unseal round-trip', () => {
@@ -38,33 +39,32 @@ describe('envelope-crypto', () => {
   });
 
   describe('sign', () => {
-    it('produces a base64 string', () => {
+    it('produces a base64 string', async () => {
       const message = 'test message to sign';
-      const signature = sign(message, senderKp.signKeyPair);
+      const signature = await sign(message, senderKp.signKeyPair);
 
       expect(typeof signature).toBe('string');
-      // Verify it decodes to 64 bytes (Ed25519 signature size)
       const sigBytes = sodium.from_base64(signature);
       expect(sigBytes.length).toBe(64);
     });
   });
 
   describe('verify', () => {
-    it('returns true for a valid signature', () => {
+    it('returns true for a valid signature', async () => {
       const message = 'authentic message';
-      const senderPub = exportPublicKeys(senderKp);
-      const signature = sign(message, senderKp.signKeyPair);
+      const senderPub = await exportPublicKeys(senderKp);
+      const signature = await sign(message, senderKp.signKeyPair);
 
-      const result = verify(message, signature, senderPub.signPub);
+      const result = await verify(message, signature, senderPub.signPub);
       expect(result).toBe(true);
     });
 
-    it('returns false for a tampered message', () => {
+    it('returns false for a tampered message', async () => {
       const message = 'original message';
-      const senderPub = exportPublicKeys(senderKp);
-      const signature = sign(message, senderKp.signKeyPair);
+      const senderPub = await exportPublicKeys(senderKp);
+      const signature = await sign(message, senderKp.signKeyPair);
 
-      const result = verify('tampered message', signature, senderPub.signPub);
+      const result = await verify('tampered message', signature, senderPub.signPub);
       expect(result).toBe(false);
     });
   });

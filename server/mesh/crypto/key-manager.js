@@ -1,4 +1,4 @@
-import sodium from 'libsodium-wrappers';
+import { ensureSodium } from './sodium-init.js';
 import { writeFile, readFile, mkdir, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -12,7 +12,7 @@ const KEYPAIR_PATH = join(KEYPAIR_DIR, 'node-keypair.json');
  * @returns {{ signKeyPair: object, boxKeyPair: object }}
  */
 export async function generateKeyPair() {
-  await sodium.ready;
+  const sodium = await ensureSodium();
 
   const signKeyPair = sodium.crypto_sign_keypair();
   const boxKeyPair = sodium.crypto_box_keypair();
@@ -25,6 +25,7 @@ export async function generateKeyPair() {
  * @param {{ signKeyPair: object, boxKeyPair: object }} keyPair
  */
 export async function saveKeyPair(keyPair) {
+  const sodium = await ensureSodium();
   await mkdir(KEYPAIR_DIR, { recursive: true });
 
   const serialized = {
@@ -48,7 +49,7 @@ export async function saveKeyPair(keyPair) {
  * @returns {{ signKeyPair: object, boxKeyPair: object } | null}
  */
 export async function loadKeyPair() {
-  await sodium.ready;
+  const sodium = await ensureSodium();
 
   if (!existsSync(KEYPAIR_PATH)) {
     return null;
@@ -80,7 +81,8 @@ export async function loadKeyPair() {
  * @param {{ signKeyPair: object, boxKeyPair: object }} keyPair
  * @returns {{ signPub: string, boxPub: string }}
  */
-export function exportPublicKeys(keyPair) {
+export async function exportPublicKeys(keyPair) {
+  const sodium = await ensureSodium();
   return {
     signPub: sodium.to_base64(keyPair.signKeyPair.publicKey),
     boxPub: sodium.to_base64(keyPair.boxKeyPair.publicKey),

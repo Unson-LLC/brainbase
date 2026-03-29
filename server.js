@@ -784,12 +784,16 @@ if (process.env.MESH_RELAY_URL) {
             nodeId: process.env.MESH_NODE_ID,
         });
 
+        // TODO: 複数プロジェクト担当時は各プロジェクトごとにcollectorを作るか、
+        //       collectGeneral()で全プロジェクトをループする設計に変更する。
+        //       MVPでは最初のプロジェクトのみ対応。
+        const firstProject = nodeProfile.projects[0];
         const collector = new LocalContextCollector({
             nocodbUrl: process.env.NOCODB_URL || 'https://noco.unson.jp',
             nocodbToken: process.env.NOCODB_TOKEN,
-            taskTableId: nodeProfile.projects[0]?.nocodbBaseId || '',
+            taskTableId: firstProject?.nocodbBaseId || '',
             milestoneTableId: '',
-            workDir: nodeProfile.projects[0]?.localPath || process.cwd(),
+            workDir: firstProject?.localPath || process.cwd(),
         });
 
         const queryHandler = new QueryHandler({

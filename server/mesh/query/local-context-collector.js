@@ -35,7 +35,7 @@ export class LocalContextCollector {
    */
   async collectStatus() {
     const [tasks, worktreeStatus, recentCommits] = await Promise.all([
-      this._fetchOwnTasks(),
+      this._fetchRecords(this.taskTableId, 20),
       this._gitCommand('git status --porcelain'),
       this._gitCommand('git log --oneline -5'),
     ]);
@@ -74,8 +74,8 @@ export class LocalContextCollector {
    */
   async collectProject() {
     const [tasks, milestones] = await Promise.all([
-      this._fetchAllTasks(),
-      this._fetchMilestones(),
+      this._fetchRecords(this.taskTableId),
+      this._fetchRecords(this.milestoneTableId),
     ]);
 
     return { tasks, milestones };
@@ -126,55 +126,15 @@ export class LocalContextCollector {
   }
 
   /**
-   * Fetch this node's own tasks from NocoDB (limit 20).
+   * Fetch records from a NocoDB table.
+   * @param {string} tableId - NocoDB table ID
+   * @param {number} [limit=100] - Max records to fetch
    */
-  async _fetchOwnTasks() {
+  async _fetchRecords(tableId, limit = 100) {
     try {
-      const url = `${this.nocodbUrl}/api/v2/tables/${this.taskTableId}/records?limit=20`;
-      const res = await fetch(url, {
-        headers: this._nocodbAuthHeader(),
-      });
-      if (!res.ok) {
-        return { error: `NocoDB returned ${res.status}` };
-      }
-      const data = await res.json();
-      return data.list ?? data;
-    } catch (err) {
-      return { error: err.message };
-    }
-  }
-
-  /**
-   * Fetch ALL tasks from NocoDB (limit 100, no filter).
-   */
-  async _fetchAllTasks() {
-    try {
-      const url = `${this.nocodbUrl}/api/v2/tables/${this.taskTableId}/records?limit=100`;
-      const res = await fetch(url, {
-        headers: this._nocodbAuthHeader(),
-      });
-      if (!res.ok) {
-        return { error: `NocoDB returned ${res.status}` };
-      }
-      const data = await res.json();
-      return data.list ?? data;
-    } catch (err) {
-      return { error: err.message };
-    }
-  }
-
-  /**
-   * Fetch milestones from NocoDB.
-   */
-  async _fetchMilestones() {
-    try {
-      const url = `${this.nocodbUrl}/api/v2/tables/${this.milestoneTableId}/records?limit=100`;
-      const res = await fetch(url, {
-        headers: this._nocodbAuthHeader(),
-      });
-      if (!res.ok) {
-        return { error: `NocoDB returned ${res.status}` };
-      }
+      const url = `${this.nocodbUrl}/api/v2/tables/${tableId}/records?limit=${limit}`;
+      const res = await fetch(url, { headers: this._nocodbAuthHeader() });
+      if (!res.ok) return { error: `NocoDB returned ${res.status}` };
       const data = await res.json();
       return data.list ?? data;
     } catch (err) {

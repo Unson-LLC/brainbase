@@ -11,8 +11,16 @@ export class PeerRegistry {
    * Add or update a peer in the registry.
    * @param {{ nodeId: string, publicKey: string, boxPublicKey?: string, role: string, online: boolean }} peer
    */
-  addPeer({ nodeId, publicKey, boxPublicKey, role, online }) {
-    this._peers.set(nodeId, { nodeId, publicKey, boxPublicKey: boxPublicKey ?? null, role, online });
+  addPeer({ nodeId, publicKey, boxPublicKey, role, roleRank, projects, online }) {
+    this._peers.set(nodeId, {
+      nodeId,
+      publicKey,
+      boxPublicKey: boxPublicKey ?? null,
+      role,
+      roleRank: roleRank ?? null,
+      projects: projects ?? [],
+      online,
+    });
   }
 
   /**

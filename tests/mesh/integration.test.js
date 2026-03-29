@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createRelayServer } from '../../relay/server.js';
 import { MeshService } from '../../server/mesh/mesh-service.js';
@@ -56,8 +57,8 @@ describe('integration: mesh end-to-end', () => {
     // Register node-b in node-a's peer registry and vice versa
     // (In production the relay broadcasts peer_joined, but for testing we add manually)
     const { exportPublicKeys } = await import('../../server/mesh/crypto/key-manager.js');
-    const pubA = exportPublicKeys(keyPairA);
-    const pubB = exportPublicKeys(keyPairB);
+    const pubA = await exportPublicKeys(keyPairA);
+    const pubB = await exportPublicKeys(keyPairB);
 
     nodeA.peerRegistry.addPeer({
       nodeId: 'node-b',
