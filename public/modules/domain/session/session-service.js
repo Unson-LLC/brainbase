@@ -668,16 +668,8 @@ export class SessionService {
         await this.loadSessions();
         await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
 
-        // 現在表示中のセッションをアーカイブした場合、次のアクティブセッションに切り替え
         if (wasCurrentSession) {
-            const activeSessions = this.getFilteredSessions()
-                .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
-            if (activeSessions.length > 0) {
-                await this.switchSession(activeSessions[0].id);
-            } else {
-                // アクティブセッションがない場合はcurrentSessionIdをクリア
-                this.store.setState({ currentSessionId: null });
-            }
+            await this._switchToNextActive(sessionId);
         }
 
         return { success: true };
@@ -702,15 +694,8 @@ export class SessionService {
             await this.loadSessions();
             await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
 
-            // 現在表示中のセッションをマージした場合、次のアクティブセッションに切り替え
             if (wasCurrentSession) {
-                const activeSessions = this.getFilteredSessions()
-                    .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
-                if (activeSessions.length > 0) {
-                    await this.switchSession(activeSessions[0].id);
-                } else {
-                    this.store.setState({ currentSessionId: null });
-                }
+                await this._switchToNextActive(sessionId);
             }
         }
 
@@ -760,6 +745,20 @@ export class SessionService {
      * @param {string} sessionId - 切り替え先のセッションID
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}|null>}
      */
+    /**
+     * 指定セッションを除外して次のアクティブセッションに切り替え
+     * アーカイブ/マージ後に現在セッションから離脱するための共通処理
+     */
+    async _switchToNextActive(excludeSessionId) {
+        const activeSessions = this.getFilteredSessions()
+            .filter(s => s.intendedState !== 'archived' && s.id !== excludeSessionId);
+        if (activeSessions.length > 0) {
+            await this.switchSession(activeSessions[0].id);
+        } else {
+            this.store.setState({ currentSessionId: null });
+        }
+    }
+
     async switchSession(sessionId) {
         const { currentSessionId } = this.store.getState();
         const previousSessionId = currentSessionId;
