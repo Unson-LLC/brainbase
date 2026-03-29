@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import util from 'util';
 import path from 'path';
 import { logger } from '../utils/logger.js';
+import { formatBytes } from '../lib/validation.js';
 
 const execPromise = util.promisify(exec);
 
@@ -211,16 +212,5 @@ export class StorageService {
         };
     }
 
-    /**
-     * バイト数を人間が読める形式に変換
-     * @param {number} bytes - バイト数
-     * @returns {string} フォーマットされた文字列
-     */
-    formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
+    // formatBytes imported from ../lib/validation.js
 }
