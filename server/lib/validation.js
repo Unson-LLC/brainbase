@@ -59,3 +59,23 @@ export const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
 export function getPriorityLabel(priority) {
     return PRIORITY_LABELS[priority] || priority;
 }
+
+/**
+ * テスト/開発環境でのヘッダーベース認証を許可するか判定
+ * @returns {boolean}
+ */
+export function isInsecureHeaderAuthAllowed() {
+    return process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true'
+        || process.env.BRAINBASE_TEST_MODE === 'true'
+        || process.env.NODE_ENV === 'test';
+}
+
+/**
+ * CSV文字列をパースして配列に変換
+ * @param {string} value
+ * @returns {string[]}
+ */
+export function parseCsv(value) {
+    if (!value || typeof value !== 'string') return [];
+    return value.split(',').map(v => v.trim()).filter(Boolean);
+}

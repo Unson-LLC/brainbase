@@ -1,24 +1,5 @@
 import { getAuthTokensFromRequest } from '../lib/auth-cookies.js';
-
-function allowInsecureHeaderAuth() {
-    if (process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
-        return true;
-    }
-    if (process.env.BRAINBASE_TEST_MODE === 'true') {
-        return true;
-    }
-    if (process.env.NODE_ENV === 'test') {
-        return true;
-    }
-    return false;
-}
-
-function parseCsv(value) {
-    if (!value || typeof value !== 'string') {
-        return [];
-    }
-    return value.split(',').map(v => v.trim()).filter(Boolean);
-}
+import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 
 function getHeader(req, name) {
     if (!req) return '';
@@ -65,7 +46,7 @@ export function resolveAuthContext(req, authService) {
         };
     }
 
-    if (allowInsecureHeaderAuth()) {
+    if (isInsecureHeaderAuthAllowed()) {
         const role = (getHeader(req, 'x-brainbase-role') || getHeader(req, 'x-role') || '').toLowerCase();
         if (role) {
             const projectHeader = getHeader(req, 'x-brainbase-projects') || getHeader(req, 'x-projects') || '';
