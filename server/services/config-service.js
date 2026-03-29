@@ -39,6 +39,21 @@ export class ConfigService {
         return projects.find(p => p.id === projectId);
     }
 
+    /**
+     * プロジェクトを取得→変更→保存する共通パターン
+     * @param {string} projectId
+     * @param {(project: Object, data: Object) => any} fn - project を変更する関数
+     */
+    async _withProject(projectId, fn) {
+        const { data } = await this._loadConfig();
+        const projects = this._getProjects(data);
+        const project = this._findProject(projects, projectId);
+        if (!project) throw new Error(`Project not found: ${projectId}`);
+        const result = fn(project, data);
+        await this._saveConfig(data);
+        return result;
+    }
+
     _normalizeProjectPath(localPath, data) {
         if (!localPath) return localPath;
         if (!this.projectsRoot) return localPath;
@@ -57,79 +72,41 @@ export class ConfigService {
         if (!project_id || !owner || !repo) {
             throw new Error('project_id, owner, repo are required');
         }
-
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, project_id);
-        if (!project) {
-            throw new Error(`Project not found: ${project_id}`);
-        }
-
-        project.github = {
-            owner,
-            repo,
-            branch: branch || 'main'
-        };
-
-        await this._saveConfig(data);
-        return project.github;
+        return this._withProject(project_id, (project) => {
+            project.github = { owner, repo, branch: branch || 'main' };
+            return project.github;
+        });
     }
 
     async deleteGitHubMapping(projectId) {
-        if (!projectId) {
-            throw new Error('project_id is required');
-        }
-
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, projectId);
-        if (!project) {
-            throw new Error(`Project not found: ${projectId}`);
-        }
-
-        delete project.github;
-        await this._saveConfig(data);
-        return true;
+        if (!projectId) throw new Error('project_id is required');
+        return this._withProject(projectId, (project) => {
+            delete project.github;
+            return true;
+        });
     }
 
     async upsertNocoDBMapping({ project_id, base_id, nocodb_project_id, base_name, url }) {
         if (!project_id || !nocodb_project_id) {
             throw new Error('project_id, nocodb_project_id are required');
         }
-
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, project_id);
-        if (!project) {
-            throw new Error(`Project not found: ${project_id}`);
-        }
-
-        project.nocodb = {
-            base_id: base_id || '',
-            project_id: nocodb_project_id,
-            base_name: base_name || '',
-            url: url || ''
-        };
-
-        await this._saveConfig(data);
-        return project.nocodb;
+        return this._withProject(project_id, (project) => {
+            project.nocodb = {
+                base_id: base_id || '',
+                project_id: nocodb_project_id,
+                base_name: base_name || '',
+                url: url || ''
+            };
+            return project.nocodb;
+        });
     }
 
     async deleteNocoDBMapping(projectId) {
-        if (!projectId) {
-            throw new Error('project_id is required');
-        }
-
-        const { data } = await this._loadConfig();
-        const projects = this._getProjects(data);
-        const project = this._findProject(projects, projectId);
-        if (!project) {
-            throw new Error(`Project not found: ${projectId}`);
-        }
-
-        delete project.nocodb;
-        await this._saveConfig(data);
-        return true;
+        if (!projectId) throw new Error('project_id is required');
+        return this._withProject(projectId, (project) => {
+            delete project.nocodb;
+            return true;
+        });
     }
 
     async upsertProject({ id, emoji, local_path, glob_include, archived }) {
