@@ -95,6 +95,22 @@ export class SessionController {
         this._recentSessionStarts = new Map(); // sessionId -> timestamp
     }
 
+    /**
+     * stateStoreからセッションを取得。見つからなければ404レスポンスを返しnullを返す。
+     * @param {string} id - セッションID
+     * @param {import('express').Response} res - Expressレスポンス
+     * @returns {Object|null} セッションオブジェクトまたはnull（404送信済み）
+     */
+    _findSessionOrFail(id, res) {
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+        if (!session) {
+            res.status(404).json({ error: 'Session not found' });
+            return null;
+        }
+        return session;
+    }
+
     _readSystemClipboard() {
         return execFileSync('pbpaste', {
             encoding: 'utf8',
@@ -1253,12 +1269,8 @@ export class SessionController {
         const { id } = req.params;
         const status = req.body?.status || {};
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         try {
             const workspacePath = session.worktree?.path || session.path || session.cwd || process.cwd();
