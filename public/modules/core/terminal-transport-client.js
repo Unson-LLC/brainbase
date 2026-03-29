@@ -63,8 +63,6 @@ export class TerminalTransportClient {
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
         this._visibilityHandler = null;
-        this._outputBuffer = null;       // streaming初期ダンプのバッファ
-        this._outputFlushTimer = null;   // バッファフラッシュタイマー
     }
 
     async init(hostEl) {
@@ -264,8 +262,7 @@ export class TerminalTransportClient {
                         this._retryCount = 0;
                         this.status.mode = 'live';
                         this.status.connected = true;
-                        console.log('[TTC] ready received, starting output buffering');
-                        this._startOutputBuffering();
+                        console.log('[TTC] ready received');
                         this._emitStatus();
                         this._startKeepalive();
                         this._flushMessageQueue();
@@ -273,9 +270,8 @@ export class TerminalTransportClient {
                         resolve({ mode: 'live' });
                         break;
                     case 'snapshot': {
-                        const snapshotField = message.colorText ? 'colorText' : 'text';
                         const snapshotLen = (message.colorText || message.text || '').length;
-                        console.log(`[TTC] snapshot received: field=${snapshotField}, len=${snapshotLen}, connected=${this.status.connected}, buffering=${this._outputBuffer !== null}`);
+                        console.log(`[TTC] snapshot received: len=${snapshotLen}, connected=${this.status.connected}`);
                         this._queueOrApplySnapshot(message.colorText || message.text || '');
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
@@ -287,7 +283,7 @@ export class TerminalTransportClient {
                     }
                     case 'output': {
                         const outputLen = (typeof message.data === 'string' ? message.data : '').length;
-                        console.log(`[TTC] output received: len=${outputLen}, buffering=${this._outputBuffer !== null}, bufferLen=${this._outputBuffer?.length ?? 'N/A'}`);
+                        console.log(`[TTC] output received: len=${outputLen}`);
                         this._applyOutput(typeof message.data === 'string' ? message.data : '');
                         break;
                     }
@@ -333,7 +329,6 @@ export class TerminalTransportClient {
                 }
                 cleanup();
                 this._stopKeepalive();
-                this._stopOutputBuffering();
                 this.status.connected = false;
 
                 // 4001 = ownership taken over: treat as blocked even if blocked message was missed
@@ -375,7 +370,6 @@ export class TerminalTransportClient {
             this._pendingEchoText = '';
             this._isViewportPinnedToBottom = true;
             this._lastSnapshotText = null;
-            this._stopOutputBuffering();
             this.terminal?.reset();
         }
         this._emitStatus();
@@ -651,11 +645,6 @@ export class TerminalTransportClient {
 
     _applyOutput(text) {
         if (!this.terminal || !text) return;
-        // バッファモード中: outputを貯めてタイマーで一括描画
-        if (this._outputBuffer !== null) {
-            this._outputBuffer += text;
-            return;
-        }
         const nextText = this._consumePendingEcho(text);
         if (!nextText) return;
         this._writeToTerminal(nextText);
@@ -710,50 +699,6 @@ export class TerminalTransportClient {
         this._pendingEchoText = '';
         this._lastSnapshotText = null;
         this._isViewportPinnedToBottom = true;
-        this._stopOutputBuffering();
-    }
-
-    /**
-     * streaming初期ダンプのバッファリングを開始。
-     * snapshotが即表示された後、200ms間outputをバッファし、
-     * タイマー発火時にxterm.jsをクリア→バッファを一括描画する。
-     * これにより：
-     * - snapshot即表示（真っ暗にならない）
-     * - 初期ダンプがバッファされてからクリア→描画（重複なし）
-     */
-    _startOutputBuffering() {
-        this._stopOutputBuffering();
-        this._outputBuffer = '';
-        this._outputFlushTimer = setTimeout(() => {
-            this._flushOutputBuffer();
-        }, 200);
-    }
-
-    _stopOutputBuffering() {
-        if (this._outputFlushTimer) {
-            clearTimeout(this._outputFlushTimer);
-            this._outputFlushTimer = null;
-        }
-        this._outputBuffer = null;
-    }
-
-    _flushOutputBuffer() {
-        this._outputFlushTimer = null;
-        const buffered = this._outputBuffer;
-        this._outputBuffer = null;
-        if (!this.terminal) {
-            console.log('[TTC] flushOutputBuffer: no terminal');
-            return;
-        }
-        if (!buffered) {
-            console.log('[TTC] flushOutputBuffer: empty buffer, keeping snapshot');
-            return;
-        }
-        console.log(`[TTC] flushOutputBuffer: clearing xterm + writing ${buffered.length} bytes`);
-        // バッファにデータがある→streamingが動いてる→クリアして描画
-        this._lastSnapshotText = null;
-        this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
-        this._writeToTerminal(buffered);
     }
 
     _measureViewport() {
