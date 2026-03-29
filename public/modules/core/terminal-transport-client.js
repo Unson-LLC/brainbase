@@ -222,6 +222,14 @@ export class TerminalTransportClient {
         this._clearReconnectTimer();
         this._closeWs();
 
+        // 再接続時もsnapshot状態をリセット。
+        // switchingSessions でなくても（同一セッション再接続でも）、
+        // streaming中にxterm.jsに書き込まれたoutputとsnapshotキャッシュが
+        // 乖離するため、常にリセットが必要。
+        this._lastSnapshotText = null;
+        this._pendingSnapshotText = null;
+        this._pendingEchoText = '';
+
         if (switchingSessions) {
             this._prepareForSessionSwitch();
         }
