@@ -96,6 +96,14 @@ export class SessionController {
     }
 
     /**
+     * catchブロックの共通エラーレスポンス
+     */
+    _respondError(res, context, error) {
+        logger.error(`${context}:`, error);
+        res.status(error.statusCode || 500).json({ error: error.message || context });
+    }
+
+    /**
      * stateStoreからセッションを取得。見つからなければ404レスポンスを返しnullを返す。
      * @param {string} id - セッションID
      * @param {import('express').Response} res - Expressレスポンス
@@ -909,8 +917,7 @@ export class SessionController {
             if (payload.colorText) response.colorText = payload.colorText;
             res.json(response);
         } catch (error) {
-            logger.error(`Failed to get terminal snapshot for ${id}:`, error.message);
-            res.status(500).json({ error: error.message || 'Failed to capture terminal snapshot' });
+            this._respondError(res, `Failed to get terminal snapshot for ${id}:`, error);
         }
     };
 
@@ -1043,8 +1050,7 @@ export class SessionController {
                 terminalAccess: ownership.terminalAccess
             });
         } catch (error) {
-            logger.error('Failed to start session:', error);
-            res.status(500).json({ error: error.message || 'Failed to allocate port' });
+            this._respondError(res, 'Failed to start session:', error);
         }
     };
 
@@ -1240,8 +1246,7 @@ export class SessionController {
                 proxyPath: result.proxyPath
             });
         } catch (error) {
-            logger.error('Failed to restore session:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to restore session:', error);
         }
     };
 
@@ -1317,8 +1322,7 @@ ${jjBookmarks}
                 clipboardContent: message
             });
         } catch (error) {
-            logger.error('Failed to ask AI for integration:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to ask AI for integration:', error);
         }
     };
 
@@ -1626,8 +1630,7 @@ ${jjBookmarks}
             );
             res.json(status);
         } catch (error) {
-            logger.error('Failed to get worktree status:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to get worktree status:', error);
         }
     };
 
@@ -1880,8 +1883,7 @@ ${jjBookmarks}
             const result = await this.worktreeService.updateLocalMain(session.worktree.repo, { autoStash });
             res.json(result);
         } catch (error) {
-            logger.error('Failed to update local main:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to update local main:', error);
         }
     };
 
@@ -1923,8 +1925,7 @@ ${jjBookmarks}
 
             res.json(result);
         } catch (error) {
-            logger.error('Failed to merge worktree:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to merge worktree:', error);
         }
     };
 
@@ -1957,8 +1958,7 @@ ${jjBookmarks}
             }
             res.json(result);
         } catch (error) {
-            logger.error('Failed to get commit log:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to get commit log:', error);
         }
     };
 
@@ -2016,8 +2016,7 @@ ${jjBookmarks}
                 res.status(500).json({ error: 'Failed to delete worktree' });
             }
         } catch (error) {
-            logger.error('Failed to delete worktree:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to delete worktree:', error);
         }
     };
 
