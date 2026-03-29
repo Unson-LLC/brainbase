@@ -220,11 +220,26 @@ export class TerminalTransportService {
                 void this._fallbackToPolling(connection);
             };
 
-            client.on('output', handleOutput);
+            // 初期ダンプ抑制: tmuxは接続直後にペイン全内容を%outputで送信するが、
+            // snapshotが既に表示されているため不要。1秒後にoutputリスナーを登録して
+            // 以降のリアルタイム出力だけを転送する。
+            const INITIAL_DUMP_GRACE_MS = 1000;
+            connection._dumpGraceTimer = setTimeout(() => {
+                connection._dumpGraceTimer = null;
+                if (connection.closed) return;
+                client.on('output', handleOutput);
+                // 1秒間のリアルタイム更新を補完するためsnapshotを1回送信
+                void this._sendRefreshSnapshot(connection);
+            }, INITIAL_DUMP_GRACE_MS);
+
             client.on('error', handleFailure);
             client.on('exit', handleFailure);
 
             connection.streamCleanup = () => {
+                if (connection._dumpGraceTimer) {
+                    clearTimeout(connection._dumpGraceTimer);
+                    connection._dumpGraceTimer = null;
+                }
                 client.off('output', handleOutput);
                 client.off('error', handleFailure);
                 client.off('exit', handleFailure);
@@ -394,6 +409,16 @@ export class TerminalTransportService {
             await this.sessionManager.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
             this.captureCache.invalidate(connection.sessionId);
         }
+    }
+
+    async _sendRefreshSnapshot(connection) {
+        if (connection.closed || connection.ws.readyState !== 1) return;
+        this.captureCache.invalidate(connection.sessionId);
+        const snapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true });
+        if (connection.closed || connection.ws.readyState !== 1) return;
+        const msg = { type: 'snapshot', text: snapshot.text, capturedAt: snapshot.capturedAt };
+        if (snapshot.colorText) msg.colorText = snapshot.colorText;
+        connection.ws.send(JSON.stringify(msg));
     }
 
     async _getSnapshotPayload(sessionId, options = {}) {
