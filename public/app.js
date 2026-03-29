@@ -11,7 +11,7 @@ import { eventBus, EVENTS } from './modules/core/event-bus.js';
 import { TerminalInteractionService } from './modules/core/terminal-interaction-service.js';
 import { appendViewerIdToProxyPath, buildSessionRuntimeUrl, getTerminalViewerId, getTerminalViewerLabel } from './modules/core/terminal-viewer.js';
 import { TerminalTransportClient, shouldUseXtermTransport } from './modules/core/terminal-transport-client.js';
-import { AuthManager } from './modules/auth/auth-manager.js';
+import { AuthInitController } from './modules/auth/auth-init-controller.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
 import { SettingsExtensions } from './modules/settings/settings-extensions.js';
@@ -65,6 +65,7 @@ import { initPanelResize } from './modules/ui/panel-resize.js';
 import { ChoiceOverlayController } from './modules/ui/choice-overlay-controller.js';
 import { MobileInputController } from './modules/ui/mobile-input-controller.js';
 import { MobileTabController } from './modules/ui/mobile-tab-controller.js';
+import { MobileTerminalController } from './modules/ui/mobile-terminal-controller.js';
 
 // Modals
 import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
@@ -112,29 +113,13 @@ export class App {
         this.terminalTransportPillEl = null;
         this.terminalOwnerLabelEl = null;
         this.terminalSnapshotMetaEl = null;
-        this.terminalSnapshotPanelEl = null;
-        this.terminalSnapshotTitleEl = null;
-        this.terminalSnapshotTimestampEl = null;
-        this.terminalSnapshotContentEl = null;
         this.terminalReconnectBtn = null;
         this.terminalTakeoverBtn = null;
         this.terminalOpenFallbackBtn = null;
         this.terminalMoreBtn = null;
         this.terminalMoreActionsEl = null;
-        this.mobileLiveTerminalModalEl = null;
-        this.mobileLiveTerminalFrameEl = null;
         this._terminalInputUxCleanup = [];
         this._terminalLastNavigateAt = 0;
-        this._terminalSnapshotCache = new Map();
-        this._terminalSnapshotRequestKey = null;
-        this._mobileSnapshotPollTimer = null;
-        this._mobileSnapshotPollDelay = null;
-        this._mobileSnapshotInFlight = false;
-        this._mobileTerminalMode = 'display';
-        this._mobileLiveTerminalSessionId = null;
-        this._mobileTapTracking = null;
-        this._latestMobileViewportLayout = null;
-        this._terminalFrameLayoutSyncRaf = null;
         // tmux copy-mode (pane_in_mode) blocks input. We can't reliably read it from the iframe,
         // so we track entry/exit based on TMUX_SCROLL / TERMINAL_INTERACT messages.
         this._terminalCopyModeSessions = new Set();
@@ -154,6 +139,39 @@ export class App {
             showSuccess,
             showError,
             showInfo
+        });
+        this.mobileTerminalController = new MobileTerminalController({
+            httpClient,
+            store: appStore,
+            eventBus,
+            events: EVENTS,
+            viewerId: this.viewerId,
+            viewerLabel: this.viewerLabel,
+            isMobile: () => this.isMobile(),
+            refreshIcons,
+            setupTaskTabs,
+            attachSectionHeaderHandlers,
+            attachGroupHeaderHandlers,
+            attachSessionRowClickHandlers,
+            attachAddProjectSessionHandlers,
+            getSettingsUI: () => this.settingsCore?.ui,
+            getSessionView: () => this.views.sessionView,
+            getNocoDBTasksView: () => this.views.nocodbTasksView,
+            getArchiveModal: () => this.modals.archiveModal,
+            getMobileTabController: () => this.mobileTabController,
+            addUnsubscriber: (unsub) => {
+                if (typeof unsub === 'function') {
+                    this.unsubscribers.push(unsub);
+                }
+            },
+            showDashboard: () => this.showDashboard?.(),
+            showConsole: () => this.showConsole?.(),
+            clearTerminalFrame: (frameEl) => this._clearTerminalFrame(frameEl),
+            openSessionInTtydFrame: (sessionId, frameEl, options) => this._openSessionInTtydFrame(sessionId, frameEl, options),
+            resolveSessionRuntime: (sessionId, session) => this._resolveSessionRuntime(sessionId, session),
+            updateTerminalInputStatus: () => this._updateTerminalInputStatus(),
+            setCurrentSessionUiState: (updates, options) => this._setCurrentSessionUiState(updates, options),
+            getReconnectManager: () => this.reconnectManager
         });
     }
 
@@ -1644,14 +1662,14 @@ export class App {
      * Initialize authentication manager
      */
     async initAuth() {
-        this.authManager = new AuthManager({ httpClient, store: appStore, eventBus });
-
-        httpClient.setUnauthorizedHandler(() => {
-            this.authManager?.clearSession();
-            showError('認証が必要です。Settings > 認証からログインしてください。');
+        const authInitController = new AuthInitController({
+            httpClient,
+            store: appStore,
+            eventBus,
+            showError
         });
 
-        await this.authManager.initFromStorage();
+        this.authManager = await authInitController.initialize();
     }
 
     /**

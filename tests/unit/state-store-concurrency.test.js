@@ -91,6 +91,9 @@ describe('StateStore - Concurrency', () => {
 
     describe('persist()の競合検出', () => {
         it('persist()中に外部編集があった場合、エラーを投げる', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // 初回persist
             await stateStore.persist();
 
