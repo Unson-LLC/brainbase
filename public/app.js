@@ -61,6 +61,7 @@ import { renderViewToggle, renderPanelToggles } from './modules/ui/view-toggle.j
 import { setupPanelLayout } from './modules/ui/panel-layout-manager.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
+import { ChoiceOverlayController } from './modules/ui/choice-overlay-controller.js';
 import { MobileInputController } from './modules/ui/mobile-input-controller.js';
 import { MobileTabController } from './modules/ui/mobile-tab-controller.js';
 
@@ -97,9 +98,7 @@ export class App {
         this.unsubscribers = [];
         this.pollingIntervalId = null;
         this.refreshIntervalId = null;
-        this.choiceCheckInterval = null;
         this.sessionUiSummaryIntervalId = null;
-        this.lastChoiceHash = null;
         this.settingsCore = null; // Settings Plugin Architecture
         this.reconnectManager = null; // Terminal Reconnect Manager
         this.terminalTransportClient = null;
@@ -140,6 +139,7 @@ export class App {
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
+        this.choiceOverlayController = null;
         this.terminalInteractionService = null;
         this._sessionSwitchToken = 0;
         this._terminalAutoFocusTimers = new Set();
@@ -3893,7 +3893,14 @@ export class App {
         this.startSessionUiSummaryRefresh();
 
         // 9. Setup choice detection (mobile only)
-        this.setupResponsiveChoiceDetection();
+        this.choiceOverlayController = new ChoiceOverlayController({
+            httpClient,
+            store: appStore,
+            isMobile: () => this.isMobile(),
+            focusTerminal: (reason) => this.focusTerminal(reason),
+            showError: (message) => this.showError(message)
+        });
+        this.choiceOverlayController.init();
 
         // 10. Setup file opener shortcuts
         setupFileOpenerShortcuts();
@@ -4403,128 +4410,6 @@ export class App {
     }
 
     /**
-     * Start choice detection (mobile only)
-     */
-    startChoiceDetection() {
-        this.stopChoiceDetection();
-
-        this.choiceCheckInterval = setInterval(async () => {
-            const currentSessionId = appStore.getState().currentSessionId;
-            if (!currentSessionId) return;
-
-            try {
-                const res = await httpClient.get(`/api/sessions/${currentSessionId}/output`);
-                const data = res;
-
-                if (data.hasChoices && data.choices.length > 0) {
-                    const choiceHash = JSON.stringify(data.choices);
-                    if (choiceHash !== this.lastChoiceHash) {
-                        this.lastChoiceHash = choiceHash;
-                        this.showChoiceOverlay(data.choices);
-                        this.stopChoiceDetection();
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to check for choices:', error);
-            }
-        }, 2000); // Check every 2 seconds
-    }
-
-    /**
-     * Stop choice detection
-     */
-    stopChoiceDetection() {
-        if (this.choiceCheckInterval) {
-            clearInterval(this.choiceCheckInterval);
-            this.choiceCheckInterval = null;
-        }
-    }
-
-    /**
-     * Show choice overlay
-     */
-    showChoiceOverlay(choices) {
-        const overlay = document.getElementById('choice-overlay');
-        const container = document.getElementById('choice-buttons');
-        const closeBtn = document.getElementById('close-choice-overlay');
-
-        if (!overlay || !container) return;
-
-        container.innerHTML = '';
-        choices.forEach((choice) => {
-            const btn = document.createElement('button');
-            btn.className = 'choice-btn';
-            btn.textContent = choice.originalText || `${choice.number}) ${choice.text}`;
-            btn.onclick = () => this.selectChoice(choice.number);
-            container.appendChild(btn);
-        });
-
-        overlay.classList.add('active');
-        refreshIcons();
-
-        closeBtn.onclick = () => this.closeChoiceOverlay();
-    }
-
-    /**
-     * Close choice overlay
-     */
-    closeChoiceOverlay() {
-        const overlay = document.getElementById('choice-overlay');
-        overlay?.classList.remove('active');
-        this.lastChoiceHash = null;
-        if (this.isMobile()) {
-            this.startChoiceDetection();
-        }
-        this.focusTerminal('closeChoiceOverlay');
-    }
-
-    /**
-     * Send choice selection
-     */
-    async selectChoice(number) {
-        const currentSessionId = appStore.getState().currentSessionId;
-        if (!currentSessionId) return;
-
-        try {
-            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                input: number,
-                type: 'text'
-            });
-
-            await new Promise(resolve => setTimeout(resolve, 100));
-            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                input: 'Enter',
-                type: 'key'
-            });
-
-            this.closeChoiceOverlay();
-        } catch (error) {
-            console.error('Failed to send choice:', error);
-            this.showError('選択の送信に失敗しました');
-        }
-    }
-
-    /**
-     * Setup responsive choice detection
-     */
-    setupResponsiveChoiceDetection() {
-        // Start on mobile
-        if (this.isMobile()) {
-            this.startChoiceDetection();
-        }
-
-        // Handle resize
-        window.addEventListener('resize', () => {
-            if (this.isMobile() && !this.choiceCheckInterval) {
-                this.startChoiceDetection();
-            } else if (!this.isMobile() && this.choiceCheckInterval) {
-                this.stopChoiceDetection();
-                this.closeChoiceOverlay();
-            }
-        });
-    }
-
-    /**
      * Cleanup
      */
     destroy() {
@@ -4555,8 +4440,8 @@ export class App {
         }
         this._clearScheduledTerminalAutoFocus();
 
-        // Stop choice detection
-        this.stopChoiceDetection();
+        this.choiceOverlayController?.destroy();
+        this.choiceOverlayController = null;
 
         // Unsubscribe from events
         this.unsubscribers.forEach(unsub => unsub());
