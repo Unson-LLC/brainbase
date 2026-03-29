@@ -3,6 +3,7 @@ import { WikiView } from '../../../public/modules/ui/views/wiki-view.js';
 
 vi.mock('../../../public/modules/ui-helpers.js', () => ({
     escapeHtml: vi.fn((s) => s),
+    refreshIcons: vi.fn(),
 }));
 
 describe('WikiView', () => {

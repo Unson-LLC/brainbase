@@ -99,7 +99,7 @@ describe('FolderTreeView', () => {
         expect(sessionService.openFileInDefaultApp).not.toHaveBeenCalled();
     });
 
-    it('.jsファイルクリック時_fileViewerServiceがあってもopenFileInDefaultAppが呼ばれる', async () => {
+    it('.jsファイルクリック時_fileViewerServiceがあればopenFileが呼ばれる', async () => {
         const fileViewerService = {
             openFile: vi.fn().mockResolvedValue()
         };
@@ -128,9 +128,9 @@ describe('FolderTreeView', () => {
         fileButton.click();
 
         await vi.waitFor(() => {
-            expect(sessionService.openFileInDefaultApp).toHaveBeenCalledWith('app.js', '/tmp/project', 'session-1');
+            expect(fileViewerService.openFile).toHaveBeenCalledWith('session-1', 'app.js');
         });
-        expect(fileViewerService.openFile).not.toHaveBeenCalled();
+        expect(sessionService.openFileInDefaultApp).not.toHaveBeenCalled();
     });
 
     it('ファイルクリック時_open-fileが呼ばれてイベントが発火される', async () => {

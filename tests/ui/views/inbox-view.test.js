@@ -159,6 +159,7 @@ describe('InboxView', () => {
                     kind: 'learning',
                     pillar: 'skill',
                     riskLevel: 'low',
+                    targetRepoSlug: 'brainbase',
                     title: 'README画像ルール',
                     sourcePreview: 'README の画像解決ルールを固定する'
                 }
@@ -170,6 +171,7 @@ describe('InboxView', () => {
             const inboxList = document.getElementById('inbox-list');
             expect(inboxList.innerHTML).toContain('学習候補');
             expect(inboxList.innerHTML).toContain('スキル');
+            expect(inboxList.innerHTML).toContain('brainbase');
             expect(inboxList.innerHTML).toContain('README画像ルール');
         });
 
