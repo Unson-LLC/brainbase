@@ -150,17 +150,65 @@ describe('terminal-transport-client', () => {
     });
   });
 
-  it('認証切れ状態でconnect時_AUTH_REQUIREDを投げる', async () => {
+  it('認証確認が失敗してもWebSocket接続は継続する', async () => {
     vi.spyOn(httpClient, 'get').mockRejectedValue(new Error('HTTP Error: 401 Unauthorized'));
+
+    class MockWebSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+
+      constructor() {
+        this.readyState = MockWebSocket.OPEN;
+        this.listeners = new Map();
+      }
+
+      addEventListener(type, listener) {
+        const current = this.listeners.get(type) || [];
+        current.push(listener);
+        this.listeners.set(type, current);
+      }
+
+      send() {}
+
+      close() {}
+
+      emitReady() {
+        this._emit('message', {
+          data: JSON.stringify({ type: 'ready', sessionId: 'session-1' })
+        });
+      }
+
+      _emit(type, event) {
+        for (const listener of this.listeners.get(type) || []) {
+          listener(event);
+        }
+      }
+    }
+
+    vi.stubGlobal('window', {
+      location: { protocol: 'https:', host: 'brain-base.work', hostname: 'brain-base.work' }
+    });
+
+    let socket = null;
+    vi.stubGlobal('WebSocket', class extends MockWebSocket {
+      constructor(...args) {
+        super(...args);
+        socket = this;
+      }
+    });
 
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Cloudflare / Mac'
     });
 
-    await expect(client.connect('session-1')).rejects.toMatchObject({
-      code: 'AUTH_REQUIRED'
-    });
+    const connectPromise = client.connect('session-1');
+    await flushMicrotasks();
+    socket.emitReady();
+
+    await expect(connectPromise).resolves.toEqual({ mode: 'live' });
+    expect(httpClient.get).toHaveBeenCalledWith('/api/auth/verify', { suppressAuthError: true });
+    expect(client.status.mode).toBe('live');
   });
 
   it('Shift+Enter押下時_M-Enterとして送信する', () => {
