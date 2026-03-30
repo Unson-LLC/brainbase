@@ -598,11 +598,11 @@ jj git init
 **A**: 可能です。以下を手動で実行してください:
 ```bash
 mkdir -p data var
-cp state.sample.json var/state.json
-cp -r _tasks-sample data/_tasks
-cp -r _schedules-sample data/_schedules
-cp -r _inbox-sample data/_inbox
-cp config.sample.yml data/config.yml
+cp config/state.sample.json var/state.json
+cp -r examples/tasks data/_tasks
+cp -r examples/schedules data/_schedules
+cp -r examples/inbox data/_inbox
+cp config/config.sample.yml data/config.yml
 ```
 
 その他のトラブルは [Issues](https://github.com/Unson-LLC/brainbase/issues) で報告してください。

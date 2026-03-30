@@ -576,7 +576,19 @@ export class LearningService {
                     projectId: candidate.target_project_id
                 });
             const canonicalSummary = candidate.canonical_summary || deriveExistingCandidateSemanticText(candidate);
-            const entry = { ...candidate, semantic_scope: semanticScope, canonical_summary: canonicalSummary };
+            if (!candidate.semantic_scope || !candidate.canonical_summary || Number(candidate.merged_episode_count || 1) !== (candidate.source_episode_ids || []).length) {
+                await this._updateCandidate(candidate.id, {
+                    semantic_scope: semanticScope,
+                    canonical_summary: canonicalSummary,
+                    merged_episode_count: Math.max(1, (candidate.source_episode_ids || []).length)
+                });
+            }
+            const entry = {
+                ...candidate,
+                semantic_scope: semanticScope,
+                canonical_summary: canonicalSummary,
+                merged_episode_count: Math.max(1, (candidate.source_episode_ids || []).length)
+            };
             if (!groups.has(semanticScope)) groups.set(semanticScope, []);
             groups.get(semanticScope).push(entry);
         }
@@ -747,11 +759,18 @@ export class LearningService {
                     apply_mode, apply_error, materialized_ref, created_at, updated_at
              FROM promotion_candidates
              WHERE pillar = $1
-               AND semantic_scope = $2
+               AND (
+                    semantic_scope = $2
+                    OR (
+                        semantic_scope IS NULL
+                        AND COALESCE(doc_type, '') = $3
+                        AND COALESCE(target_project_id, '') = $4
+                    )
+               )
                AND status NOT IN ('rejected', 'merged')
              ORDER BY updated_at DESC
              LIMIT 50`,
-            [pillar, semanticScope]
+            [pillar, semanticScope, docType || '', projectId || '']
         );
 
         let bestMatch = null;
