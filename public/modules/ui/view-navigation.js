@@ -24,6 +24,12 @@ export function setupViewNavigation({
 
     const showConsole = () => {
         hideTransientPanels();
+        // xterm.jsのfit()がコンテナサイズを正しく計算できるよう、
+        // レイアウト完了後にresizeイベントを発火する。
+        // これがないとファイルビューアから戻った時にターミナルが細く表示される。
+        requestAnimationFrame(() => {
+            window.dispatchEvent(new Event('resize'));
+        });
         const frame = getById('terminal-frame');
         if (frame) {
             frame.focus?.();
