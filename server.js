@@ -874,6 +874,15 @@ const server = app.listen(PORT, async () => {
     console.log(`Reading tasks from: ${TASKS_FILE}`);
     console.log(`Reading schedules from: ${SCHEDULES_DIR}`);
     await writePortFiles(PORT);
+
+    // Non-blocking: cleanup zombie worktrees (forget済みだが物理ディレクトリが残ったもの)
+    worktreeService.cleanupZombieWorktrees(PROJECTS_ROOT).then((removed) => {
+        if (removed.length) {
+            console.log(`[startup] Cleaned up ${removed.length} zombie worktree(s): ${removed.join(', ')}`);
+        }
+    }).catch((err) => {
+        console.error(`[startup] Zombie worktree cleanup failed: ${err.message}`);
+    });
 });
 
 // Handle WebSocket Upgrades
