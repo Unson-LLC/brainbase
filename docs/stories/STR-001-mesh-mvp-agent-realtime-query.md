@@ -6,7 +6,7 @@ source_requirement:
   requirement_id: ID-170
   requirement_title: "[構想] Hydra型P2P秘密分散によるAgent間通信基盤を設計する"
 architecture_docs:
-  - path: docs/management/architecture/ADR-001-mesh-architecture.md
+  - path: docs/architecture/ADR-001-mesh-architecture.md
     status: created
 related_tasks:
   - task_source: NocoDB タスク管理

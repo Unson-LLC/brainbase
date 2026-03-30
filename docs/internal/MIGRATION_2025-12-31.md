@@ -202,7 +202,7 @@ ls -la /Users/ksato/workspace/ | grep brainbase
 ```bash
 $ git status --short
  M .gitignore
-?? docs/MIGRATION_2025-12-31.md
+?? docs/internal/MIGRATION_2025-12-31.md
 ```
 
 - `.gitignore` のみ変更
