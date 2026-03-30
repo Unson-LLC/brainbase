@@ -1,6 +1,17 @@
+// @ts-check
 import { logger } from '../utils/logger.js';
 import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/** @typedef {{ role: string, projectCodes: string[], clearance: string[] }} AccessContext */
+
+/** @param {unknown} error */
+function getErrorMessage(error) {
+    return error instanceof Error ? error.message : String(error || '');
+}
+
+/** @param {Request & { access?: AccessContext }} req */
 function buildAccessContext(req) {
     if (req.access) {
         return req.access;
@@ -21,6 +32,7 @@ function buildAccessContext(req) {
     };
 }
 
+/** @param {AccessContext} access */
 function assertAccessContext(access) {
     if (!access.role) {
         throw new Error('Access role is required (x-brainbase-role)');
@@ -33,8 +45,9 @@ function assertAccessContext(access) {
     }
 }
 
+/** @param {unknown} error */
 function resolveErrorStatus(error) {
-    const message = String(error?.message || '');
+    const message = getErrorMessage(error);
     if (message.includes('Slack OAuth token required')) {
         return 401;
     }
@@ -63,34 +76,38 @@ function resolveErrorStatus(error) {
 }
 
 export class InfoSSOTController {
+    /** @param {any} infoSSOTService */
     constructor(infoSSOTService) {
         this.infoSSOTService = infoSSOTService;
     }
 
+    /** @param {Request} req @param {Response} res */
     listDecisions = async (req, res) => {
         try {
             res.status(410).json({ error: 'Decisions are read via Graph SSOT only' });
         } catch (error) {
             logger.error('Failed to list decisions', { error });
-            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to list decisions' });
+            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Failed to list decisions' });
         }
     };
 
+    /** @param {Request} req @param {Response} res */
     listRaci = async (req, res) => {
         try {
             res.status(410).json({ error: 'RACI is read via Graph SSOT only' });
         } catch (error) {
             logger.error('Failed to list raci', { error });
-            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to list raci' });
+            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Failed to list raci' });
         }
     };
 
+    /** @param {Request} req @param {Response} res */
     listEvents = async (req, res) => {
         try {
             res.status(410).json({ error: 'Events are read via Graph SSOT only' });
         } catch (error) {
             logger.error('Failed to list events', { error });
-            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to list events' });
+            res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Failed to list events' });
         }
     };
 

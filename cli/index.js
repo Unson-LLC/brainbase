@@ -4,6 +4,7 @@ import { login, status, logout } from './auth.js';
 import {
     addExplicitLearn,
     applyPromotion,
+    dedupeExistingLearningPromotions,
     ingestReviewArtifacts,
     rejectLearningPromotion,
     runDailyLearning,
@@ -29,6 +30,7 @@ Usage:
   brainbase learn ingest-reviews  Import verify-first review artifacts
   brainbase learn daily    Run daily review backfill + inbox summary
   brainbase learn inbox    Show pending manual candidates
+  brainbase learn dedupe-existing  Merge semantically duplicate pending candidates
   brainbase learn show ID  Show one candidate
   brainbase learn apply ID Apply one candidate
   brainbase learn reject ID [--reason TEXT] Reject one candidate
@@ -65,6 +67,7 @@ async function main() {
                     case 'ingest-reviews': await ingestReviewArtifacts(restArgs); break;
                     case 'daily': await runDailyLearning(restArgs); break;
                     case 'inbox': await showLearningInbox(); break;
+                    case 'dedupe-existing': await dedupeExistingLearningPromotions(); break;
                     case 'show':
                         if (!restArgs[0]) {
                             throw new Error('Usage: brainbase learn show <candidate-id>');
@@ -88,7 +91,7 @@ async function main() {
                         break;
                     }
                     default:
-                        console.log('Usage: brainbase learn [add|ingest-reviews|daily|inbox|show|apply|reject]');
+                        console.log('Usage: brainbase learn [add|ingest-reviews|daily|inbox|dedupe-existing|show|apply|reject]');
                 }
                 break;
 

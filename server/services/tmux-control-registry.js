@@ -1,12 +1,33 @@
 // @ts-check
 import { TmuxControlClient } from './tmux-control-client.js';
 
+/**
+ * @typedef {object} RegistryOptions
+ * @property {number} [idleTimeoutMs]
+ * @property {typeof import('child_process').spawn} [spawnFn]
+ */
+
+/**
+ * @typedef {object} RegistryEntry
+ * @property {TmuxControlClient} client
+ * @property {number} refCount
+ * @property {ReturnType<typeof setTimeout>|null} releaseTimer
+ */
+
 export class TmuxControlRegistry {
+    /**
+     * @param {RegistryOptions} [options]
+     */
     constructor(options = {}) {
         this.options = options;
+        /** @type {Map<string, RegistryEntry>} */
         this.entries = new Map();
     }
 
+    /**
+     * @param {string} sessionId
+     * @returns {TmuxControlClient}
+     */
     acquire(sessionId) {
         const existing = this.entries.get(sessionId);
         if (existing) {
@@ -40,6 +61,11 @@ export class TmuxControlRegistry {
         return client;
     }
 
+    /**
+     * @param {string} sessionId
+     * @param {TmuxControlClient} [client]
+     * @returns {void}
+     */
     release(sessionId, client) {
         const entry = this.entries.get(sessionId);
         if (!entry || (client && entry.client !== client)) return;

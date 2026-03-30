@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * SessionController
  * セッション関連のHTTPリクエスト処理
@@ -9,6 +10,30 @@ import path from 'path';
 import { promisify } from 'util';
 import { logger } from '../utils/logger.js';
 import { CJK_PATTERN, NATURAL_LANGUAGE_HINT_PATTERN, SHELL_COMMAND_PREFIXES, TASK_BRIEF_MAX_LENGTH, TASK_BRIEF_MIN_LENGTH, normalizeTaskBriefCandidate, looksLikeShellCommand, deriveTaskBriefFromPrompt } from '../utils/task-brief.js';
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/**
+ * @typedef {{
+ *   id: string,
+ *   name?: string,
+ *   path?: string,
+ *   cwd?: string,
+ *   project?: string,
+ *   engine?: string,
+ *   merged?: boolean,
+ *   mergedAt?: string,
+ *   mergedPrUrl?: string,
+ *   runtimeStatus?: any,
+ *   worktree?: { path?: string, repo?: string, startCommit?: string } | null,
+ *   [key: string]: any
+ * }} SessionRecord
+ */
+
+/** @param {unknown} error */
+function getErrorMessage(error) {
+    return error instanceof Error ? error.message : String(error || '');
+}
 
 const execAsync = promisify(exec);
 const MAX_TREE_DEPTH = 3;
@@ -22,6 +47,12 @@ const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 // TASK_BRIEF_MAX_LENGTH, TASK_BRIEF_MIN_LENGTH imported from ../utils/task-brief.js
 
 export class SessionController {
+    /**
+     * @param {any} sessionManager
+     * @param {any} worktreeService
+     * @param {any} stateStore
+     * @param {{ projectsRoot?: string | null, codeProjectsRoot?: string | null, captureCache?: any }} [options]
+     */
     constructor(sessionManager, worktreeService, stateStore, options = {}) {
         this.sessionManager = sessionManager;
         this.worktreeService = worktreeService;
@@ -42,6 +73,11 @@ export class SessionController {
     /**
      * catchブロックの共通エラーレスポンス
      */
+    /**
+     * @param {Response} res
+     * @param {string} context
+     * @param {any} error
+     */
     _respondError(res, context, error) {
         logger.error(`${context}:`, error);
         res.status(error.statusCode || 500).json({ error: error.message || context });
@@ -50,8 +86,8 @@ export class SessionController {
     /**
      * stateStoreからセッションを取得。見つからなければ404レスポンスを返しnullを返す。
      * @param {string} id - セッションID
-     * @param {import('express').Response} res - Expressレスポンス
-     * @returns {Object|null} セッションオブジェクトまたはnull（404送信済み）
+     * @param {Response} res - Expressレスポンス
+     * @returns {SessionRecord|null} セッションオブジェクトまたはnull（404送信済み）
      */
     _findSessionOrFail(id, res) {
         const state = this.stateStore.get();
@@ -77,7 +113,7 @@ export class SessionController {
                     return true;
                 }
             } catch (error) {
-                console.warn('[ArchiveAI] clipboard readback failed:', error.message);
+                console.warn('[ArchiveAI] clipboard readback failed:', getErrorMessage(error));
             }
 
             if (attempt < attempts - 1) {
@@ -104,7 +140,7 @@ export class SessionController {
 
             console.warn('[ArchiveAI] pbcopy completed but clipboard readback mismatched; falling back to osascript');
         } catch (copyError) {
-            console.warn('[ArchiveAI] pbcopy failed:', copyError.message);
+            console.warn('[ArchiveAI] pbcopy failed:', getErrorMessage(copyError));
         }
 
         try {
@@ -122,7 +158,7 @@ export class SessionController {
             console.warn('[ArchiveAI] osascript completed but clipboard readback mismatched; trusting osascript exit status');
             return { success: true, method: 'osascript' };
         } catch (copyError) {
-            console.warn('[ArchiveAI] osascript clipboard copy failed:', copyError.message);
+            console.warn('[ArchiveAI] osascript clipboard copy failed:', getErrorMessage(copyError));
         }
 
         return { success: false, method: null };

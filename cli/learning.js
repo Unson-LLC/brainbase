@@ -315,6 +315,14 @@ async function listPromotions(filters = {}) {
     return apiJson(`${serverUrl}/api/learning/promotions${suffix}`, { headers });
 }
 
+async function dedupeExistingPromotions() {
+    const { serverUrl, headers } = getServerContext();
+    return apiJson(`${serverUrl}/api/learning/promotions/dedupe-existing`, {
+        method: 'POST',
+        headers
+    });
+}
+
 async function getPromotion(candidateId) {
     const { serverUrl, headers } = getServerContext();
     return apiJson(`${serverUrl}/api/learning/promotions/${candidateId}`, { headers });
@@ -527,6 +535,12 @@ export async function applyPromotion(candidateId, { repoRoot = process.cwd() } =
 export async function rejectLearningPromotion(candidateId, reason = '') {
     await rejectPromotion(candidateId, reason);
     console.log(`Rejected candidate: ${candidateId}`);
+}
+
+export async function dedupeExistingLearningPromotions() {
+    const result = await dedupeExistingPromotions();
+    console.log(`Deduped existing candidates: merged=${result.merged || 0} scanned=${result.scanned || 0}`);
+    return result;
 }
 
 export async function runDailyLearning(argv = []) {

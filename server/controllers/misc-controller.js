@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * MiscController
  * その他のHTTPリクエスト処理（version, restart, upload, open-file）
@@ -7,22 +8,35 @@ import path from 'path';
 import fs from 'fs';
 import { logger } from '../utils/logger.js';
 
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/** @typedef {{ brainbaseRoot?: string | null, projectsRoot?: string | null, sessionManager?: any } | null | undefined} MiscControllerPaths */
+
 export class MiscController {
+    /**
+     * @param {string} appVersion
+     * @param {any} uploadMiddleware
+     * @param {string} workspaceRoot
+     * @param {string} uploadsDir
+     * @param {any} [runtimeInfo]
+     * @param {MiscControllerPaths} [paths]
+     */
     constructor(appVersion, uploadMiddleware, workspaceRoot, uploadsDir, runtimeInfo = null, paths = {}) {
         this.appVersion = appVersion;
         this.uploadMiddleware = uploadMiddleware;
         this.workspaceRoot = workspaceRoot;
         this.uploadsDir = uploadsDir;
         this.runtimeInfo = runtimeInfo;
-        this.brainbaseRoot = paths.brainbaseRoot || null;
-        this.projectsRoot = paths.projectsRoot || null;
-        this.sessionManager = paths.sessionManager || null;
+        this.brainbaseRoot = paths?.brainbaseRoot || null;
+        this.projectsRoot = paths?.projectsRoot || null;
+        this.sessionManager = paths?.sessionManager || null;
     }
 
     /**
      * GET /api/version
      * アプリケーションバージョンを取得
      */
+    /** @param {Request} req @param {Response} res */
     getVersion = (req, res) => {
         res.json({ version: this.appVersion, runtime: this.runtimeInfo });
     };
@@ -31,6 +45,7 @@ export class MiscController {
      * POST /api/restart
      * サーバーを再起動
      */
+    /** @param {Request} req @param {Response} res */
     restart = (req, res) => {
         res.json({ message: 'Server restarting...' });
         setTimeout(() => {
@@ -43,8 +58,9 @@ export class MiscController {
      * ファイルをアップロード
      * Note: uploadMiddleware は multer の single('file') ミドルウェア
      */
+    /** @param {Request & { file?: { filename?: string } }} req @param {Response} res */
     upload = async (req, res) => {
-        if (!req.file) {
+        if (!req.file?.filename) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
@@ -57,6 +73,7 @@ export class MiscController {
      * worktreeパターン: .worktrees/session-{id}-{project-id}/
      * config.ymlのprojects[].local.pathを参照
      */
+    /** @param {string | null | undefined} cwdPath @returns {string | null} */
     _resolveProjectPath(cwdPath) {
         if (!cwdPath || !this.brainbaseRoot) return null;
 
@@ -105,6 +122,7 @@ export class MiscController {
         return null;
     }
 
+    /** @param {string | null | undefined} candidate */
     _normalizePath(candidate) {
         if (!candidate || typeof candidate !== 'string') return null;
 
@@ -116,12 +134,15 @@ export class MiscController {
         }
     }
 
+    /** @param {string | null | undefined} candidatePath @param {string | null | undefined} rootPath */
     _isWithinRoot(candidatePath, rootPath) {
         if (!candidatePath || !rootPath) return false;
         return candidatePath === rootPath || candidatePath.startsWith(`${rootPath}${path.sep}`);
     }
 
+    /** @param {Array<string | null | undefined>} candidates */
     _dedupePaths(candidates) {
+        /** @type {string[]} */
         const results = [];
         const seen = new Set();
 
@@ -135,6 +156,7 @@ export class MiscController {
         return results;
     }
 
+    /** @param {string | null | undefined} sessionId */
     async _getSessionContext(sessionId) {
         if (!sessionId || !this.sessionManager) {
             return { session: null, resolvedWorkspacePath: null };
@@ -150,6 +172,7 @@ export class MiscController {
         return { session, resolvedWorkspacePath };
     }
 
+    /** @param {{ sessionId: string | null | undefined }} options */
     async _getManagedRoots({ sessionId }) {
         const { session, resolvedWorkspacePath } = await this._getSessionContext(sessionId);
         return this._dedupePaths([
@@ -162,7 +185,11 @@ export class MiscController {
         ]);
     }
 
+    /**
+     * @param {{ managedRoots: string[], sessionContext: { session: any, resolvedWorkspacePath: string | null }, cwd: string | null | undefined }} options
+     */
     _buildResolutionBases({ managedRoots, sessionContext, cwd }) {
+        /** @type {string[]} */
         const bases = [];
         const pushIfAllowed = (candidate) => {
             const normalized = this._normalizePath(candidate);
@@ -191,6 +218,9 @@ export class MiscController {
         return bases;
     }
 
+    /**
+     * @param {{ targetPath: string, managedRoots: string[], resolutionBases: string[] }} options
+     */
     _resolveTargetPath({ targetPath, managedRoots, resolutionBases }) {
         if (path.isAbsolute(targetPath)) {
             const normalized = this._normalizePath(targetPath);
@@ -215,7 +245,7 @@ export class MiscController {
                 firstAllowed = { normalizedPath: candidate, matchedRoot };
             }
 
-            if (fs.existsSync(candidate)) {
+            if (candidate && fs.existsSync(candidate)) {
                 return { normalizedPath: candidate, matchedRoot };
             }
         }
@@ -242,6 +272,7 @@ export class MiscController {
      *   - 'file': デフォルトアプリで開く
      *   - 'reveal': Finderで表示
      */
+    /** @param {Request} req @param {Response} res */
     openFile = async (req, res) => {
         try {
             const { filePath, path: pathParam, line, mode = 'file', cwd, sessionId } = req.body;
@@ -282,8 +313,16 @@ export class MiscController {
             }
 
             const normalizedPath = resolvedTarget.normalizedPath;
+            if (!normalizedPath) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid path'
+                });
+            }
 
+            /** @type {string} */
             let execProgram;
+            /** @type {string[]} */
             let execArgs;
 
             // modeに応じてコマンドを構築（execFileでシェルインジェクションを防止）

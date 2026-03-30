@@ -8,6 +8,7 @@ import { logger } from '../utils/logger.js';
 const DEFAULT_SNAPSHOT_LINES = 400;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
+const INITIAL_FRAME_FALLBACK_MS = 150;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
 
 function safeJsonParse(raw) {
@@ -120,7 +121,9 @@ export class TerminalTransportService {
             pollTimer: null,
             transport: 'snapshot',
             controlClient: null,
-            streamCleanup: null
+            streamCleanup: null,
+            initialFrameDelivered: false,
+            initialSnapshotTimer: null
         };
 
         this.activeConnections.set(sessionId, { viewerId, ws, connection });
@@ -136,6 +139,10 @@ export class TerminalTransportService {
                 connection.streamCleanup();
                 connection.streamCleanup = null;
             }
+            if (connection.initialSnapshotTimer) {
+                clearTimeout(connection.initialSnapshotTimer);
+                connection.initialSnapshotTimer = null;
+            }
             // activeConnectionsから削除（自分の接続の場合のみ）
             const current = this.activeConnections.get(sessionId);
             if (current && current.ws === ws) {
@@ -147,12 +154,13 @@ export class TerminalTransportService {
         ws.on('error', closeConnection);
         ws.on('message', (raw) => {
             void this._handleMessage(connection, raw.toString()).catch((err) => {
-                logger.error(`[TerminalTransport] message error for ${sessionId}:`, err.message);
+                const message = err instanceof Error ? err.message : String(err);
+                logger.error(`[TerminalTransport] message error for ${sessionId}:`, message);
                 if (ws.readyState === 1) {
                     ws.send(JSON.stringify({
                         type: 'error',
                         code: 'INPUT_ERROR',
-                        message: err.message || 'Failed to process terminal input'
+                        message: message || 'Failed to process terminal input'
                     }));
                 }
             });
@@ -162,15 +170,16 @@ export class TerminalTransportService {
             if (cols && rows) {
                 await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
-            // readyメッセージだけ先に送信（snapshotはstreaming失敗時のみ）
+            // ready は先に返すが、初回描画が来ないと session switch が完了したように見えない。
+            // streaming の最初の output が遅い/来ないケースに備えて、短時間だけ snapshot を保険で送る。
             await this._sendReady(connection);
-            // streaming開始。tmux control modeが接続時にペイン全内容を
-            // %outputで送信するため、snapshotは不要（二重描画防止）
             await this._startStreaming(connection);
+            this._scheduleInitialSnapshotFallback(connection);
         } catch (err) {
-            logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, err.message);
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error(`[TerminalTransport] _handleConnection error for ${sessionId}:`, message);
             if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: 'error', code: 'INTERNAL_ERROR', message: err.message }));
+                ws.send(JSON.stringify({ type: 'error', code: 'INTERNAL_ERROR', message }));
             }
             ws.close();
         }
@@ -201,6 +210,11 @@ export class TerminalTransportService {
 
             const handleOutput = (data) => {
                 if (connection.closed || connection.ws.readyState !== 1 || !data) return;
+                connection.initialFrameDelivered = true;
+                if (connection.initialSnapshotTimer) {
+                    clearTimeout(connection.initialSnapshotTimer);
+                    connection.initialSnapshotTimer = null;
+                }
                 connection.ws.send(JSON.stringify({
                     type: 'output',
                     data
@@ -225,9 +239,51 @@ export class TerminalTransportService {
                 client.resize(connection.cols, connection.rows);
             }
         } catch (error) {
-            logger.warn(`[TerminalTransport] streaming start failed for ${connection.sessionId}: ${error.message}`);
+            logger.warn(`[TerminalTransport] streaming start failed for ${connection.sessionId}: ${error instanceof Error ? error.message : String(error)}`);
             await this._fallbackToPolling(connection);
         }
+    }
+
+    _scheduleInitialSnapshotFallback(connection) {
+        if (connection.closed || connection.transport !== 'streaming') return;
+        if (connection.initialSnapshotTimer) {
+            clearTimeout(connection.initialSnapshotTimer);
+        }
+
+        connection.initialSnapshotTimer = setTimeout(() => {
+            connection.initialSnapshotTimer = null;
+            if (connection.closed || connection.initialFrameDelivered || connection.transport !== 'streaming') {
+                return;
+            }
+            void this._sendInitialSnapshot(connection);
+        }, INITIAL_FRAME_FALLBACK_MS);
+    }
+
+    async _sendInitialSnapshot(connection) {
+        if (connection.closed || connection.ws.readyState !== 1) return;
+
+        const snapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true });
+        connection.initialFrameDelivered = true;
+        connection.lastSnapshot = snapshot.text;
+        connection.lastCopyMode = snapshot.copyMode;
+
+        const cliResult = detectCliStateWithColors(snapshot.text, snapshot.colorText);
+        connection.lastCliState = cliResult.state;
+
+        const snapshotMsg = {
+            type: 'snapshot',
+            text: snapshot.text,
+            capturedAt: snapshot.capturedAt
+        };
+        if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
+        connection.ws.send(JSON.stringify(snapshotMsg));
+        connection.ws.send(JSON.stringify({
+            type: 'status',
+            mode: 'snapshot',
+            copyMode: snapshot.copyMode,
+            transport: 'snapshot',
+            cliState: cliResult.state
+        }));
     }
 
     async _fallbackToPolling(connection) {

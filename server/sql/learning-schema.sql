@@ -20,7 +20,7 @@ ALTER TABLE learning_episodes
 
 ALTER TABLE learning_episodes
     ADD CONSTRAINT learning_episodes_source_type_check
-    CHECK (source_type IN ('review', 'explicit_learn'));
+    CHECK (source_type IN ('review', 'explicit_learn', 'session_log', 'codex_session_log'));
 
 ALTER TABLE learning_episodes
     ADD COLUMN IF NOT EXISTS promotion_hint text NOT NULL DEFAULT 'auto';
@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS promotion_candidates (
     pillar text NOT NULL,
     target_ref text NOT NULL,
     status text NOT NULL,
+    canonical_summary text,
+    semantic_scope text,
+    merged_episode_count integer NOT NULL DEFAULT 1,
     source_episode_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
     linked_wiki_candidate_id text,
     linked_candidate_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -84,7 +87,7 @@ ALTER TABLE promotion_candidates
 
 ALTER TABLE promotion_candidates
     ADD CONSTRAINT promotion_candidates_status_check
-    CHECK (status IN ('draft', 'evaluated', 'materialized', 'applied', 'rejected'));
+    CHECK (status IN ('draft', 'evaluated', 'materialized', 'applied', 'rejected', 'merged'));
 
 ALTER TABLE promotion_candidates
     DROP CONSTRAINT IF EXISTS promotion_candidates_risk_level_check;
@@ -93,6 +96,12 @@ ALTER TABLE promotion_candidates
     ADD CONSTRAINT promotion_candidates_risk_level_check
     CHECK (risk_level IN ('low', 'medium', 'high'));
 
+ALTER TABLE promotion_candidates
+    ADD COLUMN IF NOT EXISTS canonical_summary text;
+ALTER TABLE promotion_candidates
+    ADD COLUMN IF NOT EXISTS semantic_scope text;
+ALTER TABLE promotion_candidates
+    ADD COLUMN IF NOT EXISTS merged_episode_count integer NOT NULL DEFAULT 1;
 ALTER TABLE promotion_candidates
     ADD COLUMN IF NOT EXISTS linked_candidate_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE promotion_candidates
@@ -117,3 +126,5 @@ CREATE INDEX IF NOT EXISTS idx_promotion_candidates_status
     ON promotion_candidates (status);
 CREATE INDEX IF NOT EXISTS idx_promotion_candidates_target_ref
     ON promotion_candidates (pillar, target_ref);
+CREATE INDEX IF NOT EXISTS idx_promotion_candidates_semantic_scope
+    ON promotion_candidates (pillar, semantic_scope, status);

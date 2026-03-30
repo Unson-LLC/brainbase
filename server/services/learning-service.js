@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const LEARNING_SCHEMA_PATH = path.join(__dirname, '..', 'sql', 'learning-schema.sql');
 
-const SOURCE_TYPES = new Set(['review', 'explicit_learn']);
+const SOURCE_TYPES = new Set(['review', 'explicit_learn', 'session_log', 'codex_session_log']);
 const OUTCOMES = new Set(['success', 'failure', 'partial']);
 const PROMOTION_HINTS = new Set(['auto', 'wiki', 'skill', 'both']);
 const APPLY_MODES = new Set(['auto', 'manual']);
@@ -72,6 +72,135 @@ function truncate(value, max = 120) {
 
 function uniqueStrings(values = []) {
     return Array.from(new Set(toArray(values)));
+}
+
+function normalizeSemanticText(value = '') {
+    return String(value || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/brainbase-/g, '')
+        .replace(/[「」『』"'`]+/g, ' ')
+        .replace(/[。、，,.!！?？:：;；/\\|()[\]{}<>]+/g, ' ')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b(?:を|に|で|は|が|の|と|へ|から|より|まで|など|する|した|して|される|している|must|should|always|never|the|a|an|to|for|of|and|or)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function tokenizeSemanticText(value = '') {
+    const normalized = normalizeSemanticText(value);
+    if (!normalized) return [];
+    return normalized.split(' ').filter(Boolean);
+}
+
+function createTrigrams(value = '') {
+    const normalized = normalizeSemanticText(value).replace(/\s+/g, '');
+    if (!normalized) return [];
+    if (normalized.length < 3) return [normalized];
+    const grams = [];
+    for (let index = 0; index <= normalized.length - 3; index += 1) {
+        grams.push(normalized.slice(index, index + 3));
+    }
+    return grams;
+}
+
+function jaccardSimilarity(left = [], right = []) {
+    const leftSet = new Set(left);
+    const rightSet = new Set(right);
+    if (leftSet.size === 0 && rightSet.size === 0) return 1;
+    const intersection = [...leftSet].filter((token) => rightSet.has(token)).length;
+    const union = new Set([...leftSet, ...rightSet]).size;
+    return union === 0 ? 0 : intersection / union;
+}
+
+function diceSimilarity(left = [], right = []) {
+    if (left.length === 0 && right.length === 0) return 1;
+    const leftCounts = new Map();
+    left.forEach((token) => leftCounts.set(token, (leftCounts.get(token) || 0) + 1));
+    let overlap = 0;
+    right.forEach((token) => {
+        const count = leftCounts.get(token) || 0;
+        if (count > 0) {
+            overlap += 1;
+            leftCounts.set(token, count - 1);
+        }
+    });
+    return (2 * overlap) / (left.length + right.length);
+}
+
+function maxRiskLevel(left = 'low', right = 'low') {
+    const rank = { low: 1, medium: 2, high: 3 };
+    return (rank[left] || 1) >= (rank[right] || 1) ? left : right;
+}
+
+function chooseMoreConservativeApplyMode(left = 'manual', right = 'manual') {
+    return left === 'manual' || right === 'manual' ? 'manual' : 'auto';
+}
+
+function deriveCandidateSemanticText(episode, pillar) {
+    if (pillar === 'wiki') {
+        return episode.evidence?.proposed_rule || episode.summary || '';
+    }
+    return episode.evidence?.proposed_steps || episode.summary || '';
+}
+
+function deriveExistingCandidateSemanticText(candidate) {
+    if (candidate?.canonical_summary) return candidate.canonical_summary;
+    return normalizeSemanticText(
+        extractFrontmatterValue(candidate?.proposed_content || '', 'description')
+        || extractFirstHeading(candidate?.proposed_content || '')
+        || candidate?.target_ref
+        || ''
+    );
+}
+
+function deriveSemanticScope({ pillar, docType = '', projectId = '' }) {
+    if (pillar === 'wiki') {
+        return `${pillar}:${docType || 'architecture'}:${projectId || 'global'}`;
+    }
+    return `${pillar}:${projectId || 'brainbase'}`;
+}
+
+function computeSemanticSimilarity(leftText = '', rightText = '') {
+    const leftTokens = tokenizeSemanticText(leftText);
+    const rightTokens = tokenizeSemanticText(rightText);
+    const tokenScore = jaccardSimilarity(leftTokens, rightTokens);
+    const trigramScore = diceSimilarity(createTrigrams(leftText), createTrigrams(rightText));
+    const commonTokenCount = leftTokens.filter((token) => rightTokens.includes(token)).length;
+    const score = Math.max(
+        trigramScore,
+        (tokenScore + trigramScore) / 2
+    );
+
+    return {
+        score,
+        tokenScore,
+        trigramScore,
+        commonTokenCount
+    };
+}
+
+function isSemanticMatch(leftText = '', rightText = '') {
+    const left = normalizeSemanticText(leftText);
+    const right = normalizeSemanticText(rightText);
+    if (!left || !right) {
+        return { match: false, reason: 'empty', score: 0 };
+    }
+    if (left.length < 8 || right.length < 8) {
+        return { match: false, reason: 'too_short', score: 0 };
+    }
+    if (left === right) {
+        return { match: true, reason: 'canonical_exact', score: 1 };
+    }
+
+    const similarity = computeSemanticSimilarity(left, right);
+    if (similarity.trigramScore >= 0.94) {
+        return { match: true, reason: 'trigram_high', ...similarity };
+    }
+    if (similarity.commonTokenCount >= 2 && similarity.tokenScore >= 0.72 && similarity.trigramScore >= 0.82) {
+        return { match: true, reason: 'token_trigram_combo', ...similarity };
+    }
+    return { match: false, reason: 'below_threshold', ...similarity };
 }
 
 function extractFirstHeading(markdown = '') {
@@ -307,7 +436,7 @@ export class LearningService {
 
         const sourceType = payload.source_type;
         if (!SOURCE_TYPES.has(sourceType)) {
-            throw new Error('source_type must be review or explicit_learn');
+            throw new Error('source_type must be review, explicit_learn, session_log, or codex_session_log');
         }
 
         const outcome = payload.outcome;
@@ -411,7 +540,8 @@ export class LearningService {
         const { rows } = await this.pool.query(
             `SELECT id, pillar, target_ref, status, source_episode_ids, linked_wiki_candidate_id,
                     linked_candidate_ids, proposed_content, evaluation_summary, risk_level, doc_type,
-                    target_project_id, apply_mode, apply_error, materialized_ref, created_at, updated_at
+                    target_project_id, canonical_summary, semantic_scope, merged_episode_count,
+                    apply_mode, apply_error, materialized_ref, created_at, updated_at
              FROM promotion_candidates
              ${where}
              ORDER BY created_at ASC`,
@@ -432,11 +562,87 @@ export class LearningService {
         return candidate;
     }
 
+    async dedupeExistingPromotions() {
+        this.assertReady();
+        await this.ensureSchema();
+
+        const candidates = await this.listPromotions({ status: 'evaluated', apply_mode: 'manual' });
+        const groups = new Map();
+        for (const candidate of candidates) {
+            const semanticScope = candidate.semantic_scope
+                || deriveSemanticScope({
+                    pillar: candidate.pillar,
+                    docType: candidate.doc_type,
+                    projectId: candidate.target_project_id
+                });
+            const canonicalSummary = candidate.canonical_summary || deriveExistingCandidateSemanticText(candidate);
+            const entry = { ...candidate, semantic_scope: semanticScope, canonical_summary: canonicalSummary };
+            if (!groups.has(semanticScope)) groups.set(semanticScope, []);
+            groups.get(semanticScope).push(entry);
+        }
+
+        let merged = 0;
+        for (const entries of groups.values()) {
+            entries.sort((left, right) => new Date(left.created_at || 0).getTime() - new Date(right.created_at || 0).getTime());
+            for (let index = 0; index < entries.length; index += 1) {
+                const base = entries[index];
+                if (!base || base.status === 'merged') continue;
+                for (let compareIndex = index + 1; compareIndex < entries.length; compareIndex += 1) {
+                    const candidate = entries[compareIndex];
+                    if (!candidate || candidate.status === 'merged') continue;
+                    const similarity = isSemanticMatch(base.canonical_summary, candidate.canonical_summary);
+                    if (!similarity.match) continue;
+
+                    const mergedEpisodeIds = uniqueStrings([
+                        ...(base.source_episode_ids || []),
+                        ...(candidate.source_episode_ids || [])
+                    ]);
+                    const mergedCount = mergedEpisodeIds.length;
+                    const evaluationSummary = {
+                        ...(base.evaluation_summary || {}),
+                        canonical_summary: base.canonical_summary,
+                        dedupe_reason: similarity.reason,
+                        dedupe_score: similarity.score,
+                        merged_from_candidate_id: candidate.id
+                    };
+
+                    await this._updateCandidate(base.id, {
+                        source_episode_ids: mergedEpisodeIds,
+                        merged_episode_count: mergedCount,
+                        risk_level: maxRiskLevel(base.risk_level, candidate.risk_level),
+                        apply_mode: chooseMoreConservativeApplyMode(base.apply_mode, candidate.apply_mode),
+                        evaluation_summary: evaluationSummary,
+                        canonical_summary: base.canonical_summary,
+                        semantic_scope: base.semantic_scope
+                    });
+                    await this._updateCandidate(candidate.id, {
+                        status: 'merged',
+                        apply_error: `merged_into:${base.id}`,
+                        materialized_ref: base.id,
+                        canonical_summary: candidate.canonical_summary,
+                        semantic_scope: candidate.semantic_scope,
+                        merged_episode_count: candidate.merged_episode_count || candidate.source_episode_ids?.length || 1
+                    });
+
+                    base.source_episode_ids = mergedEpisodeIds;
+                    base.merged_episode_count = mergedCount;
+                    base.risk_level = maxRiskLevel(base.risk_level, candidate.risk_level);
+                    base.apply_mode = chooseMoreConservativeApplyMode(base.apply_mode, candidate.apply_mode);
+                    candidate.status = 'merged';
+                    merged += 1;
+                }
+            }
+        }
+
+        return { merged, scanned: candidates.length };
+    }
+
     async _findCandidateRowById(candidateId) {
         const { rows } = await this.pool.query(
             `SELECT id, pillar, target_ref, status, source_episode_ids, linked_wiki_candidate_id,
                     linked_candidate_ids, proposed_content, evaluation_summary, risk_level, doc_type,
-                    target_project_id, apply_mode, apply_error, materialized_ref, created_at, updated_at
+                    target_project_id, canonical_summary, semantic_scope, merged_episode_count,
+                    apply_mode, apply_error, materialized_ref, created_at, updated_at
              FROM promotion_candidates
              WHERE id = $1
              LIMIT 1`,
@@ -519,14 +725,87 @@ export class LearningService {
         const { rows } = await this.pool.query(
             `SELECT id, pillar, target_ref, status, source_episode_ids, linked_wiki_candidate_id,
                     linked_candidate_ids, proposed_content, evaluation_summary, risk_level, doc_type,
-                    target_project_id, apply_mode, apply_error, materialized_ref
+                    target_project_id, canonical_summary, semantic_scope, merged_episode_count,
+                    apply_mode, apply_error, materialized_ref
              FROM promotion_candidates
-             WHERE pillar = $1 AND target_ref = $2 AND status != 'rejected'
+             WHERE pillar = $1 AND target_ref = $2 AND status NOT IN ('rejected', 'merged')
              ORDER BY created_at DESC
              LIMIT 1`,
             [pillar, targetRef]
         );
         return rows[0] ? this._mapCandidateRow(rows[0]) : null;
+    }
+
+    async _findSemanticDuplicateCandidate({ pillar, docType, projectId, canonicalSummary }) {
+        if (!canonicalSummary) return null;
+
+        const semanticScope = deriveSemanticScope({ pillar, docType, projectId });
+        const { rows } = await this.pool.query(
+            `SELECT id, pillar, target_ref, status, source_episode_ids, linked_wiki_candidate_id,
+                    linked_candidate_ids, proposed_content, evaluation_summary, risk_level, doc_type,
+                    target_project_id, canonical_summary, semantic_scope, merged_episode_count,
+                    apply_mode, apply_error, materialized_ref, created_at, updated_at
+             FROM promotion_candidates
+             WHERE pillar = $1
+               AND semantic_scope = $2
+               AND status NOT IN ('rejected', 'merged')
+             ORDER BY updated_at DESC
+             LIMIT 50`,
+            [pillar, semanticScope]
+        );
+
+        let bestMatch = null;
+        for (const row of rows) {
+            const candidate = this._mapCandidateRow(row);
+            const result = isSemanticMatch(canonicalSummary, candidate.canonical_summary || '');
+            if (!result.match) continue;
+            if (!bestMatch || result.score > bestMatch.score) {
+                bestMatch = { candidate, ...result };
+            }
+        }
+
+        return bestMatch;
+    }
+
+    _buildSemanticMetadata({ episode, pillar, docType }) {
+        const canonicalSummary = normalizeSemanticText(deriveCandidateSemanticText(episode, pillar));
+        return {
+            canonical_summary: canonicalSummary,
+            semantic_scope: deriveSemanticScope({
+                pillar,
+                docType,
+                projectId: episode.project_id
+            })
+        };
+    }
+
+    async _mergeIntoExistingCandidate(existingCandidate, episode, dedupeMeta = {}, requestedApplyMode = 'manual') {
+        const sourceEpisodeIds = uniqueStrings([
+            ...(existingCandidate.source_episode_ids || []),
+            episode.id
+        ]);
+        const mergedEpisodeCount = sourceEpisodeIds.length;
+        const evaluationSummary = {
+            ...(existingCandidate.evaluation_summary || {}),
+            canonical_summary: dedupeMeta.canonical_summary || existingCandidate.canonical_summary || null,
+            dedupe_reason: dedupeMeta.reason || 'semantic_duplicate',
+            dedupe_score: dedupeMeta.score ?? null,
+            merged_from_episode_id: episode.id
+        };
+        const fields = {
+            source_episode_ids: sourceEpisodeIds,
+            merged_episode_count: mergedEpisodeCount,
+            risk_level: maxRiskLevel(existingCandidate.risk_level, this._buildRiskLevel(episode, existingCandidate.pillar)),
+            apply_mode: chooseMoreConservativeApplyMode(existingCandidate.apply_mode, requestedApplyMode),
+            evaluation_summary: evaluationSummary,
+            canonical_summary: dedupeMeta.canonical_summary || existingCandidate.canonical_summary || null
+        };
+        await this._updateCandidate(existingCandidate.id, fields);
+        return {
+            ...existingCandidate,
+            ...fields,
+            linked_candidate_ids: existingCandidate.linked_candidate_ids || []
+        };
     }
 
     async _findEpisodeByIngestion(ingestion) {
@@ -576,7 +855,8 @@ export class LearningService {
             ...row,
             source_episode_ids: toArray(row.source_episode_ids),
             linked_candidate_ids: toArray(row.linked_candidate_ids),
-            evaluation_summary: row.evaluation_summary || {}
+            evaluation_summary: row.evaluation_summary || {},
+            merged_episode_count: Number(row.merged_episode_count || 1)
         };
     }
 
@@ -617,7 +897,8 @@ export class LearningService {
                 title: deriveCandidateTitle(candidate),
                 source_preview: deriveSourcePreview(sourceEpisode),
                 source_type: sourceEpisode?.source_type || null,
-                outcome: sourceEpisode?.outcome || null
+                outcome: sourceEpisode?.outcome || null,
+                merged_episode_count: Number(candidate.merged_episode_count || candidate.source_episode_ids?.length || 1)
             };
         });
     }
@@ -656,15 +937,19 @@ export class LearningService {
     async _insertCandidate(candidate) {
         await this.pool.query(
             `INSERT INTO promotion_candidates (
-                id, pillar, target_ref, status, source_episode_ids, linked_wiki_candidate_id,
-                linked_candidate_ids, proposed_content, evaluation_summary, risk_level, doc_type,
-                target_project_id, apply_mode, apply_error, materialized_ref, created_at, updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW())`,
+                id, pillar, target_ref, status, canonical_summary, semantic_scope, merged_episode_count,
+                source_episode_ids, linked_wiki_candidate_id, linked_candidate_ids, proposed_content,
+                evaluation_summary, risk_level, doc_type, target_project_id, apply_mode, apply_error,
+                materialized_ref, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW())`,
             [
                 candidate.id,
                 candidate.pillar,
                 candidate.target_ref,
                 candidate.status,
+                candidate.canonical_summary,
+                candidate.semantic_scope,
+                candidate.merged_episode_count || 1,
                 JSON.stringify(candidate.source_episode_ids),
                 candidate.linked_wiki_candidate_id,
                 JSON.stringify(candidate.linked_candidate_ids || []),
@@ -687,7 +972,8 @@ export class LearningService {
         Object.entries(fields).forEach(([key, value]) => {
             values.push(
                 ['source_episode_ids', 'linked_candidate_ids', 'evaluation_summary'].includes(key)
-                    ? JSON.stringify(value)
+                    || ['merged_episode_count'].includes(key)
+                    ? (['merged_episode_count'].includes(key) ? value : JSON.stringify(value))
                     : value
             );
             updates.push(`${key} = $${values.length}`);
@@ -719,12 +1005,29 @@ export class LearningService {
         if (existing) {
             return existing;
         }
+        const semanticMeta = this._buildSemanticMetadata({ episode, pillar: 'wiki', docType });
+        const semanticDuplicate = await this._findSemanticDuplicateCandidate({
+            pillar: 'wiki',
+            docType,
+            projectId: episode.project_id,
+            canonicalSummary: semanticMeta.canonical_summary
+        });
+        if (semanticDuplicate) {
+            return this._mergeIntoExistingCandidate(semanticDuplicate.candidate, episode, {
+                ...semanticMeta,
+                reason: semanticDuplicate.reason,
+                score: semanticDuplicate.score
+            }, requestedApplyMode);
+        }
 
         const candidate = {
             id: `prm_${ulid()}`,
             pillar: 'wiki',
             target_ref: targetRef,
             status: 'evaluated',
+            canonical_summary: semanticMeta.canonical_summary,
+            semantic_scope: semanticMeta.semantic_scope,
+            merged_episode_count: 1,
             source_episode_ids: [episode.id],
             linked_wiki_candidate_id: null,
             linked_candidate_ids: [],
@@ -751,6 +1054,20 @@ export class LearningService {
         if (existing) {
             return existing;
         }
+        const semanticMeta = this._buildSemanticMetadata({ episode, pillar: 'skill', docType: 'procedure' });
+        const semanticDuplicate = await this._findSemanticDuplicateCandidate({
+            pillar: 'skill',
+            docType: 'procedure',
+            projectId: episode.project_id,
+            canonicalSummary: semanticMeta.canonical_summary
+        });
+        if (semanticDuplicate) {
+            return this._mergeIntoExistingCandidate(semanticDuplicate.candidate, episode, {
+                ...semanticMeta,
+                reason: semanticDuplicate.reason,
+                score: semanticDuplicate.score
+            }, requestedApplyMode);
+        }
 
         const wikiTargetRef = toArray(episode.wiki_refs)[0]
             || linkedWikiCandidate?.target_ref
@@ -761,6 +1078,9 @@ export class LearningService {
             pillar: 'skill',
             target_ref: targetRef,
             status: 'evaluated',
+            canonical_summary: semanticMeta.canonical_summary,
+            semantic_scope: semanticMeta.semantic_scope,
+            merged_episode_count: 1,
             source_episode_ids: [episode.id],
             linked_wiki_candidate_id: linkedWikiCandidate?.id || null,
             linked_candidate_ids: linkedWikiCandidate?.id ? [linkedWikiCandidate.id] : [],

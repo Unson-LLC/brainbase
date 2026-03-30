@@ -111,6 +111,24 @@ describe('LearningService', () => {
         expect(pool.query).toHaveBeenCalled();
     });
 
+    it('recordEpisode accepts session_log and codex_session_log sources', async () => {
+        const sessionResult = await service.recordEpisode({
+            source_type: 'session_log',
+            outcome: 'partial',
+            summary: 'Claude local log から学習を抽出',
+            promotion_hint: 'wiki'
+        });
+        const codexResult = await service.recordEpisode({
+            source_type: 'codex_session_log',
+            outcome: 'success',
+            summary: 'Codex session log から学習を抽出',
+            promotion_hint: 'skill'
+        });
+
+        expect(sessionResult.source_type).toBe('session_log');
+        expect(codexResult.source_type).toBe('codex_session_log');
+    });
+
     it('proposePromotions defaults to manual candidates', async () => {
         selectQueue.push([
             {

@@ -1,3 +1,4 @@
+// @ts-check
 import { logger } from '../utils/logger.js';
 import { asyncHandler } from '../lib/async-handler.js';
 import { pickAllowedFields } from '../lib/validation.js';
@@ -6,6 +7,20 @@ import { AppError, ErrorCodes } from '../lib/errors.js';
 /**
  * StateController
  * 状態管理のHTTPリクエスト処理
+ */
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/**
+ * @typedef {{
+ *   id: string,
+ *   name?: string,
+ *   path?: string,
+ *   cwd?: string,
+ *   worktree?: { path?: string, repo?: string, startCommit?: string } | null,
+ *   conversationSummary?: { totalConversations?: number, lastConversation?: { lastActivity?: string | null } | null } | null,
+ *   [key: string]: any
+ * }} SessionRecord
  */
 
 // セッションオブジェクトの許可フィールド
@@ -26,8 +41,8 @@ const ALLOWED_SESSION_FIELDS = [
 
 /**
  * セッションオブジェクトの検証
- * @param {Object} session - 検証対象セッション
- * @returns {Object|null} 検証済みセッション（不正フィールド除去）
+ * @param {SessionRecord} session - 検証対象セッション
+ * @returns {SessionRecord|null} 検証済みセッション（不正フィールド除去）
  */
 function validateSession(session) {
     if (!session?.id || typeof session.id !== 'string') {
@@ -37,6 +52,11 @@ function validateSession(session) {
 }
 
 export class StateController {
+    /**
+     * @param {any} stateStore
+     * @param {any} sessionManager
+     * @param {boolean} [testMode]
+     */
     constructor(stateStore, sessionManager, testMode = false) {
         this.stateStore = stateStore;
         this.sessionManager = sessionManager;
@@ -44,6 +64,7 @@ export class StateController {
     }
 
     /** GET /api/state */
+    /** @param {Request} req @param {Response} res */
     get = asyncHandler(async (req, res) => {
         const ready = await this.sessionManager.waitUntilReady();
         if (!ready) {
@@ -52,7 +73,7 @@ export class StateController {
 
         const state = this.stateStore.get();
 
-        const sessionsWithStatus = (state.sessions || []).map(session => {
+        const sessionsWithStatus = /** @type {SessionRecord[]} */ (state.sessions || []).map((session) => {
             const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
 
             const { conversationSummary, ...rest } = session;
@@ -77,6 +98,7 @@ export class StateController {
     });
 
     /** POST /api/state */
+    /** @param {Request} req @param {Response} res */
     update = asyncHandler(async (req, res) => {
         if (!req.body || typeof req.body !== 'object') {
             throw AppError.validation('Invalid request body');
@@ -87,10 +109,11 @@ export class StateController {
             throw AppError.validation('Sessions must be an array');
         }
 
+        /** @type {SessionRecord[]} */
         const validatedSessions = [];
-        for (const session of rawSessions) {
+        for (const session of /** @type {SessionRecord[]} */ (rawSessions)) {
             const { ttydRunning, runtimeStatus, ...persistentFields } = session;
-            const validated = validateSession(persistentFields);
+            const validated = validateSession(/** @type {SessionRecord} */ (persistentFields));
             if (validated) {
                 validatedSessions.push(validated);
             } else {
@@ -106,6 +129,7 @@ export class StateController {
     });
 
     /** PATCH /api/state/sessions/:sessionId */
+    /** @param {Request} req @param {Response} res */
     patch = asyncHandler(async (req, res) => {
         const { sessionId } = req.params;
         if (!sessionId) {
@@ -124,13 +148,13 @@ export class StateController {
         }
 
         const state = this.stateStore.get();
-        const sessionIndex = (state.sessions || []).findIndex(s => s.id === sessionId);
+        const sessionIndex = /** @type {SessionRecord[]} */ (state.sessions || []).findIndex((s) => s.id === sessionId);
 
         if (sessionIndex === -1) {
             throw new AppError('Session not found', ErrorCodes.SESSION_NOT_FOUND);
         }
 
-        const updatedSessions = [...state.sessions];
+        const updatedSessions = [.../** @type {SessionRecord[]} */ (state.sessions)];
         updatedSessions[sessionIndex] = {
             ...updatedSessions[sessionIndex],
             ...validated,
@@ -142,7 +166,7 @@ export class StateController {
             sessions: updatedSessions
         });
 
-        const updatedSession = newState.sessions.find(s => s.id === sessionId);
+        const updatedSession = /** @type {SessionRecord[]} */ (newState.sessions || []).find((s) => s.id === sessionId);
         res.json(updatedSession);
     });
 }

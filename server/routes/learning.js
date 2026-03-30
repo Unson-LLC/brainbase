@@ -7,6 +7,7 @@ export function createLearningRouter(learningService, learningHealthService = nu
 
     router.post('/episodes', controller.recordEpisode);
     router.post('/promotions/propose', controller.proposePromotions);
+    router.post('/promotions/dedupe-existing', controller.dedupeExistingPromotions);
     router.get('/promotions', controller.listPromotions);
     router.get('/health', controller.getHealth);
     router.get('/promotions/:id', controller.getPromotion);

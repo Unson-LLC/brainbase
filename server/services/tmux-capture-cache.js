@@ -1,19 +1,61 @@
 // @ts-check
 const DEFAULT_CAPTURE_TTL_MS = 3000;
 
+/**
+ * @typedef {object} TmuxCaptureOptions
+ * @property {number|string} [lines]
+ * @property {boolean} [includeColors]
+ * @property {boolean} [includeCopyMode]
+ */
+
+/**
+ * @typedef {object} TmuxCapturePayload
+ * @property {string} text
+ * @property {string|null} colorText
+ * @property {boolean} copyMode
+ * @property {string} capturedAt
+ */
+
+/**
+ * @typedef {object} TmuxCaptureCacheEntry
+ * @property {number} cachedAt
+ * @property {TmuxCapturePayload} payload
+ */
+
+/**
+ * @typedef {object} TmuxCaptureSessionManager
+ * @property {(sessionId: string, lines: number) => Promise<string>} getContent
+ * @property {(sessionId: string, lines: number) => Promise<string>} getContentWithColors
+ * @property {(sessionId: string) => Promise<boolean>} getPaneMode
+ */
+
+/**
+ * @param {string} sessionId
+ * @param {TmuxCaptureOptions} options
+ * @returns {string}
+ */
 function buildCacheKey(sessionId, options) {
     const { lines, includeColors, includeCopyMode } = options;
     return `${sessionId}|${lines}|${includeColors ? 1 : 0}|${includeCopyMode ? 1 : 0}`;
 }
 
 export class TmuxCaptureCache {
+    /**
+     * @param {{ sessionManager: TmuxCaptureSessionManager, ttlMs?: number }} param0
+     */
     constructor({ sessionManager, ttlMs = DEFAULT_CAPTURE_TTL_MS }) {
         this.sessionManager = sessionManager;
         this.ttlMs = ttlMs;
+        /** @type {Map<string, TmuxCaptureCacheEntry>} */
         this.cache = new Map();
+        /** @type {Map<string, Promise<TmuxCapturePayload>>} */
         this.pending = new Map();
     }
 
+    /**
+     * @param {string|null} [sessionId]
+     * @returns {void}
+     */
     invalidate(sessionId = null) {
         if (!sessionId) {
             this.cache.clear();
@@ -34,6 +76,11 @@ export class TmuxCaptureCache {
         }
     }
 
+    /**
+     * @param {string} sessionId
+     * @param {TmuxCaptureOptions} [options]
+     * @returns {Promise<TmuxCapturePayload>}
+     */
     async getSnapshot(sessionId, options = {}) {
         const normalized = {
             lines: Math.max(50, Math.min(400, Number.parseInt(options.lines, 10) || 200)),
@@ -62,6 +109,7 @@ export class TmuxCaptureCache {
                     : Promise.resolve(false)
             ]);
 
+            /** @type {TmuxCapturePayload} */
             const payload = {
                 text,
                 colorText,

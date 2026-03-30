@@ -171,6 +171,8 @@ describe('InboxService', () => {
                         source_type: 'explicit_learn',
                         outcome: 'success',
                         risk_level: 'low',
+                        merged_episode_count: 3,
+                        canonical_summary: 'readme 画像 解決 ルール',
                         evaluation_summary: {},
                         proposed_content: '# recovery'
                     }
@@ -180,6 +182,8 @@ describe('InboxService', () => {
             const result = await inboxService.loadInbox();
 
             expect(result[0].kind).toBe('learning');
+            expect(result[0].mergedEpisodeCount).toBe(3);
+            expect(result[0].canonicalSummary).toBe('readme 画像 解決 ルール');
             expect(result[1].kind).toBe('notification');
         });
 

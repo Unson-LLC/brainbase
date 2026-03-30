@@ -3,6 +3,28 @@ import { Octokit } from '@octokit/rest';
 import { logger } from '../utils/logger.js';
 
 /**
+ * @typedef {object} GitHubRunnerSummary
+ * @property {number|string} id
+ * @property {string} name
+ * @property {string} os
+ * @property {string} status
+ * @property {boolean} busy
+ * @property {string[]} labels
+ */
+
+/**
+ * @typedef {object} WorkflowRunSummary
+ * @property {number|string} id
+ * @property {string|null|undefined} name
+ * @property {string|null|undefined} status
+ * @property {string|null|undefined} conclusion
+ * @property {string|null|undefined} createdAt
+ * @property {string|null|undefined} updatedAt
+ * @property {string|null|undefined} htmlUrl
+ * @property {string|null|undefined} [event]
+ */
+
+/**
  * GitHub API Service
  * GitHub Actionsセルフホストランナーとワークフロー情報を取得
  */
@@ -24,7 +46,7 @@ export class GitHubService {
 
     /**
      * セルフホストランナーの一覧取得
-     * @returns {Promise<Array>} ランナー情報の配列
+     * @returns {Promise<{ error?: string, total?: number, online?: number, busy?: number, runners: GitHubRunnerSummary[] }>} ランナー情報の配列
      */
     async getSelfHostedRunners() {
         if (!this.token) {
@@ -53,15 +75,16 @@ export class GitHubService {
                 busy: runners.filter(r => r.busy).length,
             };
         } catch (error) {
-            logger.error('[GitHubService] Failed to fetch runners:', error.message);
-            return { error: error.message, runners: [] };
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error('[GitHubService] Failed to fetch runners:', message);
+            return { error: message, runners: [] };
         }
     }
 
     /**
      * ワークフロー実行履歴取得
      * @param {number} limit - 取得件数（デフォルト: 10）
-     * @returns {Promise<Array>} ワークフロー実行履歴
+     * @returns {Promise<{ error?: string, runs: WorkflowRunSummary[], summary?: { total: number, success: number, failure: number, inProgress: number } }>} ワークフロー実行履歴
      */
     async getWorkflowRuns(limit = 10) {
         if (!this.token) {
@@ -98,8 +121,9 @@ export class GitHubService {
                 summary,
             };
         } catch (error) {
-            logger.error('[GitHubService] Failed to fetch workflow runs:', error.message);
-            return { error: error.message, runs: [] };
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error('[GitHubService] Failed to fetch workflow runs:', message);
+            return { error: message, runs: [] };
         }
     }
 
@@ -107,7 +131,7 @@ export class GitHubService {
      * 特定のワークフローの実行履歴取得
      * @param {string} workflowId - ワークフローID（ファイル名 or ID）
      * @param {number} limit - 取得件数
-     * @returns {Promise<Array>} ワークフロー実行履歴
+     * @returns {Promise<{ error?: string, runs: WorkflowRunSummary[] }>} ワークフロー実行履歴
      */
     async getWorkflowRunsByName(workflowId, limit = 10) {
         if (!this.token) {
@@ -134,8 +158,9 @@ export class GitHubService {
 
             return { runs };
         } catch (error) {
-            logger.error(`[GitHubService] Failed to fetch workflow runs for ${workflowId}:`, error.message);
-            return { error: error.message, runs: [] };
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`[GitHubService] Failed to fetch workflow runs for ${workflowId}:`, message);
+            return { error: message, runs: [] };
         }
     }
 
@@ -254,10 +279,11 @@ export class GitHubService {
                 },
             };
         } catch (error) {
-            logger.error('[GitHubService] Failed to fetch healthcheck status:', error.message);
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error('[GitHubService] Failed to fetch healthcheck status:', message);
             return {
                 status: 'error',
-                message: error.message,
+                message,
                 lastRun: null,
             };
         }

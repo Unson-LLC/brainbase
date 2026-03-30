@@ -15,6 +15,8 @@ function formatRiskLevel(value) {
 function formatSourceType(value) {
     if (value === 'review') return 'レビュー';
     if (value === 'explicit_learn') return '明示学習';
+    if (value === 'session_log') return 'Claudeログ';
+    if (value === 'codex_session_log') return 'Codexログ';
     return '不明';
 }
 
@@ -76,11 +78,19 @@ export class LearningCandidateModal {
                             <h3>対象</h3>
                             <p id="learning-candidate-target-ref" class="learning-candidate-meta-value"></p>
                         </section>
-                        <section class="learning-candidate-card">
-                            <h3>起点</h3>
-                            <p id="learning-candidate-source-meta" class="learning-candidate-meta-value"></p>
-                        </section>
-                    </div>
+                    <section class="learning-candidate-card">
+                        <h3>起点</h3>
+                        <p id="learning-candidate-source-meta" class="learning-candidate-meta-value"></p>
+                    </section>
+                    <section class="learning-candidate-card">
+                        <h3>統合件数</h3>
+                        <p id="learning-candidate-merged-count" class="learning-candidate-meta-value"></p>
+                    </section>
+                    <section class="learning-candidate-card">
+                        <h3>正規化要約</h3>
+                        <p id="learning-candidate-canonical-summary" class="learning-candidate-meta-value"></p>
+                    </section>
+                </div>
                     <section class="learning-candidate-panel">
                         <h3>評価</h3>
                         <pre id="learning-candidate-evaluation" class="learning-candidate-pre"></pre>
@@ -127,6 +137,8 @@ export class LearningCandidateModal {
         this.modalEl.querySelector('#learning-candidate-source-preview').textContent = item.sourcePreview || '学習の要約はまだありません。';
         this.modalEl.querySelector('#learning-candidate-target-ref').textContent = item.targetRef || '未設定';
         this.modalEl.querySelector('#learning-candidate-source-meta').textContent = `${formatSourceType(item.sourceType)} / ${formatOutcome(item.outcome)}`;
+        this.modalEl.querySelector('#learning-candidate-merged-count').textContent = String(item.mergedEpisodeCount || 1);
+        this.modalEl.querySelector('#learning-candidate-canonical-summary').textContent = item.canonicalSummary || '未設定';
         this.modalEl.querySelector('#learning-candidate-evaluation').textContent = JSON.stringify(item.evaluationSummary || {}, null, 2);
         this.modalEl.querySelector('#learning-candidate-proposed-content').textContent = item.proposedContent || '';
         this.modalEl.classList.remove('hidden');

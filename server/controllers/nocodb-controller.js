@@ -1,11 +1,21 @@
+// @ts-check
 import { logger } from '../utils/logger.js';
 import { formatDateYMD, getDefaultDueDate, getPriorityLabel } from '../lib/validation.js';
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+
+/** @param {unknown} error */
+function getErrorMessage(error) {
+    return error instanceof Error ? error.message : String(error || '');
+}
 
 /**
  * NocoDBController
  * NocoDB連携タスクのHTTPリクエスト処理
  */
 export class NocoDBController {
+    /** @param {any} configParser */
     constructor(configParser) {
         this.configParser = configParser;
         // Support both naming conventions
@@ -17,6 +27,7 @@ export class NocoDBController {
      * GET /api/nocodb/tasks
      * 全プロジェクトから担当者フィルタ付きのタスクを取得
      */
+    /** @param {Request} req @param {Response} res */
     list = async (req, res) => {
         try {
             const assignee = req.query.assignee || null;
@@ -81,7 +92,7 @@ export class NocoDBController {
                     logger.warn('Failed to fetch tasks from base', {
                         baseId,
                         projects: baseMappings.map(m => m.project_id),
-                        error: projectError.message
+                        error: getErrorMessage(projectError)
                     });
                 }
             }
@@ -92,7 +103,7 @@ export class NocoDBController {
             });
         } catch (error) {
             logger.error('Failed to fetch NocoDB tasks', { error });
-            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to fetch NocoDB tasks' });
+            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to fetch NocoDB tasks' });
         }
     };
 
@@ -100,6 +111,7 @@ export class NocoDBController {
      * POST /api/nocodb/tasks
      * タスクを作成
      */
+    /** @param {Request} req @param {Response} res */
     create = async (req, res) => {
         try {
             const { projectId, baseId, title, assignee, priority, due, description } = req.body;
@@ -169,7 +181,7 @@ export class NocoDBController {
             res.status(201).json({ success: true, record: result });
         } catch (error) {
             logger.error('Failed to create NocoDB task', { error });
-            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to create task' });
+            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to create task' });
         }
     };
 
@@ -177,6 +189,7 @@ export class NocoDBController {
      * PUT /api/nocodb/tasks/:id
      * タスクステータスを更新
      */
+    /** @param {Request} req @param {Response} res */
     update = async (req, res) => {
         try {
             const { id } = req.params;
@@ -233,7 +246,7 @@ export class NocoDBController {
             res.json({ success: true, record: result });
         } catch (error) {
             logger.error('Failed to update NocoDB task', { error, taskId: req.params.id });
-            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to update task' });
+            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to update task' });
         }
     };
 
@@ -241,6 +254,7 @@ export class NocoDBController {
      * DELETE /api/nocodb/tasks/:id
      * タスクを削除
      */
+    /** @param {Request} req @param {Response} res */
     delete = async (req, res) => {
         try {
             const { id } = req.params;

@@ -37,6 +37,8 @@ export class InboxService {
                 sourceType: candidate.source_type || null,
                 outcome: candidate.outcome || null,
                 riskLevel: candidate.risk_level || 'low',
+                mergedEpisodeCount: Number(candidate.merged_episode_count || candidate.source_episode_ids?.length || 1),
+                canonicalSummary: candidate.canonical_summary || '',
                 evaluationSummary: candidate.evaluation_summary || {},
                 proposedContent: candidate.proposed_content || '',
                 updatedAt: candidate.updated_at || candidate.created_at || null
