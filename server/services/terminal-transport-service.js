@@ -195,9 +195,20 @@ export class TerminalTransportService {
             cols,
             rows
         }));
-        // snapshot は streaming 失敗時の _fallbackToPolling でのみ送信。
-        // streaming 成功時は tmux control mode の初期ダンプが画面全体を
-        // %output で送信するため、snapshot 不要（二重描画防止）。
+
+        // snapshot即送信: セッション切り替え時にxterm.jsの前セッション内容を
+        // 新セッションの画面で上書きする。クライアント側の_applySnapshotが
+        // ESC[2J+ESC[3Jで画面クリアしてから描画するため二重描画にはならない。
+        this.captureCache.invalidate(sessionId);
+        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
+        if (ws.readyState !== 1 || connection.closed) return;
+        const snapshotMsg = {
+            type: 'snapshot',
+            text: snapshot.text,
+            capturedAt: snapshot.capturedAt
+        };
+        if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
+        ws.send(JSON.stringify(snapshotMsg));
     }
 
     async _startStreaming(connection) {

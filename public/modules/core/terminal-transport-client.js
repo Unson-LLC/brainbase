@@ -699,6 +699,11 @@ export class TerminalTransportClient {
         this._pendingEchoText = '';
         this._lastSnapshotText = null;
         this._isViewportPinnedToBottom = true;
+        // xterm.jsの前セッション表示を即クリア。
+        // snapshotが来るまでの間、前セッションの内容が見えるのを防止。
+        if (this.terminal) {
+            this.terminal.write('\x1b[2J\x1b[3J\x1b[H');
+        }
     }
 
     _measureViewport() {
