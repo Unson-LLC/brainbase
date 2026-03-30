@@ -166,4 +166,88 @@ describe('FolderTreeView', () => {
         expect(listener).toHaveBeenCalled();
         unsubscribe();
     });
+
+    it('ディレクトリノードクリック時_openFileは呼ばれない', () => {
+        const openFileSpy = vi.spyOn(folderTreeView, '_openFile');
+        appStore.setState({
+            sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
+            currentSessionId: 'session-1',
+            folderTree: {
+                bySessionId: {
+                    'session-1': {
+                        rootPath: '/tmp/project',
+                        nodesByPath: {
+                            '': [
+                                { name: 'src', relativePath: 'src', type: 'directory', hasChildren: true }
+                            ]
+                        }
+                    }
+                },
+                expandedPaths: {},
+                loading: false,
+                error: null
+            }
+        });
+
+        folderTreeView.render(container);
+        const directoryButton = container.querySelector('.folder-tree-dir');
+        directoryButton.click();
+
+        expect(openFileSpy).not.toHaveBeenCalled();
+        expect(sessionService.openFileInDefaultApp).not.toHaveBeenCalled();
+    });
+
+    it('未知typeのノードはファイルとしてレンダリングされない', () => {
+        appStore.setState({
+            sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
+            currentSessionId: 'session-1',
+            folderTree: {
+                bySessionId: {
+                    'session-1': {
+                        rootPath: '/tmp/project',
+                        nodesByPath: {
+                            '': [
+                                { name: 'mystery', relativePath: 'mystery', type: 'symlink', hasChildren: false }
+                            ]
+                        }
+                    }
+                },
+                expandedPaths: {},
+                loading: false,
+                error: null
+            }
+        });
+
+        folderTreeView.render(container);
+
+        expect(container.querySelector('.folder-tree-file')).toBeNull();
+        expect(container.querySelector('.folder-tree-dir')).toBeNull();
+        expect(container.textContent).not.toContain('mystery');
+    });
+
+    it('directoryノードに対する_openFileは早期リターンする', async () => {
+        appStore.setState({
+            sessions: [{ id: 'session-1', name: 'S1', path: '/tmp/project' }],
+            currentSessionId: 'session-1',
+            folderTree: {
+                bySessionId: {
+                    'session-1': {
+                        rootPath: '/tmp/project',
+                        nodesByPath: {
+                            '': [
+                                { name: 'src', relativePath: 'src', type: 'directory', hasChildren: true }
+                            ]
+                        }
+                    }
+                },
+                expandedPaths: {},
+                loading: false,
+                error: null
+            }
+        });
+
+        await folderTreeView._openFile('session-1', 'src');
+
+        expect(sessionService.openFileInDefaultApp).not.toHaveBeenCalled();
+    });
 });
