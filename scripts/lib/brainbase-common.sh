@@ -2,6 +2,9 @@
 # brainbase-common.sh - Shared utility functions for brainbase shell scripts
 # Usage: source "$(dirname "$0")/lib/brainbase-common.sh"
 
+# cwd refresh: prevent EPERM uv_cwd on unmounted/remounted drives
+cd . 2>/dev/null || cd /tmp
+
 # Resolve the brainbase server port by checking (in order):
 # 1. BRAINBASE_PORT env var
 # 2. ~/.brainbase/active-port file

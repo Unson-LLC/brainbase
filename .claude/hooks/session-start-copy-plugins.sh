@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# cwd refresh: prevent EPERM uv_cwd on unmounted drives
+cd . 2>/dev/null || cd /tmp
+
 # SessionStart Hook: L2（brainbase-unson）とL3（brainbase-config）の.claude/を自動コピー
 # - plugins/: プラグイン（goal-seek等）
 # - hooks/: このスクリプト自体も含む
