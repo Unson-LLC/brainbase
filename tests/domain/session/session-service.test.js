@@ -4,6 +4,7 @@ import { httpClient } from '../../../public/modules/core/http-client.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { addSession } from '../../../public/modules/state-api.js';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 
 // モジュールをモック化
 vi.mock('../../../public/modules/core/http-client.js', () => ({
@@ -843,19 +844,22 @@ describe('SessionService', () => {
     });
 
     describe('saveSessionOrder', () => {
-        it('saveSessionOrder呼び出し時_APIにPOSTリクエストが送信される', async () => {
+        it('saveSessionOrder呼び出し時_サーバーのデータをクライアント順で並び替えてPOST', async () => {
             const reorderedSessions = [
-                { id: 'session-2', name: 'Session 2' },
-                { id: 'session-1', name: 'Session 1' }
+                { id: 'session-2', name: 'Client stale name' },
+                { id: 'session-1', name: 'Client stale name' }
             ];
             httpClient.get.mockResolvedValue({ sessions: mockSessions });
             httpClient.post.mockResolvedValue({});
 
             await sessionService.saveSessionOrder(reorderedSessions);
 
-            expect(httpClient.post).toHaveBeenCalledWith('/api/state', expect.objectContaining({
-                sessions: reorderedSessions
-            }));
+            // Server data should be used (not client data), reordered by client ID order
+            const postedSessions = httpClient.post.mock.calls[0][1].sessions;
+            expect(postedSessions[0].id).toBe('session-2');
+            expect(postedSessions[0].name).toBe('Session 2'); // Server name preserved
+            expect(postedSessions[1].id).toBe('session-1');
+            expect(postedSessions[1].name).toBe('Session 1'); // Server name preserved
         });
 
         it('saveSessionOrder呼び出し時_APIエラー発生_例外がスローされる', async () => {

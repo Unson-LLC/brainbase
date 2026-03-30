@@ -1,3 +1,4 @@
+// @ts-check
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 import { getPriorityLabel } from '../../utils/task-filters.js';
@@ -17,7 +18,7 @@ export class CompletedTasksModal extends BaseModal {
         if (!this.modalElement) return;
 
         this.dateFilter = null;
-        const filterSelect = document.getElementById('completed-date-filter');
+        const filterSelect = /** @type {HTMLInputElement|null} */ (document.getElementById('completed-date-filter'));
         if (filterSelect) {
             filterSelect.value = '';
         }
@@ -36,8 +37,8 @@ export class CompletedTasksModal extends BaseModal {
     }
 
     async _renderList() {
-        const listElement = document.getElementById('completed-tasks-list');
-        const emptyElement = document.getElementById('completed-tasks-empty');
+        const listElement = /** @type {HTMLInputElement|null} */ (document.getElementById('completed-tasks-list'));
+        const emptyElement = /** @type {HTMLInputElement|null} */ (document.getElementById('completed-tasks-empty'));
 
         if (!listElement) return;
 
@@ -86,7 +87,7 @@ export class CompletedTasksModal extends BaseModal {
 
         listElement.querySelectorAll('.restore-task-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const taskItem = e.target.closest('.completed-task-item');
+                const taskItem = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('.completed-task-item'));
                 const taskId = taskItem?.dataset.taskId;
                 if (taskId) {
                     this.restoreTask(taskId);
@@ -123,10 +124,10 @@ export class CompletedTasksModal extends BaseModal {
 
 
     _attachEventHandlers() {
-        const filterSelect = document.getElementById('completed-date-filter');
+        const filterSelect = /** @type {HTMLInputElement|null} */ (document.getElementById('completed-date-filter'));
         if (filterSelect) {
             filterSelect.addEventListener('change', async (e) => {
-                const value = e.target.value;
+                const value = /** @type {HTMLInputElement} */ (e.target).value;
                 this.dateFilter = value ? parseInt(value, 10) : null;
                 await this._renderList();
             });

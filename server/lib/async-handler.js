@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * asyncHandler - async Express route handler のラッパー
  *
@@ -21,8 +22,14 @@
  *       res.json(data);
  *   });
  */
+/**
+ * @param {(req: unknown, res: unknown, next: (error?: unknown) => unknown) => Promise<unknown> | unknown} fn
+ * @returns {(req: unknown, res: unknown, next: (error?: unknown) => unknown) => void}
+ */
 export function asyncHandler(fn) {
     return (req, res, next) => {
-        Promise.resolve(fn(req, res, next)).catch(next);
+        Promise.resolve(fn(req, res, next)).catch((error) => {
+            next(error);
+        });
     };
 }

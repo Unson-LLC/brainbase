@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * クライアント側データキャッシュ
  * Map-based TTL管理
@@ -59,7 +60,7 @@ export class SessionDataCache {
     /**
      * キャッシュに値を保存
      * @param {string} type - データ種別（tasks, schedule）
-     * @param {string} [scope='global'] - キャッシュスコープ
+     * @param {string} scope - キャッシュスコープ
      * @param {*} value - 保存する値
      */
     set(type, scope = 'global', value) {
@@ -141,6 +142,6 @@ export class SessionDataCache {
 
 export const sessionDataCache = new SessionDataCache();
 
-if (typeof window !== 'undefined' && window.__SESSION_CACHE_DEBUG__) {
+if (typeof window !== 'undefined' && /** @type {any} */ (window).__SESSION_CACHE_DEBUG__) {
     sessionDataCache.setDebugMode(true);
 }

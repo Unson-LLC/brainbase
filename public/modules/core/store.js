@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Proxyベースのリアクティブストア
  * 状態変更を自動検知してリスナーに通知
@@ -182,7 +183,6 @@ export const appStore = new Store({
     tasks: [],
     schedule: null,
     inbox: [],
-    commitLog: null,
     testMode: false, // テストモード（読み取り専用）
     filters: {
         taskFilter: '',

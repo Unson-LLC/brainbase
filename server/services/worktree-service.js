@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WorktreeService
  * Jujutsu workspace操作を管理するサービス（Git worktreeから移行）
@@ -75,6 +76,28 @@ export class WorktreeService {
 
         return message.includes('working copy is stale')
             || message.includes('workspace update-stale');
+    }
+
+    /**
+     * ソースが存在すればシンボリックリンクを作成（既存ならスキップ）
+     */
+    async _symlinkIfMissing(sourcePath, targetPath, label) {
+        try {
+            await fs.access(sourcePath);
+            try {
+                await fs.access(targetPath);
+                logger.info(`${label} already exists at ${targetPath}, skipping symlink`);
+            } catch {
+                await fs.symlink(sourcePath, targetPath);
+                logger.info(`Created ${label} symlink at ${targetPath}`);
+            }
+        } catch (err) {
+            if (err.code === 'ENOENT') {
+                logger.info(`Note: ${label} not found at ${sourcePath}`);
+            } else {
+                logger.info(`Note: Could not create ${label} symlink: ${err.message}`);
+            }
+        }
     }
 
     async _execJujutsuWithStaleRetry(repoPath, command, options = {}) {
@@ -509,59 +532,11 @@ export class WorktreeService {
                 logger.info(`[workspace] Bookmark creation skipped: ${bookmarkErr.message}`);
             }
 
-            // Create symlink for .env if it exists in the source repo
-            const sourceEnvPath = path.join(repoPath, '.env');
-            const targetEnvPath = path.join(workspacePath, '.env');
-            try {
-                await fs.access(sourceEnvPath);
-                await fs.symlink(sourceEnvPath, targetEnvPath);
-                logger.info(`Created .env symlink at ${targetEnvPath}`);
-            } catch (envErr) {
-                if (envErr.code !== 'ENOENT') {
-                    logger.info(`Note: Could not create .env symlink: ${envErr.message}`);
-                }
-            }
-
-            // Create symlink for .claude directory
+            // Create symlinks for shared config files
             const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
-            const sourceClaudePath = path.join(workspaceRoot, '.claude');
-            const targetClaudePath = path.join(workspacePath, '.claude');
-            try {
-                await fs.access(sourceClaudePath);
-                try {
-                    await fs.access(targetClaudePath);
-                    logger.info(`.claude already exists at ${targetClaudePath}, skipping symlink`);
-                } catch {
-                    await fs.symlink(sourceClaudePath, targetClaudePath);
-                    logger.info(`Created .claude symlink at ${targetClaudePath}`);
-                }
-            } catch (claudeErr) {
-                if (claudeErr.code === 'ENOENT') {
-                    logger.info(`Note: .claude directory not found at ${sourceClaudePath}`);
-                } else {
-                    logger.info(`Note: Could not create .claude symlink: ${claudeErr.message}`);
-                }
-            }
-
-            // Create symlink for .mcp.json (Claude Code MCP server config)
-            const sourceMcpPath = path.join(workspaceRoot, '.mcp.json');
-            const targetMcpPath = path.join(workspacePath, '.mcp.json');
-            try {
-                await fs.access(sourceMcpPath);
-                try {
-                    await fs.access(targetMcpPath);
-                    logger.info(`.mcp.json already exists at ${targetMcpPath}, skipping symlink`);
-                } catch {
-                    await fs.symlink(sourceMcpPath, targetMcpPath);
-                    logger.info(`Created .mcp.json symlink at ${targetMcpPath}`);
-                }
-            } catch (mcpErr) {
-                if (mcpErr.code === 'ENOENT') {
-                    logger.info(`Note: .mcp.json not found at ${sourceMcpPath}`);
-                } else {
-                    logger.info(`Note: Could not create .mcp.json symlink: ${mcpErr.message}`);
-                }
-            }
+            await this._symlinkIfMissing(path.join(repoPath, '.env'), path.join(workspacePath, '.env'), '.env');
+            await this._symlinkIfMissing(path.join(workspaceRoot, '.claude'), path.join(workspacePath, '.claude'), '.claude');
+            await this._symlinkIfMissing(path.join(workspaceRoot, '.mcp.json'), path.join(workspacePath, '.mcp.json'), '.mcp.json');
 
             // Get current HEAD as startCommit
             const { stdout: startCommit } = await this._execJujutsuWithStaleRetry(

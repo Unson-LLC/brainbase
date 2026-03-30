@@ -1,3 +1,4 @@
+// @ts-check
 import { cloneLeadValue } from './lead-fixtures.js';
 
 function createRef(prefix, id) {

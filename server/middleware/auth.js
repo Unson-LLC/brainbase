@@ -1,37 +1,16 @@
-import { getAuthTokensFromRequest } from '../lib/auth-cookies.js';
+// @ts-check
+import { getAuthTokensFromRequest, getHeader } from '../lib/auth-cookies.js';
+import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 
-function allowInsecureHeaderAuth() {
-    if (process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
-        return true;
-    }
-    if (process.env.BRAINBASE_TEST_MODE === 'true') {
-        return true;
-    }
-    if (process.env.NODE_ENV === 'test') {
-        return true;
-    }
-    return false;
-}
+/** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
+/** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
+/** @typedef {(error?: unknown) => unknown} NextLike */
+/** @typedef {{ verifyToken: (token: string) => Record<string, unknown> }} AuthServiceLike */
 
-function parseCsv(value) {
-    if (!value || typeof value !== 'string') {
-        return [];
-    }
-    return value.split(',').map(v => v.trim()).filter(Boolean);
-}
-
-function getHeader(req, name) {
-    if (!req) return '';
-    if (typeof req.get === 'function') {
-        return req.get(name) || '';
-    }
-    const key = String(name).toLowerCase();
-    const headers = req.headers || {};
-    const value = headers[key];
-    if (Array.isArray(value)) return value[0] || '';
-    return value || '';
-}
-
+/**
+ * @param {RequestLike} req
+ * @param {AuthServiceLike} authService
+ */
 export function resolveAuthContext(req, authService) {
     if (req?.method === 'OPTIONS') {
         return { ok: true, bypass: true };
@@ -65,7 +44,7 @@ export function resolveAuthContext(req, authService) {
         };
     }
 
-    if (allowInsecureHeaderAuth()) {
+    if (isInsecureHeaderAuthAllowed()) {
         const role = (getHeader(req, 'x-brainbase-role') || getHeader(req, 'x-role') || '').toLowerCase();
         if (role) {
             const projectHeader = getHeader(req, 'x-brainbase-projects') || getHeader(req, 'x-projects') || '';
@@ -121,11 +100,15 @@ export function resolveAuthContext(req, authService) {
             access,
             authSource: bearerToken ? 'bearer' : 'cookie'
         };
-    } catch (error) {
+    } catch {
         return { ok: false, status: 401, error: 'Invalid token' };
     }
 }
 
+/**
+ * @param {AuthServiceLike} authService
+ * @returns {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown}
+ */
 export function requireAuth(authService) {
     return (req, res, next) => {
         const result = resolveAuthContext(req, authService);

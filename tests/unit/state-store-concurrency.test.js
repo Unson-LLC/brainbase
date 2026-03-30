@@ -8,6 +8,24 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
+async function closeWatcher(watcher) {
+    if (!watcher) return;
+
+    await Promise.race([
+        watcher.close(),
+        new Promise((resolve) => setTimeout(resolve, 1000))
+    ]);
+}
+
+async function cleanupTempDir(tempDir) {
+    if (!tempDir) return;
+
+    await Promise.race([
+        fs.rm(tempDir, { recursive: true, force: true }),
+        new Promise((resolve) => setTimeout(resolve, 1000))
+    ]);
+}
+
 describe('StateStore - Concurrency', () => {
     let stateStore;
     let tempDir;
@@ -25,12 +43,10 @@ describe('StateStore - Concurrency', () => {
 
     afterEach(async () => {
         // watcher停止
-        if (stateStore._watcher) {
-            await stateStore._watcher.close();
-        }
+        await closeWatcher(stateStore._watcher);
 
         // 一時ディレクトリ削除
-        await fs.rm(tempDir, { recursive: true, force: true });
+        await cleanupTempDir(tempDir);
     });
 
     describe('外部編集検知', () => {
@@ -75,6 +91,9 @@ describe('StateStore - Concurrency', () => {
 
     describe('persist()の競合検出', () => {
         it('persist()中に外部編集があった場合、エラーを投げる', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // 初回persist
             await stateStore.persist();
 
@@ -107,6 +126,9 @@ describe('StateStore - Concurrency', () => {
         });
 
         it('ファイルが存在しない場合はpersist()が成功する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // state.jsonを削除
             await fs.rm(stateFilePath, { force: true });
 
@@ -182,7 +204,7 @@ describe('StateStore - Concurrency', () => {
             expect(newStateStore._mtime).not.toBeNull();
             expect(typeof newStateStore._mtime).toBe('number');
 
-            await newStateStore._watcher.close();
+            await closeWatcher(newStateStore._watcher);
         });
 
         it('persist()後にmtimeを更新する', async () => {
@@ -227,10 +249,13 @@ describe('StateStore - Concurrency', () => {
             expect(newStateStore.state.sessions).toHaveLength(2);
             expect(newStateStore.state.sessions[1].id).toBe('primary-session');
 
-            await newStateStore._watcher.close();
+            await closeWatcher(newStateStore._watcher);
         });
 
         it('primaryが存在しない場合、.bakから復旧する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // state.jsonを削除（存在しない状態）
             await fs.rm(stateFilePath, { force: true });
 
@@ -252,10 +277,13 @@ describe('StateStore - Concurrency', () => {
             expect(newStateStore.state.sessions).toHaveLength(2);
             expect(newStateStore.state.sessions[1].id).toBe('backup-session');
 
-            await newStateStore._watcher.close();
+            await closeWatcher(newStateStore._watcher);
         });
 
         it('primaryと.bakが存在しない場合、.cleanから復旧する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // state.jsonと.bakを削除
             await fs.rm(stateFilePath, { force: true });
             await fs.rm(stateFilePath + '.bak', { force: true });
@@ -280,10 +308,13 @@ describe('StateStore - Concurrency', () => {
             expect(newStateStore.state.sessions[1].id).toBe('clean-session-1');
             expect(newStateStore.state.sessions[2].id).toBe('clean-session-2');
 
-            await newStateStore._watcher.close();
+            await closeWatcher(newStateStore._watcher);
         });
 
         it('全てのバックアップが存在しない場合、デフォルトstateを使用する', async () => {
+            // beforeEachのwatcherを先に閉じる（ファイル操作の干渉防止）
+            await closeWatcher(stateStore._watcher);
+
             // 全てのバックアップを削除
             await fs.rm(stateFilePath, { force: true });
             await fs.rm(stateFilePath + '.bak', { force: true });

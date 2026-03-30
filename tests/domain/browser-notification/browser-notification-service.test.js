@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BrowserNotificationService } from '../../../public/modules/domain/browser-notification/browser-notification-service.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 
 // Notification APIをモック化
 const mockNotification = vi.fn();

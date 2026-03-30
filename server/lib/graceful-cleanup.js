@@ -1,3 +1,4 @@
+// @ts-check
 import { logger } from '../utils/logger.js';
 /**
  * Graceful Partial Cleanup（CommandMateパターン）
@@ -13,7 +14,9 @@ import { logger } from '../utils/logger.js';
  * @returns {Promise<{ success: boolean, completed: string[], warnings: string[] }>}
  */
 export async function gracefulCleanup(contextId, steps) {
+    /** @type {string[]} */
     const completed = [];
+    /** @type {string[]} */
     const warnings = [];
 
     for (const step of steps) {
@@ -21,7 +24,7 @@ export async function gracefulCleanup(contextId, steps) {
             await step.fn();
             completed.push(step.name);
         } catch (error) {
-            const message = `[GracefulCleanup] ${contextId}: ${step.name} failed - ${error.message}`;
+            const message = `[GracefulCleanup] ${contextId}: ${step.name} failed - ${error instanceof Error ? error.message : String(error)}`;
             logger.warn(message);
             warnings.push(message);
         }

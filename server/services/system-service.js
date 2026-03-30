@@ -1,7 +1,9 @@
+// @ts-check
 import { exec } from 'child_process';
 import util from 'util';
 import os from 'os';
 import { logger } from '../utils/logger.js';
+import { formatBytes } from '../lib/validation.js';
 
 const execPromise = util.promisify(exec);
 
@@ -56,9 +58,9 @@ export class SystemService {
             const usagePercent = (usedMem / totalMem) * 100;
 
             return {
-                total: this.formatBytes(totalMem),
-                used: this.formatBytes(usedMem),
-                free: this.formatBytes(freeMem),
+                total: formatBytes(totalMem),
+                used: formatBytes(usedMem),
+                free: formatBytes(freeMem),
                 usage: parseFloat(usagePercent.toFixed(2)),
                 totalBytes: totalMem,
                 usedBytes: usedMem,
@@ -135,13 +137,7 @@ export class SystemService {
      * @param {number} bytes - バイト数
      * @returns {string} フォーマットされた文字列
      */
-    formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
+    // formatBytes imported from ../lib/validation.js
 
     /**
      * アップタイムを人間が読める形式に変換

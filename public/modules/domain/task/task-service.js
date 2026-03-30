@@ -1,3 +1,4 @@
+// @ts-check
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
@@ -15,6 +16,14 @@ export class TaskService {
         this.httpClient = httpClient;
         this.store = appStore;
         this.eventBus = eventBus;
+    }
+
+    /**
+     * キャッシュ無効化＆タスクリロード（変更操作後の共通処理）
+     */
+    async _invalidateAndReload() {
+        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
+        await this.loadTasks();
     }
 
     /**
@@ -53,10 +62,7 @@ export class TaskService {
     async completeTask(taskId) {
         await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'done' });
 
-        // キャッシュ無効化
-        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
-
-        await this.loadTasks(); // リロード
+        await this._invalidateAndReload();
         const eventResult = await this.eventBus.emit(EVENTS.TASK_COMPLETED, { taskId });
         return { success: true, taskId, eventResult };
     }
@@ -77,10 +83,7 @@ export class TaskService {
 
         await this.httpClient.post(`/api/tasks/${taskId}/defer`, { priority: newPriority });
 
-        // キャッシュ無効化
-        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
-
-        await this.loadTasks(); // リロード
+        await this._invalidateAndReload();
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DEFERRED, { taskId });
         return { success: true, taskId, newPriority, eventResult };
     }
@@ -128,10 +131,10 @@ export class TaskService {
 
     /**
      * Next Tasks取得（フォーカスタスク以外のタスク）
-     * @param {Object} options - オプション
-     * @param {boolean} options.showAll - 全件表示するか（デフォルト: false、上限10件）
-     * @param {string} options.owner - オーナーフィルター（任意）
-     * @returns {Array} Next Tasks配列
+     * @param {Object} [options] - オプション
+     * @param {boolean} [options.showAll] - 全件表示するか（デフォルト: false、上限10件）
+     * @param {string} [options.owner] - オーナーフィルター（任意）
+     * @returns {{ tasks: Array, totalCount: number, remainingCount: number }}
      */
     getNextTasks(options = {}) {
         const { showAll = false, owner = null } = options;
@@ -196,10 +199,7 @@ export class TaskService {
     async updateTask(taskId, updates) {
         await this.httpClient.put(`/api/tasks/${taskId}`, updates);
 
-        // キャッシュ無効化
-        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
-
-        await this.loadTasks(); // リロード
+        await this._invalidateAndReload();
         const eventResult = await this.eventBus.emit(EVENTS.TASK_UPDATED, { taskId, updates });
         return { success: true, taskId, updates, eventResult };
     }
@@ -212,10 +212,7 @@ export class TaskService {
     async deleteTask(taskId) {
         await this.httpClient.delete(`/api/tasks/${taskId}`);
 
-        // キャッシュ無効化
-        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
-
-        await this.loadTasks(); // リロード
+        await this._invalidateAndReload();
         const eventResult = await this.eventBus.emit(EVENTS.TASK_DELETED, { taskId });
         return { success: true, taskId, eventResult };
     }
@@ -233,10 +230,7 @@ export class TaskService {
     async createTask(taskData) {
         const task = await this.httpClient.post('/api/tasks', taskData);
 
-        // キャッシュ無効化
-        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
-
-        await this.loadTasks(); // リロード
+        await this._invalidateAndReload();
         const eventResult = await this.eventBus.emit(EVENTS.TASK_CREATED, { task });
         return { success: true, task, eventResult };
     }
@@ -264,7 +258,7 @@ export class TaskService {
         return completed.sort((a, b) => {
             const dateA = a.updated ? new Date(a.updated) : (a.created ? new Date(a.created) : new Date(0));
             const dateB = b.updated ? new Date(b.updated) : (b.created ? new Date(b.created) : new Date(0));
-            return dateB - dateA;
+            return dateB.getTime() - dateA.getTime();
         });
     }
 
@@ -276,10 +270,7 @@ export class TaskService {
     async restoreTask(taskId) {
         await this.httpClient.put(`/api/tasks/${taskId}`, { status: 'todo' });
 
-        // キャッシュ無効化
-        sessionDataCache.invalidateType('tasks', TASKS_CACHE_SCOPE);
-
-        await this.loadTasks(); // リロード
+        await this._invalidateAndReload();
         const eventResult = await this.eventBus.emit(EVENTS.TASK_RESTORED, { taskId });
         return { success: true, taskId, eventResult };
     }

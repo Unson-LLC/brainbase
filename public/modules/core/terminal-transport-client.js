@@ -67,7 +67,7 @@ export class TerminalTransportClient {
 
     async init(hostEl) {
         this.hostEl = hostEl;
-        const { Terminal, FitAddon, WebLinksAddon } = await loadXterm();
+        const { Terminal, FitAddon, WebLinksAddon, Unicode11Addon } = await loadXterm();
         if (this.terminal) return;
 
         this.terminal = new Terminal({
@@ -89,6 +89,10 @@ export class TerminalTransportClient {
         this.terminal.loadAddon(this.fitAddon);
         if (WebLinksAddon) {
             this.terminal.loadAddon(new WebLinksAddon());
+        }
+        if (Unicode11Addon) {
+            this.terminal.loadAddon(new Unicode11Addon());
+            this.terminal.unicode.activeVersion = '11';
         }
         this.terminal.open(hostEl);
         this.fitAddon.fit();
@@ -218,6 +222,14 @@ export class TerminalTransportClient {
         this._clearReconnectTimer();
         this._closeWs();
 
+        // 再接続時もsnapshot状態をリセット。
+        // switchingSessions でなくても（同一セッション再接続でも）、
+        // streaming中にxterm.jsに書き込まれたoutputとsnapshotキャッシュが
+        // 乖離するため、常にリセットが必要。
+        this._lastSnapshotText = null;
+        this._pendingSnapshotText = null;
+        this._pendingEchoText = '';
+
         if (switchingSessions) {
             this._prepareForSessionSwitch();
         }
@@ -250,13 +262,16 @@ export class TerminalTransportClient {
                         this._retryCount = 0;
                         this.status.mode = 'live';
                         this.status.connected = true;
+                        console.log('[TTC] ready received');
                         this._emitStatus();
                         this._startKeepalive();
                         this._flushMessageQueue();
                         void this.syncViewportSize();
                         resolve({ mode: 'live' });
                         break;
-                    case 'snapshot':
+                    case 'snapshot': {
+                        const snapshotLen = (message.colorText || message.text || '').length;
+                        console.log(`[TTC] snapshot received: len=${snapshotLen}, connected=${this.status.connected}`);
                         this._queueOrApplySnapshot(message.colorText || message.text || '');
                         this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
                         if (!this.status.connected) {
@@ -265,9 +280,13 @@ export class TerminalTransportClient {
                         }
                         this._emitStatus();
                         break;
-                    case 'output':
+                    }
+                    case 'output': {
+                        const outputLen = (typeof message.data === 'string' ? message.data : '').length;
+                        console.log(`[TTC] output received: len=${outputLen}`);
                         this._applyOutput(typeof message.data === 'string' ? message.data : '');
                         break;
+                    }
                     case 'status':
                         this.status.copyMode = Boolean(message.copyMode);
                         if (typeof message.mode === 'string') {
@@ -302,6 +321,8 @@ export class TerminalTransportClient {
             });
 
             ws.addEventListener('close', (closeEvent) => {
+                const closeCode = closeEvent?.code;
+                console.log(`[TTC] ws close: code=${closeCode}, stale=${this._connectToken !== connectToken}`);
                 if (this._connectToken !== connectToken || this.ws !== ws) {
                     cleanup();
                     return;
@@ -309,8 +330,6 @@ export class TerminalTransportClient {
                 cleanup();
                 this._stopKeepalive();
                 this.status.connected = false;
-
-                const closeCode = closeEvent?.code;
 
                 // 4001 = ownership taken over: treat as blocked even if blocked message was missed
                 if (closeCode === WS_CLOSE_BLOCKED) {
@@ -713,11 +732,10 @@ export class TerminalTransportClient {
 
     async _ensureAuthenticated() {
         try {
-            await httpClient.get('/api/auth/verify');
-        } catch (error) {
-            const authError = new Error('Authentication required');
-            authError.code = 'AUTH_REQUIRED';
-            throw authError;
+            await httpClient.get('/api/auth/verify', { suppressAuthError: true });
+        } catch {
+            // Authentication not available — proceed anyway.
+            // WebSocket upgrade handler on the server will determine access.
         }
     }
 

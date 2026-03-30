@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * 共通エラーハンドリングラッパー
  * QAレビュー改善: 一元的なエラー分類・リトライ・ロギング機能
@@ -14,7 +15,7 @@ export const ErrorType = {
 
 /**
  * エラー分類関数
- * @param {Error} error - 分類するエラー
+ * @param {Error & { status?: number, statusCode?: number, type?: string }} error - 分類するエラー
  * @returns {string} ErrorType値
  */
 export function classifyError(error) {
@@ -61,11 +62,11 @@ export function isRetryable(error) {
 /**
  * 指数バックオフ付きリトライ
  * @param {Function} fn - リトライ対象の非同期関数
- * @param {Object} options - オプション
- * @param {number} options.maxRetries - 最大リトライ回数（デフォルト: 3）
- * @param {number} options.baseDelay - 基本遅延時間ms（デフォルト: 1000）
- * @param {number} options.maxDelay - 最大遅延時間ms（デフォルト: 10000）
- * @param {Function} options.onRetry - リトライ時コールバック
+ * @param {Object} [options] - オプション
+ * @param {number} [options.maxRetries] - 最大リトライ回数（デフォルト: 3）
+ * @param {number} [options.baseDelay] - 基本遅延時間ms（デフォルト: 1000）
+ * @param {number} [options.maxDelay] - 最大遅延時間ms（デフォルト: 10000）
+ * @param {Function|null} [options.onRetry] - リトライ時コールバック
  * @returns {Promise<*>} fn()の戻り値
  */
 export async function withRetry(fn, options = {}) {

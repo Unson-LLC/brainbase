@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * ANSI/制御文字サニタイズ（CommandMate移植）
  *
@@ -95,6 +96,10 @@ export function extractAnsiColors(text) {
     });
 }
 
+/**
+ * @param {string | null} text
+ * @returns {string}
+ */
 export function sanitizeTerminalOutput(text) {
     if (!text || typeof text !== 'string') return '';
 

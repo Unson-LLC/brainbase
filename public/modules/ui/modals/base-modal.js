@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * BaseModal - モーダルコンポーネントの共通基底クラス
  *
@@ -22,7 +23,7 @@ export class BaseModal {
      * モーダルをマウント（サブクラスでoverrideする場合はsuper.mount()を呼ぶこと）
      */
     mount() {
-        this.modalElement = document.getElementById(this._modalId);
+        this.modalElement = /** @type {HTMLInputElement|null} */ (document.getElementById(this._modalId));
         if (!this.modalElement) {
             console.warn(`${this.constructor.name}: #${this._modalId} not found`);
             return;
@@ -55,7 +56,7 @@ export class BaseModal {
      * @param {string} message - エラーメッセージ
      */
     _showError(errorElementId, message) {
-        const el = document.getElementById(errorElementId);
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(errorElementId));
         if (el) {
             el.textContent = message;
             el.style.display = 'block';
@@ -67,7 +68,7 @@ export class BaseModal {
      * @param {string} errorElementId - エラー表示要素のDOM ID
      */
     _hideError(errorElementId) {
-        const el = document.getElementById(errorElementId);
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(errorElementId));
         if (el) {
             el.textContent = '';
             el.style.display = 'none';
@@ -97,7 +98,7 @@ export class BaseModal {
      * @param {Function} callback - Enter時に呼ばれるコールバック
      */
     _attachEnterKeyHandler(inputId, callback) {
-        const input = document.getElementById(inputId);
+        const input = /** @type {HTMLInputElement|null} */ (document.getElementById(inputId));
         if (input) {
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -133,5 +134,35 @@ export class BaseModal {
      */
     _attachEventHandlers() {
         // サブクラスでoverrideする
+    }
+
+    // ── Form Field Helpers ──────────────────────────────
+
+    /**
+     * フォームフィールドの値を取得（trim済み）
+     * @param {string} fieldId - フィールドのDOM ID
+     * @returns {string}
+     */
+    _val(fieldId) {
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(fieldId));
+        return el?.value?.trim() || '';
+    }
+
+    /**
+     * フォームフィールドに値を設定
+     * @param {string} fieldId - フィールドのDOM ID
+     * @param {string} value - 設定する値
+     */
+    _setVal(fieldId, value) {
+        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(fieldId));
+        if (el) el.value = value;
+    }
+
+    /**
+     * フォームフィールドにフォーカス
+     * @param {string} fieldId - フィールドのDOM ID
+     */
+    _focus(fieldId) {
+        /** @type {HTMLInputElement|null} */ (document.getElementById(fieldId))?.focus();
     }
 }

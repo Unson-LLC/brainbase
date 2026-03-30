@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * セッションヘルスモニタリング（CommandMate移植）
  *

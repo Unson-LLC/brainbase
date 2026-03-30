@@ -1,3 +1,4 @@
+// @ts-check
 import { logger } from '../utils/logger.js';
 
 /**
@@ -11,6 +12,20 @@ export class NocoDBService {
         this.timeout = 15000; // 15秒
         this.maxRetries = 3;  // 最大リトライ回数
         this._tableIdCache = new Map(); // baseId:tableName -> tableId キャッシュ
+    }
+
+    /**
+     * NocoDB APIレスポンスの共通チェック
+     * @param {Response} response - fetchレスポンス
+     * @param {string} [context] - エラーログ用のコンテキスト
+     * @returns {Promise<any>} パース済みJSON
+     */
+    async _handleResponse(response, context = '') {
+        if (!response.ok) {
+            const detail = context ? ` (${context})` : '';
+            throw new Error(`NocoDB API failed: ${response.status}${detail}`);
+        }
+        return response.json();
     }
 
     /**
@@ -97,11 +112,7 @@ export class NocoDBService {
             }
         });
 
-        if (!response.ok) {
-            throw new Error(`NocoDB API failed: ${response.status}`);
-        }
-
-        const data = await response.json();
+        const data = await this._handleResponse(response, 'listBases');
         return data.list || [];
     }
 
@@ -128,11 +139,7 @@ export class NocoDBService {
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = await this._handleResponse(response, 'getTableId');
             const tables = data.list || [];
 
             // 全テーブルをキャッシュ
@@ -365,11 +372,7 @@ export class NocoDBService {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const result = await response.json();
+            const result = await this._handleResponse(response, 'insertSnapshot');
             logger.info(`Snapshot inserted for project ${data.project_id} on ${data.snapshot_date}`);
             return result;
         } catch (error) {
@@ -408,11 +411,7 @@ export class NocoDBService {
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = await this._handleResponse(response, 'getSnapshots');
             const snapshots = data.list || [];
 
             // Calculate trend analysis
@@ -552,11 +551,7 @@ export class NocoDBService {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const result = await response.json();
+            const result = await this._handleResponse(response, 'insertWorkflowHistory');
             logger.info(`Workflow history inserted: ${data.workflow_id} on ${data.execution_date}`);
             return result;
         } catch (error) {
@@ -598,11 +593,7 @@ export class NocoDBService {
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = await this._handleResponse(response, 'getWorkflowStats');
             const records = data.list || [];
 
             // 統計計算
@@ -696,16 +687,7 @@ export class NocoDBService {
                 })
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                logger.error('Failed to create action in NocoDB', {
-                    status: response.status,
-                    error: errorText
-                });
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
-            const result = await response.json();
+            const result = await this._handleResponse(response, 'createAction');
             logger.info('Action created in NocoDB', { id: result.Id, project: actionData.project });
 
             return {
@@ -805,15 +787,7 @@ export class NocoDBService {
                 })
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                logger.error('Failed to update action status in NocoDB', {
-                    status: response.status,
-                    error: errorText
-                });
-                throw new Error(`NocoDB API failed: ${response.status}`);
-            }
-
+            await this._handleResponse(response, 'updateActionStatus');
             logger.info('Action status updated in NocoDB', { actionId, status });
         } catch (error) {
             logger.error('Failed to update action status', { error });

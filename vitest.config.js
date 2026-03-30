@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom', // デフォルトはjsdom（フロントエンド）
-    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js'],
+    include: ['tests/unit/**/*.test.js', 'tests/core/**/*.test.js', 'tests/domain/**/*.test.js', 'tests/ui/**/*.test.js', 'tests/api/**/*.test.js', 'tests/integration/**/*.test.js', 'tests/server/**/*.test.js', 'tests/public/**/*.test.js', 'tests/mesh/**/*.test.js'],
     setupFiles: ['tests/setup/test-setup.js'],
     environmentMatchGlobs: [
       // config-parser等のサーバーサイドテストのみnode環境
@@ -23,6 +23,8 @@ export default defineConfig({
       ['tests/integration/**/*.test.js', 'node'],
       // サーバーサイドテストはnode環境
       ['tests/server/**/*.test.js', 'node'],
+      // Meshテストはnode環境（libsodium-wrappers要件）
+      ['tests/mesh/**/*.test.js', 'node'],
     ],
     coverage: {
       provider: 'v8',

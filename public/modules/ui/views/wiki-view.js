@@ -202,8 +202,14 @@ export class WikiView {
     // --- Overlay (covers console-area only) ---
 
     _ensureOverlay() {
-        if (document.getElementById('wiki-reader-overlay')) {
-            this._overlay = document.getElementById('wiki-reader-overlay');
+        const existing = document.getElementById('wiki-reader-overlay');
+        if (existing) {
+            this._overlay = existing;
+            // If mounted in a mobile tab, ensure overlay is on body (not inside console-area)
+            const isMobileTab = Boolean(this._container?.closest('.mobile-tab-content'));
+            if (isMobileTab && existing.parentElement !== document.body) {
+                document.body.appendChild(existing);
+            }
             return;
         }
         const overlay = document.createElement('div');
@@ -218,10 +224,13 @@ export class WikiView {
             </div>
             <div class="wiki-reader-body"></div>
         `;
-        // Insert inside console-area (which has position:relative)
-        // so the overlay covers only the terminal area
+        // Insert overlay: mobile uses body (container.innerHTML gets overwritten by _render);
+        // desktop uses console-area so overlay only covers terminal area.
+        const isMobileTab = Boolean(this._container?.closest('.mobile-tab-content'));
         const consoleArea = document.getElementById('console-area');
-        if (consoleArea) {
+        if (isMobileTab) {
+            document.body.appendChild(overlay);
+        } else if (consoleArea) {
             consoleArea.appendChild(overlay);
         } else {
             document.body.appendChild(overlay);

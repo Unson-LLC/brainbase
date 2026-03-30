@@ -27,14 +27,13 @@ export class NocoDBTasksView extends BaseView {
      * @param {HTMLElement} container - マウント先のコンテナ
      */
     _setupEventListeners() {
+        this._renderOn(eventBus, EVENTS.NOCODB_TASK_UPDATED, EVENTS.NOCODB_TASK_DELETED);
         this._addSubscriptions(
             eventBus.on(EVENTS.NOCODB_TASKS_LOADED, () => {
                 this._updateProjectFilter();
                 this._updateAssigneeFilter();
                 this.render();
             }),
-            eventBus.on(EVENTS.NOCODB_TASK_UPDATED, () => this.render()),
-            eventBus.on(EVENTS.NOCODB_TASK_DELETED, () => this.render()),
             eventBus.on(EVENTS.NOCODB_TASK_ERROR, (event) => {
                 this._showError(event.detail?.error || 'エラーが発生しました');
             }),

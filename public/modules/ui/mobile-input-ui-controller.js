@@ -233,6 +233,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, key);
+            setTimeout(() => eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'cursor', sessionId }), 200);
         } catch (error) {
             console.error(`Failed to send ${key} key:`, error);
             showError(`${key}キーの送信に失敗したよ`);
@@ -392,6 +393,12 @@ export class MobileInputUIController {
         if (expanded && dockInput) {
             dockInput.blur();
         }
+
+        // ドックサイズ変更後にターミナル領域の予約サイズを再計算
+        // （snapshot panelが --mobile-terminal-reserve を参照するため）
+        requestAnimationFrame(() => {
+            this.focusManager?.updateTerminalReserve(window.innerHeight);
+        });
     }
 
     async handleSend(mode) {
@@ -420,10 +427,6 @@ export class MobileInputUIController {
         }
 
         const payload = rawValue.endsWith('\n') ? rawValue.slice(0, -1) : rawValue;
-
-        // DEBUG: 送信先セッションIDと入力内容をログ出力
-        console.log('[mobile-input] Sending to sessionId:', sessionId);
-        console.log('[mobile-input] Payload:', payload);
 
         try {
             await this.terminalInput.sendInput(sessionId, payload);
@@ -691,6 +694,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, 'Enter');
+            setTimeout(() => eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'enter', sessionId }), 200);
         } catch (error) {
             console.error('Failed to send Enter key:', error);
             showError('Enterキーの送信に失敗したよ');
@@ -750,6 +754,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, 'C-l');
+            setTimeout(() => eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'clear', sessionId }), 200);
             showSuccess('画面クリア送信');
         } catch (error) {
             console.error('Failed to send Clear:', error);
@@ -768,6 +773,7 @@ export class MobileInputUIController {
 
         try {
             await this.terminalInput.sendKey(sessionId, 'Escape');
+            setTimeout(() => eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'escape', sessionId }), 200);
             showSuccess('Escape送信');
         } catch (error) {
             console.error('Failed to send Escape:', error);
@@ -787,6 +793,7 @@ export class MobileInputUIController {
         try {
             // BTab (Backtab) の方がtmuxで確実に認識される
             await this.terminalInput.sendKey(sessionId, 'BTab');
+            setTimeout(() => eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode: 'shift-tab', sessionId }), 200);
             showSuccess('Shift+Tab送信');
         } catch (error) {
             console.error('Failed to send Shift+Tab:', error);

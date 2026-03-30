@@ -1,3 +1,4 @@
+// @ts-check
 import { BaseModal } from './base-modal.js';
 
 const ERROR_ID = 'add-schedule-error';
@@ -13,14 +14,9 @@ export class ScheduleAddModal extends BaseModal {
 
     open() {
         if (!this.modalElement) return;
-
         this._clearForm();
         this.modalElement.classList.add('active');
-
-        const startInput = document.getElementById('add-schedule-start');
-        if (startInput) {
-            setTimeout(() => startInput.focus(), 100);
-        }
+        setTimeout(() => this._focus('add-schedule-start'), 100);
     }
 
     close() {
@@ -29,41 +25,30 @@ export class ScheduleAddModal extends BaseModal {
     }
 
     _clearForm() {
-        const startInput = document.getElementById('add-schedule-start');
-        const endInput = document.getElementById('add-schedule-end');
-        const titleInput = document.getElementById('add-schedule-title');
-
-        if (startInput) startInput.value = '';
-        if (endInput) endInput.value = '';
-        if (titleInput) titleInput.value = '';
-
+        this._setVal('add-schedule-start', '');
+        this._setVal('add-schedule-end', '');
+        this._setVal('add-schedule-title', '');
         this._hideError(ERROR_ID);
     }
 
     async save() {
-        const startInput = document.getElementById('add-schedule-start');
-        const endInput = document.getElementById('add-schedule-end');
-        const titleInput = document.getElementById('add-schedule-title');
-
-        const start = startInput?.value?.trim() || '';
-        const end = endInput?.value?.trim() || '';
-        const title = titleInput?.value?.trim() || '';
+        const start = this._val('add-schedule-start');
+        const end = this._val('add-schedule-end');
+        const title = this._val('add-schedule-title');
 
         if (!start) {
             this._showError(ERROR_ID, '開始時間は必須です');
-            startInput?.focus();
+            this._focus('add-schedule-start');
             return;
         }
-
         if (!title) {
             this._showError(ERROR_ID, 'タイトルは必須です');
-            titleInput?.focus();
+            this._focus('add-schedule-title');
             return;
         }
-
         if (end && end < start) {
             this._showError(ERROR_ID, '終了時間は開始時間より後にしてください');
-            endInput?.focus();
+            this._focus('add-schedule-end');
             return;
         }
 
@@ -77,7 +62,7 @@ export class ScheduleAddModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const saveBtn = document.getElementById('save-add-schedule-btn');
+        const saveBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('save-add-schedule-btn'));
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }

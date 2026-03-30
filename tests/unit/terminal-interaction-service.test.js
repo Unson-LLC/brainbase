@@ -21,8 +21,8 @@ describe('TerminalInteractionService', () => {
 
         await service.sendInput('session-1', 'hello');
 
-        expect(transport.sendText).toHaveBeenCalledWith('hello');
-        expect(transport.sendKey).toHaveBeenCalledWith('Enter');
+        expect(transport.sendText).toHaveBeenCalledWith('hello\n');
+        expect(transport.sendKey).not.toHaveBeenCalled();
         expect(httpClient.post).not.toHaveBeenCalled();
     });
 

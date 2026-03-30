@@ -1,15 +1,33 @@
+// @ts-check
 import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
 
 function decodeTmuxEscapes(value = '') {
-    return value.replace(/\\([0-7]{3}|n|r|t|\\)/g, (match, token) => {
+    // First pass: decode named escapes (\n, \r, \t, \\)
+    // Second pass: decode octal sequences as UTF-8 byte sequences
+    // tmux encodes UTF-8 multi-byte chars as individual octal bytes
+    // e.g. "あ" → \343\201\202 (3 bytes). Must reassemble as UTF-8.
+    const withNamedDecoded = value.replace(/\\(n|r|t|\\)/g, (match, token) => {
         if (token === 'n') return '\n';
         if (token === 'r') return '\r';
         if (token === 't') return '\t';
-        if (token === '\\') return '\\';
-        return String.fromCharCode(Number.parseInt(token, 8));
+        return '\\';
+    });
+
+    // Collect consecutive octal sequences and decode them as UTF-8 byte buffers
+    return withNamedDecoded.replace(/(\\[0-7]{3})+/g, (match) => {
+        const bytes = [];
+        for (const m of match.matchAll(/\\([0-7]{3})/g)) {
+            bytes.push(Number.parseInt(m[1], 8));
+        }
+        try {
+            return Buffer.from(bytes).toString('utf-8');
+        } catch {
+            // Fallback: decode each byte individually (Latin-1)
+            return bytes.map(b => String.fromCharCode(b)).join('');
+        }
     });
 }
 

@@ -1,3 +1,4 @@
+// @ts-check
 import { httpClient } from '../../core/http-client.js';
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
@@ -15,10 +16,13 @@ import { pruneSessionUiState, setSessionSummaryMap } from '../../session-ui-stat
  * - セッション作成時に前回の失敗情報を確認
  * - スタック検出時にSTUCK_DETECTEDイベントを発火
  */
+const SESSION_CACHE_KEY = 'bb:session-state-cache:v1';
+
 export class SessionService {
     /**
-     * @param {Object} options - オプション
-     * @param {Object} options.recoveryService - RecoveryService（オプション）
+     * @param {Object} [options] - オプション
+     * @param {Object} [options.recoveryService] - RecoveryService
+     * @param {boolean} [options.skipMergeCheck] - マージチェックをスキップ
      */
     constructor(options = {}) {
         this.httpClient = httpClient;
@@ -34,6 +38,51 @@ export class SessionService {
      * セッション一覧取得
      * @returns {Promise<Array>} セッション配列
      */
+    /**
+     * localStorageからキャッシュ済みセッション状態を即座に復元
+     * API応答を待たずにUIを表示できる（stale-while-revalidate）
+     */
+    restoreFromCache() {
+        try {
+            const raw = localStorage.getItem(SESSION_CACHE_KEY);
+            if (!raw) return false;
+            const cached = JSON.parse(raw);
+            if (!cached?.sessions?.length) return false;
+            // 1時間以上古いキャッシュは無視
+            if (cached.cachedAt && Date.now() - cached.cachedAt > 3600000) return false;
+            this.store.setState({
+                sessions: cached.sessions,
+                testMode: cached.testMode || false,
+                preferences: cached.preferences || {}
+            });
+            if (cached.currentSessionId) {
+                this.store.setState({ currentSessionId: cached.currentSessionId });
+            }
+            pruneSessionUiState(cached.sessions.map(s => s.id));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    _saveToCache(state) {
+        try {
+            const { sessions, testMode, preferences, currentSessionId } = this.store.getState();
+            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
+                sessions: (sessions || []).map(s => ({
+                    id: s.id, name: s.name, project: s.project, path: s.path,
+                    intendedState: s.intendedState, engine: s.engine,
+                    worktree: s.worktree, createdAt: s.createdAt,
+                    archivedAt: s.archivedAt, pausedReason: s.pausedReason
+                })),
+                testMode,
+                preferences,
+                currentSessionId,
+                cachedAt: Date.now()
+            }));
+        } catch { /* quota exceeded等は無視 */ }
+    }
+
     async loadSessions(options = {}) {
         const { silent = false } = options;
         const state = await this.httpClient.get('/api/state');
@@ -72,6 +121,7 @@ export class SessionService {
 
         this.store.setState({ sessions, testMode, preferences });
         pruneSessionUiState(sessions.map((session) => session.id));
+        this._saveToCache();
         if (!silent) {
             await this.eventBus.emit(EVENTS.SESSION_LOADED, { sessions, testMode });
         }
@@ -521,7 +571,7 @@ export class SessionService {
 
             const dateA = new Date(getDateValue(a));
             const dateB = new Date(getDateValue(b));
-            return dateB - dateA;
+            return dateB.getTime() - dateA.getTime();
         });
 
         console.log('[DEBUG] getArchivedSessions - Returning:', sorted.length, 'sessions');
@@ -594,8 +644,8 @@ export class SessionService {
     /**
      * セッションをアーカイブ（worktreeマージチェック付き）
      * @param {string} sessionId - アーカイブするセッションのID
-     * @param {Object} options - オプション
-     * @param {boolean} options.skipMergeCheck - マージチェックをスキップするか
+     * @param {Object} [options] - オプション
+     * @param {boolean} [options.skipMergeCheck] - マージチェックをスキップするか
      * @returns {Promise<{success?: boolean, needsConfirmation?: boolean, status?: Object}>}
      */
     async archiveSession(sessionId, options = {}) {
@@ -618,16 +668,8 @@ export class SessionService {
         await this.loadSessions();
         await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
 
-        // 現在表示中のセッションをアーカイブした場合、次のアクティブセッションに切り替え
         if (wasCurrentSession) {
-            const activeSessions = this.getFilteredSessions()
-                .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
-            if (activeSessions.length > 0) {
-                await this.switchSession(activeSessions[0].id);
-            } else {
-                // アクティブセッションがない場合はcurrentSessionIdをクリア
-                this.store.setState({ currentSessionId: null });
-            }
+            await this._switchToNextActive(sessionId);
         }
 
         return { success: true };
@@ -652,15 +694,8 @@ export class SessionService {
             await this.loadSessions();
             await this.eventBus.emit(EVENTS.SESSION_ARCHIVED, { sessionId });
 
-            // 現在表示中のセッションをマージした場合、次のアクティブセッションに切り替え
             if (wasCurrentSession) {
-                const activeSessions = this.getFilteredSessions()
-                    .filter(s => s.intendedState !== 'archived' && s.id !== sessionId);
-                if (activeSessions.length > 0) {
-                    await this.switchSession(activeSessions[0].id);
-                } else {
-                    this.store.setState({ currentSessionId: null });
-                }
+                await this._switchToNextActive(sessionId);
             }
         }
 
@@ -710,6 +745,20 @@ export class SessionService {
      * @param {string} sessionId - 切り替え先のセッションID
      * @returns {Promise<{success: boolean, sessionId: string, eventResult: Object}|null>}
      */
+    /**
+     * 指定セッションを除外して次のアクティブセッションに切り替え
+     * アーカイブ/マージ後に現在セッションから離脱するための共通処理
+     */
+    async _switchToNextActive(excludeSessionId) {
+        const activeSessions = this.getFilteredSessions()
+            .filter(s => s.intendedState !== 'archived' && s.id !== excludeSessionId);
+        if (activeSessions.length > 0) {
+            await this.switchSession(activeSessions[0].id);
+        } else {
+            this.store.setState({ currentSessionId: null });
+        }
+    }
+
     async switchSession(sessionId) {
         const { currentSessionId } = this.store.getState();
         const previousSessionId = currentSessionId;
@@ -800,18 +849,29 @@ export class SessionService {
      */
     async saveSessionOrder(sessions) {
         try {
-            // Get current state from backend
+            // Only send ID order — let the server reorder its own authoritative data
+            const orderedIds = sessions.map(s => s.id);
+
+            // Get current state from backend (authoritative source)
             const state = await this.httpClient.get('/api/state');
+            const serverSessions = state.sessions || [];
 
-            // Update sessions array with new order
-            const updatedState = {
-                ...state,
-                sessions
-            };
+            // Reorder server sessions to match client order
+            const sessionMap = new Map(serverSessions.map(s => [s.id, s]));
+            const reordered = [];
+            for (const id of orderedIds) {
+                const s = sessionMap.get(id);
+                if (s) {
+                    reordered.push(s);
+                    sessionMap.delete(id);
+                }
+            }
+            // Append any sessions not in the client order (e.g., newly created)
+            for (const s of sessionMap.values()) {
+                reordered.push(s);
+            }
 
-            // Save to backend
-            await this.httpClient.post('/api/state', updatedState);
-
+            await this.httpClient.post('/api/state', { ...state, sessions: reordered });
             console.log('Session order saved successfully');
         } catch (error) {
             console.error('Failed to save session order:', error);

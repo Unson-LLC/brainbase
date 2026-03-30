@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createBrainbaseRouter } from '../../../server/routes/brainbase.js';
+import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { flushCache } from '../../../server/middleware/cache.js';
 
 /**
@@ -86,6 +87,7 @@ beforeEach(async () => {
   // ルーター作成（ConfigParserを注入）
   const router = createBrainbaseRouter({ configParser: mockConfigParser });
   app.use('/api/brainbase', router);
+  app.use(errorHandler);
 });
 
 // ==================== 1. GET /api/brainbase/critical-alerts ====================
@@ -229,16 +231,13 @@ describe('GET /api/brainbase/projects', () => {
     expect(res.body[1].id).toBe('project2');
   });
 
-  it('500: ConfigParser取得失敗時にエラーレスポンス', async () => {
-    // モック設定: エラーを投げる
+  it('200: ConfigParser取得失敗時は空配列を返す（内部でリカバリー）', async () => {
     mockConfigParser.getAll.mockRejectedValue(new Error('Config fetch failed'));
 
-    // リクエスト実行
     const res = await request(app).get('/api/brainbase/projects');
 
-    // 検証
-    expect(res.status).toBe(500);
-    expect(res.body).toHaveProperty('error');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
   });
 });
 

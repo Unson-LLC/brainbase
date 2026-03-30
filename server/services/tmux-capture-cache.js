@@ -1,3 +1,4 @@
+// @ts-check
 const DEFAULT_CAPTURE_TTL_MS = 3000;
 
 function buildCacheKey(sessionId, options) {

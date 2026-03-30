@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * アダプティブポーリング（CommandMate移植）
  *

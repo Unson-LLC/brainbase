@@ -1,3 +1,4 @@
+// @ts-check
 import { BaseModal } from './base-modal.js';
 
 /**
@@ -21,7 +22,7 @@ export class RenameModal extends BaseModal {
         this.isSaving = false;
         this.currentSessionId = session.id;
 
-        const input = document.getElementById('rename-session-input');
+        const input = /** @type {HTMLInputElement|null} */ (document.getElementById('rename-session-input'));
         if (input) {
             input.value = session.name || '';
             setTimeout(() => {
@@ -44,7 +45,7 @@ export class RenameModal extends BaseModal {
     async save() {
         if (!this.currentSessionId || this.isSaving) return;
 
-        const input = document.getElementById('rename-session-input');
+        const input = /** @type {HTMLInputElement|null} */ (document.getElementById('rename-session-input'));
         const newName = input?.value?.trim();
 
         if (!newName) {
@@ -67,7 +68,7 @@ export class RenameModal extends BaseModal {
     }
 
     _attachEventHandlers() {
-        const saveBtn = document.getElementById('save-rename-btn');
+        const saveBtn = /** @type {HTMLInputElement|null} */ (document.getElementById('save-rename-btn'));
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.save());
         }

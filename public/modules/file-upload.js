@@ -6,6 +6,7 @@
 
 // --- Imports ---
 import { httpClient } from './core/http-client.js';
+import { refreshIcons } from './ui-helpers.js';
 
 // --- Module State ---
 let getSessionId = null; // Callback to get current session ID
@@ -154,7 +155,7 @@ function setupDragDropEvents() {
     consoleArea?.addEventListener('dragenter', (e) => {
         dragCounter++;
         dropOverlay?.classList.add('active');
-        lucide.createIcons();
+        refreshIcons();
     });
 
     consoleArea?.addEventListener('dragleave', (e) => {

@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TaskController } from '../../server/controllers/task-controller.js';
+import { AppError } from '../../server/lib/errors.js';
+
+function flushAsyncHandler() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 describe('TaskController (Backend)', () => {
     let taskController;
     let mockTaskParser;
     let mockReq;
     let mockRes;
+    let mockNext;
 
     beforeEach(() => {
         // Mock TaskParser
@@ -24,6 +30,7 @@ describe('TaskController (Backend)', () => {
             json: vi.fn(),
             status: vi.fn().mockReturnThis()
         };
+        mockNext = vi.fn();
 
         // Create controller instance
         taskController = new TaskController(mockTaskParser);
@@ -38,10 +45,13 @@ describe('TaskController (Backend)', () => {
             mockReq.body = { priority: 'medium' };
             mockTaskParser.updateTask.mockResolvedValue(true);
 
-            await taskController.defer(mockReq, mockRes);
+            taskController.defer(mockReq, mockRes, mockNext);
+
+            await flushAsyncHandler();
 
             expect(mockTaskParser.updateTask).toHaveBeenCalledWith('task-123', { priority: 'medium' });
             expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+            expect(mockNext).not.toHaveBeenCalled();
         });
 
         it('defer呼び出し時_タスクが存在しない場合は404を返す', async () => {
@@ -49,11 +59,19 @@ describe('TaskController (Backend)', () => {
             mockReq.body = { priority: 'low' };
             mockTaskParser.updateTask.mockResolvedValue(false);
 
-            await taskController.defer(mockReq, mockRes);
+            taskController.defer(mockReq, mockRes, mockNext);
+            await flushAsyncHandler();
 
             expect(mockTaskParser.updateTask).toHaveBeenCalledWith('non-existent', { priority: 'low' });
-            expect(mockRes.status).toHaveBeenCalledWith(404);
-            expect(mockRes.json).toHaveBeenCalledWith({ error: 'Task not found or defer failed' });
+            expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+
+            const error = mockNext.mock.calls[0][0];
+            expect(error).toBeInstanceOf(AppError);
+            expect(error.statusCode).toBe(404);
+            expect(error.code).toBe('TASK_NOT_FOUND');
+            expect(error.message).toBe('Task not found or defer failed');
+            expect(mockRes.status).not.toHaveBeenCalled();
+            expect(mockRes.json).not.toHaveBeenCalled();
         });
 
         it('defer呼び出し時_エラーが発生した場合は500を返す', async () => {
@@ -61,10 +79,17 @@ describe('TaskController (Backend)', () => {
             mockReq.body = { priority: 'low' };
             mockTaskParser.updateTask.mockRejectedValue(new Error('Database error'));
 
-            await taskController.defer(mockReq, mockRes);
+            taskController.defer(mockReq, mockRes, mockNext);
+            await flushAsyncHandler();
 
-            expect(mockRes.status).toHaveBeenCalledWith(500);
-            expect(mockRes.json).toHaveBeenCalledWith({ error: 'Failed to defer task' });
+            expect(mockNext).toHaveBeenCalledWith(expect.any(Error));
+
+            const error = mockNext.mock.calls[0][0];
+            expect(error).toBeInstanceOf(Error);
+            expect(error).not.toBeInstanceOf(AppError);
+            expect(error.message).toBe('Database error');
+            expect(mockRes.status).not.toHaveBeenCalled();
+            expect(mockRes.json).not.toHaveBeenCalled();
         });
 
         it('defer呼び出し時_priorityが指定されていない場合はデフォルトでlowにする', async () => {
@@ -72,10 +97,12 @@ describe('TaskController (Backend)', () => {
             mockReq.body = {};
             mockTaskParser.updateTask.mockResolvedValue(true);
 
-            await taskController.defer(mockReq, mockRes);
+            taskController.defer(mockReq, mockRes, mockNext);
+            await flushAsyncHandler();
 
             expect(mockTaskParser.updateTask).toHaveBeenCalledWith('task-123', { priority: 'low' });
             expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+            expect(mockNext).not.toHaveBeenCalled();
         });
     });
 });

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * NocoDBTaskAdapter
  * NocoDB形式 ⇔ 内部タスク形式の変換

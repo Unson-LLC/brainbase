@@ -8,6 +8,7 @@ import os from 'os';
 import path from 'path';
 import { promisify } from 'util';
 import { logger } from '../utils/logger.js';
+import { CJK_PATTERN, NATURAL_LANGUAGE_HINT_PATTERN, SHELL_COMMAND_PREFIXES, TASK_BRIEF_MAX_LENGTH, TASK_BRIEF_MIN_LENGTH, normalizeTaskBriefCandidate, looksLikeShellCommand, deriveTaskBriefFromPrompt } from '../utils/task-brief.js';
 
 const execAsync = promisify(exec);
 const MAX_TREE_DEPTH = 3;
@@ -18,64 +19,7 @@ const UI_SUMMARY_TTL_MS = 60_000;
 const TAKEOVER_COOLDOWN_MS = 5000;
 const MAX_FILE_READ_SIZE = 512 * 1024;
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
-const TASK_BRIEF_MAX_LENGTH = 56;
-const TASK_BRIEF_MIN_LENGTH = 8;
-const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
-const NATURAL_LANGUAGE_HINT_PATTERN = /\b(please|fix|make|update|improve|investigate|check|review|implement|show|change|add|remove|explain|summarize|help|need|want|should|could)\b/i;
-const SHELL_COMMAND_PREFIXES = new Set([
-    'git', 'jj', 'npm', 'pnpm', 'yarn', 'bun', 'node', 'npx', 'ls', 'cd', 'cat', 'sed', 'rg',
-    'find', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'bash', 'zsh', 'sh', 'python', 'python3', 'uv',
-    'docker', 'tmux', 'claude', 'codex', 'curl'
-]);
-
-function normalizeTaskBriefCandidate(rawValue) {
-    if (typeof rawValue !== 'string') return '';
-
-    return rawValue
-        .replace(/\r/g, '\n')
-        .split('\n')
-        .map((line) => line.trim())
-        .map((line) => line.replace(/^[-*•>\d.)\s]+/, '').trim())
-        .filter(Boolean)
-        .find((line) => {
-            if (!line) return false;
-            if (/[\x00-\x08\x0b-\x1f\x7f]/.test(line)) return false;
-            if (/^\/[\w:-]+$/.test(line)) return false;
-            if (/^https?:\/\//.test(line)) return false;
-            if (/^(~|\.{1,2}|\/)?[\w./-]+$/.test(line)) return false;
-            return true;
-        }) || '';
-}
-
-function looksLikeShellCommand(candidate) {
-    if (!candidate || CJK_PATTERN.test(candidate)) return false;
-    if (/[`$|&;<>]/.test(candidate)) return true;
-
-    const tokens = candidate.trim().split(/\s+/).filter(Boolean);
-    if (tokens.length === 0) return false;
-
-    const firstToken = tokens[0].toLowerCase();
-    if (SHELL_COMMAND_PREFIXES.has(firstToken)) return true;
-
-    const optionTokenCount = tokens.filter((token) => token.startsWith('-')).length;
-    return optionTokenCount >= 2;
-}
-
-function deriveTaskBriefFromPrompt(prompt) {
-    const candidate = normalizeTaskBriefCandidate(prompt);
-    if (!candidate || candidate.length < TASK_BRIEF_MIN_LENGTH) return null;
-
-    const sentence = candidate.split(/(?<=[。.!?！？])\s+/)[0]?.trim() || candidate;
-    const compact = sentence.replace(/\s+/g, ' ').trim();
-    if (!compact || compact.length < TASK_BRIEF_MIN_LENGTH) return null;
-    if (!CJK_PATTERN.test(compact) && !NATURAL_LANGUAGE_HINT_PATTERN.test(compact) && looksLikeShellCommand(compact)) {
-        return null;
-    }
-
-    return compact.length > TASK_BRIEF_MAX_LENGTH
-        ? `${compact.slice(0, TASK_BRIEF_MAX_LENGTH - 1)}…`
-        : compact;
-}
+// TASK_BRIEF_MAX_LENGTH, TASK_BRIEF_MIN_LENGTH imported from ../utils/task-brief.js
 
 export class SessionController {
     constructor(sessionManager, worktreeService, stateStore, options = {}) {
@@ -93,6 +37,30 @@ export class SessionController {
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
         this._uiSummaryCache = new Map();
         this._recentSessionStarts = new Map(); // sessionId -> timestamp
+    }
+
+    /**
+     * catchブロックの共通エラーレスポンス
+     */
+    _respondError(res, context, error) {
+        logger.error(`${context}:`, error);
+        res.status(error.statusCode || 500).json({ error: error.message || context });
+    }
+
+    /**
+     * stateStoreからセッションを取得。見つからなければ404レスポンスを返しnullを返す。
+     * @param {string} id - セッションID
+     * @param {import('express').Response} res - Expressレスポンス
+     * @returns {Object|null} セッションオブジェクトまたはnull（404送信済み）
+     */
+    _findSessionOrFail(id, res) {
+        const state = this.stateStore.get();
+        const session = state.sessions?.find(s => s.id === id);
+        if (!session) {
+            res.status(404).json({ error: 'Session not found' });
+            return null;
+        }
+        return session;
     }
 
     _readSystemClipboard() {
@@ -715,12 +683,8 @@ export class SessionController {
             return res.status(400).json({ error: 'Session ID is required' });
         }
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         const resolvedPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
 
@@ -776,12 +740,8 @@ export class SessionController {
     ensureTerminalRuntime = async (req, res) => {
         const { id } = req.params;
         const { initialCommand, cwd, engine, viewerId } = req.body || {};
-        const state = this.stateStore.get();
-        const session = state.sessions?.find((item) => item.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
         if (session.intendedState === 'archived') {
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
         }
@@ -901,8 +861,7 @@ export class SessionController {
             if (payload.colorText) response.colorText = payload.colorText;
             res.json(response);
         } catch (error) {
-            logger.error(`Failed to get terminal snapshot for ${id}:`, error.message);
-            res.status(500).json({ error: error.message || 'Failed to capture terminal snapshot' });
+            this._respondError(res, `Failed to get terminal snapshot for ${id}:`, error);
         }
     };
 
@@ -915,7 +874,7 @@ export class SessionController {
      * ttydプロセスを起動
      */
     start = async (req, res) => {
-        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false } = req.body;
+        const { sessionId, initialCommand, cwd, engine, viewerId, forceTakeover = false, forceTtyd = false } = req.body;
         const viewerLabel = this._resolveViewerLabel(req, req.body?.viewerLabel);
         logger.debug(`[DEBUG] /api/sessions/start called: sessionId=${sessionId}, referer=${req.headers.referer}, userAgent=${req.headers['user-agent']?.substring(0, 50)}`);
         logger.debug(`[DEBUG] Request stack:`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
@@ -1004,6 +963,7 @@ export class SessionController {
             }
 
             // ttydプロセス起動
+            if (forceTtyd) startOptions.forceTtyd = true;
             const result = await this.sessionManager.startTtyd(startOptions);
             this._recentSessionStarts.set(sessionId, Date.now());
 
@@ -1034,8 +994,7 @@ export class SessionController {
                 terminalAccess: ownership.terminalAccess
             });
         } catch (error) {
-            logger.error('Failed to start session:', error);
-            res.status(500).json({ error: error.message || 'Failed to allocate port' });
+            this._respondError(res, 'Failed to start session:', error);
         }
     };
 
@@ -1090,12 +1049,8 @@ export class SessionController {
         const { skipMergeCheck } = req.body;
 
         try {
-            const state = this.stateStore.get();
-            const session = state.sessions?.find(s => s.id === id);
-
-            if (!session) {
-                return res.status(404).json({ error: 'Session not found' });
-            }
+            const session = this._findSessionOrFail(id, res);
+            if (!session) return;
 
             // Check if workspace needs integration (Jujutsu: push needed)
             if (session.worktree?.repo && !skipMergeCheck) {
@@ -1160,12 +1115,8 @@ export class SessionController {
         const { id } = req.params;
         const { engine: requestEngine } = req.body;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (session.intendedState !== 'archived') {
             return res.status(400).json({ error: 'Session is not archived' });
@@ -1239,8 +1190,7 @@ export class SessionController {
                 proxyPath: result.proxyPath
             });
         } catch (error) {
-            logger.error('Failed to restore session:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to restore session:', error);
         }
     };
 
@@ -1252,12 +1202,8 @@ export class SessionController {
         const { id } = req.params;
         const status = req.body?.status || {};
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         try {
             const workspacePath = session.worktree?.path || session.path || session.cwd || process.cwd();
@@ -1320,8 +1266,7 @@ ${jjBookmarks}
                 clipboardContent: message
             });
         } catch (error) {
-            logger.error('Failed to ask AI for integration:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to ask AI for integration:', error);
         }
     };
 
@@ -1614,12 +1559,8 @@ ${jjBookmarks}
         const { id } = req.params;
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
@@ -1633,8 +1574,7 @@ ${jjBookmarks}
             );
             res.json(status);
         } catch (error) {
-            logger.error('Failed to get worktree status:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to get worktree status:', error);
         }
     };
 
@@ -1644,12 +1584,8 @@ ${jjBookmarks}
      */
     getContext = async (req, res) => {
         const { id } = req.params;
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         const repoPath = session.worktree?.repo || null;
         const workspacePath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
@@ -1743,12 +1679,8 @@ ${jjBookmarks}
         const { id } = req.params;
         const rawPath = req.query.path || '';
         const depth = this._parseTreeDepth(req.query.depth);
-        const state = this.stateStore.get();
-        const session = state.sessions?.find((s) => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         const sessionRootPath = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
             || session.worktree?.path
@@ -1821,12 +1753,8 @@ ${jjBookmarks}
             return res.status(400).json({ error: 'path query parameter is required' });
         }
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find((s) => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         try {
             const { relativePath, targetPath } = await this._resolveFilePreviewTarget(session, rawPath);
@@ -1888,12 +1816,8 @@ ${jjBookmarks}
         const { autoStash = false } = req.body || {};
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
@@ -1903,8 +1827,7 @@ ${jjBookmarks}
             const result = await this.worktreeService.updateLocalMain(session.worktree.repo, { autoStash });
             res.json(result);
         } catch (error) {
-            logger.error('Failed to update local main:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to update local main:', error);
         }
     };
 
@@ -1916,12 +1839,8 @@ ${jjBookmarks}
         const { id } = req.params;
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
@@ -1950,8 +1869,7 @@ ${jjBookmarks}
 
             res.json(result);
         } catch (error) {
-            logger.error('Failed to merge worktree:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to merge worktree:', error);
         }
     };
 
@@ -1963,12 +1881,8 @@ ${jjBookmarks}
         const { id } = req.params;
         const limit = parseInt(req.query.limit) || 50;
 
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         try {
             let result;
@@ -1988,8 +1902,7 @@ ${jjBookmarks}
             }
             res.json(result);
         } catch (error) {
-            logger.error('Failed to get commit log:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to get commit log:', error);
         }
     };
 
@@ -2019,12 +1932,8 @@ ${jjBookmarks}
         const { id } = req.params;
 
         // Get session from state
-        const state = this.stateStore.get();
-        const session = state.sessions?.find(s => s.id === id);
-
-        if (!session) {
-            return res.status(404).json({ error: 'Session not found' });
-        }
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
 
         if (!session.worktree?.repo) {
             return res.status(400).json({ error: 'Session does not have a worktree' });
@@ -2051,8 +1960,7 @@ ${jjBookmarks}
                 res.status(500).json({ error: 'Failed to delete worktree' });
             }
         } catch (error) {
-            logger.error('Failed to delete worktree:', error);
-            res.status(500).json({ error: error.message });
+            this._respondError(res, 'Failed to delete worktree:', error);
         }
     };
 

@@ -1,7 +1,9 @@
+// @ts-check
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getProjectFromSession } from '../../project-mapping.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { isBrowserPreviewablePath } from '../../file-preview-config.js';
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 
@@ -248,7 +250,7 @@ export class FolderTreeView {
 
     async _openFile(sessionId, relativePath) {
         const fileName = relativePath.split('/').pop() || relativePath;
-        if (this.fileViewerService && this._isMarkdownFile(fileName)) {
+        if (this.fileViewerService && (this._isMarkdownFile(fileName) || isBrowserPreviewablePath(relativePath))) {
             try {
                 await this.fileViewerService.openFile(sessionId, relativePath);
                 await this.eventBus.emit(EVENTS.FOLDER_TREE_FILE_OPENED, {

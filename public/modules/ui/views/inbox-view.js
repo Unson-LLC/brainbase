@@ -1,6 +1,8 @@
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { LearningCandidateModal } from '../modals/learning-candidate-modal.js';
+import { HealthAlertModal } from '../modals/health-alert-modal.js';
 
 /**
  * Inbox（通知）表示のUIコンポーネント
@@ -21,6 +23,11 @@ export class InboxView {
         this._slackIdMap = new Map();
         this._unsubscribers = [];
         this._outsideClickHandler = null;
+        this.learningCandidateModal = new LearningCandidateModal({
+            onApply: async (item) => this.inboxService.applyLearningCandidate(item.candidateId),
+            onReject: async (item) => this.inboxService.rejectLearningCandidate(item.candidateId)
+        });
+        this.healthAlertModal = new HealthAlertModal();
     }
 
     /**
@@ -44,7 +51,7 @@ export class InboxView {
      */
     async _loadSlackMembers() {
         try {
-            const members = await this.httpClient.get('/api/config/slack/members');
+            const members = await this.httpClient.get('/api/config/slack/members', { suppressAuthError: true });
             if (Array.isArray(members)) {
                 for (const m of members) {
                     if (m.slack_id && m.brainbase_name) {
@@ -146,6 +153,9 @@ export class InboxView {
             if (this.inboxListEl) {
                 this.inboxListEl.innerHTML = '<div class="inbox-empty">通知はありません</div>';
             }
+            if (this.markAllDoneBtn) {
+                this.markAllDoneBtn.style.display = 'none';
+            }
             if (this.inboxDropdown) {
                 this.inboxDropdown.classList.remove('open');
             }
@@ -154,15 +164,21 @@ export class InboxView {
         }
 
         if (this.inboxListEl) {
-            this.inboxListEl.innerHTML = this.inboxItems.map(item => {
+            const healthAlertItems = this.inboxItems.filter((item) => item.kind === 'health_alert');
+            const learningItems = this.inboxItems.filter((item) => item.kind === 'learning');
+            const notificationItems = this.inboxItems.filter((item) => item.kind === 'notification');
+
+            if (this.markAllDoneBtn) {
+                this.markAllDoneBtn.style.display = notificationItems.length > 0 ? 'inline-flex' : 'none';
+            }
+
+            const renderNotification = (item) => {
                 const escapedId = escapeHtml(item.id || '');
                 const sender = escapeHtml(item.sender || '');
                 const channel = escapeHtml(item.channel || '');
-                // Slack ID（<@U07B19N048G>）を人名に変換してからエスケープ
                 const convertedMessage = this._convertSlackMentions(item.message || '');
                 const message = escapeHtml(convertedMessage);
                 const slackUrl = escapeHtml(item.slackUrl || '');
-                // 日付と時刻（APIから取得、なければタイトルから抽出）
                 const date = escapeHtml(item.date || '');
                 const time = escapeHtml(item.time || '');
                 const datetime = date && time ? `${date} ${time}` : (date || time || '');
@@ -181,13 +197,106 @@ export class InboxView {
                         </div>
                     </div>
                 `;
-            }).join('');
+            };
+
+            const renderLearning = (item) => {
+                const escapedId = escapeHtml(item.candidateId || item.id || '');
+                const pillar = escapeHtml(item.pillar === 'skill' ? 'スキル' : 'Wiki');
+                const risk = escapeHtml(item.riskLevel === 'high' ? '高' : item.riskLevel === 'medium' ? '中' : '低');
+                const title = escapeHtml(item.title || '学習候補');
+                const preview = escapeHtml(item.sourcePreview || '');
+                const updatedAt = escapeHtml(item.updatedAt ? new Intl.DateTimeFormat('ja-JP', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }).format(new Date(item.updatedAt)) : '');
+                return `
+                    <button class="inbox-item inbox-learning-item" data-learning-id="${escapedId}" type="button">
+                        <div class="inbox-learning-badges">
+                            <span class="inbox-learning-pill inbox-learning-pill-primary">${pillar}</span>
+                            <span class="inbox-learning-pill inbox-learning-pill-risk">${risk}</span>
+                            ${updatedAt ? `<span class="inbox-item-time">${updatedAt}</span>` : ''}
+                        </div>
+                        <div class="inbox-learning-title">${title}</div>
+                        <div class="inbox-learning-preview">${preview || '学習候補の要約はまだありません'}</div>
+                    </button>
+                `;
+            };
+
+            const renderHealthAlert = (item) => {
+                const escapedId = escapeHtml(item.id || '');
+                const title = escapeHtml(item.title || '学習ジョブの状態に問題があります');
+                const message = escapeHtml(item.message || '');
+                const updatedAt = escapeHtml(item.updatedAt ? new Intl.DateTimeFormat('ja-JP', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }).format(new Date(item.updatedAt)) : '');
+                return `
+                    <button class="inbox-item inbox-health-alert-item" data-health-id="${escapedId}" type="button">
+                        <div class="inbox-learning-badges">
+                            <span class="inbox-learning-pill inbox-health-pill">システム警告</span>
+                            ${updatedAt ? `<span class="inbox-item-time">${updatedAt}</span>` : ''}
+                        </div>
+                        <div class="inbox-learning-title">${title}</div>
+                        <div class="inbox-learning-preview">${message}</div>
+                    </button>
+                `;
+            };
+
+            const sections = [];
+            if (healthAlertItems.length > 0) {
+                sections.push(`
+                    <div class="inbox-section">
+                        <div class="inbox-section-title">システム警告</div>
+                        ${healthAlertItems.map(renderHealthAlert).join('')}
+                    </div>
+                `);
+            }
+            if (learningItems.length > 0) {
+                sections.push(`
+                    <div class="inbox-section">
+                        <div class="inbox-section-title">学習候補</div>
+                        ${learningItems.map(renderLearning).join('')}
+                    </div>
+                `);
+            }
+            if (notificationItems.length > 0) {
+                sections.push(`
+                    <div class="inbox-section">
+                        <div class="inbox-section-title">通知</div>
+                        ${notificationItems.map(renderNotification).join('')}
+                    </div>
+                `);
+            }
+
+            this.inboxListEl.innerHTML = sections.join('');
 
             // Add event listeners to done buttons
             this.inboxListEl.querySelectorAll('.inbox-done-btn').forEach(btn => {
                 btn.onclick = async (e) => {
                     e.stopPropagation();
                     await this.inboxService.markAsDone(btn.dataset.id);
+                };
+            });
+
+            this.inboxListEl.querySelectorAll('[data-learning-id]').forEach((button) => {
+                button.onclick = () => {
+                    const item = this.inboxItems.find((candidate) => candidate.candidateId === button.dataset.learningId);
+                    if (item) {
+                        this.learningCandidateModal.open(item);
+                    }
+                };
+            });
+
+            this.inboxListEl.querySelectorAll('[data-health-id]').forEach((button) => {
+                button.onclick = () => {
+                    const item = this.inboxItems.find((candidate) => candidate.id === button.dataset.healthId);
+                    if (item) {
+                        this.healthAlertModal.open(item);
+                    }
                 };
             });
 

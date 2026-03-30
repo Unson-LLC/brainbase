@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Recovery Service - Auto-Claude RecoveryManager pattern implementation
  *

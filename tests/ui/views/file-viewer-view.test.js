@@ -20,9 +20,9 @@ describe('FileViewerView', () => {
         vi.clearAllMocks();
     });
 
-    it('fileViewerがnullの場合_空のコンテナが表示される', () => {
+    it('fileViewerがnullの場合_空状態メッセージが表示される', () => {
         view.mount(container);
-        expect(container.innerHTML).toBe('');
+        expect(container.innerHTML).toBe('<div class="file-viewer-empty">ターミナルやTreeからファイルを選択してね</div>');
     });
 
     it('Markdownコンテンツ表示時_renderedHtmlが表示される', () => {

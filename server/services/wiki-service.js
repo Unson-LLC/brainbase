@@ -1,3 +1,4 @@
+// @ts-check
 import crypto from 'crypto';
 import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';

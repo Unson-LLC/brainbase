@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileViewerService } from '../../../public/modules/domain/file-viewer/file-viewer-service.js';
 import { appStore } from '../../../public/modules/core/store.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 
 describe('FileViewerService', () => {
     let service;

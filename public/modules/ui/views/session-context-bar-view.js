@@ -1,3 +1,4 @@
+// @ts-check
 import { appStore } from '../../core/store.js';
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { AdaptivePoller } from '../../core/adaptive-poller.js';

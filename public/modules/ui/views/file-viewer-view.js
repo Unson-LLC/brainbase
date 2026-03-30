@@ -1,3 +1,4 @@
+// @ts-check
 import { appStore } from '../../core/store.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
 import { BaseView } from './base-view.js';
@@ -28,7 +29,7 @@ export class FileViewerView extends BaseView {
         const fileViewer = this.store.getState().fileViewer;
 
         if (!fileViewer) {
-            this.container.innerHTML = '';
+            this.container.innerHTML = '<div class="file-viewer-empty">ターミナルやTreeからファイルを選択してね</div>';
             return;
         }
 

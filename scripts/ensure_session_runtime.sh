@@ -165,7 +165,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
 CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
 CODEX_APP_REPL="$SCRIPT_DIR/codex-app-repl.mjs"
-USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-1}"
+# Default to Codex CLI; opt-in to app-server REPL via env var.
+USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-0}"
 CODEX_NOTIFY_ARG=""
 if [ -x "$NOTIFY_SCRIPT" ]; then
     CODEX_NOTIFY_ARG="-c notify='[\"bash\",\"$NOTIFY_SCRIPT\"]'"
@@ -190,6 +191,7 @@ sync_codex_prompts_link() {
 
 tmux set -g escape-time 0 2>/dev/null || true
 tmux set -g default-terminal "tmux-256color" 2>/dev/null || true
+tmux set -g allow-passthrough on 2>/dev/null || true
 tmux set -g mouse off 2>/dev/null || true
 tmux set -g history-limit 5000 2>/dev/null || true
 
@@ -209,7 +211,8 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
-        LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" TERM "tmux-256color"
+        LOCALE_EXPORT="cd . 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
 
         if [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
             if [ -n "$INITIAL_CMD" ]; then
@@ -253,13 +256,14 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
-        LOCALE_EXPORT="export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8}"
+        tmux set-environment -t "$SESSION_NAME" TERM "tmux-256color"
+        LOCALE_EXPORT="cd . 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
         CLAUDE_RESUME_FLAG=""
         if [ -n "$RESUME_SESSION_ID" ]; then
             CLAUDE_RESUME_FLAG="--resume $RESUME_SESSION_ID"
         fi
         if [ -n "$INITIAL_CMD" ]; then
-            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions %s "$(cat %q; rm -f %q)"' \
+            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions --permission-mode auto %s "$(cat %q; rm -f %q)"' \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
                 "$CLAUDE_BIN" \
@@ -268,7 +272,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
                 "$INITIAL_CMD_FILE"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         else
-            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions %s" \
+            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions --permission-mode auto %s" \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
                 "$CLAUDE_BIN" \

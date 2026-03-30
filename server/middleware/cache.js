@@ -1,5 +1,10 @@
+// @ts-check
 import NodeCache from 'node-cache';
 import logger from '../utils/logger.js';
+
+/** @typedef {{ method?: string, originalUrl?: string }} RequestLike */
+/** @typedef {{ statusCode: number, json: (body: unknown) => unknown }} ResponseLike */
+/** @typedef {(error?: unknown) => unknown} NextLike */
 
 /**
  * In-process Cache Middleware
@@ -66,6 +71,7 @@ cache.on('expired', (key, value) => {
  * ```
  */
 export function cacheMiddleware(ttl = 300) {
+    /** @type {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown} */
     return (req, res, next) => {
         // GETリクエストのみキャッシュ
         if (req.method !== 'GET') {
@@ -96,7 +102,7 @@ export function cacheMiddleware(ttl = 300) {
             return originalJson(body);
         };
 
-        next();
+        return next();
     };
 }
 

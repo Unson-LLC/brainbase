@@ -1,19 +1,24 @@
+// @ts-check
 /**
  * 共通バリデーションユーティリティ
  */
 
+/** @typedef {Record<string, unknown>} UnknownRecord */
+/** @typedef {'high' | 'medium' | 'low'} PriorityKey */
+
 /**
  * オブジェクトから許可されたフィールドのみを抽出する
  *
- * @param {Object} obj - 入力オブジェクト
+ * @param {UnknownRecord | null | undefined} obj - 入力オブジェクト
  * @param {string[]} allowedFields - 許可するフィールド名の配列
- * @returns {Object|null} フィルタ済みオブジェクト（入力が不正または有効フィールドが0件の場合はnull）
+ * @returns {UnknownRecord|null} フィルタ済みオブジェクト（入力が不正または有効フィールドが0件の場合はnull）
  */
 export function pickAllowedFields(obj, allowedFields) {
     if (!obj || typeof obj !== 'object') {
         return null;
     }
 
+    /** @type {UnknownRecord} */
     const picked = {};
     for (const key of allowedFields) {
         if (key in obj) {
@@ -57,5 +62,38 @@ export const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
  * @returns {string}
  */
 export function getPriorityLabel(priority) {
-    return PRIORITY_LABELS[priority] || priority;
+    return PRIORITY_LABELS[/** @type {PriorityKey} */ (priority)] || priority;
+}
+
+/**
+ * テスト/開発環境でのヘッダーベース認証を許可するか判定
+ * @returns {boolean}
+ */
+export function isInsecureHeaderAuthAllowed() {
+    return process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true'
+        || process.env.BRAINBASE_TEST_MODE === 'true'
+        || process.env.NODE_ENV === 'test';
+}
+
+/**
+ * CSV文字列をパースして配列に変換
+ * @param {string} value
+ * @returns {string[]}
+ */
+export function parseCsv(value) {
+    if (!value || typeof value !== 'string') return [];
+    return value.split(',').map(v => v.trim()).filter(Boolean);
+}
+
+/**
+ * バイト数を人間が読める形式に変換
+ * @param {number} bytes
+ * @returns {string}
+ */
+export function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }

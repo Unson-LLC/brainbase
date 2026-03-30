@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * セッションアクティビティ状態の細分化（CommandMate移植）
  *
@@ -28,12 +29,7 @@ export const ActivityState = Object.freeze({
 /**
  * hookStatusから細分化されたアクティビティ状態を導出
  *
- * @param {Object|null} hookStatus - サーバーからのhookStatus
- * @param {boolean} hookStatus.isWorking
- * @param {boolean} hookStatus.isDone
- * @param {number} [hookStatus.activeTurnCount]
- * @param {Object} [hookStatus.goalSeek]
- * @param {boolean} [hookStatus.goalSeek.active]
+ * @param {{ isWorking: boolean, isDone: boolean, activeTurnCount?: number, goalSeek?: { active?: boolean } }|null} hookStatus
  * @returns {string} ActivityState value
  */
 export function deriveActivityState(hookStatus) {

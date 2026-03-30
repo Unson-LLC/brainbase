@@ -1,3 +1,4 @@
+// @ts-check
 import { EVENTS } from './event-bus.js';
 
 const DEFAULT_PLUGINS_CONFIG = {
@@ -6,6 +7,13 @@ const DEFAULT_PLUGINS_CONFIG = {
 };
 
 export class PluginManager {
+    /**
+     * @param {Object} [config]
+     * @param {any} [config.eventBus]
+     * @param {any} [config.store]
+     * @param {any} [config.apiClient]
+     * @param {Object} [config.context]
+     */
     constructor({ eventBus, store, apiClient, context = {} } = {}) {
         this.eventBus = eventBus;
         this.store = store;

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Structured Logger with Sensitive Data Redaction
  *
@@ -32,6 +33,8 @@ const SENSITIVE_PATH_PATTERNS = [
     /\/\.ssh/,
     /\/\.gnupg/
 ];
+
+/** @typedef {Record<string, unknown>} UnknownRecord */
 
 /**
  * オブジェクト内の機密情報をマスク
@@ -74,6 +77,7 @@ function redact(obj, depth = 0) {
     }
 
     // オブジェクトの場合
+    /** @type {UnknownRecord} */
     const result = {};
     for (const [key, value] of Object.entries(obj)) {
         const lowerKey = key.toLowerCase();
@@ -92,7 +96,7 @@ function redact(obj, depth = 0) {
  * ログエントリをフォーマット
  * @param {string} level - ログレベル
  * @param {string} msg - メッセージ
- * @param {Object} data - 追加データ
+ * @param {UnknownRecord} data - 追加データ
  * @returns {string} フォーマット済みログ
  */
 function formatLog(level, msg, data = {}) {
@@ -112,7 +116,7 @@ export const logger = {
     /**
      * INFOレベルログ
      * @param {string} msg - メッセージ
-     * @param {Object} data - 追加データ
+     * @param {UnknownRecord} [data] - 追加データ
      */
     info(msg, data = {}) {
         console.log(formatLog('info', msg, data));
@@ -121,7 +125,7 @@ export const logger = {
     /**
      * WARNレベルログ
      * @param {string} msg - メッセージ
-     * @param {Object} data - 追加データ
+     * @param {UnknownRecord} [data] - 追加データ
      */
     warn(msg, data = {}) {
         console.warn(formatLog('warn', msg, data));
@@ -130,7 +134,7 @@ export const logger = {
     /**
      * ERRORレベルログ
      * @param {string} msg - メッセージ
-     * @param {Object} data - 追加データ
+     * @param {Error | (UnknownRecord & { error?: unknown })} [data] - 追加データ
      */
     error(msg, data = {}) {
         // エラーオブジェクトの場合、スタックトレースを含める
@@ -152,7 +156,7 @@ export const logger = {
     /**
      * DEBUGレベルログ（DEBUG環境変数が設定されている場合のみ出力）
      * @param {string} msg - メッセージ
-     * @param {Object} data - 追加データ
+     * @param {UnknownRecord} [data] - 追加データ
      */
     debug(msg, data = {}) {
         if (process.env.DEBUG) {

@@ -1,5 +1,6 @@
 import { showInfo, showSuccess } from '../toast.js';
 import { DEFAULT_HISTORY_LIMIT, DEFAULT_PIN_SLOTS, normalizeHistory, pushHistory } from './mobile-input-utils.js';
+import { loadJson, saveJson } from '../utils/local-storage.js';
 
 const STORAGE_KEYS = {
     history: 'bb_mobile_clipboard_history',
@@ -27,9 +28,9 @@ export class MobileClipboardManager {
     }
 
     init() {
-        this.history = normalizeHistory(this.loadJson(STORAGE_KEYS.history, []), DEFAULT_HISTORY_LIMIT);
+        this.history = normalizeHistory(loadJson(STORAGE_KEYS.history, []), DEFAULT_HISTORY_LIMIT);
         this.pins = this.loadPins();
-        this.snippets = this.loadJson(STORAGE_KEYS.snippets, []);
+        this.snippets = loadJson(STORAGE_KEYS.snippets, []);
     }
 
     async handleClipSlot(index, getActiveInputFn) {
@@ -230,7 +231,7 @@ export class MobileClipboardManager {
     }
 
     loadPins() {
-        const stored = this.loadJson(STORAGE_KEYS.pins, []);
+        const stored = loadJson(STORAGE_KEYS.pins, []);
         if (!Array.isArray(stored)) {
             return Array.from({ length: DEFAULT_PIN_SLOTS }, () => null);
         }
@@ -242,33 +243,16 @@ export class MobileClipboardManager {
     }
 
     savePins() {
-        this.saveJson(STORAGE_KEYS.pins, this.pins);
+        saveJson(STORAGE_KEYS.pins, this.pins);
     }
 
     saveHistory() {
-        this.saveJson(STORAGE_KEYS.history, this.history);
+        saveJson(STORAGE_KEYS.history, this.history);
     }
 
     saveSnippets() {
-        this.saveJson(STORAGE_KEYS.snippets, this.snippets);
+        saveJson(STORAGE_KEYS.snippets, this.snippets);
     }
 
-    loadJson(key, fallback) {
-        try {
-            const raw = localStorage.getItem(key);
-            if (!raw) return fallback;
-            return JSON.parse(raw);
-        } catch (error) {
-            console.warn('Failed to load storage:', key, error);
-            return fallback;
-        }
-    }
-
-    saveJson(key, value) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-            console.warn('Failed to save storage:', key, error);
-        }
-    }
+    // loadJson / saveJson imported from utils/local-storage.js
 }

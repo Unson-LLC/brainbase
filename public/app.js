@@ -14,6 +14,7 @@ import { TerminalTransportClient, shouldUseXtermTransport } from './modules/core
 import { AuthManager } from './modules/auth/auth-manager.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsCore, CoreApiClient } from './modules/settings/settings-core.js';
+import { SettingsExtensions } from './modules/settings/settings-extensions.js';
 import { SettingsPluginRegistry } from './modules/settings/settings-plugin-api.js';
 import { SettingsUI } from './modules/settings/settings-ui.js';
 import { pollSessionStatus, updateSessionIndicators, startPolling, markDoneAsRead } from './modules/session-indicators.js';
@@ -26,6 +27,7 @@ import { setupTerminalContextMenuListener, setupXtermContextMenu } from './modul
 import { isBrowserPreviewablePath, resolvePreviewRelativePath } from './modules/file-preview-config.js';
 import { attachSectionHeaderHandlers, attachGroupHeaderHandlers, attachSessionRowClickHandlers, attachAddProjectSessionHandlers } from './modules/session-handlers.js';
 import { initMobileKeyboard } from './modules/mobile-keyboard.js';
+import { TerminalReconnectManager, buildTerminalBlockedText, formatTerminalTimestamp, isLoopbackHost } from './modules/terminal/terminal-reconnect-manager.js';
 import { ansiToHtml } from './modules/utils/ansi-to-html.js';
 import { getSessionUiEntry, hydrateSessionRecentFiles, mergeSessionUiEntry, recordRecentFileOpen } from './modules/session-ui-state.js';
 
@@ -60,7 +62,9 @@ import { renderViewToggle, renderPanelToggles } from './modules/ui/view-toggle.j
 import { setupPanelLayout } from './modules/ui/panel-layout-manager.js';
 import { initTimelineResize } from './modules/ui/timeline-resize.js';
 import { initPanelResize } from './modules/ui/panel-resize.js';
+import { ChoiceOverlayController } from './modules/ui/choice-overlay-controller.js';
 import { MobileInputController } from './modules/ui/mobile-input-controller.js';
+import { MobileTabController } from './modules/ui/mobile-tab-controller.js';
 
 // Modals
 import { TaskAddModal } from './modules/ui/modals/task-add-modal.js';
@@ -82,423 +86,7 @@ function scheduleAfterNextPaint(callback) {
     setTimeout(callback, 0);
 }
 
-function buildTerminalBlockedText(terminalAccess) {
-    const ownerLabel = terminalAccess?.ownerViewerLabel || '別の場所';
-    return `入力: ${ownerLabel} で表示中 (クリックで引継ぎ)`;
-}
-
-function formatTerminalTimestamp(value) {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('ja-JP', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    }).format(date);
-}
-
-function isLoopbackHost(hostname) {
-    return hostname === 'localhost' || hostname === '127.0.0.1';
-}
-
-function isTrustedTerminalOrigin(origin) {
-    if (!origin || origin === 'null') return false;
-
-    try {
-        const eventUrl = new URL(origin);
-        const currentUrl = new URL(window.location.origin);
-        if (eventUrl.origin === currentUrl.origin) return true;
-        return isLoopbackHost(eventUrl.hostname) && isLoopbackHost(currentUrl.hostname);
-    } catch {
-        return false;
-    }
-}
-
-/**
- * Terminal Reconnect Manager
- * Handles iframe disconnection detection and automatic reconnection
- */
-class TerminalReconnectManager {
-    constructor() {
-        this.maxRetries = 3;
-        this.retryCount = 0;
-        this.retryDelay = 2000; // 初回2秒
-        this.currentSessionId = null;
-        this.terminalFrame = null;
-        this.isReconnecting = false;
-        this.lastConnectTime = null; // 最後のWebSocket接続成功時刻
-        this.wsConnected = false;
-        this.lastDisconnectCode = null;
-        this.lastDisconnectReason = null;
-        this.lastDisconnectAt = null;
-        this.lastErrorAt = null;
-        this.viewerId = null;
-        this.viewerLabel = null;
-        this.terminalAccess = null;
-        this.onStatusChange = null;
-    }
-
-    _emitStatus() {
-        if (typeof this.onStatusChange !== 'function') return;
-        this.onStatusChange({
-            sessionId: this.currentSessionId,
-            wsConnected: this.wsConnected,
-            isReconnecting: this.isReconnecting,
-            retryCount: this.retryCount,
-            maxRetries: this.maxRetries,
-            lastConnectTime: this.lastConnectTime,
-            lastDisconnectCode: this.lastDisconnectCode,
-            lastDisconnectReason: this.lastDisconnectReason,
-            lastDisconnectAt: this.lastDisconnectAt,
-            lastErrorAt: this.lastErrorAt,
-            terminalAccess: this.terminalAccess
-        });
-    }
-
-    setViewerContext({ viewerId, viewerLabel }) {
-        this.viewerId = viewerId || null;
-        this.viewerLabel = viewerLabel || null;
-    }
-
-    _getViewerProxyPath(proxyPath, port = null) {
-        if (!proxyPath) return proxyPath;
-
-        let nextProxyPath = appendViewerIdToProxyPath(proxyPath, this.viewerId);
-        if (!nextProxyPath) return nextProxyPath;
-
-        try {
-            const absoluteUrl = new URL(nextProxyPath);
-            if (this.viewerId && !absoluteUrl.searchParams.has('viewerId')) {
-                absoluteUrl.searchParams.set('viewerId', this.viewerId);
-            }
-            return absoluteUrl.toString();
-        } catch {
-            // Relative path: fall through and optionally rewrite to loopback ttyd.
-        }
-
-        if (port && isLoopbackHost(window.location.hostname)) {
-            return `http://127.0.0.1:${port}${nextProxyPath}`;
-        }
-
-        return nextProxyPath;
-    }
-
-    _buildTerminalFrameUrl(proxyPath, port = null) {
-        return this._getViewerProxyPath(proxyPath, port);
-    }
-
-    init(terminalFrame) {
-        this.terminalFrame = terminalFrame;
-
-        // iframeのエラー検知
-        terminalFrame.addEventListener('error', () => {
-            this.handleDisconnect();
-        });
-
-        // iframeのload成功
-        terminalFrame.addEventListener('load', () => {
-            this.handleConnect();
-        });
-
-        // ttyd内部WebSocket監視用のpostMessageリスナー
-        this.initPostMessageListener();
-        this._emitStatus();
-    }
-
-    initPostMessageListener() {
-        window.addEventListener('message', (event) => {
-            if (!isTrustedTerminalOrigin(event.origin)) return;
-
-            const { type, sessionId, code, reason } = event.data || {};
-
-            switch (type) {
-                case 'ttyd-disconnect':
-                    console.log(`[ttyd] Session ${sessionId} WebSocket disconnected (code: ${code})`);
-                    this.handleTtydDisconnect(sessionId, code, reason);
-                    break;
-                case 'ttyd-error':
-                    console.log(`[ttyd] Session ${sessionId} WebSocket error`);
-                    this.handleTtydError(sessionId);
-                    break;
-                case 'ttyd-connect':
-                    console.log(`[ttyd] Session ${sessionId} WebSocket connected`);
-                    this.handleTtydConnect(sessionId);
-                    break;
-            }
-        });
-    }
-
-    handleTtydDisconnect(sessionId, code, reason) {
-        // 現在のセッションの場合のみ処理
-        if (sessionId !== this.currentSessionId) return;
-
-        // 正常切断（code 1000）は無視（セッション切り替え等）
-        if (code === 1000) return;
-
-        // アーカイブ済みセッションの切断は再接続しない
-        const state = appStore.getState();
-        const session = (state.sessions || []).find(s => s.id === sessionId);
-        if (session?.intendedState === 'archived') {
-            console.log(`[reconnect] Ignoring disconnect for archived session ${sessionId}`);
-            this.wsConnected = false;
-            this._emitStatus();
-            return;
-        }
-
-        // 最近接続成功した場合は無視（race condition防止）
-        if (this.lastConnectTime && Date.now() - this.lastConnectTime < 3000) {
-            console.log('[reconnect] Ignoring disconnect within 3s of connect');
-            return;
-        }
-
-        this.wsConnected = false;
-        this.terminalAccess = null;
-        this.lastDisconnectCode = code;
-        this.lastDisconnectReason = reason || null;
-        this.lastDisconnectAt = Date.now();
-        this._emitStatus();
-
-        // 自動再接続トリガー
-        if (!this.isReconnecting) {
-            showInfo('ターミナル接続が切断されました。再接続中...');
-            this.handleDisconnect();
-        }
-    }
-
-    handleTtydError(sessionId) {
-        // 現在のセッションの場合のみ処理
-        if (sessionId !== this.currentSessionId) return;
-
-        this.wsConnected = false;
-        this.terminalAccess = null;
-        this.lastErrorAt = Date.now();
-        this._emitStatus();
-
-        if (!this.isReconnecting) {
-            this.handleDisconnect();
-        }
-    }
-
-    handleTtydConnect(sessionId) {
-        // 現在のセッションの場合のみ処理
-        if (sessionId !== this.currentSessionId) return;
-
-        this.wsConnected = true;
-        this.lastDisconnectCode = null;
-        this.lastDisconnectReason = null;
-        this.lastDisconnectAt = null;
-        this.lastErrorAt = null;
-        this.terminalAccess = {
-            state: 'owner',
-            ownerViewerLabel: this.viewerLabel,
-            ownerLastSeenAt: new Date().toISOString(),
-            canTakeover: false
-        };
-
-        // 接続成功時刻を記録（disconnect race condition防止用）
-        this.lastConnectTime = Date.now();
-
-        if (this.retryCount > 0 || this.isReconnecting) {
-            showInfo('ターミナル接続が復旧しました');
-            this.retryCount = 0;
-            this.isReconnecting = false;
-        }
-        this._emitStatus();
-    }
-
-    handleDisconnect() {
-        // 再接続中または既にリトライ上限に達している場合はスキップ
-        if (this.isReconnecting || !this.currentSessionId) return;
-
-        if (this.retryCount < this.maxRetries) {
-            this.isReconnecting = true;
-            this.retryCount++;
-            const delay = this.retryDelay * Math.pow(2, this.retryCount - 1);
-
-            showInfo(`ターミナル再接続中... (${this.retryCount}/${this.maxRetries})`);
-            this._emitStatus();
-
-            setTimeout(() => {
-                this.reconnect();
-            }, delay);
-        } else {
-            showError('ターミナル接続に失敗しました。ページをリロードしてください。');
-        }
-    }
-
-    handleConnect() {
-        if (this.retryCount > 0) {
-            showInfo('ターミナル接続が復旧しました');
-        }
-        this.retryCount = 0;
-        this.isReconnecting = false;
-        this._emitStatus();
-    }
-
-    async _resolveRuntimeStatus(sessionId, fallbackSession) {
-        const currentRuntime = fallbackSession?.runtimeStatus;
-        const currentAccess = this.terminalAccess;
-        if (currentRuntime?.ttydRunning && currentRuntime?.proxyPath && currentAccess?.state !== 'blocked') {
-            return {
-                session: fallbackSession || null,
-                runtimeStatus: currentRuntime,
-                terminalAccess: currentAccess || null
-            };
-        }
-
-        const runtime = await httpClient.get(buildSessionRuntimeUrl(sessionId, this.viewerId, this.viewerLabel));
-        return {
-            session: fallbackSession || null,
-            runtimeStatus: runtime?.runtimeStatus || currentRuntime || null,
-            terminalAccess: runtime?.terminalAccess || currentAccess || null
-        };
-    }
-
-    _clearTerminalFrame(frameEl) {
-        const frame = frameEl || this.terminalFrame;
-        if (!frame) return;
-        frame.classList.add('terminal-frame-clearing');
-        frame.src = 'about:blank';
-    }
-
-    _showTerminalFrame(frameEl) {
-        const frame = frameEl || this.terminalFrame;
-        if (!frame) return;
-        frame.classList.remove('terminal-frame-clearing');
-    }
-
-    _reloadTerminalFrame(proxyPath, port = null) {
-        const nextProxyPath = this._buildTerminalFrameUrl(proxyPath, port);
-        if (!this.terminalFrame || !nextProxyPath) return;
-
-        const currentSrc = this.terminalFrame.src || '';
-        if (currentSrc.includes(nextProxyPath)) {
-            // Avoid about:blank flash by using location.replace or cache-bust query
-            try {
-                this.terminalFrame.contentWindow.location.replace(nextProxyPath);
-            } catch (_crossOrigin) {
-                const separator = nextProxyPath.includes('?') ? '&' : '?';
-                this.terminalFrame.src = `${nextProxyPath}${separator}_r=${Date.now()}`;
-            }
-            return;
-        }
-
-        this.terminalFrame.src = nextProxyPath;
-    }
-
-    _setBlocked(terminalAccess) {
-        this.wsConnected = false;
-        this.isReconnecting = false;
-        this.terminalAccess = terminalAccess || {
-            state: 'blocked',
-            ownerViewerLabel: null,
-            ownerLastSeenAt: null,
-            canTakeover: true
-        };
-        this._emitStatus();
-    }
-
-    async reconnect() {
-        if (!this.currentSessionId) {
-            this.isReconnecting = false;
-            return;
-        }
-
-        // アーカイブ済みセッションの再接続をスキップ
-        const state = appStore.getState();
-        const fallbackSession = (state.sessions || []).find(s => s.id === this.currentSessionId);
-        const currentSession = fallbackSession;
-        if (currentSession?.intendedState === 'archived') {
-            console.log(`[reconnect] Skipping: session ${this.currentSessionId} is archived`);
-            this.isReconnecting = false;
-            this.retryCount = 0;
-            return;
-        }
-
-        try {
-            const { session, runtimeStatus, terminalAccess } = await this._resolveRuntimeStatus(this.currentSessionId, fallbackSession);
-            const targetSession = session || fallbackSession;
-            this.terminalAccess = terminalAccess || null;
-
-            if (terminalAccess?.state === 'blocked') {
-                console.warn(`[reconnect] Session ${this.currentSessionId} is owned by another viewer`);
-                this._setBlocked(terminalAccess);
-                return;
-            }
-
-            if (runtimeStatus?.ttydRunning && runtimeStatus?.proxyPath) {
-                console.log('[reconnect] Reusing existing ttyd proxyPath:', runtimeStatus.proxyPath);
-                this._reloadTerminalFrame(runtimeStatus.proxyPath, runtimeStatus.port);
-                return;
-            }
-
-            if (!runtimeStatus) {
-                console.warn(`[reconnect] Runtime lookup failed for session ${this.currentSessionId}, skipping restart`);
-                this.isReconnecting = false;
-                if (this.retryCount >= this.maxRetries) {
-                    showError('ターミナル接続に失敗しました。ページをリロードしてください。');
-                }
-                return;
-            }
-
-            const payload = { sessionId: this.currentSessionId };
-
-            const sessionCwd = targetSession?.worktree?.path || targetSession?.path;
-            if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
-                payload.cwd = sessionCwd;
-            }
-            if (typeof targetSession?.initialCommand === 'string') {
-                payload.initialCommand = targetSession.initialCommand;
-            }
-            if (typeof targetSession?.engine === 'string' && targetSession.engine.trim()) {
-                payload.engine = targetSession.engine;
-            }
-            payload.viewerId = this.viewerId;
-            payload.viewerLabel = this.viewerLabel;
-
-            const res = await httpClient.post('/api/sessions/start', payload);
-
-            if (res?.proxyPath) {
-                this.terminalAccess = res.terminalAccess || this.terminalAccess;
-                this._reloadTerminalFrame(res.proxyPath, res.port);
-            } else {
-                this.isReconnecting = false;
-                this.handleDisconnect();
-            }
-        } catch (error) {
-            console.error('Reconnect failed:', error);
-            this.isReconnecting = false;
-            if (error?.message?.includes('already open in another viewer')) {
-                this._setBlocked({
-                    state: 'blocked',
-                    ownerViewerLabel: null,
-                    ownerLastSeenAt: null,
-                    canTakeover: true
-                });
-                return;
-            }
-            // 無限ループ防止: catchでは再試行せず、ユーザーにリロードを促す
-            if (this.retryCount >= this.maxRetries) {
-                showError('ターミナル接続に失敗しました。ページをリロードしてください。');
-            }
-        }
-    }
-
-    setCurrentSession(sessionId) {
-        this.currentSessionId = sessionId;
-        this.retryCount = 0;
-        this.isReconnecting = false;
-        this.wsConnected = false;
-        this.lastDisconnectCode = null;
-        this.lastDisconnectReason = null;
-        this.lastDisconnectAt = null;
-        this.lastErrorAt = null;
-        this.terminalAccess = null;
-        this._emitStatus();
-    }
-}
+const LEARNING_HEALTH_DISMISS_KEY = 'brainbase.learningHealth.dismissedIssueKey';
 
 /**
  * Application initialization
@@ -511,10 +99,9 @@ export class App {
         this.unsubscribers = [];
         this.pollingIntervalId = null;
         this.refreshIntervalId = null;
-        this.choiceCheckInterval = null;
         this.sessionUiSummaryIntervalId = null;
-        this.lastChoiceHash = null;
         this.settingsCore = null; // Settings Plugin Architecture
+        this.settingsExtensions = null;
         this.reconnectManager = null; // Terminal Reconnect Manager
         this.terminalTransportClient = null;
         this.terminalXtermHost = null;
@@ -554,11 +141,20 @@ export class App {
         this.pluginManager = null;
         this.authManager = null;
         this.mobileInputController = null;
+        this.choiceOverlayController = null;
         this.terminalInteractionService = null;
         this._sessionSwitchToken = 0;
         this._terminalAutoFocusTimers = new Set();
         this.viewerId = getTerminalViewerId();
         this.viewerLabel = getTerminalViewerLabel();
+        this.settingsExtensions = new SettingsExtensions({
+            store: appStore,
+            httpClient,
+            compressImage,
+            showSuccess,
+            showError,
+            showInfo
+        });
     }
 
     _shouldUseXtermTransport() {
@@ -607,6 +203,7 @@ export class App {
     }
 
     _showXtermTransport() {
+        this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.remove('hidden');
         this.terminalFrame?.classList.add('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -629,6 +226,7 @@ export class App {
     }
 
     _showTtydIframe() {
+        this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -637,18 +235,55 @@ export class App {
         consoleArea?.classList.remove('using-snapshot');
     }
 
+    _restoreSnapshotPanelPosition() {
+        const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        if (panel && this._snapshotPanelOriginalParent && panel.parentElement === document.body) {
+            this._snapshotPanelOriginalParent.appendChild(panel);
+            this._snapshotPanelOriginalParent = null;
+        }
+    }
+
     _showMobileTerminalDisplay() {
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
         consoleArea?.classList.add('using-snapshot');
+
+        // iOS Safari: overflow:hidden ancestors clip fixed-position text rendering.
+        // Move snapshot panel to body so it escapes the clipping context.
+        const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        if (panel && panel.parentElement !== document.body) {
+            this._snapshotPanelOriginalParent = panel.parentElement;
+            document.body.appendChild(panel);
+        }
+        // Offset snapshot panel below mobile tab bar
+        if (panel) {
+            const tabBar = document.getElementById('mobile-tab-bar');
+            const tabBarH = tabBar ? tabBar.offsetHeight : 0;
+            if (tabBarH > 0) {
+                document.body.style.setProperty('--mobile-tab-bar-height', `${tabBarH}px`);
+            }
+        }
     }
 
     _isConsoleVisible() {
         const consoleArea = document.getElementById('console-area');
         if (!consoleArea) return false;
         return window.getComputedStyle(consoleArea).display !== 'none';
+    }
+
+    _scheduleTerminalViewportSync() {
+        scheduleAfterNextPaint(() => {
+            if (!this._isConsoleVisible()) return;
+
+            if (this._isXtermTransportActive()) {
+                void this.terminalTransportClient?.syncViewportSize();
+                return;
+            }
+
+            window.dispatchEvent(new Event('resize'));
+        });
     }
 
     _isEditableTarget(target) {
@@ -742,7 +377,9 @@ export class App {
     }
 
     async _refreshMobileSnapshotDisplay({ force = false } = {}) {
-        if (!this._isMobileTerminalDisplayMode() || this._mobileSnapshotInFlight) return;
+        if (!this._isMobileTerminalDisplayMode()) return;
+        // force=true（ユーザー操作起因）の場合はin-flightガードをバイパス
+        if (this._mobileSnapshotInFlight && !force) return;
         const sessionId = appStore.getState().currentSessionId;
         if (!sessionId) {
             this._stopMobileSnapshotPolling();
@@ -751,7 +388,15 @@ export class App {
 
         this._mobileSnapshotInFlight = true;
         try {
-            await this._loadTerminalSnapshot(sessionId, { force });
+            const snapshot = await this._loadTerminalSnapshot(sessionId, { force });
+            // snapshot取得後に直接DOMを更新（_updateTerminalInputStatus経由だと遅延する）
+            if (snapshot && appStore.getState().currentSessionId === sessionId) {
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot,
+                    title: 'Terminal display'
+                });
+            }
         } catch (error) {
             console.warn('Failed to refresh mobile terminal snapshot:', error);
         } finally {
@@ -1175,9 +820,7 @@ export class App {
             this.terminalSnapshotTitleEl.textContent = title;
         }
         const snapshotText = this._normalizeTerminalSnapshotText(snapshot?.text);
-        if (this.isMobile()) {
-            this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
-        } else if (snapshot?.colorText) {
+        if (snapshot?.colorText) {
             this.terminalSnapshotContentEl.innerHTML = ansiToHtml(snapshot.colorText);
         } else {
             this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
@@ -1186,13 +829,44 @@ export class App {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
         this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
+        this._bindSnapshotLinks();
+    }
+
+    _bindSnapshotLinks() {
+        if (!this.terminalSnapshotContentEl) return;
+
+        this.terminalSnapshotContentEl.querySelectorAll('.snapshot-url-link').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(el.href, '_blank', 'noopener');
+            });
+        });
+
+        this.terminalSnapshotContentEl.querySelectorAll('.snapshot-file-link').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const filePath = el.dataset.path;
+                if (!filePath) return;
+                const line = el.dataset.line ? parseInt(el.dataset.line, 10) : undefined;
+                window.postMessage({
+                    type: 'OPEN_FILE',
+                    filePath,
+                    line,
+                    sessionId: appStore.getState().currentSessionId
+                }, window.location.origin);
+            });
+        });
     }
 
     _normalizeTerminalSnapshotText(text) {
         if (typeof text !== 'string') return '';
         return text
             .replace(/\r\n/g, '\n')
-            .replace(/(?:\n[ \t]*){4,}$/u, '\n\n');
+            .replace(/^(?:\s*\n)+/, '')
+            .replace(/(?:\n[ \t]*){3,}/g, '\n\n')
+            .trimEnd();
     }
 
     _syncTerminalSnapshotPanel({ sessionId, visible, title }) {
@@ -1631,9 +1305,15 @@ export class App {
 
             if (shouldOpenInBrowser && this.fileViewerService) {
                 void this.fileViewerService.openFile(currentSessionId, previewRelativePath || filePath);
-                this.showFileViewer?.();
+                if (this.isMobile() && this.mobileTabController) {
+                    this.mobileTabController.showFileViewer();
+                } else {
+                    this.showFileViewer?.();
+                }
                 return;
             }
+
+            if (this.isMobile()) return;
 
             fetch('/api/open-file', {
                 method: 'POST',
@@ -1717,6 +1397,7 @@ export class App {
         const onSnapshotClick = (event) => {
             if (!this._isMobileTerminalDisplayMode()) return;
             if (this._isEditableTarget(event.target)) return;
+            if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.choiceActive || overlayState.dropActive) return;
             event.stopPropagation();
@@ -1728,6 +1409,7 @@ export class App {
         const onSnapshotTouchStart = (event) => {
             if (!this._isMobileTerminalDisplayMode()) return;
             if (this._isEditableTarget(event.target)) return;
+            if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             this._mobileTapTracking = {
                 startX: event.touches?.[0]?.clientX ?? 0,
                 startY: event.touches?.[0]?.clientY ?? 0,
@@ -2224,6 +1906,7 @@ export class App {
                                 }
                             });
                             this.showConsole?.();
+                            this._scheduleTerminalViewportSync();
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
                         await this.initDashboardController();
@@ -2797,11 +2480,12 @@ export class App {
         // Setup global UI button handlers
         await this.setupGlobalButtons();
 
-        // Setup terminal toolbar buttons
-        this.setupTerminalToolbar();
+        // Setup settings-related UI extensions
+        this.settingsExtensions?.setupSettingsExtensions();
 
         // Setup test mode banner
         this.setupTestModeBanner();
+        this.setupLearningHealthBanner();
     }
 
     /**
@@ -2858,6 +2542,80 @@ export class App {
                 banner.remove();
             }
         }
+    }
+
+    setupLearningHealthBanner() {
+        this.refreshLearningHealthBanner();
+    }
+
+    async refreshLearningHealthBanner() {
+        try {
+            const health = await this.inboxService?.getLearningHealth?.();
+            this.updateLearningHealthBanner(health);
+        } catch {
+            this.updateLearningHealthBanner(null);
+        }
+    }
+
+    updateLearningHealthBanner(health) {
+        let banner = document.getElementById('learning-health-banner');
+        const issueKey = health?.issue_key || null;
+        if (!health || health.status === 'healthy' || this.isLearningHealthIssueDismissed(issueKey)) {
+            if (banner) banner.remove();
+            return;
+        }
+
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'learning-health-banner';
+            banner.className = 'learning-health-banner';
+            banner.innerHTML = `
+                <div class="learning-health-banner-content">
+                    <div class="learning-health-banner-copy">
+                        <i data-lucide="triangle-alert"></i>
+                        <span id="learning-health-banner-message"></span>
+                    </div>
+                    <div class="learning-health-banner-actions">
+                        <button id="learning-health-open-inbox-btn" class="learning-health-banner-btn" type="button">Bellで見る</button>
+                        <button id="learning-health-dismiss-btn" class="learning-health-banner-btn" type="button">閉じる</button>
+                    </div>
+                </div>
+            `;
+            const appContainer = document.querySelector('.app-container');
+            const testModeBanner = document.getElementById('test-mode-banner');
+            if (appContainer) {
+                if (testModeBanner) {
+                    testModeBanner.insertAdjacentElement('afterend', banner);
+                } else {
+                    document.body.insertBefore(banner, appContainer);
+                }
+            }
+
+            banner.querySelector('#learning-health-open-inbox-btn')?.addEventListener('click', () => {
+                this.views?.inboxView?.inboxTriggerBtn?.click?.();
+            });
+            banner.querySelector('#learning-health-dismiss-btn')?.addEventListener('click', () => {
+                this.dismissLearningHealthIssue(banner.dataset.issueKey || null);
+                banner.remove();
+            });
+        }
+
+        banner.dataset.issueKey = issueKey || '';
+        const messageEl = banner.querySelector('#learning-health-banner-message');
+        if (messageEl) {
+            messageEl.textContent = health.message || '学習の日次ジョブが予定どおり動いていません。';
+        }
+        refreshIcons();
+    }
+
+    dismissLearningHealthIssue(issueKey) {
+        if (!issueKey) return;
+        localStorage.setItem(LEARNING_HEALTH_DISMISS_KEY, issueKey);
+    }
+
+    isLearningHealthIssueDismissed(issueKey) {
+        if (!issueKey) return false;
+        return localStorage.getItem(LEARNING_HEALTH_DISMISS_KEY) === issueKey;
     }
 
     /**
@@ -3072,256 +2830,6 @@ export class App {
     }
 
     /**
-     * Setup terminal toolbar button handlers
-     */
-    setupTerminalToolbar() {
-        // Paste from clipboard button
-        const pasteTerminalBtn = document.getElementById('paste-terminal-btn');
-        if (pasteTerminalBtn) {
-            pasteTerminalBtn.onclick = async () => {
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    // Try to read clipboard items (supports both text and images)
-                    const clipboardItems = await navigator.clipboard.read();
-
-                    for (const item of clipboardItems) {
-                        // Check for image
-                        const imageType = item.types.find(type => type.startsWith('image/'));
-                        if (imageType) {
-                            showInfo('画像を圧縮中...');
-
-                            const blob = await item.getType(imageType);
-
-                            // 圧縮前のサイズ
-                            const originalSize = (blob.size / 1024 / 1024).toFixed(2);
-
-                            // 画像を圧縮
-                            const compressedBlob = await compressImage(blob);
-
-                            // 圧縮後のサイズ
-                            const compressedSize = (compressedBlob.size / 1024 / 1024).toFixed(2);
-
-                            showInfo(`アップロード中... (${originalSize}MB → ${compressedSize}MB)`);
-
-                            // Upload compressed image to server
-                            const formData = new FormData();
-                            formData.append('file', compressedBlob, 'clipboard-image.jpg');
-
-                            const uploadRes = await fetch('/api/upload', {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                            if (!uploadRes.ok) {
-                                showError('画像のアップロードに失敗しました');
-                                return;
-                            }
-
-                            const { path: imagePath } = await uploadRes.json();
-
-                            // Send image path to terminal with Enter key
-                            await fetch(`/api/sessions/${currentSessionId}/input`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ input: imagePath + '\n', type: 'text' })
-                            });
-
-                            showSuccess(`画像をペーストしました (圧縮率: ${((1 - compressedBlob.size / blob.size) * 100).toFixed(0)}%)`);
-                            return;
-                        }
-
-                        // Check for text
-                        if (item.types.includes('text/plain')) {
-                            const textBlob = await item.getType('text/plain');
-                            const text = await textBlob.text();
-
-                            if (!text) {
-                                showInfo('クリップボードが空です');
-                                return;
-                            }
-
-                            // Show paste confirm modal for text
-                            const modal = document.getElementById('paste-confirm-modal');
-                            const preview = document.getElementById('paste-preview-text');
-                            const confirmBtn = document.getElementById('paste-confirm-btn');
-                            const cancelBtn = document.getElementById('paste-cancel-btn');
-
-                            if (!modal || !preview || !confirmBtn || !cancelBtn) {
-                                // Fallback: paste directly without modal
-                                await this.pasteTextToTerminal(currentSessionId, text);
-                                return;
-                            }
-
-                            // Show preview
-                            const displayText = text.length > 500 ? text.substring(0, 500) + '\n...(省略)...' : text;
-                            preview.textContent = displayText;
-                            modal.classList.add('active');
-
-                            // Wait for user action
-                            const confirmed = await new Promise((resolve) => {
-                                const confirm = () => {
-                                    cleanup();
-                                    resolve(true);
-                                };
-                                const cancel = () => {
-                                    cleanup();
-                                    resolve(false);
-                                };
-                                const cleanup = () => {
-                                    confirmBtn.removeEventListener('click', confirm);
-                                    cancelBtn.removeEventListener('click', cancel);
-                                };
-
-                                confirmBtn.addEventListener('click', confirm);
-                                cancelBtn.addEventListener('click', cancel);
-                            });
-
-                            modal.classList.remove('active');
-
-                            // Paste if confirmed
-                            if (confirmed) {
-                                await this.pasteTextToTerminal(currentSessionId, text);
-                            }
-                            return;
-                        }
-                    }
-
-                    showInfo('クリップボードが空です');
-                } catch (error) {
-                    console.error('Failed to paste:', error);
-                    if (error.name === 'NotAllowedError') {
-                        showError('クリップボードへのアクセスが拒否されました。ブラウザの設定を確認してください。');
-                    } else {
-                        showError('ペーストに失敗しました');
-                    }
-                }
-            };
-        }
-
-        // Upload image button
-        const uploadImageBtn = document.getElementById('upload-image-btn');
-        const imageFileInput = document.getElementById('image-file-input');
-        if (uploadImageBtn && imageFileInput) {
-            uploadImageBtn.onclick = () => {
-                imageFileInput.click();
-            };
-
-            // Handle file selection
-            imageFileInput.onchange = async (e) => {
-                const files = e.target.files;
-                if (files && files.length > 0) {
-                    await this.handleFileUpload(files);
-                }
-                // Reset input so same file can be selected again
-                imageFileInput.value = '';
-            };
-        }
-
-        // Send Escape button
-        const sendEscapeBtn = document.getElementById('send-escape-btn');
-        if (sendEscapeBtn) {
-            sendEscapeBtn.onclick = async () => {
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'Escape',
-                        type: 'key'
-                    });
-                } catch (error) {
-                    console.error('Failed to send Escape:', error);
-                    showError('Escapeキーの送信に失敗しました');
-                }
-            };
-        }
-
-        // Send Clear button (Ctrl+L)
-        const sendClearBtn = document.getElementById('send-clear-btn');
-        if (sendClearBtn) {
-            sendClearBtn.onclick = async () => {
-                const currentSessionId = appStore.getState().currentSessionId;
-                if (!currentSessionId) {
-                    showInfo('セッションを選択してください');
-                    return;
-                }
-
-                try {
-                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                        input: 'C-l',
-                        type: 'key'
-                    });
-                } catch (error) {
-                    console.error('Failed to send Clear:', error);
-                    showError('クリアコマンドの送信に失敗しました');
-                }
-            };
-        }
-    }
-
-    /**
-     * Paste text to terminal
-     */
-    async pasteTextToTerminal(sessionId, text) {
-        try {
-            await httpClient.post(`/api/sessions/${sessionId}/input`, {
-                input: text,
-                type: 'text'
-            });
-            showSuccess('貼り付けました');
-        } catch (error) {
-            console.error('Failed to paste text:', error);
-            showError('テキストの貼り付けに失敗しました');
-        }
-    }
-
-    /**
-     * Handle file upload
-     */
-    async handleFileUpload(files) {
-        const currentSessionId = appStore.getState().currentSessionId;
-        if (!currentSessionId) {
-            showInfo('セッションを選択してください');
-            return;
-        }
-
-        const file = files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            // Upload file
-            const uploadRes = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!uploadRes.ok) throw new Error('Upload failed');
-
-            const { path } = await uploadRes.json();
-
-            // Paste path into terminal
-            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                input: path,
-                type: 'text'
-            });
-
-            showSuccess('ファイルをアップロードしました');
-        } catch (error) {
-            console.error('File upload failed:', error);
-            showError('ファイルアップロードに失敗しました');
-        }
-    }
-
-    /**
      * Setup mobile bottom navigation handlers
      */
     setupMobileNavigation() {
@@ -3335,7 +2843,7 @@ export class App {
         const tasksBottomSheet = document.getElementById('tasks-bottom-sheet');
         const closeSessionsSheetBtn = document.getElementById('close-sessions-sheet');
         const closeTasksSheetBtn = document.getElementById('close-tasks-sheet');
-        const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn');
+        const mobileAddSessionBtn = document.getElementById('mobile-add-session-btn') || document.getElementById('mobile-new-session-btn');
         const mobileSessionList = document.getElementById('mobile-session-list');
         const mobileTasksContent = document.getElementById('mobile-tasks-content');
         const settingsUI = this.settingsCore?.ui;
@@ -3389,6 +2897,10 @@ export class App {
         const openSessionsSheet = () => {
             closeTasksSheet();
             closeSettingsPanel();
+            // Non-terminalタブ表示中はTerminalに戻す（シートを閉じた後にタブが残る問題の防止）
+            if (this.mobileTabController && this.mobileTabController._activeTab !== 'terminal') {
+                this.mobileTabController.switchTab('terminal');
+            }
             renderMobileSessionList();
             sessionsSheetOverlay?.classList.add('active');
             sessionsBottomSheet?.classList.add('active');
@@ -3495,6 +3007,10 @@ export class App {
         });
         mobileAddSessionBtn?.addEventListener('click', () => {
             closeSessionsSheet();
+            eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
+        });
+        // Bottom nav +New button
+        document.getElementById('mobile-new-session-btn')?.addEventListener('click', () => {
             eventBus.emit(EVENTS.CREATE_SESSION, { project: 'general' });
         });
         // Desktop New Session button
@@ -3616,7 +3132,9 @@ export class App {
             };
         }
 
-        const res = await httpClient.post('/api/sessions/start', this._buildTerminalStartPayload(session));
+        const payload = this._buildTerminalStartPayload(session);
+        if (options.forceTtyd) payload.forceTtyd = true;
+        const res = await httpClient.post('/api/sessions/start', payload);
         return {
             proxyPath: res?.proxyPath ? this._getViewerProxyPath(res.proxyPath, res.port) : null,
             terminalAccess: res?.terminalAccess || terminalAccess || null
@@ -3663,7 +3181,7 @@ export class App {
         this._stopMobileSnapshotPolling();
         this.mobileLiveTerminalModalEl.classList.add('active');
 
-        const result = await this._openSessionInTtydFrame(sessionId, this.mobileLiveTerminalFrameEl);
+        const result = await this._openSessionInTtydFrame(sessionId, this.mobileLiveTerminalFrameEl, { forceTtyd: true });
         if (!result.ok) {
             if (result.blocked) {
                 this.reconnectManager?.setCurrentSession(sessionId);
@@ -3969,11 +3487,13 @@ export class App {
             }
 
             if (sessions && sessions.length > 0) {
-                void this.refreshSessionUiSummaries(
-                    sessions
+                // モバイルは現在のセッションだけ取得（起動高速化）
+                const summaryIds = this.isMobile() && currentSessionId
+                    ? [currentSessionId]
+                    : sessions
                         .filter((session) => session.intendedState !== 'archived')
-                        .map((session) => session.id)
-                );
+                        .map((session) => session.id);
+                void this.refreshSessionUiSummaries(summaryIds);
             }
 
             if (currentSessionId) {
@@ -4031,6 +3551,11 @@ export class App {
         // 1. Initialize services
         this.initServices();
 
+        // 1.5. Restore cached sessions for instant UI (stale-while-revalidate)
+        if (this.sessionService?.restoreFromCache()) {
+            console.log('[Startup] Restored sessions from cache');
+        }
+
         // 2. Initialize views
         this.initViews();
 
@@ -4057,6 +3582,7 @@ export class App {
 
         // 4.6. Update app version display (include runtime info)
         await this.updateAppVersionDisplay();
+        await this.refreshLearningHealthBanner();
 
         // 5. Initialize terminal reconnect manager before session auto-selection.
         const terminalFrame = document.getElementById('terminal-frame');
@@ -4127,7 +3653,14 @@ export class App {
         this.startSessionUiSummaryRefresh();
 
         // 9. Setup choice detection (mobile only)
-        this.setupResponsiveChoiceDetection();
+        this.choiceOverlayController = new ChoiceOverlayController({
+            httpClient,
+            store: appStore,
+            isMobile: () => this.isMobile(),
+            focusTerminal: (reason) => this.focusTerminal(reason),
+            showError: (message) => this.showError(message)
+        });
+        this.choiceOverlayController.init();
 
         // 10. Setup file opener shortcuts
         setupFileOpenerShortcuts();
@@ -4140,6 +3673,14 @@ export class App {
 
         // 13. Setup mobile input UI (Dock/Composer)
         this.initMobileInput();
+
+        // 14. Setup mobile tab bar
+        if (this.isMobile()) {
+            this.mobileTabController = new MobileTabController({
+                container: this.container
+            });
+            this.mobileTabController.init();
+        }
 
         console.log('brainbase-ui started successfully');
     }
@@ -4613,6 +4154,7 @@ export class App {
                 if (this.views.inboxView && this.views.inboxView.loadInbox) {
                     await this.views.inboxView.loadInbox();
                 }
+                await this.refreshLearningHealthBanner();
                 console.log('Periodic refresh completed');
             } catch (error) {
                 console.error('Periodic refresh failed:', error);
@@ -4625,128 +4167,6 @@ export class App {
      */
     isMobile() {
         return window.innerWidth <= 768;
-    }
-
-    /**
-     * Start choice detection (mobile only)
-     */
-    startChoiceDetection() {
-        this.stopChoiceDetection();
-
-        this.choiceCheckInterval = setInterval(async () => {
-            const currentSessionId = appStore.getState().currentSessionId;
-            if (!currentSessionId) return;
-
-            try {
-                const res = await httpClient.get(`/api/sessions/${currentSessionId}/output`);
-                const data = res;
-
-                if (data.hasChoices && data.choices.length > 0) {
-                    const choiceHash = JSON.stringify(data.choices);
-                    if (choiceHash !== this.lastChoiceHash) {
-                        this.lastChoiceHash = choiceHash;
-                        this.showChoiceOverlay(data.choices);
-                        this.stopChoiceDetection();
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to check for choices:', error);
-            }
-        }, 2000); // Check every 2 seconds
-    }
-
-    /**
-     * Stop choice detection
-     */
-    stopChoiceDetection() {
-        if (this.choiceCheckInterval) {
-            clearInterval(this.choiceCheckInterval);
-            this.choiceCheckInterval = null;
-        }
-    }
-
-    /**
-     * Show choice overlay
-     */
-    showChoiceOverlay(choices) {
-        const overlay = document.getElementById('choice-overlay');
-        const container = document.getElementById('choice-buttons');
-        const closeBtn = document.getElementById('close-choice-overlay');
-
-        if (!overlay || !container) return;
-
-        container.innerHTML = '';
-        choices.forEach((choice) => {
-            const btn = document.createElement('button');
-            btn.className = 'choice-btn';
-            btn.textContent = choice.originalText || `${choice.number}) ${choice.text}`;
-            btn.onclick = () => this.selectChoice(choice.number);
-            container.appendChild(btn);
-        });
-
-        overlay.classList.add('active');
-        refreshIcons();
-
-        closeBtn.onclick = () => this.closeChoiceOverlay();
-    }
-
-    /**
-     * Close choice overlay
-     */
-    closeChoiceOverlay() {
-        const overlay = document.getElementById('choice-overlay');
-        overlay?.classList.remove('active');
-        this.lastChoiceHash = null;
-        if (this.isMobile()) {
-            this.startChoiceDetection();
-        }
-        this.focusTerminal('closeChoiceOverlay');
-    }
-
-    /**
-     * Send choice selection
-     */
-    async selectChoice(number) {
-        const currentSessionId = appStore.getState().currentSessionId;
-        if (!currentSessionId) return;
-
-        try {
-            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                input: number,
-                type: 'text'
-            });
-
-            await new Promise(resolve => setTimeout(resolve, 100));
-            await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
-                input: 'Enter',
-                type: 'key'
-            });
-
-            this.closeChoiceOverlay();
-        } catch (error) {
-            console.error('Failed to send choice:', error);
-            this.showError('選択の送信に失敗しました');
-        }
-    }
-
-    /**
-     * Setup responsive choice detection
-     */
-    setupResponsiveChoiceDetection() {
-        // Start on mobile
-        if (this.isMobile()) {
-            this.startChoiceDetection();
-        }
-
-        // Handle resize
-        window.addEventListener('resize', () => {
-            if (this.isMobile() && !this.choiceCheckInterval) {
-                this.startChoiceDetection();
-            } else if (!this.isMobile() && this.choiceCheckInterval) {
-                this.stopChoiceDetection();
-                this.closeChoiceOverlay();
-            }
-        });
     }
 
     /**
@@ -4780,8 +4200,8 @@ export class App {
         }
         this._clearScheduledTerminalAutoFocus();
 
-        // Stop choice detection
-        this.stopChoiceDetection();
+        this.choiceOverlayController?.destroy();
+        this.choiceOverlayController = null;
 
         // Unsubscribe from events
         this.unsubscribers.forEach(unsub => unsub());

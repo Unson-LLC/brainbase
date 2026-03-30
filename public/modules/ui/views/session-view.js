@@ -87,9 +87,10 @@ export class SessionView {
         childRow.dataset.fingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
 
         childRow.addEventListener('click', async (e) => {
-            if (!e.target.closest('button')) {
+            if (!e.target.closest('button') && !e.target.closest('.drag-handle')) {
                 const sessionId = childRow.dataset.id;
                 if (sessionId) {
+                    this._closeAllMenus();
                     await this.sessionService.switchSession(sessionId);
                 } else {
                     console.error('Session ID not found in row:', childRow);
@@ -113,7 +114,8 @@ export class SessionView {
 
             const project = currentRow.dataset.project || getProjectFromSession(session);
             const showProjectEmoji = Boolean(currentRow.querySelector('.session-project-emoji'));
-            const isDraggable = currentRow.getAttribute('draggable') !== 'false';
+            const dragHandle = currentRow.querySelector('.drag-handle');
+            const isDraggable = dragHandle?.getAttribute('draggable') !== 'false';
             const enableDrag = isDraggable;
             // フィンガープリント比較：レンダリング入力が同じなら差し替え不要
             const newFingerprint = this._computeRowFingerprint(session, currentSessionId, { project });
@@ -172,8 +174,16 @@ export class SessionView {
             state => state.folderTree,
             () => this._scheduleRender()
         );
+        const unsub10 = appStore.subscribeToSelector(
+            state => state.currentSessionId,
+            () => this._scheduleRender()
+        );
+        const unsub11 = appStore.subscribeToSelector(
+            state => Boolean(state.fileViewer),
+            () => this._scheduleRender()
+        );
 
-        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub6b, unsub7, unsub8, unsub9);
+        this._unsubscribers.push(unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub6b, unsub7, unsub8, unsub9, unsub10, unsub11);
 
         // ドロップダウンメニューの外側クリックで閉じる処理（document全体で1回のみ）
         this._outsideClickHandler = (e) => {
@@ -734,16 +744,19 @@ export class SessionView {
         if (enableDrag) {
             // Drag and Drop handlers
             const project = row.dataset.project;
+            const dragHandle = row.querySelector('.drag-handle');
+            if (!dragHandle) return;
 
-            row.addEventListener('dragstart', (e) => {
+            dragHandle.addEventListener('dragstart', (e) => {
                 this.draggedSessionId = session.id;
                 this.draggedSessionProject = project;
                 row.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', session.id);
+                e.dataTransfer.setDragImage(row, 0, 0);
             });
 
-            row.addEventListener('dragend', () => {
+            dragHandle.addEventListener('dragend', () => {
                 this.draggedSessionId = null;
                 this.draggedSessionProject = null;
                 row.classList.remove('dragging');

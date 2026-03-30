@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>brainbase UI</title>
     <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="stylesheet" href="style.css?v=202601032345">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
-    <script src="https://unpkg.com/dompurify@3/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="style.css?v=202603281445">
+    <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://unpkg.com/marked@17/lib/marked.umd.js"></script>
+    <script defer src="https://unpkg.com/dompurify@3/dist/purify.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -118,7 +118,7 @@
                     <!-- Inbox Dropdown -->
                     <div id="inbox-dropdown" class="inbox-dropdown">
                         <div class="inbox-dropdown-header">
-                            <span>未対応メンション</span>
+                            <span>受信箱</span>
                             <button id="mark-all-done-btn" class="inbox-mark-all" title="すべて確認済み"
                                 aria-label="すべての通知を確認済みにする">
                                 <i data-lucide="check-check"></i>
@@ -148,6 +148,26 @@
                     <div class="session-context-empty">セッション未選択</div>
                 </div>
             </div>
+
+            <!-- Mobile Tab Bar (hidden on desktop) -->
+            <div id="mobile-tab-bar" class="mobile-tab-bar">
+                <button class="mobile-tab active" data-tab="terminal">
+                    <i data-lucide="terminal"></i><span>Terminal</span>
+                </button>
+                <button class="mobile-tab" data-tab="files">
+                    <i data-lucide="folder-tree"></i><span>Files</span>
+                </button>
+                <button class="mobile-tab" data-tab="wiki">
+                    <i data-lucide="book-open"></i><span>Wiki</span>
+                </button>
+                <button class="mobile-tab" data-tab="tasks">
+                    <i data-lucide="list-todo"></i><span>Tasks</span>
+                </button>
+                <button class="mobile-tab" data-tab="feed">
+                    <i data-lucide="radio"></i><span>Feed</span>
+                </button>
+            </div>
+
             <div class="console-area" id="console-area">
                 <div class="terminal-header" id="terminal-header">
                     <div class="terminal-header-status-group">
@@ -237,6 +257,12 @@
 
             <!-- File Viewer Panel -->
             <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
+
+            <!-- Mobile Tab Content (hidden on desktop, lazily populated) -->
+            <div id="mobile-tab-content-files" class="mobile-tab-content" data-tab="files"></div>
+            <div id="mobile-tab-content-wiki" class="mobile-tab-content" data-tab="wiki"></div>
+            <div id="mobile-tab-content-tasks" class="mobile-tab-content" data-tab="tasks"></div>
+            <div id="mobile-tab-content-feed" class="mobile-tab-content" data-tab="feed"></div>
 
         </main>
 
@@ -978,13 +1004,9 @@
             <i data-lucide="layers"></i>
             <span>Sessions</span>
         </button>
-        <button id="mobile-tasks-btn" data-slot="mobile:tasks">
-            <i data-lucide="list-todo"></i>
-            <span>Tasks</span>
-        </button>
-        <button id="mobile-dashboard-btn" style="display: none;">
-            <i data-lucide="layout-dashboard"></i>
-            <span>Dashboard</span>
+        <button id="mobile-new-session-btn" class="mobile-bottom-nav-primary">
+            <i data-lucide="plus"></i>
+            <span>New</span>
         </button>
         <button id="mobile-settings-btn">
             <i data-lucide="settings"></i>
@@ -1047,9 +1069,16 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=1774486200"></script>
+    <script type="module" src="app.js?v=1774709000"></script>
     <script>
-        lucide.createIcons();
+        // defer scripts (lucide等) のロード後に実行
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        } else {
+            document.addEventListener('DOMContentLoaded', () => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        }
     </script>
 </body>
 

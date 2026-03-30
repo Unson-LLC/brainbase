@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Live Feed Service
  * セッションごとの現在アクティビティを「仕事カード」として提供する。
@@ -172,6 +173,7 @@ function getActivityTimestamp(session, uiState) {
 }
 
 export class LiveFeedService {
+    /** @param {{ store?: any }} [config] */
     constructor({ store } = {}) {
         this.store = store || appStore;
         this.entries = [];

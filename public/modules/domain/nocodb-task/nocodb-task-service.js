@@ -1,3 +1,4 @@
+// @ts-check
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
 import { NocoDBTaskAdapter } from './nocodb-task-adapter.js';
@@ -15,6 +16,15 @@ export class NocoDBTaskService {
         this.projects = [];
         this.loading = false;
         this.error = null;
+    }
+
+    /** catchブロック共通: ログ+エラーイベント+rethrow */
+    _handleError(context, error) {
+        console.error(`NocoDBTaskService.${context} error:`, error);
+        eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
+            error: error.message || `Failed to ${context}`
+        });
+        throw error;
     }
 
     /**
@@ -96,11 +106,7 @@ export class NocoDBTaskService {
 
             return task;
         } catch (error) {
-            console.error('NocoDBTaskService.updateStatus error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to update task'
-            });
-            throw error;
+            this._handleError('updateStatus', error);
         }
     }
 
@@ -140,11 +146,7 @@ export class NocoDBTaskService {
 
             return task;
         } catch (error) {
-            console.error('NocoDBTaskService.updateTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to update task'
-            });
-            throw error;
+            this._handleError('updateTask', error);
         }
     }
 
@@ -165,11 +167,7 @@ export class NocoDBTaskService {
             eventBus.emit(EVENTS.NOCODB_TASK_CREATED, { task: created });
             return created;
         } catch (error) {
-            console.error('NocoDBTaskService.createTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to create task'
-            });
-            throw error;
+            this._handleError('createTask', error);
         }
     }
 
@@ -200,11 +198,7 @@ export class NocoDBTaskService {
 
             return { success: true };
         } catch (error) {
-            console.error('NocoDBTaskService.deleteTask error:', error);
-            eventBus.emit(EVENTS.NOCODB_TASK_ERROR, {
-                error: error.message || 'Failed to delete task'
-            });
-            throw error;
+            this._handleError('deleteTask', error);
         }
     }
 

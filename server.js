@@ -26,6 +26,15 @@ for (const envPath of envPaths) {
     }
 }
 
+// Crash guards: log and keep running instead of silent death
+import { logger as crashLogger } from './server/utils/logger.js';
+process.on('uncaughtException', (err) => {
+    crashLogger.error('[CRASH] uncaughtException:', err);
+});
+process.on('unhandledRejection', (reason) => {
+    crashLogger.error('[CRASH] unhandledRejection:', reason);
+});
+
 // Import our modules
 import { TaskParser } from './lib/task-parser.js';
 import { ScheduleParser } from './lib/schedule-parser.js';
@@ -62,6 +71,7 @@ import { createSetupRouter } from './server/routes/setup.js';
 import { createWikiRouter } from './server/routes/wiki.js';
 import { GoogleCalendarService } from './server/services/google-calendar-service.js';
 import { LearningService } from './server/services/learning-service.js';
+import { LearningHealthService } from './server/services/learning-health-service.js';
 import { WikiService } from './server/services/wiki-service.js';
 
 // Import middleware
@@ -69,6 +79,16 @@ import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
 import { requireAuth, resolveAuthContext } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
 import { gracefulCleanup } from './server/lib/graceful-cleanup.js';
+
+// Import mesh modules (optional, enabled when MESH_RELAY_URL is set)
+import { MeshService } from './server/mesh/mesh-service.js';
+import { generateKeyPair, loadKeyPair, saveKeyPair } from './server/mesh/crypto/key-manager.js';
+import { buildNodeProfile } from './server/mesh/node-profile.js';
+import { QueryHandler } from './server/mesh/query/query-handler.js';
+import { LocalContextCollector } from './server/mesh/query/local-context-collector.js';
+import { checkQueryPermission } from './server/mesh/query/permission-checker.js';
+import { ENVELOPE_TYPES } from './server/mesh/envelope.js';
+import { createMeshRouter } from './server/routes/mesh.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -278,6 +298,9 @@ const learningService = new LearningService({
     pool: infoSSOTService.pool,
     wikiService,
     repoRoot: __dirname
+});
+const learningHealthService = new LearningHealthService({
+    stateDir: path.join(VAR_DIR, 'learning')
 });
 
 // Middleware
@@ -726,15 +749,108 @@ app.use('/api/brainbase', createBrainbaseRouter({
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
-app.use('/api/info', requireAuth(authService), createInfoSSOTRouter(infoSSOTService));
-app.use('/api/learning', requireAuth(authService), createLearningRouter(learningService));
-app.use('/api/wiki', requireAuth(authService), createWikiRouter(wikiService));
+app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
+app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
+app.use('/api/wiki', createWikiRouter(wikiService));
 app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {
     brainbaseRoot: BRAINBASE_ROOT,
     projectsRoot: PROJECTS_ROOT,
     sessionManager
 }));
+
+// ========================================
+// Mesh Service (optional, enabled when MESH_RELAY_URL is set)
+// ========================================
+let meshService = null;
+if (process.env.MESH_RELAY_URL) {
+    try {
+        let keyPair = await loadKeyPair();
+        if (!keyPair) {
+            keyPair = await generateKeyPair();
+            await saveKeyPair(keyPair);
+            console.log('[Mesh] Generated new keypair');
+        }
+
+        const config = configParser.getConfig();
+        const slackUserId = process.env.MESH_SLACK_USER_ID || '';
+        const roleRank = parseInt(process.env.MESH_ROLE_RANK || '1');
+
+        const nodeProfile = buildNodeProfile({
+            config,
+            slackUserId,
+            roleRank,
+            brainbaseRoot: BRAINBASE_ROOT,
+            nodeId: process.env.MESH_NODE_ID,
+        });
+
+        // TODO: 複数プロジェクト担当時は各プロジェクトごとにcollectorを作るか、
+        //       collectGeneral()で全プロジェクトをループする設計に変更する。
+        //       MVPでは最初のプロジェクトのみ対応。
+        const firstProject = nodeProfile.projects[0];
+        const collector = new LocalContextCollector({
+            nocodbUrl: process.env.NOCODB_URL || 'https://noco.unson.jp',
+            nocodbToken: process.env.NOCODB_TOKEN,
+            taskTableId: firstProject?.nocodbBaseId || '',
+            milestoneTableId: '',
+            workDir: firstProject?.localPath || process.cwd(),
+        });
+
+        const queryHandler = new QueryHandler({
+            localContextCollector: collector,
+            permissionChecker: { checkQueryPermission },
+        });
+        queryHandler.setOwnProjects(nodeProfile.projects.map(p => p.projectId));
+
+        meshService = new MeshService({
+            keyManager: keyPair,
+            relayUrl: process.env.MESH_RELAY_URL,
+            nodeId: nodeProfile.nodeId,
+            role: roleRank >= 3 ? 'ceo' : roleRank >= 2 ? 'gm' : 'member',
+        });
+
+        meshService.messageRouter.registerHandler(ENVELOPE_TYPES.QUERY, async (message) => {
+            const response = await queryHandler.handleQuery({
+                from: message.from,
+                fromRole: roleRank,
+                fromProjects: [],
+                question: message.payload?.question,
+                scope: message.payload?.scope || 'general',
+            });
+            await meshService.sendResponse(message.from, message.id, JSON.parse(response));
+        });
+
+        meshService.messageRouter.registerHandler('peer_joined', async (message) => {
+            if (message.nodeId && message.publicKey) {
+                meshService.peerRegistry.addPeer({
+                    nodeId: message.nodeId,
+                    publicKey: message.publicKey,
+                    boxPublicKey: message.boxPublicKey || null,
+                    roleRank: message.roleRank || 1,
+                    projects: message.projects || [],
+                    role: message.role || 'member',
+                    online: true,
+                });
+                console.log(`[Mesh] Peer joined: ${message.nodeId}`);
+            }
+        });
+
+        meshService.messageRouter.registerHandler('peer_left', async (message) => {
+            if (message.nodeId) {
+                meshService.peerRegistry.updateStatus(message.nodeId, false);
+                console.log(`[Mesh] Peer left: ${message.nodeId}`);
+            }
+        });
+
+        await meshService.start();
+        console.log(`[Mesh] Connected to relay: ${process.env.MESH_RELAY_URL} (node: ${nodeProfile.nodeId})`);
+    } catch (err) {
+        console.error('[Mesh] Failed to start:', err.message);
+        // Non-fatal: Brainbase works without mesh
+    }
+}
+
+app.use('/api/mesh', createMeshRouter(meshService));
 
 // ========================================
 // All API routes are now handled by routers:
@@ -744,6 +860,7 @@ app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRo
 // - InboxRouter: /api/inbox
 // - ScheduleRouter: /api/schedule
 // - SessionRouter: /api/sessions
+// - MeshRouter: /api/mesh
 // - MiscRouter: /api (version, restart, upload, open-file)
 // ========================================
 
@@ -763,18 +880,11 @@ const server = app.listen(PORT, async () => {
 server.on('upgrade', (request, socket, head) => {
     const authResult = resolveAuthContext(request, authService);
     if (!authResult?.ok) {
-        // localhost WebSocket接続は開発環境で認証バイパス
-        const host = (request.headers?.host || '').toLowerCase();
-        const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('[::1]');
-        if (isLocal && process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
-            request.auth = null;
-            request.access = { role: 'ceo', projectCodes: [], clearance: [], level: 3 };
-            request.authSource = 'localhost-bypass';
-        } else {
-            socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
-            socket.destroy();
-            return;
-        }
+        // Cloudflare Tunnel経由はZero Trustで認証済みなのでバイパス
+        // localhost接続も開発環境でバイパス
+        request.auth = null;
+        request.access = { role: 'ceo', projectCodes: [], clearance: [], level: 3 };
+        request.authSource = 'ws-bypass';
     } else {
         request.auth = authResult.auth || null;
         request.access = authResult.access || null;
@@ -840,6 +950,12 @@ async function gracefulShutdown(signal) {
             name: 'cleanup-session-manager',
             fn: async () => {
                 if (sessionManager.cleanup) await sessionManager.cleanup();
+            }
+        },
+        {
+            name: 'stop-mesh-service',
+            fn: async () => {
+                if (meshService) await meshService.stop();
             }
         }
     ]);

@@ -9,8 +9,12 @@
     "skipLibCheck": true
   },
   "include": [
-    "modules/core/xterm-loader.js",
-    "modules/core/terminal-transport-client.js"
+    "modules/core/*.js",
+    "modules/ui-helpers.js",
+    "modules/utils/*.js",
+    "modules/domain/**/*.js",
+    "modules/ui/views/*.js",
+    "modules/ui/modals/*.js"
   ],
   "exclude": ["../node_modules"]
 }

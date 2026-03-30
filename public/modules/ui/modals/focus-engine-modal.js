@@ -1,3 +1,4 @@
+// @ts-check
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { refreshIcons } from '../../ui-helpers.js';
 import { BaseModal } from './base-modal.js';
@@ -48,7 +49,7 @@ export class FocusEngineModal extends BaseModal {
         const startBtn = this.modalElement.querySelector('#focus-engine-start-btn');
         if (startBtn) {
             startBtn.addEventListener('click', () => {
-                const selected = this.modalElement.querySelector('input[name="focus-engine"]:checked');
+                const selected = /** @type {HTMLInputElement|null} */ (this.modalElement.querySelector('input[name="focus-engine"]:checked'));
                 const engine = selected?.value || 'claude';
                 this._selectEngine(engine);
             });

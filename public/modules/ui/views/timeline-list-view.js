@@ -1,3 +1,4 @@
+// @ts-check
 import { EVENTS } from '../../core/event-bus.js';
 import { escapeHtml, iconHtml, refreshIcons } from '../../ui-helpers.js';
 import { BaseView } from './base-view.js';
@@ -14,13 +15,7 @@ export class TimelineListView extends BaseView {
     }
 
     _setupEventListeners() {
-        this._addSubscriptions(
-            this.eventBus.on(EVENTS.TIMELINE_LOADED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_ITEM_CREATED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_ITEM_UPDATED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_ITEM_DELETED, () => this.render()),
-            this.eventBus.on(EVENTS.TIMELINE_FILTER_CHANGED, () => this.render())
-        );
+        this._renderOn(this.eventBus, EVENTS.TIMELINE_LOADED, EVENTS.TIMELINE_ITEM_CREATED, EVENTS.TIMELINE_ITEM_UPDATED, EVENTS.TIMELINE_ITEM_DELETED, EVENTS.TIMELINE_FILTER_CHANGED);
     }
 
     /**
@@ -260,7 +255,7 @@ export class TimelineListView extends BaseView {
         // フィルタボタン
         this.container.querySelectorAll('.timeline-filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                const filterType = btn.dataset.filterType || null;
+                const filterType = /** @type {HTMLElement} */ (btn).dataset.filterType || null;
                 this.timelineService.setFilter({ type: filterType || null });
             });
         });
@@ -269,7 +264,7 @@ export class TimelineListView extends BaseView {
         this.container.querySelectorAll('.edit-timeline-item').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const itemId = btn.dataset.id;
+                const itemId = /** @type {HTMLElement} */ (btn).dataset.id;
                 const items = this.timelineService.getTimelineItems();
                 const item = items.find(i => i.id === itemId);
                 if (item) {
@@ -282,7 +277,7 @@ export class TimelineListView extends BaseView {
         this.container.querySelectorAll('.delete-timeline-item').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                const itemId = btn.dataset.id;
+                const itemId = /** @type {HTMLElement} */ (btn).dataset.id;
                 if (itemId && confirm('この項目を削除しますか？')) {
                     await this.timelineService.deleteItem(itemId);
                 }
@@ -293,7 +288,7 @@ export class TimelineListView extends BaseView {
         this.container.querySelectorAll('.create-task-from-timeline').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const itemId = btn.dataset.id;
+                const itemId = /** @type {HTMLElement} */ (btn).dataset.id;
                 const items = this.timelineService.getTimelineItems();
                 const item = items.find(i => i.id === itemId);
                 if (item) {

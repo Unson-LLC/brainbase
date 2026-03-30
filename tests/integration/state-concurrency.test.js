@@ -22,8 +22,10 @@ describe('State Concurrency - Integration', () => {
         reportActivity: vi.fn(),
         getSessionStatus: vi.fn().mockReturnValue([]),
         getRuntimeStatus: vi.fn().mockReturnValue({ status: 'stopped' }),
+        getSessionById: vi.fn().mockReturnValue(null),
         clearDoneStatus: vi.fn(),
         activeSessions: new Map(),
+        _isXtermOnlyMode: vi.fn().mockReturnValue(false),
         _isProcessRunning: vi.fn().mockReturnValue(false),
         resolveSessionWorkspacePath: vi.fn(async (sessionOrId) => typeof sessionOrId === 'string' ? null : sessionOrId?.path || null),
         ensureTerminalOwnership: vi.fn().mockImplementation((sessionId, viewerId) => ({

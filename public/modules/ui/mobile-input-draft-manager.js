@@ -1,5 +1,6 @@
 import { appStore } from '../core/store.js';
 import { eventBus, EVENTS } from '../core/event-bus.js';
+import { loadJson, saveJson } from '../utils/local-storage.js';
 
 const STORAGE_KEYS = {
     draft: 'bb_mobile_draft'
@@ -47,7 +48,7 @@ export class MobileInputDraftManager {
         };
         const key = `${STORAGE_KEYS.draft}:${sessionId}:${mode}`;
         console.log(`[draft] Saving draft for session ${sessionId} (${mode}):`, payload.value.substring(0, 50));
-        this.saveJson(key, payload);
+        saveJson(key, payload);
         eventBus.emit(EVENTS.MOBILE_INPUT_DRAFT_SAVED, { mode, sessionId });
     }
 
@@ -59,7 +60,7 @@ export class MobileInputDraftManager {
 
     restoreDraftFor(mode, sessionId, inputEl) {
         if (!inputEl) return;
-        const draft = this.loadJson(`${STORAGE_KEYS.draft}:${sessionId}:${mode}`, null);
+        const draft = loadJson(`${STORAGE_KEYS.draft}:${sessionId}:${mode}`, null);
         console.log(`[draft] Restoring draft for session ${sessionId} (${mode}):`, draft ? draft.value.substring(0, 50) : '(empty)');
         if (!draft) return;
         inputEl.value = draft.value || '';
@@ -68,22 +69,5 @@ export class MobileInputDraftManager {
         inputEl.setSelectionRange(start, end);
     }
 
-    loadJson(key, fallback) {
-        try {
-            const raw = localStorage.getItem(key);
-            if (!raw) return fallback;
-            return JSON.parse(raw);
-        } catch (error) {
-            console.warn('Failed to load storage:', key, error);
-            return fallback;
-        }
-    }
-
-    saveJson(key, value) {
-        try {
-            localStorage.setItem(key, JSON.stringify(value));
-        } catch (error) {
-            console.warn('Failed to save storage:', key, error);
-        }
-    }
+    // loadJson / saveJson imported from utils/local-storage.js
 }

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TimelineService } from '../../../public/modules/domain/timeline/timeline-service.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
 import { appStore } from '../../../public/modules/core/store.js';
+import { listenForEvent } from '../../helpers/event-test-utils.js';
 
 describe('TimelineService', () => {
     let service;

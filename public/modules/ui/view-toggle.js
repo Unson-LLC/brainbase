@@ -1,11 +1,10 @@
+import { refreshIcons } from '../ui-helpers.js';
 /**
  * Activity Bar icons are static HTML; just init Lucide.
  */
 export function renderPanelToggles(container) {
     if (!container) return () => {};
-    if (window?.lucide?.createIcons) {
-        window.lucide.createIcons();
-    }
+    refreshIcons();
     return () => {};
 }
 

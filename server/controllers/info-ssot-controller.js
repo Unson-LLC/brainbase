@@ -1,30 +1,11 @@
 import { logger } from '../utils/logger.js';
-
-function parseCsv(value) {
-    if (!value || typeof value !== 'string') {
-        return [];
-    }
-    return value.split(',').map(v => v.trim()).filter(Boolean);
-}
-
-function allowHeaderAccess() {
-    if (process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true') {
-        return true;
-    }
-    if (process.env.BRAINBASE_TEST_MODE === 'true') {
-        return true;
-    }
-    if (process.env.NODE_ENV === 'test') {
-        return true;
-    }
-    return false;
-}
+import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 
 function buildAccessContext(req) {
     if (req.access) {
         return req.access;
     }
-    if (!allowHeaderAccess()) {
+    if (!isInsecureHeaderAuthAllowed()) {
         throw new Error('Slack OAuth token required');
     }
     const role = (req.get('x-brainbase-role') || req.get('x-role') || '').toLowerCase();

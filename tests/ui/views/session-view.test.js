@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SessionView } from '../../../public/modules/ui/views/session-view.js';
 import { SessionService } from '../../../public/modules/domain/session/session-service.js';
 import { eventBus, EVENTS } from '../../../public/modules/core/event-bus.js';
@@ -43,6 +43,9 @@ describe('SessionView', () => {
     let container;
 
     beforeEach(() => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => setTimeout(callback, 0));
+        vi.stubGlobal('cancelAnimationFrame', (id) => clearTimeout(id));
+
         // DOM準備
         document.body.innerHTML = `
             <div id="test-container"></div>
@@ -69,6 +72,10 @@ describe('SessionView', () => {
         });
 
         vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
     });
 
     describe('mount', () => {
@@ -139,6 +146,58 @@ describe('SessionView', () => {
 
             const activeElement = container.querySelector('[data-id="session-1"]');
             expect(activeElement.classList.contains('active')).toBe(true);
+        });
+
+        it('should update active session when currentSessionId changes', async () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', project: 'test', intendedState: 'active' }
+            ];
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                ui: { sidebarPrimaryView: 'sessions', sessionListView: 'timeline' }
+            });
+
+            sessionView.render();
+            appStore.setState({ currentSessionId: 'session-2' });
+
+            await vi.waitFor(() => {
+                expect(container.querySelector('[data-id="session-2"]')?.classList.contains('active')).toBe(true);
+            });
+            expect(container.querySelector('[data-id="session-1"]')?.classList.contains('active')).toBe(false);
+        });
+
+        it('should restore active session styling when file viewer closes without changing currentSessionId', async () => {
+            const mockSessions = [
+                { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' },
+                { id: 'session-2', name: 'Session 2', project: 'test', intendedState: 'active' }
+            ];
+            appStore.setState({
+                sessions: mockSessions,
+                currentSessionId: 'session-1',
+                fileViewer: {
+                    sessionId: 'session-1',
+                    relativePath: 'README.md',
+                    fileName: 'README.md',
+                    content: '# Hello',
+                    loading: false,
+                    error: null
+                },
+                ui: { sidebarPrimaryView: 'sessions', sessionListView: 'timeline' }
+            });
+
+            sessionView.render();
+
+            const activeRow = container.querySelector('[data-id="session-1"]');
+            activeRow.classList.remove('active');
+
+            appStore.setState({ fileViewer: null });
+
+            await vi.waitFor(() => {
+                expect(container.querySelector('[data-id="session-1"]')?.classList.contains('active')).toBe(true);
+            });
+            expect(appStore.getState().currentSessionId).toBe('session-1');
         });
 
         it('should group sessions by project', () => {
@@ -256,6 +315,63 @@ describe('SessionView', () => {
             await vi.waitFor(() => {
                 expect(mockSessionService.pauseSession).toHaveBeenCalledWith('session-1');
             });
+        });
+
+        it('should close menus and switch session on row click', async () => {
+            const closeMenusSpy = vi.spyOn(sessionView, '_closeAllMenus');
+            const row = container.querySelector('.session-child-row');
+
+            row.click();
+
+            await vi.waitFor(() => {
+                expect(closeMenusSpy).toHaveBeenCalled();
+                expect(mockSessionService.switchSession).toHaveBeenCalledWith('session-1');
+            });
+        });
+
+        it('should not switch session when drag handle is clicked', async () => {
+            const dragHandle = container.querySelector('.drag-handle');
+
+            dragHandle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            await new Promise(resolve => queueMicrotask(resolve));
+            expect(mockSessionService.switchSession).not.toHaveBeenCalled();
+        });
+
+        it('should attach dragstart and dragend to drag handle only', () => {
+            appStore.setState({
+                sessions: [
+                    { id: 'session-1', name: 'Session 1', project: 'test', intendedState: 'active' }
+                ],
+                ui: { sessionListView: 'project' }
+            });
+            sessionView.render();
+
+            const row = container.querySelector('.session-child-row');
+            const dragHandle = row.querySelector('.drag-handle');
+            const dragStartDataTransfer = {
+                effectAllowed: '',
+                setData: vi.fn(),
+                setDragImage: vi.fn()
+            };
+            const dragStartEvent = new Event('dragstart', { bubbles: true });
+            Object.defineProperty(dragStartEvent, 'dataTransfer', {
+                value: dragStartDataTransfer
+            });
+
+            dragHandle.dispatchEvent(dragStartEvent);
+
+            expect(sessionView.draggedSessionId).toBe('session-1');
+            expect(row.classList.contains('dragging')).toBe(true);
+            expect(dragStartDataTransfer.effectAllowed).toBe('move');
+            expect(dragStartDataTransfer.setData).toHaveBeenCalledWith('text/plain', 'session-1');
+            expect(dragStartDataTransfer.setDragImage).toHaveBeenCalledWith(row, 0, 0);
+
+            const dragEndEvent = new Event('dragend', { bubbles: true });
+            dragHandle.dispatchEvent(dragEndEvent);
+
+            expect(sessionView.draggedSessionId).toBeNull();
+            expect(row.classList.contains('dragging')).toBe(false);
         });
     });
 

@@ -21,13 +21,7 @@ export class NocoDBController {
         try {
             const assignee = req.query.assignee || null;
 
-            // 環境変数チェック
-            if (!this.nocodbUrl || !this.nocodbToken) {
-                return res.status(500).json({
-                    error: 'NocoDB configuration missing',
-                    details: 'NOCODB_URL or NOCODB_TOKEN environment variable is not set'
-                });
-            }
+            this._ensureConfigured();
 
             // NocoDBマッピングを取得
             const mappings = await this.configParser.getNocoDBMappings();
@@ -98,7 +92,7 @@ export class NocoDBController {
             });
         } catch (error) {
             logger.error('Failed to fetch NocoDB tasks', { error });
-            res.status(500).json({ error: 'Failed to fetch NocoDB tasks' });
+            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to fetch NocoDB tasks' });
         }
     };
 
@@ -115,12 +109,7 @@ export class NocoDBController {
                 return res.status(400).json({ error: 'Title is required' });
             }
 
-            // 環境変数チェック
-            if (!this.nocodbUrl || !this.nocodbToken) {
-                return res.status(500).json({
-                    error: 'NocoDB configuration missing'
-                });
-            }
+            this._ensureConfigured();
 
             // NocoDBマッピングからprojectId/baseIdを解決
             const mappings = await this.configParser.getNocoDBMappings();
@@ -180,7 +169,7 @@ export class NocoDBController {
             res.status(201).json({ success: true, record: result });
         } catch (error) {
             logger.error('Failed to create NocoDB task', { error });
-            res.status(500).json({ error: 'Failed to create task' });
+            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to create task' });
         }
     };
 
@@ -193,7 +182,6 @@ export class NocoDBController {
             const { id } = req.params;
             const { baseId, fields } = req.body;
 
-            // 入力検証
             if (!id || typeof id !== 'string') {
                 return res.status(400).json({ error: 'Invalid task ID' });
             }
@@ -201,26 +189,8 @@ export class NocoDBController {
                 return res.status(400).json({ error: 'Missing baseId or fields' });
             }
 
-            // 環境変数チェック
-            if (!this.nocodbUrl || !this.nocodbToken) {
-                return res.status(500).json({
-                    error: 'NocoDB configuration missing'
-                });
-            }
-
-            // NocoDBマッピングからprojectIdを取得
-            const mappings = await this.configParser.getNocoDBMappings();
-            const mapping = mappings.find(m => m.base_id === baseId);
-            if (!mapping) {
-                return res.status(404).json({ error: 'Unknown base_id' });
-            }
-
-            const taskTable = await this._findTaskTable(mapping.base_id);
-            if (!taskTable) {
-                return res.status(404).json({ error: 'Task table not found' });
-            }
-
-            const idFieldName = await this._resolveTableIdField(taskTable.id);
+            this._ensureConfigured();
+            const { taskTable, idFieldName } = await this._resolveTable(baseId);
 
             const recordIdValue = this._normalizeRecordId(id);
             const fallbackIdFields = this._getFallbackIdFields(idFieldName, recordIdValue);
@@ -263,7 +233,7 @@ export class NocoDBController {
             res.json({ success: true, record: result });
         } catch (error) {
             logger.error('Failed to update NocoDB task', { error, taskId: req.params.id });
-            res.status(500).json({ error: 'Failed to update task' });
+            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to update task' });
         }
     };
 
@@ -276,7 +246,6 @@ export class NocoDBController {
             const { id } = req.params;
             const { baseId } = req.body;
 
-            // 入力検証
             if (!id || typeof id !== 'string') {
                 return res.status(400).json({ error: 'Invalid task ID' });
             }
@@ -284,26 +253,8 @@ export class NocoDBController {
                 return res.status(400).json({ error: 'Missing baseId' });
             }
 
-            // 環境変数チェック
-            if (!this.nocodbUrl || !this.nocodbToken) {
-                return res.status(500).json({
-                    error: 'NocoDB configuration missing'
-                });
-            }
-
-            // NocoDBマッピングからtableIdを取得
-            const mappings = await this.configParser.getNocoDBMappings();
-            const mapping = mappings.find(m => m.base_id === baseId);
-            if (!mapping) {
-                return res.status(404).json({ error: 'Unknown base_id' });
-            }
-
-            const taskTable = await this._findTaskTable(mapping.base_id);
-            if (!taskTable) {
-                return res.status(404).json({ error: 'Task table not found' });
-            }
-
-            const idFieldName = await this._resolveTableIdField(taskTable.id);
+            this._ensureConfigured();
+            const { taskTable, idFieldName } = await this._resolveTable(baseId);
 
             const recordIdValue = this._normalizeRecordId(id);
             const fallbackIdFields = this._getFallbackIdFields(idFieldName, recordIdValue);
@@ -345,9 +296,43 @@ export class NocoDBController {
             res.json({ success: true, deletedId: id });
         } catch (error) {
             logger.error('Failed to delete NocoDB task', { error, taskId: req.params.id });
-            res.status(500).json({ error: 'Failed to delete task' });
+            res.status(error.statusCode || 500).json({ error: error.message || 'Failed to delete task' });
         }
     };
+
+    /**
+     * 環境変数チェック。未設定ならAppErrorを投げる
+     */
+    _ensureConfigured() {
+        if (!this.nocodbUrl || !this.nocodbToken) {
+            const error = new Error('NocoDB configuration missing: NOCODB_URL or NOCODB_TOKEN not set');
+            error.statusCode = 500;
+            throw error;
+        }
+    }
+
+    /**
+     * マッピングからテーブルとIDフィールドを解決する共通処理
+     * @param {string} baseId
+     * @returns {Promise<{taskTable: Object, idFieldName: string}>}
+     */
+    async _resolveTable(baseId) {
+        const mappings = await this.configParser.getNocoDBMappings();
+        const mapping = mappings.find(m => m.base_id === baseId);
+        if (!mapping) {
+            const error = new Error('Unknown base_id');
+            error.statusCode = 404;
+            throw error;
+        }
+        const taskTable = await this._findTaskTable(mapping.base_id);
+        if (!taskTable) {
+            const error = new Error('Task table not found');
+            error.statusCode = 404;
+            throw error;
+        }
+        const idFieldName = await this._resolveTableIdField(taskTable.id);
+        return { taskTable, idFieldName, mapping };
+    }
 
     /**
      * NocoDB API共通ヘッダー

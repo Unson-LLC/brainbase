@@ -1,3 +1,4 @@
+// @ts-check
 import { LEAD_BUILDING_TAB_MAP } from './lead-fixtures.js';
 
 function findDecisionItem(repository, selection) {
