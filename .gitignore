@@ -218,6 +218,10 @@ dev.sh
 docs/SCREENSHOT_REQUEST.md
 docs/SCREENSHOT_REQUEST_SLACK.md
 docs/MIGRATION_2025-12-31.md
+
+# Operational content not referenced by OSS runtime
+sns/
+knowledge/
 docs/dashboard-implementation-prompt.md
 docs/OSS_DIRECTORY_STRUCTURE.md
 nohup.out
