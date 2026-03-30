@@ -130,28 +130,14 @@
 - `Spec` を飛ばして `Code` に行かない
 - `Story` を飛ばして `Architecture` に行かない
 
-## UnsonOS 系の見方
+## Internal Docs
 
-`UnsonOS` 系は、まずこの順で追うと迷いにくい。
+`UnsonOS` 系の内部設計文書は OSS 本体の一次資料ではないため、`docs/internal/` に分離している。
 
-1. [UnsonOS 文書索引](./unson-os-index.md)
-2. `docs/frames/unson-os-runtime-ui-frame.md`
-3. `docs/stories/`
-4. `docs/architecture/`
-5. `docs/specs/`
+- 索引: [docs/internal/unson-os-index.md](./internal/unson-os-index.md)
+- 運用ルール: [docs/internal/AGENTS.md](./internal/AGENTS.md)
 
 ## いまの主要カテゴリ
-
-### UnsonOS
-
-- Frame
-  - `docs/frames/unson-os-runtime-ui-frame.md`
-- Stories
-  - `docs/stories/unson-os-*.md`
-- Architecture
-  - `docs/architecture/unson-os-*.md`
-- Specs
-  - `docs/specs/unson-os-*.md`
 
 ### 既存 brainbase 設計 / 実装
 

@@ -273,3 +273,6 @@ node_modules
 # test state backups
 tests/unit/test-state-*.json.bak
 .codex-worktrees/
+assets/brand/
+common/
+migration/

@@ -5,9 +5,9 @@
 - 状態: 有効
 - 種別: アーキテクチャ
 - 主題: Brainbase の基本構成と正本分担
-- 親文書: [UnsonOS ランタイム UI フレーム](../frames/unson-os-runtime-ui-frame.md)
+- 親文書: [UnsonOS ランタイム UI フレーム](../internal/unson-os-runtime-ui-frame.md)
 - 派生元: なし
-- 関連文書: [docs ガイド](../README.md), [UnsonOS 文書トレーサビリティ](./unson-os-document-traceability.md), [現場責任者コンソール](./unson-os-lead-control-console.md), [Brainbase フィードバックループ](./feedback-loop.md)
+- 関連文書: [docs ガイド](../README.md), [UnsonOS 文書トレーサビリティ](../internal/unson-os-document-traceability.md), [現場責任者コンソール](../internal/unson-os-lead-control-console.md), [Brainbase フィードバックループ](./feedback-loop.md)
 - 置換: なし
 
 ## 目的
