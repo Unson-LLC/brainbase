@@ -92,10 +92,10 @@ export class WorktreeService {
                 logger.info(`Created ${label} symlink at ${targetPath}`);
             }
         } catch (err) {
-            if (err.code === 'ENOENT') {
+            if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
                 logger.info(`Note: ${label} not found at ${sourcePath}`);
             } else {
-                logger.info(`Note: Could not create ${label} symlink: ${err.message}`);
+                logger.info(`Note: Could not create ${label} symlink: ${err instanceof Error ? err.message : String(err)}`);
             }
         }
     }
@@ -423,13 +423,13 @@ export class WorktreeService {
         try {
             await fs.rm(gitWorktreePath, { recursive: true, force: true });
         } catch (err) {
-            logger.info(`[workspace] Git metadata cleanup skipped: ${err.message}`);
+            logger.info(`[workspace] Git metadata cleanup skipped: ${err instanceof Error ? err.message : String(err)}`);
         }
 
         try {
             await this.execPromise(`git -C "${repoPath}" branch -D "${branchName}"`);
         } catch (err) {
-            logger.info(`[workspace] Git branch cleanup skipped: ${err.message}`);
+            logger.info(`[workspace] Git branch cleanup skipped: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 
@@ -464,7 +464,7 @@ export class WorktreeService {
                     logger.info(`[workspace] jj git init --colocate succeeded at ${repoPath}`);
                     this._jjRepoCache.set(repoPath, true); // 初期化成功をキャッシュ
                 } catch (initErr) {
-                    throw new Error(`jj git init failed at ${repoPath}: ${initErr.message}`);
+                    throw new Error(`jj git init failed at ${repoPath}: ${initErr instanceof Error ? initErr.message : String(initErr)}`);
                 }
             }
 
@@ -518,7 +518,7 @@ export class WorktreeService {
                 const { gitWorktreePath } = await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
                 logger.info(`[workspace] Registered git worktree at ${gitWorktreePath}`);
             } catch (gitErr) {
-                logger.info(`[workspace] Git worktree registration failed (non-critical): ${gitErr.message}`);
+                logger.info(`[workspace] Git worktree registration failed (non-critical): ${gitErr instanceof Error ? gitErr.message : String(gitErr)}`);
             }
 
             // Create bookmark
@@ -529,7 +529,7 @@ export class WorktreeService {
                 );
                 logger.info(`[workspace] Created bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
-                logger.info(`[workspace] Bookmark creation skipped: ${bookmarkErr.message}`);
+                logger.info(`[workspace] Bookmark creation skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
             }
 
             // Create symlinks for shared config files
@@ -553,7 +553,7 @@ export class WorktreeService {
                 workspaceName
             };
         } catch (err) {
-            logger.error(`Failed to create workspace for ${sessionId}:`, err.message);
+            logger.error(`Failed to create workspace for ${sessionId}:`, err instanceof Error ? err.message : String(err));
             throw err;
         }
     }
@@ -575,7 +575,7 @@ export class WorktreeService {
                 await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
                 logger.info(`[workspace] Forgot workspace: ${workspaceName}`);
             } catch (forgetErr) {
-                logger.info(`[workspace] Workspace forget skipped: ${forgetErr.message}`);
+                logger.info(`[workspace] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
             }
 
             // Delete bookmark
@@ -583,7 +583,7 @@ export class WorktreeService {
                 await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
                 logger.info(`[workspace] Deleted bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
-                logger.info(`[workspace] Bookmark deletion skipped: ${bookmarkErr.message}`);
+                logger.info(`[workspace] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
             }
 
             // Remove physical directory
@@ -591,14 +591,14 @@ export class WorktreeService {
                 await fs.rm(workspacePath, { recursive: true, force: true });
                 logger.info(`[workspace] Removed physical directory: ${workspacePath}`);
             } catch (rmErr) {
-                logger.info(`[workspace] Directory removal skipped: ${rmErr.message}`);
+                logger.info(`[workspace] Directory removal skipped: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
             }
 
             await this._removeGitCompatibility(sessionId, repoPath);
 
             return true;
         } catch (err) {
-            logger.error(`Failed to remove workspace for ${sessionId}:`, err.message);
+            logger.error(`Failed to remove workspace for ${sessionId}:`, err instanceof Error ? err.message : String(err));
             return false;
         }
     }
@@ -708,7 +708,7 @@ export class WorktreeService {
             // Fetch latest from remote
             await this.execPromise(`jj -R "${repoPath}" git fetch`);
         } catch (err) {
-            return { success: false, error: `fetch失敗: ${err.message}` };
+            return { success: false, error: `fetch失敗: ${err instanceof Error ? err.message : String(err)}` };
         }
 
         // Jujutsu doesn't need explicit "update local main" like Git
@@ -749,7 +749,7 @@ export class WorktreeService {
             } catch (pushErr) {
                 return {
                     success: false,
-                    error: `Push failed: ${pushErr.message}`
+                    error: `Push failed: ${pushErr instanceof Error ? pushErr.message : String(pushErr)}`
                 };
             }
 
@@ -790,27 +790,28 @@ EOF
             try {
                 await this.execPromise(`jj -R "${repoPath}" workspace forget "${workspaceName}"`);
             } catch (forgetErr) {
-                logger.info(`[merge] Workspace forget skipped: ${forgetErr.message}`);
+                logger.info(`[merge] Workspace forget skipped: ${forgetErr instanceof Error ? forgetErr.message : String(forgetErr)}`);
             }
 
             try {
                 await this.execPromise(`jj -R "${repoPath}" bookmark delete "${bookmarkName}"`);
             } catch (bookmarkErr) {
-                logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr.message}`);
+                logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
             }
 
             // Remove physical directory
             try {
                 await fs.rm(workspacePath, { recursive: true, force: true });
             } catch (rmErr) {
-                logger.info(`[merge] Directory removal skipped: ${rmErr.message}`);
+                logger.info(`[merge] Directory removal skipped: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
             }
 
             logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);
             return { success: true, message: 'Merged via PR', prUrl: prUrl.trim() };
         } catch (err) {
-            logger.error(`Failed to merge workspace for ${sessionId}:`, err.message);
-            return { success: false, error: err.message };
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error(`Failed to merge workspace for ${sessionId}:`, message);
+            return { success: false, error: message };
         }
     }
 
@@ -884,7 +885,7 @@ EOF
             const commits = this._parseJujutsuLog(stdout);
             return { commits, repoType: 'jj', worktreePath: workspacePath };
         } catch (err) {
-            logger.error(`[commitLog] jj log failed for ${workspacePath}:`, err.message);
+            logger.error(`[commitLog] jj log failed for ${workspacePath}:`, err instanceof Error ? err.message : String(err));
             return { commits: [], repoType: 'jj', worktreePath: workspacePath };
         }
     }
@@ -931,7 +932,7 @@ EOF
             }
             return { commits, repoType: 'git', worktreePath: workspacePath };
         } catch (err) {
-            logger.error(`[commitLog] git log failed for ${workspacePath}:`, err.message);
+            logger.error(`[commitLog] git log failed for ${workspacePath}:`, err instanceof Error ? err.message : String(err));
             return { commits: [], repoType: 'git', worktreePath: workspacePath };
         }
     }
@@ -1024,7 +1025,7 @@ EOF
 
             return workspaces;
         } catch (err) {
-            logger.error('Failed to list workspaces:', err.message);
+            logger.error('Failed to list workspaces:', err instanceof Error ? err.message : String(err));
             return [];
         }
     }

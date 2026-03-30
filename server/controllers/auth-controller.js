@@ -1,5 +1,15 @@
+// @ts-check
 import { logger } from '../utils/logger.js';
 import { clearAuthCookies, getAuthTokensFromRequest, setAuthCookies } from '../lib/auth-cookies.js';
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/** @typedef {{ token?: string, access?: any, refresh_token?: string }} AuthCallbackPayload */
+
+/** @param {unknown} error */
+function getErrorMessage(error) {
+    return error instanceof Error ? error.message : String(error || '');
+}
 
 const STORAGE_TOKEN_KEY = 'brainbase.auth.token';
 const STORAGE_ACCESS_KEY = 'brainbase.auth.access';
@@ -9,6 +19,7 @@ const DEFAULT_ALLOWED_ORIGINS = new Set([
     'https://bb.unson.jp'
 ]);
 
+/** @param {string | null | undefined} value */
 function normalizeOrigin(value) {
     if (typeof value !== 'string' || value.length === 0) return null;
     try {
@@ -19,6 +30,7 @@ function normalizeOrigin(value) {
     }
 }
 
+/** @param {string | null | undefined} origin */
 function isLocalOrigin(origin) {
     if (!origin) return false;
     try {
@@ -37,12 +49,13 @@ function getAllowedOrigins() {
         .map(normalizeOrigin)
         .filter(Boolean);
     const origins = new Set(DEFAULT_ALLOWED_ORIGINS);
-    for (const origin of envList) {
+    for (const origin of /** @type {string[]} */ (envList)) {
         origins.add(origin);
     }
     return origins;
 }
 
+/** @param {string | null | undefined} origin */
 function resolvePostMessageOrigin(origin) {
     const normalized = normalizeOrigin(origin);
     if (!normalized) return null;
@@ -51,6 +64,7 @@ function resolvePostMessageOrigin(origin) {
     return allowed.has(normalized) ? normalized : null;
 }
 
+/** @param {Request} req */
 function wantsHtmlResponse(req) {
     const jsonFlag = String(req.query.json || '').toLowerCase() === 'true';
     if (jsonFlag) return false;
@@ -59,6 +73,7 @@ function wantsHtmlResponse(req) {
     return accept.includes('text/html');
 }
 
+/** @param {string | null | undefined} value */
 function resolveRedirectPath(value) {
     if (typeof value !== 'string') return '/';
     // 相対パスを許可
@@ -76,6 +91,11 @@ function resolveRedirectPath(value) {
     return '/';
 }
 
+/**
+ * @param {AuthCallbackPayload} payload
+ * @param {string} [redirectTo]
+ * @param {string | null} [postMessageOrigin]
+ */
 function renderAuthCallbackHtml({ token, access, refresh_token: refreshToken }, redirectTo = '/', postMessageOrigin = null) {
     const payloadJson = JSON.stringify({ token, access, refresh_token: refreshToken }).replace(/</g, '\\u003c');
     const redirectJson = JSON.stringify(redirectTo);
@@ -129,10 +149,12 @@ function renderAuthCallbackHtml({ token, access, refresh_token: refreshToken }, 
 }
 
 export class AuthController {
+    /** @param {any} authService */
     constructor(authService) {
         this.authService = authService;
     }
 
+    /** @param {Request} req @param {Response} res */
     slackStart = async (req, res) => {
         try {
             this.authService.assertReady();
@@ -146,10 +168,11 @@ export class AuthController {
             return res.redirect(url);
         } catch (error) {
             logger.error('Failed to start Slack auth', { error });
-            return res.status(500).json({ error: error.message || 'Failed to start Slack auth' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Failed to start Slack auth' });
         }
     };
 
+    /** @param {Request} req @param {Response} res */
     slackCallback = async (req, res) => {
         try {
             logger.info(`[AUTH] slackCallback HIT: ${req.method} ${req.originalUrl}`);
@@ -261,12 +284,13 @@ export class AuthController {
 
             return res.json(responsePayload);
         } catch (error) {
-            logger.info(`[AUTH] callback ERROR: ${error.message}`);
+            logger.info(`[AUTH] callback ERROR: ${getErrorMessage(error)}`);
             logger.error('Slack auth callback failed', { error });
-            return res.status(500).json({ error: error.message || 'Slack auth failed' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Slack auth failed' });
         }
     };
 
+    /** @param {Request} req @param {Response} res */
     refresh = async (req, res) => {
         try {
             this.authService.assertReady();
@@ -280,15 +304,17 @@ export class AuthController {
             const payload = await this.authService.refreshSession(refreshToken);
             setAuthCookies(res, req, this.authService, {
                 accessToken: payload.token,
-                refreshToken: payload.refresh_token || refreshToken
+                refreshToken: payload.refresh_token || refreshToken,
+                targetOrigin: null
             });
             return res.json(payload);
         } catch (error) {
             logger.error('Refresh token exchange failed', { error });
-            return res.status(401).json({ error: error.message || 'Refresh failed' });
+            return res.status(401).json({ error: getErrorMessage(error) || 'Refresh failed' });
         }
     };
 
+    /** @param {Request & { access?: any }} req @param {Response} res */
     logout = async (req, res) => {
         try {
             const access = req.access || {};
@@ -303,10 +329,11 @@ export class AuthController {
             return res.json({ ok: true });
         } catch (error) {
             logger.error('Logout failed', { error });
-            return res.status(500).json({ error: error.message || 'Logout failed' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Logout failed' });
         }
     };
 
+    /** @param {Request & { access?: any, auth?: any, authSource?: string }} req @param {Response} res */
     verify = async (req, res) => {
         try {
             const access = req.access || {};
@@ -319,10 +346,11 @@ export class AuthController {
             });
         } catch (error) {
             logger.error('Verify failed', { error });
-            return res.status(500).json({ error: error.message || 'Verify failed' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Verify failed' });
         }
     };
 
+    /** @param {Request} req @param {Response} res */
     tokenExchange = async (req, res) => {
         try {
             logger.info(`[AUTH] tokenExchange HIT: ${req.method} ${req.originalUrl} body=${JSON.stringify(req.body||{}).slice(0,200)}`);
@@ -401,7 +429,8 @@ export class AuthController {
 
             setAuthCookies(res, req, this.authService, {
                 accessToken: token,
-                refreshToken
+                refreshToken,
+                targetOrigin: null
             });
 
             return res.json({
@@ -410,7 +439,7 @@ export class AuthController {
             });
         } catch (error) {
             logger.error('Token exchange failed', { error });
-            return res.status(500).json({ error: error.message || 'Token exchange failed' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Token exchange failed' });
         }
     };
 
@@ -420,6 +449,7 @@ export class AuthController {
      * Body: { code_verifier }
      * Response: { device_code, user_code, verification_uri, verification_uri_complete, expires_in, interval }
      */
+    /** @param {Request} req @param {Response} res */
     deviceCodeRequest = async (req, res) => {
         try {
             this.authService.assertReady();
@@ -432,7 +462,7 @@ export class AuthController {
             return res.json(response);
         } catch (error) {
             logger.error('Device code request failed', { error });
-            return res.status(500).json({ error: error.message || 'Device code request failed' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Device code request failed' });
         }
     };
 
@@ -442,6 +472,7 @@ export class AuthController {
      * Body: { user_code }
      * Response: { ok: true, device_code, status } or { ok: false, error }
      */
+    /** @param {Request} req @param {Response} res */
     verifyUserCodeEndpoint = async (req, res) => {
         logger.info('🔍 verifyUserCodeEndpoint called', { body: req.body, headers: req.headers });
         try {
@@ -458,7 +489,7 @@ export class AuthController {
             return res.json({ ok: true, device_code: result.deviceCode, status: result.status });
         } catch (error) {
             logger.error('Verify user code failed', { error });
-            return res.status(500).json({ ok: false, error: error.message || 'Verify user code failed' });
+            return res.status(500).json({ ok: false, error: getErrorMessage(error) || 'Verify user code failed' });
         }
     };
 
@@ -468,6 +499,7 @@ export class AuthController {
      * Body: { device_code, slack_user_id, slack_workspace_id }
      * Response: { ok: true }
      */
+    /** @param {Request} req @param {Response} res */
     approveDevice = async (req, res) => {
         try {
             this.authService.assertReady();
@@ -480,7 +512,7 @@ export class AuthController {
             return res.json({ ok: true });
         } catch (error) {
             logger.error('Approve device failed', { error });
-            return res.status(500).json({ error: error.message || 'Approve device failed' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Approve device failed' });
         }
     };
 
@@ -490,6 +522,7 @@ export class AuthController {
      * Body: { device_code }
      * Response: { ok: true }
      */
+    /** @param {Request} req @param {Response} res */
     denyDevice = async (req, res) => {
         try {
             const { device_code } = req.body;
@@ -501,7 +534,7 @@ export class AuthController {
             return res.json({ ok: true });
         } catch (error) {
             logger.error('Deny device failed', { error });
-            return res.status(500).json({ error: error.message || 'Deny device failed' });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Deny device failed' });
         }
     };
 
@@ -511,6 +544,7 @@ export class AuthController {
      * Body: { device_code }
      * Response: { access_token, refresh_token, token_type, expires_in } or { error, error_description }
      */
+    /** @param {Request} req @param {Response} res */
     deviceTokenRequest = async (req, res) => {
         try {
             this.authService.assertReady();
@@ -541,7 +575,7 @@ export class AuthController {
             return res.json(response);
         } catch (error) {
             logger.error('Device token request failed', { error });
-            return res.status(500).json({ error: 'server_error', error_description: error.message || 'Device token request failed' });
+            return res.status(500).json({ error: 'server_error', error_description: getErrorMessage(error) || 'Device token request failed' });
         }
     };
 }

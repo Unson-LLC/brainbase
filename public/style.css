@@ -2214,6 +2214,11 @@ body::after {
     color: #79e1b6;
 }
 
+.inbox-learning-pill-merged {
+    background: rgba(148, 163, 184, 0.16);
+    color: #d5deea;
+}
+
 .inbox-health-pill,
 .learning-pill-warning {
     background: rgba(245, 158, 11, 0.18);

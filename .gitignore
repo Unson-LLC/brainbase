@@ -28,15 +28,17 @@ coverage/
 test-results/
 playwright-report/
 playwright-report-lambdatest/
+var/playwright-report/
 
 # LambdaTest
 LT/
 *.zip
+marketing.zip
 playwright-lambdatest*.config.js
 
 # Private codex (symlinked from local workspace)
 # Other developers don't have this directory
-# Use _codex-sample/ instead
+# Use examples/codex/ instead
 _codex/
 _codex
 
@@ -160,6 +162,7 @@ shared
 *.tmp
 *.swp
 *~
+*.bak-*
 
 # ========================================
 # ローカル専用データ（個人のセッション情報）
@@ -186,6 +189,9 @@ public/extensions/mana-integration/
 # ローカル専用設定
 # ========================================
 config.local.yml
+config.unson.yml
+config.*.yml
+!config/config.sample.yml
 
 # ========================================
 # ローカル専用ディレクトリ
@@ -200,7 +206,7 @@ var/*
 # ========================================
 # サンプルデータの個人プロジェクト
 # ========================================
-_codex-sample/projects/
+examples/codex/projects/
 
 # Shared resources (symlinked from workspace/shared/)
 shared/
@@ -212,6 +218,10 @@ dev.sh
 docs/SCREENSHOT_REQUEST.md
 docs/SCREENSHOT_REQUEST_SLACK.md
 docs/MIGRATION_2025-12-31.md
+
+# Operational content not referenced by OSS runtime
+sns/
+knowledge/
 docs/dashboard-implementation-prompt.md
 docs/OSS_DIRECTORY_STRUCTURE.md
 nohup.out
@@ -262,3 +272,7 @@ node_modules
 
 # test state backups
 tests/unit/test-state-*.json.bak
+.codex-worktrees/
+assets/brand/
+common/
+migration/

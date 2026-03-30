@@ -4,6 +4,14 @@ import { EventEmitter } from 'events';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
 
+/**
+ * @typedef {import('child_process').ChildProcessWithoutNullStreams} TmuxChildProcess
+ */
+
+/**
+ * @param {string} [value]
+ * @returns {string}
+ */
 function decodeTmuxEscapes(value = '') {
     // First pass: decode named escapes (\n, \r, \t, \\)
     // Second pass: decode octal sequences as UTF-8 byte sequences
@@ -32,13 +40,18 @@ function decodeTmuxEscapes(value = '') {
 }
 
 export class TmuxControlClient extends EventEmitter {
+    /**
+     * @param {{ sessionId: string, idleTimeoutMs?: number, spawnFn?: typeof spawn }} param0
+     */
     constructor({ sessionId, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS, spawnFn = spawn }) {
         super();
         this.sessionId = sessionId;
         this.idleTimeoutMs = idleTimeoutMs;
         this.spawnFn = spawnFn;
+        /** @type {TmuxChildProcess|null} */
         this.process = null;
         this.stdoutBuffer = '';
+        /** @type {ReturnType<typeof setTimeout>|null} */
         this._idleTimer = null;
         this._closed = false;
     }
@@ -77,6 +90,7 @@ export class TmuxControlClient extends EventEmitter {
         this.touch();
     }
 
+    /** @returns {void} */
     touch() {
         if (this._closed) return;
         this._clearIdleTimer();
@@ -85,6 +99,11 @@ export class TmuxControlClient extends EventEmitter {
         }, this.idleTimeoutMs);
     }
 
+    /**
+     * @param {number|string} cols
+     * @param {number|string} rows
+     * @returns {void}
+     */
     resize(cols, rows) {
         const safeCols = Math.max(40, Math.min(300, Number(cols) || 0));
         const safeRows = Math.max(12, Math.min(120, Number(rows) || 0));
@@ -92,6 +111,10 @@ export class TmuxControlClient extends EventEmitter {
         this.sendCommand(`refresh-client -C ${safeCols}x${safeRows}`);
     }
 
+    /**
+     * @param {string} command
+     * @returns {void}
+     */
     sendCommand(command) {
         if (!command || !this.process?.stdin || this.process.stdin.destroyed) return;
         this.touch();
@@ -111,12 +134,17 @@ export class TmuxControlClient extends EventEmitter {
         this.process = null;
     }
 
+    /** @returns {void} */
     _clearIdleTimer() {
         if (!this._idleTimer) return;
         clearTimeout(this._idleTimer);
         this._idleTimer = null;
     }
 
+    /**
+     * @param {string} chunk
+     * @returns {void}
+     */
     _handleStdout(chunk) {
         this.stdoutBuffer += chunk;
         const lines = this.stdoutBuffer.split(/\r?\n/);
@@ -127,6 +155,10 @@ export class TmuxControlClient extends EventEmitter {
         }
     }
 
+    /**
+     * @param {string} line
+     * @returns {void}
+     */
     _handleLine(line) {
         if (!line) return;
 

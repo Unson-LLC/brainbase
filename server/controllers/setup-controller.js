@@ -1,10 +1,21 @@
+// @ts-check
 import { logger } from '../utils/logger.js';
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/** @typedef {{ id: string, name: string, local?: { path?: string }, description?: string }} SetupProject */
+/** @typedef {{ id: string, name: string }} SetupPerson */
 
 /**
  * Setup API Controller
  * ユーザーのプロジェクト設定を取得し、config.ymlを生成する
  */
 export class SetupController {
+    /**
+     * @param {any} authService
+     * @param {any} infoSsotService
+     * @param {any} configParser
+     */
     constructor(authService, infoSsotService, configParser) {
         this.authService = authService;
         this.infoSsotService = infoSsotService;
@@ -15,6 +26,7 @@ export class SetupController {
      * GET /api/setup/config
      * 認証済みユーザーのセットアップ設定を返す
      */
+    /** @param {Request & { access?: { slackUserId?: string, workspaceId?: string } }} req @param {Response} res */
     getSetupConfig = async (req, res) => {
         try {
             const access = req.access;
@@ -38,8 +50,8 @@ export class SetupController {
             const { projects: allProjects } = await this.configParser.getProjects();
 
             // 4. 権限のあるプロジェクトのみフィルタリング
-            const projectIds = assignments.map(a => a.project_id);
-            const assignedProjects = allProjects.filter(p => projectIds.includes(p.id));
+            const projectIds = assignments.map((a) => a.project_id);
+            const assignedProjects = /** @type {SetupProject[]} */ (allProjects).filter((p) => projectIds.includes(p.id));
 
             // 5. config.yaml を生成
             const configYaml = this.generateConfigYaml(person, assignedProjects);
@@ -57,7 +69,7 @@ export class SetupController {
                     slackUserId,
                     workspaceId
                 },
-                projects: assignedProjects.map(p => ({
+                projects: assignedProjects.map((p) => ({
                     id: p.id,
                     name: p.name,
                     description: p.description || ''
@@ -65,7 +77,7 @@ export class SetupController {
                 configYaml
             });
         } catch (error) {
-            logger.error('Setup config error', { error: error.message });
+            logger.error('Setup config error', { error: error instanceof Error ? error.message : String(error) });
             res.status(500).json({ ok: false, error: 'Failed to generate setup config' });
         }
     };
@@ -73,6 +85,7 @@ export class SetupController {
     /**
      * YAML生成ヘルパー
      */
+    /** @param {SetupPerson} person @param {SetupProject[]} projects */
     generateConfigYaml(person, projects) {
         const yamlContent = `# brainbase config.yml
 # Generated for: ${person.name} (${person.id})
@@ -82,7 +95,7 @@ workspace_root: \${HOME}/workspace
 
 # Projects
 projects:
-${projects.map(p => {
+${projects.map((p) => {
     let projectYaml = `  - id: ${p.id}\n    name: ${p.name}`;
     if (p.description) {
         projectYaml += `\n    description: ${p.description}`;

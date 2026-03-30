@@ -160,7 +160,8 @@ describe('InboxView', () => {
                     pillar: 'skill',
                     riskLevel: 'low',
                     title: 'README画像ルール',
-                    sourcePreview: 'README の画像解決ルールを固定する'
+                    sourcePreview: 'README の画像解決ルールを固定する',
+                    mergedEpisodeCount: 3
                 }
             ];
             appStore.setState({ inbox: items });
@@ -171,6 +172,7 @@ describe('InboxView', () => {
             expect(inboxList.innerHTML).toContain('学習候補');
             expect(inboxList.innerHTML).toContain('スキル');
             expect(inboxList.innerHTML).toContain('README画像ルール');
+            expect(inboxList.innerHTML).toContain('+2件統合');
         });
 
         it('render呼び出し時_health alert はシステム警告セクションに表示される', () => {

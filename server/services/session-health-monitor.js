@@ -12,11 +12,16 @@
  */
 import { logger } from '../utils/logger.js';
 
+/**
+ * @typedef {object} HealthSessionManager
+ * @property {Map<string, unknown>} activeSessions
+ * @property {(sessionId: string) => Promise<boolean>} isTmuxSessionRunning
+ */
+
 export class SessionHealthMonitor {
     /**
-     * @param {Object} sessionManager - SessionManagerインスタンス
-     * @param {Object} [options]
-     * @param {Function} [options.onDeadSession] - 死亡セッション検出時のcallback(sessionId)
+     * @param {HealthSessionManager} sessionManager - SessionManagerインスタンス
+     * @param {{ onDeadSession?: ((sessionId: string) => void) | null }} [options]
      */
     constructor(sessionManager, options = {}) {
         this.sessionManager = sessionManager;
@@ -71,7 +76,7 @@ export class SessionHealthMonitor {
                     logger.warn(`[SessionHealthMonitor] Dead sessions detected: ${dead.join(', ')}`);
                 }
             } catch (err) {
-                logger.error('[SessionHealthMonitor] Error:', err.message);
+                logger.error('[SessionHealthMonitor] Error:', err instanceof Error ? err.message : String(err));
             }
         }, intervalMs);
     }

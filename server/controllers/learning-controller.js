@@ -55,6 +55,16 @@ export class LearningController {
         }
     };
 
+    dedupeExistingPromotions = async (_req, res) => {
+        try {
+            const result = await this.learningService.dedupeExistingPromotions();
+            res.json(result);
+        } catch (error) {
+            logger.error('Failed to dedupe existing learning promotions', { error });
+            res.status(500).json({ error: 'Failed to dedupe existing learning promotions' });
+        }
+    };
+
     markApplied = async (req, res) => {
         try {
             const result = await this.learningService.applyPromotion(req.params.id);

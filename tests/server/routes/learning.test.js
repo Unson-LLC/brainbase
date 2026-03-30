@@ -12,6 +12,7 @@ describe('learning routes', () => {
         service = {
             recordEpisode: vi.fn(async (payload) => ({ id: 'lep_1', ...payload })),
             proposePromotions: vi.fn(async () => [{ id: 'prm_1', pillar: 'wiki' }]),
+            dedupeExistingPromotions: vi.fn(async () => ({ merged: 1, scanned: 3 })),
             listPromotions: vi.fn(async () => [{ id: 'prm_1', pillar: 'wiki', status: 'evaluated' }]),
             getPromotion: vi.fn(async () => ({ id: 'prm_1', pillar: 'wiki', status: 'evaluated' })),
             applyPromotion: vi.fn(async () => ({ success: true, candidate: { id: 'prm_1' } })),
@@ -41,6 +42,14 @@ describe('learning routes', () => {
         expect(res.status).toBe(200);
         expect(res.body.candidates).toHaveLength(1);
         expect(service.proposePromotions).toHaveBeenCalledWith({ applyMode: 'manual' });
+    });
+
+    it('POST /promotions/dedupe-existing merges semantic duplicates', async () => {
+        const res = await request(app).post('/api/learning/promotions/dedupe-existing');
+
+        expect(res.status).toBe(200);
+        expect(res.body.merged).toBe(1);
+        expect(service.dedupeExistingPromotions).toHaveBeenCalled();
     });
 
     it('GET /promotions lists candidates by status', async () => {

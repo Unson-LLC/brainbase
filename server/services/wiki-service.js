@@ -42,7 +42,7 @@ export class WikiService {
                 this._projectIdToSlug.set(row.id, slug);
             }
         } catch (e) {
-            logger.warn('Failed to load project slug map', { error: e.message });
+            logger.warn('Failed to load project slug map', { error: e instanceof Error ? e.message : String(e) });
         }
         return this._projectIdToSlug;
     }
@@ -106,7 +106,7 @@ export class WikiService {
             );
             return rows[0] || null;
         } catch (error) {
-            logger.warn('Wiki DB query failed, using defaults', { error: error.message });
+            logger.warn('Wiki DB query failed, using defaults', { error: error instanceof Error ? error.message : String(error) });
             return null;
         }
     }
@@ -146,7 +146,7 @@ export class WikiService {
             }
             return map;
         } catch (error) {
-            logger.warn('Wiki DB query failed', { error: error.message });
+            logger.warn('Wiki DB query failed', { error: error instanceof Error ? error.message : String(error) });
             return new Map();
         }
     }
@@ -355,7 +355,7 @@ export class WikiService {
                     }
                 } catch (e) {
                     // No existing page, no conflict
-                    logger.warn('Conflict check failed', { error: e.message });
+                    logger.warn('Conflict check failed', { error: e instanceof Error ? e.message : String(e) });
                 }
             }
 

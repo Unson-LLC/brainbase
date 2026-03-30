@@ -4,21 +4,64 @@ import path from 'path';
 import yaml from 'js-yaml';
 
 /**
+ * @typedef {object} ProjectConfig
+ * @property {string} id
+ * @property {string} [emoji]
+ * @property {boolean} [archived]
+ * @property {{ path?: string, glob_include?: string[] }} [local]
+ * @property {{ owner?: string, repo?: string, branch?: string }} [github]
+ * @property {{ base_id?: string, project_id?: string, base_name?: string, url?: string }} [nocodb]
+ */
+
+/**
+ * @typedef {object} OrganizationConfig
+ * @property {string} id
+ * @property {string} [name]
+ * @property {string} [ceo]
+ * @property {string[]} [projects]
+ */
+
+/**
+ * @typedef {object} NotificationsConfig
+ * @property {Record<string, unknown>} [channels]
+ * @property {{ enabled?: boolean, start?: number|string|null, end?: number|string|null }} [dnd]
+ */
+
+/**
+ * @typedef {object} BrainbaseConfig
+ * @property {string} [projects_root]
+ * @property {ProjectConfig[]} [projects]
+ * @property {OrganizationConfig[]} [organizations]
+ * @property {NotificationsConfig} [notifications]
+ */
+
+/**
  * ConfigService
  * config.yml の更新を安全に行うサービス
  */
 export class ConfigService {
+    /**
+     * @param {string} configPath
+     * @param {string|null} [projectsRoot]
+     */
     constructor(configPath, projectsRoot = null) {
         this.configPath = configPath;
         this.projectsRoot = projectsRoot;
     }
 
+    /**
+     * @returns {Promise<{ data: BrainbaseConfig, content: string }>}
+     */
     async _loadConfig() {
         const content = await fs.readFile(this.configPath, 'utf-8');
-        const data = yaml.load(content) || {};
+        const data = /** @type {BrainbaseConfig} */ (yaml.load(content) || {});
         return { data, content };
     }
 
+    /**
+     * @param {BrainbaseConfig} data
+     * @returns {Promise<void>}
+     */
     async _saveConfig(data) {
         // backup
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -29,6 +72,10 @@ export class ConfigService {
         await fs.writeFile(this.configPath, nextYaml, 'utf-8');
     }
 
+    /**
+     * @param {BrainbaseConfig} data
+     * @returns {ProjectConfig[]}
+     */
     _getProjects(data) {
         if (!Array.isArray(data.projects)) {
             data.projects = [];
@@ -36,6 +83,11 @@ export class ConfigService {
         return data.projects;
     }
 
+    /**
+     * @param {ProjectConfig[]} projects
+     * @param {string} projectId
+     * @returns {ProjectConfig|undefined}
+     */
     _findProject(projects, projectId) {
         return projects.find(p => p.id === projectId);
     }
@@ -43,7 +95,7 @@ export class ConfigService {
     /**
      * プロジェクトを取得→変更→保存する共通パターン
      * @param {string} projectId
-     * @param {(project: Object, data: Object) => any} fn - project を変更する関数
+     * @param {(project: ProjectConfig, data: BrainbaseConfig) => any} fn - project を変更する関数
      */
     async _withProject(projectId, fn) {
         const { data } = await this._loadConfig();
@@ -55,6 +107,11 @@ export class ConfigService {
         return result;
     }
 
+    /**
+     * @param {string} localPath
+     * @param {BrainbaseConfig} data
+     * @returns {string}
+     */
     _normalizeProjectPath(localPath, data) {
         if (!localPath) return localPath;
         if (!this.projectsRoot) return localPath;
@@ -69,6 +126,10 @@ export class ConfigService {
         return localPath;
     }
 
+    /**
+     * @param {{ project_id: string, owner: string, repo: string, branch?: string }} param0
+     * @returns {Promise<{ owner?: string, repo?: string, branch?: string }>}
+     */
     async upsertGitHubMapping({ project_id, owner, repo, branch }) {
         if (!project_id || !owner || !repo) {
             throw new Error('project_id, owner, repo are required');
@@ -87,6 +148,10 @@ export class ConfigService {
         });
     }
 
+    /**
+     * @param {{ project_id: string, base_id?: string, nocodb_project_id: string, base_name?: string, url?: string }} param0
+     * @returns {Promise<{ base_id?: string, project_id?: string, base_name?: string, url?: string }>}
+     */
     async upsertNocoDBMapping({ project_id, base_id, nocodb_project_id, base_name, url }) {
         if (!project_id || !nocodb_project_id) {
             throw new Error('project_id, nocodb_project_id are required');
@@ -110,6 +175,10 @@ export class ConfigService {
         });
     }
 
+    /**
+     * @param {{ id: string, emoji?: string, local_path: string, glob_include?: string[], archived?: boolean }} param0
+     * @returns {Promise<{ id: string }>}
+     */
     async upsertProject({ id, emoji, local_path, glob_include, archived }) {
         if (!id || !local_path) {
             throw new Error('id and local_path are required');
@@ -161,6 +230,10 @@ export class ConfigService {
         return true;
     }
 
+    /**
+     * @param {{ id: string, name?: string, ceo?: string, projects?: string[] }} param0
+     * @returns {Promise<{ id: string, name: string, ceo: string, projects: string[] }>}
+     */
     async upsertOrganization({ id, name, ceo, projects }) {
         if (!id) {
             throw new Error('id is required');
@@ -210,6 +283,10 @@ export class ConfigService {
         return true;
     }
 
+    /**
+     * @param {{ channels?: Record<string, unknown>, dnd?: { enabled?: boolean, start?: number|string|null, end?: number|string|null } }} param0
+     * @returns {Promise<NotificationsConfig>}
+     */
     async updateNotifications({ channels = {}, dnd = {} }) {
         const { data } = await this._loadConfig();
         const current = data.notifications || {

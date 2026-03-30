@@ -111,6 +111,24 @@ describe('LearningService', () => {
         expect(pool.query).toHaveBeenCalled();
     });
 
+    it('recordEpisode accepts session_log and codex_session_log sources', async () => {
+        const sessionResult = await service.recordEpisode({
+            source_type: 'session_log',
+            outcome: 'partial',
+            summary: 'Claude local log から学習を抽出',
+            promotion_hint: 'wiki'
+        });
+        const codexResult = await service.recordEpisode({
+            source_type: 'codex_session_log',
+            outcome: 'success',
+            summary: 'Codex session log から学習を抽出',
+            promotion_hint: 'skill'
+        });
+
+        expect(sessionResult.source_type).toBe('session_log');
+        expect(codexResult.source_type).toBe('codex_session_log');
+    });
+
     it('proposePromotions defaults to manual candidates', async () => {
         selectQueue.push([
             {
@@ -229,6 +247,56 @@ describe('LearningService', () => {
         expect(skillCandidate.status).toBe('evaluated');
     });
 
+    it('semantic duplicate な wiki candidate は既存 candidate に統合する', async () => {
+        selectQueue.push([
+            {
+                id: 'lep_sem_1',
+                source_type: 'review',
+                project_id: 'brainbase',
+                session_id: 'sess_sem_1',
+                task_id: 'task_sem_1',
+                skill_refs: [],
+                wiki_refs: [],
+                outcome: 'failure',
+                summary: 'symlink を必ず解決してから比較する',
+                promotion_hint: 'wiki',
+                evidence: {
+                    proposed_rule: 'symlink を必ず解決してから比較する'
+                }
+            }
+        ]);
+        selectQueue.push([]);
+        selectQueue.push([
+            {
+                id: 'prm_existing',
+                pillar: 'wiki',
+                target_ref: 'architecture/existing-rule',
+                status: 'evaluated',
+                canonical_summary: 'symlink を必ず解決してから比較する',
+                semantic_scope: 'wiki:architecture:brainbase',
+                merged_episode_count: 1,
+                source_episode_ids: ['lep_existing'],
+                linked_wiki_candidate_id: null,
+                linked_candidate_ids: [],
+                proposed_content: '# existing-rule',
+                evaluation_summary: {},
+                risk_level: 'low',
+                doc_type: 'architecture',
+                target_project_id: 'brainbase',
+                apply_mode: 'manual',
+                apply_error: null,
+                materialized_ref: null
+            }
+        ]);
+
+        const result = await service.proposePromotions();
+
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe('prm_existing');
+        expect(result[0].merged_episode_count).toBe(2);
+        expect(pool.query.mock.calls.some(([sql]) => sql.includes('UPDATE promotion_candidates'))).toBe(true);
+    });
+
     it('recordEpisode dedupes artifact ingestions by adapter/source/fingerprint', async () => {
         selectQueue.push([
             {
@@ -287,6 +355,64 @@ describe('LearningService', () => {
 
         const result = await service.markPromotionRejected('prm_1', 'not needed');
         expect(result.success).toBe(true);
+    });
+
+    it('dedupeExistingPromotions merges semantically similar pending candidates', async () => {
+        selectQueue.push([
+            {
+                id: 'prm_keep',
+                pillar: 'wiki',
+                target_ref: 'architecture/symlink-check',
+                status: 'evaluated',
+                canonical_summary: 'symlink を必ず解決してから比較する',
+                semantic_scope: 'wiki:architecture:brainbase',
+                merged_episode_count: 1,
+                source_episode_ids: ['lep_1'],
+                linked_wiki_candidate_id: null,
+                linked_candidate_ids: [],
+                proposed_content: '# symlink-check',
+                evaluation_summary: {},
+                risk_level: 'low',
+                doc_type: 'architecture',
+                target_project_id: 'brainbase',
+                apply_mode: 'manual',
+                apply_error: null,
+                materialized_ref: null,
+                created_at: '2026-03-30T00:00:00.000Z',
+                updated_at: '2026-03-30T00:00:00.000Z'
+            },
+            {
+                id: 'prm_merge',
+                pillar: 'wiki',
+                target_ref: 'architecture/symlink-compare',
+                status: 'evaluated',
+                canonical_summary: 'symlink を必ず解決してから比較する',
+                semantic_scope: 'wiki:architecture:brainbase',
+                merged_episode_count: 1,
+                source_episode_ids: ['lep_2'],
+                linked_wiki_candidate_id: null,
+                linked_candidate_ids: [],
+                proposed_content: '# symlink-compare',
+                evaluation_summary: {},
+                risk_level: 'medium',
+                doc_type: 'architecture',
+                target_project_id: 'brainbase',
+                apply_mode: 'manual',
+                apply_error: null,
+                materialized_ref: null,
+                created_at: '2026-03-30T00:01:00.000Z',
+                updated_at: '2026-03-30T00:01:00.000Z'
+            }
+        ]);
+
+        const result = await service.dedupeExistingPromotions();
+
+        expect(result.merged).toBe(1);
+        expect(pool.query.mock.calls.some(([sql, values]) =>
+            sql.includes('UPDATE promotion_candidates')
+            && Array.isArray(values)
+            && values.some((value) => value === 'merged')
+        )).toBe(true);
     });
 
     it('getPromotion enriches candidate with preview metadata', async () => {

@@ -7,7 +7,7 @@
 - 主題: Brainbase の wiki / skills 自動改善ループ
 - 親文書: [Brainbase 基本構成](./brainbase-foundation.md)
 - 派生元: なし
-- 関連文書: [UnsonOS 文書トレーサビリティ](./unson-os-document-traceability.md), [docs ガイド](../README.md)
+- 関連文書: [UnsonOS 文書トレーサビリティ](../internal/unson-os-document-traceability.md), [docs ガイド](../README.md)
 - 置換: なし
 
 ## 目的

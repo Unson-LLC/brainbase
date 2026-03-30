@@ -98,9 +98,9 @@ echo ""
 mkdir -p "$DATA_DIR" "$VAR_DIR"
 
 # Create state.json from sample
-echo "📝 Creating state.json from state.sample.json..."
+echo "📝 Creating state.json from config/state.sample.json..."
 # Replace placeholder paths with actual repository path
-sed "s|/path/to/brainbase|$REPO_ROOT|g" "$REPO_ROOT/state.sample.json" > "$STATE_FILE.tmp"
+sed "s|/path/to/brainbase|$REPO_ROOT|g" "$REPO_ROOT/config/state.sample.json" > "$STATE_FILE.tmp"
 
 # Remove sample sessions and keep only brainbase session
 cat > "$STATE_FILE" <<EOF
@@ -128,21 +128,21 @@ echo "   ✅ state.json created with path: $REPO_ROOT"
 # Create _tasks directory if it doesn't exist
 if [ ! -d "$DATA_DIR/_tasks" ]; then
     echo "📂 Creating _tasks directory..."
-    cp -r "$REPO_ROOT/_tasks-sample" "$DATA_DIR/_tasks"
+    cp -r "$REPO_ROOT/examples/tasks" "$DATA_DIR/_tasks"
     echo "   ✅ _tasks created with sample data"
 fi
 
 # Create _schedules directory if it doesn't exist
 if [ ! -d "$DATA_DIR/_schedules" ]; then
     echo "📅 Creating _schedules directory..."
-    cp -r "$REPO_ROOT/_schedules-sample" "$DATA_DIR/_schedules"
+    cp -r "$REPO_ROOT/examples/schedules" "$DATA_DIR/_schedules"
     echo "   ✅ _schedules created with sample data"
 fi
 
 # Create _inbox directory if it doesn't exist
 if [ ! -d "$DATA_DIR/_inbox" ]; then
     echo "📥 Creating _inbox directory..."
-    cp -r "$REPO_ROOT/_inbox-sample" "$DATA_DIR/_inbox"
+    cp -r "$REPO_ROOT/examples/inbox" "$DATA_DIR/_inbox"
     echo "   ✅ _inbox created with sample data"
 fi
 
@@ -151,8 +151,8 @@ if [ ! -f "$DATA_DIR/config.yml" ]; then
     echo "⚙️  Creating config.yml..."
     if [ -f "$REPO_ROOT/config.yml" ]; then
         cp "$REPO_ROOT/config.yml" "$DATA_DIR/config.yml"
-    elif [ -f "$REPO_ROOT/config.sample.yml" ]; then
-        cp "$REPO_ROOT/config.sample.yml" "$DATA_DIR/config.yml"
+    elif [ -f "$REPO_ROOT/config/config.sample.yml" ]; then
+        cp "$REPO_ROOT/config/config.sample.yml" "$DATA_DIR/config.yml"
     else
         cat > "$DATA_DIR/config.yml" <<'EOF'
 projects_root: ${PROJECTS_ROOT:-/path/to/projects}
@@ -168,7 +168,7 @@ fi
 
 # Create empty _codex if it doesn't exist (use sample as fallback)
 if [ ! -d "$DATA_DIR/_codex" ]; then
-    echo "📚 Using _codex-sample as knowledge base..."
+    echo "📚 Using examples/codex as knowledge base..."
     echo "   (You can create your own _codex later)"
 fi
 

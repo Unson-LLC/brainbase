@@ -5,9 +5,9 @@
 - 状態: 検証中
 - 種別: スパイク
 - 主題: Paperclip アダプター
-- 親文書: [UnsonOS 現場責任者ランタイム構成](../architecture/unson-os-lead-runtime-architecture.md)
-- 派生元: [UnsonOS 現場責任者ランタイム構成](../architecture/unson-os-lead-runtime-architecture.md)
-- 関連文書: [UnsonOS 正準ドメイン](../architecture/unson-os-canonical-domain.md), [UI×制御面 整合性マトリクス](../architecture/unson-os-ui-architecture-alignment.md)
+- 親文書: [UnsonOS 現場責任者ランタイム構成](../internal/unson-os-lead-runtime-architecture.md)
+- 派生元: [UnsonOS 現場責任者ランタイム構成](../internal/unson-os-lead-runtime-architecture.md)
+- 関連文書: [UnsonOS 正準ドメイン](../internal/unson-os-canonical-domain.md), [UI×制御面 整合性マトリクス](../internal/unson-os-ui-architecture-alignment.md)
 - 置換: なし
 
 ## 位置づけ
@@ -160,5 +160,5 @@ raw transcript や操作ログは Detail 側に保持してよいが、主成果
 
 ## 関連文書
 
-- [`unson-os-canonical-domain.md`](/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1773022945038-brainbase/docs/architecture/unson-os-canonical-domain.md)
-- [`unson-os-lead-control-console.md`](/Volumes/UNSON-DRIVE/brainbase-worktrees/session-1773022945038-brainbase/docs/architecture/unson-os-lead-control-console.md)
+- [`unson-os-canonical-domain.md`](../internal/unson-os-canonical-domain.md)
+- [`unson-os-lead-control-console.md`](../internal/unson-os-lead-control-console.md)

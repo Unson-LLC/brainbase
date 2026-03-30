@@ -1040,7 +1040,7 @@ export class SessionManager {
                 taskBrief: reportedTaskBrief,
                 assistantSnippet: reportedAssistantSnippet
             }, timestamp).catch((error) => {
-                logger.warn(`[Hook] Failed to persist live summary for ${sessionId}: ${error.message}`);
+                logger.warn(`[Hook] Failed to persist live summary for ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
             });
         }
     }
@@ -1768,7 +1768,7 @@ export class SessionManager {
         } catch (error) {
             logger.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
             await this.stopTtyd(sessionId);
-            throw new Error(`ttyd startup timeout: ${error.message}`);
+            throw new Error(`ttyd startup timeout: ${error instanceof Error ? error.message : String(error)}`);
         }
 
         return { port, proxyPath: basePath, startedExisting: false };

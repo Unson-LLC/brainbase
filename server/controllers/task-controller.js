@@ -1,3 +1,4 @@
+// @ts-check
 import { asyncHandler } from '../lib/async-handler.js';
 import { pickAllowedFields, getDefaultDueDate } from '../lib/validation.js';
 import { AppError, ErrorCodes } from '../lib/errors.js';
@@ -15,24 +16,28 @@ const ALLOWED_PRIORITIES = ['low', 'medium', 'high'];
 const DEFAULT_ASSIGNEE = '自分';
 const DEFAULT_PRIORITY = 'medium';
 
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+
 export class TaskController {
+    /** @param {any} taskParser */
     constructor(taskParser) {
         this.taskParser = taskParser;
     }
 
-    /** GET /api/tasks */
+    /** @param {Request} req @param {Response} res */
     list = asyncHandler(async (req, res) => {
         const tasks = await this.taskParser.getAllTasks();
         res.json(tasks);
     });
 
-    /** GET /api/tasks/completed */
+    /** @param {Request} req @param {Response} res */
     listCompleted = asyncHandler(async (req, res) => {
         const tasks = await this.taskParser.getCompletedTasks();
         res.json(tasks);
     });
 
-    /** POST/PUT /api/tasks/:id */
+    /** @param {Request} req @param {Response} res */
     update = asyncHandler(async (req, res) => {
         const { id } = req.params;
 
@@ -53,7 +58,7 @@ export class TaskController {
         res.json({ success: true });
     });
 
-    /** DELETE /api/tasks/:id */
+    /** @param {Request} req @param {Response} res */
     delete = asyncHandler(async (req, res) => {
         const { id } = req.params;
 
@@ -69,7 +74,7 @@ export class TaskController {
         res.json({ success: true });
     });
 
-    /** POST /api/tasks */
+    /** @param {Request} req @param {Response} res */
     create = asyncHandler(async (req, res) => {
         const { title, project, priority, due, description, owner, assignee } = req.body;
 
@@ -101,7 +106,7 @@ export class TaskController {
         res.status(201).json(task);
     });
 
-    /** POST /api/tasks/:id/defer */
+    /** @param {Request} req @param {Response} res */
     defer = asyncHandler(async (req, res) => {
         const { id } = req.params;
 

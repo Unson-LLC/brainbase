@@ -1,22 +1,27 @@
+// @ts-check
 import { asyncHandler } from '../lib/async-handler.js';
 import { AppError, ErrorCodes } from '../lib/errors.js';
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
 
 /**
  * TimelineController
  * タイムライン関連のHTTPリクエスト処理
  */
 export class TimelineController {
+    /** @param {any} timelineStorage */
     constructor(timelineStorage) {
         this.storage = timelineStorage;
     }
 
-    /** GET /api/timeline/today */
+    /** @param {Request} req @param {Response} res */
     getToday = asyncHandler(async (req, res) => {
         const timeline = await this.storage.getTodayTimeline();
         res.json(timeline);
     });
 
-    /** GET /api/timeline */
+    /** @param {Request} req @param {Response} res */
     getByDate = asyncHandler(async (req, res) => {
         const { date } = req.query;
         if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -26,7 +31,7 @@ export class TimelineController {
         res.json(timeline);
     });
 
-    /** GET /api/timeline/:id */
+    /** @param {Request} req @param {Response} res */
     getItem = asyncHandler(async (req, res) => {
         const item = await this.storage.getItem(req.params.id);
         if (!item) {
@@ -35,7 +40,7 @@ export class TimelineController {
         res.json(item);
     });
 
-    /** POST /api/timeline */
+    /** @param {Request} req @param {Response} res */
     create = asyncHandler(async (req, res) => {
         const item = req.body;
 
@@ -54,7 +59,7 @@ export class TimelineController {
         res.status(201).json(result.item);
     });
 
-    /** PUT /api/timeline/:id */
+    /** @param {Request} req @param {Response} res */
     update = asyncHandler(async (req, res) => {
         const result = await this.storage.updateItem(req.params.id, req.body);
         if (!result.success) {
@@ -67,7 +72,7 @@ export class TimelineController {
         res.json(result.item);
     });
 
-    /** DELETE /api/timeline/:id */
+    /** @param {Request} req @param {Response} res */
     delete = asyncHandler(async (req, res) => {
         const result = await this.storage.deleteItem(req.params.id);
         if (!result.success) {

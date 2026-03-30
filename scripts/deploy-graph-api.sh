@@ -44,7 +44,7 @@ echo "✅ .env.graph-api 確認完了"
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo "🔨 Step 2: Dockerイメージビルド"
-docker build --platform linux/amd64 -f Dockerfile.graph-api -t brainbase-graph-api:latest .
+docker build --platform linux/amd64 -f config/Dockerfile.graph-api -t brainbase-graph-api:latest .
 echo "✅ ビルド完了"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -72,7 +72,7 @@ ssh -i "$LIGHTSAIL_KEY" "$LIGHTSAIL_USER@$LIGHTSAIL_HOST" "mkdir -p $REMOTE_DIR"
 
 # ファイル転送
 scp -i "$LIGHTSAIL_KEY" /tmp/graph-api-image.tar.gz "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$REMOTE_DIR/"
-scp -i "$LIGHTSAIL_KEY" docker-compose.graph-api.yml "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$REMOTE_DIR/docker-compose.yml"
+scp -i "$LIGHTSAIL_KEY" config/docker-compose.graph-api.yml "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$REMOTE_DIR/docker-compose.yml"
 scp -i "$LIGHTSAIL_KEY" .env.graph-api "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$REMOTE_DIR/.env.graph-api"
 scp -i "$LIGHTSAIL_KEY" -r nginx "$LIGHTSAIL_USER@$LIGHTSAIL_HOST:$REMOTE_DIR/"
 

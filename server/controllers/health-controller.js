@@ -1,8 +1,17 @@
+// @ts-check
 /**
  * HealthController
  * システムヘルスチェックのHTTPリクエスト処理
  */
+import { logger } from '../utils/logger.js';
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/** @typedef {{ status: string, message: string, [key: string]: any }} HealthCheck */
 export class HealthController {
+    /**
+     * @param {{ sessionManager?: any, configParser?: any }} deps
+     */
     constructor({ sessionManager, configParser }) {
         this.sessionManager = sessionManager;
         this.configParser = configParser;
@@ -12,7 +21,8 @@ export class HealthController {
     /**
      * GET /api/health
      * システムヘルスチェック
-     * @returns {Object} ヘルスチェック結果
+     * @param {Request} req
+     * @param {Response} res
      */
     getHealth = async (req, res) => {
         try {
@@ -35,7 +45,7 @@ export class HealthController {
             res.status(503).json({
                 status: 'unhealthy',
                 timestamp: new Date().toISOString(),
-                error: error.message
+                error: error instanceof Error ? error.message : 'Health check failed'
             });
         }
     };
@@ -44,7 +54,9 @@ export class HealthController {
      * 各種ヘルスチェックを実行
      * @private
      */
+    /** @returns {Promise<Record<string, HealthCheck>>} */
     async _runHealthChecks() {
+        /** @type {Record<string, HealthCheck>} */
         const checks = {};
 
         // 1. Server check (always healthy if we get here)
@@ -63,7 +75,7 @@ export class HealthController {
         } catch (error) {
             checks.sessionManager = {
                 status: 'unhealthy',
-                message: error.message
+                message: error instanceof Error ? error.message : 'Session manager check failed'
             };
         }
 
@@ -92,7 +104,7 @@ export class HealthController {
         } catch (error) {
             checks.config = {
                 status: 'degraded',
-                message: `Config check failed: ${error.message}`
+                message: `Config check failed: ${error instanceof Error ? error.message : 'unknown error'}`
             };
         }
 
@@ -119,6 +131,7 @@ export class HealthController {
      * 全体のステータスを計算
      * @private
      */
+    /** @param {Record<string, HealthCheck>} checks */
     _calculateOverallStatus(checks) {
         const statuses = Object.values(checks).map(c => c.status);
 

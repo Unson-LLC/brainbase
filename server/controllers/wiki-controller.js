@@ -1,17 +1,27 @@
+// @ts-check
 import { asyncHandler } from '../lib/async-handler.js';
 import { AppError, ErrorCodes } from '../lib/errors.js';
+
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+/** @typedef {{ role?: string, clearance?: string[], projectCodes?: string[] }} WikiAccess */
 
 /**
  * WikiController
  * Wiki関連のHTTPリクエスト処理
  */
 export class WikiController {
+    /** @param {any} wikiService */
     constructor(wikiService) {
         this.wikiService = wikiService;
     }
 
     /**
      * リクエストからアクセス情報を抽出
+     */
+    /**
+     * @param {Request & { access?: WikiAccess, auth?: WikiAccess }} req
+     * @returns {{ role: string, clearance: string[], projectCodes: string[] }}
      */
     _extractAccess(req) {
         if (req.access) {
@@ -31,12 +41,14 @@ export class WikiController {
         return { role: 'ceo', clearance: ['internal', 'restricted', 'finance', 'hr', 'contract'], projectCodes: [] };
     }
 
+    /** @param {{ error?: string }} result */
     _handleResultErrors(result) {
         if (result.error === 'forbidden') throw new AppError('Forbidden', ErrorCodes.FORBIDDEN);
         if (result.error === 'not_found') throw new AppError('Page not found', ErrorCodes.TASK_NOT_FOUND);
     }
 
     /** GET /api/wiki/pages */
+    /** @param {Request} req @param {Response} res */
     listPages = asyncHandler(async (req, res) => {
         const access = this._extractAccess(req);
         const pages = await this.wikiService.listPages(access);
@@ -44,6 +56,7 @@ export class WikiController {
     });
 
     /** GET /api/wiki/page?path=xxx */
+    /** @param {Request} req @param {Response} res */
     getPage = asyncHandler(async (req, res) => {
         const pagePath = req.query.path;
         if (!pagePath || typeof pagePath !== 'string') {
@@ -57,6 +70,7 @@ export class WikiController {
     });
 
     /** POST /api/wiki/page */
+    /** @param {Request} req @param {Response} res */
     savePage = asyncHandler(async (req, res) => {
         const { path: pagePath, content } = req.body;
         if (!pagePath || typeof pagePath !== 'string') {
@@ -73,6 +87,7 @@ export class WikiController {
     });
 
     /** DELETE /api/wiki/page?path=xxx */
+    /** @param {Request} req @param {Response} res */
     deletePage = asyncHandler(async (req, res) => {
         const pagePath = req.query.path;
         if (!pagePath || typeof pagePath !== 'string') {
@@ -86,6 +101,7 @@ export class WikiController {
     });
 
     /** PUT /api/wiki/page/access */
+    /** @param {Request} req @param {Response} res */
     setAccess = asyncHandler(async (req, res) => {
         const { path: pagePath, role_min, sensitivity, project_id } = req.body;
         if (!pagePath || typeof pagePath !== 'string') {
@@ -101,6 +117,7 @@ export class WikiController {
     });
 
     /** GET /api/wiki/sync/manifest */
+    /** @param {Request} req @param {Response} res */
     getManifest = asyncHandler(async (req, res) => {
         const access = this._extractAccess(req);
         const manifest = await this.wikiService.getManifest(access);
@@ -108,6 +125,7 @@ export class WikiController {
     });
 
     /** POST /api/wiki/sync/pull */
+    /** @param {Request} req @param {Response} res */
     bulkPull = asyncHandler(async (req, res) => {
         const { paths } = req.body;
         if (!Array.isArray(paths)) {
@@ -120,6 +138,7 @@ export class WikiController {
     });
 
     /** POST /api/wiki/sync/push */
+    /** @param {Request} req @param {Response} res */
     bulkPush = asyncHandler(async (req, res) => {
         const { pages } = req.body;
         if (!Array.isArray(pages)) {
@@ -129,7 +148,7 @@ export class WikiController {
         const access = this._extractAccess(req);
         const results = await this.wikiService.bulkSavePages(access, pages);
 
-        const hasConflict = results.some(r => r.error === 'conflict');
+        const hasConflict = results.some((r) => r.error === 'conflict');
         res.status(hasConflict ? 409 : 200).json(results);
     });
 }

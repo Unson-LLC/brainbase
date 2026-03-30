@@ -258,7 +258,7 @@ const STATE_FILE = isWorktree
 const WORKTREES_DIR = process.env.BRAINBASE_WORKTREES_DIR || path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = existsSync(path.join(BRAINBASE_ROOT, '_codex'))
     ? path.join(BRAINBASE_ROOT, '_codex')
-    : path.join(__dirname, '_codex-sample');
+    : path.join(__dirname, 'examples', 'codex');
 const CONFIG_PATH = existsSync(path.join(BRAINBASE_ROOT, 'config.yml'))
     ? path.join(BRAINBASE_ROOT, 'config.yml')
     : path.join(__dirname, 'config.yml');

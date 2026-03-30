@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * ConfigController
  * 設定管理のHTTPリクエスト処理
@@ -5,7 +6,14 @@
 import { asyncHandler } from '../lib/async-handler.js';
 import { AppError } from '../lib/errors.js';
 
+/** @typedef {any} Request */
+/** @typedef {any} Response */
+
 export class ConfigController {
+    /**
+     * @param {any} configParser
+     * @param {any} configService
+     */
     constructor(configParser, configService) {
         this.configParser = configParser;
         this.configService = configService;
@@ -16,6 +24,7 @@ export class ConfigController {
      * すべての設定を取得
      * OSS版対応: Mana拡張（Slack/GitHub/NocoDB）が未定義の場合は null を返す
      */
+    /** @param {Request} req @param {Response} res */
     getAll = asyncHandler(async (req, res) => {
         const config = await this.configParser.getAll();
 
@@ -30,30 +39,35 @@ export class ConfigController {
     });
 
     /** GET /api/config/slack/workspaces */
+    /** @param {Request} req @param {Response} res */
     getWorkspaces = asyncHandler(async (req, res) => {
         const workspaces = await this.configParser.getWorkspaces();
         res.json(workspaces);
     });
 
     /** GET /api/config/slack/channels */
+    /** @param {Request} req @param {Response} res */
     getChannels = asyncHandler(async (req, res) => {
         const channels = await this.configParser.getChannels();
         res.json(channels);
     });
 
     /** GET /api/config/slack/members */
+    /** @param {Request} req @param {Response} res */
     getMembers = asyncHandler(async (req, res) => {
         const members = await this.configParser.getMembers();
         res.json(members);
     });
 
     /** GET /api/config/projects */
+    /** @param {Request} req @param {Response} res */
     getProjects = asyncHandler(async (req, res) => {
         const projects = await this.configParser.getProjects();
         res.json(projects);
     });
 
     /** POST /api/config/projects, PUT /api/config/projects/:projectId */
+    /** @param {Request} req @param {Response} res */
     upsertProject = asyncHandler(async (req, res) => {
         this._requireConfigService();
 
@@ -78,6 +92,7 @@ export class ConfigController {
     });
 
     /** DELETE /api/config/projects/:projectId */
+    /** @param {Request} req @param {Response} res */
     deleteProject = asyncHandler(async (req, res) => {
         this._requireConfigService();
         await this.configService.deleteProject(req.params.projectId);
@@ -85,6 +100,7 @@ export class ConfigController {
     });
 
     /** GET /api/config/github */
+    /** @param {Request} req @param {Response} res */
     getGitHub = asyncHandler(async (req, res) => {
         const github = await this.configParser.getGitHubMappings();
         res.json(github);
@@ -94,6 +110,7 @@ export class ConfigController {
      * GET /api/config/integrity
      * OSS版対応: Mana拡張の統計が未定義の場合は 0 を返す
      */
+    /** @param {Request} req @param {Response} res */
     checkIntegrity = asyncHandler(async (req, res) => {
         const integrity = await this.configParser.checkIntegrity();
 
@@ -114,42 +131,49 @@ export class ConfigController {
      * GET /api/config/unified
      * OSS版対応: Mana拡張データが未定義の場合は null を返す
      */
+    /** @param {Request} req @param {Response} res */
     getUnified = asyncHandler(async (req, res) => {
         const unified = await this.configParser.getUnifiedView();
         res.json(unified || null);
     });
 
     /** GET /api/config/root */
+    /** @param {Request} req @param {Response} res */
     getRoot = asyncHandler(async (req, res) => {
         const projectConfig = await this.configParser.getProjects();
         res.json({ root: projectConfig.root });
     });
 
     /** GET /api/config/plugins */
+    /** @param {Request} req @param {Response} res */
     getPlugins = asyncHandler(async (req, res) => {
         const plugins = await this.configParser.getPlugins();
         res.json(plugins);
     });
 
     /** GET /api/config/organizations */
+    /** @param {Request} req @param {Response} res */
     getOrganizations = asyncHandler(async (req, res) => {
         const organizations = await this.configParser.getOrganizations();
         res.json(organizations);
     });
 
     /** GET /api/config/dependencies */
+    /** @param {Request} req @param {Response} res */
     getDependencies = asyncHandler(async (req, res) => {
         const dependencies = await this.configParser.getDependencies();
         res.json(dependencies);
     });
 
     /** GET /api/config/notifications */
+    /** @param {Request} req @param {Response} res */
     getNotifications = asyncHandler(async (req, res) => {
         const notifications = await this.configParser.getNotifications();
         res.json(notifications);
     });
 
     /** POST /api/config/organizations, PUT /api/config/organizations/:orgId */
+    /** @param {Request} req @param {Response} res */
     upsertOrganization = asyncHandler(async (req, res) => {
         this._requireConfigService();
 
@@ -159,7 +183,7 @@ export class ConfigController {
             ? payload.projects
             : String(payload.projects || '')
                 .split(',')
-                .map(p => p.trim())
+                .map((p) => p.trim())
                 .filter(Boolean);
 
         const organization = await this.configService.upsertOrganization({
@@ -173,6 +197,7 @@ export class ConfigController {
     });
 
     /** DELETE /api/config/organizations/:orgId */
+    /** @param {Request} req @param {Response} res */
     deleteOrganization = asyncHandler(async (req, res) => {
         this._requireConfigService();
         await this.configService.deleteOrganization(req.params.orgId);
@@ -180,6 +205,7 @@ export class ConfigController {
     });
 
     /** PUT /api/config/notifications */
+    /** @param {Request} req @param {Response} res */
     updateNotifications = asyncHandler(async (req, res) => {
         this._requireConfigService();
 
@@ -193,6 +219,7 @@ export class ConfigController {
     });
 
     /** POST /api/config/github, PUT /api/config/github/:projectId */
+    /** @param {Request} req @param {Response} res */
     upsertGitHub = asyncHandler(async (req, res) => {
         const payload = req.body || {};
         const projectId = req.params.projectId || payload.project_id;
@@ -206,12 +233,14 @@ export class ConfigController {
     });
 
     /** DELETE /api/config/github/:projectId */
+    /** @param {Request} req @param {Response} res */
     deleteGitHub = asyncHandler(async (req, res) => {
         await this.configService.deleteGitHubMapping(req.params.projectId);
         res.json({ ok: true });
     });
 
     /** POST /api/config/nocodb, PUT /api/config/nocodb/:projectId */
+    /** @param {Request} req @param {Response} res */
     upsertNocoDB = asyncHandler(async (req, res) => {
         const payload = req.body || {};
         const projectId = req.params.projectId || payload.project_id;
@@ -226,6 +255,7 @@ export class ConfigController {
     });
 
     /** DELETE /api/config/nocodb/:projectId */
+    /** @param {Request} req @param {Response} res */
     deleteNocoDB = asyncHandler(async (req, res) => {
         await this.configService.deleteNocoDBMapping(req.params.projectId);
         res.json({ ok: true });

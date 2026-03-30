@@ -205,6 +205,9 @@ export class InboxView {
                 const risk = escapeHtml(item.riskLevel === 'high' ? '高' : item.riskLevel === 'medium' ? '中' : '低');
                 const title = escapeHtml(item.title || '学習候補');
                 const preview = escapeHtml(item.sourcePreview || '');
+                const mergedLabel = Number(item.mergedEpisodeCount || 1) > 1
+                    ? `<span class="inbox-learning-pill inbox-learning-pill-merged">+${Number(item.mergedEpisodeCount) - 1}件統合</span>`
+                    : '';
                 const updatedAt = escapeHtml(item.updatedAt ? new Intl.DateTimeFormat('ja-JP', {
                     month: '2-digit',
                     day: '2-digit',
@@ -216,6 +219,7 @@ export class InboxView {
                         <div class="inbox-learning-badges">
                             <span class="inbox-learning-pill inbox-learning-pill-primary">${pillar}</span>
                             <span class="inbox-learning-pill inbox-learning-pill-risk">${risk}</span>
+                            ${mergedLabel}
                             ${updatedAt ? `<span class="inbox-item-time">${updatedAt}</span>` : ''}
                         </div>
                         <div class="inbox-learning-title">${title}</div>
