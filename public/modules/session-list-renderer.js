@@ -146,8 +146,7 @@ export function renderSessionRowHTML(session, options = {}) {
 
   const transportLabelMap = {
     connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
-    reconnecting: { text: 'Reconnecting', className: 'transport-warn', title: 'Terminal reconnecting' },
-    disconnected: { text: 'Offline', className: 'transport-muted', title: 'Terminal disconnected' }
+    reconnecting: { text: 'Reconnecting', className: 'transport-warn', title: 'Terminal reconnecting' }
   };
 
   const summaryChips = [];
