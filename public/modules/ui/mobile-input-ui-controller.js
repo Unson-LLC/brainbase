@@ -594,6 +594,7 @@ export class MobileInputUIController {
     applyFormat(format) {
         const inputEl = this.elements.composerInput;
         if (!inputEl || !format) return;
+        if (inputEl.isComposing) return;
 
         const value = inputEl.value;
         const start = inputEl.selectionStart ?? 0;
