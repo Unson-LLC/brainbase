@@ -6446,7 +6446,13 @@ body.resizing iframe {
     touch-action: manipulation;
 }
 
-.mobile-bottom-nav button:hover,
+@media (hover: hover) {
+    .mobile-bottom-nav button:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
+}
+
 .mobile-bottom-nav button:active {
     background: var(--hover-bg);
     color: var(--text-primary);
@@ -6557,9 +6563,11 @@ body.resizing iframe {
     justify-content: center;
 }
 
-.bottom-sheet-close:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .bottom-sheet-close:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
 }
 
 .bottom-sheet-close i {
