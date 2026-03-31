@@ -245,9 +245,21 @@ function showContextMenu(x, y) {
         menu = createContextMenu();
     }
 
+    menu.style.display = 'block';
+    const menuWidth = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+
+    if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 8;
+    }
+    if (y + menuHeight > window.innerHeight) {
+        y = window.innerHeight - menuHeight - 8;
+    }
+    x = Math.max(8, x);
+    y = Math.max(8, y);
+
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
-    menu.style.display = 'block';
 }
 
 /**
