@@ -5641,7 +5641,7 @@ body.resizing iframe {
 }
 
 .config-table th {
-    background: rgba(30, 41, 59, 0.8);
+    background: #1e293b;
     font-weight: 600;
     color: var(--text-secondary);
     font-size: 0.8rem;
@@ -5650,7 +5650,6 @@ body.resizing iframe {
     position: sticky;
     top: 0;
     z-index: 10;
-    backdrop-filter: blur(8px);
 }
 
 .config-table tr:hover {
