@@ -370,8 +370,8 @@
                             <div class="task-filter">
                                 <div class="filter-group">
                                     <label for="task-filter-input" class="sr-only">タスクフィルター</label>
-                                    <input type="text" id="task-filter-input" placeholder="タスクを検索..."
-                                        aria-label="タスク名または説明で検索" />
+                                    <input type="search" id="task-filter-input" placeholder="タスクを検索..."
+                                        aria-label="タスク名または説明で検索" inputmode="search" />
                                 </div>
 
                                 <div class="filter-group">
@@ -402,8 +402,8 @@
                             <div class="task-filter">
                                 <div class="filter-group">
                                     <label for="nocodb-task-search" class="sr-only">タスク名フィルター</label>
-                                    <input type="text" id="nocodb-task-search" placeholder="タスク名で検索..."
-                                        aria-label="タスク名で検索" />
+                                    <input type="search" id="nocodb-task-search" placeholder="タスク名で検索..."
+                                        aria-label="タスク名で検索" inputmode="search" />
                                 </div>
                                 <div class="filter-group">
                                     <label for="nocodb-assignee-filter" class="sr-only">担当者フィルター</label>
@@ -796,7 +796,7 @@
             </div>
             <div class="modal-body">
                 <div class="archive-filters">
-                    <input type="text" id="archive-search" class="form-input" placeholder="セッション名で検索...">
+                    <input type="search" id="archive-search" class="form-input" placeholder="セッション名で検索..." inputmode="search">
                     <select id="archive-project-filter" class="form-input">
                         <option value="">すべてのプロジェクト</option>
                     </select>
