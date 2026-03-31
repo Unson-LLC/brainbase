@@ -3685,6 +3685,13 @@ export class App {
         }
 
         console.log('brainbase-ui started successfully');
+
+        // Hide initial loading splash
+        const splash = document.getElementById('app-loading-splash');
+        if (splash) {
+            splash.classList.add('hidden');
+            splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+        }
     }
 
     /**
