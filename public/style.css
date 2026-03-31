@@ -11781,3 +11781,28 @@ flex-wrap: wrap;
     font-size: 12px;
     opacity: 0.6;
 }
+
+/* =========================================
+   Focus Visible — Keyboard Navigation
+   ========================================= */
+:focus-visible {
+    outline: 2px solid var(--accent-color, #3b82f6);
+    outline-offset: 2px;
+}
+
+.mobile-tab:focus-visible,
+.mobile-input-btn:focus-visible,
+.mobile-input-primary:focus-visible,
+.mobile-input-secondary:focus-visible,
+.mobile-bottom-nav button:focus-visible,
+.close-modal-btn:focus-visible,
+.console-btn:focus-visible,
+.icon-btn:focus-visible,
+.bottom-sheet-close:focus-visible,
+.dropdown-item:focus-visible,
+.next-task-action:focus-visible,
+.next-task-checkbox:focus-visible {
+    outline: 2px solid var(--accent-color, #3b82f6);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
