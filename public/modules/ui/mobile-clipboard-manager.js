@@ -175,6 +175,7 @@ export class MobileClipboardManager {
     insertTextAtCursor(text, getActiveInputFn) {
         const inputEl = getActiveInputFn ? getActiveInputFn() : this.getDefaultActiveInput();
         if (!inputEl) return;
+        if (inputEl.isComposing) return;
 
         const start = inputEl.selectionStart ?? inputEl.value.length;
         const end = inputEl.selectionEnd ?? inputEl.value.length;
