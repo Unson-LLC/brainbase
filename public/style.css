@@ -52,6 +52,7 @@ body {
     --vv-left: 0px;
     height: var(--vvh, 100dvh);
     overflow: hidden;
+    overscroll-behavior: none;
     font-size: 0.9rem;
     /* Standard text size */
     position: relative;
@@ -9905,11 +9906,7 @@ flex-wrap: wrap;
     animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
+
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -10544,10 +10541,6 @@ flex-wrap: wrap;
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
 }
 
 .loading-message {
@@ -11802,7 +11795,5 @@ flex-wrap: wrap;
 .dropdown-item:focus-visible,
 .next-task-action:focus-visible,
 .next-task-checkbox:focus-visible {
-    outline: 2px solid var(--accent-color, #3b82f6);
-    outline-offset: 2px;
     border-radius: 4px;
 }
