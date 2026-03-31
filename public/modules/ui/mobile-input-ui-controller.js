@@ -442,7 +442,7 @@ export class MobileInputUIController {
             return;
         }
 
-        const payload = rawValue.endsWith('\n') ? rawValue.slice(0, -1) : rawValue;
+        const payload = rawValue.replace(/\n+/g, ' ').trim();
 
         try {
             await this.terminalInput.sendInput(sessionId, payload);
