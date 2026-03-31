@@ -164,16 +164,16 @@
                 <button class="mobile-tab active" data-tab="terminal" role="tab" aria-selected="true" aria-controls="console-area">
                     <i data-lucide="terminal"></i><span>Terminal</span>
                 </button>
-                <button class="mobile-tab" data-tab="files" role="tab" aria-selected="false" aria-controls="mobile-tab-content-files">
+                <button class="mobile-tab" id="mobile-tab-files" data-tab="files" role="tab" aria-selected="false" aria-controls="mobile-tab-content-files">
                     <i data-lucide="folder-tree"></i><span>Files</span>
                 </button>
-                <button class="mobile-tab" data-tab="wiki" role="tab" aria-selected="false" aria-controls="mobile-tab-content-wiki">
+                <button class="mobile-tab" id="mobile-tab-wiki" data-tab="wiki" role="tab" aria-selected="false" aria-controls="mobile-tab-content-wiki">
                     <i data-lucide="book-open"></i><span>Wiki</span>
                 </button>
-                <button class="mobile-tab" data-tab="tasks" role="tab" aria-selected="false" aria-controls="mobile-tab-content-tasks">
+                <button class="mobile-tab" id="mobile-tab-tasks" data-tab="tasks" role="tab" aria-selected="false" aria-controls="mobile-tab-content-tasks">
                     <i data-lucide="list-todo"></i><span>Tasks</span>
                 </button>
-                <button class="mobile-tab" data-tab="feed" role="tab" aria-selected="false" aria-controls="mobile-tab-content-feed">
+                <button class="mobile-tab" id="mobile-tab-feed" data-tab="feed" role="tab" aria-selected="false" aria-controls="mobile-tab-content-feed">
                     <i data-lucide="radio"></i><span>Feed</span>
                 </button>
             </div>
@@ -269,10 +269,10 @@
             <div class="main-panel" id="file-viewer-panel" style="display: none;"></div>
 
             <!-- Mobile Tab Content (hidden on desktop, lazily populated) -->
-            <div id="mobile-tab-content-files" class="mobile-tab-content" data-tab="files"></div>
-            <div id="mobile-tab-content-wiki" class="mobile-tab-content" data-tab="wiki"></div>
-            <div id="mobile-tab-content-tasks" class="mobile-tab-content" data-tab="tasks"></div>
-            <div id="mobile-tab-content-feed" class="mobile-tab-content" data-tab="feed"></div>
+            <div id="mobile-tab-content-files" class="mobile-tab-content" data-tab="files" role="tabpanel" aria-labelledby="mobile-tab-files"></div>
+            <div id="mobile-tab-content-wiki" class="mobile-tab-content" data-tab="wiki" role="tabpanel" aria-labelledby="mobile-tab-wiki"></div>
+            <div id="mobile-tab-content-tasks" class="mobile-tab-content" data-tab="tasks" role="tabpanel" aria-labelledby="mobile-tab-tasks"></div>
+            <div id="mobile-tab-content-feed" class="mobile-tab-content" data-tab="feed" role="tabpanel" aria-labelledby="mobile-tab-feed"></div>
 
         </main>
 
