@@ -6776,7 +6776,8 @@ body.resizing iframe {
         align-items: center;
         justify-content: center;
         gap: 6px;
-        padding: 6px 12px;
+        padding: 10px 12px;
+        min-height: 44px;
         background: transparent;
         border: 1px solid var(--border-color, #334155);
         border-radius: 6px;
