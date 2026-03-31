@@ -924,11 +924,15 @@ export class SessionManager {
             const hasDone = normalized.lastDoneAt > 0;
             if (!hasWorking && !hasDone && activeTurnCount === 0) continue;
 
-            // タイムアウト判定: 最後のworking報告から10分経過したらisWorking: false
+            // タイムアウト判定: 最後のactivity報告からHEARTBEAT_TIMEOUT経過したらstale
             const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
             const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
-            const isWorking = !isStale && (activeTurnCount > 0 || normalized.lastWorkingAt > normalized.lastDoneAt);
-            const isDone = !isWorking && (normalized.lastDoneAt > 0 || isStale);
+            // working判定: staleでなく、かつturnがactiveであること
+            // activeTurnCount=0 の場合、lastWorkingAt > lastDoneAt だけではworkingにしない
+            // （codex-wrapper-startのheartbeatだけで永遠にworking扱いになるバグを防止）
+            const isWorking = !isStale && activeTurnCount > 0;
+            // done判定: working中でなく、何らかのactivityがあったセッション
+            const isDone = !isWorking && (hasDone || hasWorking);
 
             status[sessionId] = {
                 isWorking,
