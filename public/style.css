@@ -6993,6 +6993,7 @@ body.resizing iframe {
         padding: 8px 12px 12px;
         z-index: 1002;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+        transition: padding 0.2s ease;
     }
 
     .mobile-input-dock,
@@ -7058,6 +7059,7 @@ body.resizing iframe {
     /* expanded時: 入力欄とSendボタンのみ非表示、×ボタンは表示 */
     .mobile-input-dock.expanded .mobile-input-main textarea {
         display: none;
+        visibility: hidden;
     }
 
     .mobile-input-dock.expanded .mobile-input-main #mobile-dock-send {
