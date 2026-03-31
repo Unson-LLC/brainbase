@@ -4083,7 +4083,6 @@ body.resizing iframe {
     padding: 10px;
     margin-bottom: 8px;
     transition: transform 0.1s, border-color 0.1s;
-    will-change: transform;
 }
 
 .task-card.high {
