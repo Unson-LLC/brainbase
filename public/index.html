@@ -243,7 +243,7 @@
 	                        <div class="choice-overlay-content">
 	                            <div class="choice-header">
 	                                <h3>選択してください</h3>
-	                                <button class="choice-close-btn" id="close-choice-overlay">
+	                                <button class="choice-close-btn" id="close-choice-overlay" aria-label="閉じる">
 	                                    <i data-lucide="x"></i>
 	                                </button>
 	                            </div>
@@ -539,7 +539,7 @@
                 <h3>ターミナル出力</h3>
                 <div class="modal-header-actions">
                     <button id="copy-content-btn" class="btn-primary btn-sm"><i data-lucide="copy"></i> コピー</button>
-                    <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                    <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
                 </div>
             </div>
             <div class="modal-body">
@@ -553,7 +553,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>テキストをターミナルに貼り付け</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <p class="modal-description">以下のテキストをターミナルに貼り付けますか？</p>
@@ -571,7 +571,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="add-task-modal-title">タスク追加</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -618,7 +618,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Edit Task</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="edit-task-id">
@@ -668,7 +668,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3><i data-lucide="edit-3"></i> セッション名変更</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -688,7 +688,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3><i data-lucide="plus-circle"></i> 新規セッション</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -752,7 +752,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3><i data-lucide="split"></i> セッションの起動先</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <p>どのエンジンでセッションを立ち上げますか？</p>
@@ -782,7 +782,7 @@
         <div class="modal-content modal-large">
             <div class="modal-header">
                 <h3><i data-lucide="archive"></i> 過去のセッション</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <div class="archive-filters">
@@ -811,7 +811,7 @@
                     <button class="icon-btn" id="restart-server-btn" title="Restart Server">
                         <i data-lucide="refresh-cw"></i>
                     </button>
-                    <button class="close-modal-btn" id="close-settings-btn"><i data-lucide="x"></i></button>
+                    <button class="close-modal-btn" id="close-settings-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
                 </div>
             </div>
             <div class="modal-body settings-body">
@@ -825,7 +825,7 @@
         <div class="modal-content modal-fullscreen mobile-live-terminal-view">
             <div class="modal-header">
                 <h3><i data-lucide="terminal-square"></i> Terminal</h3>
-                <button class="close-modal-btn" id="close-mobile-live-terminal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" id="close-mobile-live-terminal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body mobile-live-terminal-body">
                 <iframe id="mobile-live-terminal-frame" src="about:blank" title="Mobile live terminal"></iframe>
@@ -838,7 +838,7 @@
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <h3 id="confirm-modal-title"><i data-lucide="alert-circle"></i> 確認</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <p id="confirm-modal-message"></p>
@@ -863,7 +863,7 @@
         <div class="modal-content modal-large">
             <div class="modal-header">
                 <h3 id="mana-history-title">Manaメッセージ履歴</h3>
-                <button class="close-modal-btn"><i data-lucide="x"></i></button>
+                <button class="close-modal-btn" aria-label="閉じる"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
                 <div id="mana-history-meta" class="mana-history-meta"></div>
@@ -999,7 +999,7 @@
     </div>
 
     <!-- Mobile Bottom Navigation (hidden on desktop) -->
-    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="メインナビゲーション">
         <button id="mobile-sessions-btn">
             <i data-lucide="layers"></i>
             <span>Sessions</span>
