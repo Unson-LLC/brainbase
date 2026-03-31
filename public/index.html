@@ -150,20 +150,20 @@
             </div>
 
             <!-- Mobile Tab Bar (hidden on desktop) -->
-            <div id="mobile-tab-bar" class="mobile-tab-bar">
-                <button class="mobile-tab active" data-tab="terminal">
+            <div id="mobile-tab-bar" class="mobile-tab-bar" role="tablist" aria-label="メインナビゲーション">
+                <button class="mobile-tab active" data-tab="terminal" role="tab" aria-selected="true" aria-controls="console-area">
                     <i data-lucide="terminal"></i><span>Terminal</span>
                 </button>
-                <button class="mobile-tab" data-tab="files">
+                <button class="mobile-tab" data-tab="files" role="tab" aria-selected="false" aria-controls="mobile-tab-content-files">
                     <i data-lucide="folder-tree"></i><span>Files</span>
                 </button>
-                <button class="mobile-tab" data-tab="wiki">
+                <button class="mobile-tab" data-tab="wiki" role="tab" aria-selected="false" aria-controls="mobile-tab-content-wiki">
                     <i data-lucide="book-open"></i><span>Wiki</span>
                 </button>
-                <button class="mobile-tab" data-tab="tasks">
+                <button class="mobile-tab" data-tab="tasks" role="tab" aria-selected="false" aria-controls="mobile-tab-content-tasks">
                     <i data-lucide="list-todo"></i><span>Tasks</span>
                 </button>
-                <button class="mobile-tab" data-tab="feed">
+                <button class="mobile-tab" data-tab="feed" role="tab" aria-selected="false" aria-controls="mobile-tab-content-feed">
                     <i data-lucide="radio"></i><span>Feed</span>
                 </button>
             </div>
