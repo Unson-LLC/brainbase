@@ -525,6 +525,7 @@ export function setupXtermContextMenu(terminal) {
 }
 
 export function handleTerminalContextMenu(event) {
+    if (event.origin !== window.location.origin) return;
     if (!event.data || event.data.type !== 'terminal-contextmenu') {
         return;
     }

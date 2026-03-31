@@ -321,6 +321,7 @@ async function pasteTextToTerminal(sessionId, text) {
 
 function setupKeyHandling() {
     window.addEventListener('message', async (event) => {
+        if (event.origin !== window.location.origin) return;
         if (event.data && event.data.type === 'SHIFT_ENTER') {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {
