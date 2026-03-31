@@ -538,6 +538,24 @@ export class SessionView {
                 const isOpening = dropdownMenu.classList.contains('hidden');
                 dropdownMenu.classList.toggle('hidden');
 
+                // Viewport boundary detection — flip menu above if it overflows
+                if (isOpening) {
+                    requestAnimationFrame(() => {
+                        const menuRect = dropdownMenu.getBoundingClientRect();
+                        if (menuRect.bottom > window.innerHeight) {
+                            dropdownMenu.style.top = 'auto';
+                            dropdownMenu.style.bottom = '100%';
+                            dropdownMenu.style.marginTop = '0';
+                            dropdownMenu.style.marginBottom = '4px';
+                        } else {
+                            dropdownMenu.style.top = '';
+                            dropdownMenu.style.bottom = '';
+                            dropdownMenu.style.marginTop = '';
+                            dropdownMenu.style.marginBottom = '';
+                        }
+                    });
+                }
+
                 // オーバーレイの表示/非表示
                 const menuOverlay = document.getElementById('menu-overlay');
                 if (menuOverlay) {
