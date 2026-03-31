@@ -316,7 +316,15 @@ export class MobileInputUIController {
             this.focusManager.clearKeyboardSync();
         });
 
+        let isComposing = false;
+        inputEl.addEventListener('compositionstart', () => { isComposing = true; });
+        inputEl.addEventListener('compositionend', () => {
+            isComposing = false;
+            this.autoResize(inputEl);
+            this.draftManager.scheduleDraftSave(mode, inputEl);
+        });
         inputEl.addEventListener('input', () => {
+            if (isComposing) return;
             this.autoResize(inputEl);
             this.draftManager.scheduleDraftSave(mode, inputEl);
         });
