@@ -7485,7 +7485,7 @@ body.resizing iframe {
 
     /* Toast notifications - above bottom nav */
     #toast-container {
-        bottom: 72px;
+        bottom: calc(var(--mobile-input-offset, 120px) + 12px);
         right: 12px;
         left: 12px;
     }
