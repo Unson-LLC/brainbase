@@ -2003,7 +2003,7 @@ body::after {
     position: absolute;
     bottom: 100%;
     left: 0;
-    width: 320px;
+    width: min(320px, calc(100vw - 32px));
     max-height: 400px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -4593,7 +4593,7 @@ body.resizing iframe {
 }
 
 #confirm-modal .modal-footer button {
-    min-height: 42px;
+    min-height: 44px;
     border-radius: 8px;
     font-weight: 700;
 }
@@ -4603,8 +4603,10 @@ body.resizing iframe {
     background: rgba(148, 163, 184, 0.12);
 }
 
-#confirm-modal #confirm-cancel-btn:hover {
-    background: rgba(148, 163, 184, 0.22);
+@media (hover: hover) {
+    #confirm-modal #confirm-cancel-btn:hover {
+        background: rgba(148, 163, 184, 0.22);
+    }
 }
 
 #confirm-modal #confirm-action-btn {
@@ -4612,8 +4614,10 @@ body.resizing iframe {
     background: linear-gradient(180deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.9) 100%);
 }
 
-#confirm-modal #confirm-action-btn:hover {
-    filter: brightness(1.06);
+@media (hover: hover) {
+    #confirm-modal #confirm-action-btn:hover {
+        filter: brightness(1.06);
+    }
 }
 
 #confirm-modal #confirm-ok-btn {
