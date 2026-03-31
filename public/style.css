@@ -4736,7 +4736,8 @@ body.resizing iframe {
 
 .modal-large .modal-body {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 0;
 }
 
@@ -4752,7 +4753,8 @@ body.resizing iframe {
 
 .modal-fullscreen .modal-body {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 0;
     display: flex;
     flex-direction: column;
