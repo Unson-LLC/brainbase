@@ -345,18 +345,8 @@ function clearHoverOverlay(terminal) {
 function rememberHoveredLink(terminal, link) {
     if (!terminal) return;
     terminal.__bbHoveredFileLink = link || null;
-    if (link) {
-        terminal.__bbRecentHoveredFileLink = link;
-        terminal.__bbRecentHoveredFileLinkAt = Date.now();
-    }
 }
 
-function getRecentHoveredLink(terminal, maxAgeMs = 1000) {
-    const link = terminal?.__bbRecentHoveredFileLink || null;
-    const at = terminal?.__bbRecentHoveredFileLinkAt || 0;
-    if (!link || !at) return null;
-    return (Date.now() - at) <= maxAgeMs ? link : null;
-}
 
 function renderHoverOverlay(terminal, hoveredLink) {
     const overlay = ensureHoverOverlay(terminal);
@@ -396,16 +386,9 @@ function installManualXtermFileLinkHandlers(terminal) {
             console.log('[XtermFileLink] activation deduped', { type: event.type });
             return;
         }
-        const directHoveredLink = terminal.__bbHoveredFileLink || resolveHoveredFileLink(terminal, event);
-        const recentHoveredLink = directHoveredLink ? null : getRecentHoveredLink(terminal);
-        const hoveredLink = directHoveredLink || recentHoveredLink;
-        console.log('[XtermFileLink] activation event', {
-            type: event.type,
-            hasHoveredLink: Boolean(hoveredLink),
-            hoveredText: hoveredLink?.text || null,
-            usedRecentHover: Boolean(recentHoveredLink),
-            sessionId: appStore.getState().currentSessionId || null
-        });
+        // クリック位置に実際にリンクがある場合のみ発火
+        // recentHoveredLink フォールバックは削除: 空白クリックで直前ホバーのファイルが開くバグの原因だった
+        const hoveredLink = terminal.__bbHoveredFileLink || resolveHoveredFileLink(terminal, event);
         if (!hoveredLink) return;
         terminal.__bbLastFileLinkActivationAt = now;
         event.preventDefault();
@@ -442,7 +425,7 @@ function installManualXtermFileLinkHandlers(terminal) {
 
     terminalElement.addEventListener('mousedown', (event) => {
         if (event.button !== 0) return;
-        const hoveredLink = terminal.__bbHoveredFileLink || resolveHoveredFileLink(terminal, event) || getRecentHoveredLink(terminal);
+        const hoveredLink = terminal.__bbHoveredFileLink || resolveHoveredFileLink(terminal, event);
         if (!hoveredLink) return;
         rememberHoveredLink(terminal, hoveredLink);
         event.preventDefault();
