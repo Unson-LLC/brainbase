@@ -7115,7 +7115,7 @@ body.resizing iframe {
         inset: 0;
         background: rgba(0, 0, 0, 0.55);
         z-index: 1006;
-        padding: 12px;
+        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
     .mobile-composer.active {
