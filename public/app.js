@@ -1905,7 +1905,11 @@ export class App {
                                     rootOverrideBySessionId
                                 }
                             });
-                            this.showConsole?.();
+                            if (this.isMobile() && this.mobileTabController) {
+                                this.mobileTabController.switchTab('terminal');
+                            } else {
+                                this.showConsole?.();
+                            }
                             this._scheduleTerminalViewportSync();
                         });
                         this.unsubscribers.push(unsubFileOpen, unsubFileClose);
