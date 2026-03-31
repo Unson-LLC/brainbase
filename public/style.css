@@ -4036,9 +4036,11 @@ body.resizing iframe {
     transition: all 0.2s;
 }
 
-.remaining-toggle button:hover {
-    border-color: var(--text-secondary);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .remaining-toggle button:hover {
+        border-color: var(--text-secondary);
+        color: var(--text-primary);
+    }
 }
 
 /* Complete animation */
@@ -4240,20 +4242,22 @@ body.resizing iframe {
     color: var(--text-secondary);
 }
 
-.start-task-btn:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
-    border-color: var(--text-secondary);
-}
-
 .complete-task-btn {
     color: var(--success-color);
     border-color: rgba(16, 185, 129, 0.3);
     background: rgba(16, 185, 129, 0.05);
 }
 
-.complete-task-btn:hover {
-    background: rgba(16, 185, 129, 0.15);
+@media (hover: hover) {
+    .start-task-btn:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+        border-color: var(--text-secondary);
+    }
+
+    .complete-task-btn:hover {
+        background: rgba(16, 185, 129, 0.15);
+    }
 }
 
 .start-task-btn i,
@@ -4544,8 +4548,10 @@ body.resizing iframe {
     transition: all 0.2s ease;
 }
 
-.radio-label:hover {
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .radio-label:hover {
+        background-color: var(--hover-bg);
+    }
 }
 
 .radio-label:has(input:checked) {
@@ -4737,8 +4743,10 @@ body.resizing iframe {
     color: white;
 }
 
-.btn-info:hover {
-    background-color: #2563eb;
+@media (hover: hover) {
+    .btn-info:hover {
+        background-color: #2563eb;
+    }
 }
 
 /* Toast Notifications */
