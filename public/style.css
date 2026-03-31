@@ -7044,7 +7044,7 @@ body.resizing iframe {
         padding: 8px 10px;
         font-size: 12px;
         font-weight: 600;
-        min-height: 36px;
+        min-height: 44px;
         min-width: 44px;
         touch-action: manipulation;
         cursor: pointer;
@@ -7078,7 +7078,7 @@ body.resizing iframe {
 
     #mobile-dock-input {
         flex: 1;
-        min-height: 40px;
+        min-height: 44px;
         max-height: 160px;
         resize: none;
         border-radius: 12px;
