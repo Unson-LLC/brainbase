@@ -7086,7 +7086,7 @@ body.resizing iframe {
         background: #0b1220;
         border: 1px solid var(--border-color);
         color: var(--text-primary);
-        font-size: 14px;
+        font-size: 16px;
         line-height: 1.4;
     }
 
@@ -7158,7 +7158,7 @@ body.resizing iframe {
         background: #0b1220;
         border: 1px solid var(--border-color);
         color: var(--text-primary);
-        font-size: 14px;
+        font-size: 16px;
         line-height: 1.5;
     }
 
