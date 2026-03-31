@@ -2045,11 +2045,6 @@ body::after {
     align-items: center;
 }
 
-.inbox-mark-all:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
-}
-
 .inbox-mark-all i {
     width: 16px;
     height: 16px;
@@ -2081,10 +2076,6 @@ body::after {
 
 .inbox-item:last-child {
     margin-bottom: 0;
-}
-
-.inbox-item:hover {
-    background: var(--hover-bg);
 }
 
 .inbox-item.fade-out {
@@ -2146,10 +2137,6 @@ body::after {
     text-decoration: none;
 }
 
-.inbox-slack-link:hover {
-    text-decoration: underline;
-}
-
 .inbox-done-btn {
     margin-left: auto;
     font-size: 0.75rem;
@@ -2160,12 +2147,6 @@ body::after {
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s ease;
-}
-
-.inbox-done-btn:hover {
-    background: var(--success-color);
-    border-color: var(--success-color);
-    color: white;
 }
 
 .inbox-section + .inbox-section {
@@ -2188,11 +2169,6 @@ body::after {
     cursor: pointer;
 }
 
-.inbox-learning-item:hover {
-    border-color: rgba(59, 130, 246, 0.45);
-    background: linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03));
-}
-
 .inbox-health-alert-item {
     display: block;
     width: 100%;
@@ -2202,9 +2178,35 @@ body::after {
     background: linear-gradient(180deg, rgba(245, 158, 11, 0.08), rgba(127, 29, 29, 0.05));
 }
 
-.inbox-health-alert-item:hover {
-    border-color: rgba(248, 113, 113, 0.4);
-    background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(127, 29, 29, 0.08));
+@media (hover: hover) {
+    .inbox-mark-all:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
+
+    .inbox-item:hover {
+        background: var(--hover-bg);
+    }
+
+    .inbox-slack-link:hover {
+        text-decoration: underline;
+    }
+
+    .inbox-done-btn:hover {
+        background: var(--success-color);
+        border-color: var(--success-color);
+        color: white;
+    }
+
+    .inbox-learning-item:hover {
+        border-color: rgba(59, 130, 246, 0.45);
+        background: linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03));
+    }
+
+    .inbox-health-alert-item:hover {
+        border-color: rgba(248, 113, 113, 0.4);
+        background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(127, 29, 29, 0.08));
+    }
 }
 
 .inbox-learning-badges {
@@ -2518,12 +2520,6 @@ body::after {
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.focus-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-    border-color: rgba(59, 130, 246, 0.4);
-}
-
 .focus-card-header {
     display: flex;
     justify-content: space-between;
@@ -2591,23 +2587,11 @@ body::after {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.focus-btn-start:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
-}
-
 .focus-btn-complete {
     background: var(--success-color);
     border: 1px solid rgba(16, 185, 129, 0.5);
     color: white;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.focus-btn-complete:hover {
-    background: #0ea472;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
 }
 
 .focus-btn-defer {
@@ -2617,10 +2601,30 @@ body::after {
     /* Increased contrast */
 }
 
-.focus-btn-defer:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--text-secondary);
-    color: white;
+@media (hover: hover) {
+    .focus-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        border-color: rgba(59, 130, 246, 0.4);
+    }
+
+    .focus-btn-start:hover {
+        background: #2563eb;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .focus-btn-complete:hover {
+        background: #0ea472;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .focus-btn-defer:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--text-secondary);
+        color: white;
+    }
 }
 
 /* Removed duplicate style */
@@ -4054,11 +4058,6 @@ body.resizing iframe {
     will-change: transform;
 }
 
-.task-card:hover {
-    border-color: var(--accent-color);
-    transform: translateY(-1px);
-}
-
 .task-card.high {
     border-left: 3px solid var(--danger-color);
 }
@@ -4091,10 +4090,6 @@ body.resizing iframe {
     cursor: pointer;
     color: transparent;
     flex-shrink: 0;
-}
-
-.task-checkbox:hover {
-    border-color: var(--accent-color);
 }
 
 .task-checkbox.checked {
@@ -4138,9 +4133,20 @@ body.resizing iframe {
     display: flex;
 }
 
-.task-action-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .task-card:hover {
+        border-color: var(--accent-color);
+        transform: translateY(-1px);
+    }
+
+    .task-checkbox:hover {
+        border-color: var(--accent-color);
+    }
+
+    .task-action-btn:hover {
+        color: var(--text-primary);
+        background-color: var(--hover-bg);
+    }
 }
 
 .task-action-btn i {
