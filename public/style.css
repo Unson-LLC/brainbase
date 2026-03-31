@@ -253,7 +253,7 @@ body::after {
 
 .session-context-label {
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -1318,6 +1318,7 @@ body::after {
 
 .session-activity-indicator.idle {
     opacity: 0;
+    pointer-events: none;
 }
 
 .session-activity-indicator.working {
