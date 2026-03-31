@@ -328,6 +328,14 @@ export class MobileInputUIController {
             this.autoResize(inputEl);
             this.draftManager.scheduleDraftSave(mode, inputEl);
         });
+
+        // Enter key sends message (Shift+Enter for newline in composer)
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                e.preventDefault();
+                this.handleSend(mode);
+            }
+        });
     }
 
     getActiveInput() {
