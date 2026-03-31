@@ -361,8 +361,8 @@ function showNotification(message, type = 'success') {
 
     notification.style.cssText = `
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        bottom: calc(var(--mobile-input-offset, 20px) + 12px);
+        right: max(20px, env(safe-area-inset-right));
         background: ${bgColor};
         color: white;
         padding: 12px 20px;

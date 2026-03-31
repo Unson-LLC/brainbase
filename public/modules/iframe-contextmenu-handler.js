@@ -150,8 +150,8 @@ function showNotification(message, type = 'success') {
     const bgColor = type === 'error' ? '#f44336' : '#4caf50';
     notification.style.cssText = `
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        bottom: calc(var(--mobile-input-offset, 20px) + 12px);
+        right: max(20px, env(safe-area-inset-right));
         background: ${bgColor};
         color: white;
         padding: 12px 20px;
