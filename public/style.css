@@ -1857,9 +1857,11 @@ body::after {
     transition: all 0.2s;
 }
 
-.choice-close-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .choice-close-btn:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+    }
 }
 
 .choice-buttons {
@@ -1883,11 +1885,13 @@ body::after {
     min-height: 60px;
 }
 
-.choice-btn:hover {
-    border-color: var(--accent-color);
-    background: var(--bg-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+@media (hover: hover) {
+    .choice-btn:hover {
+        border-color: var(--accent-color);
+        background: var(--bg-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
 }
 
 .choice-btn:active {
@@ -3784,10 +3788,6 @@ body.resizing iframe {
     transition: background-color 0.15s;
 }
 
-.next-task-item:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
 .next-task-checkbox {
     width: 18px;
     height: 18px;
@@ -3800,10 +3800,6 @@ body.resizing iframe {
     cursor: pointer;
     transition: all 0.2s;
     margin-top: 1px;
-}
-
-.next-task-checkbox:hover {
-    border-color: var(--success-color);
 }
 
 .next-task-checkbox.checked {
@@ -3819,14 +3815,24 @@ body.resizing iframe {
     opacity: 0;
 }
 
-.next-task-checkbox:hover i,
-.next-task-checkbox:hover svg {
-    opacity: 0.5;
-}
-
 .next-task-checkbox.checked i,
 .next-task-checkbox.checked svg {
     opacity: 1;
+}
+
+@media (hover: hover) {
+    .next-task-item:hover {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .next-task-checkbox:hover {
+        border-color: var(--success-color);
+    }
+
+    .next-task-checkbox:hover i,
+    .next-task-checkbox:hover svg {
+        opacity: 0.5;
+    }
 }
 
 .next-task-content {
@@ -3893,12 +3899,14 @@ body.resizing iframe {
     }
 }
 
-.next-task-action.start-task-btn:hover {
-    color: var(--success-color);
-}
+@media (hover: hover) {
+    .next-task-action.start-task-btn:hover {
+        color: var(--success-color);
+    }
 
-.next-task-action.delete-task-btn:hover {
-    color: var(--error-color);
+    .next-task-action.delete-task-btn:hover {
+        color: var(--error-color);
+    }
 }
 
 .next-task-action svg {
@@ -3953,8 +3961,10 @@ body.resizing iframe {
     border-left: 3px solid var(--danger-color);
 }
 
-.next-task-item.overdue:hover {
-    background: rgba(239, 68, 68, 0.12);
+@media (hover: hover) {
+    .next-task-item.overdue:hover {
+        background: rgba(239, 68, 68, 0.12);
+    }
 }
 
 /* Mobile task list optimizations */
@@ -4299,8 +4309,10 @@ body.resizing iframe {
     touch-action: manipulation;
 }
 
-.close-modal-btn:hover {
-    color: var(--text-primary);
+@media (hover: hover) {
+    .close-modal-btn:hover {
+        color: var(--text-primary);
+    }
 }
 
 .modal-body {
@@ -4448,18 +4460,20 @@ body.resizing iframe {
     color: white;
 }
 
-.btn-primary:hover {
-    opacity: 0.9;
-}
-
 .btn-secondary {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-primary);
 }
 
-.btn-secondary:hover {
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .btn-primary:hover {
+        opacity: 0.9;
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--hover-bg);
+    }
 }
 
 /* Checkbox Label */
@@ -4673,8 +4687,10 @@ body.resizing iframe {
     color: white;
 }
 
-.btn-danger:hover {
-    background-color: #c82333;
+@media (hover: hover) {
+    .btn-danger:hover {
+        background-color: #c82333;
+    }
 }
 
 /* Info Button */
