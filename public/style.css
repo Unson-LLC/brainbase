@@ -1671,12 +1671,18 @@ body::after {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    min-width: 44px;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
-.console-btn:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    border-color: var(--accent-color);
+@media (hover: hover) {
+    .console-btn:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-color: var(--accent-color);
+    }
 }
 
 .console-btn i {
