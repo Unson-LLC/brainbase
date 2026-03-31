@@ -466,6 +466,7 @@ export class MobileInputUIController {
 
     moveCursor(inputEl, action) {
         if (!inputEl) return;
+        if (inputEl.isComposing) return;
 
         const value = inputEl.value || '';
         let start = inputEl.selectionStart ?? 0;
