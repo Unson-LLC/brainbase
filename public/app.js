@@ -3068,17 +3068,15 @@ export class App {
         });
 
         // Prevent pinch-to-zoom on mobile
-        // Note: passive: false is required to call preventDefault()
+        // Cache multi-touch state at touchstart to allow passive touchmove
+        let isMultiTouching = false;
         document.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 1) {
-                e.preventDefault();
-            }
+            isMultiTouching = e.touches.length > 1;
+            if (isMultiTouching) e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 1) {
-                e.preventDefault();
-            }
+            if (isMultiTouching) e.preventDefault();
         }, { passive: false });
     }
 
