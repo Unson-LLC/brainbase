@@ -3858,8 +3858,10 @@ body.resizing iframe {
     transition: opacity 0.15s;
 }
 
-.next-task-item:hover .next-task-actions {
-    opacity: 1;
+@media (hover: hover) {
+    .next-task-item:hover .next-task-actions {
+        opacity: 1;
+    }
 }
 
 .next-task-action {
@@ -3875,9 +3877,11 @@ body.resizing iframe {
     transition: all 0.15s;
 }
 
-.next-task-action:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .next-task-action:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+    }
 }
 
 .next-task-action.start-task-btn:hover {
@@ -3942,6 +3946,27 @@ body.resizing iframe {
 
 .next-task-item.overdue:hover {
     background: rgba(239, 68, 68, 0.12);
+}
+
+/* Mobile task list optimizations */
+@media (max-width: 768px) {
+    .next-task-actions {
+        opacity: 1;
+    }
+    .next-task-checkbox {
+        width: 32px;
+        height: 32px;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 6px;
+    }
+    .next-task-action {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 8px;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
 }
 
 /* Remaining toggle */
