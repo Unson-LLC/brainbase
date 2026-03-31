@@ -4245,6 +4245,14 @@ body.resizing iframe {
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .close-modal-btn:hover {
