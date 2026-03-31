@@ -9904,10 +9904,6 @@ body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
     }
 }
 
-gap: 0.125rem;
-flex-wrap: wrap;
-}
-
 .alert-action-btn {
     display: inline-flex;
     align-items: center;
