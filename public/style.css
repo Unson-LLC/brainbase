@@ -1108,18 +1108,22 @@ body::after {
     align-items: center;
     justify-content: center;
     transition: color 0.2s, background-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
-.icon-btn:hover,
-.add-session-btn-icon:hover,
-.add-project-session-btn:hover,
-.merge-session-btn:hover,
-.resume-session-btn:hover,
-.rename-session-btn:hover,
-.delete-session-btn:hover,
-.archive-session-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .icon-btn:hover,
+    .add-session-btn-icon:hover,
+    .add-project-session-btn:hover,
+    .merge-session-btn:hover,
+    .resume-session-btn:hover,
+    .rename-session-btn:hover,
+    .delete-session-btn:hover,
+    .archive-session-btn:hover {
+        color: var(--text-primary);
+        background-color: var(--hover-bg);
+    }
 }
 
 /* Merge button special color */
