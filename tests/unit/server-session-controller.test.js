@@ -376,6 +376,85 @@ describe('SessionController (Server)', () => {
         }
       });
     });
+
+    it('fast modeのsnapshot取得時_色とcopy modeを省略する', async () => {
+      const sessionId = 'session-snapshot-fast';
+      mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+      mockSessionManager.getContent.mockResolvedValue('fast snapshot');
+
+      await sessionController.getTerminalSnapshot({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', mode: 'fast' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.getContent).toHaveBeenCalledWith(sessionId, 160);
+      expect(mockSessionManager.getContentWithColors).not.toHaveBeenCalled();
+      expect(mockSessionManager.getPaneMode).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        text: 'fast snapshot',
+        copyMode: false,
+        mode: 'fast',
+        source: 'capture',
+        stale: false
+      }));
+    });
+
+    it('fast modeはsnapshotProviderのlatest cacheを優先する', async () => {
+      const sessionId = 'session-snapshot-fast-cache';
+      const controller = new SessionController(
+        mockSessionManager,
+        mockWorktreeService,
+        mockStateStore,
+        {
+          snapshotProvider: {
+            getSnapshot: vi.fn(async () => ({
+              text: 'cached snapshot',
+              colorText: null,
+              copyMode: false,
+              capturedAt: '2026-04-01T00:00:00.000Z',
+              source: 'latest-cache',
+              stale: true
+            }))
+          }
+        }
+      );
+      mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+
+      await controller.getTerminalSnapshot({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', mode: 'fast' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.getContent).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        text: 'cached snapshot',
+        mode: 'fast',
+        source: 'latest-cache',
+        stale: true
+      }));
+    });
   });
 
   describe('createWithWorktree', () => {
@@ -766,12 +845,12 @@ describe('SessionController (Server)', () => {
         body: {}
       }, mockRes);
 
-      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith({
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
         sessionId,
         cwd: workspacePath,
         initialCommand: 'echo hi',
         engine: 'claude'
-      });
+      }));
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         port: 40100,

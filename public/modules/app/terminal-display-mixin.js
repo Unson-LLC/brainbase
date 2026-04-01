@@ -1,0 +1,268 @@
+import { appStore } from '../core/store.js';
+import { shouldUseXtermTransport } from '../core/terminal-transport-client.js';
+import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
+
+export function applyTerminalDisplayMixin(AppClass) {
+    AppClass.prototype._shouldUseXtermTransport = function() {
+        return shouldUseXtermTransport();
+    };
+
+    AppClass.prototype._isXtermTransportActive = function(sessionId = appStore.getState().currentSessionId) {
+        return Boolean(this._shouldUseXtermTransport() && this.terminalTransportClient?.isActiveForSession(sessionId));
+    };
+
+    AppClass.prototype._shouldAutoFocusTerminalSurface = function() {
+        return !this.isMobile();
+    };
+
+    AppClass.prototype._clearScheduledTerminalAutoFocus = function() {
+        this._terminalAutoFocusTimers.forEach(timerId => window.clearTimeout(timerId));
+        this._terminalAutoFocusTimers.clear();
+    };
+
+    AppClass.prototype._scheduleTerminalAutoFocus = function(reason = 'unknown', delays = [75, 200]) {
+        if (!this._shouldAutoFocusTerminalSurface()) return;
+        const sessionId = appStore.getState().currentSessionId;
+        if (!sessionId) return;
+
+        delays.forEach((delay) => {
+            const timerId = window.setTimeout(() => {
+                this._terminalAutoFocusTimers.delete(timerId);
+                if (appStore.getState().currentSessionId !== sessionId) return;
+                if (!this._shouldAutoFocusTerminalSurface() || !this._isConsoleVisible()) return;
+                this.focusTerminal(reason);
+            }, delay);
+            this._terminalAutoFocusTimers.add(timerId);
+        });
+    };
+
+    AppClass.prototype._triggerTerminalAutoFocus = function(reason = 'unknown', delays = [75, 200]) {
+        this._clearScheduledTerminalAutoFocus();
+        if (!this._shouldAutoFocusTerminalSurface()) return;
+        if (!appStore.getState().currentSessionId) return;
+        this.focusTerminal(reason);
+        this._scheduleTerminalAutoFocus(reason, delays);
+    };
+
+    AppClass.prototype._isMobileTerminalDisplayMode = function() {
+        return this.isMobile() && this._mobileTerminalMode !== 'interactive';
+    };
+
+    AppClass.prototype._showXtermTransport = function() {
+        this._restoreSnapshotPanelPosition();
+        this._hideTerminalRecoveryPanel();
+        this.terminalXtermHost?.classList.remove('hidden');
+        this.terminalFrame?.classList.add('hidden');
+        this.terminalSnapshotPanelEl?.classList.add('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.add('using-xterm');
+        consoleArea?.classList.remove('using-snapshot');
+    };
+
+    AppClass.prototype._clearTerminalFrame = function(frameEl) {
+        const frame = frameEl || this.terminalFrame;
+        if (!frame) return;
+        frame.classList.add('terminal-frame-clearing');
+        frame.src = 'about:blank';
+    };
+
+    AppClass.prototype._showTerminalFrame = function(frameEl) {
+        const frame = frameEl || this.terminalFrame;
+        if (!frame) return;
+        frame.classList.remove('terminal-frame-clearing');
+    };
+
+    AppClass.prototype._showTtydIframe = function() {
+        this._restoreSnapshotPanelPosition();
+        this._hideTerminalRecoveryPanel();
+        this.terminalXtermHost?.classList.add('hidden');
+        this.terminalFrame?.classList.remove('hidden');
+        this.terminalSnapshotPanelEl?.classList.add('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.remove('using-xterm');
+        consoleArea?.classList.remove('using-snapshot');
+    };
+
+    AppClass.prototype._restoreSnapshotPanelPosition = function() {
+        const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        if (panel && this._snapshotPanelOriginalParent && panel.parentElement === document.body) {
+            this._snapshotPanelOriginalParent.appendChild(panel);
+            this._snapshotPanelOriginalParent = null;
+        }
+    };
+
+    AppClass.prototype._showMobileTerminalDisplay = function() {
+        this._hideTerminalRecoveryPanel();
+        this.terminalXtermHost?.classList.add('hidden');
+        this.terminalFrame?.classList.add('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.remove('using-xterm');
+        consoleArea?.classList.add('using-snapshot');
+
+        // iOS Safari: overflow:hidden ancestors clip fixed-position text rendering.
+        // Move snapshot panel to body so it escapes the clipping context.
+        const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+        if (panel && panel.parentElement !== document.body) {
+            this._snapshotPanelOriginalParent = panel.parentElement;
+            document.body.appendChild(panel);
+        }
+        // Offset snapshot panel below mobile tab bar
+        if (panel) {
+            const tabBar = document.getElementById('mobile-tab-bar');
+            const tabBarH = tabBar ? tabBar.offsetHeight : 0;
+            if (tabBarH > 0) {
+                document.body.style.setProperty('--mobile-tab-bar-height', `${tabBarH}px`);
+            }
+        }
+    };
+
+    AppClass.prototype._isSessionSwitchCurrent = function(sessionId, switchToken = null) {
+        if (!sessionId) return false;
+        if (switchToken != null && switchToken !== this._sessionSwitchToken) return false;
+        return appStore.getState().currentSessionId === sessionId;
+    };
+
+    AppClass.prototype._isCurrentSessionSnapshotDisplay = function(sessionId, switchToken = null) {
+        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return false;
+        const consoleArea = document.getElementById('console-area');
+        const snapshotVisible = this.terminalSnapshotPanelEl
+            ? !this.terminalSnapshotPanelEl.classList.contains('hidden')
+            : !document.getElementById('terminal-snapshot-panel')?.classList.contains('hidden');
+        const xtermHidden = this.terminalXtermHost
+            ? this.terminalXtermHost.classList.contains('hidden')
+            : document.getElementById('terminal-xterm-host')?.classList.contains('hidden');
+        return Boolean(consoleArea?.classList.contains('using-snapshot') && snapshotVisible && xtermHidden);
+    };
+
+    AppClass.prototype._showDesktopSnapshotDisplay = function(sessionId, { title = 'Terminal display', switchToken = null } = {}) {
+        this._restoreSnapshotPanelPosition();
+        this._hideTerminalRecoveryPanel();
+        this.terminalXtermHost?.classList.add('hidden');
+        this.terminalFrame?.classList.add('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.remove('using-xterm');
+        consoleArea?.classList.add('using-snapshot');
+        const cached = this._terminalSnapshotCache.get(sessionId) || null;
+        this._renderTerminalSnapshotPanel({
+            visible: true,
+            snapshot: cached,
+            title
+        });
+        if (cached?.mode === 'full') return;
+        const requestMode = cached ? 'full' : 'fast';
+        void this._loadTerminalSnapshot(sessionId, { mode: requestMode })
+            .then((snapshot) => {
+                if (!this._isCurrentSessionSnapshotDisplay(sessionId, switchToken)) return;
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot,
+                    title
+                });
+                this._updateTerminalInputStatus();
+                if (snapshot?.mode === 'fast') {
+                    void this._loadTerminalSnapshot(sessionId, { force: true, mode: 'full' })
+                        .then((fullSnapshot) => {
+                            if (!this._isCurrentSessionSnapshotDisplay(sessionId, switchToken)) return;
+                            this._renderTerminalSnapshotPanel({
+                                visible: true,
+                                snapshot: fullSnapshot,
+                                title
+                            });
+                            this._updateTerminalInputStatus();
+                        })
+                        .catch(() => {});
+                }
+            })
+            .catch(() => {
+                if (!this._isCurrentSessionSnapshotDisplay(sessionId, switchToken)) return;
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot: {
+                        text: 'Snapshotの取得に失敗した',
+                        capturedAt: null
+                    },
+                    title
+                });
+                this._updateTerminalInputStatus();
+            });
+    };
+
+    AppClass.prototype._isConsoleVisible = function() {
+        const consoleArea = document.getElementById('console-area');
+        if (!consoleArea) return false;
+        return window.getComputedStyle(consoleArea).display !== 'none';
+    };
+
+    AppClass.prototype._scheduleTerminalViewportSync = function() {
+        scheduleAfterNextPaint(() => {
+            if (!this._isConsoleVisible()) return;
+
+            if (this._isXtermTransportActive()) {
+                void this.terminalTransportClient?.syncViewportSize();
+                return;
+            }
+
+            window.dispatchEvent(new Event('resize'));
+        });
+    };
+
+    AppClass.prototype._isEditableTarget = function(target) {
+        const el = target instanceof Element ? target : null;
+        if (!el) return false;
+        const tag = (el.tagName || '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+        if (el.isContentEditable) return true;
+        return Boolean(el.closest?.('[contenteditable="true"]'));
+    };
+
+    AppClass.prototype._getTerminalOverlayState = function() {
+        const menuOverlay = document.getElementById('menu-overlay');
+        const dropOverlay = document.getElementById('drop-overlay');
+        const choiceOverlay = document.getElementById('choice-overlay');
+
+        const menuActive = Boolean(menuOverlay && !menuOverlay.classList.contains('hidden'));
+        const dropActive = Boolean(dropOverlay && dropOverlay.classList.contains('active'));
+        const choiceActive = Boolean(choiceOverlay && choiceOverlay.classList.contains('active'));
+
+        return {
+            menuActive,
+            dropActive,
+            choiceActive,
+            any: menuActive || dropActive || choiceActive
+        };
+    };
+
+    AppClass.prototype.focusTerminal = function(reason = 'unknown') {
+        if (!this._isConsoleVisible()) return;
+
+        if (this._isXtermTransportActive()) {
+            this.terminalTransportClient?.focus();
+            this._updateTerminalInputStatus();
+            return;
+        }
+
+        const frame = this._mobileTerminalMode === 'interactive'
+            ? this.mobileLiveTerminalFrameEl || document.getElementById('mobile-live-terminal-frame')
+            : this.terminalFrame || document.getElementById('terminal-frame');
+        if (!frame) return;
+
+        try {
+            frame.focus?.();
+        } catch (error) {
+            // ignore
+        }
+        try {
+            frame.contentWindow?.focus?.();
+        } catch (error) {
+            // ignore
+        }
+        try {
+            // Best-effort: ask ttyd iframe to focus xterm helper textarea
+            frame.contentWindow?.postMessage?.({ type: 'bb-terminal-focus', reason }, window.location.origin);
+        } catch (error) {
+            // ignore
+        }
+
+        this._updateTerminalInputStatus();
+    };
+}

@@ -48,6 +48,8 @@ export class SessionManager {
         this.startLocks = new Map(); // sessionId -> Promise (並行起動防止ロック)
         this.terminalOwners = new Map(); // sessionId -> { viewerId, viewerLabel, claimedAt, lastSeenAt }
         this.promptBuffers = new Map(); // sessionId -> string
+        this.runtimeStatusCache = new Map(); // sessionId -> { computedAt, value }
+        this.RUNTIME_STATUS_CACHE_TTL_MS = 2000;
         // ポート範囲を40000番台に設定（UIの31013/31014帯との競合回避）
         this.nextPort = 40000;
 
@@ -167,8 +169,7 @@ export class SessionManager {
     }
 
     _getTmuxRuntimeMetadataSync(sessionId) {
-        const running = this._isTmuxSessionRunningSync(sessionId);
-        if (!running) {
+        if (!sessionId) {
             return {
                 exists: false,
                 sessionId: null,
@@ -181,7 +182,46 @@ export class SessionManager {
             };
         }
 
-        const env = this._readTmuxEnvironmentSync(sessionId);
+        try {
+            execSync(`tmux has-session -t "${sessionId}" 2>/dev/null`, { stdio: 'ignore' });
+        } catch {
+            return {
+                exists: false,
+                sessionId: null,
+                engine: null,
+                bindingId: null,
+                bindingKind: null,
+                canonicalCwd: null,
+                runtimeInstanceId: null,
+                paneCurrentPath: null
+            };
+        }
+
+        let env = {};
+        try {
+            const stdout = execSync(`tmux show-environment -t "${sessionId}" 2>/dev/null || true`, { encoding: 'utf8' });
+            for (const line of stdout.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('-') || !trimmed.includes('=')) continue;
+                const [key, ...rest] = trimmed.split('=');
+                env[key] = rest.join('=');
+            }
+        } catch {
+            env = {};
+        }
+
+        let paneCurrentPath = null;
+        try {
+            const stdout = execSync(`tmux list-panes -t "${sessionId}" -F "#{pane_current_path}" 2>/dev/null || true`, { encoding: 'utf8' });
+            const currentPath = stdout
+                .split('\n')
+                .map((line) => line.trim())
+                .find(Boolean);
+            paneCurrentPath = currentPath && fs.existsSync(currentPath) ? currentPath : null;
+        } catch {
+            paneCurrentPath = null;
+        }
+
         return {
             exists: true,
             sessionId: this._normalizeBindingValue(env.BRAINBASE_SESSION_ID),
@@ -190,8 +230,16 @@ export class SessionManager {
             bindingKind: this._normalizeBindingValue(env.BRAINBASE_BINDING_KIND),
             canonicalCwd: this._normalizeBindingValue(env.BRAINBASE_CANONICAL_CWD),
             runtimeInstanceId: this._normalizeBindingValue(env.BRAINBASE_RUNTIME_INSTANCE_ID),
-            paneCurrentPath: this._getTmuxCurrentPathSync(sessionId)
+            paneCurrentPath
         };
+    }
+
+    _invalidateRuntimeStatusCache(sessionId = null) {
+        if (!sessionId) {
+            this.runtimeStatusCache.clear();
+            return;
+        }
+        this.runtimeStatusCache.delete(sessionId);
     }
 
     _evaluateRuntimeBindingMatch(session, runtimeMetadata, durablePath = null) {
@@ -351,6 +399,7 @@ export class SessionManager {
 
         if (changed) {
             await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+            this._invalidateRuntimeStatusCache(sessionId);
         }
         return changed;
     }
@@ -377,6 +426,7 @@ export class SessionManager {
 
         if (changed) {
             await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+            this._invalidateRuntimeStatusCache(sessionId);
         }
 
         try {
@@ -466,6 +516,7 @@ export class SessionManager {
 
         if (changed) {
             await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+            this._invalidateRuntimeStatusCache(sessionId);
         }
 
         return changed;
@@ -879,6 +930,7 @@ export class SessionManager {
      */
     async restoreActiveSessions() {
         try {
+            this._invalidateRuntimeStatusCache();
             logger.info('[restoreActiveSessions] Restoring active sessions from state.json...');
 
             const state = this.stateStore.get();
@@ -1068,6 +1120,7 @@ export class SessionManager {
 
             // Best-effort: orphan/duplicate cleanup
             await this.cleanupOrphans();
+            this._invalidateRuntimeStatusCache();
         } catch (err) {
             logger.error('[restoreActiveSessions] Error:', err);
         }
@@ -1764,11 +1817,22 @@ export class SessionManager {
      * @returns {{interactiveTransport: string, interactiveReady: boolean, interactiveUrl: string|null, needsRestart: boolean, port: number|null, ttydRunning: boolean, proxyPath: string|null}}
      */
     getRuntimeStatus(session) {
+        const sessionId = session?.id || null;
+        if (sessionId) {
+            const cached = this.runtimeStatusCache.get(sessionId);
+            if (cached && (Date.now() - cached.computedAt) < this.RUNTIME_STATUS_CACHE_TTL_MS) {
+                logger.debug?.(`[runtime-cache] hit ${sessionId}`);
+                return cached.value;
+            }
+        }
+
+        const startedAt = Date.now();
         const recovery = this.getSessionRecoveryStatus(session);
+        let runtimeStatus;
         if (this._isXtermOnlyMode()) {
             const intendedState = session?.intendedState;
             const runtimeHealthy = intendedState === 'active' && recovery.recoveryState === 'healthy';
-            return {
+            runtimeStatus = {
                 interactiveTransport: runtimeHealthy ? 'xterm' : 'none',
                 interactiveReady: runtimeHealthy,
                 interactiveUrl: null,
@@ -1780,33 +1844,42 @@ export class SessionManager {
                 recoveryReason: recovery.recoveryReason,
                 canRecover: recovery.canRecover
             };
-        }
-        const sessionId = session?.id;
-        const intendedState = session?.intendedState;
-        const activeEntry = this.activeSessions.get(session?.id);
-        const activePid = activeEntry?.process?.pid || activeEntry?.pid;
-        const persistedPid = session?.ttydProcess?.pid;
-        const pidToCheck = activePid || persistedPid;
-        const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
-        const tmuxHealthy = intendedState === 'active' && recovery.recoveryState === 'healthy';
-        const needsRestart = intendedState === 'active' && !ttydRunning && recovery.recoveryState === 'recoverable';
-        const port = activeEntry?.port || session?.ttydProcess?.port || null;
-        const interactiveTransport = ttydRunning ? 'ttyd' : (tmuxHealthy ? 'xterm' : 'none');
-        const interactiveReady = ttydRunning || tmuxHealthy;
-        const interactiveUrl = ttydRunning && sessionId ? `/console/${sessionId}` : null;
+        } else {
+            const intendedState = session?.intendedState;
+            const activeEntry = this.activeSessions.get(session?.id);
+            const activePid = activeEntry?.process?.pid || activeEntry?.pid;
+            const persistedPid = session?.ttydProcess?.pid;
+            const pidToCheck = activePid || persistedPid;
+            const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
+            const tmuxHealthy = intendedState === 'active' && recovery.recoveryState === 'healthy';
+            const needsRestart = intendedState === 'active' && !ttydRunning && recovery.recoveryState === 'recoverable';
+            const port = activeEntry?.port || session?.ttydProcess?.port || null;
+            const interactiveTransport = ttydRunning ? 'ttyd' : (tmuxHealthy ? 'xterm' : 'none');
+            const interactiveReady = ttydRunning || tmuxHealthy;
+            const interactiveUrl = ttydRunning && sessionId ? `/console/${sessionId}` : null;
 
-        return {
-            interactiveTransport,
-            interactiveReady,
-            interactiveUrl,
-            ttydRunning,
-            needsRestart,
-            proxyPath: interactiveUrl,
-            port,
-            recoveryState: recovery.recoveryState,
-            recoveryReason: recovery.recoveryReason,
-            canRecover: recovery.canRecover
-        };
+            runtimeStatus = {
+                interactiveTransport,
+                interactiveReady,
+                interactiveUrl,
+                ttydRunning,
+                needsRestart,
+                proxyPath: interactiveUrl,
+                port,
+                recoveryState: recovery.recoveryState,
+                recoveryReason: recovery.recoveryReason,
+                canRecover: recovery.canRecover
+            };
+        }
+
+        if (sessionId) {
+            this.runtimeStatusCache.set(sessionId, {
+                computedAt: Date.now(),
+                value: runtimeStatus
+            });
+            logger.debug?.(`[runtime-cache] miss ${sessionId} (${Date.now() - startedAt}ms)`);
+        }
+        return runtimeStatus;
     }
 
     /**
@@ -1842,6 +1915,7 @@ export class SessionManager {
     }
 
     async _destroySessionRuntime(sessionId) {
+        this._invalidateRuntimeStatusCache(sessionId);
         const activeEntry = this.activeSessions.get(sessionId);
         if (activeEntry) {
             await this.stopTtyd(sessionId, { preserveTmux: false }).catch(() => {});
@@ -1945,6 +2019,7 @@ export class SessionManager {
     }
 
     async recoverSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude' }) {
+        this._invalidateRuntimeStatusCache(sessionId);
         const state = this.stateStore.get();
         const session = (state.sessions || []).find((item) => item.id === sessionId);
         if (!session) {
@@ -1970,6 +2045,7 @@ export class SessionManager {
 
         const refreshed = this.getSessionById(sessionId) || session;
         await this._persistSessionRecoveryState(sessionId, this.getSessionRecoveryStatus(refreshed));
+        this._invalidateRuntimeStatusCache(sessionId);
         return this.getSessionById(sessionId) || refreshed;
     }
 
@@ -1993,6 +2069,7 @@ export class SessionManager {
         allowRuntimeCreate = false,
         requireBinding = true
     }) {
+        this._invalidateRuntimeStatusCache(sessionId);
         await this.ensureSessionRuntime({
             sessionId,
             cwd,
@@ -2223,6 +2300,7 @@ export class SessionManager {
 
         // activeSessionsにpidも保存（復旧時の型統一のため）
         this.activeSessions.set(sessionId, { port, pid: ttyd.pid, process: ttyd });
+        this._invalidateRuntimeStatusCache(sessionId);
 
         // state.jsonにttydProcess情報を永続化
         await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
@@ -2306,6 +2384,7 @@ export class SessionManager {
         if (!this.activeSessions.has(sessionId)) {
             return false;
         }
+        this._invalidateRuntimeStatusCache(sessionId);
 
         this._clearPromptBuffer(sessionId);
 
@@ -2370,6 +2449,7 @@ export class SessionManager {
         if (result.warnings.length > 0) {
             logger.warn(`[stopTtyd] Partial cleanup for ${sessionId}:`, result.warnings);
         }
+        this._invalidateRuntimeStatusCache(sessionId);
 
         return true;
     }
@@ -2379,6 +2459,7 @@ export class SessionManager {
      * @param {string} sessionId - セッションID
      */
     async cleanupSessionResources(sessionId) {
+        this._invalidateRuntimeStatusCache(sessionId);
         // Input validation
         if (!sessionId || typeof sessionId !== 'string') {
             logger.error('[Cleanup] Invalid sessionId:', sessionId);
@@ -2547,6 +2628,7 @@ export class SessionManager {
                     : session
             );
             await this.stateStore.update({ ...state, sessions: updatedSessions });
+            this._invalidateRuntimeStatusCache(sessionId);
             logger.info(`[ttydProcess] Saved for ${sessionId}: port=${port}, pid=${pid}`);
         } catch (err) {
             logger.error(`[ttydProcess] Failed to save for ${sessionId}:`, err.message);
@@ -2567,6 +2649,7 @@ export class SessionManager {
                     : session
             );
             await this.stateStore.update({ ...state, sessions: updatedSessions });
+            this._invalidateRuntimeStatusCache(sessionId);
             logger.info(`[ttydProcess] Cleared for ${sessionId}`);
         } catch (err) {
             logger.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
@@ -2604,6 +2687,7 @@ export class SessionManager {
             if (!changed) return false;
 
             await this.stateStore.update({ ...state, sessions: updatedSessions });
+            this._invalidateRuntimeStatusCache(sessionId);
             logger.info(`[ttydProcess] Cleared for ${sessionId}${Number.isFinite(pid) ? ` (pid=${pid})` : ''}`);
             return true;
         } catch (err) {

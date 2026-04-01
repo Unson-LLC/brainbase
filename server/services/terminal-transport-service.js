@@ -6,6 +6,7 @@ import { TmuxControlRegistry } from './tmux-control-registry.js';
 import { logger } from '../utils/logger.js';
 
 const DEFAULT_SNAPSHOT_LINES = 400;
+const FAST_SNAPSHOT_LINES = 160;
 const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
@@ -44,11 +45,76 @@ export class TerminalTransportService {
         this.pollIntervalMs = pollIntervalMs;
         this.captureCache = captureCache || new TmuxCaptureCache({ sessionManager });
         this.controlRegistry = controlRegistry || new TmuxControlRegistry();
+        this.latestSnapshotCache = new Map(); // sessionId -> payload
+        this.staleSnapshotSessions = new Set();
         this.activeConnections = new Map(); // sessionId → { viewerId, ws, connection }
         this.wss = new WebSocketServer({ noServer: true });
         this.wss.on('connection', (ws, request, clientInfo) => {
             void this._handleConnection(ws, request, clientInfo);
         });
+    }
+
+    _markLatestSnapshotStale(sessionId) {
+        if (!sessionId) return;
+        this.staleSnapshotSessions.add(sessionId);
+    }
+
+    _storeLatestSnapshot(sessionId, payload, { mode = 'full', source = 'capture', stale = false } = {}) {
+        if (!sessionId || !payload) return payload;
+        const normalized = {
+            text: typeof payload.text === 'string' ? payload.text : '',
+            colorText: typeof payload.colorText === 'string' ? payload.colorText : null,
+            copyMode: Boolean(payload.copyMode),
+            capturedAt: payload.capturedAt || new Date().toISOString(),
+            mode: mode === 'fast' ? 'fast' : 'full',
+            source,
+            stale: Boolean(stale)
+        };
+        this.latestSnapshotCache.set(sessionId, normalized);
+        if (normalized.stale) {
+            this.staleSnapshotSessions.add(sessionId);
+        } else {
+            this.staleSnapshotSessions.delete(sessionId);
+        }
+        return normalized;
+    }
+
+    getLatestSnapshot(sessionId, { mode = 'fast' } = {}) {
+        const cached = this.latestSnapshotCache.get(sessionId);
+        if (!cached) return null;
+        const stale = cached.stale || this.staleSnapshotSessions.has(sessionId);
+        return {
+            ...cached,
+            mode: mode === 'fast' ? 'fast' : cached.mode,
+            source: 'latest-cache',
+            stale
+        };
+    }
+
+    async getSnapshot(sessionId, options = {}) {
+        const mode = options.mode === 'fast' ? 'fast' : 'full';
+        if (mode === 'fast') {
+            const latest = this.getLatestSnapshot(sessionId, { mode });
+            if (latest) {
+                logger.debug?.(`[snapshot-cache] latest hit ${sessionId}`);
+                return latest;
+            }
+        }
+
+        const startedAt = Date.now();
+        const payload = await this.captureCache.getSnapshot(sessionId, {
+            lines: Number.isFinite(options.lines)
+                ? options.lines
+                : (mode === 'fast' ? FAST_SNAPSHOT_LINES : DEFAULT_SNAPSHOT_LINES),
+            includeColors: typeof options.includeColors === 'boolean'
+                ? options.includeColors
+                : mode !== 'fast',
+            includeCopyMode: typeof options.includeCopyMode === 'boolean'
+                ? options.includeCopyMode
+                : mode !== 'fast'
+        });
+        logger.debug?.(`[snapshot-cache] capture ${sessionId} mode=${mode} (${Date.now() - startedAt}ms)`);
+        return this._storeLatestSnapshot(sessionId, payload, { mode, source: 'capture', stale: false });
     }
 
     isTerminalTransportRequest(request) {
@@ -199,13 +265,15 @@ export class TerminalTransportService {
         // snapshot即送信: セッション切り替え時にxterm.jsの前セッション内容を
         // 新セッションの画面で上書きする。クライアント側の_applySnapshotが
         // ESC[2J+ESC[3Jで画面クリアしてから描画するため二重描画にはならない。
-        this.captureCache.invalidate(sessionId);
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
+        const snapshot = await this.getSnapshot(sessionId, { mode: 'fast' });
         if (ws.readyState !== 1 || connection.closed) return;
         const snapshotMsg = {
             type: 'snapshot',
             text: snapshot.text,
-            capturedAt: snapshot.capturedAt
+            capturedAt: snapshot.capturedAt,
+            mode: 'fast',
+            source: snapshot.source || 'capture',
+            stale: Boolean(snapshot.stale)
         };
         if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
         ws.send(JSON.stringify(snapshotMsg));
@@ -273,7 +341,7 @@ export class TerminalTransportService {
     async _sendInitialSnapshot(connection) {
         if (connection.closed || connection.ws.readyState !== 1) return;
 
-        const snapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true });
+        const snapshot = await this.getSnapshot(connection.sessionId, { mode: 'full' });
         connection.initialFrameDelivered = true;
         connection.lastSnapshot = snapshot.text;
         connection.lastCopyMode = snapshot.copyMode;
@@ -284,7 +352,10 @@ export class TerminalTransportService {
         const snapshotMsg = {
             type: 'snapshot',
             text: snapshot.text,
-            capturedAt: snapshot.capturedAt
+            capturedAt: snapshot.capturedAt,
+            mode: 'full',
+            source: snapshot.source || 'capture',
+            stale: Boolean(snapshot.stale)
         };
         if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
         connection.ws.send(JSON.stringify(snapshotMsg));
@@ -344,13 +415,16 @@ export class TerminalTransportService {
             return;
         }
 
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
+        const snapshot = await this.getSnapshot(sessionId, { mode: 'full' });
         if (snapshot.text !== connection.lastSnapshot) {
             connection.lastSnapshot = snapshot.text;
             const pollSnapshotMsg = {
                 type: 'snapshot',
                 text: snapshot.text,
-                capturedAt: snapshot.capturedAt
+                capturedAt: snapshot.capturedAt,
+                mode: 'full',
+                source: snapshot.source || 'capture',
+                stale: Boolean(snapshot.stale)
             };
             if (snapshot.colorText) pollSnapshotMsg.colorText = snapshot.colorText;
             ws.send(JSON.stringify(pollSnapshotMsg));
@@ -394,6 +468,7 @@ export class TerminalTransportService {
                 const inputType = message.inputType === 'key' ? 'key' : 'text';
                 await this.sessionManager.sendInput(sessionId, message.value, inputType);
                 this.captureCache.invalidate(sessionId);
+                this._markLatestSnapshotStale(sessionId);
                 this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 
                 if (inputType === 'text' && message.value && message.value.includes('\n')) {
@@ -409,6 +484,7 @@ export class TerminalTransportService {
                 const cols = Number(message.cols);
                 const rows = Number(message.rows);
                 this.captureCache.invalidate(sessionId);
+                this._markLatestSnapshotStale(sessionId);
                 if (Number.isFinite(cols) && cols > 0) {
                     connection.cols = cols;
                 }
@@ -441,7 +517,7 @@ export class TerminalTransportService {
         for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
             await new Promise(resolve => setTimeout(resolve, DELAY_MS));
 
-            const snapshot = await this._getSnapshotPayload(connection.sessionId);
+            const snapshot = await this.getSnapshot(connection.sessionId, { mode: 'full' });
             if (!detectPastedTextOverlay(snapshot.text)) {
                 return; // No overlay detected, done
             }
@@ -450,15 +526,8 @@ export class TerminalTransportService {
             logger.info(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
             await this.sessionManager.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
             this.captureCache.invalidate(connection.sessionId);
+            this._markLatestSnapshotStale(connection.sessionId);
         }
-    }
-
-    async _getSnapshotPayload(sessionId, options = {}) {
-        return await this.captureCache.getSnapshot(sessionId, {
-            lines: DEFAULT_SNAPSHOT_LINES,
-            includeColors: options.includeColors === true,
-            includeCopyMode: options.includeCopyMode !== false
-        });
     }
 }
 
