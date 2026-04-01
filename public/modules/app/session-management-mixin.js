@@ -237,27 +237,30 @@ export function applySessionManagementMixin(AppClass) {
 
                 if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
                     this._showDesktopSnapshotDisplay(sessionId, { title: 'Terminal display', switchToken });
+                    const initialRuntimePromise = this._resolveSessionRuntime(sessionId, session);
+                    const initialEnsurePromise = this._ensureDesktopTerminalRuntime(session)
+                        .then(() => ({ ok: true }))
+                        .catch((error) => ({ ok: false, error }));
                     this._updateTerminalInputStatus();
                     this._setCurrentSessionUiState({
                         transport: 'reconnecting',
                         attention: 'none'
                     });
-                    let initialRuntime = await this._resolveSessionRuntime(sessionId, session);
+                    const [initialRuntime, ensureResult] = await Promise.all([
+                        initialRuntimePromise,
+                        initialEnsurePromise
+                    ]);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                    if (initialRuntime?.runtimeStatus?.recoveryState === 'recoverable') {
-                        await this._recoverSessionRuntime(session);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                        initialRuntime = await this._resolveSessionRuntime(sessionId, session);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                    }
+
                     if (initialRuntime?.runtimeStatus?.recoveryState === 'broken') {
                         this._showTerminalRecoveryPanel(session, initialRuntime.runtimeStatus, { preserveSnapshot: true });
                         this._updateTerminalInputStatus();
                         return;
                     }
                     try {
-                        await this._ensureDesktopTerminalRuntime(session, initialRuntime?.runtimeStatus || null);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
+                        if (!ensureResult?.ok) {
+                            throw ensureResult?.error;
+                        }
                     } catch (error) {
                         console.error('Failed to ensure desktop terminal runtime:', error);
                         if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
