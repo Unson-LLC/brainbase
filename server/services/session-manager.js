@@ -66,6 +66,174 @@ export class SessionManager {
         this.TERMINAL_OWNER_TTL_MS = 10 * 60 * 1000;
     }
 
+    _isEphemeralWorkspacePath(candidate) {
+        if (!candidate || typeof candidate !== 'string') return false;
+        return candidate === '/tmp'
+            || candidate === '/private/tmp'
+            || candidate.startsWith('/tmp/')
+            || candidate.startsWith('/private/tmp/');
+    }
+
+    _normalizeBindingValue(value) {
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        return trimmed || null;
+    }
+
+    _getClaudeResumeFilePath(sessionId) {
+        return path.join(os.homedir(), '.claude', 'brainbase-sessions', `${sessionId}.resume`);
+    }
+
+    _getSessionBinding(session) {
+        const engine = session?.engine || 'claude';
+        const codexThreadId = this._normalizeBindingValue(session?.codexThreadId);
+        let claudeResumeId = this._normalizeBindingValue(session?.claudeResumeId);
+
+        if (!claudeResumeId && session?.id) {
+            const resumeFile = this._getClaudeResumeFilePath(session.id);
+            if (fs.existsSync(resumeFile)) {
+                try {
+                    claudeResumeId = this._normalizeBindingValue(fs.readFileSync(resumeFile, 'utf8'));
+                } catch {
+                    claudeResumeId = null;
+                }
+            }
+        }
+
+        if (engine === 'codex') {
+            return {
+                engine,
+                bindingId: codexThreadId,
+                bindingSource: session?.bindingSource || (codexThreadId ? 'codex_notify' : null)
+            };
+        }
+
+        return {
+            engine,
+            bindingId: claudeResumeId,
+            bindingSource: session?.bindingSource || (claudeResumeId ? 'claude_resume_file' : null)
+        };
+    }
+
+    getSessionRecoveryStatus(session) {
+        const sessionId = session?.id;
+        const binding = this._getSessionBinding(session);
+        const tmuxRunning = sessionId ? this._isTmuxSessionRunningSync(sessionId) : false;
+        const durablePath = this._getCandidateWorkspacePaths(session)
+            .find((candidate) => candidate && fs.existsSync(candidate) && !this._isEphemeralWorkspacePath(candidate)) || null;
+
+        if (tmuxRunning) {
+            return {
+                recoveryState: 'healthy',
+                recoveryReason: null,
+                canRecover: Boolean(binding.bindingId && durablePath),
+                bindingId: binding.bindingId,
+                bindingSource: binding.bindingSource,
+                durablePath
+            };
+        }
+
+        if (binding.bindingId && durablePath) {
+            return {
+                recoveryState: 'recoverable',
+                recoveryReason: 'tmux_missing',
+                canRecover: true,
+                bindingId: binding.bindingId,
+                bindingSource: binding.bindingSource,
+                durablePath
+            };
+        }
+
+        return {
+            recoveryState: 'broken',
+            recoveryReason: !binding.bindingId ? 'binding_missing' : 'cwd_missing',
+            canRecover: false,
+            bindingId: binding.bindingId,
+            bindingSource: binding.bindingSource,
+            durablePath
+        };
+    }
+
+    async _persistSessionRecoveryState(sessionId, recovery, timestamp = Date.now()) {
+        if (!sessionId || !recovery) return false;
+        const updatedAt = new Date(timestamp).toISOString();
+        const currentState = this.stateStore.get();
+        let changed = false;
+        const updatedSessions = (currentState.sessions || []).map((session) => {
+            if (session.id !== sessionId) return session;
+
+            const next = { ...session };
+            const nextLastKnownGoodPath = recovery.durablePath && !this._isEphemeralWorkspacePath(recovery.durablePath)
+                ? recovery.durablePath
+                : (session.lastKnownGoodPath || null);
+
+            if (next.recoveryState !== recovery.recoveryState) {
+                next.recoveryState = recovery.recoveryState;
+                changed = true;
+            }
+            if ((next.recoveryReason || null) !== (recovery.recoveryReason || null)) {
+                next.recoveryReason = recovery.recoveryReason || null;
+                changed = true;
+            }
+            if ((next.bindingSource || null) !== (recovery.bindingSource || null)) {
+                next.bindingSource = recovery.bindingSource || null;
+                changed = true;
+            }
+            if ((next.lastKnownGoodPath || null) !== (nextLastKnownGoodPath || null)) {
+                next.lastKnownGoodPath = nextLastKnownGoodPath;
+                changed = true;
+            }
+            if (recovery.recoveryState === 'healthy' && next.lastHealthyAt !== updatedAt) {
+                next.lastHealthyAt = updatedAt;
+                changed = true;
+            }
+            if (changed) {
+                next.updatedAt = updatedAt;
+            }
+            return next;
+        });
+
+        if (changed) {
+            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        }
+        return changed;
+    }
+
+    async _persistClaudeResumeId(sessionId, resumeId, bindingSource = 'claude_resume_file', timestamp = Date.now()) {
+        const normalizedResumeId = this._normalizeBindingValue(resumeId);
+        if (!sessionId || !normalizedResumeId) return false;
+
+        const currentState = this.stateStore.get();
+        const updatedAtIso = new Date(timestamp).toISOString();
+        let changed = false;
+        const updatedSessions = (currentState.sessions || []).map((session) => {
+            if (session.id !== sessionId) return session;
+            if (session.claudeResumeId === normalizedResumeId && session.bindingSource === bindingSource) return session;
+            changed = true;
+            return {
+                ...session,
+                claudeResumeId: normalizedResumeId,
+                bindingSource,
+                bindingUpdatedAt: updatedAtIso,
+                updatedAt: updatedAtIso
+            };
+        });
+
+        if (changed) {
+            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        }
+
+        try {
+            const resumeFile = this._getClaudeResumeFilePath(sessionId);
+            fs.mkdirSync(path.dirname(resumeFile), { recursive: true });
+            fs.writeFileSync(resumeFile, `${normalizedResumeId}\n`, 'utf8');
+        } catch (error) {
+            logger.warn(`[binding] Failed to sync Claude resume file for ${sessionId}: ${error.message}`);
+        }
+
+        return changed;
+    }
+
     _appendPromptBuffer(sessionId, chunk) {
         if (!sessionId || typeof chunk !== 'string' || !chunk) return;
         const previous = this.promptBuffers.get(sessionId) || '';
@@ -155,6 +323,33 @@ export class SessionManager {
     async _persistAssistantSnippet(sessionId, assistantSnippet, timestamp = Date.now()) {
         if (!sessionId || !assistantSnippet) return false;
         return this._persistSessionLiveSummary(sessionId, { assistantSnippet }, timestamp);
+    }
+
+    async _persistCodexThreadId(sessionId, threadId, timestamp = Date.now()) {
+        const normalizedThreadId = this._normalizeBindingValue(threadId);
+        if (!sessionId || !normalizedThreadId) return false;
+
+        const currentState = this.stateStore.get();
+        const updatedAtIso = new Date(timestamp).toISOString();
+        let changed = false;
+        const updatedSessions = (currentState.sessions || []).map((session) => {
+            if (session.id !== sessionId) return session;
+            if (session.codexThreadId === normalizedThreadId && session.bindingSource === 'codex_notify') return session;
+            changed = true;
+            return {
+                ...session,
+                codexThreadId: normalizedThreadId,
+                bindingSource: 'codex_notify',
+                bindingUpdatedAt: updatedAtIso,
+                updatedAt: updatedAtIso
+            };
+        });
+
+        if (changed) {
+            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        }
+
+        return changed;
     }
 
     async _finalizePromptBuffer(sessionId, timestamp = Date.now()) {
@@ -384,6 +579,7 @@ export class SessionManager {
 
         pushCandidate(session?.worktree?.path);
         pushCandidate(session?.path);
+        pushCandidate(session?.lastKnownGoodPath);
 
         if (workspaceName) {
             pushCandidate(path.join(this.worktreeService?.worktreesDir || '', workspaceName));
@@ -429,6 +625,7 @@ export class SessionManager {
 
     async _persistResolvedWorkspacePath(sessionId, resolvedPath) {
         if (!sessionId || !resolvedPath) return;
+        if (this._isEphemeralWorkspacePath(resolvedPath)) return;
 
         const currentState = this.stateStore.get();
         let changed = false;
@@ -438,6 +635,11 @@ export class SessionManager {
             const nextSession = { ...session };
             if (nextSession.path !== resolvedPath) {
                 nextSession.path = resolvedPath;
+                changed = true;
+            }
+
+            if (nextSession.lastKnownGoodPath !== resolvedPath) {
+                nextSession.lastKnownGoodPath = resolvedPath;
                 changed = true;
             }
 
@@ -487,7 +689,11 @@ export class SessionManager {
             pushOrdered(candidate);
         }
 
-        const resolvedPath = orderedCandidates.find((candidate) => fs.existsSync(candidate)) || null;
+        const resolvedPath = orderedCandidates.find((candidate) => {
+            if (!candidate || !fs.existsSync(candidate)) return false;
+            if (!this._isEphemeralWorkspacePath(candidate)) return true;
+            return orderedCandidates.every((other) => !other || other === candidate || !fs.existsSync(other) || this._isEphemeralWorkspacePath(other));
+        }) || null;
         if (resolvedPath && persist) {
             await this._persistResolvedWorkspacePath(session.id, resolvedPath);
         }
@@ -579,6 +785,14 @@ export class SessionManager {
 
                 // If tmux is missing, don't auto-recreate. Pause + kill stray ttyd (prevents wrong log linkage).
                 if (!hasTmux) {
+                    const recovery = this.getSessionRecoveryStatus({
+                        ...session,
+                        path: cwd || session.path || null,
+                        worktree: session.worktree
+                            ? { ...session.worktree, path: cwd || session.worktree.path || null }
+                            : session.worktree
+                    });
+                    await this._persistSessionRecoveryState(sessionId, recovery);
                     if (candidates.length > 0) {
                         logger.warn(`[restoreActiveSessions] TMUX missing for ${sessionId}. Killing ${candidates.length} ttyd process(es) and pausing session.`);
                         for (const proc of candidates) {
@@ -594,6 +808,7 @@ export class SessionManager {
 
                 // xterm-only mode: tmuxが生きていればOK、ttyd再接続は不要
                 if (this._isXtermOnlyMode()) {
+                    await this._persistSessionRecoveryState(sessionId, this.getSessionRecoveryStatus(session));
                     logger.info(`[restoreActiveSessions] xterm-only: tmux alive for ${sessionId}`);
                     continue;
                 }
@@ -639,6 +854,7 @@ export class SessionManager {
                         await this._saveTtydProcessInfo(sessionId, { port: keep.port, pid: keep.pid, engine });
                     }
 
+                    await this._persistSessionRecoveryState(sessionId, this.getSessionRecoveryStatus(session));
                     logger.info(`[restoreActiveSessions] Restored session ${sessionId}: PID ${keep.pid}, Port ${keep.port}`);
                     continue;
                 }
@@ -654,6 +870,7 @@ export class SessionManager {
                     logger.info(`[restoreActiveSessions] Reconnecting ttyd for ${sessionId} (preferredPort: ${preferredPort}, engine: ${engine})`);
 
                     await this._restartTtydForExistingTmux(sessionId, preferredPort, engine);
+                    await this._persistSessionRecoveryState(sessionId, this.getSessionRecoveryStatus(session));
                     logger.info(`[restoreActiveSessions] Successfully reconnected ttyd for ${sessionId}`);
                 } catch (err) {
                     logger.error(`[restoreActiveSessions] Failed to reconnect ttyd for ${sessionId}:`, err);
@@ -966,6 +1183,7 @@ export class SessionManager {
         const lifecycle = typeof metadata.lifecycle === 'string' ? metadata.lifecycle : '';
         const eventType = typeof metadata.eventType === 'string' ? metadata.eventType : '';
         const turnId = typeof metadata.turnId === 'string' ? metadata.turnId.trim() : '';
+        const threadId = typeof metadata.threadId === 'string' ? metadata.threadId.trim() : '';
         logger.info(`[Hook] Received status update from ${sessionId}: ${status} @ ${timestamp} (${lifecycle || 'legacy'}${turnId ? `:${turnId}` : ''})`);
 
         const currentHookData = this._normalizeHookData(this.hookStatus.get(sessionId)) || {
@@ -1045,6 +1263,12 @@ export class SessionManager {
                 assistantSnippet: reportedAssistantSnippet
             }, timestamp).catch((error) => {
                 logger.warn(`[Hook] Failed to persist live summary for ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
+            });
+        }
+
+        if (threadId) {
+            this._persistCodexThreadId(sessionId, threadId, timestamp).catch((error) => {
+                logger.warn(`[Hook] Failed to persist Codex thread id for ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
             });
         }
     }
@@ -1380,6 +1604,7 @@ export class SessionManager {
      * @returns {{interactiveTransport: string, interactiveReady: boolean, interactiveUrl: string|null, needsRestart: boolean, port: number|null, ttydRunning: boolean, proxyPath: string|null}}
      */
     getRuntimeStatus(session) {
+        const recovery = this.getSessionRecoveryStatus(session);
         if (this._isXtermOnlyMode()) {
             const sessionId = session?.id;
             const intendedState = session?.intendedState;
@@ -1393,7 +1618,10 @@ export class SessionManager {
                 ttydRunning: false,
                 needsRestart: intendedState === 'active' && !tmuxRunning,
                 proxyPath: null,
-                port: null
+                port: null,
+                recoveryState: recovery.recoveryState,
+                recoveryReason: recovery.recoveryReason,
+                canRecover: recovery.canRecover
             };
         }
         const sessionId = session?.id;
@@ -1418,7 +1646,10 @@ export class SessionManager {
             ttydRunning,
             needsRestart,
             proxyPath: interactiveUrl,
-            port
+            port,
+            recoveryState: recovery.recoveryState,
+            recoveryReason: recovery.recoveryReason,
+            canRecover: recovery.canRecover
         };
     }
 
@@ -1462,7 +1693,8 @@ export class SessionManager {
             env: {
                 ...process.env,
                 LANG: 'en_US.UTF-8',
-                LC_ALL: 'en_US.UTF-8'
+                LC_ALL: 'en_US.UTF-8',
+                BRAINBASE_STATE_PATH: this.stateStore?.filePath || process.env.BRAINBASE_STATE_PATH || ''
             }
         };
         const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
@@ -1499,6 +1731,35 @@ export class SessionManager {
         }
 
         throw new Error(`tmux session did not become ready: ${sessionId}`);
+    }
+
+    async recoverSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude' }) {
+        const state = this.stateStore.get();
+        const session = (state.sessions || []).find((item) => item.id === sessionId);
+        if (!session) {
+            const error = new Error('Session not found');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const recovery = this.getSessionRecoveryStatus(session);
+        if (recovery.recoveryState === 'broken' || !recovery.canRecover) {
+            const error = new Error('Session cannot be recovered');
+            error.statusCode = 409;
+            error.code = 'SESSION_BROKEN';
+            throw error;
+        }
+
+        await this.ensureSessionRuntime({
+            sessionId,
+            cwd: cwd || recovery.durablePath,
+            initialCommand,
+            engine
+        });
+
+        const refreshed = this.getSessionById(sessionId) || session;
+        await this._persistSessionRecoveryState(sessionId, this.getSessionRecoveryStatus(refreshed));
+        return this.getSessionById(sessionId) || refreshed;
     }
 
     /**

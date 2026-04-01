@@ -72,10 +72,53 @@ export class ConversationLinker {
         const indexPath = path.join(claudeProjectDir, 'sessions-index.json');
         try {
             const content = await fs.readFile(indexPath, 'utf-8');
-            return JSON.parse(content);
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed)) return parsed;
+            if (Array.isArray(parsed?.entries)) return parsed.entries;
+            return [];
         } catch {
             return [];
         }
+    }
+
+    async _readClaudeResumeBinding(sessionId) {
+        if (!sessionId) return null;
+        const resumePath = path.join(this.homeDir, '.claude', 'brainbase-sessions', `${sessionId}.resume`);
+        if (!existsSync(resumePath)) return null;
+        try {
+            const value = (await fs.readFile(resumePath, 'utf-8')).trim();
+            return value || null;
+        } catch {
+            return null;
+        }
+    }
+
+    _deriveBindingPatch(session, { claudeConversationId = null, codexConversationId = null, durablePath = null, bindingSource = null, bindingUpdatedAt = null } = {}) {
+        const patch = {};
+        if (claudeConversationId && session.engine !== 'codex' && session.claudeResumeId !== claudeConversationId) {
+            patch.claudeResumeId = claudeConversationId;
+        }
+        if (codexConversationId && session.engine === 'codex' && session.codexThreadId !== codexConversationId) {
+            patch.codexThreadId = codexConversationId;
+        }
+        if (bindingSource && session.bindingSource !== bindingSource) {
+            patch.bindingSource = bindingSource;
+        }
+        if (bindingUpdatedAt && session.bindingUpdatedAt !== bindingUpdatedAt) {
+            patch.bindingUpdatedAt = bindingUpdatedAt;
+        }
+        if (durablePath && !this.sessionManager?._isEphemeralWorkspacePath?.(durablePath)) {
+            if (session.lastKnownGoodPath !== durablePath) {
+                patch.lastKnownGoodPath = durablePath;
+            }
+            if (session.path !== durablePath) {
+                patch.path = durablePath;
+            }
+            if (session.worktree?.path && session.worktree.path !== durablePath) {
+                patch.worktree = { ...session.worktree, path: durablePath };
+            }
+        }
+        return patch;
     }
 
     /**
@@ -315,12 +358,17 @@ export class ConversationLinker {
             for (const session of sessions) {
                 try {
                     const summary = await this._linkSession(session, codexIndex);
-                    if (summary) {
+                    const bindingPatch = summary?._bindingPatch || null;
+                    if (summary || (bindingPatch && Object.keys(bindingPatch).length > 0)) {
+                        const conversationSummary = summary
+                            ? Object.fromEntries(Object.entries(summary).filter(([key]) => key !== '_bindingPatch'))
+                            : undefined;
                         updatedSessions.push({
                             ...session,
+                            ...(bindingPatch || {}),
                             ...(summary.lastAssistantSnippet ? { lastAssistantSnippet: summary.lastAssistantSnippet } : {}),
                             ...(summary.lastAssistantSnippetAt ? { lastAssistantSnippetAt: summary.lastAssistantSnippetAt } : {}),
-                            conversationSummary: summary
+                            ...(conversationSummary ? { conversationSummary } : {})
                         });
                         updated++;
                     } else {
@@ -360,7 +408,9 @@ export class ConversationLinker {
         const worktreePath = this.sessionManager
             ? await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
             : (session.worktree?.path || session.path);
-        if (!worktreePath) return null;
+        const resumeBinding = await this._readClaudeResumeBinding(session.id);
+        if (!worktreePath && !resumeBinding && session.engine !== 'codex') return null;
+        if (!worktreePath && session.engine === 'codex' && !session.codexThreadId) return null;
 
         // Claude Code ログ
         const claudeLogDir = this._getClaudeLogDir(worktreePath);
@@ -451,6 +501,7 @@ export class ConversationLinker {
         const engines = [...new Set(allConversations.map(c => c.engine))];
         let lastAssistantSnippet = session.lastAssistantSnippet || null;
         let lastAssistantSnippetAt = session.lastAssistantSnippetAt || null;
+        const bindingUpdatedAt = new Date().toISOString();
 
         if (lastConversation?.engine === 'claude' && claudeLogDir) {
             const claudeJsonl = path.join(claudeLogDir, `${lastConversation.conversationId}.jsonl`);
@@ -466,6 +517,33 @@ export class ConversationLinker {
             }
         }
 
+        const durablePath = worktreePath && !this.sessionManager?._isEphemeralWorkspacePath?.(worktreePath)
+            ? worktreePath
+            : null;
+        let bindingPatch = {};
+        if (session.engine === 'codex') {
+            const codexConversationId = session.codexThreadId
+                || (lastConversation?.engine === 'codex' ? lastConversation.conversationId : null);
+            bindingPatch = this._deriveBindingPatch(session, {
+                codexConversationId,
+                durablePath,
+                bindingSource: session.codexThreadId ? (session.bindingSource || 'codex_notify') : (lastConversation?.engine === 'codex' ? 'codex_log_backfill' : session.bindingSource),
+                bindingUpdatedAt: codexConversationId ? bindingUpdatedAt : null
+            });
+        } else {
+            const claudeConversationId = resumeBinding
+                || (lastConversation?.engine === 'claude' ? lastConversation.conversationId : null);
+            bindingPatch = this._deriveBindingPatch(session, {
+                claudeConversationId,
+                durablePath,
+                bindingSource: resumeBinding ? 'claude_resume_file' : (claudeConversationId ? 'claude_sessions_index' : session.bindingSource),
+                bindingUpdatedAt: claudeConversationId ? bindingUpdatedAt : null
+            });
+            if (claudeConversationId && this.sessionManager?._persistClaudeResumeId) {
+                await this.sessionManager._persistClaudeResumeId(session.id, claudeConversationId, resumeBinding ? 'claude_resume_file' : 'claude_sessions_index');
+            }
+        }
+
         // 変更がない場合はスキップ
         const existing = session.conversationSummary;
         if (
@@ -473,6 +551,7 @@ export class ConversationLinker {
             && existing.totalConversations === totalConversations
             && (session.lastAssistantSnippet || null) === (lastAssistantSnippet || null)
             && (session.lastAssistantSnippetAt || null) === (lastAssistantSnippetAt || null)
+            && Object.keys(bindingPatch).length === 0
         ) {
             return null; // No change
         }
@@ -485,7 +564,8 @@ export class ConversationLinker {
             lastAssistantSnippetAt,
             claudeLogDir: claudeLogDir || null,
             codexLogFiles: codexFiles.length > 0 ? codexFiles : null,
-            linkedAt: new Date().toISOString()
+            linkedAt: new Date().toISOString(),
+            _bindingPatch: bindingPatch
         };
     }
 

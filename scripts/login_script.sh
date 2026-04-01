@@ -18,7 +18,11 @@ INITIAL_CMD_FILE=""
 # This prevents Claude from starting in the wrong directory when ttyd's CWD is incorrect
 STATE_JSON_PATH=""
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
+if [ -n "${BRAINBASE_STATE_PATH:-}" ] && [ -f "${BRAINBASE_STATE_PATH}" ]; then
+    STATE_JSON_PATH="${BRAINBASE_STATE_PATH}"
+else
+    STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
+fi
 if [ -f "$STATE_JSON_PATH" ]; then
     # 優先: jq（高速、0.3-0.5秒短縮）
     if command -v jq >/dev/null 2>&1; then

@@ -228,6 +228,33 @@ export class SessionController {
         return session?.runtimeStatus || {};
     }
 
+    _buildRecoveryError(recoveryState, recoveryReason) {
+        const isBroken = recoveryState === 'broken';
+        const error = new Error(
+            isBroken
+                ? 'Session is broken and cannot be auto-started.'
+                : 'Session recovery is required before opening this terminal.'
+        );
+        error.statusCode = 409;
+        error.code = isBroken ? 'SESSION_BROKEN' : 'SESSION_RECOVERY_REQUIRED';
+        error.recoveryState = recoveryState || null;
+        error.recoveryReason = recoveryReason || null;
+        return error;
+    }
+
+    _getRecoveryGuard(session) {
+        const runtimeStatus = this._getSessionRuntimeStatus(session);
+        if (session?.intendedState !== 'active' || runtimeStatus?.interactiveReady) {
+            return null;
+        }
+        const recoveryState = runtimeStatus?.recoveryState || session?.recoveryState || null;
+        const recoveryReason = runtimeStatus?.recoveryReason || session?.recoveryReason || null;
+        if (recoveryState === 'recoverable' || recoveryState === 'broken') {
+            return { recoveryState, recoveryReason };
+        }
+        return null;
+    }
+
     _parseTreeDepth(rawDepth) {
         const parsed = Number.parseInt(rawDepth, 10);
         if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_TREE_DEPTH;
@@ -781,6 +808,16 @@ export class SessionController {
         if (session.intendedState === 'archived') {
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
         }
+        const recoveryGuard = this._getRecoveryGuard(this.sessionManager.getSessionById(id) || session);
+        if (recoveryGuard) {
+            const error = this._buildRecoveryError(recoveryGuard.recoveryState, recoveryGuard.recoveryReason);
+            return res.status(error.statusCode).json({
+                error: error.message,
+                code: error.code,
+                recoveryState: error.recoveryState,
+                recoveryReason: error.recoveryReason
+            });
+        }
 
         try {
             const resolvedCwd = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
@@ -821,7 +858,60 @@ export class SessionController {
             });
         } catch (error) {
             console.error('Failed to ensure terminal runtime:', error);
-            res.status(500).json({ error: error.message || 'Failed to ensure terminal runtime' });
+            res.status(error.statusCode || 500).json({
+                error: error.message || 'Failed to ensure terminal runtime',
+                ...(error.code ? { code: error.code } : {}),
+                ...(error.recoveryState ? { recoveryState: error.recoveryState } : {}),
+                ...(error.recoveryReason ? { recoveryReason: error.recoveryReason } : {})
+            });
+        }
+    };
+
+    recover = async (req, res) => {
+        const { id } = req.params;
+        const { initialCommand, cwd, engine, viewerId } = req.body || {};
+        const session = this._findSessionOrFail(id, res);
+        if (!session) return;
+        if (session.intendedState === 'archived') {
+            return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+
+        try {
+            const recoveredSession = await this.sessionManager.recoverSessionRuntime({
+                sessionId: id,
+                cwd: typeof cwd === 'string' && cwd.trim() ? cwd.trim() : undefined,
+                initialCommand: typeof initialCommand === 'string' ? initialCommand : (session.initialCommand || ''),
+                engine: typeof engine === 'string' && engine.trim() ? engine.trim() : (session.engine || 'claude')
+            });
+
+            if (session.intendedState !== 'active') {
+                await this._updateStateWithRetry((currentState) => {
+                    const updatedSessions = (currentState.sessions || []).map((currentSession) =>
+                        currentSession.id === id
+                            ? {
+                                ...currentSession,
+                                intendedState: 'active',
+                                pausedAt: null,
+                                pausedReason: null,
+                                updatedAt: new Date().toISOString()
+                            }
+                            : currentSession
+                    );
+                    return { ...currentState, sessions: updatedSessions };
+                });
+            }
+
+            const latestSession = this.sessionManager.getSessionById(id) || recoveredSession;
+            const terminalAccess = typeof viewerId === 'string' && viewerId.trim()
+                ? this.sessionManager.getTerminalAccessState(id, viewerId.trim())
+                : null;
+            res.json({
+                sessionId: id,
+                runtimeStatus: this._withViewerRuntimeStatus(latestSession.runtimeStatus || null, viewerId),
+                terminalAccess
+            });
+        } catch (error) {
+            this._respondError(res, `Failed to recover session ${id}:`, error);
         }
     };
 
@@ -928,6 +1018,16 @@ export class SessionController {
         if (targetSession?.intendedState === 'archived') {
             logger.info(`[start] Rejected: session ${sessionId} is archived`);
             return res.status(409).json({ error: 'Session is archived. Use restore to reactivate.' });
+        }
+        const recoveryGuard = this._getRecoveryGuard(this.sessionManager.getSessionById(sessionId) || targetSession);
+        if (recoveryGuard) {
+            const error = this._buildRecoveryError(recoveryGuard.recoveryState, recoveryGuard.recoveryReason);
+            return res.status(error.statusCode).json({
+                error: error.message,
+                code: error.code,
+                recoveryState: error.recoveryState,
+                recoveryReason: error.recoveryReason
+            });
         }
 
         try {

@@ -121,6 +121,11 @@ export class App {
         this.terminalOpenFallbackBtn = null;
         this.terminalMoreBtn = null;
         this.terminalMoreActionsEl = null;
+        this.terminalRecoveryPanelEl = null;
+        this.terminalRecoveryBadgeEl = null;
+        this.terminalRecoveryTitleEl = null;
+        this.terminalRecoveryMessageEl = null;
+        this.terminalRecoverBtn = null;
         this.mobileLiveTerminalModalEl = null;
         this.mobileLiveTerminalFrameEl = null;
         this._terminalInputUxCleanup = [];
@@ -204,6 +209,7 @@ export class App {
 
     _showXtermTransport() {
         this._restoreSnapshotPanelPosition();
+        this._hideTerminalRecoveryPanel();
         this.terminalXtermHost?.classList.remove('hidden');
         this.terminalFrame?.classList.add('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -227,6 +233,7 @@ export class App {
 
     _showTtydIframe() {
         this._restoreSnapshotPanelPosition();
+        this._hideTerminalRecoveryPanel();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -244,6 +251,7 @@ export class App {
     }
 
     _showMobileTerminalDisplay() {
+        this._hideTerminalRecoveryPanel();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
@@ -1196,8 +1204,68 @@ export class App {
         this.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
         this.terminalMoreBtn = document.getElementById('terminal-more-btn');
         this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
+        this.terminalRecoveryPanelEl = document.getElementById('terminal-recovery-panel');
+        this.terminalRecoveryBadgeEl = document.getElementById('terminal-recovery-badge');
+        this.terminalRecoveryTitleEl = document.getElementById('terminal-recovery-title');
+        this.terminalRecoveryMessageEl = document.getElementById('terminal-recovery-message');
+        this.terminalRecoverBtn = document.getElementById('terminal-recover-btn');
         this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
         this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
+    }
+
+    _formatRecoveryMessage(session, runtimeStatus) {
+        const recoveryState = runtimeStatus?.recoveryState || session?.recoveryState || null;
+        const recoveryReason = runtimeStatus?.recoveryReason || session?.recoveryReason || null;
+        const engine = session?.engine === 'codex' ? 'Codex' : 'Claude';
+
+        if (recoveryState === 'broken') {
+            if (recoveryReason === 'binding_missing') {
+                return `${engine} の会話 binding が見つからないため、このセッションは新規起動させず停止しています。`;
+            }
+            if (recoveryReason === 'cwd_missing') {
+                return '会話 binding はありますが、復旧先の workspace が見つからないため停止しています。';
+            }
+            return 'このセッションは復旧に必要な情報が不足しています。';
+        }
+
+        return 'tmux runtime が消えています。新規起動すると履歴が別セッションに化けるため、自動再生成は止めています。';
+    }
+
+    _showTerminalRecoveryPanel(session, runtimeStatus) {
+        this._cacheTerminalUiElements();
+        const panel = this.terminalRecoveryPanelEl;
+        if (!panel) return;
+
+        const recoveryState = runtimeStatus?.recoveryState || session?.recoveryState || 'recoverable';
+        const canRecover = Boolean(runtimeStatus?.canRecover);
+        if (this.terminalRecoveryBadgeEl) {
+            this.terminalRecoveryBadgeEl.textContent = recoveryState === 'broken' ? '復旧不可' : '要復旧';
+            this.terminalRecoveryBadgeEl.classList.toggle('broken', recoveryState === 'broken');
+        }
+        if (this.terminalRecoveryTitleEl) {
+            this.terminalRecoveryTitleEl.textContent = recoveryState === 'broken'
+                ? 'このセッションは自動再起動されません'
+                : 'このセッションは明示復旧が必要です';
+        }
+        if (this.terminalRecoveryMessageEl) {
+            this.terminalRecoveryMessageEl.textContent = this._formatRecoveryMessage(session, runtimeStatus);
+        }
+        if (this.terminalRecoverBtn) {
+            this.terminalRecoverBtn.classList.toggle('hidden', !canRecover || recoveryState === 'broken');
+            this.terminalRecoverBtn.disabled = !canRecover || recoveryState === 'broken';
+            this.terminalRecoverBtn.dataset.sessionId = session?.id || '';
+        }
+
+        this.terminalTransportClient?.disconnect({ preserveView: false });
+        this.terminalTransportClient?.hide();
+        this.terminalFrame?.classList.add('hidden');
+        this.terminalXtermHost?.classList.add('hidden');
+        this.terminalSnapshotPanelEl?.classList.add('hidden');
+        panel.classList.remove('hidden');
+    }
+
+    _hideTerminalRecoveryPanel() {
+        this.terminalRecoveryPanelEl?.classList.add('hidden');
     }
 
     setupTerminalInputUx() {
@@ -2230,6 +2298,35 @@ export class App {
             };
         }
 
+        if (this.terminalRecoverBtn) {
+            this.terminalRecoverBtn.onclick = async () => {
+                const sessionId = this.terminalRecoverBtn?.dataset?.sessionId || appStore.getState().currentSessionId;
+                if (!sessionId) return;
+                const session = this._getSessionById(sessionId);
+                if (!session) return;
+
+                try {
+                    const res = await httpClient.post(`/api/sessions/${sessionId}/recover`, {
+                        viewerId: this.viewerId,
+                        viewerLabel: this.viewerLabel,
+                        engine: session.engine || 'claude',
+                        initialCommand: session.initialCommand || ''
+                    });
+                    const updatedSessions = (appStore.getState().sessions || []).map((item) => (
+                        item.id === sessionId
+                            ? { ...item, runtimeStatus: res?.runtimeStatus || item.runtimeStatus, recoveryState: 'healthy', recoveryReason: null }
+                            : item
+                    ));
+                    appStore.setState({ sessions: updatedSessions });
+                    this._hideTerminalRecoveryPanel();
+                    await this.switchSession(sessionId);
+                } catch (error) {
+                    console.error('Failed to recover session:', error);
+                    showError(error?.message || 'セッションの復旧に失敗しました');
+                }
+            };
+        }
+
         // Close modal buttons
         const closeModalBtns = document.querySelectorAll('.close-modal-btn');
         closeModalBtns.forEach(btn => {
@@ -3134,6 +3231,14 @@ export class App {
             };
         }
 
+        if (runtimeStatus?.recoveryState === 'recoverable' || runtimeStatus?.recoveryState === 'broken') {
+            return {
+                proxyPath: null,
+                terminalAccess,
+                runtimeStatus
+            };
+        }
+
         const payload = this._buildTerminalStartPayload(session);
         if (options.forceTtyd) payload.forceTtyd = true;
         const res = await httpClient.post('/api/sessions/start', payload);
@@ -3150,7 +3255,7 @@ export class App {
             return { ok: false, reason: 'missing-session' };
         }
 
-        const { proxyPath, terminalAccess } = await this._resolveTtydProxyPath(sessionId, session, options);
+        const { proxyPath, terminalAccess, runtimeStatus } = await this._resolveTtydProxyPath(sessionId, session, options);
         if (terminalAccess?.state === 'blocked') {
             this._clearTerminalFrame(frameEl);
             return { ok: false, blocked: true, terminalAccess };
@@ -3158,7 +3263,11 @@ export class App {
 
         if (!proxyPath) {
             this._clearTerminalFrame(frameEl);
-            return { ok: false, reason: 'no-proxy-path' };
+            return {
+                ok: false,
+                reason: runtimeStatus?.recoveryState ? 'recovery-required' : 'no-proxy-path',
+                runtimeStatus
+            };
         }
 
         this._showTerminalFrame(frameEl);
@@ -3191,6 +3300,9 @@ export class App {
                     this.reconnectManager._setBlocked(result.terminalAccess);
                 }
                 this._updateTerminalInputStatus();
+            } else if (result.reason === 'recovery-required') {
+                this.closeMobileLiveTerminal();
+                this._showTerminalRecoveryPanel(session, result.runtimeStatus);
             } else {
                 this.closeMobileLiveTerminal();
             }
@@ -3251,6 +3363,7 @@ export class App {
                 this.terminalTransportClient?.hide();
                 this._showTtydIframe();
                 this._clearTerminalFrame(terminalFrame);
+                this._hideTerminalRecoveryPanel();
                 return;
             }
 
@@ -3265,6 +3378,11 @@ export class App {
                 this._clearTerminalFrame(terminalFrame);
 
                 const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+                if (runtimeStatus?.recoveryState === 'recoverable' || runtimeStatus?.recoveryState === 'broken') {
+                    this._showTerminalRecoveryPanel(session, runtimeStatus);
+                    this._updateTerminalInputStatus();
+                    return;
+                }
                 if (this.reconnectManager) {
                     this.reconnectManager.setCurrentSession(sessionId);
                     this.reconnectManager.terminalAccess = terminalAccess || null;
@@ -3287,6 +3405,12 @@ export class App {
             }
 
             if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+                const initialRuntime = await this._resolveSessionRuntime(sessionId, session);
+                if (initialRuntime?.runtimeStatus?.recoveryState === 'recoverable' || initialRuntime?.runtimeStatus?.recoveryState === 'broken') {
+                    this._showTerminalRecoveryPanel(session, initialRuntime.runtimeStatus);
+                    this._updateTerminalInputStatus();
+                    return;
+                }
                 try {
                     await this._ensureDesktopTerminalRuntime(session);
                 } catch (error) {
@@ -3389,6 +3513,11 @@ export class App {
                     this._triggerTerminalAutoFocus('switchSession');
                 }
             } else {
+                if (result.reason === 'recovery-required') {
+                    this._showTerminalRecoveryPanel(session, result.runtimeStatus);
+                    this._updateTerminalInputStatus();
+                    return;
+                }
                 console.error('No proxyPath available for session:', sessionId);
                 this._clearTerminalFrame(terminalFrame);
                 this._setCurrentSessionUiState({
