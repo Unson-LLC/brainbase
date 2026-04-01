@@ -802,7 +802,7 @@ export class SessionController {
 
     ensureTerminalRuntime = async (req, res) => {
         const { id } = req.params;
-        const { initialCommand, cwd, engine, viewerId } = req.body || {};
+        const { initialCommand, cwd, engine, viewerId, forceTtyd = false } = req.body || {};
         const session = this._findSessionOrFail(id, res);
         if (!session) return;
         if (session.intendedState === 'archived') {
@@ -821,14 +821,28 @@ export class SessionController {
 
         try {
             const resolvedCwd = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
-            await this.sessionManager.ensureSessionRuntime({
-                sessionId: id,
-                cwd: typeof resolvedCwd === 'string' && resolvedCwd.trim()
-                    ? resolvedCwd
-                    : (typeof cwd === 'string' && cwd.trim() ? cwd : undefined),
-                initialCommand: typeof initialCommand === 'string' ? initialCommand : (session.initialCommand || ''),
-                engine: typeof engine === 'string' && engine.trim() ? engine : (session.engine || 'claude')
-            });
+            const runtimeCwd = typeof resolvedCwd === 'string' && resolvedCwd.trim()
+                ? resolvedCwd
+                : (typeof cwd === 'string' && cwd.trim() ? cwd : undefined);
+            const runtimeEngine = typeof engine === 'string' && engine.trim() ? engine : (session.engine || 'claude');
+            const runtimeCommand = typeof initialCommand === 'string' ? initialCommand : (session.initialCommand || '');
+
+            const startResult = forceTtyd
+                ? await this.sessionManager.startTtyd({
+                    sessionId: id,
+                    cwd: runtimeCwd,
+                    initialCommand: runtimeCommand,
+                    engine: runtimeEngine,
+                    forceTtyd: true,
+                    allowRuntimeCreate: false,
+                    requireBinding: true
+                })
+                : await this.sessionManager.ensureSessionRuntime({
+                    sessionId: id,
+                    cwd: runtimeCwd,
+                    initialCommand: runtimeCommand,
+                    engine: runtimeEngine
+                });
 
             if (session.intendedState !== 'active') {
                 await this._updateStateWithRetry((currentState) => {
@@ -853,6 +867,10 @@ export class SessionController {
                 : null;
             res.json({
                 sessionId: id,
+                ...(startResult?.proxyPath ? {
+                    proxyPath: this._appendViewerIdToProxyPath(startResult.proxyPath, viewerId),
+                    port: startResult.port || null
+                } : {}),
                 runtimeStatus: this._withViewerRuntimeStatus(updatedSession?.runtimeStatus || null, viewerId),
                 terminalAccess
             });
@@ -1100,6 +1118,8 @@ export class SessionController {
 
             // ttydプロセス起動
             if (forceTtyd) startOptions.forceTtyd = true;
+            startOptions.allowRuntimeCreate = !targetSession || targetSession.intendedState !== 'active';
+            startOptions.requireBinding = Boolean(targetSession);
             const result = await this.sessionManager.startTtyd(startOptions);
             this._recentSessionStarts.set(sessionId, Date.now());
 
@@ -1299,7 +1319,9 @@ export class SessionController {
                 sessionId: id,
                 cwd,
                 initialCommand: session.initialCommand,
-                engine
+                engine,
+                allowRuntimeCreate: true,
+                requireBinding: true
             });
 
             // Update state to active (archivedAt も除去、engine も反映)（リトライ付き）
@@ -1643,7 +1665,9 @@ ${jjBookmarks}
                         sessionId,
                         cwd: worktreePath,
                         initialCommand,
-                        engine
+                        engine,
+                        allowRuntimeCreate: true,
+                        requireBinding: false
                     });
                 })()
             ]);

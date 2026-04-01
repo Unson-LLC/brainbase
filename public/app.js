@@ -589,6 +589,17 @@ export class App {
         return payload;
     }
 
+    async _recoverSessionRuntime(session) {
+        if (!session?.id) return null;
+        return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/recover`, {
+            viewerId: this.viewerId,
+            viewerLabel: this.viewerLabel,
+            engine: session.engine || 'claude',
+            initialCommand: session.initialCommand || '',
+            cwd: session.path
+        });
+    }
+
     async releaseTerminalOwnership(sessionId) {
         if (!sessionId) return;
         try {
@@ -635,8 +646,19 @@ export class App {
         }
     }
 
-    async _ensureDesktopTerminalRuntime(session) {
+    async _ensureDesktopTerminalRuntime(session, runtimeStatus = null) {
         if (!session?.id) return null;
+        const currentRuntimeStatus = runtimeStatus || session.runtimeStatus || null;
+        if (currentRuntimeStatus?.recoveryState === 'broken') {
+            const error = new Error('Session is broken and cannot be recovered automatically.');
+            error.code = 'SESSION_BROKEN';
+            error.recoveryState = 'broken';
+            error.recoveryReason = currentRuntimeStatus?.recoveryReason || null;
+            throw error;
+        }
+        if (currentRuntimeStatus?.recoveryState === 'recoverable') {
+            await this._recoverSessionRuntime(session);
+        }
         return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
             initialCommand: session.initialCommand || '',
             cwd: session.path,
@@ -2306,12 +2328,7 @@ export class App {
                 if (!session) return;
 
                 try {
-                    const res = await httpClient.post(`/api/sessions/${sessionId}/recover`, {
-                        viewerId: this.viewerId,
-                        viewerLabel: this.viewerLabel,
-                        engine: session.engine || 'claude',
-                        initialCommand: session.initialCommand || ''
-                    });
+                    const res = await this._recoverSessionRuntime(session);
                     const updatedSessions = (appStore.getState().sessions || []).map((item) => (
                         item.id === sessionId
                             ? { ...item, runtimeStatus: res?.runtimeStatus || item.runtimeStatus, recoveryState: 'healthy', recoveryReason: null }
@@ -3231,7 +3248,7 @@ export class App {
             };
         }
 
-        if (runtimeStatus?.recoveryState === 'recoverable' || runtimeStatus?.recoveryState === 'broken') {
+        if (runtimeStatus?.recoveryState === 'broken') {
             return {
                 proxyPath: null,
                 terminalAccess,
@@ -3239,9 +3256,17 @@ export class App {
             };
         }
 
-        const payload = this._buildTerminalStartPayload(session);
-        if (options.forceTtyd) payload.forceTtyd = true;
-        const res = await httpClient.post('/api/sessions/start', payload);
+        if (runtimeStatus?.recoveryState === 'recoverable') {
+            await this._recoverSessionRuntime(session);
+        }
+
+        const res = await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
+            initialCommand: session.initialCommand || '',
+            cwd: session.path,
+            engine: session.engine || 'claude',
+            viewerId: this.viewerId,
+            forceTtyd: Boolean(options.forceTtyd)
+        });
         return {
             proxyPath: res?.proxyPath ? this._getViewerProxyPath(res.proxyPath, res.port) : null,
             terminalAccess: res?.terminalAccess || terminalAccess || null
@@ -3377,8 +3402,12 @@ export class App {
                 this._showMobileTerminalDisplay();
                 this._clearTerminalFrame(terminalFrame);
 
-                const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
-                if (runtimeStatus?.recoveryState === 'recoverable' || runtimeStatus?.recoveryState === 'broken') {
+                let { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+                if (runtimeStatus?.recoveryState === 'recoverable') {
+                    await this._recoverSessionRuntime(session);
+                    ({ runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session));
+                }
+                if (runtimeStatus?.recoveryState === 'broken') {
                     this._showTerminalRecoveryPanel(session, runtimeStatus);
                     this._updateTerminalInputStatus();
                     return;
@@ -3405,16 +3434,29 @@ export class App {
             }
 
             if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
-                const initialRuntime = await this._resolveSessionRuntime(sessionId, session);
-                if (initialRuntime?.runtimeStatus?.recoveryState === 'recoverable' || initialRuntime?.runtimeStatus?.recoveryState === 'broken') {
+                let initialRuntime = await this._resolveSessionRuntime(sessionId, session);
+                if (initialRuntime?.runtimeStatus?.recoveryState === 'recoverable') {
+                    await this._recoverSessionRuntime(session);
+                    initialRuntime = await this._resolveSessionRuntime(sessionId, session);
+                }
+                if (initialRuntime?.runtimeStatus?.recoveryState === 'broken') {
                     this._showTerminalRecoveryPanel(session, initialRuntime.runtimeStatus);
                     this._updateTerminalInputStatus();
                     return;
                 }
                 try {
-                    await this._ensureDesktopTerminalRuntime(session);
+                    await this._ensureDesktopTerminalRuntime(session, initialRuntime?.runtimeStatus || null);
                 } catch (error) {
                     console.error('Failed to ensure desktop terminal runtime:', error);
+                    if (error?.recoveryState === 'broken') {
+                        this._showTerminalRecoveryPanel(session, {
+                            recoveryState: 'broken',
+                            recoveryReason: error?.recoveryReason || null,
+                            canRecover: false
+                        });
+                        this._updateTerminalInputStatus();
+                        return;
+                    }
                     this.terminalTransportClient?.disconnect({ preserveView: false });
                     this.terminalTransportClient?.show();
                     this._showXtermTransport();

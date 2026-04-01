@@ -115,42 +115,198 @@ export class SessionManager {
         };
     }
 
-    getSessionRecoveryStatus(session) {
-        const sessionId = session?.id;
-        const binding = this._getSessionBinding(session);
-        const tmuxRunning = sessionId ? this._isTmuxSessionRunningSync(sessionId) : false;
-        const durablePath = this._getCandidateWorkspacePaths(session)
-            .find((candidate) => candidate && fs.existsSync(candidate) && !this._isEphemeralWorkspacePath(candidate)) || null;
+    _getBindingKind(engine = 'claude') {
+        return engine === 'codex' ? 'codex_thread' : 'claude_resume';
+    }
 
-        if (tmuxRunning) {
+    _buildExpectedRuntimeMetadata(session, durablePath = null) {
+        const binding = this._getSessionBinding(session);
+        return {
+            sessionId: session?.id || null,
+            engine: session?.engine || 'claude',
+            bindingId: binding.bindingId,
+            bindingKind: this._getBindingKind(session?.engine || 'claude'),
+            canonicalCwd: durablePath && !this._isEphemeralWorkspacePath(durablePath)
+                ? durablePath
+                : null
+        };
+    }
+
+    _readTmuxEnvironmentSync(sessionId) {
+        if (!sessionId || !this._isTmuxSessionRunningSync(sessionId)) {
+            return {};
+        }
+
+        try {
+            const stdout = execSync(`tmux show-environment -t "${sessionId}" 2>/dev/null || true`, { encoding: 'utf8' });
+            const env = {};
+            for (const line of stdout.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('-') || !trimmed.includes('=')) continue;
+                const [key, ...rest] = trimmed.split('=');
+                env[key] = rest.join('=');
+            }
+            return env;
+        } catch {
+            return {};
+        }
+    }
+
+    _getTmuxCurrentPathSync(sessionId) {
+        if (!sessionId || !this._isTmuxSessionRunningSync(sessionId)) return null;
+        try {
+            const stdout = execSync(`tmux list-panes -t "${sessionId}" -F "#{pane_current_path}" 2>/dev/null || true`, { encoding: 'utf8' });
+            const currentPath = stdout
+                .split('\n')
+                .map((line) => line.trim())
+                .find(Boolean);
+            return currentPath && fs.existsSync(currentPath) ? currentPath : null;
+        } catch {
+            return null;
+        }
+    }
+
+    _getTmuxRuntimeMetadataSync(sessionId) {
+        const running = this._isTmuxSessionRunningSync(sessionId);
+        if (!running) {
             return {
-                recoveryState: 'healthy',
-                recoveryReason: null,
-                canRecover: Boolean(binding.bindingId && durablePath),
-                bindingId: binding.bindingId,
-                bindingSource: binding.bindingSource,
-                durablePath
+                exists: false,
+                sessionId: null,
+                engine: null,
+                bindingId: null,
+                bindingKind: null,
+                canonicalCwd: null,
+                runtimeInstanceId: null,
+                paneCurrentPath: null
             };
         }
 
-        if (binding.bindingId && durablePath) {
+        const env = this._readTmuxEnvironmentSync(sessionId);
+        return {
+            exists: true,
+            sessionId: this._normalizeBindingValue(env.BRAINBASE_SESSION_ID),
+            engine: this._normalizeBindingValue(env.BRAINBASE_ENGINE),
+            bindingId: this._normalizeBindingValue(env.BRAINBASE_BINDING_ID),
+            bindingKind: this._normalizeBindingValue(env.BRAINBASE_BINDING_KIND),
+            canonicalCwd: this._normalizeBindingValue(env.BRAINBASE_CANONICAL_CWD),
+            runtimeInstanceId: this._normalizeBindingValue(env.BRAINBASE_RUNTIME_INSTANCE_ID),
+            paneCurrentPath: this._getTmuxCurrentPathSync(sessionId)
+        };
+    }
+
+    _evaluateRuntimeBindingMatch(session, runtimeMetadata, durablePath = null) {
+        const expected = this._buildExpectedRuntimeMetadata(session, durablePath);
+        if (!runtimeMetadata?.exists) {
+            return { healthy: false, reason: 'tmux_missing', expected };
+        }
+        if (!expected.bindingId) {
+            return { healthy: false, reason: 'binding_missing', expected };
+        }
+        if (!expected.canonicalCwd) {
+            return { healthy: false, reason: 'cwd_missing', expected };
+        }
+        if (runtimeMetadata.sessionId !== expected.sessionId) {
+            return { healthy: false, reason: 'binding_invalid', expected };
+        }
+        if (runtimeMetadata.engine !== expected.engine) {
+            return { healthy: false, reason: 'binding_invalid', expected };
+        }
+        if (runtimeMetadata.bindingKind !== expected.bindingKind) {
+            return { healthy: false, reason: 'binding_invalid', expected };
+        }
+        if (runtimeMetadata.bindingId !== expected.bindingId) {
+            return { healthy: false, reason: 'binding_invalid', expected };
+        }
+
+        const runtimeCwd = runtimeMetadata.canonicalCwd || runtimeMetadata.paneCurrentPath || null;
+        if (!runtimeCwd || this._isEphemeralWorkspacePath(runtimeCwd) || path.resolve(runtimeCwd) !== path.resolve(expected.canonicalCwd)) {
+            return { healthy: false, reason: 'binding_invalid', expected };
+        }
+
+        return { healthy: true, reason: null, expected };
+    }
+
+    _allowBindingBootstrap(session, runtimeMetadata, durablePath = null) {
+        if (!session?.createdAt || !runtimeMetadata?.exists || !durablePath) {
+            return false;
+        }
+        const createdAt = Date.parse(session.createdAt);
+        if (!Number.isFinite(createdAt) || (Date.now() - createdAt) > 5 * 60 * 1000) {
+            return false;
+        }
+
+        const runtimeCwd = runtimeMetadata.canonicalCwd || runtimeMetadata.paneCurrentPath || null;
+        return runtimeMetadata.sessionId === session.id
+            && runtimeMetadata.engine === (session.engine || 'claude')
+            && runtimeCwd
+            && !this._isEphemeralWorkspacePath(runtimeCwd)
+            && path.resolve(runtimeCwd) === path.resolve(durablePath);
+    }
+
+    getSessionRecoveryStatus(session) {
+        const sessionId = session?.id;
+        const binding = this._getSessionBinding(session);
+        const durablePath = this._getCandidateWorkspacePaths(session)
+            .find((candidate) => candidate && fs.existsSync(candidate) && !this._isEphemeralWorkspacePath(candidate)) || null;
+        const runtimeMetadata = sessionId ? this._getTmuxRuntimeMetadataSync(sessionId) : null;
+
+        if ((!binding.bindingId || !durablePath) && this._allowBindingBootstrap(session, runtimeMetadata, durablePath)) {
             return {
-                recoveryState: 'recoverable',
-                recoveryReason: 'tmux_missing',
+                recoveryState: 'healthy',
+                recoveryReason: null,
+                canRecover: false,
+                bindingId: binding.bindingId,
+                bindingSource: binding.bindingSource,
+                durablePath,
+                runtimeMetadata
+            };
+        }
+
+        if (!binding.bindingId || !durablePath) {
+            return {
+                recoveryState: 'broken',
+                recoveryReason: !binding.bindingId ? 'binding_missing' : 'cwd_missing',
+                canRecover: false,
+                bindingId: binding.bindingId,
+                bindingSource: binding.bindingSource,
+                durablePath,
+                runtimeMetadata
+            };
+        }
+
+        const runtimeMatch = this._evaluateRuntimeBindingMatch(session, runtimeMetadata, durablePath);
+        if (runtimeMatch.healthy) {
+            return {
+                recoveryState: 'healthy',
+                recoveryReason: null,
                 canRecover: true,
                 bindingId: binding.bindingId,
                 bindingSource: binding.bindingSource,
-                durablePath
+                durablePath,
+                runtimeMetadata
+            };
+        }
+
+        if (runtimeMatch.reason === 'tmux_missing' || runtimeMatch.reason === 'binding_invalid') {
+            return {
+                recoveryState: 'recoverable',
+                recoveryReason: runtimeMatch.reason,
+                canRecover: true,
+                bindingId: binding.bindingId,
+                bindingSource: binding.bindingSource,
+                durablePath,
+                runtimeMetadata
             };
         }
 
         return {
             recoveryState: 'broken',
-            recoveryReason: !binding.bindingId ? 'binding_missing' : 'cwd_missing',
+            recoveryReason: runtimeMatch.reason || 'binding_invalid',
             canRecover: false,
             bindingId: binding.bindingId,
             bindingSource: binding.bindingSource,
-            durablePath
+            durablePath,
+            runtimeMetadata
         };
     }
 
@@ -1144,10 +1300,14 @@ export class SessionManager {
             // タイムアウト判定: 最後のactivity報告からHEARTBEAT_TIMEOUT経過したらstale
             const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
             const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
-            // working判定: staleでなく、かつturnがactiveであること
-            // activeTurnCount=0 の場合、lastWorkingAt > lastDoneAt だけではworkingにしない
-            // （codex-wrapper-startのheartbeatだけで永遠にworking扱いになるバグを防止）
-            const isWorking = !isStale && activeTurnCount > 0;
+            // working判定:
+            // - turnがactiveならworking
+            // - legacy workingフローも維持する
+            // - ただし codex-wrapper-start 単発heartbeatだけで永遠にworkingに見えるのは防ぐ
+            const isLegacyWorking = normalized.status === 'working'
+                && normalized.lastWorkingAt >= normalized.lastDoneAt
+                && normalized.lastEventType !== 'codex-wrapper-start';
+            const isWorking = !isStale && (activeTurnCount > 0 || isLegacyWorking);
             // done判定: working中でなく、何らかのactivityがあったセッション
             const isDone = !isWorking && (hasDone || hasWorking);
 
@@ -1606,17 +1766,14 @@ export class SessionManager {
     getRuntimeStatus(session) {
         const recovery = this.getSessionRecoveryStatus(session);
         if (this._isXtermOnlyMode()) {
-            const sessionId = session?.id;
             const intendedState = session?.intendedState;
-            const tmuxRunning = intendedState === 'active'
-                ? this._isTmuxSessionRunningSync(sessionId)
-                : false;
+            const runtimeHealthy = intendedState === 'active' && recovery.recoveryState === 'healthy';
             return {
-                interactiveTransport: tmuxRunning ? 'xterm' : 'none',
-                interactiveReady: tmuxRunning,
+                interactiveTransport: runtimeHealthy ? 'xterm' : 'none',
+                interactiveReady: runtimeHealthy,
                 interactiveUrl: null,
                 ttydRunning: false,
-                needsRestart: intendedState === 'active' && !tmuxRunning,
+                needsRestart: intendedState === 'active' && recovery.recoveryState === 'recoverable',
                 proxyPath: null,
                 port: null,
                 recoveryState: recovery.recoveryState,
@@ -1631,12 +1788,11 @@ export class SessionManager {
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
         const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
-        const shouldCheckTmux = intendedState === 'active' && !ttydRunning;
-        const tmuxRunning = shouldCheckTmux ? this._isTmuxSessionRunningSync(sessionId) : false;
-        const needsRestart = intendedState === 'active' && !ttydRunning && !tmuxRunning;
+        const tmuxHealthy = intendedState === 'active' && recovery.recoveryState === 'healthy';
+        const needsRestart = intendedState === 'active' && !ttydRunning && recovery.recoveryState === 'recoverable';
         const port = activeEntry?.port || session?.ttydProcess?.port || null;
-        const interactiveTransport = ttydRunning ? 'ttyd' : (tmuxRunning ? 'xterm' : 'none');
-        const interactiveReady = ttydRunning || tmuxRunning;
+        const interactiveTransport = ttydRunning ? 'ttyd' : (tmuxHealthy ? 'xterm' : 'none');
+        const interactiveReady = ttydRunning || tmuxHealthy;
         const interactiveUrl = ttydRunning && sessionId ? `/console/${sessionId}` : null;
 
         return {
@@ -1671,7 +1827,41 @@ export class SessionManager {
         };
     }
 
-    async ensureSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude' }) {
+    _buildRecoveryErrorFromStatus(recovery) {
+        const isBroken = recovery?.recoveryState === 'broken' || !recovery?.canRecover;
+        const error = new Error(
+            isBroken
+                ? 'Session cannot be recovered because durable binding is missing.'
+                : 'Session recovery is required before opening this runtime.'
+        );
+        error.statusCode = 409;
+        error.code = isBroken ? 'SESSION_BROKEN' : 'SESSION_RECOVERY_REQUIRED';
+        error.recoveryState = recovery?.recoveryState || (isBroken ? 'broken' : 'recoverable');
+        error.recoveryReason = recovery?.recoveryReason || (isBroken ? 'binding_missing' : 'tmux_missing');
+        return error;
+    }
+
+    async _destroySessionRuntime(sessionId) {
+        const activeEntry = this.activeSessions.get(sessionId);
+        if (activeEntry) {
+            await this.stopTtyd(sessionId, { preserveTmux: false }).catch(() => {});
+            return;
+        }
+
+        await this.cleanupSessionResources(sessionId).catch(() => {});
+        await this._clearTtydProcessInfo(sessionId).catch(() => {});
+        this.activeSessions.delete(sessionId);
+        this.releaseTerminalOwnership(sessionId, null, { force: true });
+    }
+
+    async ensureSessionRuntime({
+        sessionId,
+        cwd,
+        initialCommand,
+        engine = 'claude',
+        allowCreate = false,
+        requireBinding = true
+    }) {
         if (!sessionId || typeof sessionId !== 'string') {
             throw new Error('sessionId is required');
         }
@@ -1679,30 +1869,50 @@ export class SessionManager {
             throw new Error('engine must be "claude" or "codex"');
         }
 
-        if (await this._isTmuxSessionRunning(sessionId)) {
-            return { startedExisting: true };
+        const session = this.getSession(sessionId) || { id: sessionId, engine };
+        const recovery = this.getSessionRecoveryStatus(session);
+
+        if (recovery.recoveryState === 'healthy') {
+            return { startedExisting: true, recovered: false };
         }
 
-        if (cwd && !fs.existsSync(cwd)) {
-            throw new Error(`Working directory does not exist: ${cwd}`);
+        if (!allowCreate) {
+            throw this._buildRecoveryErrorFromStatus(recovery);
+        }
+
+        if (requireBinding && (!recovery.bindingId || !recovery.durablePath)) {
+            throw this._buildRecoveryErrorFromStatus(recovery);
+        }
+
+        const resolvedCwd = cwd || recovery.durablePath || null;
+        if (resolvedCwd && !fs.existsSync(resolvedCwd)) {
+            throw new Error(`Working directory does not exist: ${resolvedCwd}`);
         }
 
         const scriptPath = this._resolveScriptPath('ensure_session_runtime.sh');
+        const bindingKind = this._getBindingKind(engine);
+        const runtimeInstanceId = `${sessionId}-${Date.now()}`;
         const spawnOptions = {
             stdio: ['ignore', 'pipe', 'pipe'],
             env: {
                 ...process.env,
                 LANG: 'en_US.UTF-8',
                 LC_ALL: 'en_US.UTF-8',
-                BRAINBASE_STATE_PATH: this.stateStore?.filePath || process.env.BRAINBASE_STATE_PATH || ''
+                BRAINBASE_STATE_PATH: this.stateStore?.filePath || process.env.BRAINBASE_STATE_PATH || '',
+                BRAINBASE_ENGINE: engine,
+                BRAINBASE_REQUIRE_BINDING: requireBinding ? '1' : '0',
+                BRAINBASE_BINDING_ID: recovery.bindingId || '',
+                BRAINBASE_BINDING_KIND: bindingKind,
+                BRAINBASE_CANONICAL_CWD: resolvedCwd || '',
+                BRAINBASE_RUNTIME_INSTANCE_ID: runtimeInstanceId
             }
         };
         const resolvedUiPort = this.uiPort ?? process.env.BRAINBASE_PORT;
         if (resolvedUiPort) {
             spawnOptions.env.BRAINBASE_PORT = String(resolvedUiPort);
         }
-        if (cwd) {
-            spawnOptions.cwd = cwd;
+        if (resolvedCwd) {
+            spawnOptions.cwd = resolvedCwd;
         }
 
         await new Promise((resolve, reject) => {
@@ -1724,13 +1934,14 @@ export class SessionManager {
         });
 
         for (let attempt = 0; attempt < 20; attempt += 1) {
-            if (await this._isTmuxSessionRunning(sessionId)) {
-                return { startedExisting: false };
+            const refreshedRecovery = this.getSessionRecoveryStatus(this.getSession(sessionId) || session);
+            if (refreshedRecovery.recoveryState === 'healthy') {
+                return { startedExisting: false, recovered: true };
             }
             await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        throw new Error(`tmux session did not become ready: ${sessionId}`);
+        throw new Error(`tmux session did not become healthy: ${sessionId}`);
     }
 
     async recoverSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude' }) {
@@ -1744,17 +1955,17 @@ export class SessionManager {
 
         const recovery = this.getSessionRecoveryStatus(session);
         if (recovery.recoveryState === 'broken' || !recovery.canRecover) {
-            const error = new Error('Session cannot be recovered');
-            error.statusCode = 409;
-            error.code = 'SESSION_BROKEN';
-            throw error;
+            throw this._buildRecoveryErrorFromStatus(recovery);
         }
 
+        await this._destroySessionRuntime(sessionId);
         await this.ensureSessionRuntime({
             sessionId,
             cwd: cwd || recovery.durablePath,
             initialCommand,
-            engine
+            engine,
+            allowCreate: true,
+            requireBinding: true
         });
 
         const refreshed = this.getSessionById(sessionId) || session;
@@ -1772,8 +1983,24 @@ export class SessionManager {
      * @param {number} [options.preferredPort] - 優先ポート番号（再利用用）
      * @returns {Promise<{port: number, proxyPath: string}>}
      */
-    async startTtyd({ sessionId, cwd, initialCommand, engine = 'claude', preferredPort, forceTtyd = false }) {
-        await this.ensureSessionRuntime({ sessionId, cwd, initialCommand, engine });
+    async startTtyd({
+        sessionId,
+        cwd,
+        initialCommand,
+        engine = 'claude',
+        preferredPort,
+        forceTtyd = false,
+        allowRuntimeCreate = false,
+        requireBinding = true
+    }) {
+        await this.ensureSessionRuntime({
+            sessionId,
+            cwd,
+            initialCommand,
+            engine,
+            allowCreate: allowRuntimeCreate,
+            requireBinding
+        });
 
         // xterm-only mode: tmuxだけ確保してttydはスキップ（モバイルのforceTtyd時は除外）
         if (this._isXtermOnlyMode() && !forceTtyd) {

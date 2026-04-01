@@ -364,22 +364,30 @@ export class TerminalReconnectManager {
                 return;
             }
 
-            const payload = { sessionId: this.currentSessionId };
+            if (runtimeStatus?.recoveryState === 'broken') {
+                this.isReconnecting = false;
+                showError('このセッションは復旧に必要な binding が不足しています。');
+                return;
+            }
 
-            const sessionCwd = targetSession?.worktree?.path || targetSession?.path;
-            if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
-                payload.cwd = sessionCwd;
+            if (runtimeStatus?.recoveryState === 'recoverable') {
+                await httpClient.post(`/api/sessions/${encodeURIComponent(this.currentSessionId)}/recover`, {
+                    viewerId: this.viewerId,
+                    viewerLabel: this.viewerLabel,
+                    cwd: targetSession?.worktree?.path || targetSession?.path || undefined,
+                    initialCommand: targetSession?.initialCommand || '',
+                    engine: targetSession?.engine || 'claude'
+                });
             }
-            if (typeof targetSession?.initialCommand === 'string') {
-                payload.initialCommand = targetSession.initialCommand;
-            }
-            if (typeof targetSession?.engine === 'string' && targetSession.engine.trim()) {
-                payload.engine = targetSession.engine;
-            }
-            payload.viewerId = this.viewerId;
-            payload.viewerLabel = this.viewerLabel;
 
-            const res = await httpClient.post('/api/sessions/start', payload);
+            const res = await httpClient.post(`/api/sessions/${encodeURIComponent(this.currentSessionId)}/terminal/ensure`, {
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel,
+                cwd: targetSession?.worktree?.path || targetSession?.path || undefined,
+                initialCommand: targetSession?.initialCommand || '',
+                engine: targetSession?.engine || 'claude',
+                forceTtyd: true
+            });
 
             if (res?.proxyPath) {
                 this.terminalAccess = res.terminalAccess || this.terminalAccess;
