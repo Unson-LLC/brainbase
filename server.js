@@ -737,8 +737,7 @@ app.use('/api/sessions', createSessionRouter(
     {
         projectsRoot: PROJECTS_ROOT,
         codeProjectsRoot: path.join(path.dirname(PROJECTS_ROOT), 'code'),
-        captureCache: tmuxCaptureCache,
-        snapshotProvider: terminalTransportService
+        captureCache: tmuxCaptureCache
     }
 ));
 app.use('/api/brainbase', createBrainbaseRouter({

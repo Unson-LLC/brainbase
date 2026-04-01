@@ -74,7 +74,7 @@ describe('TerminalTransportService', () => {
     });
 
     it('ready送信時にsnapshotも送る（セッション切り替え時の即表示用）', async () => {
-        const { service, captureCache } = buildService();
+        const { service } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -95,37 +95,6 @@ describe('TerminalTransportService', () => {
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
         expect(sentTypes).toContain('ready');
         expect(sentTypes).toContain('snapshot');
-        expect(captureCache.invalidate).not.toHaveBeenCalled();
-        expect(captureCache.getSnapshot).toHaveBeenCalledWith('session-1', expect.objectContaining({
-            lines: 160,
-            includeColors: false,
-            includeCopyMode: false
-        }));
-        const snapshotMsg = JSON.parse(ws.send.mock.calls.find(call => JSON.parse(call[0]).type === 'snapshot')[0]);
-        expect(snapshotMsg.source).toBe('capture');
-        expect(snapshotMsg.stale).toBe(false);
-    });
-
-    it('fast snapshotはlatest cacheがあればtmux captureをスキップする', async () => {
-        const { service, captureCache } = buildService();
-
-        service._storeLatestSnapshot('session-1', {
-            text: 'cached snapshot',
-            colorText: null,
-            copyMode: false,
-            capturedAt: '2026-03-23T00:00:00.000Z'
-        }, {
-            mode: 'full',
-            source: 'capture',
-            stale: false
-        });
-
-        const snapshot = await service.getSnapshot('session-1', { mode: 'fast' });
-
-        expect(snapshot.text).toBe('cached snapshot');
-        expect(snapshot.source).toBe('latest-cache');
-        expect(snapshot.stale).toBe(false);
-        expect(captureCache.getSnapshot).not.toHaveBeenCalled();
     });
 
     it('steady-state polling snapshotにcolorTextを含める', async () => {

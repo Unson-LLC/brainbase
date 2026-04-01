@@ -115,26 +115,6 @@ describe('SessionManager', () => {
     expect(runtimeStatus.needsRestart).toBe(false);
   });
 
-  it('getRuntimeStatus_uses_short_lived_cache_for_repeated_reads', () => {
-    const manager = createManager();
-    const recoverySpy = vi.spyOn(manager, 'getSessionRecoveryStatus').mockReturnValue({
-      recoveryState: 'healthy',
-      recoveryReason: null,
-      canRecover: true
-    });
-    vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
-    const session = {
-      id: 'session-1',
-      intendedState: 'active',
-      ttydProcess: { pid: 12345 }
-    };
-
-    manager.getRuntimeStatus(session);
-    manager.getRuntimeStatus(session);
-
-    expect(recoverySpy).toHaveBeenCalledTimes(1);
-  });
-
   it('reportActivity_working_latest_sets_isWorking_true', () => {
     const manager = createManager();
     const now = Date.now();

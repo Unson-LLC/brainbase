@@ -51,7 +51,7 @@ export class SessionController {
      * @param {any} sessionManager
      * @param {any} worktreeService
      * @param {any} stateStore
-     * @param {{ projectsRoot?: string | null, codeProjectsRoot?: string | null, captureCache?: any, snapshotProvider?: any }} [options]
+     * @param {{ projectsRoot?: string | null, codeProjectsRoot?: string | null, captureCache?: any }} [options]
      */
     constructor(sessionManager, worktreeService, stateStore, options = {}) {
         this.sessionManager = sessionManager;
@@ -64,7 +64,6 @@ export class SessionController {
             ? options.codeProjectsRoot
             : (this.projectsRoot ? path.join(path.dirname(this.projectsRoot), 'code') : null);
         this.captureCache = options.captureCache || null;
-        this.snapshotProvider = options.snapshotProvider || null;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
         this._uiSummaryCache = new Map();
@@ -953,11 +952,7 @@ export class SessionController {
         const { id } = req.params;
         const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
         const viewerLabel = this._resolveViewerLabel(req, req.query?.viewerLabel);
-        const mode = req.query?.mode === 'fast' ? 'fast' : 'full';
-        const defaultLines = mode === 'fast' ? 160 : 400;
-        const lines = Math.max(50, Math.min(400, Number.parseInt(req.query?.lines, 10) || defaultLines));
-        const includeColors = mode !== 'fast';
-        const includeCopyMode = mode !== 'fast';
+        const lines = Math.max(50, Math.min(400, Number.parseInt(req.query?.lines, 10) || 200));
 
         if (!id) {
             return res.status(400).json({ error: 'Session ID is required' });
@@ -981,49 +976,33 @@ export class SessionController {
         }
 
         try {
-            const payload = this.snapshotProvider?.getSnapshot
-                ? await this.snapshotProvider.getSnapshot(id, {
-                    mode,
+            const payload = this.captureCache
+                ? await this.captureCache.getSnapshot(id, {
                     lines,
-                    includeColors,
-                    includeCopyMode
+                    includeColors: true,
+                    includeCopyMode: true
                 })
-                : this.captureCache
-                    ? await this.captureCache.getSnapshot(id, {
-                        lines,
-                        includeColors,
-                        includeCopyMode
-                    })
-                    : await (async () => {
-                        const [text, colorText, copyMode] = await Promise.all([
-                            this.sessionManager.getContent(id, lines),
-                            includeColors
-                                ? this.sessionManager.getContentWithColors(id, lines).catch(() => null)
-                                : Promise.resolve(null),
-                            includeCopyMode
-                                ? this.sessionManager.getPaneMode(id).catch(() => false)
-                                : Promise.resolve(false),
-                        ]);
-                        return {
-                            text,
-                            colorText,
-                            copyMode,
-                            capturedAt: new Date().toISOString(),
-                            source: 'capture',
-                            stale: false
-                        };
-                    })();
+                : await (async () => {
+                    const [text, colorText, copyMode] = await Promise.all([
+                        this.sessionManager.getContent(id, lines),
+                        this.sessionManager.getContentWithColors(id, lines).catch(() => null),
+                        this.sessionManager.getPaneMode(id).catch(() => false),
+                    ]);
+                    return {
+                        text,
+                        colorText,
+                        copyMode,
+                        capturedAt: new Date().toISOString()
+                    };
+                })();
             const response = {
                 sessionId: id,
                 text: payload.text,
-                copyMode: includeCopyMode ? payload.copyMode : false,
+                copyMode: payload.copyMode,
                 capturedAt: payload.capturedAt,
-                mode,
-                source: payload.source || 'capture',
-                stale: Boolean(payload.stale),
                 terminalAccess: ownership.terminalAccess
             };
-            if (includeColors && payload.colorText) response.colorText = payload.colorText;
+            if (payload.colorText) response.colorText = payload.colorText;
             res.json(response);
         } catch (error) {
             this._respondError(res, `Failed to get terminal snapshot for ${id}:`, error);
