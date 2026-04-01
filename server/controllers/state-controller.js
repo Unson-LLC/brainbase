@@ -29,8 +29,6 @@ const ALLOWED_SESSION_FIELDS = [
     'id', 'name', 'path', 'cwd', 'worktree', 'initialCommand',
     'engine', 'intendedState', 'createdAt', 'archivedAt', 'merged', 'mergedAt',
     'updatedAt', 'taskBrief', 'taskBriefUpdatedAt', 'lastAssistantSnippet', 'lastAssistantSnippetAt',
-    'claudeResumeId', 'codexThreadId', 'bindingSource', 'bindingUpdatedAt',
-    'recoveryState', 'recoveryReason', 'lastKnownGoodPath', 'lastHealthyAt',
     // Schema v2 追加フィールド
     'lastAccessedAt', 'pausedAt', 'pausedReason', 'tmuxMissingAt', 'tmuxCleanedAt',
     // Schema v3 追加フィールド

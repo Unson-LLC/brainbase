@@ -17,11 +17,7 @@ INITIAL_CMD_FILE=""
 # Auto-fix CWD: read worktree path from state.json and cd to it
 STATE_JSON_PATH=""
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -n "${BRAINBASE_STATE_PATH:-}" ] && [ -f "${BRAINBASE_STATE_PATH}" ]; then
-    STATE_JSON_PATH="${BRAINBASE_STATE_PATH}"
-else
-    STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
-fi
+STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
 if [ -f "$STATE_JSON_PATH" ]; then
     if command -v jq >/dev/null 2>&1; then
         WORKTREE_PATH=$(jq -r --arg sid "$SESSION_NAME" '

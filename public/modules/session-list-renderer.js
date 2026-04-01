@@ -187,20 +187,6 @@ export function renderSessionRowHTML(session, options = {}) {
     })
     : '';
 
-  const recoveryState = session.runtimeStatus?.recoveryState || session.recoveryState || null;
-  const recoveryReason = session.runtimeStatus?.recoveryReason || session.recoveryReason || null;
-  const recoveryBadge = recoveryState === 'recoverable'
-    ? renderChip('要復旧', {
-      className: 'recovery-recoverable',
-      title: recoveryReason || 'Runtime is missing but can be recovered from binding.'
-    })
-    : recoveryState === 'broken'
-      ? renderChip('復旧不可', {
-        className: 'recovery-broken',
-        title: recoveryReason || 'Binding or workspace path is missing.'
-      })
-      : '';
-
   const attentionLabelMap = {
     'needs-input': { text: 'Input', className: 'attention-input', title: 'Waiting for input' }
   };
@@ -269,7 +255,6 @@ export function renderSessionRowHTML(session, options = {}) {
         <div class="session-summary-row">
           ${summaryChips.join('')}
           ${transportBadge}
-          ${recoveryBadge}
           ${attentionBadge}
         </div>
       </div>
