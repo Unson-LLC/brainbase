@@ -167,38 +167,23 @@ export function applyTerminalInputUxMixin(AppClass) {
 
     AppClass.prototype._ensureDesktopTerminalRuntime = async function(session, runtimeStatus = null) {
         if (!session?.id) return null;
-
-        const buildBrokenRuntimeError = (currentRuntimeStatus) => {
+        const currentRuntimeStatus = runtimeStatus || session.runtimeStatus || null;
+        if (currentRuntimeStatus?.recoveryState === 'broken') {
             const error = new Error('Session is broken and cannot be recovered automatically.');
             error.code = 'SESSION_BROKEN';
             error.recoveryState = 'broken';
             error.recoveryReason = currentRuntimeStatus?.recoveryReason || null;
-            return error;
-        };
-
-        const ensureRuntime = async (currentRuntimeStatus = null) => {
-            if (currentRuntimeStatus?.recoveryState === 'broken') {
-                throw buildBrokenRuntimeError(currentRuntimeStatus);
-            }
-
-            return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
-                initialCommand: session.initialCommand || '',
-                cwd: session.path,
-                engine: session.engine || 'claude',
-                viewerId: this.viewerId
-            });
-        };
-
-        try {
-            return await ensureRuntime(runtimeStatus || session.runtimeStatus || null);
-        } catch (error) {
-            if (error?.recoveryState !== 'recoverable') {
-                throw error;
-            }
-
-            await this._recoverSessionRuntime(session);
-            return await ensureRuntime(session.runtimeStatus || null);
+            throw error;
         }
+        if (currentRuntimeStatus?.recoveryState === 'recoverable') {
+            await this._recoverSessionRuntime(session);
+        }
+        return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
+            initialCommand: session.initialCommand || '',
+            cwd: session.path,
+            engine: session.engine || 'claude',
+            viewerId: this.viewerId
+        });
     };
 
     AppClass.prototype._preferXtermForCurrentSession = async function() {
