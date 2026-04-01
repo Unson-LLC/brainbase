@@ -27,62 +27,9 @@ const createManager = () => new SessionManager({
 });
 
 describe('SessionManager', () => {
-  it('getSessionRecoveryStatus_treats_binding_mismatch_as_recoverable', () => {
-    const manager = createManager();
-    const durablePath = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-session-manager-'));
-
-    vi.spyOn(manager, '_getCandidateWorkspacePaths').mockReturnValue([durablePath]);
-    vi.spyOn(manager, '_getTmuxRuntimeMetadataSync').mockReturnValue({
-      exists: true,
-      sessionId: 'session-1',
-      engine: 'claude',
-      bindingId: 'fresh-runtime-id',
-      bindingKind: 'claude_resume',
-      canonicalCwd: durablePath,
-      runtimeInstanceId: 'runtime-1',
-      paneCurrentPath: durablePath
-    });
-
-    const recovery = manager.getSessionRecoveryStatus({
-      id: 'session-1',
-      engine: 'claude',
-      claudeResumeId: 'expected-resume-id',
-      path: durablePath,
-      intendedState: 'active'
-    });
-
-    expect(recovery.recoveryState).toBe('recoverable');
-    expect(recovery.recoveryReason).toBe('binding_invalid');
-    expect(recovery.canRecover).toBe(true);
-  });
-
-  it('getRuntimeStatus_active_session_with_stale_tmux_is_not_interactive', () => {
-    const manager = createManager();
-    vi.spyOn(manager, 'getSessionRecoveryStatus').mockReturnValue({
-      recoveryState: 'recoverable',
-      recoveryReason: 'binding_invalid',
-      canRecover: true
-    });
-    vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
-
-    const runtimeStatus = manager.getRuntimeStatus({
-      id: 'session-1',
-      intendedState: 'active',
-      ttydProcess: { pid: 12345 }
-    });
-
-    expect(runtimeStatus.interactiveTransport).toBe('none');
-    expect(runtimeStatus.interactiveReady).toBe(false);
-    expect(runtimeStatus.needsRestart).toBe(true);
-  });
-
   it('getRuntimeStatus_paused_session_does_not_probe_tmux', () => {
     const manager = createManager();
-    vi.spyOn(manager, 'getSessionRecoveryStatus').mockReturnValue({
-      recoveryState: 'broken',
-      recoveryReason: 'binding_missing',
-      canRecover: false
-    });
+    const tmuxSpy = vi.spyOn(manager, '_isTmuxSessionRunningSync').mockReturnValue(true);
     const processSpy = vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
 
     const runtimeStatus = manager.getRuntimeStatus({
@@ -92,17 +39,14 @@ describe('SessionManager', () => {
     });
 
     expect(processSpy).toHaveBeenCalledWith(12345);
+    expect(tmuxSpy).not.toHaveBeenCalled();
     expect(runtimeStatus.needsRestart).toBe(false);
     expect(runtimeStatus.interactiveTransport).toBe('none');
   });
 
-  it('getRuntimeStatus_active_session_without_ttyd_uses_recovery_health', () => {
+  it('getRuntimeStatus_active_session_without_ttyd_probes_tmux', () => {
     const manager = createManager();
-    vi.spyOn(manager, 'getSessionRecoveryStatus').mockReturnValue({
-      recoveryState: 'healthy',
-      recoveryReason: null,
-      canRecover: true
-    });
+    const tmuxSpy = vi.spyOn(manager, '_isTmuxSessionRunningSync').mockReturnValue(true);
     vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
 
     const runtimeStatus = manager.getRuntimeStatus({
@@ -111,6 +55,7 @@ describe('SessionManager', () => {
       ttydProcess: { pid: 12345 }
     });
 
+    expect(tmuxSpy).toHaveBeenCalledWith('session-1');
     expect(runtimeStatus.interactiveTransport).toBe('xterm');
     expect(runtimeStatus.needsRestart).toBe(false);
   });

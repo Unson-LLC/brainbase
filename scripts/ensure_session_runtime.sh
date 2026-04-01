@@ -13,11 +13,6 @@ fi
 INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
 INITIAL_CMD_FILE=""
-REQUIRE_BINDING="${BRAINBASE_REQUIRE_BINDING:-0}"
-RUNTIME_BINDING_ID="${BRAINBASE_BINDING_ID:-}"
-RUNTIME_BINDING_KIND="${BRAINBASE_BINDING_KIND:-}"
-RUNTIME_INSTANCE_ID="${BRAINBASE_RUNTIME_INSTANCE_ID:-}"
-CANONICAL_CWD="${BRAINBASE_CANONICAL_CWD:-}"
 
 # Auto-fix CWD: read worktree path from state.json and cd to it
 STATE_JSON_PATH=""
@@ -57,34 +52,12 @@ except Exception:
     fi
 fi
 
-if [ -n "$CANONICAL_CWD" ] && [ -d "$CANONICAL_CWD" ]; then
-    WORKTREE_PATH="$CANONICAL_CWD"
-    cd "$WORKTREE_PATH"
-fi
-
 RESUME_SESSION_ID=""
 RESUME_DIR="$HOME/.claude/brainbase-sessions"
 RESUME_FILE="$RESUME_DIR/$SESSION_NAME.resume"
 if [ -f "$RESUME_FILE" ]; then
     RESUME_SESSION_ID=$(cat "$RESUME_FILE" 2>/dev/null | tr -d '[:space:]')
 fi
-if [ -z "$RESUME_SESSION_ID" ] && [ "$ENGINE" = "claude" ] && [ -n "$RUNTIME_BINDING_ID" ]; then
-    RESUME_SESSION_ID="$RUNTIME_BINDING_ID"
-fi
-
-if [ "$REQUIRE_BINDING" = "1" ] && [ -z "$RUNTIME_BINDING_ID" ]; then
-    echo "[ensure_session_runtime] Refusing to create runtime without durable binding: $SESSION_NAME" >&2
-    exit 1
-fi
-
-set_runtime_env() {
-    tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME" 2>/dev/null || true
-    tmux set-environment -t "$SESSION_NAME" BRAINBASE_ENGINE "$ENGINE" 2>/dev/null || true
-    tmux set-environment -t "$SESSION_NAME" BRAINBASE_BINDING_ID "$RUNTIME_BINDING_ID" 2>/dev/null || true
-    tmux set-environment -t "$SESSION_NAME" BRAINBASE_BINDING_KIND "$RUNTIME_BINDING_KIND" 2>/dev/null || true
-    tmux set-environment -t "$SESSION_NAME" BRAINBASE_CANONICAL_CWD "${CANONICAL_CWD:-$WORKTREE_PATH}" 2>/dev/null || true
-    tmux set-environment -t "$SESSION_NAME" BRAINBASE_RUNTIME_INSTANCE_ID "$RUNTIME_INSTANCE_ID" 2>/dev/null || true
-}
 
 create_initial_cmd_file() {
     if [ -z "$INITIAL_CMD" ]; then
@@ -239,7 +212,6 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     fi
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SERVER_PATH "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    set_runtime_env
 
     if [ "$ENGINE" = "codex" ]; then
         tmux set-environment -t "$SESSION_NAME" CODEX_SANDBOX_MODE "danger-full-access"
@@ -254,37 +226,7 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         _CWD_TARGET="${WORKTREE_PATH:-/tmp}"
         LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
 
-        if [ "$REQUIRE_BINDING" = "1" ]; then
-            if [ -n "$INITIAL_CMD" ]; then
-                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q BRAINBASE_ENGINE=%q BRAINBASE_BINDING_ID=%q BRAINBASE_BINDING_KIND=%q BRAINBASE_CANONICAL_CWD=%q BRAINBASE_RUNTIME_INSTANCE_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" %s resume %q "$(cat %q; rm -f %q)"' \
-                    "$LOCALE_EXPORT" \
-                    "$SESSION_NAME" \
-                    "$ENGINE" \
-                    "$RUNTIME_BINDING_ID" \
-                    "$RUNTIME_BINDING_KIND" \
-                    "${CANONICAL_CWD:-$WORKTREE_PATH}" \
-                    "$RUNTIME_INSTANCE_ID" \
-                    "$CODEX_WRAPPER" \
-                    "$CODEX_NOTIFY_ARG" \
-                    "$RUNTIME_BINDING_ID" \
-                    "$INITIAL_CMD_FILE" \
-                    "$INITIAL_CMD_FILE"
-                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
-            else
-                printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q BRAINBASE_ENGINE=%q BRAINBASE_BINDING_ID=%q BRAINBASE_BINDING_KIND=%q BRAINBASE_CANONICAL_CWD=%q BRAINBASE_RUNTIME_INSTANCE_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && "%s" %s resume %q' \
-                    "$LOCALE_EXPORT" \
-                    "$SESSION_NAME" \
-                    "$ENGINE" \
-                    "$RUNTIME_BINDING_ID" \
-                    "$RUNTIME_BINDING_KIND" \
-                    "${CANONICAL_CWD:-$WORKTREE_PATH}" \
-                    "$RUNTIME_INSTANCE_ID" \
-                    "$CODEX_WRAPPER" \
-                    "$CODEX_NOTIFY_ARG" \
-                    "$RUNTIME_BINDING_ID"
-                tmux send-keys -t "$SESSION_NAME" "$CODEX_CMD" C-m
-            fi
-        elif [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
+        if [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
             if [ -n "$INITIAL_CMD" ]; then
                 printf -v CODEX_CMD '%s && export BRAINBASE_SESSION_ID=%q CODEX_SANDBOX_MODE=danger-full-access CODEX_NETWORK_ACCESS=enabled CODEX_APPROVAL_POLICY=never && node "%s" --session-id %q --initial "$(cat %q; rm -f %q)"' \
                     "$LOCALE_EXPORT" \
@@ -335,33 +277,19 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         if [ -n "$RESUME_SESSION_ID" ]; then
             CLAUDE_RESUME_FLAG="--resume $RESUME_SESSION_ID"
         fi
-        if [ "$REQUIRE_BINDING" = "1" ] && [ -z "$CLAUDE_RESUME_FLAG" ]; then
-            echo "[ensure_session_runtime] Refusing to launch Claude without resume binding: $SESSION_NAME" >&2
-            exit 1
-        fi
         if [ -n "$INITIAL_CMD" ]; then
-            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q BRAINBASE_ENGINE=%q BRAINBASE_BINDING_ID=%q BRAINBASE_BINDING_KIND=%q BRAINBASE_CANONICAL_CWD=%q BRAINBASE_RUNTIME_INSTANCE_ID=%q && "%s" --dangerously-skip-permissions --permission-mode auto %s "$(cat %q; rm -f %q)"' \
+            printf -v CLAUDE_CMD '%s && export BRAINBASE_SESSION_ID=%q && "%s" --dangerously-skip-permissions --permission-mode auto %s "$(cat %q; rm -f %q)"' \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
-                "$ENGINE" \
-                "$RESUME_SESSION_ID" \
-                "$RUNTIME_BINDING_KIND" \
-                "${CANONICAL_CWD:-$WORKTREE_PATH}" \
-                "$RUNTIME_INSTANCE_ID" \
                 "$CLAUDE_BIN" \
                 "$CLAUDE_RESUME_FLAG" \
                 "$INITIAL_CMD_FILE" \
                 "$INITIAL_CMD_FILE"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
         else
-            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID=%q BRAINBASE_ENGINE=%q BRAINBASE_BINDING_ID=%q BRAINBASE_BINDING_KIND=%q BRAINBASE_CANONICAL_CWD=%q BRAINBASE_RUNTIME_INSTANCE_ID=%q && \"%s\" --dangerously-skip-permissions --permission-mode auto %s" \
+            printf -v CLAUDE_CMD "%s && export BRAINBASE_SESSION_ID='%s' && \"%s\" --dangerously-skip-permissions --permission-mode auto %s" \
                 "$LOCALE_EXPORT" \
                 "$SESSION_NAME" \
-                "$ENGINE" \
-                "$RESUME_SESSION_ID" \
-                "$RUNTIME_BINDING_KIND" \
-                "${CANONICAL_CWD:-$WORKTREE_PATH}" \
-                "$RUNTIME_INSTANCE_ID" \
                 "$CLAUDE_BIN" \
                 "$CLAUDE_RESUME_FLAG"
             tmux send-keys -t "$SESSION_NAME" "$CLAUDE_CMD" C-m
@@ -376,7 +304,7 @@ else
     fi
 fi
 
-set_runtime_env
+tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME" 2>/dev/null || true
 
 if [ -n "$BRAINBASE_PORT" ]; then
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_PORT "$BRAINBASE_PORT"

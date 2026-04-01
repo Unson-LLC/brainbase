@@ -16,7 +16,6 @@ import readline from 'readline';
 import { logger } from '../utils/logger.js';
 
 const JAPANESE_TEXT_PATTERN = /[\u3040-\u30ff\u3400-\u9fff]/;
-const RECENT_SESSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 function sanitizeSnippet(value, maxLength = 120) {
     if (typeof value !== 'string') return null;
@@ -345,8 +344,7 @@ export class ConversationLinker {
         this._isLinking = true;
         try {
             const state = this.stateStore.get();
-            const allSessions = state.sessions || [];
-            const sessions = allSessions.filter((session) => this._shouldBackfillSession(session));
+            const sessions = state.sessions || [];
             const errors = [];
             let updated = 0;
 
@@ -356,7 +354,6 @@ export class ConversationLinker {
             const codexIndex = await this._buildCodexIndex();
 
             const updatedSessions = [];
-            const updatedById = new Map();
 
             for (const session of sessions) {
                 try {
@@ -366,31 +363,26 @@ export class ConversationLinker {
                         const conversationSummary = summary
                             ? Object.fromEntries(Object.entries(summary).filter(([key]) => key !== '_bindingPatch'))
                             : undefined;
-                        const updatedSession = {
+                        updatedSessions.push({
                             ...session,
                             ...(bindingPatch || {}),
                             ...(summary.lastAssistantSnippet ? { lastAssistantSnippet: summary.lastAssistantSnippet } : {}),
                             ...(summary.lastAssistantSnippetAt ? { lastAssistantSnippetAt: summary.lastAssistantSnippetAt } : {}),
                             ...(conversationSummary ? { conversationSummary } : {})
-                        };
-                        updatedSessions.push(updatedSession);
-                        updatedById.set(session.id, updatedSession);
+                        });
                         updated++;
                     } else {
                         updatedSessions.push(session);
-                        updatedById.set(session.id, session);
                     }
                 } catch (err) {
                     errors.push(`${session.id}: ${err.message}`);
                     updatedSessions.push(session);
-                    updatedById.set(session.id, session);
                 }
             }
 
             // Save updated state
             if (updated > 0) {
-                const mergedSessions = allSessions.map((session) => updatedById.get(session.id) || session);
-                await this.stateStore.update({ ...state, sessions: mergedSessions });
+                await this.stateStore.update({ ...state, sessions: updatedSessions });
                 logger.info(`[ConversationLinker] Updated ${updated}/${sessions.length} session(s)`);
             } else {
                 logger.info(`[ConversationLinker] No updates needed`);
@@ -404,31 +396,6 @@ export class ConversationLinker {
         } finally {
             this._isLinking = false;
         }
-    }
-
-    _shouldBackfillSession(session) {
-        if (!session || !session.id) return false;
-        if (session.intendedState === 'active' || session.intendedState === 'paused') {
-            return true;
-        }
-
-        const candidates = [
-            session.lastAccessedAt,
-            session.updatedAt,
-            session.lastAssistantSnippetAt,
-            session.bindingUpdatedAt,
-            session.createdAt
-        ];
-        const latestTimestamp = candidates
-            .map((value) => Date.parse(value))
-            .filter((value) => Number.isFinite(value))
-            .sort((a, b) => b - a)[0];
-
-        if (!Number.isFinite(latestTimestamp)) {
-            return false;
-        }
-
-        return Date.now() - latestTimestamp <= RECENT_SESSION_WINDOW_MS;
     }
 
     /**

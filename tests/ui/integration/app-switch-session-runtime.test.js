@@ -91,7 +91,7 @@ describe('app switchSession runtime handling', () => {
     expect(app.reconnectManager.setCurrentSession).toHaveBeenCalledWith('session-1');
   });
 
-  it('ensures ttyd when runtimeStatus is missing', async () => {
+  it('starts ttyd when runtimeStatus is missing', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
 
     appStore.setState({
@@ -121,10 +121,10 @@ describe('app switchSession runtime handling', () => {
     await app.switchSession('session-1');
 
     expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
-    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/ensure', expect.objectContaining({
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+      sessionId: 'session-1',
       engine: 'codex',
-      viewerId: 'viewer-test',
-      forceTtyd: false
+      viewerId: 'viewer-test'
     }));
   });
 
@@ -163,7 +163,7 @@ describe('app switchSession runtime handling', () => {
     expect(terminalFrame.src.endsWith('/console/session-1?viewerId=viewer-test')).toBe(true);
   }, 15000);
 
-  it('reconnect ensures ttyd only when runtimeStatus says it is down', async () => {
+  it('reconnect starts ttyd only when runtimeStatus says it is down', async () => {
     await app.start();
     app.focusTerminal = vi.fn();
     vi.clearAllMocks();
@@ -201,10 +201,10 @@ describe('app switchSession runtime handling', () => {
     await app.reconnectManager.reconnect();
 
     expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
-    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/ensure', expect.objectContaining({
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+      sessionId: 'session-1',
       engine: 'codex',
-      viewerId: 'viewer-test',
-      forceTtyd: true
+      viewerId: 'viewer-test'
     }));
   });
 
@@ -317,10 +317,10 @@ describe('app switchSession runtime handling', () => {
 
     await app.openMobileLiveTerminal('session-1');
 
-    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/ensure', expect.objectContaining({
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+      sessionId: 'session-1',
       engine: 'codex',
-      viewerId: 'viewer-test',
-      forceTtyd: true
+      viewerId: 'viewer-test'
     }));
     expect(modal.classList.contains('active')).toBe(true);
     expect(modalFrame.src).toContain('/console/session-1/');
