@@ -275,6 +275,44 @@ export class App {
         }
     }
 
+    _showDesktopSnapshotDisplay(sessionId, { title = 'Terminal display' } = {}) {
+        this._restoreSnapshotPanelPosition();
+        this._hideTerminalRecoveryPanel();
+        this.terminalXtermHost?.classList.add('hidden');
+        this.terminalFrame?.classList.add('hidden');
+        const consoleArea = document.getElementById('console-area');
+        consoleArea?.classList.remove('using-xterm');
+        consoleArea?.classList.add('using-snapshot');
+        const cached = this._terminalSnapshotCache.get(sessionId) || null;
+        this._renderTerminalSnapshotPanel({
+            visible: true,
+            snapshot: cached,
+            title
+        });
+        if (cached) return;
+        void this._loadTerminalSnapshot(sessionId)
+            .then((snapshot) => {
+                if (appStore.getState().currentSessionId !== sessionId) return;
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot,
+                    title
+                });
+                this._updateTerminalInputStatus();
+            })
+            .catch(() => {
+                if (appStore.getState().currentSessionId !== sessionId) return;
+                this._renderTerminalSnapshotPanel({
+                    visible: true,
+                    snapshot: {
+                        text: 'Snapshotの取得に失敗した',
+                        capturedAt: null
+                    },
+                    title
+                });
+            });
+    }
+
     _isConsoleVisible() {
         const consoleArea = document.getElementById('console-area');
         if (!consoleArea) return false;
@@ -821,8 +859,19 @@ export class App {
             colorText: typeof res?.colorText === 'string' ? res.colorText : null,
             capturedAt: res?.capturedAt || null
         };
-        this._terminalSnapshotCache.set(sessionId, snapshot);
+        this._cacheTerminalSnapshot(sessionId, snapshot);
         return snapshot;
+    }
+
+    _cacheTerminalSnapshot(sessionId, snapshot) {
+        if (!sessionId || !snapshot) return null;
+        const normalized = {
+            text: typeof snapshot?.text === 'string' ? snapshot.text : '',
+            colorText: typeof snapshot?.colorText === 'string' ? snapshot.colorText : null,
+            capturedAt: snapshot?.capturedAt || null
+        };
+        this._terminalSnapshotCache.set(sessionId, normalized);
+        return normalized;
     }
 
     _renderTerminalSnapshotPanel({ visible = false, snapshot = null, title = 'Snapshot fallback' } = {}) {
@@ -978,6 +1027,8 @@ export class App {
         }
 
         const overlayState = this._getTerminalOverlayState();
+        const consoleArea = document.getElementById('console-area');
+        const usingDesktopSnapshot = !usingMobileDisplay && consoleArea?.classList.contains('using-snapshot');
         const isFocused = xtermActive
             ? Boolean(xtermStatus?.isFocused)
             : document.activeElement === frame;
@@ -1108,6 +1159,21 @@ export class App {
             presentationMode = 'reconnecting';
             text = `入力: 再接続中 (${retryCount}/${maxRetries})`;
             title = `session=${sessionId} reconnecting`;
+        } else if (usingDesktopSnapshot && frameBlank) {
+            presentationMode = 'snapshot';
+            snapshotVisible = true;
+            snapshotTitle = 'Terminal display';
+            if (recentlyNavigated) {
+                stateClass = 'reconnecting';
+                transportState = 'reconnecting';
+                text = '入力: 接続中...';
+                title = `session=${sessionId} snapshot connecting`;
+            } else {
+                stateClass = 'disconnected';
+                transportState = 'disconnected';
+                text = '入力: 未接続';
+                title = `session=${sessionId} snapshot display`;
+            }
         } else if (frameBlank) {
             if (recentlyNavigated) {
                 stateClass = 'reconnecting';
@@ -1165,10 +1231,10 @@ export class App {
         this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
         const transportPillText = presentationMode === 'snapshot'
             ? 'Snapshot'
-            : (xtermActive ? 'xterm' : (usingMobileDisplay ? 'display' : 'ttyd'));
+            : (xtermActive ? 'xterm' : ((usingMobileDisplay || usingDesktopSnapshot) ? 'display' : 'ttyd'));
         const transportPillTitle = presentationMode === 'snapshot'
             ? 'snapshot terminal display'
-            : (xtermActive ? 'xterm transport' : (usingMobileDisplay ? 'snapshot terminal display' : 'ttyd iframe fallback'));
+            : (xtermActive ? 'xterm transport' : ((usingMobileDisplay || usingDesktopSnapshot) ? 'snapshot terminal display' : 'ttyd iframe fallback'));
         this._setTerminalHeaderChip(this.terminalTransportPillEl, {
             hidden: false,
             text: transportPillText,
@@ -1253,7 +1319,7 @@ export class App {
         return 'tmux runtime が消えています。新規起動すると履歴が別セッションに化けるため、自動再生成は止めています。';
     }
 
-    _showTerminalRecoveryPanel(session, runtimeStatus) {
+    _showTerminalRecoveryPanel(session, runtimeStatus, { preserveSnapshot = false } = {}) {
         this._cacheTerminalUiElements();
         const panel = this.terminalRecoveryPanelEl;
         if (!panel) return;
@@ -1282,7 +1348,11 @@ export class App {
         this.terminalTransportClient?.hide();
         this.terminalFrame?.classList.add('hidden');
         this.terminalXtermHost?.classList.add('hidden');
-        this.terminalSnapshotPanelEl?.classList.add('hidden');
+        if (!preserveSnapshot) {
+            this.terminalSnapshotPanelEl?.classList.add('hidden');
+            const consoleArea = document.getElementById('console-area');
+            consoleArea?.classList.remove('using-snapshot');
+        }
         panel.classList.remove('hidden');
     }
 
@@ -3434,13 +3504,19 @@ export class App {
             }
 
             if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+                this._showDesktopSnapshotDisplay(sessionId, { title: 'Terminal display' });
+                this._updateTerminalInputStatus();
+                this._setCurrentSessionUiState({
+                    transport: 'reconnecting',
+                    attention: 'none'
+                });
                 let initialRuntime = await this._resolveSessionRuntime(sessionId, session);
                 if (initialRuntime?.runtimeStatus?.recoveryState === 'recoverable') {
                     await this._recoverSessionRuntime(session);
                     initialRuntime = await this._resolveSessionRuntime(sessionId, session);
                 }
                 if (initialRuntime?.runtimeStatus?.recoveryState === 'broken') {
-                    this._showTerminalRecoveryPanel(session, initialRuntime.runtimeStatus);
+                    this._showTerminalRecoveryPanel(session, initialRuntime.runtimeStatus, { preserveSnapshot: true });
                     this._updateTerminalInputStatus();
                     return;
                 }
@@ -3453,7 +3529,7 @@ export class App {
                             recoveryState: 'broken',
                             recoveryReason: error?.recoveryReason || null,
                             canRecover: false
-                        });
+                        }, { preserveSnapshot: true });
                         this._updateTerminalInputStatus();
                         return;
                     }
@@ -3780,6 +3856,20 @@ export class App {
                     onStatusChange: (status) => {
                         this._terminalTransportStatus = status;
                         this._updateTerminalInputStatus();
+                    },
+                    onSnapshotChange: (snapshot) => {
+                        if (!snapshot?.sessionId) return;
+                        this._cacheTerminalSnapshot(snapshot.sessionId, snapshot);
+                        if (appStore.getState().currentSessionId === snapshot.sessionId) {
+                            const consoleArea = document.getElementById('console-area');
+                            if (consoleArea?.classList.contains('using-snapshot')) {
+                                this._syncTerminalSnapshotPanel({
+                                    sessionId: snapshot.sessionId,
+                                    visible: true,
+                                    title: 'Terminal display'
+                                });
+                            }
+                        }
                     }
                 });
                 await this.terminalTransportClient.init(terminalXtermHost);

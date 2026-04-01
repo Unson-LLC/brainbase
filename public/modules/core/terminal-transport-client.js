@@ -31,10 +31,11 @@ export function shouldUseXtermTransport() {
 }
 
 export class TerminalTransportClient {
-    constructor({ viewerId, viewerLabel, onStatusChange = null }) {
+    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null }) {
         this.viewerId = viewerId;
         this.viewerLabel = viewerLabel;
         this.onStatusChange = onStatusChange;
+        this.onSnapshotChange = onSnapshotChange;
         this.hostEl = null;
         this.terminal = null;
         this.fitAddon = null;
@@ -272,8 +273,16 @@ export class TerminalTransportClient {
                     case 'snapshot': {
                         const snapshotLen = (message.colorText || message.text || '').length;
                         console.log(`[TTC] snapshot received: len=${snapshotLen}, connected=${this.status.connected}`);
-                        this._queueOrApplySnapshot(message.colorText || message.text || '');
-                        this.status.lastSnapshotAt = message.capturedAt || new Date().toISOString();
+                        const snapshotText = message.colorText || message.text || '';
+                        const capturedAt = message.capturedAt || new Date().toISOString();
+                        this._queueOrApplySnapshot(snapshotText);
+                        this.status.lastSnapshotAt = capturedAt;
+                        this._emitSnapshotChange({
+                            sessionId: this.sessionId,
+                            text: typeof message.text === 'string' ? message.text : '',
+                            colorText: typeof message.colorText === 'string' ? message.colorText : null,
+                            capturedAt
+                        });
                         if (!this.status.connected) {
                             this.status.mode = 'snapshot';
                             this.status.transport = 'snapshot';
@@ -442,8 +451,15 @@ export class TerminalTransportClient {
         try {
             const res = await httpClient.get(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&lines=${SNAPSHOT_LINES}`);
             if (typeof res?.text === 'string') {
+                const capturedAt = res.capturedAt || new Date().toISOString();
                 this._queueOrApplySnapshot(res.colorText || res.text);
-                this.status.lastSnapshotAt = res.capturedAt || new Date().toISOString();
+                this.status.lastSnapshotAt = capturedAt;
+                this._emitSnapshotChange({
+                    sessionId: this.sessionId,
+                    text: res.text,
+                    colorText: typeof res?.colorText === 'string' ? res.colorText : null,
+                    capturedAt
+                });
                 this.status.copyMode = Boolean(res.copyMode);
                 this.status.mode = 'snapshot';
                 this.status.transport = 'snapshot';
@@ -755,5 +771,10 @@ export class TerminalTransportClient {
     _emitStatus() {
         if (typeof this.onStatusChange !== 'function') return;
         this.onStatusChange(this.getStatus());
+    }
+
+    _emitSnapshotChange(snapshot) {
+        if (typeof this.onSnapshotChange !== 'function') return;
+        this.onSnapshotChange(snapshot);
     }
 }
