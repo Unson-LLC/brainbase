@@ -29,7 +29,7 @@
       "pr_number": 165,
       "pr_branch": "ops-department/weekly-review-24",
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/165",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     },
     {
@@ -45,7 +45,7 @@
       "pr_number": 167,
       "pr_branch": "ops-department/weekly-review-26",
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/167",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     },
     {
@@ -66,7 +66,7 @@
       "pr_number": 173,
       "pr_branch": "ops-department/weekly-review-27",
       "pr_url": "https://github.com/Unson-LLC/brainbase/pull/173",
-      "pr_status": "open",
+      "pr_status": "closed",
       "merged_at": null
     },
     {
@@ -92,8 +92,8 @@
       "pr_number": 28,
       "pr_branch": "ops-department/weekly-review-7",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/28",
-      "pr_status": "closed",
-      "merged_at": null
+      "pr_status": "merged",
+      "merged_at": "2026-01-02T14:01:13Z"
     },
     {
       "area": "server/services",
@@ -120,8 +120,8 @@
       "pr_number": 29,
       "pr_branch": "ops-department/weekly-review-8",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/29",
-      "pr_status": "closed",
-      "merged_at": null
+      "pr_status": "merged",
+      "merged_at": "2026-01-03T01:21:38Z"
     },
     {
       "area": "public/modules/ui",
@@ -149,8 +149,8 @@
       "pr_number": 30,
       "pr_branch": "ops-department/weekly-review-9",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/30",
-      "pr_status": "closed",
-      "merged_at": null
+      "pr_status": "merged",
+      "merged_at": "2026-01-03T01:34:35Z"
     },
     {
       "area": "server/controllers",
@@ -177,11 +177,11 @@
       "pr_number": 31,
       "pr_branch": "ops-department/weekly-review-10",
       "pr_url": "https://github.com/Unson-LLC/brainbase-unson/pull/31",
-      "pr_status": "closed",
-      "merged_at": null
+      "pr_status": "merged",
+      "merged_at": "2026-01-03T01:44:12Z"
     }
   ],
-  "last_updated": "2026-03-25T03:51:31.772Z",
+  "last_updated": "2026-04-01T04:12:43.315Z",
   "total_prs_created": 8,
-  "total_prs_merged": 1
+  "total_prs_merged": 5
 }
