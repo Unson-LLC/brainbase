@@ -174,9 +174,8 @@ _inbox/pending.md
 uploads/
 
 # ========================================
-# ローカル専用機能（mana統合、brainbase拡張など）
+# ローカル専用機能（brainbase拡張など）
 # ========================================
-public/modules/domain/mana/
 public/modules/domain/brainbase/
 public/modules/main-panels.js
 public/modules/ui/modals/mana-dashboard-modal.js
