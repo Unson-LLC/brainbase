@@ -5,9 +5,9 @@
 import express from 'express';
 import { ConfigController } from '../controllers/config-controller.js';
 
-export function createConfigRouter(configParser, configService) {
+export function createConfigRouter(configParser, configService, runtimePaths = null) {
     const router = express.Router();
-    const controller = new ConfigController(configParser, configService);
+    const controller = new ConfigController(configParser, configService, runtimePaths);
 
     // GET /api/config - すべての設定を取得
     router.get('/', controller.getAll);

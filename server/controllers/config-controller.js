@@ -14,9 +14,10 @@ export class ConfigController {
      * @param {any} configParser
      * @param {any} configService
      */
-    constructor(configParser, configService) {
+    constructor(configParser, configService, runtimePaths = null) {
         this.configParser = configParser;
         this.configService = configService;
+        this.runtimePaths = runtimePaths;
     }
 
     /**
@@ -141,7 +142,11 @@ export class ConfigController {
     /** @param {Request} req @param {Response} res */
     getRoot = asyncHandler(async (req, res) => {
         const projectConfig = await this.configParser.getProjects();
-        res.json({ root: projectConfig.root });
+        res.json({
+            root: projectConfig.root,
+            brainbaseVarDir: this.runtimePaths?.varDir || process.env.BRAINBASE_VAR_DIR || null,
+            stateFile: this.runtimePaths?.stateFile || process.env.BRAINBASE_STATE_PATH || null
+        });
     });
 
     /** GET /api/config/plugins */

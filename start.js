@@ -8,6 +8,7 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -21,8 +22,11 @@ if (existsSync(lockFile)) {
 }
 
 // --- PID file single-instance guard ---
-const varDir = process.env.BRAINBASE_VAR_DIR || join(__dirname, 'var');
-const PID_FILE = join(varDir, 'brainbase.pid');
+const runtimePaths = resolveRuntimePaths({ repoDir: __dirname });
+const varDir = runtimePaths.varDir;
+const PID_FILE = runtimePaths.pidFile;
+process.env.BRAINBASE_VAR_DIR = runtimePaths.varDir;
+process.env.BRAINBASE_STATE_PATH = runtimePaths.stateFile;
 
 function isProcessAlive(pid) {
     try {
@@ -39,6 +43,7 @@ function sleep(ms) {
 
 try {
     mkdirSync(varDir, { recursive: true });
+    await ensureShadowRuntimeLinks(runtimePaths, console);
 
     if (existsSync(PID_FILE)) {
         const existingPid = parseInt(readFileSync(PID_FILE, 'utf-8').trim(), 10);
