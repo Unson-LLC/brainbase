@@ -7,6 +7,9 @@ import { recordRecentFileOpen } from '../session-ui-state.js';
 
 export function applyEventListenersMixin(AppClass) {
     AppClass.prototype.setupEventListeners = async function() {
+        // Terminal recovery actions depend on cached UI element references.
+        this._cacheTerminalUiElements?.();
+
         // Terminal copy modal
         const copyTerminalBtn = document.getElementById('copy-terminal-btn');
         const copyTerminalModal = document.getElementById('copy-terminal-modal');

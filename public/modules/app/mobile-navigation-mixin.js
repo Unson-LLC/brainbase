@@ -188,7 +188,7 @@ export function applyMobileNavigationMixin(AppClass) {
                 return;
             }
 
-            dashboardBtn?.click();
+            abDashBtn?.click();
         });
         mobileSettingsBtn?.addEventListener('click', async () => {
             await openSettingsPanel();

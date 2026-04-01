@@ -379,7 +379,7 @@ export function applySessionCreationMixin(AppClass) {
 
                 // 条件2: hookStatusにisWorking/isDoneがあればオーバーレイ解除
                 try {
-                    const status = await this.httpClient.get('/api/sessions/status');
+                    const status = await httpClient.get('/api/sessions/status');
                     const sessionStatus = status[sessionId];
 
                     if (sessionStatus?.isWorking || sessionStatus?.isDone) {

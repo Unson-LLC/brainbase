@@ -171,8 +171,8 @@ export function applyPluginRegistrationMixin(AppClass) {
                             if (this.showConsole) {
                                 this.showConsole();
                             }
-                            if (dashboardBtn) {
-                                dashboardBtn.style.display = 'none';
+                            if (abDashboardBtn) {
+                                abDashboardBtn.style.display = 'none';
                             }
                             if (mobileDashboardBtn) {
                                 mobileDashboardBtn.style.display = 'none';
