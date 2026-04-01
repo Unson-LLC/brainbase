@@ -45,6 +45,8 @@ import { WikiService } from './modules/domain/wiki/wiki-service.js';
 import { WikiView } from './modules/ui/views/wiki-view.js';
 import { LiveFeedService } from './modules/domain/live-feed/live-feed-service.js';
 import { LiveFeedView } from './modules/ui/views/live-feed-view.js';
+import { ManaChatService } from './modules/domain/mana/mana-chat-service.js';
+import { ManaChatView } from './modules/ui/views/mana-chat-view.js';
 
 // Views
 import { TimelineView } from './modules/ui/views/timeline-view.js';
@@ -1680,6 +1682,7 @@ export class App {
         }));
         this.container.register('wikiService', () => new WikiService());
         this.container.register('liveFeedService', () => new LiveFeedService());
+        this.container.register('manaChatService', () => new ManaChatService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -1691,6 +1694,7 @@ export class App {
         this.fileViewerService = this.container.get('fileViewerService');
         this.wikiService = this.container.get('wikiService');
         this.liveFeedService = this.container.get('liveFeedService');
+        this.manaChatService = this.container.get('manaChatService');
     }
 
     /**
@@ -1752,6 +1756,12 @@ export class App {
             });
             this.views.liveFeedView.mount(liveFeedContainer);
         }
+
+        // mana Chat Widget (floating, no container needed)
+        this.views.manaChatView = new ManaChatView({
+            manaChatService: this.manaChatService
+        });
+        this.views.manaChatView.mount();
     }
 
     /**

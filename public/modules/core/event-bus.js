@@ -328,5 +328,10 @@ export const EVENTS = {
     WIKI_PAGES_LOADED: 'wiki:pages-loaded',
     WIKI_PAGE_SELECTED: 'wiki:page-selected',
     WIKI_PAGE_UPDATED: 'wiki:page-updated',
-    WIKI_PAGE_DELETED: 'wiki:page-deleted'
+    WIKI_PAGE_DELETED: 'wiki:page-deleted',
+
+    // mana Chat関連
+    MANA_CAPTURED: 'mana:captured',
+    MANA_CHAT_RESPONSE: 'mana:chat-response',
+    MANA_CAPTURES_LOADED: 'mana:captures-loaded'
 };
