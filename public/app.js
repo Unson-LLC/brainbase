@@ -1750,7 +1750,6 @@ export class App {
         this.views.manaChatView.mount();
     }
 
->>>>>>> main
     /**
      * Initialize UI plugins
      */
