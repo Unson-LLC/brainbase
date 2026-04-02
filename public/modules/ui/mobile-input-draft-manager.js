@@ -39,6 +39,7 @@ export class MobileInputDraftManager {
     }
 
     saveDraft(mode, inputEl) {
+        if (!inputEl.value.trim()) return;
         const sessionId = appStore.getState().currentSessionId || 'general';
         const payload = {
             value: inputEl.value,

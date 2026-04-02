@@ -41,6 +41,7 @@ import { ScheduleParser } from './lib/schedule-parser.js';
 import { StateStore } from './lib/state-store.js';
 import { ConfigParser } from './lib/config-parser.js';
 import { InboxParser } from './lib/inbox-parser.js';
+import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
 
 // Import services
 import { SessionManager } from './server/services/session-manager.js';
@@ -138,8 +139,11 @@ function detectBrainbaseRoot() {
 
 const BRAINBASE_ROOT = detectBrainbaseRoot();
 const PROJECTS_ROOT = process.env.PROJECTS_ROOT || path.join(path.dirname(BRAINBASE_ROOT), 'projects');
+const RUNTIME_PATHS = resolveRuntimePaths({ repoDir: __dirname });
 console.log(`[BRAINBASE] Root directory: ${BRAINBASE_ROOT}`);
 console.log(`[BRAINBASE] Projects directory: ${PROJECTS_ROOT}`);
+console.log(`[BRAINBASE] Runtime var directory: ${RUNTIME_PATHS.varDir}`);
+console.log(`[BRAINBASE] Runtime state file: ${RUNTIME_PATHS.stateFile}`);
 
 // Worktree検知: .worktrees配下で実行されている場合は別ポートをデフォルトに
 const isWorktree = __dirname.includes('.worktrees');
@@ -193,12 +197,8 @@ async function buildRuntimeInfo({ repoDir, port, defaultPort }) {
     };
 }
 const DEFAULT_PORT = isWorktree ? 31014 : 31013;
-const VAR_DIR = process.env.BRAINBASE_VAR_DIR || (
-    isWorktree
-        ? path.join(PROJECTS_ROOT, 'brainbase', 'var')
-        : path.join(__dirname, 'var')
-);
-const UPLOADS_DIR = path.join(VAR_DIR, 'uploads');
+const VAR_DIR = RUNTIME_PATHS.varDir;
+const UPLOADS_DIR = RUNTIME_PATHS.uploadsDir;
 
 // Test Mode: セッション管理を無効化し、読み取り専用モードで起動
 // worktreeでのE2Eテスト・UI検証時に使用
@@ -251,10 +251,7 @@ async function writePortFiles(port) {
 // Configuration
 const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
 const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
-// Phase 4: worktree環境では正本のstate.jsonを参照（E2Eテスト用）
-const STATE_FILE = isWorktree
-    ? path.join(PROJECTS_ROOT, 'brainbase', 'var', 'state.json')
-    : path.join(VAR_DIR, 'state.json');
+const STATE_FILE = RUNTIME_PATHS.stateFile;
 const WORKTREES_DIR = process.env.BRAINBASE_WORKTREES_DIR || path.join(BRAINBASE_ROOT, '.worktrees');
 const CODEX_PATH = existsSync(path.join(BRAINBASE_ROOT, '_codex'))
     ? path.join(BRAINBASE_ROOT, '_codex')
@@ -278,11 +275,14 @@ await ensureDir(UPLOADS_DIR);
 await ensureDir(path.join(BRAINBASE_ROOT, '_tasks'));
 await ensureDir(path.join(BRAINBASE_ROOT, '_inbox'));
 await ensureDir(SCHEDULES_DIR);
+await ensureShadowRuntimeLinks(RUNTIME_PATHS, console);
 
 // Initialize Modules
 const taskParser = new TaskParser(TASKS_FILE);
 const googleCalendarService = new GoogleCalendarService();
 const scheduleParser = new ScheduleParser(SCHEDULES_DIR, { googleCalendarService });
+process.env.BRAINBASE_VAR_DIR = VAR_DIR;
+process.env.BRAINBASE_STATE_PATH = STATE_FILE;
 const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
 const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
 const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
@@ -725,7 +725,7 @@ app.get('/health/ready', (req, res) => {
 
 app.use('/api/tasks', createTaskRouter(taskParser));
 app.use('/api/state', createStateRouter(stateStore, sessionManager, TEST_MODE));
-app.use('/api/config', createConfigRouter(configParser, configService));
+app.use('/api/config', createConfigRouter(configParser, configService, RUNTIME_PATHS));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
 app.use('/api/sessions', createSessionRouter(
@@ -874,6 +874,15 @@ const server = app.listen(PORT, async () => {
     console.log(`Reading tasks from: ${TASKS_FILE}`);
     console.log(`Reading schedules from: ${SCHEDULES_DIR}`);
     await writePortFiles(PORT);
+
+    // Non-blocking: cleanup zombie worktrees (forget済みだが物理ディレクトリが残ったもの)
+    worktreeService.cleanupZombieWorktrees(PROJECTS_ROOT).then((removed) => {
+        if (removed.length) {
+            console.log(`[startup] Cleaned up ${removed.length} zombie worktree(s): ${removed.join(', ')}`);
+        }
+    }).catch((err) => {
+        console.error(`[startup] Zombie worktree cleanup failed: ${err.message}`);
+    });
 });
 
 // Handle WebSocket Upgrades

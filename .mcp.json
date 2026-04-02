@@ -27,6 +27,13 @@
         "JIBBLE_CLIENT_ID": "b013484f-3d05-4fb7-aae5-f5f417a87ac4",
         "JIBBLE_CLIENT_SECRET": "m9JpWnqrWOdOwYjtMl0IMZd57VJsH0O1FeAE-rAgdk7dtTvM"
       }
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["-y", "slack-mcp-server"],
+      "env": {
+        "SLACK_MCP_XOXP_TOKEN": "xoxp-7700200993749-7702975178099-10172900783957-022fe75c13fb2bcfdb12b796349a8650"
+      }
     }
   }
 }

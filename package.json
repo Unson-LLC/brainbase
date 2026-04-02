@@ -50,6 +50,7 @@
     "setup": "bash scripts/setup.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1022.0",
     "@aws-sdk/client-dynamodb": "^3.978.0",
     "@aws-sdk/credential-providers": "^3.978.0",
     "@aws-sdk/lib-dynamodb": "^3.978.0",

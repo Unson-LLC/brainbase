@@ -316,9 +316,25 @@ export class MobileInputUIController {
             this.focusManager.clearKeyboardSync();
         });
 
-        inputEl.addEventListener('input', () => {
+        let isComposing = false;
+        inputEl.addEventListener('compositionstart', () => { isComposing = true; });
+        inputEl.addEventListener('compositionend', () => {
+            isComposing = false;
             this.autoResize(inputEl);
             this.draftManager.scheduleDraftSave(mode, inputEl);
+        });
+        inputEl.addEventListener('input', () => {
+            if (isComposing) return;
+            this.autoResize(inputEl);
+            this.draftManager.scheduleDraftSave(mode, inputEl);
+        });
+
+        // Enter key sends message (Shift+Enter for newline in composer)
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+                e.preventDefault();
+                this.handleSend(mode);
+            }
         });
     }
 
@@ -426,7 +442,7 @@ export class MobileInputUIController {
             return;
         }
 
-        const payload = rawValue.endsWith('\n') ? rawValue.slice(0, -1) : rawValue;
+        const payload = rawValue.replace(/\n+/g, ' ').trim();
 
         try {
             await this.terminalInput.sendInput(sessionId, payload);
@@ -450,6 +466,7 @@ export class MobileInputUIController {
 
     moveCursor(inputEl, action) {
         if (!inputEl) return;
+        if (inputEl.isComposing) return;
 
         const value = inputEl.value || '';
         let start = inputEl.selectionStart ?? 0;
@@ -577,6 +594,7 @@ export class MobileInputUIController {
     applyFormat(format) {
         const inputEl = this.elements.composerInput;
         if (!inputEl || !format) return;
+        if (inputEl.isComposing) return;
 
         const value = inputEl.value;
         const start = inputEl.selectionStart ?? 0;

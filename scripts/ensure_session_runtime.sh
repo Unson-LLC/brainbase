@@ -200,7 +200,12 @@ if [ "$ENGINE" = "codex" ]; then
 fi
 
 if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-    tmux new-session -d -s "$SESSION_NAME"
+    # worktreeパスが存在すればそこをデフォルトディレクトリにしてセッション作成
+    if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+        tmux new-session -d -s "$SESSION_NAME" -c "$WORKTREE_PATH"
+    else
+        tmux new-session -d -s "$SESSION_NAME"
+    fi
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SERVER_PATH "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -212,7 +217,10 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" TERM "tmux-256color"
-        LOCALE_EXPORT="cd . 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
+        # cwdが無効な場合（外付けドライブ再マウント等）に備え、絶対パスにcd。
+        # cd . ではinodeが壊れている場合にcwdを修復できない。
+        _CWD_TARGET="${WORKTREE_PATH:-/tmp}"
+        LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
 
         if [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
             if [ -n "$INITIAL_CMD" ]; then
@@ -257,7 +265,10 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" TERM "tmux-256color"
-        LOCALE_EXPORT="cd . 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
+        # cwdが無効な場合（外付けドライブ再マウント等）に備え、絶対パスにcd。
+        # cd . ではinodeが壊れている場合にcwdを修復できない。
+        _CWD_TARGET="${WORKTREE_PATH:-/tmp}"
+        LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
         CLAUDE_RESUME_FLAG=""
         if [ -n "$RESUME_SESSION_ID" ]; then
             CLAUDE_RESUME_FLAG="--resume $RESUME_SESSION_ID"
@@ -282,6 +293,11 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     fi
 else
     echo "[ensure_session_runtime] Session already exists: $SESSION_NAME"
+    # 既存セッションでもcwdが壊れている場合がある（外付けドライブ再マウント等）。
+    # worktreeパスへのcdを送ってcwdを修復する。
+    if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+        tmux send-keys -t "$SESSION_NAME" "cd '$WORKTREE_PATH' 2>/dev/null" C-m
+    fi
 fi
 
 tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME" 2>/dev/null || true

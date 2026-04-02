@@ -153,16 +153,23 @@ export class LineChart {
                 hitArea.appendChild(title);
 
                 // Hover effect
-                hitArea.onmouseenter = () => {
+                const showHover = () => {
                     dot.setAttribute('r', '5');
                     halo.setAttribute('opacity', '0.5');
                     halo.setAttribute('r', '8');
                 };
-                hitArea.onmouseleave = () => {
+                const hideHover = () => {
                     dot.setAttribute('r', '3');
                     halo.setAttribute('opacity', '0.2');
                     halo.setAttribute('r', '6');
                 };
+                hitArea.onmouseenter = showHover;
+                hitArea.onmouseleave = hideHover;
+                hitArea.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    showHover();
+                }, { passive: false });
+                hitArea.addEventListener('touchend', hideHover);
 
                 svg.appendChild(hitArea);
             });

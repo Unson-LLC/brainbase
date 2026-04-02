@@ -137,7 +137,7 @@ export function renderSessionRowHTML(session, options = {}) {
     ? `<span class="conversation-badge" title="${convCount} conversation(s)${convLastActivity ? ', last: ' + formatRelativeTime(convLastActivity) : ''}"><i data-lucide="message-square"></i>${convCount}</span>`
     : '';
 
-  const isWorking = activity === 'working' || activity === 'thinking' || activity === 'goalseek';
+  const isWorking = activity === 'working' || activity === 'thinking';
   const activityIndicator = isWorking
     ? '<span class="session-activity-indicator working" title="Agent working"></span>'
     : activity === 'done-unread'
@@ -146,8 +146,7 @@ export function renderSessionRowHTML(session, options = {}) {
 
   const transportLabelMap = {
     connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
-    reconnecting: { text: 'Reconnecting', className: 'transport-warn', title: 'Terminal reconnecting' },
-    disconnected: { text: 'Offline', className: 'transport-muted', title: 'Terminal disconnected' }
+    reconnecting: { text: 'Reconnecting', className: 'transport-warn', title: 'Terminal reconnecting' }
   };
 
   const summaryChips = [];

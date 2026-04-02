@@ -245,9 +245,21 @@ function showContextMenu(x, y) {
         menu = createContextMenu();
     }
 
+    menu.style.display = 'block';
+    const menuWidth = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+
+    if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 8;
+    }
+    if (y + menuHeight > window.innerHeight) {
+        y = window.innerHeight - menuHeight - 8;
+    }
+    x = Math.max(8, x);
+    y = Math.max(8, y);
+
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
-    menu.style.display = 'block';
 }
 
 /**
@@ -349,8 +361,8 @@ function showNotification(message, type = 'success') {
 
     notification.style.cssText = `
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        bottom: calc(var(--mobile-input-offset, 20px) + 12px);
+        right: max(20px, env(safe-area-inset-right));
         background: ${bgColor};
         color: white;
         padding: 12px 20px;

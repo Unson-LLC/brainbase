@@ -171,6 +171,8 @@ export class MobileInputSheetManager {
 
     openSheet(sheetEl) {
         if (!sheetEl) return;
+        // Dismiss keyboard to free screen space for the sheet
+        document.activeElement?.blur?.();
         this.elements.sheetOverlay?.classList.add('active');
         sheetEl.classList.add('active');
     }

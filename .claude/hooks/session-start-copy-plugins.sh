@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# cwd refresh: prevent EPERM uv_cwd on unmounted drives
+cd . 2>/dev/null || cd /tmp
+
 # SessionStart Hook: L2（brainbase-unson）とL3（brainbase-config）の.claude/を自動コピー
 # - plugins/: プラグイン（goal-seek等）
 # - hooks/: このスクリプト自体も含む
@@ -23,6 +26,7 @@ mkdir -p .claude/plugins
 mkdir -p .claude/hooks
 mkdir -p .claude/commands
 mkdir -p .claude/skills
+mkdir -p .claude/scripts
 
 # L2（brainbase-unson）からコピー
 L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
@@ -47,6 +51,11 @@ if [ -d "$L2_CLAUDE" ]; then
   # skills/
   if [ -d "$L2_CLAUDE/skills" ]; then
     cp -r "$L2_CLAUDE/skills"/* .claude/skills/ 2>/dev/null || true
+  fi
+
+  # scripts/
+  if [ -d "$L2_CLAUDE/scripts" ]; then
+    cp -r "$L2_CLAUDE/scripts" .claude/scripts/ 2>/dev/null || true
   fi
 
   # settings.json
@@ -82,6 +91,11 @@ if [ -d "$L3_CLAUDE" ]; then
     cp -r "$L3_CLAUDE/skills"/* .claude/skills/ 2>/dev/null || true
   fi
 
+  # scripts/
+  if [ -d "$L3_CLAUDE/scripts" ]; then
+    cp -r "$L3_CLAUDE/scripts" .claude/scripts/ 2>/dev/null || true
+  fi
+
   # settings.json
   if [ -f "$L3_CLAUDE/settings.json" ]; then
     cp "$L3_CLAUDE/settings.json" .claude/settings.json 2>/dev/null || true
@@ -90,4 +104,4 @@ if [ -d "$L3_CLAUDE" ]; then
   echo "  ✅ L3上書き完了"
 fi
 
-echo "✅ .claude/ コピー完了！（plugins, hooks, commands, skills, settings.json）"
+echo "✅ .claude/ コピー完了！（plugins, hooks, commands, skills, scripts, settings.json）"

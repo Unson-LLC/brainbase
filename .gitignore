@@ -275,3 +275,8 @@ tests/unit/test-state-*.json.bak
 assets/brand/
 common/
 migration/
+.DS_Store
+.jj.bak/
+.kamui/
+.kiro/
+.antigravityignore

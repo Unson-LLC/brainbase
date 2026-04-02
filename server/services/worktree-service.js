@@ -56,6 +56,56 @@ export class WorktreeService {
         }
     }
 
+    /**
+     * ゾンビworktreeを検出して物理ディレクトリを削除する。
+     * ゾンビ = .jj/working_copy は存在するが、jj workspace list に登録されていないworktree。
+     * workspace forgetされたが物理ディレクトリが残った状態を自動クリーンアップする。
+     * @param {string} repoPath - メインリポジトリのパス
+     * @returns {Promise<string[]>} 削除したディレクトリ名の配列
+     */
+    async cleanupZombieWorktrees(repoPath) {
+        const removed = [];
+        try {
+            const entries = await fs.readdir(this.worktreesDir, { withFileTypes: true });
+            const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+            if (!dirs.length) return removed;
+
+            let registeredWorkspaces;
+            try {
+                const { stdout } = await this.execPromise(`jj -R "${repoPath}" workspace list --no-pager`);
+                registeredWorkspaces = new Set(
+                    stdout.split('\n').filter(Boolean).map((line) => line.split(':')[0].trim())
+                );
+            } catch {
+                return removed;
+            }
+
+            for (const dir of dirs) {
+                const worktreePath = path.join(this.worktreesDir, dir);
+                const jjDir = path.join(worktreePath, '.jj');
+                try {
+                    await fs.access(jjDir);
+                } catch {
+                    continue;
+                }
+
+                if (registeredWorkspaces.has(dir)) continue;
+
+                logger.warn(`[workspace] Zombie worktree detected: ${dir} (not in jj workspace list). Removing.`);
+                try {
+                    await fs.rm(worktreePath, { recursive: true, force: true });
+                    removed.push(dir);
+                    logger.info(`[workspace] Zombie worktree removed: ${dir}`);
+                } catch (rmErr) {
+                    logger.error(`[workspace] Failed to remove zombie worktree ${dir}: ${rmErr.message}`);
+                }
+            }
+        } catch (err) {
+            logger.error(`[workspace] Zombie cleanup scan failed: ${err.message}`);
+        }
+        return removed;
+    }
+
     _getWorkspaceName(sessionId, repoPath) {
         return `${sessionId}-${path.basename(repoPath)}`;
     }
@@ -586,12 +636,20 @@ export class WorktreeService {
                 logger.info(`[workspace] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
             }
 
-            // Remove physical directory
+            // Remove physical directory — must succeed to prevent zombie worktrees
             try {
                 await fs.rm(workspacePath, { recursive: true, force: true });
                 logger.info(`[workspace] Removed physical directory: ${workspacePath}`);
             } catch (rmErr) {
-                logger.info(`[workspace] Directory removal skipped: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
+                logger.warn(`[workspace] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
+            }
+
+            // Verify removal — zombie prevention
+            try {
+                await fs.access(workspacePath);
+                logger.warn(`[workspace] Zombie worktree still exists after remove: ${workspacePath}`);
+            } catch {
+                // Expected: directory no longer exists
             }
 
             await this._removeGitCompatibility(sessionId, repoPath);
@@ -799,11 +857,20 @@ EOF
                 logger.info(`[merge] Bookmark deletion skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
             }
 
-            // Remove physical directory
+            // Remove physical directory — must succeed to prevent zombie worktrees
             try {
                 await fs.rm(workspacePath, { recursive: true, force: true });
+                logger.info(`[merge] Removed physical directory: ${workspacePath}`);
             } catch (rmErr) {
-                logger.info(`[merge] Directory removal skipped: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
+                logger.warn(`[merge] Directory removal failed for ${workspacePath}: ${rmErr instanceof Error ? rmErr.message : String(rmErr)}`);
+            }
+
+            // Verify removal — zombie prevention
+            try {
+                await fs.access(workspacePath);
+                logger.warn(`[merge] Zombie worktree still exists after merge cleanup: ${workspacePath}`);
+            } catch {
+                // Expected: directory no longer exists
             }
 
             logger.info(`[merge] Merged ${bookmarkName} into ${mainBranchName}`);

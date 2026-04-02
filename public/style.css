@@ -37,6 +37,32 @@
     padding: 0;
 }
 
+/* App Loading Splash — CSS-only, visible before JS loads */
+.app-loading-splash {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-primary, #0f172a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    transition: opacity 0.3s ease;
+}
+
+.app-loading-splash.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.app-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent-color, #3b82f6);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
 /* BUG-002: html要素もoverflow:hiddenにしてページスクロールを完全に防止 */
 html {
     overflow: hidden;
@@ -52,6 +78,7 @@ body {
     --vv-left: 0px;
     height: var(--vvh, 100dvh);
     overflow: hidden;
+    overscroll-behavior: none;
     font-size: 0.9rem;
     /* Standard text size */
     position: relative;
@@ -226,7 +253,7 @@ body::after {
 
 .session-context-label {
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -1062,6 +1089,8 @@ body::after {
     font-weight: 500;
     margin-left: 6px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .resume-session-btn {
@@ -1108,18 +1137,22 @@ body::after {
     align-items: center;
     justify-content: center;
     transition: color 0.2s, background-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
-.icon-btn:hover,
-.add-session-btn-icon:hover,
-.add-project-session-btn:hover,
-.merge-session-btn:hover,
-.resume-session-btn:hover,
-.rename-session-btn:hover,
-.delete-session-btn:hover,
-.archive-session-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .icon-btn:hover,
+    .add-session-btn-icon:hover,
+    .add-project-session-btn:hover,
+    .merge-session-btn:hover,
+    .resume-session-btn:hover,
+    .rename-session-btn:hover,
+    .delete-session-btn:hover,
+    .archive-session-btn:hover {
+        color: var(--text-primary);
+        background-color: var(--hover-bg);
+    }
 }
 
 /* Merge button special color */
@@ -1233,8 +1266,8 @@ body::after {
     justify-content: flex-start;
     gap: 10px;
     width: 100%;
-    min-height: 36px;
-    padding: 10px 14px;
+    min-height: 44px;
+    padding: 12px 16px;
     background: transparent;
     border: none;
     color: var(--text-primary);
@@ -1242,6 +1275,8 @@ body::after {
     text-align: left;
     cursor: pointer;
     transition: background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .dropdown-item:hover {
@@ -1283,6 +1318,7 @@ body::after {
 
 .session-activity-indicator.idle {
     opacity: 0;
+    pointer-events: none;
 }
 
 .session-activity-indicator.working {
@@ -1671,12 +1707,18 @@ body::after {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    min-width: 44px;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
-.console-btn:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    border-color: var(--accent-color);
+@media (hover: hover) {
+    .console-btn:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-color: var(--accent-color);
+    }
 }
 
 .console-btn i {
@@ -1842,9 +1884,11 @@ body::after {
     transition: all 0.2s;
 }
 
-.choice-close-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .choice-close-btn:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+    }
 }
 
 .choice-buttons {
@@ -1868,11 +1912,13 @@ body::after {
     min-height: 60px;
 }
 
-.choice-btn:hover {
-    border-color: var(--accent-color);
-    background: var(--bg-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+@media (hover: hover) {
+    .choice-btn:hover {
+        border-color: var(--accent-color);
+        background: var(--bg-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
 }
 
 .choice-btn:active {
@@ -1988,7 +2034,7 @@ body::after {
     position: absolute;
     bottom: 100%;
     left: 0;
-    width: 320px;
+    width: min(320px, calc(100vw - 32px));
     max-height: 400px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -2026,11 +2072,6 @@ body::after {
     align-items: center;
 }
 
-.inbox-mark-all:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
-}
-
 .inbox-mark-all i {
     width: 16px;
     height: 16px;
@@ -2062,10 +2103,6 @@ body::after {
 
 .inbox-item:last-child {
     margin-bottom: 0;
-}
-
-.inbox-item:hover {
-    background: var(--hover-bg);
 }
 
 .inbox-item.fade-out {
@@ -2127,10 +2164,6 @@ body::after {
     text-decoration: none;
 }
 
-.inbox-slack-link:hover {
-    text-decoration: underline;
-}
-
 .inbox-done-btn {
     margin-left: auto;
     font-size: 0.75rem;
@@ -2141,12 +2174,6 @@ body::after {
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s ease;
-}
-
-.inbox-done-btn:hover {
-    background: var(--success-color);
-    border-color: var(--success-color);
-    color: white;
 }
 
 .inbox-section + .inbox-section {
@@ -2169,11 +2196,6 @@ body::after {
     cursor: pointer;
 }
 
-.inbox-learning-item:hover {
-    border-color: rgba(59, 130, 246, 0.45);
-    background: linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03));
-}
-
 .inbox-health-alert-item {
     display: block;
     width: 100%;
@@ -2183,9 +2205,35 @@ body::after {
     background: linear-gradient(180deg, rgba(245, 158, 11, 0.08), rgba(127, 29, 29, 0.05));
 }
 
-.inbox-health-alert-item:hover {
-    border-color: rgba(248, 113, 113, 0.4);
-    background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(127, 29, 29, 0.08));
+@media (hover: hover) {
+    .inbox-mark-all:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
+
+    .inbox-item:hover {
+        background: var(--hover-bg);
+    }
+
+    .inbox-slack-link:hover {
+        text-decoration: underline;
+    }
+
+    .inbox-done-btn:hover {
+        background: var(--success-color);
+        border-color: var(--success-color);
+        color: white;
+    }
+
+    .inbox-learning-item:hover {
+        border-color: rgba(59, 130, 246, 0.45);
+        background: linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.03));
+    }
+
+    .inbox-health-alert-item:hover {
+        border-color: rgba(248, 113, 113, 0.4);
+        background: linear-gradient(180deg, rgba(245, 158, 11, 0.12), rgba(127, 29, 29, 0.08));
+    }
 }
 
 .inbox-learning-badges {
@@ -2499,12 +2547,6 @@ body::after {
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.focus-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-    border-color: rgba(59, 130, 246, 0.4);
-}
-
 .focus-card-header {
     display: flex;
     justify-content: space-between;
@@ -2572,23 +2614,11 @@ body::after {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.focus-btn-start:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
-}
-
 .focus-btn-complete {
     background: var(--success-color);
     border: 1px solid rgba(16, 185, 129, 0.5);
     color: white;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.focus-btn-complete:hover {
-    background: #0ea472;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
 }
 
 .focus-btn-defer {
@@ -2598,10 +2628,30 @@ body::after {
     /* Increased contrast */
 }
 
-.focus-btn-defer:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--text-secondary);
-    color: white;
+@media (hover: hover) {
+    .focus-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        border-color: rgba(59, 130, 246, 0.4);
+    }
+
+    .focus-btn-start:hover {
+        background: #2563eb;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .focus-btn-complete:hover {
+        background: #0ea472;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .focus-btn-defer:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--text-secondary);
+        color: white;
+    }
 }
 
 /* Removed duplicate style */
@@ -3769,10 +3819,6 @@ body.resizing iframe {
     transition: background-color 0.15s;
 }
 
-.next-task-item:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
 .next-task-checkbox {
     width: 18px;
     height: 18px;
@@ -3785,10 +3831,6 @@ body.resizing iframe {
     cursor: pointer;
     transition: all 0.2s;
     margin-top: 1px;
-}
-
-.next-task-checkbox:hover {
-    border-color: var(--success-color);
 }
 
 .next-task-checkbox.checked {
@@ -3804,14 +3846,24 @@ body.resizing iframe {
     opacity: 0;
 }
 
-.next-task-checkbox:hover i,
-.next-task-checkbox:hover svg {
-    opacity: 0.5;
-}
-
 .next-task-checkbox.checked i,
 .next-task-checkbox.checked svg {
     opacity: 1;
+}
+
+@media (hover: hover) {
+    .next-task-item:hover {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .next-task-checkbox:hover {
+        border-color: var(--success-color);
+    }
+
+    .next-task-checkbox:hover i,
+    .next-task-checkbox:hover svg {
+        opacity: 0.5;
+    }
 }
 
 .next-task-content {
@@ -3824,6 +3876,10 @@ body.resizing iframe {
     color: var(--text-primary);
     line-height: 1.3;
     margin-bottom: 2px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .next-task-meta {
@@ -3848,8 +3904,10 @@ body.resizing iframe {
     transition: opacity 0.15s;
 }
 
-.next-task-item:hover .next-task-actions {
-    opacity: 1;
+@media (hover: hover) {
+    .next-task-item:hover .next-task-actions {
+        opacity: 1;
+    }
 }
 
 .next-task-action {
@@ -3865,17 +3923,21 @@ body.resizing iframe {
     transition: all 0.15s;
 }
 
-.next-task-action:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .next-task-action:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+    }
 }
 
-.next-task-action.start-task-btn:hover {
-    color: var(--success-color);
-}
+@media (hover: hover) {
+    .next-task-action.start-task-btn:hover {
+        color: var(--success-color);
+    }
 
-.next-task-action.delete-task-btn:hover {
-    color: var(--error-color);
+    .next-task-action.delete-task-btn:hover {
+        color: var(--error-color);
+    }
 }
 
 .next-task-action svg {
@@ -3930,8 +3992,31 @@ body.resizing iframe {
     border-left: 3px solid var(--danger-color);
 }
 
-.next-task-item.overdue:hover {
-    background: rgba(239, 68, 68, 0.12);
+@media (hover: hover) {
+    .next-task-item.overdue:hover {
+        background: rgba(239, 68, 68, 0.12);
+    }
+}
+
+/* Mobile task list optimizations */
+@media (max-width: 768px) {
+    .next-task-actions {
+        opacity: 1;
+    }
+    .next-task-checkbox {
+        width: 32px;
+        height: 32px;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 6px;
+    }
+    .next-task-action {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 8px;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
 }
 
 /* Remaining toggle */
@@ -3952,9 +4037,11 @@ body.resizing iframe {
     transition: all 0.2s;
 }
 
-.remaining-toggle button:hover {
-    border-color: var(--text-secondary);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .remaining-toggle button:hover {
+        border-color: var(--text-secondary);
+        color: var(--text-primary);
+    }
 }
 
 /* Complete animation */
@@ -3997,12 +4084,6 @@ body.resizing iframe {
     padding: 10px;
     margin-bottom: 8px;
     transition: transform 0.1s, border-color 0.1s;
-    will-change: transform;
-}
-
-.task-card:hover {
-    border-color: var(--accent-color);
-    transform: translateY(-1px);
 }
 
 .task-card.high {
@@ -4037,10 +4118,6 @@ body.resizing iframe {
     cursor: pointer;
     color: transparent;
     flex-shrink: 0;
-}
-
-.task-checkbox:hover {
-    border-color: var(--accent-color);
 }
 
 .task-checkbox.checked {
@@ -4084,9 +4161,20 @@ body.resizing iframe {
     display: flex;
 }
 
-.task-action-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .task-card:hover {
+        border-color: var(--accent-color);
+        transform: translateY(-1px);
+    }
+
+    .task-checkbox:hover {
+        border-color: var(--accent-color);
+    }
+
+    .task-action-btn:hover {
+        color: var(--text-primary);
+        background-color: var(--hover-bg);
+    }
 }
 
 .task-action-btn i {
@@ -4154,20 +4242,22 @@ body.resizing iframe {
     color: var(--text-secondary);
 }
 
-.start-task-btn:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
-    border-color: var(--text-secondary);
-}
-
 .complete-task-btn {
     color: var(--success-color);
     border-color: rgba(16, 185, 129, 0.3);
     background: rgba(16, 185, 129, 0.05);
 }
 
-.complete-task-btn:hover {
-    background: rgba(16, 185, 129, 0.15);
+@media (hover: hover) {
+    .start-task-btn:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+        border-color: var(--text-secondary);
+    }
+
+    .complete-task-btn:hover {
+        background: rgba(16, 185, 129, 0.15);
+    }
 }
 
 .start-task-btn i,
@@ -4245,10 +4335,20 @@ body.resizing iframe {
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
-.close-modal-btn:hover {
-    color: var(--text-primary);
+@media (hover: hover) {
+    .close-modal-btn:hover {
+        color: var(--text-primary);
+    }
 }
 
 .modal-body {
@@ -4396,18 +4496,20 @@ body.resizing iframe {
     color: white;
 }
 
-.btn-primary:hover {
-    opacity: 0.9;
-}
-
 .btn-secondary {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-primary);
 }
 
-.btn-secondary:hover {
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .btn-primary:hover {
+        opacity: 0.9;
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--hover-bg);
+    }
 }
 
 /* Checkbox Label */
@@ -4446,8 +4548,10 @@ body.resizing iframe {
     transition: all 0.2s ease;
 }
 
-.radio-label:hover {
-    background-color: var(--hover-bg);
+@media (hover: hover) {
+    .radio-label:hover {
+        background-color: var(--hover-bg);
+    }
 }
 
 .radio-label:has(input:checked) {
@@ -4541,7 +4645,7 @@ body.resizing iframe {
 }
 
 #confirm-modal .modal-footer button {
-    min-height: 42px;
+    min-height: 44px;
     border-radius: 8px;
     font-weight: 700;
 }
@@ -4551,8 +4655,10 @@ body.resizing iframe {
     background: rgba(148, 163, 184, 0.12);
 }
 
-#confirm-modal #confirm-cancel-btn:hover {
-    background: rgba(148, 163, 184, 0.22);
+@media (hover: hover) {
+    #confirm-modal #confirm-cancel-btn:hover {
+        background: rgba(148, 163, 184, 0.22);
+    }
 }
 
 #confirm-modal #confirm-action-btn {
@@ -4560,8 +4666,10 @@ body.resizing iframe {
     background: linear-gradient(180deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.9) 100%);
 }
 
-#confirm-modal #confirm-action-btn:hover {
-    filter: brightness(1.06);
+@media (hover: hover) {
+    #confirm-modal #confirm-action-btn:hover {
+        filter: brightness(1.06);
+    }
 }
 
 #confirm-modal #confirm-ok-btn {
@@ -4617,8 +4725,10 @@ body.resizing iframe {
     color: white;
 }
 
-.btn-danger:hover {
-    background-color: #c82333;
+@media (hover: hover) {
+    .btn-danger:hover {
+        background-color: #c82333;
+    }
 }
 
 /* Info Button */
@@ -4633,8 +4743,10 @@ body.resizing iframe {
     color: white;
 }
 
-.btn-info:hover {
-    background-color: #2563eb;
+@media (hover: hover) {
+    .btn-info:hover {
+        background-color: #2563eb;
+    }
 }
 
 /* Toast Notifications */
@@ -4736,7 +4848,9 @@ body.resizing iframe {
 
 .modal-large .modal-body {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    overflow-x: hidden;
     padding: 0;
 }
 
@@ -4752,7 +4866,9 @@ body.resizing iframe {
 
 .modal-fullscreen .modal-body {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    overflow-x: hidden;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -5526,7 +5642,7 @@ body.resizing iframe {
 }
 
 .config-table th {
-    background: rgba(30, 41, 59, 0.8);
+    background: #1e293b;
     font-weight: 600;
     color: var(--text-secondary);
     font-size: 0.8rem;
@@ -5535,7 +5651,6 @@ body.resizing iframe {
     position: sticky;
     top: 0;
     z-index: 10;
-    backdrop-filter: blur(8px);
 }
 
 .config-table tr:hover {
@@ -6444,7 +6559,13 @@ body.resizing iframe {
     touch-action: manipulation;
 }
 
-.mobile-bottom-nav button:hover,
+@media (hover: hover) {
+    .mobile-bottom-nav button:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
+}
+
 .mobile-bottom-nav button:active {
     background: var(--hover-bg);
     color: var(--text-primary);
@@ -6481,6 +6602,7 @@ body.resizing iframe {
     bottom: 0;
     left: 0;
     right: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
     max-height: 80vh;
     background: var(--bg-secondary);
     border-radius: 16px 16px 0 0;
@@ -6554,9 +6676,11 @@ body.resizing iframe {
     justify-content: center;
 }
 
-.bottom-sheet-close:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .bottom-sheet-close:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
 }
 
 .bottom-sheet-close i {
@@ -6740,6 +6864,7 @@ body.resizing iframe {
         right: 0;
         bottom: calc(56px + env(safe-area-inset-bottom, 0));
         overflow-y: auto;
+        overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
         padding: 12px;
         background: var(--bg-primary);
@@ -6765,7 +6890,8 @@ body.resizing iframe {
         align-items: center;
         justify-content: center;
         gap: 6px;
-        padding: 6px 12px;
+        padding: 10px 12px;
+        min-height: 44px;
         background: transparent;
         border: 1px solid var(--border-color, #334155);
         border-radius: 6px;
@@ -6785,6 +6911,7 @@ body.resizing iframe {
         flex: 1;
         min-height: 0;
         overflow: auto;
+        overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
     }
     .mobile-files-tree.hidden,
@@ -6867,6 +6994,7 @@ body.resizing iframe {
         padding: 8px 12px 12px;
         z-index: 1002;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+        transition: padding 0.2s ease;
     }
 
     .mobile-input-dock,
@@ -6932,6 +7060,7 @@ body.resizing iframe {
     /* expanded時: 入力欄とSendボタンのみ非表示、×ボタンは表示 */
     .mobile-input-dock.expanded .mobile-input-main textarea {
         display: none;
+        visibility: hidden;
     }
 
     .mobile-input-dock.expanded .mobile-input-main #mobile-dock-send {
@@ -7044,7 +7173,7 @@ body.resizing iframe {
         padding: 8px 10px;
         font-size: 12px;
         font-weight: 600;
-        min-height: 36px;
+        min-height: 44px;
         min-width: 44px;
         touch-action: manipulation;
         cursor: pointer;
@@ -7078,7 +7207,7 @@ body.resizing iframe {
 
     #mobile-dock-input {
         flex: 1;
-        min-height: 40px;
+        min-height: 44px;
         max-height: 160px;
         resize: none;
         border-radius: 12px;
@@ -7086,7 +7215,7 @@ body.resizing iframe {
         background: #0b1220;
         border: 1px solid var(--border-color);
         color: var(--text-primary);
-        font-size: 14px;
+        font-size: 16px;
         line-height: 1.4;
     }
 
@@ -7103,7 +7232,7 @@ body.resizing iframe {
         inset: 0;
         background: rgba(0, 0, 0, 0.55);
         z-index: 1006;
-        padding: 12px;
+        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
     .mobile-composer.active {
@@ -7158,7 +7287,7 @@ body.resizing iframe {
         background: #0b1220;
         border: 1px solid var(--border-color);
         color: var(--text-primary);
-        font-size: 14px;
+        font-size: 16px;
         line-height: 1.5;
     }
 
@@ -7209,6 +7338,7 @@ body.resizing iframe {
         transition: transform 0.2s ease;
         z-index: 1006;
         padding: 12px 12px 24px;
+        padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
         display: flex;
         flex-direction: column;
         gap: 12px;
@@ -7485,7 +7615,7 @@ body.resizing iframe {
 
     /* Toast notifications - above bottom nav */
     #toast-container {
-        bottom: 72px;
+        bottom: calc(var(--mobile-input-offset, 120px) + 12px);
         right: 12px;
         left: 12px;
     }
@@ -9775,10 +9905,6 @@ body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
     }
 }
 
-gap: 0.125rem;
-flex-wrap: wrap;
-}
-
 .alert-action-btn {
     display: inline-flex;
     align-items: center;
@@ -9843,11 +9969,7 @@ flex-wrap: wrap;
     animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
+
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -10482,10 +10604,6 @@ flex-wrap: wrap;
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
 }
 
 .loading-message {
@@ -11194,8 +11312,10 @@ flex-wrap: wrap;
     border: 1px solid var(--border-color);
     border-radius: 4px;
     color: var(--text-primary);
-    padding: 4px 8px;
-    font-size: 0.75rem;
+    padding: 8px 12px;
+    font-size: 16px;
+    min-height: 44px;
+    touch-action: manipulation;
     outline: none;
 }
 
@@ -11245,18 +11365,23 @@ flex-wrap: wrap;
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 5px 10px;
+    padding: 10px 12px;
     cursor: pointer;
     color: var(--text-secondary);
     font-size: 0.78rem;
     font-weight: 600;
     transition: background 0.1s;
     user-select: none;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
-.wiki-idx-folder-header:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .wiki-idx-folder-header:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
 }
 
 .wiki-idx-folder-header.collapsed {
@@ -11292,7 +11417,7 @@ flex-wrap: wrap;
 .wiki-idx-item {
     display: flex;
     align-items: center;
-    padding: 3px 10px 3px 16px;
+    padding: 10px 12px 10px 16px;
     cursor: pointer;
     font-size: 0.75rem;
     color: var(--text-secondary);
@@ -11301,11 +11426,16 @@ flex-wrap: wrap;
     transition: all 0.1s;
     white-space: nowrap;
     overflow: hidden;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
-.wiki-idx-item:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
+@media (hover: hover) {
+    .wiki-idx-item:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+    }
 }
 
 .wiki-idx-item-title {
@@ -11706,6 +11836,43 @@ flex-wrap: wrap;
 .live-feed-empty .empty-hint {
     font-size: 12px;
     opacity: 0.6;
+}
+
+/* =========================================
+   Focus Visible — Keyboard Navigation
+   ========================================= */
+:focus-visible {
+    outline: 2px solid var(--accent-color, #3b82f6);
+    outline-offset: 2px;
+}
+
+.mobile-tab:focus-visible,
+.mobile-input-btn:focus-visible,
+.mobile-input-primary:focus-visible,
+.mobile-input-secondary:focus-visible,
+.mobile-bottom-nav button:focus-visible,
+.close-modal-btn:focus-visible,
+.console-btn:focus-visible,
+.icon-btn:focus-visible,
+.bottom-sheet-close:focus-visible,
+.dropdown-item:focus-visible,
+.next-task-action:focus-visible,
+.next-task-checkbox:focus-visible {
+    border-radius: 4px;
+}
+
+/* =========================================
+   Reduced Motion — Accessibility
+   ========================================= */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* ==================== mana Chat Widget ==================== */

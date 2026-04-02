@@ -73,7 +73,7 @@ export class MobileInputFocusManager {
 
     updateBottomNavVisibility() {
         // モバイルのみ処理
-        if (window.innerWidth > 768) return;
+        if (window.innerWidth >= 769) return;
 
         const bottomNav = document.getElementById('mobile-bottom-nav');
         if (!bottomNav) return;

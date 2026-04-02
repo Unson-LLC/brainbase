@@ -114,10 +114,26 @@ export class FolderTreeView {
         return {
             name: node.name || '',
             relativePath: node.relativePath || '',
-            type: node.type || 'file',
+            type: typeof node.type === 'string' ? node.type : '',
             hasChildren: Boolean(node.hasChildren),
             size: typeof node.size === 'number' ? node.size : undefined
         };
+    }
+
+    _getCachedNode(sessionId, relativePath) {
+        if (!relativePath) return null;
+
+        const cache = this._getSessionCache(sessionId);
+        const nodesByPath = cache?.nodesByPath;
+        if (!nodesByPath) return null;
+
+        for (const nodes of Object.values(nodesByPath)) {
+            if (!Array.isArray(nodes)) continue;
+            const matchedNode = nodes.find((node) => node?.relativePath === relativePath);
+            if (matchedNode) return matchedNode;
+        }
+
+        return null;
     }
 
     _cacheNodesByPath(nodesByPath, nodes = []) {
@@ -249,6 +265,9 @@ export class FolderTreeView {
     }
 
     async _openFile(sessionId, relativePath) {
+        const node = this._getCachedNode(sessionId, relativePath);
+        if (node?.type !== 'file') return;
+
         const fileName = relativePath.split('/').pop() || relativePath;
         if (this.fileViewerService && (this._isMarkdownFile(fileName) || isBrowserPreviewablePath(relativePath))) {
             try {
@@ -332,8 +351,10 @@ export class FolderTreeView {
                                 </button>
                                 ${childrenHtml}
                             </li>
-                        `;
-                    }
+                    `;
+                }
+
+                    if (node.type !== 'file') return '';
 
                     const isActive = activeRelativePath === relativePath;
                     return `

@@ -30,8 +30,6 @@ function buildStatus(uiState, timestampMs) {
     const activity = uiState.activity || 'idle';
     const attention = uiState.attention || 'none';
     const recentFile = uiState.recentFile || null;
-    const goalSeek = uiState.goalSeek || null;
-
     let text = '待機中';
     let icon = 'circle-dot';
     let tone = 'idle';
@@ -46,14 +44,6 @@ function buildStatus(uiState, timestampMs) {
         text = '一時停止中';
         icon = 'pause';
         tone = 'paused';
-    } else if (activity === 'goalseek') {
-        const iteration = Number(goalSeek?.iteration || 0);
-        const maxIterations = Number(goalSeek?.maxIterations || 0);
-        text = iteration > 0 && maxIterations > 0
-            ? `Goal Seek ${iteration}/${maxIterations} を実行中`
-            : 'Goal Seek を実行中';
-        icon = 'target';
-        tone = 'working';
     } else if (activity === 'thinking') {
         text = recentFile?.label
             ? `${recentFile.label} を処理中`
@@ -130,8 +120,6 @@ function buildFingerprint(session, uiState) {
         activity: uiState.activity || 'idle',
         attention: uiState.attention || 'none',
         transport: uiState.transport || 'disconnected',
-        goalSeekIteration: uiState.goalSeek?.iteration || 0,
-        goalSeekMaxIterations: uiState.goalSeek?.maxIterations || 0,
         repo: summary.repo || '',
         baseBranch: summary.baseBranch || '',
         recentFile: recentFile?.path || '',

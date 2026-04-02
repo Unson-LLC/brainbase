@@ -38,11 +38,7 @@ describe('session-ui-state', () => {
             'session-1': {
                 isWorking: true,
                 isDone: false,
-                goalSeek: {
-                    active: true,
-                    iteration: 2,
-                    maxIterations: 5
-                }
+                activeTurnCount: 1
             }
         });
         setSessionSummaryMap({
@@ -61,14 +57,9 @@ describe('session-ui-state', () => {
 
         const uiState = deriveSessionUiState('session-1');
 
-        expect(uiState.activity).toBe('goalseek');
+        expect(uiState.activity).toBe('thinking');
         expect(uiState.transport).toBe('connected');
         expect(uiState.attention).toBe('needs-focus');
-        expect(uiState.goalSeek).toEqual({
-            active: true,
-            iteration: 2,
-            maxIterations: 5
-        });
         expect(uiState.summary.repo).toBe('brainbase');
         expect(getSessionStatus('session-1')).toEqual(expect.objectContaining({
             isWorking: true
