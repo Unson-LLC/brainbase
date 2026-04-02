@@ -21,6 +21,10 @@ import { showError, showInfo } from './toast.js';
 let consecutiveErrors = 0;
 const MAX_CONSECUTIVE_ERRORS = 3;
 
+// --- Suppress stale polling after markDoneAsRead ---
+const _suppressUpdates = new Map(); // sessionId -> timestamp
+const SUPPRESS_DURATION = 5000; // 5秒間サーバーポーリングの上書きを抑制
+
 function didHookStatusChange(prev, next) {
     if (!prev) return true;
     return prev.isWorking !== next.isWorking
@@ -67,6 +71,9 @@ export function clearWorking(sessionId) {
  */
 export async function markDoneAsRead(sessionId, currentSessionId = null) {
     if (!sessionId) return;
+
+    // Suppress polling overwrites for this session until server catches up
+    _suppressUpdates.set(sessionId, Date.now());
 
     clearDone(sessionId);
     await eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, { sessionIds: [sessionId], currentSessionId });
@@ -158,7 +165,16 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
         }
 
         if (hasStatusChange) {
-            replaceSessionHookStatuses(status);
+            // Suppress sessions recently marked as done to prevent race condition
+            const now = Date.now();
+            for (const [id, ts] of _suppressUpdates) {
+                if (now - ts > SUPPRESS_DURATION) _suppressUpdates.delete(id);
+            }
+            const filteredStatus = { ...status };
+            for (const id of _suppressUpdates.keys()) {
+                delete filteredStatus[id];
+            }
+            replaceSessionHookStatuses(filteredStatus);
             if (typeof onStatusChange === 'function') {
                 await onStatusChange(status);
             }
