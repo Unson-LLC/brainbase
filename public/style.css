@@ -11838,7 +11838,6 @@ body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
     opacity: 0.6;
 }
 
-<<<<<<< HEAD
 /* =========================================
    Focus Visible — Keyboard Navigation
    ========================================= */
@@ -11874,7 +11873,8 @@ body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
     }
-=======
+}
+
 /* ==================== mana Chat Widget ==================== */
 
 .mana-chat-widget {
@@ -12079,5 +12079,4 @@ body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
 .mana-chat-send:disabled {
     opacity: 0.5;
     cursor: not-allowed;
->>>>>>> main
 }
