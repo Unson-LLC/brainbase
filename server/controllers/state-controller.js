@@ -26,13 +26,16 @@ import { AppError, ErrorCodes } from '../lib/errors.js';
 // セッションオブジェクトの許可フィールド
 const ALLOWED_SESSION_FIELDS = [
     // 基本情報
-    'id', 'name', 'path', 'cwd', 'worktree', 'initialCommand',
+    'id', 'name', 'project', 'path', 'cwd', 'worktree', 'initialCommand',
     'engine', 'intendedState', 'createdAt', 'archivedAt', 'merged', 'mergedAt',
     'updatedAt', 'taskBrief', 'taskBriefUpdatedAt', 'lastAssistantSnippet', 'lastAssistantSnippetAt',
     // Schema v2 追加フィールド
     'lastAccessedAt', 'pausedAt', 'pausedReason', 'tmuxMissingAt', 'tmuxCleanedAt',
     // Schema v3 追加フィールド
     'ttydProcess',
+    // Recovery / binding fields
+    'claudeResumeId', 'codexThreadId', 'bindingSource', 'bindingUpdatedAt',
+    'lastKnownGoodPath', 'recoveryState', 'recoveryReason', 'lastHealthyAt',
     // 状態管理フィールド
     'hookStatus',
     // スキャン生成フィールド
