@@ -778,7 +778,7 @@ export class SessionController {
 
     ensureTerminalRuntime = async (req, res) => {
         const { id } = req.params;
-        const { initialCommand, cwd, engine, viewerId } = req.body || {};
+        const { initialCommand, cwd, engine, viewerId, forceTtyd } = req.body || {};
         const session = this._findSessionOrFail(id, res);
         if (!session) return;
         if (session.intendedState === 'archived') {
@@ -787,14 +787,24 @@ export class SessionController {
 
         try {
             const resolvedCwd = await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true });
-            await this.sessionManager.ensureSessionRuntime({
+            const runtimeOptions = {
                 sessionId: id,
                 cwd: typeof resolvedCwd === 'string' && resolvedCwd.trim()
                     ? resolvedCwd
                     : (typeof cwd === 'string' && cwd.trim() ? cwd : undefined),
                 initialCommand: typeof initialCommand === 'string' ? initialCommand : (session.initialCommand || ''),
                 engine: typeof engine === 'string' && engine.trim() ? engine : (session.engine || 'claude')
-            });
+            };
+            let ttydResult = null;
+
+            if (forceTtyd) {
+                ttydResult = await this.sessionManager.startTtyd({
+                    ...runtimeOptions,
+                    forceTtyd: true
+                });
+            } else {
+                await this.sessionManager.ensureSessionRuntime(runtimeOptions);
+            }
 
             if (session.intendedState !== 'active') {
                 await this._updateStateWithRetry((currentState) => {
@@ -817,11 +827,16 @@ export class SessionController {
             const terminalAccess = typeof viewerId === 'string' && viewerId.trim()
                 ? this.sessionManager.getTerminalAccessState(id, viewerId.trim())
                 : null;
-            res.json({
+            const response = {
                 sessionId: id,
                 runtimeStatus: this._withViewerRuntimeStatus(updatedSession?.runtimeStatus || null, viewerId),
                 terminalAccess
-            });
+            };
+            if (ttydResult) {
+                response.port = ttydResult.port;
+                response.proxyPath = this._appendViewerIdToProxyPath(ttydResult.proxyPath, viewerId);
+            }
+            res.json(response);
         } catch (error) {
             console.error('Failed to ensure terminal runtime:', error);
             res.status(500).json({ error: error.message || 'Failed to ensure terminal runtime' });

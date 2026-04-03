@@ -201,10 +201,11 @@ describe('app switchSession runtime handling', () => {
     await app.reconnectManager.reconnect();
 
     expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
-    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/ensure', expect.objectContaining({
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+      sessionId: 'session-1',
+      cwd: '/tmp/session-1',
       engine: 'codex',
-      viewerId: 'viewer-test',
-      forceTtyd: true
+      viewerId: 'viewer-test'
     }));
   });
 
@@ -234,7 +235,7 @@ describe('app switchSession runtime handling', () => {
     expect(overlay.classList.contains('hidden')).toBe(true);
   });
 
-  it('desktop xtermではruntimeとensureの両方が終わってからconnectする', async () => {
+  it('desktop xtermではruntime完了後にensureしてからconnectする', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -265,7 +266,7 @@ describe('app switchSession runtime handling', () => {
     await Promise.resolve();
 
     expect(app._resolveSessionRuntime).toHaveBeenCalledTimes(1);
-    expect(app._ensureDesktopTerminalRuntime).toHaveBeenCalledTimes(1);
+    expect(app._ensureDesktopTerminalRuntime).not.toHaveBeenCalled();
     expect(app._connectXtermTransport).not.toHaveBeenCalled();
 
     resolveRuntime({
@@ -282,6 +283,7 @@ describe('app switchSession runtime handling', () => {
     });
     await Promise.resolve();
 
+    expect(app._ensureDesktopTerminalRuntime).toHaveBeenCalledTimes(1);
     expect(app._connectXtermTransport).not.toHaveBeenCalled();
 
     resolveEnsure({ ok: true });
@@ -594,6 +596,29 @@ describe('app switchSession runtime handling', () => {
     vi.clearAllMocks();
     const modal = document.getElementById('mobile-live-terminal-modal');
     const modalFrame = document.getElementById('mobile-live-terminal-frame');
+    httpClient.get.mockResolvedValueOnce({
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      },
+      terminalAccess: null
+    });
+    httpClient.post.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      port: 40123,
+      proxyPath: '/console/session-1/',
+      runtimeStatus: {
+        ttydRunning: true,
+        proxyPath: '/console/session-1/',
+        port: 40123
+      },
+      terminalAccess: {
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      }
+    });
 
     await app.openMobileLiveTerminal('session-1');
 
@@ -605,6 +630,49 @@ describe('app switchSession runtime handling', () => {
     expect(modal.classList.contains('active')).toBe(true);
     expect(modalFrame.src).toContain('/console/session-1/');
     expect(modalFrame.src).toContain('viewerId=viewer-test');
+  });
+
+  it('mobile ensureがproxyPathを返さないとmodalを閉じる', async () => {
+    app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
+    app._shouldUseXtermTransport = vi.fn(() => false);
+    app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    appStore.setState({
+      currentSessionId: null,
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    httpClient.get.mockResolvedValueOnce({
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      },
+      terminalAccess: null
+    });
+    httpClient.post.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      runtimeStatus: {
+        ttydRunning: false,
+        proxyPath: null
+      },
+      terminalAccess: null
+    });
+
+    await app.switchSession('session-1');
+    const modal = document.getElementById('mobile-live-terminal-modal');
+    const modalFrame = document.getElementById('mobile-live-terminal-frame');
+
+    await app.openMobileLiveTerminal('session-1');
+
+    expect(modal.classList.contains('active')).toBe(false);
+    expect(modalFrame.src).toBe('about:blank');
   });
 
   it('mobile snapshot panel clickはlive terminal modalを開く', async () => {

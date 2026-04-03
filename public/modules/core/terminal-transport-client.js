@@ -31,10 +31,11 @@ export function shouldUseXtermTransport() {
 }
 
 export class TerminalTransportClient {
-    constructor({ viewerId, viewerLabel, onStatusChange = null }) {
+    constructor({ viewerId, viewerLabel, onStatusChange = null, onSnapshotChange = null }) {
         this.viewerId = viewerId;
         this.viewerLabel = viewerLabel;
         this.onStatusChange = onStatusChange;
+        this.onSnapshotChange = onSnapshotChange;
         this.hostEl = null;
         this.terminal = null;
         this.fitAddon = null;
@@ -447,6 +448,14 @@ export class TerminalTransportClient {
                 this.status.copyMode = Boolean(res.copyMode);
                 this.status.mode = 'snapshot';
                 this.status.transport = 'snapshot';
+                if (typeof this.onSnapshotChange === 'function') {
+                    this.onSnapshotChange({
+                        sessionId: this.sessionId,
+                        text: res.text,
+                        colorText: res.colorText || null,
+                        capturedAt: this.status.lastSnapshotAt
+                    });
+                }
                 this._emitStatus();
             }
         } catch (error) {

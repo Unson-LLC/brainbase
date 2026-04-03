@@ -20,6 +20,7 @@ describe('SessionController (Server)', () => {
     mockSessionManager = {
       stopTtyd: vi.fn(),
       startTtyd: vi.fn(),
+      ensureSessionRuntime: vi.fn(),
       cleanupSessionResources: vi.fn(),
       clearDoneStatus: vi.fn(),
       reportActivity: vi.fn(),
@@ -306,6 +307,142 @@ describe('SessionController (Server)', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'viewerId is required' });
+    });
+  });
+
+  describe('ensureTerminalRuntime', () => {
+    it('forceTtyd時はttydを起動してproxyPathを返す', async () => {
+      const sessionId = 'session-ensure-ttyd';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: sessionId,
+          path: '/tmp/session-ensure-ttyd',
+          initialCommand: 'npm run dev',
+          engine: 'codex',
+          intendedState: 'active',
+          runtimeStatus: {
+            ttydRunning: true,
+            proxyPath: `/console/${sessionId}`,
+            port: 40123
+          }
+        }]
+      });
+      mockSessionManager.resolveSessionWorkspacePath.mockResolvedValue('/tmp/session-ensure-ttyd');
+      mockSessionManager.startTtyd.mockResolvedValue({
+        port: 40123,
+        proxyPath: `/console/${sessionId}`
+      });
+      mockSessionManager.getSessionById.mockReturnValue({
+        id: sessionId,
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: `/console/${sessionId}`,
+          port: 40123
+        }
+      });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+
+      await sessionController.ensureTerminalRuntime({
+        params: { id: sessionId },
+        body: {
+          viewerId: 'viewer-1',
+          forceTtyd: true
+        }
+      }, mockRes);
+
+      expect(mockSessionManager.ensureSessionRuntime).not.toHaveBeenCalled();
+      expect(mockSessionManager.startTtyd).toHaveBeenCalledWith({
+        sessionId,
+        cwd: '/tmp/session-ensure-ttyd',
+        initialCommand: 'npm run dev',
+        engine: 'codex',
+        forceTtyd: true
+      });
+      expect(mockRes.json).toHaveBeenCalledWith({
+        sessionId,
+        port: 40123,
+        proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
+        runtimeStatus: {
+          ttydRunning: true,
+          proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
+          interactiveUrl: `/console/${sessionId}/?viewerId=viewer-1`,
+          port: 40123
+        },
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+    });
+
+    it('forceTtydなしではruntimeだけをensureする', async () => {
+      const sessionId = 'session-ensure-runtime';
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: sessionId,
+          path: '/tmp/session-ensure-runtime',
+          initialCommand: 'npm run dev',
+          engine: 'codex',
+          intendedState: 'active',
+          runtimeStatus: {
+            ttydRunning: false,
+            proxyPath: null,
+            recoveryState: 'ok'
+          }
+        }]
+      });
+      mockSessionManager.resolveSessionWorkspacePath.mockResolvedValue('/tmp/session-ensure-runtime');
+      mockSessionManager.getSessionById.mockReturnValue({
+        id: sessionId,
+        runtimeStatus: {
+          ttydRunning: false,
+          proxyPath: null,
+          recoveryState: 'ok'
+        }
+      });
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
+      });
+
+      await sessionController.ensureTerminalRuntime({
+        params: { id: sessionId },
+        body: {
+          viewerId: 'viewer-1'
+        }
+      }, mockRes);
+
+      expect(mockSessionManager.ensureSessionRuntime).toHaveBeenCalledWith({
+        sessionId,
+        cwd: '/tmp/session-ensure-runtime',
+        initialCommand: 'npm run dev',
+        engine: 'codex'
+      });
+      expect(mockSessionManager.startTtyd).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({
+        sessionId,
+        runtimeStatus: {
+          ttydRunning: false,
+          proxyPath: null,
+          interactiveUrl: null,
+          recoveryState: 'ok'
+        },
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
     });
   });
 

@@ -178,12 +178,21 @@ export function applyTerminalInputUxMixin(AppClass) {
         if (currentRuntimeStatus?.recoveryState === 'recoverable') {
             await this._recoverSessionRuntime(session);
         }
-        return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
+        const ensurePayload = {
             initialCommand: session.initialCommand || '',
             cwd: session.path,
             engine: session.engine || 'claude',
             viewerId: this.viewerId
-        });
+        };
+        try {
+            return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, ensurePayload);
+        } catch (error) {
+            if (error?.recoveryState !== 'recoverable') {
+                throw error;
+            }
+            await this._recoverSessionRuntime(session);
+            return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, ensurePayload);
+        }
     };
 
     AppClass.prototype._preferXtermForCurrentSession = async function() {

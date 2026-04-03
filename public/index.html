@@ -228,6 +228,14 @@
                         </div>
                         <pre id="terminal-snapshot-content" class="terminal-snapshot-content"></pre>
                     </div>
+                    <div id="terminal-recovery-panel" class="terminal-recovery-panel hidden" aria-live="polite">
+                        <div class="terminal-recovery-header">
+                            <span id="terminal-recovery-badge" class="terminal-recovery-badge">要復旧</span>
+                            <h3 id="terminal-recovery-title" class="terminal-recovery-title">このセッションは明示復旧が必要です</h3>
+                        </div>
+                        <p id="terminal-recovery-message" class="terminal-recovery-message"></p>
+                        <button id="terminal-recover-btn" class="console-btn hidden" type="button">復旧する</button>
+                    </div>
 	                <div id="terminal-xterm-host" class="terminal-xterm-host hidden" aria-label="Terminal transport host"></div>
 	                <iframe id="terminal-frame" src="about:blank"></iframe>
 
