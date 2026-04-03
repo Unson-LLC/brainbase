@@ -510,7 +510,6 @@ const sessionServices = createSessionServices({
     worktreeService,  // Phase 2: Archived session cleanup用
     uiPort: PORT
 });
-const sessionManager = sessionServices.sessionApi;
 const tmuxCaptureCache = new TmuxCaptureCache({ snapshotService: sessionServices.terminal.snapshot });
 const tmuxControlRegistry = new TmuxControlRegistry();
 const terminalTransportService = new TerminalTransportService({
@@ -643,15 +642,15 @@ function enforceTerminalOwnership(req, res, next) {
     }
 
     if (!viewerId) {
-        const terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+        const terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
         res.status(409).type('html').send(renderTerminalBlockedHtml(terminalAccess));
         return;
     }
 
-    let terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+    let terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
     if (terminalAccess.state === 'available') {
-        sessionManager.claimTerminalOwnership(sessionId, viewerId);
-        terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+        sessionServices.ownership.claimTerminalOwnership(sessionId, viewerId);
+        terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
     }
 
     if (terminalAccess.state === 'blocked') {
@@ -659,7 +658,7 @@ function enforceTerminalOwnership(req, res, next) {
         return;
     }
 
-    sessionManager.touchTerminalOwnership(sessionId, viewerId);
+    sessionServices.ownership.touchTerminalOwnership(sessionId, viewerId);
     next();
 }
 
@@ -686,7 +685,7 @@ const ttydProxy = createProxyMiddleware({
         }
     },
     router: function (req) {
-        const activeSessions = sessionManager.getActiveSessions();
+        const activeSessions = sessionServices.runtime.registry.getActiveSessions();
         const sessionId = getConsoleProxySessionId(req);
         if (sessionId && activeSessions.has(sessionId)) {
             return `http://127.0.0.1:${activeSessions.get(sessionId).port}`;
@@ -700,7 +699,7 @@ const ttydProxy = createProxyMiddleware({
     },
     onProxyReqWs: (proxyReq, req, socket, options, head) => {
         // Rewrite Origin to match the target (ttyd)
-        const activeSessions = sessionManager.getActiveSessions();
+        const activeSessions = sessionServices.runtime.registry.getActiveSessions();
         const sessionId = getConsoleProxySessionId(req);
         if (sessionId && activeSessions.has(sessionId)) {
             const port = activeSessions.get(sessionId).port;
@@ -727,7 +726,7 @@ app.use('/console', enforceTerminalOwnership, ttydProxy);
 const workspaceRoot = __dirname;
 
 app.get('/health/ready', (req, res) => {
-    const ready = sessionManager.isReady();
+    const ready = sessionServices.runtime.registry.isReady();
     res.status(ready ? 200 : 503).json({ ready });
 });
 
@@ -742,7 +741,7 @@ app.use('/api/config', createConfigRouter(configParser, configService, RUNTIME_P
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
 app.use('/api/sessions', createSessionRouter(
-    sessionManager,
+    sessionServices,
     worktreeService,
     stateStore,
     TEST_MODE,
@@ -760,7 +759,7 @@ app.use('/api/brainbase', createBrainbaseRouter({
     projectsRoot: PROJECTS_ROOT
 }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
-app.use('/api/health', createHealthRouter({ sessionManager, configParser }));
+app.use('/api/health', createHealthRouter({ readiness: sessionServices.runtime.registry, configParser }));
 app.use('/api/auth', createAuthRouter(authService));
 app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
 app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
@@ -769,7 +768,8 @@ app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configPars
 app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {
     brainbaseRoot: BRAINBASE_ROOT,
     projectsRoot: PROJECTS_ROOT,
-    sessionManager
+    sessionQuery: sessionServices.runtime.query,
+    workspace: sessionServices.workspace
 }));
 
 // ========================================
@@ -925,10 +925,10 @@ server.on('upgrade', (request, socket, head) => {
         return;
     }
 
-    let terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+    let terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
     if (terminalAccess?.state === 'available') {
-        sessionManager.claimTerminalOwnership(sessionId, viewerId);
-        terminalAccess = sessionManager.getTerminalAccessState(sessionId, viewerId);
+        sessionServices.ownership.claimTerminalOwnership(sessionId, viewerId);
+        terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
     }
 
     if (!terminalAccess || terminalAccess.state !== 'owner') {
@@ -937,7 +937,7 @@ server.on('upgrade', (request, socket, head) => {
         return;
     }
 
-    sessionManager.touchTerminalOwnership(sessionId, viewerId);
+    sessionServices.ownership.touchTerminalOwnership(sessionId, viewerId);
     // TTYD console proxy
     ttydProxy.upgrade(request, socket, head);
 });
@@ -971,7 +971,7 @@ async function gracefulShutdown(signal) {
         {
             name: 'cleanup-session-manager',
             fn: async () => {
-                if (sessionManager.cleanup) await sessionManager.cleanup();
+                if (sessionServices.runtime.lifecycle.cleanup) await sessionServices.runtime.lifecycle.cleanup();
             }
         },
         {

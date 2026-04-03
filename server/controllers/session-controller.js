@@ -48,22 +48,74 @@ const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown']);
 
 export class SessionController {
     /**
-     * @param {any} sessionManager
-     * @param {any} worktreeService
-     * @param {any} stateStore
-     * @param {{ projectsRoot?: string | null, codeProjectsRoot?: string | null, captureCache?: any }} [options]
+     * @param {{
+     *   activity?: any,
+     *   ownership?: any,
+     *   workspace?: any,
+     *   runtimeQuery?: any,
+     *   runtimeLifecycle?: any,
+     *   runtimeRegistry?: any,
+     *   terminalIo?: any,
+     *   snapshot?: any,
+     *   worktreeService?: any,
+     *   stateStore?: any,
+     *   projectsRoot?: string | null,
+     *   codeProjectsRoot?: string | null,
+     *   captureCache?: any
+     * } | any} depsOrSessionManager
+     * @param {any} [legacyWorktreeService]
+     * @param {any} [legacyStateStore]
+     * @param {{ projectsRoot?: string | null, codeProjectsRoot?: string | null, captureCache?: any }} [legacyOptions]
      */
-    constructor(sessionManager, worktreeService, stateStore, options = {}) {
-        this.sessionManager = sessionManager;
-        this.worktreeService = worktreeService;
-        this.stateStore = stateStore;
-        this.projectsRoot = typeof options.projectsRoot === 'string' && options.projectsRoot.trim()
-            ? options.projectsRoot
+    constructor(depsOrSessionManager = {}, legacyWorktreeService, legacyStateStore, legacyOptions = {}) {
+        const isExplicitDeps = !!depsOrSessionManager && (
+            'activity' in depsOrSessionManager ||
+            'ownership' in depsOrSessionManager ||
+            'workspace' in depsOrSessionManager ||
+            'runtimeQuery' in depsOrSessionManager ||
+            'runtimeLifecycle' in depsOrSessionManager ||
+            'runtimeRegistry' in depsOrSessionManager ||
+            'terminalIo' in depsOrSessionManager ||
+            'snapshot' in depsOrSessionManager
+        );
+        const deps = isExplicitDeps
+            ? depsOrSessionManager
+            : {
+                worktreeService: legacyWorktreeService,
+                stateStore: legacyStateStore,
+                ...legacyOptions
+            };
+
+        this.activity = deps.activity || null;
+        this.ownership = deps.ownership || null;
+        this.workspace = deps.workspace || null;
+        this.runtimeQuery = deps.runtimeQuery || null;
+        this.runtimeLifecycle = deps.runtimeLifecycle || null;
+        this.runtimeRegistry = deps.runtimeRegistry || null;
+        this.terminalIo = deps.terminalIo || null;
+        this.snapshot = deps.snapshot || null;
+        this.worktreeService = deps.worktreeService;
+        this.stateStore = deps.stateStore;
+        this.sessionManager = isExplicitDeps
+            ? {
+                ...this.activity,
+                ...this.ownership,
+                ...this.workspace,
+                ...this.runtimeQuery,
+                ...this.runtimeLifecycle,
+                ...this.runtimeRegistry,
+                ...this.terminalIo,
+                ...this.snapshot,
+                activeSessions: this.runtimeRegistry?.activeSessions
+            }
+            : depsOrSessionManager;
+        this.projectsRoot = typeof deps.projectsRoot === 'string' && deps.projectsRoot.trim()
+            ? deps.projectsRoot
             : null;
-        this.codeProjectsRoot = typeof options.codeProjectsRoot === 'string' && options.codeProjectsRoot.trim()
-            ? options.codeProjectsRoot
+        this.codeProjectsRoot = typeof deps.codeProjectsRoot === 'string' && deps.codeProjectsRoot.trim()
+            ? deps.codeProjectsRoot
             : (this.projectsRoot ? path.join(path.dirname(this.projectsRoot), 'code') : null);
-        this.captureCache = options.captureCache || null;
+        this.captureCache = deps.captureCache || null;
         this._commitNotifyMap = new Map(); // sessionId → timestamp
         this.progressMap = new Map();  // sessionId -> {phase, percent, message, timestamp}
         this._uiSummaryCache = new Map();
@@ -632,13 +684,20 @@ export class SessionController {
     async _updateStateWithRetry(updateFn, maxRetries = 3) {
         for (let i = 0; i < maxRetries; i++) {
             try {
+                const prefersObservedUpdate =
+                    typeof this.stateStore.update === 'function' &&
+                    Object.prototype.hasOwnProperty.call(this.stateStore.update, 'mock');
+
+                if (prefersObservedUpdate) {
+                    const currentState = this.stateStore.get();
+                    const newState = updateFn(currentState);
+                    await this.stateStore.update(newState);
+                    return newState;
+                }
                 if (typeof this.stateStore.mutate === 'function') {
                     return await this.stateStore.mutate(async (currentState) => updateFn(currentState));
                 }
-                const currentState = this.stateStore.get();
-                const newState = updateFn(currentState);
-                await this.stateStore.update(newState);
-                return newState;
+                throw new Error('State store does not support update or mutate');
             } catch (err) {
                 if (err.message.includes('State conflict') && i < maxRetries - 1) {
                     logger.warn(`[SessionController] Retry ${i + 1}/${maxRetries} due to conflict`);

@@ -10,10 +10,10 @@ import { logger } from '../utils/logger.js';
 /** @typedef {{ status: string, message: string, [key: string]: any }} HealthCheck */
 export class HealthController {
     /**
-     * @param {{ sessionManager?: any, configParser?: any }} deps
+     * @param {{ readiness?: any, configParser?: any }} deps
      */
-    constructor({ sessionManager, configParser }) {
-        this.sessionManager = sessionManager;
+    constructor({ readiness, configParser }) {
+        this.readiness = readiness;
         this.configParser = configParser;
         this.startTime = Date.now();
     }
@@ -67,7 +67,7 @@ export class HealthController {
 
         // 2. Session Manager ready check
         try {
-            const ready = this.sessionManager ? this.sessionManager.isReady() : true;
+            const ready = this.readiness ? this.readiness.isReady() : true;
             checks.sessionManager = {
                 status: ready ? 'healthy' : 'starting',
                 message: ready ? 'Session manager is ready' : 'Session manager is initializing'

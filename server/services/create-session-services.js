@@ -1,8 +1,8 @@
 import { TerminalOutputParser } from './terminal-output-parser.js';
-import { activityTrackerMethods } from './session-manager/activity-tracker-methods.js';
-import { runtimeStateRepositoryMethods } from './session-manager/runtime-state-repository-methods.js';
-import { terminalOwnershipMethods } from './session-manager/terminal-ownership-methods.js';
-import { workspaceResolverMethods } from './session-manager/workspace-resolver-methods.js';
+import { activityServiceMethods } from './session-core/activity-service-methods.js';
+import { runtimeStateRepositoryMethods } from './session-core/runtime-state-repository-methods.js';
+import { ownershipServiceMethods } from './session-core/ownership-service-methods.js';
+import { workspaceServiceMethods } from './session-core/workspace-service-methods.js';
 import { runtimeRegistryMethods } from './session-runtime/runtime-registry-methods.js';
 import { runtimeQueryMethods } from './session-runtime/runtime-query-methods.js';
 import { runtimeLifecycleMethods } from './session-runtime/runtime-lifecycle-methods.js';
@@ -57,10 +57,10 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         shared._readyResolver = resolve;
     });
 
-    bindMethods(shared, terminalOwnershipMethods);
-    bindMethods(shared, activityTrackerMethods);
+    bindMethods(shared, ownershipServiceMethods);
+    bindMethods(shared, activityServiceMethods);
     bindMethods(shared, runtimeStateRepositoryMethods);
-    bindMethods(shared, workspaceResolverMethods);
+    bindMethods(shared, workspaceServiceMethods);
     bindMethods(shared, runtimeRegistryMethods);
     bindMethods(shared, runtimeQueryMethods);
     bindMethods(shared, runtimeLifecycleMethods);

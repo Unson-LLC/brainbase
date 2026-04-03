@@ -44,8 +44,10 @@ describe('POST /api/open-file', () => {
             path: sessionWorkspacePath,
             worktree: { path: sessionSymlinkPath }
         };
-        const sessionManager = {
+        const sessionQuery = {
             getSession: vi.fn((sessionId) => sessionId === 'session-123' ? session : null),
+        };
+        const workspace = {
             resolveSessionWorkspacePath: vi.fn(async (sessionId) => sessionId === 'session-123' ? sessionWorkspacePath : null)
         };
 
@@ -55,7 +57,7 @@ describe('POST /api/open-file', () => {
             workspaceRoot,
             path.join(tempRoot, 'uploads'),
             null,
-            { brainbaseRoot, projectsRoot, sessionManager }
+            { brainbaseRoot, projectsRoot, sessionQuery, workspace }
         );
 
         app = express();

@@ -6,7 +6,7 @@ function isEphemeralTmpPath(candidate) {
         && (candidate === '/private/tmp' || candidate.startsWith('/private/tmp/'));
 }
 
-export const workspaceResolverMethods = {
+export const workspaceServiceMethods = {
     _getStoredWorkspacePath(session) {
         return session?.worktree?.path || session?.path || null;
     },

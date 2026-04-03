@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSessionServices } from '../../server/services/create-session-services.js';
 
-const spawnMock = vi.fn();
+const { spawnMock } = vi.hoisted(() => ({
+  spawnMock: vi.fn()
+}));
 
 vi.mock('child_process', () => ({
   spawn: spawnMock,
@@ -22,21 +25,18 @@ const createStateStore = () => {
 };
 
 describe('SessionManager env', () => {
-  let SessionManager;
   let manager;
 
   beforeEach(async () => {
     spawnMock.mockReset();
 
-    ({ SessionManager } = await import('../../server/services/session-manager.js'));
-
-    manager = new SessionManager({
+    manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {},
       uiPort: 31013
-    });
+    }).sessionApi;
 
     manager.findFreePort = vi.fn().mockResolvedValue(40000);
     manager._saveTtydProcessInfo = vi.fn().mockResolvedValue();

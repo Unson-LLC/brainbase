@@ -10,7 +10,7 @@ function trimPromptBuffer(value) {
         : value;
 }
 
-export const activityTrackerMethods = {
+export const activityServiceMethods = {
     _appendPromptBuffer(sessionId, chunk) {
         if (!sessionId || typeof chunk !== 'string' || !chunk) return;
         const previous = this.promptBuffers.get(sessionId) || '';
@@ -520,21 +520,19 @@ export const activityTrackerMethods = {
                 };
             }
 
-            const { hookStatus, ...rest } = session;
-            return rest;
+            const nextSession = {
+                ...session,
+                updatedAt
+            };
+            delete nextSession.hookStatus;
+            return nextSession;
         });
 
-        this.stateStore.update({
-            ...currentState,
-            sessions: updatedSessions
-        });
+        return this.stateStore.update({ ...currentState, sessions: updatedSessions });
     },
 
-    _coerceTimestamp(value) {
-        const numeric = Number(value);
-        if (Number.isFinite(numeric) && numeric > 0) {
-            return numeric;
-        }
-        return Date.now();
+    _coerceTimestamp(reportedAt) {
+        const value = Number(reportedAt);
+        return Number.isFinite(value) && value > 0 ? value : Date.now();
     }
 };

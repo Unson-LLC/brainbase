@@ -17,11 +17,17 @@ export class ManaChatView {
         this.store = appStore;
 
         // DOM refs
+        /** @type {HTMLElement | null} */
         this.bubbleEl = null;
+        /** @type {HTMLElement | null} */
         this.panelEl = null;
+        /** @type {HTMLElement | null} */
         this.messagesEl = null;
+        /** @type {HTMLInputElement | null} */
         this.inputEl = null;
+        /** @type {HTMLButtonElement | null} */
         this.sendBtnEl = null;
+        /** @type {HTMLButtonElement | null} */
         this.captureBtnEl = null;
 
         // State
@@ -35,9 +41,9 @@ export class ManaChatView {
         this.bubbleEl = document.getElementById('mana-chat-bubble');
         this.panelEl = document.getElementById('mana-chat-panel');
         this.messagesEl = document.getElementById('mana-chat-messages');
-        this.inputEl = document.getElementById('mana-chat-input');
-        this.sendBtnEl = document.getElementById('mana-chat-send');
-        this.captureBtnEl = document.getElementById('mana-capture-btn');
+        this.inputEl = /** @type {HTMLInputElement | null} */ (document.getElementById('mana-chat-input'));
+        this.sendBtnEl = /** @type {HTMLButtonElement | null} */ (document.getElementById('mana-chat-send'));
+        this.captureBtnEl = /** @type {HTMLButtonElement | null} */ (document.getElementById('mana-capture-btn'));
 
         if (!this.bubbleEl || !this.panelEl) return;
 
@@ -92,14 +98,14 @@ export class ManaChatView {
         document.addEventListener('click', this._outsideClickHandler);
 
         // EventBus
-        const unsub1 = this.eventBus.on(EVENTS.MANA_CHAT_RESPONSE, (e) => {
+        const unsub1 = this.eventBus.on(EVENTS.MANA_CHAT_RESPONSE, /** @param {CustomEvent<{ reply: string }>} e */ (e) => {
             const data = e.detail;
             this._appendMessage('mana', data.reply);
             this._sending = false;
             this._updateSendState();
         });
 
-        const unsub2 = this.eventBus.on(EVENTS.MANA_CAPTURED, (e) => {
+        const unsub2 = this.eventBus.on(EVENTS.MANA_CAPTURED, /** @param {CustomEvent<{ title: string }>} e */ (e) => {
             const data = e.detail;
             this._appendMessage('system', `Captured: ${data.title}`);
         });

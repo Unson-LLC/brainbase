@@ -10,7 +10,7 @@ import { logger } from '../utils/logger.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
-/** @typedef {{ brainbaseRoot?: string | null, projectsRoot?: string | null, sessionManager?: any } | null | undefined} MiscControllerPaths */
+/** @typedef {{ brainbaseRoot?: string | null, projectsRoot?: string | null, sessionQuery?: any, workspace?: any } | null | undefined} MiscControllerPaths */
 
 export class MiscController {
     /**
@@ -29,7 +29,8 @@ export class MiscController {
         this.runtimeInfo = runtimeInfo;
         this.brainbaseRoot = paths?.brainbaseRoot || null;
         this.projectsRoot = paths?.projectsRoot || null;
-        this.sessionManager = paths?.sessionManager || null;
+        this.sessionQuery = paths?.sessionQuery || null;
+        this.workspace = paths?.workspace || null;
     }
 
     /**
@@ -158,15 +159,15 @@ export class MiscController {
 
     /** @param {string | null | undefined} sessionId */
     async _getSessionContext(sessionId) {
-        if (!sessionId || !this.sessionManager) {
+        if (!sessionId) {
             return { session: null, resolvedWorkspacePath: null };
         }
 
-        const session = typeof this.sessionManager.getSession === 'function'
-            ? this.sessionManager.getSession(sessionId)
+        const session = typeof this.sessionQuery?.getSession === 'function'
+            ? this.sessionQuery.getSession(sessionId)
             : null;
-        const resolvedWorkspacePath = typeof this.sessionManager.resolveSessionWorkspacePath === 'function'
-            ? await this.sessionManager.resolveSessionWorkspacePath(sessionId, { persist: false, preferTmux: true })
+        const resolvedWorkspacePath = typeof this.workspace?.resolveSessionWorkspacePath === 'function'
+            ? await this.workspace.resolveSessionWorkspacePath(sessionId, { persist: false, preferTmux: true })
             : null;
 
         return { session, resolvedWorkspacePath };

@@ -6,13 +6,13 @@ import { HealthController } from '../../../server/controllers/health-controller.
 
 describe('HealthController', () => {
   let controller;
-  let mockSessionManager;
+  let mockReadiness;
   let mockConfigParser;
   let mockReq;
   let mockRes;
 
   beforeEach(() => {
-    mockSessionManager = {
+    mockReadiness = {
       isReady: vi.fn().mockReturnValue(true)
     };
 
@@ -24,7 +24,7 @@ describe('HealthController', () => {
     };
 
     controller = new HealthController({
-      sessionManager: mockSessionManager,
+      readiness: mockReadiness,
       configParser: mockConfigParser
     });
 
@@ -56,7 +56,7 @@ describe('HealthController', () => {
     });
 
     it('SessionManagerが起動中_degradedステータスが返される', async () => {
-      mockSessionManager.isReady.mockReturnValue(false);
+      mockReadiness.isReady.mockReturnValue(false);
 
       await controller.getHealth(mockReq, mockRes);
 
@@ -111,7 +111,7 @@ describe('HealthController', () => {
 
     it('SessionManagerがnull_OSS版対応でhealthyが返される', async () => {
       const ossController = new HealthController({
-        sessionManager: null,
+        readiness: null,
         configParser: mockConfigParser
       });
 
@@ -130,7 +130,7 @@ describe('HealthController', () => {
 
     it('ConfigParserがnull_OSS版対応でhealthyが返される', async () => {
       const ossController = new HealthController({
-        sessionManager: mockSessionManager,
+        readiness: mockReadiness,
         configParser: null
       });
 

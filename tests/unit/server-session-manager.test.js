@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SessionManager } from '../../server/services/session-manager.js';
+import { createSessionServices } from '../../server/services/create-session-services.js';
 
 describe('SessionManager (Server)', () => {
   let sessionManager;
@@ -7,8 +7,7 @@ describe('SessionManager (Server)', () => {
 
   beforeEach(() => {
     execPromiseMock = vi.fn().mockResolvedValue({ stdout: '' });
-    sessionManager = new SessionManager({});
-    sessionManager.execPromise = execPromiseMock;
+    sessionManager = createSessionServices({ execPromise: execPromiseMock }).sessionApi;
   });
 
   afterEach(() => {

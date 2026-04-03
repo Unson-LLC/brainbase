@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
-import { SessionManager } from '../../server/services/session-manager.js';
+import { createSessionServices } from '../../server/services/create-session-services.js';
 
 const createStateStore = () => {
   let state = {
@@ -37,12 +37,12 @@ const createStateStore = () => {
   };
 };
 
-const createManager = () => new SessionManager({
+const createManager = () => createSessionServices({
   serverDir: '/tmp',
   execPromise: async () => ({ stdout: '' }),
   stateStore: createStateStore(),
   worktreeService: {}
-});
+}).sessionApi;
 
 describe('SessionManager', () => {
   afterEach(() => {
@@ -211,12 +211,12 @@ describe('SessionManager', () => {
       }
     };
 
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore,
       worktreeService: {}
-    });
+    }).sessionApi;
 
     await manager.restoreHookStatus();
 
@@ -255,12 +255,12 @@ describe('SessionManager', () => {
       }
     };
 
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore,
       worktreeService: {}
-    });
+    }).sessionApi;
 
     await manager.restoreHookStatus();
 
@@ -479,12 +479,12 @@ describe('SessionManager', () => {
       }
     };
 
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: `${resolvedDir}\n` }),
       stateStore,
       worktreeService: { worktreesDir: '/unused' }
-    });
+    }).sessionApi;
 
     const resolvedPath = await manager.resolveSessionWorkspacePath('session-1');
 
@@ -517,12 +517,12 @@ describe('SessionManager', () => {
       }
     };
 
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: `/private/tmp\n${durableDir}\n` }),
       stateStore,
       worktreeService: { worktreesDir: '/unused' }
-    });
+    }).sessionApi;
 
     const resolvedPath = await manager.resolveSessionWorkspacePath('session-1');
 
@@ -535,12 +535,12 @@ describe('SessionManager', () => {
   });
 
   it('sendInput呼び出し時_短文テキストはtemp file経由でpaste-bufferする', async () => {
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {}
-    });
+    }).sessionApi;
     const runTmuxSpy = vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-short');
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
@@ -557,12 +557,12 @@ describe('SessionManager', () => {
   });
 
   it('sendInput呼び出し時_長文テキストはtemp file経由でpaste-bufferする', async () => {
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {}
-    });
+    }).sessionApi;
     const runTmuxSpy = vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test');
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
@@ -579,12 +579,12 @@ describe('SessionManager', () => {
   });
 
   it('sendInput呼び出し時_shell展開文字を含んでもそのままwriteFileされる', async () => {
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore: createStateStore(),
       worktreeService: {}
-    });
+    }).sessionApi;
     vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-literal');
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
@@ -604,12 +604,12 @@ describe('SessionManager', () => {
         return state;
       }
     };
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore,
       worktreeService: {}
-    });
+    }).sessionApi;
     vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-taskbrief');
     vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
@@ -631,12 +631,12 @@ describe('SessionManager', () => {
         return state;
       }
     };
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore,
       worktreeService: {}
-    });
+    }).sessionApi;
     const now = Date.now();
 
     manager.reportActivity('session-1', 'working', now, {
@@ -664,12 +664,12 @@ describe('SessionManager', () => {
         return state;
       }
     };
-    const manager = new SessionManager({
+    const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
       stateStore,
       worktreeService: {}
-    });
+    }).sessionApi;
     vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
     vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-command');
     vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);

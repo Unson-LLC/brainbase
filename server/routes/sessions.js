@@ -9,7 +9,7 @@ import { logger } from '../utils/logger.js';
 
 /**
  * Session router factory
- * @param {SessionManager} sessionManager - SessionManagerインスタンス
+ * @param {any} sessionServices - Session services bundle
  * @param {WorktreeService} worktreeService - WorktreeServiceインスタンス
  * @param {StateStore} stateStore - StateStoreインスタンス
  * @param {boolean} [testMode=false] - テストモードフラグ
@@ -17,9 +17,21 @@ import { logger } from '../utils/logger.js';
  * @param {Object} [pathOptions={}] - パス解決オプション
  * @returns {express.Router}
  */
-export function createSessionRouter(sessionManager, worktreeService, stateStore, testMode = false, conversationLinker = null, pathOptions = {}) {
+export function createSessionRouter(sessionServices, worktreeService, stateStore, testMode = false, conversationLinker = null, pathOptions = {}) {
     const router = express.Router();
-    const controller = new SessionController(sessionManager, worktreeService, stateStore, pathOptions);
+    const controller = new SessionController({
+        activity: sessionServices?.activity,
+        ownership: sessionServices?.ownership,
+        workspace: sessionServices?.workspace,
+        runtimeQuery: sessionServices?.runtime?.query,
+        runtimeLifecycle: sessionServices?.runtime?.lifecycle,
+        runtimeRegistry: sessionServices?.runtime?.registry,
+        terminalIo: sessionServices?.terminal?.io,
+        snapshot: sessionServices?.terminal?.snapshot,
+        worktreeService,
+        stateStore,
+        ...pathOptions
+    });
 
     // ========================================
     // Activity & Status

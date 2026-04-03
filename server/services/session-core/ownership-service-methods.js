@@ -1,4 +1,4 @@
-export const terminalOwnershipMethods = {
+export const ownershipServiceMethods = {
     _normalizeString(value) {
         if (typeof value !== 'string') return null;
         const trimmed = value.trim();
