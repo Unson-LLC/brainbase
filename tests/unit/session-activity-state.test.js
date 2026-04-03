@@ -9,6 +9,7 @@ describe('session-activity-state', () => {
     describe('ActivityState定数', () => {
         it('全ステータスが定義されている', () => {
             expect(ActivityState.IDLE).toBe('idle');
+            expect(ActivityState.WAITING).toBe('waiting');
             expect(ActivityState.WORKING).toBe('working');
             expect(ActivityState.THINKING).toBe('thinking');
             expect(ActivityState.DONE_UNREAD).toBe('done-unread');
@@ -19,6 +20,19 @@ describe('session-activity-state', () => {
         it('hookStatusなし_IDLEを返す', () => {
             expect(deriveActivityState(null)).toBe(ActivityState.IDLE);
             expect(deriveActivityState(undefined)).toBe(ActivityState.IDLE);
+        });
+
+        it('liveActivityがwaiting_input_WAITINGを返す', () => {
+            const hookStatus = {
+                isWorking: true,
+                isDone: false,
+                activeTurnCount: 0,
+                liveActivity: {
+                    activityKind: 'waiting_input',
+                    statusTone: 'waiting'
+                }
+            };
+            expect(deriveActivityState(hookStatus)).toBe(ActivityState.WAITING);
         });
 
         it('isWorking=true, activeTurnCount>0_THINKINGを返す', () => {

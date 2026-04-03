@@ -130,6 +130,27 @@ describe('session-list-renderer', () => {
       expect(html).not.toContain('session-attention-badge');
     });
 
+    it('should render waiting indicator when session is waiting for input', () => {
+      const session = {
+        id: 'session-waiting',
+        name: 'Waiting Session'
+      };
+
+      const html = renderSessionRowHTML(session, {
+        isActive: false,
+        project: 'general',
+        sessionUiState: {
+          activity: 'waiting',
+          transport: 'connected',
+          attention: 'needs-input'
+        }
+      });
+
+      expect(html).toContain('session-activity-indicator waiting');
+      expect(html).toContain('Waiting for input');
+      expect(html).toContain('session-attention-badge');
+    });
+
   });
 
   describe('renderSessionGroupHeaderHTML', () => {

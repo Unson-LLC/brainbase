@@ -135,4 +135,40 @@ describe('StateController CRUD session routes', () => {
     });
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('uses separated readiness and runtimeQuery dependencies in new DI mode', async () => {
+    const readiness = {
+      waitUntilReady: vi.fn(async () => true)
+    };
+    const runtimeQuery = {
+      getRuntimeStatus: vi.fn(() => ({ ttydRunning: true }))
+    };
+    const state = {
+      sessions: [
+        { id: 'session-1', name: 'separated-di', intendedState: 'active' }
+      ]
+    };
+    stateStore.get.mockReturnValue(state);
+    const res = createRes();
+    const next = vi.fn();
+    const controllerWithSeparatedDeps = new StateController(stateStore, readiness, runtimeQuery, false);
+
+    controllerWithSeparatedDeps.get({}, res, next);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(readiness.waitUntilReady).toHaveBeenCalled();
+    expect(runtimeQuery.getRuntimeStatus).toHaveBeenCalledWith(state.sessions[0]);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      sessions: [
+        expect.objectContaining({
+          id: 'session-1',
+          ttydRunning: true,
+          runtimeStatus: { ttydRunning: true }
+        })
+      ]
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
 });

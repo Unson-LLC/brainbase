@@ -25,6 +25,21 @@ const MAX_CONSECUTIVE_ERRORS = 3;
 const _suppressUpdates = new Map(); // sessionId -> timestamp
 const SUPPRESS_DURATION = 5000; // 5秒間サーバーポーリングの上書きを抑制
 
+function didLiveActivityChange(prev, next) {
+    const previous = prev || null;
+    const current = next || null;
+    if (!previous && !current) return false;
+    if (!previous || !current) return true;
+
+    return previous.activityKind !== current.activityKind
+        || previous.statusTone !== current.statusTone
+        || previous.updatedAt !== current.updatedAt
+        || previous.assistantSnippetUpdatedAt !== current.assistantSnippetUpdatedAt
+        || previous.taskBrief !== current.taskBrief
+        || previous.currentStep !== current.currentStep
+        || previous.latestEvidence !== current.latestEvidence;
+}
+
 function didHookStatusChange(prev, next) {
     if (!prev) return true;
     return prev.isWorking !== next.isWorking
@@ -34,7 +49,8 @@ function didHookStatusChange(prev, next) {
         || prev.lastActivityAt !== next.lastActivityAt
         || prev.lastEventType !== next.lastEventType
         || prev.activeTurnCount !== next.activeTurnCount
-        || prev.timestamp !== next.timestamp;
+        || prev.timestamp !== next.timestamp
+        || didLiveActivityChange(prev.liveActivity, next.liveActivity);
 }
 
 // Clear done status when session is opened
@@ -83,6 +99,12 @@ export async function markDoneAsRead(sessionId, currentSessionId = null) {
     } catch (error) {
         console.warn(`[Session Indicators] Failed to persist done-read for ${sessionId}:`, error);
     }
+}
+
+export function __resetSessionIndicatorStateForTests() {
+    consecutiveErrors = 0;
+    _lastConnectionStatus = null;
+    _suppressUpdates.clear();
 }
 
 // --- Connection Status ---

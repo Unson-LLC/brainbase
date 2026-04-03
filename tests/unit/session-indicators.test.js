@@ -24,12 +24,13 @@ vi.mock('../../public/modules/core/http-client.js', () => ({
 import { eventBus, EVENTS } from '../../public/modules/core/event-bus.js';
 import { httpClient } from '../../public/modules/core/http-client.js';
 import { appStore } from '../../public/modules/core/store.js';
-import { markDoneAsRead, pollSessionStatus } from '../../public/modules/session-indicators.js';
+import { __resetSessionIndicatorStateForTests, markDoneAsRead, pollSessionStatus } from '../../public/modules/session-indicators.js';
 import { getSessionStatus, getSessionUiEntry } from '../../public/modules/session-ui-state.js';
 
 describe('session-indicators', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        __resetSessionIndicatorStateForTests();
         appStore.setState({ sessionUi: { byId: {} } });
         globalThis.fetch = vi.fn().mockResolvedValue({
             ok: true,
@@ -249,6 +250,59 @@ describe('session-indicators', () => {
         await pollSessionStatus('session-1');
 
         expect(getSessionUiEntry('session-1').hookStatus.timestamp).toBe(260);
+        expect(eventBus.emit).toHaveBeenCalledWith(
+            EVENTS.SESSION_UI_STATE_CHANGED,
+            { sessionIds: ['session-1'] }
+        );
+    });
+
+    it('pollSessionStatus呼び出し時_liveActivityのtone変化もUI更新対象に含める', async () => {
+        globalThis.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    'session-1': {
+                        isWorking: true,
+                        isDone: false,
+                        lastWorkingAt: 200,
+                        lastDoneAt: 0,
+                        lastActivityAt: 200,
+                        activeTurnCount: 0,
+                        timestamp: 200,
+                        liveActivity: {
+                            activityKind: 'working',
+                            statusTone: 'working',
+                            updatedAt: 200
+                        }
+                    }
+                })
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    'session-1': {
+                        isWorking: true,
+                        isDone: false,
+                        lastWorkingAt: 200,
+                        lastDoneAt: 0,
+                        lastActivityAt: 200,
+                        activeTurnCount: 0,
+                        timestamp: 200,
+                        liveActivity: {
+                            activityKind: 'waiting_input',
+                            statusTone: 'waiting',
+                            updatedAt: 200
+                        }
+                    }
+                })
+            });
+
+        await pollSessionStatus('session-1');
+        vi.clearAllMocks();
+
+        await pollSessionStatus('session-1');
+
+        expect(getSessionUiEntry('session-1').hookStatus.liveActivity.statusTone).toBe('waiting');
         expect(eventBus.emit).toHaveBeenCalledWith(
             EVENTS.SESSION_UI_STATE_CHANGED,
             { sessionIds: ['session-1'] }

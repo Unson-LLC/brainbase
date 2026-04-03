@@ -63,7 +63,15 @@ export class StateController {
      */
     constructor(stateStore, readinessOrSessionManager, runtimeQueryOrTestMode = false, testMode = false) {
         this.stateStore = stateStore;
-        const looksLikeLegacy = readinessOrSessionManager && typeof readinessOrSessionManager.waitUntilReady === 'function';
+        const looksLikeLegacy = Boolean(
+            readinessOrSessionManager
+            && typeof readinessOrSessionManager.waitUntilReady === 'function'
+            && (
+                typeof runtimeQueryOrTestMode === 'boolean'
+                || runtimeQueryOrTestMode == null
+                || typeof runtimeQueryOrTestMode.getRuntimeStatus !== 'function'
+            )
+        );
         if (looksLikeLegacy) {
             this.readiness = readinessOrSessionManager;
             this.runtimeQuery = readinessOrSessionManager;

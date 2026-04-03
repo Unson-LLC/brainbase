@@ -2,8 +2,9 @@
 /**
  * セッションアクティビティ状態の細分化
  *
- * 4段階ステータス:
+ * 5段階ステータス:
  * - idle: フック報告なし
+ * - waiting: ユーザー入力待ち
  * - working: AI起動中（turn未開始）
  * - thinking: AIがturn処理中（activeTurnCount > 0）
  * - done-unread: AI完了（未読）
@@ -16,6 +17,7 @@
  */
 export const ActivityState = Object.freeze({
     IDLE: 'idle',
+    WAITING: 'waiting',
     WORKING: 'working',
     THINKING: 'thinking',
     DONE_UNREAD: 'done-unread',
@@ -24,13 +26,20 @@ export const ActivityState = Object.freeze({
 /**
  * hookStatusから細分化されたアクティビティ状態を導出
  *
- * @param {{ isWorking: boolean, isDone: boolean, activeTurnCount?: number }|null} hookStatus
+ * @param {{ isWorking: boolean, isDone: boolean, activeTurnCount?: number, liveActivity?: { activityKind?: string|null, statusTone?: string|null }|null }|null} hookStatus
  * @returns {string} ActivityState value
  */
 export function deriveActivityState(hookStatus) {
     if (!hookStatus) return ActivityState.IDLE;
 
     const activeTurnCount = hookStatus.activeTurnCount || 0;
+    const activityKind = hookStatus.liveActivity?.activityKind || null;
+    const statusTone = hookStatus.liveActivity?.statusTone || null;
+    const isWaiting = statusTone === 'waiting' || activityKind === 'waiting_input';
+
+    if (isWaiting) {
+        return ActivityState.WAITING;
+    }
 
     // Working states
     if (hookStatus.isWorking) {

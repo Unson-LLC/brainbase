@@ -208,6 +208,8 @@ export function deriveSessionUiState(sessionId, options = {}) {
             : 'active';
 
     const activity = deriveActivityState(hookStatus);
+    const waitingForInput = hookStatus?.liveActivity?.statusTone === 'waiting'
+        || hookStatus?.liveActivity?.activityKind === 'waiting_input';
 
     let transport = session?.runtimeStatus?.ttydRunning ? 'connected' : 'disconnected';
     if (isCurrent && entry.transport) {
@@ -217,7 +219,12 @@ export function deriveSessionUiState(sessionId, options = {}) {
         transport = 'disconnected';
     }
 
-    const attention = isCurrent ? (entry.attention || 'none') : 'none';
+    const explicitAttention = entry.attention || 'none';
+    const attention = explicitAttention !== 'none'
+        ? explicitAttention
+        : waitingForInput
+            ? 'needs-input'
+            : 'none';
 
     return {
         lifecycle,

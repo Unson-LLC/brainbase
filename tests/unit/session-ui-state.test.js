@@ -66,6 +66,25 @@ describe('session-ui-state', () => {
         }));
     });
 
+    it('waiting_input の hook status から needs-input attention を導出する', () => {
+        replaceSessionHookStatuses({
+            'session-1': {
+                isWorking: true,
+                isDone: false,
+                activeTurnCount: 0,
+                liveActivity: {
+                    activityKind: 'waiting_input',
+                    statusTone: 'waiting'
+                }
+            }
+        });
+
+        const uiState = deriveSessionUiState('session-1');
+
+        expect(uiState.activity).toBe('waiting');
+        expect(uiState.attention).toBe('needs-input');
+    });
+
     it('recent file を記録して localStorage に保持する', () => {
         recordRecentFileOpen('session-1', 'src/app.js');
         recordRecentFileOpen('session-1', 'README.md');

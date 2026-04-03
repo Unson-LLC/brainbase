@@ -138,11 +138,13 @@ export function renderSessionRowHTML(session, options = {}) {
     : '';
 
   const isWorking = activity === 'working' || activity === 'thinking';
-  const activityIndicator = isWorking
-    ? '<span class="session-activity-indicator working" title="Agent working"></span>'
-    : activity === 'done-unread'
-      ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
-      : '<span class="session-activity-indicator idle" aria-hidden="true"></span>';
+  const activityIndicator = activity === 'waiting'
+    ? '<span class="session-activity-indicator waiting" title="Waiting for input"></span>'
+    : isWorking
+      ? '<span class="session-activity-indicator working" title="Agent working"></span>'
+      : activity === 'done-unread'
+        ? '<span class="session-activity-indicator done" title="Unread done signal"></span>'
+        : '<span class="session-activity-indicator idle" aria-hidden="true"></span>';
 
   const transportLabelMap = {
     connected: { text: 'Live', className: 'transport-ok', title: 'Terminal connected' },
