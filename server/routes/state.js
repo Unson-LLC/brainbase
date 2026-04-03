@@ -5,9 +5,9 @@
 import express from 'express';
 import { StateController } from '../controllers/state-controller.js';
 
-export function createStateRouter(stateStore, sessionManager, testMode = false) {
+export function createStateRouter(stateStore, readinessOrSessionManager, runtimeQueryOrTestMode = false, testMode = false) {
     const router = express.Router();
-    const controller = new StateController(stateStore, sessionManager, testMode);
+    const controller = new StateController(stateStore, readinessOrSessionManager, runtimeQueryOrTestMode, testMode);
 
     // GET /api/state - アプリケーション状態を取得
     router.get('/', controller.get);

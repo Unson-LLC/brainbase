@@ -30,11 +30,13 @@ export class ConversationLinker {
     /**
      * @param {Object} options
      * @param {Object} options.stateStore - StateStore インスタンス
-     * @param {Object} [options.sessionManager] - SessionManager インスタンス
+     * @param {Object} [options.sessionManager] - 互換用 SessionManager インスタンス
+     * @param {Object} [options.workspaceService] - workspace service
      */
-    constructor({ stateStore, sessionManager = null }) {
+    constructor({ stateStore, sessionManager = null, workspaceService = null }) {
         this.stateStore = stateStore;
         this.sessionManager = sessionManager;
+        this.workspaceService = workspaceService || sessionManager;
         this.homeDir = os.homedir();
         this.claudeProjectsDir = path.join(this.homeDir, '.claude', 'projects');
         this.codexSessionsDir = path.join(this.homeDir, '.codex', 'sessions');
@@ -370,8 +372,8 @@ export class ConversationLinker {
      * @returns {Promise<Object|null>} conversationSummary or null (no change)
      */
     async _linkSession(session, codexIndex) {
-        const worktreePath = this.sessionManager
-            ? await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+        const worktreePath = this.workspaceService
+            ? await this.workspaceService.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
             : (session.worktree?.path || session.path);
         if (!worktreePath) return null;
 
@@ -578,8 +580,8 @@ export class ConversationLinker {
             throw new Error(`Session not found: ${sessionId}`);
         }
 
-        const worktreePath = this.sessionManager
-            ? await this.sessionManager.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
+        const worktreePath = this.workspaceService
+            ? await this.workspaceService.resolveSessionWorkspacePath(session, { persist: true, preferTmux: true })
             : (session.worktree?.path || session.path);
         if (!worktreePath) {
             return { conversations: [] };

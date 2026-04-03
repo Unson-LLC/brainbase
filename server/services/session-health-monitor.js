@@ -13,18 +13,21 @@
 import { logger } from '../utils/logger.js';
 
 /**
- * @typedef {object} HealthSessionManager
+ * @typedef {object} HealthRuntimeRegistry
  * @property {Map<string, unknown>} activeSessions
+ *
+ * @typedef {object} HealthRuntimeQuery
  * @property {(sessionId: string) => Promise<boolean>} isTmuxSessionRunning
  */
 
 export class SessionHealthMonitor {
     /**
-     * @param {HealthSessionManager} sessionManager - SessionManagerインスタンス
+     * @param {HealthRuntimeRegistry|{runtimeRegistry?: HealthRuntimeRegistry, runtimeQuery?: HealthRuntimeQuery}} sessionRuntime - runtime deps
      * @param {{ onDeadSession?: ((sessionId: string) => void) | null }} [options]
      */
-    constructor(sessionManager, options = {}) {
-        this.sessionManager = sessionManager;
+    constructor(sessionRuntime, options = {}) {
+        this.runtimeRegistry = sessionRuntime?.runtimeRegistry || sessionRuntime;
+        this.runtimeQuery = sessionRuntime?.runtimeQuery || sessionRuntime;
         this.onDeadSession = options.onDeadSession || null;
         this._timer = null;
     }
@@ -37,11 +40,11 @@ export class SessionHealthMonitor {
         const alive = [];
         const dead = [];
 
-        const sessionIds = [...this.sessionManager.activeSessions.keys()];
+        const sessionIds = [...this.runtimeRegistry.activeSessions.keys()];
 
         for (const sessionId of sessionIds) {
             try {
-                const running = await this.sessionManager.isTmuxSessionRunning(sessionId);
+                const running = await this.runtimeQuery.isTmuxSessionRunning(sessionId);
                 if (running) {
                     alive.push(sessionId);
                 } else {

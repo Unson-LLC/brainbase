@@ -16,9 +16,9 @@ const brainbaseRoot = process.env.BRAINBASE_ROOT || path.join(repoRoot, 'data');
 const varDir = process.env.BRAINBASE_VAR_DIR || path.join(repoRoot, 'var');
 const worktreesDir = process.env.BRAINBASE_WORKTREES_DIR || path.join(brainbaseRoot, '.worktrees');
 
-// StateStore と SessionManager をインポート
+// StateStore と session services をインポート
 import { StateStore } from '../lib/state-store.js';
-import { SessionManager } from '../server/services/session-manager.js';
+import { createSessionServices } from '../server/services/create-session-services.js';
 import { WorktreeService } from '../server/services/worktree-service.js';
 
 const execPromise = promisify(exec);
@@ -37,15 +37,15 @@ async function main() {
     // WorktreeService 初期化
     const worktreeService = new WorktreeService(worktreesDir, brainbaseRoot, execPromise);
 
-    // SessionManager 初期化
-    const sessionManager = new SessionManager({
+    // Session services 初期化
+    const sessionServices = createSessionServices({
         serverDir: path.join(__dirname, '..'),
         execPromise,
         stateStore,
         worktreeService
     });
 
-    console.log('✅ SessionManager initialized\n');
+    console.log('✅ Session services initialized\n');
 
     // クリーンアップ前の統計
     const stateBefore = stateStore.get();
@@ -58,11 +58,11 @@ async function main() {
 
     // Phase 2: 24h TTL cleanup (paused sessions)
     console.log('▶ cleanupStalePausedSessions() 実行中...');
-    await sessionManager.cleanupStalePausedSessions();
+    await sessionServices.runtime.maintenance.cleanupStalePausedSessions();
 
     // Phase 2: 30d TTL cleanup (archived sessions)
     console.log('▶ cleanupArchivedSessions() 実行中...');
-    await sessionManager.cleanupArchivedSessions();
+    await sessionServices.runtime.maintenance.cleanupArchivedSessions();
 
     // クリーンアップ後の統計
     const stateAfter = stateStore.get();

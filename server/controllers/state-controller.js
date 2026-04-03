@@ -57,19 +57,29 @@ function validateSession(session) {
 export class StateController {
     /**
      * @param {any} stateStore
-     * @param {any} sessionManager
+     * @param {any} readinessOrSessionManager
+     * @param {any} [runtimeQueryOrTestMode]
      * @param {boolean} [testMode]
      */
-    constructor(stateStore, sessionManager, testMode = false) {
+    constructor(stateStore, readinessOrSessionManager, runtimeQueryOrTestMode = false, testMode = false) {
         this.stateStore = stateStore;
-        this.sessionManager = sessionManager;
-        this.testMode = testMode;
+        const looksLikeLegacy = readinessOrSessionManager && typeof readinessOrSessionManager.waitUntilReady === 'function';
+        if (looksLikeLegacy) {
+            this.readiness = readinessOrSessionManager;
+            this.runtimeQuery = readinessOrSessionManager;
+            this.testMode = Boolean(runtimeQueryOrTestMode);
+            return;
+        }
+
+        this.readiness = readinessOrSessionManager;
+        this.runtimeQuery = runtimeQueryOrTestMode;
+        this.testMode = Boolean(testMode);
     }
 
     /** GET /api/state */
     /** @param {Request} req @param {Response} res */
     get = asyncHandler(async (req, res) => {
-        const ready = await this.sessionManager.waitUntilReady();
+        const ready = await this.readiness.waitUntilReady();
         if (!ready) {
             return res.status(503).json({ error: 'Service not ready' });
         }
@@ -77,7 +87,7 @@ export class StateController {
         const state = this.stateStore.get();
 
         const sessionsWithStatus = /** @type {SessionRecord[]} */ (state.sessions || []).map((session) => {
-            const runtimeStatus = this.sessionManager.getRuntimeStatus(session);
+            const runtimeStatus = this.runtimeQuery.getRuntimeStatus(session);
 
             const { conversationSummary, ...rest } = session;
             const convLight = conversationSummary ? {

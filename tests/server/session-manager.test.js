@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { SessionManager } from '../../server/services/session-manager.js';
 
@@ -12,6 +12,24 @@ const createStateStore = () => {
 
   return {
     get: () => state,
+    patchSession: async (sessionId, patch) => {
+      state = {
+        ...state,
+        sessions: state.sessions.map((session) => {
+          if (session.id !== sessionId) return session;
+          const computedPatch = typeof patch === 'function' ? patch(session) : patch;
+          if (!computedPatch) return session;
+          const nextSession = { ...session, ...computedPatch };
+          for (const [key, value] of Object.entries(computedPatch)) {
+            if (value === undefined) {
+              delete nextSession[key];
+            }
+          }
+          return nextSession;
+        })
+      };
+      return state;
+    },
     update: async (next) => {
       state = next;
       return state;
@@ -27,7 +45,12 @@ const createManager = () => new SessionManager({
 });
 
 describe('SessionManager', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('getRuntimeStatus_paused_session_does_not_probe_tmux', () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
     const manager = createManager();
     const tmuxSpy = vi.spyOn(manager, '_isTmuxSessionRunningSync').mockReturnValue(true);
     const processSpy = vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
@@ -45,6 +68,7 @@ describe('SessionManager', () => {
   });
 
   it('getRuntimeStatus_active_session_without_ttyd_probes_tmux', () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
     const manager = createManager();
     const tmuxSpy = vi.spyOn(manager, '_isTmuxSessionRunningSync').mockReturnValue(true);
     vi.spyOn(manager, '_isProcessRunning').mockReturnValue(false);
@@ -117,6 +141,135 @@ describe('SessionManager', () => {
     expect(status).toBeUndefined();
   });
 
+  it('clearDoneStatus_removes_ghost_working_state_without_active_turns', () => {
+    const manager = createManager();
+    manager.hookStatus.set('session-1', {
+      status: 'working',
+      timestamp: Date.now(),
+      lastWorkingAt: Date.now(),
+      lastDoneAt: 0,
+      lastActivityAt: Date.now(),
+      activeTurnIds: []
+    });
+
+    manager.clearDoneStatus('session-1');
+
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+  });
+
+  it('stale working without active turns does not surface as done', () => {
+    const manager = createManager();
+    const staleTime = Date.now() - 60 * 60 * 1000 - 1000;
+
+    manager.hookStatus.set('session-1', {
+      status: 'working',
+      timestamp: staleTime,
+      lastWorkingAt: staleTime,
+      lastDoneAt: 0,
+      lastActivityAt: staleTime,
+      activeTurnIds: []
+    });
+
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+  });
+
+  it('restoreHookStatus_prunes_stale_working_without_active_turns', async () => {
+    const staleTime = Date.now() - 60 * 60 * 1000 - 1000;
+    let state = {
+      sessions: [{
+        id: 'session-1',
+        hookStatus: {
+          status: 'working',
+          timestamp: staleTime,
+          lastWorkingAt: staleTime,
+          lastDoneAt: 0,
+          lastActivityAt: staleTime,
+          activeTurnIds: []
+        }
+      }]
+    };
+
+    const stateStore = {
+      get: () => state,
+      patchSession: async (sessionId, patch) => {
+        state = {
+          ...state,
+          sessions: state.sessions.map((session) => {
+            if (session.id !== sessionId) return session;
+            const nextSession = { ...session, ...patch };
+            for (const [key, value] of Object.entries(patch)) {
+              if (value === undefined) delete nextSession[key];
+            }
+            return nextSession;
+          })
+        };
+        return state;
+      },
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: '' }),
+      stateStore,
+      worktreeService: {}
+    });
+
+    await manager.restoreHookStatus();
+
+    expect(manager.getSessionStatus()['session-1']).toBeUndefined();
+    expect(state.sessions[0]).not.toHaveProperty('hookStatus');
+  });
+
+  it('restoreHookStatus_keeps_recent_explicit_done', async () => {
+    const now = Date.now();
+    let state = {
+      sessions: [{
+        id: 'session-1',
+        hookStatus: {
+          status: 'done',
+          timestamp: now,
+          lastWorkingAt: now - 1000,
+          lastDoneAt: now,
+          lastActivityAt: now,
+          activeTurnIds: []
+        }
+      }]
+    };
+
+    const stateStore = {
+      get: () => state,
+      patchSession: async (sessionId, patch) => {
+        state = {
+          ...state,
+          sessions: state.sessions.map((session) => session.id === sessionId ? { ...session, ...patch } : session)
+        };
+        return state;
+      },
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+
+    const manager = new SessionManager({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: '' }),
+      stateStore,
+      worktreeService: {}
+    });
+
+    await manager.restoreHookStatus();
+
+    expect(manager.getSessionStatus()['session-1']).toMatchObject({
+      isWorking: false,
+      isDone: true
+    });
+  });
+
   it('heartbeat_timeout_sets_isWorking_false_after_60m', () => {
     const manager = createManager();
     const now = Date.now();
@@ -125,8 +278,7 @@ describe('SessionManager', () => {
     manager.reportActivity('session-1', 'working', staleTime);
 
     const status = manager.getSessionStatus()['session-1'];
-    expect(status.isWorking).toBe(false);
-    expect(status.isDone).toBe(true); // タイムアウト時はisDone: true
+    expect(status).toBeUndefined();
   });
 
   // Phase 2: working報告優先化のテスト

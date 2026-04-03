@@ -39,10 +39,24 @@ function buildTerminalWsMatch(urlString = '') {
 }
 
 export class TerminalTransportService {
-    constructor({ sessionManager, pollIntervalMs = DEFAULT_POLL_INTERVAL_MS, captureCache = null, controlRegistry = null }) {
-        this.sessionManager = sessionManager;
+    constructor({
+        sessionManager = null,
+        ownershipService = null,
+        runtimeQuery = null,
+        runtimeRegistry = null,
+        terminalIo = null,
+        snapshotService = null,
+        pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
+        captureCache = null,
+        controlRegistry = null
+    }) {
+        this.ownershipService = ownershipService || sessionManager;
+        this.runtimeQuery = runtimeQuery || sessionManager;
+        this.runtimeRegistry = runtimeRegistry || sessionManager;
+        this.terminalIo = terminalIo || sessionManager;
+        this.snapshotService = snapshotService || sessionManager;
         this.pollIntervalMs = pollIntervalMs;
-        this.captureCache = captureCache || new TmuxCaptureCache({ sessionManager });
+        this.captureCache = captureCache || new TmuxCaptureCache({ snapshotService: this.snapshotService });
         this.controlRegistry = controlRegistry || new TmuxControlRegistry();
         this.activeConnections = new Map(); // sessionId → { viewerId, ws, connection }
         this.wss = new WebSocketServer({ noServer: true });
@@ -79,7 +93,7 @@ export class TerminalTransportService {
             return;
         }
 
-        const ownership = this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+        const ownership = this.ownershipService.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
         logger.info(`[TerminalTransport] ownership check: allowed=${ownership.allowed}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!ownership.allowed) {
             ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
@@ -99,7 +113,7 @@ export class TerminalTransportService {
             return;
         }
 
-        const tmuxRunning = await this.sessionManager.isTmuxSessionRunning(sessionId);
+        const tmuxRunning = await this.runtimeQuery.isTmuxSessionRunning(sessionId);
         logger.info(`[TerminalTransport] tmux check: running=${tmuxRunning}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!tmuxRunning) {
             if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'error', code: 'SESSION_NOT_RUNNING', message: 'tmux session not found' }));
@@ -168,7 +182,7 @@ export class TerminalTransportService {
 
         try {
             if (cols && rows) {
-                await this.sessionManager.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
+                await this.terminalIo.resizeSessionWindow(sessionId, cols, rows).catch(() => {});
             }
             // ready は先に返すが、初回描画が来ないと session switch が完了したように見えない。
             // streaming の最初の output が遅い/来ないケースに備えて、短時間だけ snapshot を保険で送る。
@@ -187,7 +201,7 @@ export class TerminalTransportService {
 
     async _sendReady(connection) {
         const { sessionId, viewerId, viewerLabel, ws, cols, rows } = connection;
-        this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
+        this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
         if (ws.readyState !== 1) return;
         ws.send(JSON.stringify({
             type: 'ready',
@@ -329,15 +343,15 @@ export class TerminalTransportService {
         const { ws, sessionId, viewerId, viewerLabel } = connection;
         if (ws.readyState !== 1) return;
 
-        this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
-        const ownership = this.sessionManager.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
+        this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
+        const ownership = this.ownershipService.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
         if (!ownership.allowed) {
             ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
             ws.close(WS_CLOSE_BLOCKED, 'ownership_taken_over');
             return;
         }
 
-        const tmuxRunning = await this.sessionManager.isTmuxSessionRunning(sessionId);
+        const tmuxRunning = await this.runtimeQuery.isTmuxSessionRunning(sessionId);
         if (!tmuxRunning) {
             ws.send(JSON.stringify({ type: 'error', code: 'SESSION_NOT_RUNNING', message: 'tmux session not found' }));
             ws.close();
@@ -392,9 +406,9 @@ export class TerminalTransportService {
             }
             case 'input': {
                 const inputType = message.inputType === 'key' ? 'key' : 'text';
-                await this.sessionManager.sendInput(sessionId, message.value, inputType);
+                await this.terminalIo.sendInput(sessionId, message.value, inputType);
                 this.captureCache.invalidate(sessionId);
-                this.sessionManager.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
+                this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
 
                 if (inputType === 'text' && message.value && message.value.includes('\n')) {
                     void this._handlePastedTextOverlay(connection);
@@ -419,7 +433,7 @@ export class TerminalTransportService {
                 if (connection.transport === 'streaming' && connection.controlClient) {
                     connection.controlClient.resize(cols, rows);
                 } else {
-                    await this.sessionManager.resizeSessionWindow(sessionId, cols, rows);
+                    await this.terminalIo.resizeSessionWindow(sessionId, cols, rows);
                     await this._pollConnection(connection);
                 }
                 return;
@@ -448,7 +462,7 @@ export class TerminalTransportService {
 
             // Send Enter to dismiss the overlay
             logger.info(`[PastedText] Detected overlay for ${connection.sessionId}, sending Enter (attempt ${attempt + 1})`);
-            await this.sessionManager.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
+            await this.terminalIo.sendInput(connection.sessionId, 'Enter', 'key').catch(() => {});
             this.captureCache.invalidate(connection.sessionId);
         }
     }

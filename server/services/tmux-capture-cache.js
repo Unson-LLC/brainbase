@@ -23,7 +23,7 @@ const DEFAULT_CAPTURE_TTL_MS = 3000;
  */
 
 /**
- * @typedef {object} TmuxCaptureSessionManager
+ * @typedef {object} TmuxSnapshotService
  * @property {(sessionId: string, lines: number) => Promise<string>} getContent
  * @property {(sessionId: string, lines: number) => Promise<string>} getContentWithColors
  * @property {(sessionId: string) => Promise<boolean>} getPaneMode
@@ -41,10 +41,10 @@ function buildCacheKey(sessionId, options) {
 
 export class TmuxCaptureCache {
     /**
-     * @param {{ sessionManager: TmuxCaptureSessionManager, ttlMs?: number }} param0
+     * @param {{ snapshotService?: TmuxSnapshotService, sessionManager?: TmuxSnapshotService, ttlMs?: number }} param0
      */
-    constructor({ sessionManager, ttlMs = DEFAULT_CAPTURE_TTL_MS }) {
-        this.sessionManager = sessionManager;
+    constructor({ snapshotService = null, sessionManager = null, ttlMs = DEFAULT_CAPTURE_TTL_MS }) {
+        this.snapshotService = snapshotService || sessionManager;
         this.ttlMs = ttlMs;
         /** @type {Map<string, TmuxCaptureCacheEntry>} */
         this.cache = new Map();
@@ -100,12 +100,12 @@ export class TmuxCaptureCache {
 
         const pendingPromise = (async () => {
             const [text, colorText, copyMode] = await Promise.all([
-                this.sessionManager.getContent(sessionId, normalized.lines),
+                this.snapshotService.getContent(sessionId, normalized.lines),
                 normalized.includeColors
-                    ? this.sessionManager.getContentWithColors(sessionId, normalized.lines).catch(() => null)
+                    ? this.snapshotService.getContentWithColors(sessionId, normalized.lines).catch(() => null)
                     : Promise.resolve(null),
                 normalized.includeCopyMode
-                    ? this.sessionManager.getPaneMode(sessionId).catch(() => false)
+                    ? this.snapshotService.getPaneMode(sessionId).catch(() => false)
                     : Promise.resolve(false)
             ]);
 

@@ -44,7 +44,7 @@ import { InboxParser } from './lib/inbox-parser.js';
 import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
 
 // Import services
-import { SessionManager } from './server/services/session-manager.js';
+import { createSessionServices } from './server/services/create-session-services.js';
 import { TerminalTransportService } from './server/services/terminal-transport-service.js';
 import { TmuxCaptureCache } from './server/services/tmux-capture-cache.js';
 import { TmuxControlRegistry } from './server/services/tmux-control-registry.js';
@@ -503,36 +503,44 @@ const worktreeService = new WorktreeService(
     execPromise
 );
 
-const sessionManager = new SessionManager({
+const sessionServices = createSessionServices({
     serverDir: __dirname,
     execPromise,
     stateStore,
     worktreeService,  // Phase 2: Archived session cleanup用
     uiPort: PORT
 });
-const tmuxCaptureCache = new TmuxCaptureCache({ sessionManager });
+const sessionManager = sessionServices.sessionApi;
+const tmuxCaptureCache = new TmuxCaptureCache({ snapshotService: sessionServices.terminal.snapshot });
 const tmuxControlRegistry = new TmuxControlRegistry();
 const terminalTransportService = new TerminalTransportService({
-    sessionManager,
+    ownershipService: sessionServices.ownership,
+    runtimeQuery: sessionServices.runtime.query,
+    runtimeRegistry: sessionServices.runtime.registry,
+    terminalIo: sessionServices.terminal.io,
+    snapshotService: sessionServices.terminal.snapshot,
     captureCache: tmuxCaptureCache,
     controlRegistry: tmuxControlRegistry
 });
 
-const conversationLinker = new ConversationLinker({ stateStore, sessionManager });
+const conversationLinker = new ConversationLinker({
+    stateStore,
+    workspaceService: sessionServices.workspace
+});
 
 // Initialize State Store and restore session state
 (async () => {
     try {
         await stateStore.init();
-        await sessionManager.reconcileSessionWorkspacePaths();
-        await sessionManager.restoreHookStatus();
+        await sessionServices.workspace.reconcileSessionWorkspacePaths();
+        await sessionServices.activity.restoreHookStatus();
 
         // Phase 3: activeセッションを復元してからcleanupを実行
         // Phase 4: TEST_MODEでは実行しない（読み取り専用）
         if (!TEST_MODE) {
-            await sessionManager.restoreActiveSessions();
-            await sessionManager.cleanupOrphans();
-            sessionManager.startPtyWatchdog();
+            await sessionServices.runtime.maintenance.restoreActiveSessions();
+            await sessionServices.runtime.maintenance.cleanupOrphans();
+            sessionServices.runtime.maintenance.startPtyWatchdog();
 
             // ConversationLinker: 初回実行 + 5分間隔の定期実行
             console.log('[BRAINBASE] Starting conversation linker...');
@@ -546,7 +554,7 @@ const conversationLinker = new ConversationLinker({ stateStore, sessionManager }
     } catch (error) {
         console.error('[BRAINBASE] Initialization failed:', error);
     } finally {
-        sessionManager.markReady();
+        sessionServices.runtime.registry.markReady();
     }
 })();
 
@@ -724,7 +732,12 @@ app.get('/health/ready', (req, res) => {
 });
 
 app.use('/api/tasks', createTaskRouter(taskParser));
-app.use('/api/state', createStateRouter(stateStore, sessionManager, TEST_MODE));
+app.use('/api/state', createStateRouter(
+    stateStore,
+    sessionServices.runtime.registry,
+    sessionServices.runtime.query,
+    TEST_MODE
+));
 app.use('/api/config', createConfigRouter(configParser, configService, RUNTIME_PATHS));
 app.use('/api/inbox', createInboxRouter(inboxParser));
 app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
