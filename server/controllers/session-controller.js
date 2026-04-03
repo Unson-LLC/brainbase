@@ -632,6 +632,9 @@ export class SessionController {
     async _updateStateWithRetry(updateFn, maxRetries = 3) {
         for (let i = 0; i < maxRetries; i++) {
             try {
+                if (typeof this.stateStore.mutate === 'function') {
+                    return await this.stateStore.mutate(async (currentState) => updateFn(currentState));
+                }
                 const currentState = this.stateStore.get();
                 const newState = updateFn(currentState);
                 await this.stateStore.update(newState);

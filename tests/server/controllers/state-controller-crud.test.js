@@ -16,7 +16,11 @@ describe('StateController CRUD session routes', () => {
   beforeEach(() => {
     stateStore = {
       get: vi.fn(),
-      update: vi.fn()
+      update: vi.fn(),
+      upsertSession: vi.fn(),
+      patchSession: vi.fn(),
+      deleteSession: vi.fn(),
+      reorderSessions: vi.fn()
     };
     sessionManager = {
       waitUntilReady: vi.fn(async () => true),
@@ -29,7 +33,7 @@ describe('StateController CRUD session routes', () => {
     const existing = [{ id: 'session-1', name: 'existing', intendedState: 'active' }];
     const created = { id: 'session-2', name: 'created', project: 'salestailor-app', intendedState: 'active' };
     stateStore.get.mockReturnValue({ sessions: existing });
-    stateStore.update.mockResolvedValue({ sessions: [...existing, created] });
+    stateStore.upsertSession.mockResolvedValue({ sessions: [...existing, created] });
     const res = createRes();
     const next = vi.fn();
 
@@ -40,12 +44,9 @@ describe('StateController CRUD session routes', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(stateStore.update).toHaveBeenCalledWith({
-      sessions: expect.arrayContaining([
-        expect.objectContaining({ id: 'session-1' }),
-        expect.objectContaining({ id: 'session-2', project: 'salestailor-app' })
-      ])
-    });
+    expect(stateStore.upsertSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'session-2', project: 'salestailor-app' })
+    );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(created);
     expect(next).not.toHaveBeenCalled();
@@ -57,7 +58,7 @@ describe('StateController CRUD session routes', () => {
       { id: 'session-2', name: 'delete-me' }
     ];
     stateStore.get.mockReturnValue({ sessions });
-    stateStore.update.mockResolvedValue({ sessions: [sessions[0]] });
+    stateStore.deleteSession.mockResolvedValue({ sessions: [sessions[0]] });
     const res = createRes();
     const next = vi.fn();
 
@@ -68,9 +69,7 @@ describe('StateController CRUD session routes', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(stateStore.update).toHaveBeenCalledWith({
-      sessions: [sessions[0]]
-    });
+    expect(stateStore.deleteSession).toHaveBeenCalledWith('session-2');
     expect(res.json).toHaveBeenCalledWith({ success: true, sessionId: 'session-2' });
     expect(next).not.toHaveBeenCalled();
   });
@@ -82,7 +81,7 @@ describe('StateController CRUD session routes', () => {
       { id: 'session-c', name: 'C' }
     ];
     stateStore.get.mockReturnValue({ sessions });
-    stateStore.update.mockResolvedValue({ sessions: [sessions[2], sessions[0], sessions[1]] });
+    stateStore.reorderSessions.mockResolvedValue({ sessions: [sessions[2], sessions[0], sessions[1]] });
     const res = createRes();
     const next = vi.fn();
 
@@ -93,9 +92,7 @@ describe('StateController CRUD session routes', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(stateStore.update).toHaveBeenCalledWith({
-      sessions: [sessions[2], sessions[0], sessions[1]]
-    });
+    expect(stateStore.reorderSessions).toHaveBeenCalledWith(['session-c', 'session-a']);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
       sessions: [sessions[2], sessions[0], sessions[1]]
@@ -103,7 +100,7 @@ describe('StateController CRUD session routes', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('merges POST /api/state sessions by default instead of dropping unknown sessions', async () => {
+  it('ignores POST /api/state sessions payload so stale clients cannot drop sessions', async () => {
     const currentState = {
       sessions: [
         { id: 'session-1', name: 'keep-me', project: 'brainbase' },
@@ -130,17 +127,11 @@ describe('StateController CRUD session routes', () => {
 
     expect(stateStore.update).toHaveBeenCalledWith({
       preferences: { theme: 'dark' },
-      sessions: [
-        { id: 'session-1', name: 'keep-me', project: 'brainbase' },
-        { id: 'session-2', name: 'update-me', project: 'salestailor-app' }
-      ]
+      sessions: currentState.sessions
     });
     expect(res.json).toHaveBeenCalledWith({
       preferences: { theme: 'dark' },
-      sessions: [
-        { id: 'session-1', name: 'keep-me', project: 'brainbase' },
-        { id: 'session-2', name: 'update-me', project: 'salestailor-app' }
-      ]
+      sessions: currentState.sessions
     });
     expect(next).not.toHaveBeenCalled();
   });

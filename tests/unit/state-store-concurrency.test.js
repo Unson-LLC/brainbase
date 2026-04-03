@@ -141,6 +141,48 @@ describe('StateStore - Concurrency', () => {
         });
     });
 
+    describe('atomic session ledger mutations', () => {
+        it('upsertSessionとpatchSessionが同時実行でも両方の変更が残る', async () => {
+            await stateStore.persist();
+
+            await Promise.all([
+                stateStore.upsertSession({ id: 'session-a', name: 'A', path: '/repo/a' }),
+                stateStore.upsertSession({ id: 'session-b', name: 'B', path: '/repo/b' })
+            ]);
+
+            await Promise.all([
+                stateStore.patchSession('session-a', { project: 'salestailor-app' }),
+                stateStore.patchSession('session-b', { engine: 'codex' })
+            ]);
+
+            const sessions = stateStore.get().sessions;
+            expect(sessions).toEqual(expect.arrayContaining([
+                expect.objectContaining({ id: 'session-a', project: 'salestailor-app', path: '/repo/a' }),
+                expect.objectContaining({ id: 'session-b', engine: 'codex', path: '/repo/b' })
+            ]));
+        });
+
+        it('ephemeral pathをupsertしてもdurable pathを汚染しない', async () => {
+            await stateStore.upsertSession({
+                id: 'session-ephemeral',
+                path: '/repo/durable',
+                worktree: { path: '/repo/durable' },
+                lastKnownGoodPath: '/repo/durable'
+            });
+
+            await stateStore.patchSession('session-ephemeral', {
+                path: '/private/tmp',
+                worktree: { path: '/private/tmp' },
+                lastKnownGoodPath: '/private/tmp'
+            });
+
+            const session = stateStore.get().sessions.find((item) => item.id === 'session-ephemeral');
+            expect(session.path).toBe('/repo/durable');
+            expect(session.worktree.path).toBe('/repo/durable');
+            expect(session.lastKnownGoodPath).toBe('/repo/durable');
+        });
+    });
+
     describe('リロード機構', () => {
         it('_reloadFromFile()で有効な状態をリロードする', async () => {
             // 外部から有効な状態を書き込み

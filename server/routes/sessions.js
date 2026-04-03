@@ -75,7 +75,7 @@ export function createSessionRouter(sessionManager, worktreeService, stateStore,
             }
 
             if (changeCount > 0) {
-                await stateStore.update({ ...state, sessions: renamed });
+                await stateStore.mutateSessions(() => renamed);
                 logger.info(`[Sessions] Retroactive rename: ${changeCount}/${sessions.length} session(s) renamed`);
             }
 

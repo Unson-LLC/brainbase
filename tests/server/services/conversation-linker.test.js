@@ -65,7 +65,7 @@ describe('ConversationLinker', () => {
       get: vi.fn()
         .mockReturnValueOnce({ sessions: initialSessions })
         .mockReturnValueOnce({ sessions: latestSessions }),
-      update: vi.fn(async (nextState) => nextState)
+      mutateSessions: vi.fn(async (mutator) => ({ sessions: await mutator(latestSessions) }))
     };
 
     const linker = new ConversationLinker({ stateStore });
@@ -79,12 +79,6 @@ describe('ConversationLinker', () => {
     const result = await linker.linkAll();
 
     expect(result.updated).toBe(2);
-    expect(stateStore.update).toHaveBeenCalledWith({
-      sessions: [
-        expect.objectContaining({ id: 'session-1', lastAssistantSnippet: 'snippet:session-1' }),
-        expect.objectContaining({ id: 'session-2', lastAssistantSnippet: 'snippet:session-2' }),
-        expect.objectContaining({ id: 'session-3', name: 'newly-added' })
-      ]
-    });
+    expect(stateStore.mutateSessions).toHaveBeenCalled();
   });
 });

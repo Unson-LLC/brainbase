@@ -107,44 +107,15 @@ export class StateController {
             throw AppError.validation('Invalid request body');
         }
 
-        const rawSessions = req.body.sessions || [];
-        if (req.body.sessions !== undefined && !Array.isArray(rawSessions)) {
-            throw AppError.validation('Sessions must be an array');
+        if (req.body.sessions !== undefined) {
+            logger.warn('[StateController] Ignoring sessions payload on POST /api/state; use session CRUD endpoints instead');
         }
 
+        const { sessions, replaceSessions, ...nonSessionState } = req.body;
         const currentState = this.stateStore.get();
-        let nextSessions = currentState.sessions || [];
-        const replaceSessions = req.body.replaceSessions === true;
-
-        if (Array.isArray(req.body.sessions)) {
-            /** @type {SessionRecord[]} */
-            const validatedSessions = [];
-            for (const session of /** @type {SessionRecord[]} */ (rawSessions)) {
-                const { ttydRunning, runtimeStatus, ...persistentFields } = session;
-                const validated = validateSession(/** @type {SessionRecord} */ (persistentFields));
-                if (validated) {
-                    validatedSessions.push(validated);
-                } else {
-                    logger.warn('Invalid session object skipped', { sessionId: session?.id });
-                }
-            }
-
-            if (replaceSessions) {
-                nextSessions = validatedSessions;
-            } else {
-                const existingMap = new Map((currentState.sessions || []).map((session) => [session.id, session]));
-                for (const session of validatedSessions) {
-                    const previous = existingMap.get(session.id) || {};
-                    existingMap.set(session.id, { ...previous, ...session });
-                }
-                nextSessions = Array.from(existingMap.values());
-            }
-        }
-
         const newState = await this.stateStore.update({
             ...currentState,
-            ...req.body,
-            sessions: nextSessions
+            ...nonSessionState
         });
         res.json(newState);
     });
@@ -166,13 +137,10 @@ export class StateController {
         const sessions = /** @type {SessionRecord[]} */ (state.sessions || []);
         const existingIndex = sessions.findIndex((session) => session.id === validated.id);
         if (existingIndex !== -1) {
-            const updatedSessions = [...sessions];
-            updatedSessions[existingIndex] = {
-                ...updatedSessions[existingIndex],
+            const newState = await this.stateStore.patchSession(validated.id, {
                 ...validated,
                 updatedAt: new Date().toISOString()
-            };
-            const newState = await this.stateStore.update({ ...state, sessions: updatedSessions });
+            });
             const updatedSession = /** @type {SessionRecord[]} */ (newState.sessions || []).find((session) => session.id === validated.id);
             return res.json(updatedSession);
         }
@@ -182,10 +150,7 @@ export class StateController {
             createdAt: validated.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
-        const newState = await this.stateStore.update({
-            ...state,
-            sessions: [...sessions, newSession]
-        });
+        const newState = await this.stateStore.upsertSession(newSession);
         const createdSession = /** @type {SessionRecord[]} */ (newState.sessions || []).find((session) => session.id === validated.id);
         res.status(201).json(createdSession);
     });
@@ -216,16 +181,9 @@ export class StateController {
             throw new AppError('Session not found', ErrorCodes.SESSION_NOT_FOUND);
         }
 
-        const updatedSessions = [.../** @type {SessionRecord[]} */ (state.sessions)];
-        updatedSessions[sessionIndex] = {
-            ...updatedSessions[sessionIndex],
+        const newState = await this.stateStore.patchSession(sessionId, {
             ...validated,
             updatedAt: new Date().toISOString()
-        };
-
-        const newState = await this.stateStore.update({
-            ...state,
-            sessions: updatedSessions
         });
 
         const updatedSession = /** @type {SessionRecord[]} */ (newState.sessions || []).find((s) => s.id === sessionId);
@@ -247,11 +205,7 @@ export class StateController {
             throw new AppError('Session not found', ErrorCodes.SESSION_NOT_FOUND);
         }
 
-        const updatedSessions = sessions.filter((session) => session.id !== sessionId);
-        await this.stateStore.update({
-            ...state,
-            sessions: updatedSessions
-        });
+        await this.stateStore.deleteSession(sessionId);
 
         res.json({ success: true, sessionId });
     });
@@ -264,27 +218,7 @@ export class StateController {
             throw AppError.validation('orderedIds must be an array');
         }
 
-        const state = this.stateStore.get();
-        const sessions = /** @type {SessionRecord[]} */ (state.sessions || []);
-        const sessionMap = new Map(sessions.map((session) => [session.id, session]));
-        const reordered = [];
-
-        for (const id of orderedIds) {
-            if (typeof id !== 'string') continue;
-            const session = sessionMap.get(id);
-            if (!session) continue;
-            reordered.push(session);
-            sessionMap.delete(id);
-        }
-
-        for (const session of sessionMap.values()) {
-            reordered.push(session);
-        }
-
-        const newState = await this.stateStore.update({
-            ...state,
-            sessions: reordered
-        });
+        const newState = await this.stateStore.reorderSessions(orderedIds.filter((id) => typeof id === 'string'));
         res.json({ success: true, sessions: newState.sessions || [] });
     });
 }

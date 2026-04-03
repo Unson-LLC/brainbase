@@ -89,7 +89,6 @@ export class SessionManager {
 
     async _persistSessionLiveSummary(sessionId, { taskBrief = null, assistantSnippet = null } = {}, timestamp = Date.now()) {
         if (!sessionId || (!taskBrief && !assistantSnippet)) return false;
-        const currentState = this.stateStore.get();
         const updatedAtIso = new Date(timestamp).toISOString();
         const hookStatusData = this._normalizeHookData(this.hookStatus.get(sessionId));
         const hookTaskBrief = hookStatusData?.liveActivity?.taskBrief || null;
@@ -108,43 +107,37 @@ export class SessionManager {
                 }
             }
             : null;
-        let changed = false;
-        const updatedSessions = (currentState.sessions || []).map((session) => {
-            if (session.id !== sessionId) return session;
+        const currentSession = this.getSession(sessionId);
+        if (!currentSession) return false;
 
-            const needsTaskBriefUpdate = Boolean(taskBrief) && session.taskBrief !== taskBrief;
-            const needsAssistantSnippetUpdate = Boolean(assistantSnippet) && session.lastAssistantSnippet !== assistantSnippet;
-            const needsHookStatusUpdate = Boolean(nextHookStatus) && (
-                (Boolean(taskBrief) && hookTaskBrief !== taskBrief)
-                || (Boolean(assistantSnippet) && hookAssistantSnippet !== assistantSnippet)
-            );
-            if (!needsTaskBriefUpdate && !needsAssistantSnippetUpdate && !needsHookStatusUpdate) return session;
-
-            changed = true;
-            return {
-                ...session,
-                ...(needsHookStatusUpdate ? { hookStatus: nextHookStatus } : {}),
-                ...(needsTaskBriefUpdate ? {
-                    taskBrief,
-                    taskBriefUpdatedAt: updatedAtIso
-                } : {}),
-                ...(needsAssistantSnippetUpdate ? {
-                    lastAssistantSnippet: assistantSnippet,
-                    lastAssistantSnippetAt: updatedAtIso
-                } : {}),
-                updatedAt: updatedAtIso
-            };
-        });
+        const needsTaskBriefUpdate = Boolean(taskBrief) && currentSession.taskBrief !== taskBrief;
+        const needsAssistantSnippetUpdate = Boolean(assistantSnippet) && currentSession.lastAssistantSnippet !== assistantSnippet;
+        const needsHookStatusUpdate = Boolean(nextHookStatus) && (
+            (Boolean(taskBrief) && hookTaskBrief !== taskBrief)
+            || (Boolean(assistantSnippet) && hookAssistantSnippet !== assistantSnippet)
+        );
+        if (!needsTaskBriefUpdate && !needsAssistantSnippetUpdate && !needsHookStatusUpdate) {
+            return false;
+        }
 
         if (nextHookStatus) {
             this.hookStatus.set(sessionId, nextHookStatus);
         }
 
-        if (changed) {
-            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
-        }
+        await this._patchSessionState(sessionId, {
+            ...(needsHookStatusUpdate ? { hookStatus: nextHookStatus } : {}),
+            ...(needsTaskBriefUpdate ? {
+                taskBrief,
+                taskBriefUpdatedAt: updatedAtIso
+            } : {}),
+            ...(needsAssistantSnippetUpdate ? {
+                lastAssistantSnippet: assistantSnippet,
+                lastAssistantSnippetAt: updatedAtIso
+            } : {}),
+            updatedAt: updatedAtIso
+        });
 
-        return changed;
+        return true;
     }
 
     async _persistSessionTaskBrief(sessionId, taskBrief, timestamp = Date.now()) {
@@ -355,6 +348,14 @@ export class SessionManager {
         return session?.worktree?.path || session?.path || null;
     }
 
+    _isEphemeralWorkspacePath(candidate) {
+        if (!candidate || typeof candidate !== 'string') return false;
+        return candidate === '/tmp'
+            || candidate.startsWith('/tmp/')
+            || candidate === '/private/tmp'
+            || candidate.startsWith('/private/tmp/');
+    }
+
     _getWorkspaceName(session) {
         if (!session?.id) return null;
 
@@ -384,6 +385,7 @@ export class SessionManager {
 
         pushCandidate(session?.worktree?.path);
         pushCandidate(session?.path);
+        pushCandidate(session?.lastKnownGoodPath);
 
         if (workspaceName) {
             pushCandidate(path.join(this.worktreeService?.worktreesDir || '', workspaceName));
@@ -421,7 +423,9 @@ export class SessionManager {
                 .map(line => line.trim())
                 .find(Boolean);
 
-            return currentPath && fs.existsSync(currentPath) ? currentPath : null;
+            if (!currentPath || !fs.existsSync(currentPath)) return null;
+            if (this._isEphemeralWorkspacePath(currentPath)) return null;
+            return currentPath;
         } catch {
             return null;
         }
@@ -429,37 +433,32 @@ export class SessionManager {
 
     async _persistResolvedWorkspacePath(sessionId, resolvedPath) {
         if (!sessionId || !resolvedPath) return;
+        if (this._isEphemeralWorkspacePath(resolvedPath)) return;
 
-        const currentState = this.stateStore.get();
+        const currentSession = this.getSession(sessionId);
+        if (!currentSession) return;
+
+        const patch = {};
         let changed = false;
-        const updatedSessions = (currentState.sessions || []).map((session) => {
-            if (session.id !== sessionId) return session;
 
-            const nextSession = { ...session };
-            if (nextSession.path !== resolvedPath) {
-                nextSession.path = resolvedPath;
-                changed = true;
-            }
-
-            if (nextSession.worktree) {
-                const nextWorktree = { ...nextSession.worktree };
-                if (nextWorktree.path !== resolvedPath) {
-                    nextWorktree.path = resolvedPath;
-                    changed = true;
-                }
-                nextSession.worktree = nextWorktree;
-            }
-
-            if (changed) {
-                nextSession.updatedAt = new Date().toISOString();
-            }
-
-            return nextSession;
-        });
-
-        if (changed) {
-            await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        if (currentSession.path !== resolvedPath) {
+            patch.path = resolvedPath;
+            changed = true;
         }
+
+        if (currentSession.lastKnownGoodPath !== resolvedPath) {
+            patch.lastKnownGoodPath = resolvedPath;
+            changed = true;
+        }
+
+        if (currentSession.worktree && currentSession.worktree.path !== resolvedPath) {
+            patch.worktree = { ...currentSession.worktree, path: resolvedPath };
+            changed = true;
+        }
+
+        if (!changed) return;
+        patch.updatedAt = new Date().toISOString();
+        await this._patchSessionState(sessionId, patch);
     }
 
     async resolveSessionWorkspacePath(sessionOrId, options = {}) {
@@ -518,6 +517,7 @@ export class SessionManager {
     async restoreActiveSessions() {
         try {
             logger.info('[restoreActiveSessions] Restoring active sessions from state.json...');
+            await this.reconcileSessionsFromTmux();
 
             const state = this.stateStore.get();
             const sessions = state.sessions || [];
@@ -662,8 +662,7 @@ export class SessionManager {
 
             if (pauseSessionIds.size > 0) {
                 const now = new Date().toISOString();
-                const currentState = this.stateStore.get();
-                const updatedSessions = (currentState.sessions || []).map(session => {
+                await this._mutateSessionsState((sessions) => sessions.map(session => {
                     if (!pauseSessionIds.has(session.id)) return session;
                     return {
                         ...session,
@@ -674,8 +673,7 @@ export class SessionManager {
                         ttydProcess: null,
                         updatedAt: now
                     };
-                });
-                await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+                }));
                 logger.warn(`[restoreActiveSessions] Paused ${pauseSessionIds.size} session(s) with missing TMUX`);
             }
 
@@ -1248,28 +1246,12 @@ export class SessionManager {
     }
 
     _persistHookStatus(sessionId, hookStatusData, timestamp = Date.now()) {
-        const currentState = this.stateStore.get();
         const updatedAt = new Date(timestamp).toISOString();
-        const updatedSessions = currentState.sessions.map(session => {
-            if (session.id !== sessionId) {
-                return session;
-            }
-
-            if (hookStatusData) {
-                return {
-                    ...session,
-                    hookStatus: hookStatusData,
-                    updatedAt
-                };
-            }
-
-            const { hookStatus, ...rest } = session;
-            return rest;
-        });
-
-        this.stateStore.update({
-            ...currentState,
-            sessions: updatedSessions
+        this._patchSessionState(sessionId, {
+            hookStatus: hookStatusData || undefined,
+            updatedAt
+        }).catch((error) => {
+            logger.error(`[hookStatus] Failed to persist for ${sessionId}:`, error);
         });
     }
 
@@ -1438,6 +1420,146 @@ export class SessionManager {
             ttydRunning: runtimeStatus.ttydRunning,
             runtimeStatus
         };
+    }
+
+    async _mutateSessionsState(mutator) {
+        if (typeof this.stateStore.mutateSessions === 'function') {
+            return this.stateStore.mutateSessions(mutator);
+        }
+        const currentState = this.stateStore.get();
+        const nextSessions = mutator([...(currentState.sessions || [])], currentState);
+        return this.stateStore.update({
+            ...currentState,
+            sessions: nextSessions && typeof nextSessions.then === 'function'
+                ? await nextSessions
+                : nextSessions
+        });
+    }
+
+    async _patchSessionState(sessionId, patch) {
+        if (typeof this.stateStore.patchSession === 'function') {
+            return this.stateStore.patchSession(sessionId, patch);
+        }
+        return this._mutateSessionsState((sessions) => sessions.map((session) => {
+            if (session.id !== sessionId) return session;
+            const computedPatch = typeof patch === 'function' ? patch(session) : patch;
+            if (!computedPatch) return session;
+            return { ...session, ...computedPatch };
+        }));
+    }
+
+    async _upsertSessionState(session) {
+        if (typeof this.stateStore.upsertSession === 'function') {
+            return this.stateStore.upsertSession(session);
+        }
+        return this._mutateSessionsState((sessions) => {
+            const existingIndex = sessions.findIndex((item) => item.id === session.id);
+            if (existingIndex >= 0) {
+                const updated = [...sessions];
+                updated[existingIndex] = { ...updated[existingIndex], ...session };
+                return updated;
+            }
+            return [...sessions, session];
+        });
+    }
+
+    _inferProjectFromWorkspacePath(workspacePath) {
+        if (!workspacePath || typeof workspacePath !== 'string') return null;
+        const baseName = path.basename(workspacePath);
+        const match = baseName.match(/^session-\d+-(.+)$/);
+        return match?.[1] || null;
+    }
+
+    _findWorktreePathBySessionId(sessionId) {
+        const worktreesDir = this.worktreeService?.worktreesDir;
+        if (!worktreesDir || !fs.existsSync(worktreesDir)) return null;
+        try {
+            const entry = fs.readdirSync(worktreesDir).find((name) => name === sessionId || name.startsWith(`${sessionId}-`));
+            return entry ? path.join(worktreesDir, entry) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async reconcileSessionsFromTmux() {
+        const { stdout } = await this.execPromise('tmux list-sessions -F "#{session_name}" 2>/dev/null || true').catch(() => ({ stdout: '' }));
+        const sessionNames = stdout.split('\n').map((line) => line.trim()).filter(Boolean);
+        if (sessionNames.length === 0) return 0;
+
+        let reconciled = 0;
+        for (const tmuxSessionName of sessionNames) {
+            if (!tmuxSessionName.startsWith('session-')) continue;
+            const [{ stdout: envOut }, tmuxPath] = await Promise.all([
+                this.execPromise(`tmux show-environment -t "${tmuxSessionName}" 2>/dev/null || true`).catch(() => ({ stdout: '' })),
+                this._getTmuxCurrentPath(tmuxSessionName)
+            ]);
+
+            const envMap = new Map();
+            for (const line of envOut.split('\n').map((entry) => entry.trim()).filter(Boolean)) {
+                if (line.startsWith('-')) continue;
+                const separatorIndex = line.indexOf('=');
+                if (separatorIndex <= 0) continue;
+                envMap.set(line.slice(0, separatorIndex), line.slice(separatorIndex + 1));
+            }
+
+            const sessionId = envMap.get('BRAINBASE_SESSION_ID') || tmuxSessionName;
+            const existing = this.getSession(sessionId);
+            const codexThreadId = envMap.get('CODEX_THREAD_ID') || null;
+            const engine = envMap.get('BRAINBASE_ENGINE') || (codexThreadId ? 'codex' : 'claude');
+            const durablePath = tmuxPath || this._findWorktreePathBySessionId(sessionId);
+            const project = this._inferProjectFromWorkspacePath(durablePath);
+            const now = new Date().toISOString();
+
+            const shouldCreate = !existing;
+            const shouldPatch = Boolean(existing && (
+                (!existing.path && durablePath)
+                || (!existing.project && project)
+                || (!existing.lastKnownGoodPath && durablePath)
+                || (!existing.codexThreadId && codexThreadId)
+            ));
+
+            if (!shouldCreate && !shouldPatch) continue;
+
+            if (shouldCreate) {
+                await this._upsertSessionState({
+                    id: sessionId,
+                    name: sessionId,
+                    ...(project ? { project } : {}),
+                    ...(durablePath ? {
+                        path: durablePath,
+                        lastKnownGoodPath: durablePath,
+                        worktree: { path: durablePath }
+                    } : {}),
+                    ...(codexThreadId ? { codexThreadId } : {}),
+                    engine,
+                    intendedState: 'active',
+                    createdAt: now,
+                    updatedAt: now
+                });
+                reconciled += 1;
+                continue;
+            }
+
+            await this._patchSessionState(sessionId, {
+                ...(project && !existing.project ? { project } : {}),
+                ...(durablePath ? {
+                    ...(existing.path ? {} : { path: durablePath }),
+                    ...(existing.lastKnownGoodPath ? {} : { lastKnownGoodPath: durablePath }),
+                    worktree: {
+                        ...(existing.worktree || {}),
+                        ...(existing.worktree?.path ? {} : { path: durablePath })
+                    }
+                } : {}),
+                ...(codexThreadId && !existing.codexThreadId ? { codexThreadId } : {}),
+                updatedAt: now
+            });
+            reconciled += 1;
+        }
+
+        if (reconciled > 0) {
+            logger.warn(`[reconcileSessionsFromTmux] Reconciled ${reconciled} missing session(s) from tmux runtime`);
+        }
+        return reconciled;
     }
 
     async ensureSessionRuntime({ sessionId, cwd, initialCommand, engine = 'claude' }) {
@@ -1983,13 +2105,7 @@ export class SessionManager {
                     }
 
                     // state.json更新
-                    const updatedSessions = state.sessions.map(s =>
-                        s.id === session.id
-                            ? { ...s, tmuxCleanedAt: new Date().toISOString() }
-                            : s
-                    );
-
-                    await this.stateStore.update({ ...state, sessions: updatedSessions });
+                    await this._patchSessionState(session.id, { tmuxCleanedAt: new Date().toISOString() });
                     logger.info(`[Cleanup] Marked TMUX cleaned for paused session ${session.id}`);
                 }
             }
@@ -2024,7 +2140,7 @@ export class SessionManager {
         });
 
         if (sessionsToKeep.length < state.sessions.length) {
-            await this.stateStore.update({ ...state, sessions: sessionsToKeep });
+            await this._mutateSessionsState(() => sessionsToKeep);
             const deletedCount = state.sessions.length - sessionsToKeep.length;
             logger.info(`[Cleanup] Removed ${deletedCount} archived session(s) (30d TTL)`);
         }
@@ -2037,28 +2153,21 @@ export class SessionManager {
      */
     async _saveTtydProcessInfo(sessionId, { port, pid, engine }) {
         try {
-            const state = this.stateStore.get();
-            const sessions = state.sessions || [];
+            const sessions = this.stateStore.get().sessions || [];
             const hasSession = sessions.some(session => session.id === sessionId);
             if (!hasSession) {
                 logger.warn(`[ttydProcess] Skip save: session ${sessionId} not found in state`);
                 return;
             }
 
-            const updatedSessions = sessions.map(session =>
-                session.id === sessionId
-                    ? {
-                        ...session,
-                        ttydProcess: {
-                            port,
-                            pid,
-                            startedAt: new Date().toISOString(),
-                            engine: engine || 'claude'
-                        }
-                    }
-                    : session
-            );
-            await this.stateStore.update({ ...state, sessions: updatedSessions });
+            await this._patchSessionState(sessionId, {
+                ttydProcess: {
+                    port,
+                    pid,
+                    startedAt: new Date().toISOString(),
+                    engine: engine || 'claude'
+                }
+            });
             logger.info(`[ttydProcess] Saved for ${sessionId}: port=${port}, pid=${pid}`);
         } catch (err) {
             logger.error(`[ttydProcess] Failed to save for ${sessionId}:`, err.message);
@@ -2071,14 +2180,7 @@ export class SessionManager {
      */
     async _clearTtydProcessInfo(sessionId) {
         try {
-            const state = this.stateStore.get();
-            const sessions = state.sessions || [];
-            const updatedSessions = sessions.map(session =>
-                session.id === sessionId
-                    ? { ...session, ttydProcess: null }
-                    : session
-            );
-            await this.stateStore.update({ ...state, sessions: updatedSessions });
+            await this._patchSessionState(sessionId, { ttydProcess: null });
             logger.info(`[ttydProcess] Cleared for ${sessionId}`);
         } catch (err) {
             logger.error(`[ttydProcess] Failed to clear for ${sessionId}:`, err.message);
@@ -2095,27 +2197,15 @@ export class SessionManager {
      */
     async _clearTtydProcessInfoIfMatches(sessionId, pid) {
         try {
-            const state = this.stateStore.get();
-            const sessions = state.sessions || [];
+            const session = this.getSession(sessionId);
+            if (!session?.ttydProcess) return false;
 
-            let changed = false;
-            const updatedSessions = sessions.map(session => {
-                if (session.id !== sessionId) return session;
-                if (!session.ttydProcess) return session;
+            const currentPid = session.ttydProcess?.pid;
+            if (Number.isFinite(currentPid) && Number.isFinite(pid) && currentPid !== pid) {
+                return false;
+            }
 
-                const currentPid = session.ttydProcess?.pid;
-                // If both are valid pids and don't match, don't clear.
-                if (Number.isFinite(currentPid) && Number.isFinite(pid) && currentPid !== pid) {
-                    return session;
-                }
-
-                changed = true;
-                return { ...session, ttydProcess: null };
-            });
-
-            if (!changed) return false;
-
-            await this.stateStore.update({ ...state, sessions: updatedSessions });
+            await this._patchSessionState(sessionId, { ttydProcess: null });
             logger.info(`[ttydProcess] Cleared for ${sessionId}${Number.isFinite(pid) ? ` (pid=${pid})` : ''}`);
             return true;
         } catch (err) {
