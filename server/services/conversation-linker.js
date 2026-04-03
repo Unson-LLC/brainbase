@@ -332,9 +332,22 @@ export class ConversationLinker {
                 }
             }
 
-            // Save updated state
+            // Save updated state against the latest authoritative session list.
+            // linkAll can run for several seconds; if we write back the stale
+            // snapshot captured at the beginning, newer sessions disappear.
             if (updated > 0) {
-                await this.stateStore.update({ ...state, sessions: updatedSessions });
+                const latestState = this.stateStore.get();
+                const latestSessions = latestState.sessions || [];
+                const updatedMap = new Map(updatedSessions.map((session) => [session.id, session]));
+                const mergedSessions = latestSessions.map((session) => updatedMap.get(session.id) || session);
+
+                for (const session of updatedSessions) {
+                    if (!latestSessions.some((existing) => existing.id === session.id)) {
+                        mergedSessions.push(session);
+                    }
+                }
+
+                await this.stateStore.update({ ...latestState, sessions: mergedSessions });
                 logger.info(`[ConversationLinker] Updated ${updated}/${sessions.length} session(s)`);
             } else {
                 logger.info(`[ConversationLinker] No updates needed`);

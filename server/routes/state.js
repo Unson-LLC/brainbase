@@ -15,8 +15,17 @@ export function createStateRouter(stateStore, sessionManager, testMode = false) 
     // POST /api/state - アプリケーション状態を更新
     router.post('/', controller.update);
 
+    // POST /api/state/sessions - 単一セッション追加
+    router.post('/sessions', controller.createSession);
+
     // PATCH /api/state/sessions/:sessionId - 単一セッション部分更新
     router.patch('/sessions/:sessionId', controller.patch);
+
+    // DELETE /api/state/sessions/:sessionId - 単一セッション削除
+    router.delete('/sessions/:sessionId', controller.deleteSession);
+
+    // POST /api/state/sessions/reorder - セッション並び順保存
+    router.post('/sessions/reorder', controller.reorderSessions);
 
     return router;
 }

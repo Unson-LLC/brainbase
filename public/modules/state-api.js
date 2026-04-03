@@ -91,13 +91,27 @@ export async function updateSession(sessionId, updates) {
 }
 
 /**
+ * セッションを作成またはupsert
+ * @param {Object} session - セッション
+ * @returns {Promise<Object>}
+ */
+export async function createSession(session) {
+  const res = await fetch(`${STATE_ENDPOINT}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sanitizeSession(session))
+  });
+  return await res.json();
+}
+
+/**
  * セッションを削除
  * @param {string} sessionId - セッションID
  */
 export async function removeSession(sessionId) {
-  const state = await fetchState();
-  const updatedSessions = state.sessions.filter(s => s.id !== sessionId);
-  await saveState({ ...state, sessions: updatedSessions });
+  await fetch(`${STATE_ENDPOINT}/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE'
+  });
 }
 
 /**
@@ -105,7 +119,19 @@ export async function removeSession(sessionId) {
  * @param {Object} session - 追加するセッション
  */
 export async function addSession(session) {
-  const state = await fetchState();
-  const updatedSessions = [...state.sessions, session];
-  await saveState({ ...state, sessions: updatedSessions });
+  await createSession(session);
+}
+
+/**
+ * セッション順序を保存
+ * @param {string[]} orderedIds - セッションIDの順序
+ * @returns {Promise<Object>}
+ */
+export async function saveSessionOrder(orderedIds) {
+  const res = await fetch(`${STATE_ENDPOINT}/sessions/reorder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderedIds })
+  });
+  return await res.json();
 }

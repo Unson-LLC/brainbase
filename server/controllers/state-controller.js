@@ -108,27 +108,86 @@ export class StateController {
         }
 
         const rawSessions = req.body.sessions || [];
-        if (!Array.isArray(rawSessions)) {
+        if (req.body.sessions !== undefined && !Array.isArray(rawSessions)) {
             throw AppError.validation('Sessions must be an array');
         }
 
-        /** @type {SessionRecord[]} */
-        const validatedSessions = [];
-        for (const session of /** @type {SessionRecord[]} */ (rawSessions)) {
-            const { ttydRunning, runtimeStatus, ...persistentFields } = session;
-            const validated = validateSession(/** @type {SessionRecord} */ (persistentFields));
-            if (validated) {
-                validatedSessions.push(validated);
+        const currentState = this.stateStore.get();
+        let nextSessions = currentState.sessions || [];
+        const replaceSessions = req.body.replaceSessions === true;
+
+        if (Array.isArray(req.body.sessions)) {
+            /** @type {SessionRecord[]} */
+            const validatedSessions = [];
+            for (const session of /** @type {SessionRecord[]} */ (rawSessions)) {
+                const { ttydRunning, runtimeStatus, ...persistentFields } = session;
+                const validated = validateSession(/** @type {SessionRecord} */ (persistentFields));
+                if (validated) {
+                    validatedSessions.push(validated);
+                } else {
+                    logger.warn('Invalid session object skipped', { sessionId: session?.id });
+                }
+            }
+
+            if (replaceSessions) {
+                nextSessions = validatedSessions;
             } else {
-                logger.warn('Invalid session object skipped', { sessionId: session?.id });
+                const existingMap = new Map((currentState.sessions || []).map((session) => [session.id, session]));
+                for (const session of validatedSessions) {
+                    const previous = existingMap.get(session.id) || {};
+                    existingMap.set(session.id, { ...previous, ...session });
+                }
+                nextSessions = Array.from(existingMap.values());
             }
         }
 
         const newState = await this.stateStore.update({
+            ...currentState,
             ...req.body,
-            sessions: validatedSessions
+            sessions: nextSessions
         });
         res.json(newState);
+    });
+
+    /** POST /api/state/sessions */
+    /** @param {Request} req @param {Response} res */
+    createSession = asyncHandler(async (req, res) => {
+        if (!req.body || typeof req.body !== 'object') {
+            throw AppError.validation('Invalid request body');
+        }
+
+        const { ttydRunning, runtimeStatus, ...persistentFields } = req.body;
+        const validated = validateSession(/** @type {SessionRecord} */ (persistentFields));
+        if (!validated) {
+            throw AppError.validation('Invalid session data');
+        }
+
+        const state = this.stateStore.get();
+        const sessions = /** @type {SessionRecord[]} */ (state.sessions || []);
+        const existingIndex = sessions.findIndex((session) => session.id === validated.id);
+        if (existingIndex !== -1) {
+            const updatedSessions = [...sessions];
+            updatedSessions[existingIndex] = {
+                ...updatedSessions[existingIndex],
+                ...validated,
+                updatedAt: new Date().toISOString()
+            };
+            const newState = await this.stateStore.update({ ...state, sessions: updatedSessions });
+            const updatedSession = /** @type {SessionRecord[]} */ (newState.sessions || []).find((session) => session.id === validated.id);
+            return res.json(updatedSession);
+        }
+
+        const newSession = {
+            ...validated,
+            createdAt: validated.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        const newState = await this.stateStore.update({
+            ...state,
+            sessions: [...sessions, newSession]
+        });
+        const createdSession = /** @type {SessionRecord[]} */ (newState.sessions || []).find((session) => session.id === validated.id);
+        res.status(201).json(createdSession);
     });
 
     /** PATCH /api/state/sessions/:sessionId */
@@ -171,5 +230,61 @@ export class StateController {
 
         const updatedSession = /** @type {SessionRecord[]} */ (newState.sessions || []).find((s) => s.id === sessionId);
         res.json(updatedSession);
+    });
+
+    /** DELETE /api/state/sessions/:sessionId */
+    /** @param {Request} req @param {Response} res */
+    deleteSession = asyncHandler(async (req, res) => {
+        const { sessionId } = req.params;
+        if (!sessionId) {
+            throw AppError.validation('Session ID required');
+        }
+
+        const state = this.stateStore.get();
+        const sessions = /** @type {SessionRecord[]} */ (state.sessions || []);
+        const sessionIndex = sessions.findIndex((session) => session.id === sessionId);
+        if (sessionIndex === -1) {
+            throw new AppError('Session not found', ErrorCodes.SESSION_NOT_FOUND);
+        }
+
+        const updatedSessions = sessions.filter((session) => session.id !== sessionId);
+        await this.stateStore.update({
+            ...state,
+            sessions: updatedSessions
+        });
+
+        res.json({ success: true, sessionId });
+    });
+
+    /** POST /api/state/sessions/reorder */
+    /** @param {Request} req @param {Response} res */
+    reorderSessions = asyncHandler(async (req, res) => {
+        const orderedIds = req.body?.orderedIds;
+        if (!Array.isArray(orderedIds)) {
+            throw AppError.validation('orderedIds must be an array');
+        }
+
+        const state = this.stateStore.get();
+        const sessions = /** @type {SessionRecord[]} */ (state.sessions || []);
+        const sessionMap = new Map(sessions.map((session) => [session.id, session]));
+        const reordered = [];
+
+        for (const id of orderedIds) {
+            if (typeof id !== 'string') continue;
+            const session = sessionMap.get(id);
+            if (!session) continue;
+            reordered.push(session);
+            sessionMap.delete(id);
+        }
+
+        for (const session of sessionMap.values()) {
+            reordered.push(session);
+        }
+
+        const newState = await this.stateStore.update({
+            ...state,
+            sessions: reordered
+        });
+        res.json({ success: true, sessions: newState.sessions || [] });
     });
 }

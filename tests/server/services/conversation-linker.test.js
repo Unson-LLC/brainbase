@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ConversationLinker } from '../../../server/services/conversation-linker.js';
 
@@ -49,5 +49,42 @@ describe('ConversationLinker', () => {
 
     await expect(linker.getLastCodexAssistantSnippet(jsonlPath))
       .resolves.toBe('このセッションでは回答断片だけを表示します');
+  });
+
+  it('linkAllは実行中に追加されたsessionを落とさずにmerge保存する', async () => {
+    const initialSessions = [
+      { id: 'session-1', name: 'one' },
+      { id: 'session-2', name: 'two' }
+    ];
+    const latestSessions = [
+      { id: 'session-1', name: 'one' },
+      { id: 'session-2', name: 'two' },
+      { id: 'session-3', name: 'newly-added' }
+    ];
+    const stateStore = {
+      get: vi.fn()
+        .mockReturnValueOnce({ sessions: initialSessions })
+        .mockReturnValueOnce({ sessions: latestSessions }),
+      update: vi.fn(async (nextState) => nextState)
+    };
+
+    const linker = new ConversationLinker({ stateStore });
+    linker._buildCodexIndex = vi.fn(async () => new Map());
+    linker._linkSession = vi.fn(async (session) => ({
+      totalConversations: 1,
+      lastAssistantSnippet: `snippet:${session.id}`,
+      lastAssistantSnippetAt: '2026-04-03T00:00:00.000Z'
+    }));
+
+    const result = await linker.linkAll();
+
+    expect(result.updated).toBe(2);
+    expect(stateStore.update).toHaveBeenCalledWith({
+      sessions: [
+        expect.objectContaining({ id: 'session-1', lastAssistantSnippet: 'snippet:session-1' }),
+        expect.objectContaining({ id: 'session-2', lastAssistantSnippet: 'snippet:session-2' }),
+        expect.objectContaining({ id: 'session-3', name: 'newly-added' })
+      ]
+    });
   });
 });

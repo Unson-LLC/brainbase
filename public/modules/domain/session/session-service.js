@@ -5,7 +5,7 @@ import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { getTerminalViewerId, getTerminalViewerLabel } from '../../core/terminal-viewer.js';
 import { getProjectPath, getProjectFromSession } from '../../project-mapping.js';
 import { createSessionId, buildSessionObject, generateSessionName } from '../../session-manager.js';
-import { addSession, removeSession } from '../../state-api.js';
+import { addSession, removeSession, saveSessionOrder as persistSessionOrder } from '../../state-api.js';
 import { pruneSessionUiState, setSessionSummaryMap } from '../../session-ui-state.js';
 
 /**
@@ -115,7 +115,13 @@ export class SessionService {
 
         // 変換が発生した場合、state.jsonに保存
         if (migrationNeeded) {
-            await this.httpClient.post('/api/state', { ...state, sessions });
+            const stoppedSessions = sessions.filter((session) => session.intendedState === 'paused' && session.pausedReason === 'migrated_from_stopped');
+            for (const session of stoppedSessions) {
+                await this.httpClient.patch(`/api/state/sessions/${encodeURIComponent(session.id)}`, {
+                    intendedState: 'paused',
+                    pausedReason: session.pausedReason
+                });
+            }
             console.log('[Migration] Converted "stopped" sessions to "paused"');
         }
 
@@ -444,9 +450,7 @@ export class SessionService {
             });
 
             try {
-                const state = await this.httpClient.get('/api/state');
-                const updatedSessions = (state.sessions || []).filter((session) => session.id !== sessionId);
-                await this.httpClient.post('/api/state', { ...state, sessions: updatedSessions });
+                await this.httpClient.delete(`/api/state/sessions/${encodeURIComponent(sessionId)}`);
                 await this.loadSessions({ silent: true });
                 return { success: true, sessionId, eventResult };
             } catch (error) {
@@ -849,29 +853,8 @@ export class SessionService {
      */
     async saveSessionOrder(sessions) {
         try {
-            // Only send ID order — let the server reorder its own authoritative data
             const orderedIds = sessions.map(s => s.id);
-
-            // Get current state from backend (authoritative source)
-            const state = await this.httpClient.get('/api/state');
-            const serverSessions = state.sessions || [];
-
-            // Reorder server sessions to match client order
-            const sessionMap = new Map(serverSessions.map(s => [s.id, s]));
-            const reordered = [];
-            for (const id of orderedIds) {
-                const s = sessionMap.get(id);
-                if (s) {
-                    reordered.push(s);
-                    sessionMap.delete(id);
-                }
-            }
-            // Append any sessions not in the client order (e.g., newly created)
-            for (const s of sessionMap.values()) {
-                reordered.push(s);
-            }
-
-            await this.httpClient.post('/api/state', { ...state, sessions: reordered });
+            await persistSessionOrder(orderedIds);
             console.log('Session order saved successfully');
         } catch (error) {
             console.error('Failed to save session order:', error);
