@@ -21,6 +21,42 @@ const EXPECTED_CLOSE_CODES = new Set([
 // Custom close code: ownership was taken over by another viewer
 const WS_CLOSE_BLOCKED = 4001;
 
+const DEFAULT_TERMINAL_THEME = {
+    background: '#000000',
+    foreground: '#e2e8f0',
+    cursor: '#f8fafc',
+    selectionBackground: 'rgba(59, 130, 246, 0.35)'
+};
+
+function readTerminalAppearance(hostEl) {
+    if (typeof window === 'undefined' || !hostEl) {
+        return {
+            fontFamily: 'Menlo, Monaco, monospace',
+            fontSize: 14,
+            theme: { ...DEFAULT_TERMINAL_THEME }
+        };
+    }
+
+    const styles = window.getComputedStyle(hostEl);
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const readValue = (name, fallback) => {
+        const value = rootStyles.getPropertyValue(name).trim();
+        return value || fallback;
+    };
+    const parsedFontSize = Number.parseFloat(readValue('--terminal-font-size', '14px'));
+
+    return {
+        fontFamily: readValue('--terminal-font-family', styles.fontFamily || 'Menlo, Monaco, monospace'),
+        fontSize: Number.isFinite(parsedFontSize) ? parsedFontSize : 14,
+        theme: {
+            background: readValue('--terminal-bg', DEFAULT_TERMINAL_THEME.background),
+            foreground: readValue('--terminal-fg', DEFAULT_TERMINAL_THEME.foreground),
+            cursor: readValue('--terminal-cursor', DEFAULT_TERMINAL_THEME.cursor),
+            selectionBackground: readValue('--terminal-selection-bg', DEFAULT_TERMINAL_THEME.selectionBackground)
+        }
+    };
+}
+
 export function shouldUseXtermTransport() {
     if (typeof window === 'undefined') return false;
     const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
@@ -70,21 +106,17 @@ export class TerminalTransportClient {
         this.hostEl = hostEl;
         const { Terminal, FitAddon, WebLinksAddon, Unicode11Addon } = await loadXterm();
         if (this.terminal) return;
+        const appearance = readTerminalAppearance(hostEl);
 
         this.terminal = new Terminal({
-            fontFamily: 'Menlo, Monaco, monospace',
-            fontSize: 14,
+            fontFamily: appearance.fontFamily,
+            fontSize: appearance.fontSize,
             scrollback: 1000,
             convertEol: true,
             allowTransparency: false,
             allowProposedApi: true,
             cursorBlink: true,
-            theme: {
-                background: '#000000',
-                foreground: '#e2e8f0',
-                cursor: '#f8fafc',
-                selectionBackground: 'rgba(59, 130, 246, 0.35)'
-            }
+            theme: appearance.theme
         });
         this.fitAddon = new FitAddon();
         this.terminal.loadAddon(this.fitAddon);

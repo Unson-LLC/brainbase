@@ -29,6 +29,18 @@
     /* Typography */
     --font-sans: 'Inter', 'Noto Sans JP', sans-serif;
     --font-mono: 'Menlo', 'Monaco', 'Consolas', 'Courier New', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Droid Sans', sans-serif;
+
+    /* Terminal */
+    --terminal-bg: #000000;
+    --terminal-fg: #e2e8f0;
+    --terminal-cursor: #f8fafc;
+    --terminal-selection-bg: rgba(59, 130, 246, 0.35);
+    --terminal-font-family: 'Menlo', 'Monaco', monospace;
+    --terminal-font-size: 14px;
+    --terminal-line-height: 1.35;
+    --terminal-content-padding: 0px;
+    --app-top-offset: 0px;
+    --mobile-tab-bar-height: 47px;
 }
 
 * {
@@ -112,9 +124,22 @@ body::after {
 /* =========================================
    2. Base Layout (3-Pane Grid)
    ========================================= */
+.top-banner-stack {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: env(safe-area-inset-top, 0);
+    z-index: 1300;
+    pointer-events: none;
+}
+
 .app-container {
     display: flex;
-    height: var(--vvh, 100dvh);
+    height: calc(var(--vvh, 100dvh) - var(--app-top-offset, 0px));
+    margin-top: var(--app-top-offset, 0px);
     width: 100vw;
     overflow: hidden;
 }
@@ -1502,7 +1527,7 @@ body::after {
     width: 100%;
     height: 100%;
     padding-left: 12px;
-    background: #000000;
+    background: var(--terminal-bg);
     /* Match terminal background */
 }
 
@@ -1732,7 +1757,7 @@ body::after {
     z-index: 18;
     display: flex;
     flex-direction: column;
-    background: #020617;
+    background: var(--terminal-bg);
 }
 
 .terminal-snapshot-header {
@@ -1751,13 +1776,15 @@ body::after {
     flex: 1;
     min-height: 0;
     margin: 0;
-    padding: 8px 10px;
+    padding: var(--terminal-content-padding);
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    background: #020617;
-    color: #e2e8f0;
-    font: 12px/1.55 'Noto Sans Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    background: var(--terminal-bg);
+    color: var(--terminal-fg);
+    font-family: var(--terminal-font-family);
+    font-size: var(--terminal-font-size);
+    line-height: var(--terminal-line-height);
 }
 
 /* Snapshot link styles */
@@ -6820,7 +6847,7 @@ body.resizing iframe {
         border-bottom: 1px solid var(--border-color);
         flex-shrink: 0;
         position: fixed;
-        top: 0;
+        top: var(--app-top-offset, 0px);
         left: 0;
         right: 0;
         z-index: 1200;
@@ -6859,7 +6886,7 @@ body.resizing iframe {
     .mobile-tab-content {
         display: none;
         position: fixed;
-        top: var(--mobile-tab-bar-height, 47px);
+        top: calc(var(--app-top-offset, 0px) + var(--mobile-tab-bar-height, 47px));
         left: 0;
         right: 0;
         bottom: calc(56px + env(safe-area-inset-bottom, 0));
@@ -7145,7 +7172,7 @@ body.resizing iframe {
     body.keyboard-open > .terminal-snapshot-panel,
     body.keyboard-open .console-area.using-snapshot .terminal-snapshot-panel {
         bottom: var(--mobile-terminal-reserve, 120px);
-        max-height: calc(var(--vvh, 100dvh) - var(--mobile-tab-bar-height, 47px) - var(--mobile-terminal-reserve, 120px));
+        max-height: calc(var(--vvh, 100dvh) - var(--app-top-offset, 0px) - var(--mobile-tab-bar-height, 47px) - var(--mobile-terminal-reserve, 120px));
         min-height: 100px;
     }
 
@@ -7431,6 +7458,13 @@ body.resizing iframe {
         visibility: hidden !important;
     }
 
+    .info-drawer,
+    .panel-resize-handle-left {
+        display: none !important;
+        width: 0 !important;
+        visibility: hidden !important;
+    }
+
     .panel-resize-handle-commit-tree {
         display: none !important;
     }
@@ -7526,7 +7560,7 @@ body.resizing iframe {
     body > .terminal-snapshot-panel {
         position: fixed;
         inset: auto;
-        top: var(--mobile-tab-bar-height, 47px);
+        top: calc(var(--app-top-offset, 0px) + var(--mobile-tab-bar-height, 47px));
         left: 0;
         right: 0;
         bottom: var(--mobile-terminal-reserve, 120px);
@@ -9546,13 +9580,10 @@ body.resizing iframe {
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    z-index: 9999;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
     width: 100%;
     border-bottom: 2px solid #b45309;
+    flex: 0 0 auto;
+    pointer-events: auto;
 }
 
 .learning-health-banner {
@@ -9565,12 +9596,10 @@ body.resizing iframe {
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    z-index: 9998;
-    position: fixed;
-    left: 0;
-    right: 0;
     width: 100%;
     border-bottom: 1px solid rgba(127, 29, 29, 0.8);
+    flex: 0 0 auto;
+    pointer-events: auto;
 }
 
 .learning-health-banner-content {
@@ -9609,19 +9638,6 @@ body.resizing iframe {
 
 .learning-health-banner-btn:hover {
     background: rgba(255, 255, 255, 0.14);
-}
-
-/* TEST_MODEバナー表示時のapp-containerオフセット */
-body:has(.test-mode-banner) .app-container {
-    margin-top: 42px;
-}
-
-body:has(.learning-health-banner) .app-container {
-    margin-top: 42px;
-}
-
-body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
-    margin-top: 84px;
 }
 
 .test-mode-banner-content {
@@ -9676,17 +9692,6 @@ body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
         height: 16px;
     }
 
-    body:has(.test-mode-banner) .app-container {
-        margin-top: 36px;
-    }
-
-    body:has(.learning-health-banner) .app-container {
-        margin-top: 48px;
-    }
-
-    body:has(.test-mode-banner):has(.learning-health-banner) .app-container {
-        margin-top: 84px;
-    }
 }
 
 /* ==================== Section 1: Critical Alerts（統一デザイン版）==================== */

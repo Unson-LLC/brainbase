@@ -3,6 +3,38 @@ import { shouldUseXtermTransport } from '../core/terminal-transport-client.js';
 import { scheduleAfterNextPaint } from './schedule-after-next-paint.js';
 
 export function applyTerminalDisplayMixin(AppClass) {
+    AppClass.prototype.syncMobileTerminalReserve = function(
+        viewportHeight = window.visualViewport?.height || window.innerHeight,
+        viewportTop = window.visualViewport?.offsetTop || 0
+    ) {
+        const stageRect = document.getElementById('terminal-stage')?.getBoundingClientRect();
+        const consoleRect = document.querySelector('.console-area')?.getBoundingClientRect();
+        const visualBottom = viewportTop + viewportHeight;
+        const overlays = [
+            document.querySelector('.mobile-input-dock'),
+            document.getElementById('mobile-bottom-nav')
+        ].filter(Boolean);
+
+        const visibleRects = overlays
+            .filter((el) => window.getComputedStyle(el).display !== 'none')
+            .map((el) => el.getBoundingClientRect())
+            .filter((rect) => rect.height > 0);
+
+        const obstructionTop = visibleRects.length > 0
+            ? Math.min(...visibleRects.map((rect) => rect.top))
+            : visualBottom;
+        const stageTop = stageRect?.top || consoleRect?.top || viewportTop;
+        const reserve = Math.max(0, Math.round(visualBottom - obstructionTop));
+        const stageHeight = Math.max(0, Math.round(obstructionTop - stageTop));
+
+        document.body.style.setProperty('--mobile-terminal-reserve', `${reserve}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-height', `${stageHeight}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-top', `${Math.round(stageTop)}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-left', `${Math.round(consoleRect?.left || 0)}px`);
+        document.body.style.setProperty('--mobile-terminal-stage-width', `${Math.round(consoleRect?.width || window.innerWidth)}px`);
+        return reserve;
+    };
+
     AppClass.prototype._shouldUseXtermTransport = function() {
         return shouldUseXtermTransport();
     };
@@ -114,6 +146,10 @@ export function applyTerminalDisplayMixin(AppClass) {
                 document.body.style.setProperty('--mobile-tab-bar-height', `${tabBarH}px`);
             }
         }
+        this.syncMobileTerminalReserve(
+            window.visualViewport?.height || window.innerHeight,
+            window.visualViewport?.offsetTop || 0
+        );
     };
 
     AppClass.prototype._isSessionSwitchCurrent = function(sessionId, switchToken = null) {

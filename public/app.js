@@ -253,6 +253,10 @@ export class App {
                 document.body.style.setProperty('--mobile-tab-bar-height', `${tabBarH}px`);
             }
         }
+        this.syncMobileTerminalReserve?.(
+            window.visualViewport?.height || window.innerHeight,
+            window.visualViewport?.offsetTop || 0
+        );
     }
 
     _isConsoleVisible() {

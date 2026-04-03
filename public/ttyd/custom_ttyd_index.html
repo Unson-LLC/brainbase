@@ -1125,5 +1125,79 @@
     });
 })();
 </script>
+<style>
+:root {
+    --bb-terminal-bg: #000000;
+    --bb-terminal-fg: #e2e8f0;
+    --bb-terminal-cursor: #f8fafc;
+    --bb-terminal-selection-bg: rgba(59, 130, 246, 0.35);
+    --bb-terminal-font-family: Menlo, Monaco, monospace;
+    --bb-terminal-font-size: 14px;
+    --bb-terminal-line-height: 1.35;
+    --bb-terminal-content-padding: 0px;
+}
+
+html,
+body,
+#terminal-container {
+    background: var(--bb-terminal-bg);
+}
+
+#terminal-container .terminal {
+    height: 100%;
+    padding: var(--bb-terminal-content-padding);
+    background: var(--bb-terminal-bg);
+}
+
+.xterm,
+.xterm-viewport,
+.xterm-screen {
+    background: var(--bb-terminal-bg) !important;
+}
+</style>
+
+<script>
+(function() {
+    const TERMINAL_APPEARANCE = {
+        theme: {
+            background: '#000000',
+            foreground: '#e2e8f0',
+            cursor: '#f8fafc',
+            selectionBackground: 'rgba(59, 130, 246, 0.35)'
+        },
+        fontFamily: 'Menlo, Monaco, monospace',
+        fontSize: 14,
+        lineHeight: 1.35
+    };
+
+    function applyTerminalAppearance(term) {
+        if (!term || typeof term.options !== 'object') return false;
+        try {
+            term.options.theme = TERMINAL_APPEARANCE.theme;
+            term.options.fontFamily = TERMINAL_APPEARANCE.fontFamily;
+            term.options.fontSize = TERMINAL_APPEARANCE.fontSize;
+            term.options.lineHeight = TERMINAL_APPEARANCE.lineHeight;
+            if (window.fitAddon && typeof window.fitAddon.fit === 'function') {
+                window.fitAddon.fit();
+            }
+            return true;
+        } catch (error) {
+            console.warn('[Terminal] Failed to apply unified appearance', error);
+            return false;
+        }
+    }
+
+    function waitForTerminal(attempts = 0) {
+        if (applyTerminalAppearance(window.term)) {
+            return;
+        }
+        if (attempts < 50) {
+            window.setTimeout(() => waitForTerminal(attempts + 1), 100);
+        }
+    }
+
+    waitForTerminal();
+})();
+</script>
 </body>
 </html>

@@ -34,6 +34,71 @@ import { RenameModal } from '../ui/modals/rename-modal.js';
 const LEARNING_HEALTH_DISMISS_KEY = 'brainbase.learningHealth.dismissedIssueKey';
 
 export function applyUiSetupMixin(AppClass) {
+    AppClass.prototype.ensureTopBannerStack = function() {
+        let stack = document.getElementById('top-banner-stack');
+        if (stack) return stack;
+
+        stack = document.createElement('div');
+        stack.id = 'top-banner-stack';
+        stack.className = 'top-banner-stack';
+        stack.setAttribute('aria-live', 'polite');
+
+        const appContainer = document.querySelector('.app-container');
+        if (appContainer) {
+            document.body.insertBefore(stack, appContainer);
+        } else {
+            document.body.prepend(stack);
+        }
+        return stack;
+    };
+
+    AppClass.prototype.syncAppTopOffset = function() {
+        const stack = this.ensureTopBannerStack();
+        const height = stack ? Math.ceil(stack.getBoundingClientRect().height) : 0;
+        document.body.style.setProperty('--app-top-offset', `${height}px`);
+        this.syncMobileTerminalReserve?.(
+            window.visualViewport?.height || window.innerHeight,
+            window.visualViewport?.offsetTop || 0
+        );
+        return height;
+    };
+
+    AppClass.prototype.requestAppTopOffsetSync = function() {
+        if (this._appTopOffsetSyncRaf) {
+            window.cancelAnimationFrame(this._appTopOffsetSyncRaf);
+        }
+        this._appTopOffsetSyncRaf = window.requestAnimationFrame(() => {
+            this._appTopOffsetSyncRaf = null;
+            this.syncAppTopOffset();
+        });
+    };
+
+    AppClass.prototype.setupAppTopOffsetSync = function() {
+        const stack = this.ensureTopBannerStack();
+        if (this._appTopOffsetSyncInitialized) {
+            this.requestAppTopOffsetSync();
+            return;
+        }
+
+        this._appTopOffsetSyncInitialized = true;
+        const sync = () => this.requestAppTopOffsetSync();
+
+        window.addEventListener('resize', sync);
+        window.addEventListener('orientationchange', sync);
+        this.unsubscribers.push(() => {
+            window.removeEventListener('resize', sync);
+            window.removeEventListener('orientationchange', sync);
+        });
+
+        if (typeof ResizeObserver === 'function') {
+            this._appTopOffsetResizeObserver = new ResizeObserver(sync);
+            this._appTopOffsetResizeObserver.observe(stack);
+            this.unsubscribers.push(() => this._appTopOffsetResizeObserver?.disconnect());
+        }
+
+        this.requestAppTopOffsetSync();
+    };
+
     AppClass.prototype.initAuth = async function() {
         this.authManager = new AuthManager({ httpClient, store: appStore, eventBus });
 
@@ -187,6 +252,8 @@ export function applyUiSetupMixin(AppClass) {
     };
 
     AppClass.prototype.setupTestModeBanner = function() {
+        this.setupAppTopOffsetSync();
+
         // Subscribe to store changes
         const unsub = appStore.subscribe((change) => {
             if (change.key === 'testMode') {
@@ -218,14 +285,8 @@ export function applyUiSetupMixin(AppClass) {
                     </div>
                 `;
 
-                // Insert at the top of body (before app-container)
-                const appContainer = document.querySelector('.app-container');
-                if (appContainer) {
-                    document.body.insertBefore(banner, appContainer);
-
-                    // Re-render lucide icons
-                    refreshIcons();
-                }
+                this.ensureTopBannerStack().appendChild(banner);
+                refreshIcons();
             }
         } else {
             // Remove banner if it exists
@@ -233,9 +294,12 @@ export function applyUiSetupMixin(AppClass) {
                 banner.remove();
             }
         }
+
+        this.requestAppTopOffsetSync();
     };
 
     AppClass.prototype.setupLearningHealthBanner = function() {
+        this.setupAppTopOffsetSync();
         this.refreshLearningHealthBanner();
     };
 
@@ -253,6 +317,7 @@ export function applyUiSetupMixin(AppClass) {
         const issueKey = health?.issue_key || null;
         if (!health || health.status === 'healthy' || this.isLearningHealthIssueDismissed(issueKey)) {
             if (banner) banner.remove();
+            this.requestAppTopOffsetSync();
             return;
         }
 
@@ -272,14 +337,12 @@ export function applyUiSetupMixin(AppClass) {
                     </div>
                 </div>
             `;
-            const appContainer = document.querySelector('.app-container');
+            const stack = this.ensureTopBannerStack();
             const testModeBanner = document.getElementById('test-mode-banner');
-            if (appContainer) {
-                if (testModeBanner) {
-                    testModeBanner.insertAdjacentElement('afterend', banner);
-                } else {
-                    document.body.insertBefore(banner, appContainer);
-                }
+            if (testModeBanner && testModeBanner.parentElement === stack) {
+                testModeBanner.insertAdjacentElement('afterend', banner);
+            } else {
+                stack.appendChild(banner);
             }
 
             banner.querySelector('#learning-health-open-inbox-btn')?.addEventListener('click', () => {
@@ -288,6 +351,7 @@ export function applyUiSetupMixin(AppClass) {
             banner.querySelector('#learning-health-dismiss-btn')?.addEventListener('click', () => {
                 this.dismissLearningHealthIssue(banner.dataset.issueKey || null);
                 banner.remove();
+                this.requestAppTopOffsetSync();
             });
         }
 
@@ -297,6 +361,7 @@ export function applyUiSetupMixin(AppClass) {
             messageEl.textContent = health.message || '学習の日次ジョブが予定どおり動いていません。';
         }
         refreshIcons();
+        this.requestAppTopOffsetSync();
     };
 
     AppClass.prototype.dismissLearningHealthIssue = function(issueKey) {
