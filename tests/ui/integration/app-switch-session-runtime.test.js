@@ -632,6 +632,60 @@ describe('app switchSession runtime handling', () => {
     expect(modalFrame.src).toContain('viewerId=viewer-test');
   });
 
+  it('mobile snapshot refresh always bypasses cache', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    app._mobileTerminalMode = 'display';
+
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active'
+      }]
+    });
+
+    const loadSnapshotSpy = vi.spyOn(app, '_loadTerminalSnapshot').mockResolvedValue({
+      text: 'fresh snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:00.000Z',
+      mode: 'full'
+    });
+
+    await app._refreshMobileSnapshotDisplay();
+
+    expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', { force: true });
+  });
+
+  it('mobile snapshot poll interval uses latest sessionUi hook status', async () => {
+    const { replaceSessionHookStatuses } = await import('../../../public/modules/session-ui-state.js');
+
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    appStore.setState({
+      currentSessionId: 'session-1',
+      sessions: [{
+        id: 'session-1',
+        name: 'Session 1',
+        path: '/tmp/session-1',
+        engine: 'codex',
+        intendedState: 'active',
+        hookStatus: null
+      }]
+    });
+
+    replaceSessionHookStatuses({
+      'session-1': {
+        isWorking: true,
+        isDone: false,
+        activeTurnCount: 0
+      }
+    });
+
+    expect(app._getMobileSnapshotPollInterval('session-1')).toBe(1000);
+  });
+
   it('mobile ensureがproxyPathを返さないとmodalを閉じる', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);

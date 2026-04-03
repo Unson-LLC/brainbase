@@ -1,4 +1,5 @@
 import { appStore } from '../core/store.js';
+import { getSessionStatus } from '../session-ui-state.js';
 
 export function applyTerminalMobileMixin(AppClass) {
     AppClass.prototype._getSessionById = function(sessionId) {
@@ -8,7 +9,8 @@ export function applyTerminalMobileMixin(AppClass) {
 
     AppClass.prototype._getMobileSnapshotPollInterval = function(sessionId) {
         const session = this._getSessionById(sessionId);
-        return session?.hookStatus?.isWorking ? 1000 : 3000;
+        const hookStatus = getSessionStatus(sessionId) || session?.hookStatus || null;
+        return hookStatus?.isWorking ? 1000 : 3000;
     };
 
     AppClass.prototype._setMobileSnapshotPoll = function(delay) {
@@ -43,7 +45,9 @@ export function applyTerminalMobileMixin(AppClass) {
 
         this._mobileSnapshotInFlight = true;
         try {
-            const snapshot = await this._loadTerminalSnapshot(sessionId, { force });
+            // Mobile snapshot polling must bypass cache on every tick.
+            // Otherwise the timer runs but only re-renders stale cached content.
+            const snapshot = await this._loadTerminalSnapshot(sessionId, { force: true });
             // snapshot取得後に直接DOMを更新（_updateTerminalInputStatus経由だと遅延する）
             if (snapshot && appStore.getState().currentSessionId === sessionId) {
                 this._renderTerminalSnapshotPanel({
