@@ -11886,7 +11886,7 @@ body.resizing iframe {
     position: fixed;
     bottom: 20px;
     right: 20px;
-    z-index: 9000;
+    z-index: 10001;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
