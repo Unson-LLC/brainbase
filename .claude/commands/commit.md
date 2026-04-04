@@ -8,6 +8,7 @@
 - brainbaseは **Jujutsu (jj)** で管理されている
 - jjではworking copyが常にコミット。`git add` + `git commit` は不要
 - `jj describe` で説明をつけ、`jj new` で次の変更に進む
+- dirty な `(no description set)` のまま次へ進むのは禁止。詳細は `.claude/rules/commit-strategy.md`
 
 ## 実行手順
 

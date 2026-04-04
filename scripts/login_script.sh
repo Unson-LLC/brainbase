@@ -238,6 +238,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
 CODEX_WRAPPER="$SCRIPT_DIR/codex-wrapper.sh"
 CODEX_APP_REPL="$SCRIPT_DIR/codex-app-repl.mjs"
+JJ_GUARD_DIR="$SCRIPT_DIR/bin"
+REAL_JJ_BIN="$(command -v jj 2>/dev/null || true)"
 # Default to Codex CLI; opt-in to app-server REPL via env var.
 USE_CODEX_APP_SERVER="${BRAINBASE_CODEX_APP_SERVER:-0}"
 CODEX_NOTIFY_ARG=""
@@ -274,12 +276,20 @@ if [ "$ENGINE" = "codex" ]; then
     sync_codex_prompts_link
 fi
 
+if [ -d "$JJ_GUARD_DIR" ]; then
+    export PATH="$JJ_GUARD_DIR:$PATH"
+fi
+
 # Check if session exists
 if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     # Create new session
     tmux new-session -d -s "$SESSION_NAME"
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME"
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_SERVER_PATH "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    tmux set-environment -t "$SESSION_NAME" PATH "$PATH"
+    if [ -n "$REAL_JJ_BIN" ]; then
+        tmux set-environment -t "$SESSION_NAME" BRAINBASE_REAL_JJ_BIN "$REAL_JJ_BIN"
+    fi
 
     if [ "$ENGINE" = "codex" ]; then
         # Default Codex permissions: full filesystem + network, no approval prompts
@@ -379,6 +389,10 @@ fi
 
 # Ensure BRAINBASE_SESSION_ID is always set even when re-attaching to an existing session
 tmux set-environment -t "$SESSION_NAME" BRAINBASE_SESSION_ID "$SESSION_NAME" 2>/dev/null || true
+tmux set-environment -t "$SESSION_NAME" PATH "$PATH" 2>/dev/null || true
+if [ -n "$REAL_JJ_BIN" ]; then
+    tmux set-environment -t "$SESSION_NAME" BRAINBASE_REAL_JJ_BIN "$REAL_JJ_BIN" 2>/dev/null || true
+fi
 
 if [ -n "$BRAINBASE_PORT" ]; then
     tmux set-environment -t "$SESSION_NAME" BRAINBASE_PORT "$BRAINBASE_PORT"
