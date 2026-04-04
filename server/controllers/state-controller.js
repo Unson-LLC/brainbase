@@ -95,9 +95,10 @@ export class StateController {
         const state = this.stateStore.get();
 
         const sessionsWithStatus = /** @type {SessionRecord[]} */ (state.sessions || []).map((session) => {
+            const safeSession = validateSession(session) || { id: session.id };
             const runtimeStatus = this.runtimeQuery.getRuntimeStatus(session);
 
-            const { conversationSummary, ...rest } = session;
+            const { conversationSummary, ...rest } = safeSession;
             const convLight = conversationSummary ? {
                 totalConversations: conversationSummary.totalConversations || 0,
                 lastActivity: conversationSummary.lastConversation?.lastActivity || null
@@ -192,8 +193,13 @@ export class StateController {
             throw AppError.validation('Invalid session data');
         }
 
-        const state = this.stateStore.get();
-        const sessionIndex = /** @type {SessionRecord[]} */ (state.sessions || []).findIndex((s) => s.id === sessionId);
+        let state = this.stateStore.get();
+        let sessionIndex = /** @type {SessionRecord[]} */ (state.sessions || []).findIndex((s) => s.id === sessionId);
+
+        if (sessionIndex === -1 && typeof this.stateStore.reloadFromDisk === 'function') {
+            state = await this.stateStore.reloadFromDisk();
+            sessionIndex = /** @type {SessionRecord[]} */ (state.sessions || []).findIndex((s) => s.id === sessionId);
+        }
 
         if (sessionIndex === -1) {
             throw new AppError('Session not found', ErrorCodes.SESSION_NOT_FOUND);

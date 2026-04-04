@@ -82,7 +82,6 @@ export function applyTerminalDisplayMixin(AppClass) {
 
     AppClass.prototype._showXtermTransport = function() {
         this._restoreSnapshotPanelPosition();
-        this._hideTerminalRecoveryPanel();
         this.terminalXtermHost?.classList.remove('hidden');
         this.terminalFrame?.classList.add('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -106,7 +105,6 @@ export function applyTerminalDisplayMixin(AppClass) {
 
     AppClass.prototype._showTtydIframe = function() {
         this._restoreSnapshotPanelPosition();
-        this._hideTerminalRecoveryPanel();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.remove('hidden');
         this.terminalSnapshotPanelEl?.classList.add('hidden');
@@ -124,7 +122,6 @@ export function applyTerminalDisplayMixin(AppClass) {
     };
 
     AppClass.prototype._showMobileTerminalDisplay = function() {
-        this._hideTerminalRecoveryPanel();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
@@ -172,7 +169,6 @@ export function applyTerminalDisplayMixin(AppClass) {
 
     AppClass.prototype._showDesktopSnapshotDisplay = function(sessionId, { title = 'Terminal display', switchToken = null } = {}) {
         this._restoreSnapshotPanelPosition();
-        this._hideTerminalRecoveryPanel();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');

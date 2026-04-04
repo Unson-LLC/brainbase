@@ -534,7 +534,46 @@ describe('SessionManager', () => {
     fs.rmSync(durableDir, { recursive: true, force: true });
   });
 
-  it('sendInput呼び出し時_短文テキストはtemp file経由でpaste-bufferする', async () => {
+  it('resolveSessionWorkspacePath_tmuxがprivate_tmpしか返さない場合も永続pathへフォールバックする', async () => {
+    const durableDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-durable-'));
+    let state = {
+      sessions: [{
+        id: 'session-1',
+        path: durableDir,
+        lastKnownGoodPath: durableDir,
+        worktree: {
+          repo: '/repo/project-a',
+          path: durableDir
+        }
+      }]
+    };
+
+    const stateStore = {
+      get: () => state,
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+
+    const manager = createSessionServices({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: `/private/tmp\n` }),
+      stateStore,
+      worktreeService: { worktreesDir: '/unused' }
+    }).sessionApi;
+
+    const resolvedPath = await manager.resolveSessionWorkspacePath('session-1');
+
+    expect(resolvedPath).toBe(durableDir);
+    expect(state.sessions[0].path).toBe(durableDir);
+    expect(state.sessions[0].worktree.path).toBe(durableDir);
+    expect(state.sessions[0].lastKnownGoodPath).toBe(durableDir);
+
+    fs.rmSync(durableDir, { recursive: true, force: true });
+  });
+
+  it('sendInput呼び出し時_短文テキストはliteral send-keysで送信する', async () => {
     const manager = createSessionServices({
       serverDir: '/tmp',
       execPromise: async () => ({ stdout: '' }),
@@ -542,18 +581,10 @@ describe('SessionManager', () => {
       worktreeService: {}
     }).sessionApi;
     const runTmuxSpy = vi.spyOn(manager, '_runTmux').mockResolvedValue({ stdout: '', stderr: '' });
-    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-short');
-    const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
-    const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
 
     await manager.sendInput('session-1', 'hello world', 'text');
 
-    expect(mkdtempSpy).toHaveBeenCalled();
-    expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-short/paste.txt', 'hello world', 'utf8');
-    expect(runTmuxSpy).toHaveBeenCalledWith(['load-buffer', '-b', expect.stringContaining('brainbase-session-1-'), '/tmp/brainbase-input-test-short/paste.txt']);
-    expect(runTmuxSpy).toHaveBeenCalledWith(['paste-buffer', '-d', '-b', expect.stringContaining('brainbase-session-1-'), '-t', 'session-1']);
-    expect(runTmuxSpy).toHaveBeenCalledWith(['delete-buffer', '-b', expect.stringContaining('brainbase-session-1-')]);
-    expect(rmSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-short', { recursive: true, force: true });
+    expect(runTmuxSpy).toHaveBeenCalledWith(['send-keys', '-t', 'session-1', '-l', '--', 'hello world']);
   });
 
   it('sendInput呼び出し時_長文テキストはtemp file経由でpaste-bufferする', async () => {
@@ -589,10 +620,11 @@ describe('SessionManager', () => {
     vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/brainbase-input-test-literal');
     const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
     vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
+    writeFileSpy.mockClear();
 
     await manager.sendInput('session-1', 'alpha $HOME `echo hi`', 'text');
 
-    expect(writeFileSpy).toHaveBeenCalledWith('/tmp/brainbase-input-test-literal/paste.txt', 'alpha $HOME `echo hi`', 'utf8');
+    expect(writeFileSpy).not.toHaveBeenCalled();
   });
 
   it('sendInput呼び出し時_入力確定でtaskBriefを更新する', async () => {

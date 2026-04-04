@@ -77,6 +77,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/post-tool-use/activity-bridge.ts \\\"$CLAUDE_TOOL_INPUT\\\"",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
             "command": "npx tsx .claude/scripts/hooks/post-tool-use/verification-tracker-wrapper.ts",
             "timeout": 5000
           },
@@ -89,6 +94,16 @@
       }
     ],
     "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/activity-bridge.ts",
+            "timeout": 3000
+          }
+        ]
+      },
       {
         "matcher": ".*test.*|.*テスト.*",
         "hooks": [
@@ -113,6 +128,11 @@
     "Stop": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/stop/activity-bridge.ts",
+            "timeout": 3000
+          },
           {
             "type": "command",
             "command": "npx tsx .claude/scripts/hooks/stop/completion-notifier-wrapper.ts"

@@ -17,7 +17,13 @@ INITIAL_CMD_FILE=""
 # Auto-fix CWD: read worktree path from state.json and cd to it
 STATE_JSON_PATH=""
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
+if [ -n "$BRAINBASE_STATE_PATH" ]; then
+    STATE_JSON_PATH="$BRAINBASE_STATE_PATH"
+elif [ -n "$BRAINBASE_VAR_DIR" ]; then
+    STATE_JSON_PATH="$BRAINBASE_VAR_DIR/state.json"
+else
+    STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
+fi
 if [ -f "$STATE_JSON_PATH" ]; then
     if command -v jq >/dev/null 2>&1; then
         WORKTREE_PATH=$(jq -r --arg sid "$SESSION_NAME" '
@@ -66,6 +72,20 @@ create_initial_cmd_file() {
         INITIAL_CMD_FILE="/tmp/brainbase-initial-${SESSION_NAME}.txt"
     fi
     printf '%s' "$INITIAL_CMD" > "$INITIAL_CMD_FILE"
+}
+
+sync_claude_runtime() {
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    local sync_script="$repo_root/.claude/hooks/session-start-copy-plugins.sh"
+
+    if [ -z "$WORKTREE_PATH" ] || [ ! -d "$WORKTREE_PATH" ] || [ ! -x "$sync_script" ]; then
+        return 0
+    fi
+
+    (
+        cd "$WORKTREE_PATH" && "$sync_script"
+    ) >/dev/null 2>&1 || true
 }
 
 if [ -d /usr/bin ]; then
@@ -160,6 +180,7 @@ if command -v tmux >/dev/null 2>&1; then
 fi
 
 create_initial_cmd_file
+sync_claude_runtime
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NOTIFY_SCRIPT="$SCRIPT_DIR/codex-notify.sh"
@@ -296,6 +317,7 @@ else
     # 既存セッションでもcwdが壊れている場合がある（外付けドライブ再マウント等）。
     # worktreeパスへのcdを送ってcwdを修復する。
     if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+        sync_claude_runtime
         tmux send-keys -t "$SESSION_NAME" "cd '$WORKTREE_PATH' 2>/dev/null" C-m
     fi
 fi

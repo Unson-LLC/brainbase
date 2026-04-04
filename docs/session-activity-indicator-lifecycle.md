@@ -2,12 +2,13 @@
 
 ## 目的
 
-セッション一覧のアクティブインジケータを、`orange / green / none` の3状態で一貫して扱うための設計メモ。
+セッション一覧のアクティブインジケータを、`blue / orange / green / none` で一貫して扱うための設計メモ。
 
 ## 意味
 
-- `orange`: ユーザが入力を送ってから、AI が処理を止めるまで
-- `green`: AI が止まって、次のユーザ入力を待っている
+- `blue`: ユーザが入力を送ってから、AI が処理を止めるまで
+- `orange`: AI がユーザの選択や入力を待っている
+- `green`: AI が完了し、未読の更新がある
 - `none`: 未実行、既読化済み、または状態なし
 
 ## 状態遷移図
@@ -16,11 +17,12 @@
 stateDiagram-v2
     [*] --> None
 
-    None --> Orange: user submits prompt\nturn_started
-    Orange --> Orange: assistant/tool/file delta\nheartbeat
-    Orange --> Green: user-input-requested\nturn_completed
-    Orange --> Green: turn/completed fallback
-    Green --> Orange: user submits next prompt
+    None --> Blue: user submits prompt\nturn_started
+    Blue --> Blue: assistant/tool/file delta\nheartbeat
+    Blue --> Orange: user-input-requested\nturn_completed
+    Blue --> Green: turn/completed fallback
+    Green --> Blue: user submits next prompt
+    Orange --> Blue: user submits next prompt
     Green --> None: user opens session\nthen leaves without new input
     None --> None: polling with no hook status
 ```
@@ -33,20 +35,24 @@ flowchart LR
     B --> C[notify callback]
     C --> D[/api/sessions/report_activity lifecycle=turn_started/]
     D --> E[SessionManager sets isWorking=true]
-    E --> F[Sidebar shows orange]
+    E --> F[Sidebar shows blue]
 
     F --> G[Codex emits delta events]
     G --> H[notify callback heartbeat]
     H --> I[SessionManager keeps working]
 
-    I --> J[Codex emits user-input-requested or turn/completed]
+    I --> J[Codex/Claude emits user-input-requested or turn/completed]
     J --> K[notify callback turn_completed]
-    K --> L[SessionManager sets isDone=true]
-    L --> M[Sidebar shows green]
+    K --> L{waiting input?}
+    L -->|yes| M[Sidebar shows orange]
+    L -->|no| N[Sidebar shows green]
 
-    M --> N[User switches away without new prompt]
-    N --> O[markDoneAsRead]
-    O --> P[Sidebar clears to none]
+    M --> O[User submits next prompt]
+    O --> F
+
+    N --> P[User switches away without new prompt]
+    P --> Q[markDoneAsRead]
+    Q --> R[Sidebar clears to none]
 ```
 
 ## イベントマッピング

@@ -15,6 +15,51 @@ describe('State Concurrency - Integration', () => {
     let tempDir;
     let stateFilePath;
 
+    const buildControllerDeps = () => ({
+        activity: {
+            reportActivity: mockSessionManager.reportActivity,
+            getSessionStatus: mockSessionManager.getSessionStatus,
+            clearDoneStatus: mockSessionManager.clearDoneStatus
+        },
+        ownership: {
+            ensureTerminalOwnership: mockSessionManager.ensureTerminalOwnership,
+            forceTerminalOwnership: mockSessionManager.forceTerminalOwnership || vi.fn(),
+            getTerminalAccessState: mockSessionManager.getTerminalAccessState || vi.fn(),
+            releaseTerminalOwnership: mockSessionManager.releaseTerminalOwnership || vi.fn()
+        },
+        workspace: {
+            resolveSessionWorkspacePath: mockSessionManager.resolveSessionWorkspacePath
+        },
+        runtimeQuery: {
+            getRuntimeStatus: mockSessionManager.getRuntimeStatus,
+            getSessionById: mockSessionManager.getSessionById,
+            _isXtermOnlyMode: mockSessionManager._isXtermOnlyMode,
+            _isProcessRunning: mockSessionManager._isProcessRunning
+        },
+        runtimeLifecycle: {
+            startTtyd: mockSessionManager.startTtyd,
+            stopTtyd: mockSessionManager.stopTtyd,
+            ensureSessionRuntime: mockSessionManager.ensureSessionRuntime || vi.fn()
+        },
+        runtimeRegistry: {
+            activeSessions: mockSessionManager.activeSessions
+        },
+        terminalIo: {
+            sendInput: mockSessionManager.sendInput || vi.fn(),
+            scrollSession: mockSessionManager.scrollSession || vi.fn(),
+            selectPane: mockSessionManager.selectPane || vi.fn(),
+            exitCopyMode: mockSessionManager.exitCopyMode || vi.fn()
+        },
+        snapshot: {
+            getContent: mockSessionManager.getContent || vi.fn(),
+            getContentWithColors: mockSessionManager.getContentWithColors || vi.fn(),
+            getPaneMode: mockSessionManager.getPaneMode || vi.fn(),
+            getOutput: mockSessionManager.getOutput || vi.fn()
+        },
+        worktreeService: mockWorktreeService,
+        stateStore
+    });
+
     // Mock SessionManager and WorktreeService
     const mockSessionManager = {
         startTtyd: vi.fn().mockResolvedValue({ port: 8080, proxyPath: '/proxy' }),
@@ -87,11 +132,7 @@ describe('State Concurrency - Integration', () => {
         await stateStore.persist();
 
         // SessionController初期化
-        sessionController = new SessionController(
-            mockSessionManager,
-            mockWorktreeService,
-            stateStore
-        );
+        sessionController = new SessionController(buildControllerDeps());
 
         // Mock reset
         vi.clearAllMocks();

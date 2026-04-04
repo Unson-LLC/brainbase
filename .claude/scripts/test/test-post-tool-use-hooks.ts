@@ -164,8 +164,46 @@ try {
   console.log("❌ verification-tracker-wrapper.ts: 失敗");
 }
 
-// 6. interrupt-detector.ts のテスト (.* 全ツール)
-console.log("\n6️⃣ interrupt-detector.ts テスト実行中...");
+// 6. activity-bridge.ts のテスト (.* 全ツール)
+console.log("\n6️⃣ activity-bridge.ts テスト実行中...");
+try {
+  const dummyInput = JSON.stringify({
+    tool: "Bash",
+    parameters: { command: "echo test" },
+  });
+
+  const output = execSync(
+    `npx tsx .claude/scripts/hooks/post-tool-use/activity-bridge.ts '${dummyInput}'`,
+    {
+      encoding: "utf8",
+      timeout: 5000,
+      env: {
+        ...process.env,
+        BRAINBASE_PORT: "9",
+        BRAINBASE_SESSION_ID: "session-hook-test",
+      },
+    }
+  );
+  results.push({
+    hook: "activity-bridge.ts",
+    tool: ".*",
+    success: true,
+    output: output.trim(),
+  });
+  console.log("✅ activity-bridge.ts: 成功");
+} catch (error: any) {
+  results.push({
+    hook: "activity-bridge.ts",
+    tool: ".*",
+    success: false,
+    output: error.stdout || "",
+    error: error.stderr || error.message,
+  });
+  console.log("❌ activity-bridge.ts: 失敗");
+}
+
+// 7. interrupt-detector.ts のテスト (.* 全ツール)
+console.log("\n7️⃣ interrupt-detector.ts テスト実行中...");
 try {
   const output = execSync(
     "npx tsx .claude/scripts/hooks/post-tool-use/interrupt-detector.ts",

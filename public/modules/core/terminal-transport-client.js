@@ -11,6 +11,8 @@ const MAX_RECONNECT_RETRIES = 10;
 const BASE_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 const KEEPALIVE_INTERVAL_MS = 30000;
+const TEXT_BATCH_WINDOW_MS = 8;
+const TEXT_BATCH_MAX_BYTES = 1024;
 
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
@@ -103,6 +105,9 @@ export class TerminalTransportClient {
         this._forceApplyNextSnapshot = false;
         this._hiddenDisconnect = false;
         this._visibilityHandler = null;
+        this._pendingTextBuffer = '';
+        this._pendingTextFlushTimer = null;
+        this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
     }
 
     async init(hostEl) {
@@ -249,6 +254,7 @@ export class TerminalTransportClient {
         this._connectToken += 1;
         const connectToken = this._connectToken;
         this._manualClose = false;
+        this._flushBufferedText({ enqueueIfUnavailable: true });
         this.sessionId = sessionId;
         this.status.mode = 'reconnecting';
         this.status.connected = false;
@@ -394,6 +400,7 @@ export class TerminalTransportClient {
         this._manualClose = true;
         this._clearReconnectTimer();
         this._stopKeepalive();
+        this._flushBufferedText({ enqueueIfUnavailable: true });
         this._messageQueue.clear();
         this._closeWs();
         this.status.connected = false;
@@ -414,19 +421,21 @@ export class TerminalTransportClient {
 
     async sendText(value) {
         if (!value) return;
-        const message = { type: 'input', inputType: 'text', value };
-        if (this.ws?.readyState !== WebSocket.OPEN) {
-            // Queue for later (CommandMate pattern)
-            this._messageQueue.enqueue(message);
+        this._applyLocalEcho(value);
+
+        if (this._shouldSendTextImmediately(value)) {
+            this._flushBufferedText({ enqueueIfUnavailable: true });
+            this._dispatchTextMessage(value, { enqueueIfUnavailable: true });
             return;
         }
-        await this._ensureInteractiveMode();
-        this._applyLocalEcho(value);
-        this.ws.send(JSON.stringify(message));
+
+        this._pendingTextBuffer += value;
+        this._scheduleBufferedTextFlush();
     }
 
     async sendKey(value) {
         if (!value) return;
+        await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
         const message = { type: 'input', inputType: 'key', value };
         if (this.ws?.readyState !== WebSocket.OPEN) {
             this._messageQueue.enqueue(message);
@@ -441,6 +450,7 @@ export class TerminalTransportClient {
      * AI処理中にCtrl+Cを送信して中断する
      */
     async interrupt() {
+        await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
         if (this.ws?.readyState !== WebSocket.OPEN) return;
         await this._ensureInteractiveMode();
         this.ws.send(JSON.stringify({
@@ -574,6 +584,62 @@ export class TerminalTransportClient {
         }
     }
 
+    _clearPendingTextFlushTimer() {
+        if (!this._pendingTextFlushTimer) return;
+        clearTimeout(this._pendingTextFlushTimer);
+        this._pendingTextFlushTimer = null;
+    }
+
+    _scheduleBufferedTextFlush() {
+        this._clearPendingTextFlushTimer();
+        this._pendingTextFlushTimer = setTimeout(() => {
+            this._flushBufferedText({ enqueueIfUnavailable: true }).catch(() => {});
+        }, TEXT_BATCH_WINDOW_MS);
+    }
+
+    _drainBufferedText() {
+        this._clearPendingTextFlushTimer();
+        if (!this._pendingTextBuffer) return '';
+        const buffered = this._pendingTextBuffer;
+        this._pendingTextBuffer = '';
+        return buffered;
+    }
+
+    async _flushBufferedText({ enqueueIfUnavailable = false, ensureInteractive = false } = {}) {
+        const buffered = this._drainBufferedText();
+        if (!buffered) return;
+        await this._dispatchTextMessage(buffered, { enqueueIfUnavailable, ensureInteractive });
+    }
+
+    async _dispatchTextMessage(value, { enqueueIfUnavailable = false, ensureInteractive = false } = {}) {
+        const message = { type: 'input', inputType: 'text', value };
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+            if (enqueueIfUnavailable) {
+                this._messageQueue.enqueue(message);
+            }
+            return;
+        }
+        if (ensureInteractive) {
+            await this._ensureInteractiveMode();
+        }
+        this.ws.send(JSON.stringify(message));
+    }
+
+    _shouldSendTextImmediately(value) {
+        if (typeof value !== 'string' || !value) return true;
+        if (value.includes('\n') || value.includes('\r')) return true;
+        const nextValue = this._pendingTextBuffer + value;
+        return this._getUtf8ByteLength(nextValue) > TEXT_BATCH_MAX_BYTES;
+    }
+
+    _getUtf8ByteLength(value) {
+        if (!value) return 0;
+        if (this._textEncoder) {
+            return this._textEncoder.encode(value).length;
+        }
+        return value.length;
+    }
+
     async _ensureInteractiveMode() {
         if (!this.status.copyMode) return;
         if (this.ws?.readyState !== WebSocket.OPEN) return;
@@ -589,6 +655,7 @@ export class TerminalTransportClient {
     }
 
     _closeWs() {
+        this._clearPendingTextFlushTimer();
         if (!this.ws) return;
         const ws = this.ws;
         this.ws = null;

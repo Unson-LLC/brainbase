@@ -148,6 +148,49 @@ describe('SessionView', () => {
             expect(result.length).toBe(2);
             expect(result.find(s => s.id === 'session-archived')).toBeUndefined();
         });
+
+        it('updatedAtだけの更新ではタイムライン順が上がらない', () => {
+            const sessions = [
+                {
+                    id: 'session-a',
+                    intendedState: 'running',
+                    createdAt: '2026-03-17T00:00:00.000Z',
+                    updatedAt: '2026-03-17T00:10:00.000Z'
+                },
+                {
+                    id: 'session-b',
+                    intendedState: 'running',
+                    createdAt: '2026-03-17T00:01:00.000Z',
+                    updatedAt: '2026-03-17T00:02:00.000Z'
+                }
+            ];
+
+            const result = sessionView._getTimelineSessions(sessions);
+
+            expect(result[0].id).toBe('session-b');
+            expect(result[1].id).toBe('session-a');
+        });
+
+        it('AIのassistant更新があるセッションはタイムライン順が上がる', () => {
+            const sessions = [
+                {
+                    id: 'session-a',
+                    intendedState: 'running',
+                    createdAt: '2026-03-17T00:00:00.000Z',
+                    lastAssistantSnippetAt: '2026-03-17T00:05:00.000Z'
+                },
+                {
+                    id: 'session-b',
+                    intendedState: 'running',
+                    createdAt: '2026-03-17T00:01:00.000Z'
+                }
+            ];
+
+            const result = sessionView._getTimelineSessions(sessions);
+
+            expect(result[0].id).toBe('session-a');
+            expect(result[1].id).toBe('session-b');
+        });
     });
 
     describe('AI integration prompt delivery', () => {

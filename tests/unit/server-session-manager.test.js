@@ -121,23 +121,55 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
   describe('sendInput', () => {
     it('allowlisted key は named key 経路で送信する', async () => {
       const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
       const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
 
       await sessionManager.sendInput('session-1', 'Enter', 'key');
 
       expect(sendNamedKeySpy).toHaveBeenCalledWith('session-1', 'Enter');
+      expect(literalSpy).not.toHaveBeenCalled();
       expect(pasteSpy).not.toHaveBeenCalled();
     });
 
     it('allowlist外の key payload は text として扱う', async () => {
       const sendNamedKeySpy = vi.spyOn(sessionManager, '_sendNamedKey').mockResolvedValue();
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
       const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
       const oscPayload = '\u001b]11;rgb:0000/0000/0000\u001b\\';
 
       await sessionManager.sendInput('session-1', oscPayload, 'key');
 
       expect(sendNamedKeySpy).not.toHaveBeenCalled();
+      expect(literalSpy).not.toHaveBeenCalled();
       expect(pasteSpy).toHaveBeenCalledWith('session-1', oscPayload);
+    });
+
+    it('短い1行テキストは literal send-keys 経路で送信する', async () => {
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', 'hello', 'text');
+
+      expect(literalSpy).toHaveBeenCalledWith('session-1', 'hello');
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
+    it('同一sessionの text 入力は並列呼び出しでも FIFO で処理する', async () => {
+      const order = [];
+      vi.spyOn(sessionManager, '_sendLiteralText').mockImplementation(async (_sessionId, input) => {
+        order.push(`start:${input}`);
+        if (input === 'a') {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        order.push(`end:${input}`);
+      });
+
+      await Promise.all([
+        sessionManager.sendInput('session-1', 'a', 'text'),
+        sessionManager.sendInput('session-1', 'b', 'text')
+      ]);
+
+      expect(order).toEqual(['start:a', 'end:a', 'start:b', 'end:b']);
     });
   });
 });

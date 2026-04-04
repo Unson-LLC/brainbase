@@ -3,7 +3,10 @@ import path from 'path';
 
 function isEphemeralTmpPath(candidate) {
     return typeof candidate === 'string'
-        && (candidate === '/private/tmp' || candidate.startsWith('/private/tmp/'));
+        && (candidate === '/tmp'
+            || candidate === '/tmp/'
+            || candidate === '/private/tmp'
+            || candidate === '/private/tmp/');
 }
 
 export const workspaceServiceMethods = {
@@ -79,9 +82,7 @@ export const workspaceServiceMethods = {
                 .filter(candidate => fs.existsSync(candidate));
             if (existingPaths.length === 0) return null;
 
-            return existingPaths.find(candidate => !isEphemeralTmpPath(candidate))
-                || existingPaths[0]
-                || null;
+            return existingPaths.find(candidate => !isEphemeralTmpPath(candidate)) || null;
         } catch {
             return null;
         }

@@ -6,11 +6,8 @@ import cors from 'cors';
 import { spawn, exec } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
-import net from 'net';
 import util from 'util';
 import { fileURLToPath } from 'url';
-import multer from 'multer';
-import { createProxyMiddleware } from 'http-proxy-middleware';
 import { readFileSync, existsSync } from 'fs';
 
 
@@ -35,51 +32,20 @@ process.on('unhandledRejection', (reason) => {
     crashLogger.error('[CRASH] unhandledRejection:', reason);
 });
 
-// Import our modules
-import { TaskParser } from './lib/task-parser.js';
-import { ScheduleParser } from './lib/schedule-parser.js';
-import { StateStore } from './lib/state-store.js';
-import { ConfigParser } from './lib/config-parser.js';
-import { InboxParser } from './lib/inbox-parser.js';
 import { resolveRuntimePaths, ensureShadowRuntimeLinks } from './lib/runtime-paths.js';
 
 // Import services
-import { createSessionServices } from './server/services/create-session-services.js';
-import { TerminalTransportService } from './server/services/terminal-transport-service.js';
-import { TmuxCaptureCache } from './server/services/tmux-capture-cache.js';
-import { TmuxControlRegistry } from './server/services/tmux-control-registry.js';
-import { WorktreeService } from './server/services/worktree-service.js';
-import { InfoSSOTService } from './server/services/info-ssot-service.js';
-import { AuthService } from './server/services/auth-service.js';
-import { ConversationLinker } from './server/services/conversation-linker.js';
-
-// Import routers
-import { createTaskRouter } from './server/routes/tasks.js';
-import { createStateRouter } from './server/routes/state.js';
-import { createConfigRouter } from './server/routes/config.js';
-import { ConfigService } from './server/services/config-service.js';
-import { createInboxRouter } from './server/routes/inbox.js';
-import { createScheduleRouter } from './server/routes/schedule.js';
-import { createMiscRouter } from './server/routes/misc.js';
-import { createSessionRouter } from './server/routes/sessions.js';
-import { createBrainbaseRouter } from './server/routes/brainbase.js';
-import { createNocoDBRouter } from './server/routes/nocodb.js';
-import { createHealthRouter } from './server/routes/health.js';
-import { createAuthRouter } from './server/routes/auth.js';
-import { createInfoSSOTRouter } from './server/routes/info-ssot.js';
-import { createLearningRouter } from './server/routes/learning.js';
-import { createSetupRouter } from './server/routes/setup.js';
-import { createWikiRouter } from './server/routes/wiki.js';
-import { GoogleCalendarService } from './server/services/google-calendar-service.js';
-import { LearningService } from './server/services/learning-service.js';
-import { LearningHealthService } from './server/services/learning-health-service.js';
-import { WikiService } from './server/services/wiki-service.js';
+import { createCoreServices } from './server/bootstrap/core-services.js';
+import { initializeSessionRuntime } from './server/bootstrap/session-runtime-startup.js';
+import { createConsoleProxy } from './server/bootstrap/console-proxy.js';
+import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.js';
+import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
+import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
 import { requireAuth, resolveAuthContext } from './server/middleware/auth.js';
 import { errorHandler } from './server/middleware/error-handler.js';
-import { gracefulCleanup } from './server/lib/graceful-cleanup.js';
 
 // Import mesh modules (optional, enabled when MESH_RELAY_URL is set)
 import { MeshService } from './server/mesh/mesh-service.js';
@@ -277,30 +243,40 @@ await ensureDir(path.join(BRAINBASE_ROOT, '_inbox'));
 await ensureDir(SCHEDULES_DIR);
 await ensureShadowRuntimeLinks(RUNTIME_PATHS, console);
 
-// Initialize Modules
-const taskParser = new TaskParser(TASKS_FILE);
-const googleCalendarService = new GoogleCalendarService();
-const scheduleParser = new ScheduleParser(SCHEDULES_DIR, { googleCalendarService });
-process.env.BRAINBASE_VAR_DIR = VAR_DIR;
-process.env.BRAINBASE_STATE_PATH = STATE_FILE;
-const stateStore = new StateStore(STATE_FILE, BRAINBASE_ROOT);
-const configParser = new ConfigParser(CODEX_PATH, CONFIG_PATH, BRAINBASE_ROOT, PROJECTS_ROOT);
-const configService = new ConfigService(CONFIG_PATH, PROJECTS_ROOT);
-const inboxParser = new InboxParser(INBOX_FILE);
-const infoSSOTService = new InfoSSOTService();
-const authService = new AuthService();
-
-// Wiki Service (content stored in PostgreSQL, no filesystem dependency)
-const wikiService = new WikiService({
-    pool: infoSSOTService.pool  // 同じDB接続プールを共有
-});
-const learningService = new LearningService({
-    pool: infoSSOTService.pool,
+const {
+    taskParser,
+    googleCalendarService,
+    scheduleParser,
+    stateStore,
+    configParser,
+    configService,
+    inboxParser,
+    infoSSOTService,
+    authService,
     wikiService,
-    repoRoot: __dirname
-});
-const learningHealthService = new LearningHealthService({
-    stateDir: path.join(VAR_DIR, 'learning')
+    learningService,
+    learningHealthService,
+    worktreeService,
+    sessionServices,
+    tmuxCaptureCache,
+    terminalTransportService,
+    conversationLinker,
+    uploadMiddleware
+} = createCoreServices({
+    tasksFile: TASKS_FILE,
+    schedulesDir: SCHEDULES_DIR,
+    varDir: VAR_DIR,
+    stateFile: STATE_FILE,
+    brainbaseRoot: BRAINBASE_ROOT,
+    projectsRoot: PROJECTS_ROOT,
+    worktreesDir: WORKTREES_DIR,
+    codexPath: CODEX_PATH,
+    configPath: CONFIG_PATH,
+    inboxFile: INBOX_FILE,
+    uploadsDir: UPLOADS_DIR,
+    serverDir: __dirname,
+    execPromise,
+    port: PORT
 });
 
 // Middleware
@@ -350,368 +326,24 @@ app.get('/api/active-port', async (req, res) => {
     res.json({ port: PORT });
 });
 
-// ルートパスは明示的にindex.htmlを配信（キャッシュ無効） - 最初に定義
-app.get('/', async (req, res) => {
-    try {
-        const filePath = path.join(__dirname, 'public', 'index.html');
-        const content = await fs.readFile(filePath, 'utf-8');
-
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.set('Content-Type', 'text/html; charset=utf-8');
-        res.send(content);
-    } catch (error) {
-        console.error('Error loading index.html:', error);
-        // index.htmlがない場合（API専用デプロイ等）は簡単なHTMLを返す
-        res.set('Content-Type', 'text/html; charset=utf-8');
-        res.send(`
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>brainbase Graph API Server</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            background: linear-gradient(135deg, #0b1120 0%, #1e293b 100%);
-            color: #e2e8f0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
-            margin: 0;
-        }
-        .container {
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 24px;
-            padding: 48px;
-            max-width: 600px;
-            text-align: center;
-        }
-        h1 {
-            color: #60a5fa;
-            font-size: 32px;
-            margin-bottom: 16px;
-        }
-        p {
-            color: #94a3b8;
-            line-height: 1.6;
-            margin-bottom: 24px;
-        }
-        .status {
-            background: rgba(34, 197, 94, 0.2);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            border-radius: 12px;
-            padding: 16px;
-            margin: 24px 0;
-            color: #4ade80;
-        }
-        a {
-            color: #60a5fa;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🧠 brainbase Graph API Server</h1>
-        <div class="status">✓ Server is running</div>
-        <p>Device認証を行う場合は <a href="/device">/device</a> にアクセスしてください</p>
-        <p>APIヘルスチェック: <a href="/health/ready">/health/ready</a></p>
-    </div>
-</body>
-</html>
-        `);
-    }
+registerStaticRoutes(app, {
+    publicDir: path.join(__dirname, 'public'),
+    log: console
 });
 
-// 静的ファイル配信（その他のファイル）
-// app.jsにno-cacheヘッダーを設定
-app.get('/app.js', async (req, res) => {
-    try {
-        const filePath = path.join(__dirname, 'public', 'app.js');
-        const content = await fs.readFile(filePath, 'utf-8');
-
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.set('Content-Type', 'application/javascript; charset=utf-8');
-        res.send(content);
-    } catch (error) {
-        res.status(500).send('Error loading app.js');
-    }
-});
-
-// Device Authorization Flow page (OAuth 2.0 Device Code Flow)
-app.get('/device', async (req, res) => {
-    try {
-        const filePath = path.join(__dirname, 'public', 'device.html');
-        const content = await fs.readFile(filePath, 'utf-8');
-
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.set('Content-Type', 'text/html; charset=utf-8');
-        res.send(content);
-    } catch (error) {
-        console.error('Error loading device.html:', error);
-        res.status(500).send('Error loading device authorization page: ' + error.message);
-    }
-});
-
-// Setup page
-app.get('/setup', async (req, res) => {
-    try {
-        const filePath = path.join(__dirname, 'public', 'setup.html');
-        const content = await fs.readFile(filePath, 'utf-8');
-
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.set('Content-Type', 'text/html; charset=utf-8');
-        res.send(content);
-    } catch (error) {
-        console.error('Error loading setup.html:', error);
-        res.status(500).send('Error loading setup page: ' + error.message);
-    }
-});
-
-app.use(express.static('public', {
-    index: false,
-    setHeaders: (res, path) => {
-        // Disable caching for JS and CSS files to prevent stale content
-        if (path.endsWith('.js') || path.endsWith('.css')) {
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
-        }
-    }
-}));
-
-// Initialize Services
-// Phase 2: WorktreeServiceを先に初期化（SessionManagerで使用するため）
-const worktreeService = new WorktreeService(
-    WORKTREES_DIR,
-    BRAINBASE_ROOT, // Canonical root (正本ディレクトリルート)
-    execPromise
-);
-
-const sessionServices = createSessionServices({
-    serverDir: __dirname,
-    execPromise,
+void initializeSessionRuntime({
     stateStore,
-    worktreeService,  // Phase 2: Archived session cleanup用
-    uiPort: PORT
-});
-const tmuxCaptureCache = new TmuxCaptureCache({ snapshotService: sessionServices.terminal.snapshot });
-const tmuxControlRegistry = new TmuxControlRegistry();
-const terminalTransportService = new TerminalTransportService({
-    ownershipService: sessionServices.ownership,
-    runtimeQuery: sessionServices.runtime.query,
-    runtimeRegistry: sessionServices.runtime.registry,
-    terminalIo: sessionServices.terminal.io,
-    snapshotService: sessionServices.terminal.snapshot,
-    captureCache: tmuxCaptureCache,
-    controlRegistry: tmuxControlRegistry
+    sessionServices,
+    conversationLinker,
+    testMode: TEST_MODE,
+    log: console
 });
 
-const conversationLinker = new ConversationLinker({
-    stateStore,
-    workspaceService: sessionServices.workspace
-});
-
-// Initialize State Store and restore session state
-(async () => {
-    try {
-        await stateStore.init();
-        await sessionServices.workspace.reconcileSessionWorkspacePaths();
-        await sessionServices.activity.restoreHookStatus();
-
-        // Phase 3: activeセッションを復元してからcleanupを実行
-        // Phase 4: TEST_MODEでは実行しない（読み取り専用）
-        if (!TEST_MODE) {
-            await sessionServices.runtime.maintenance.restoreActiveSessions();
-            await sessionServices.runtime.maintenance.cleanupOrphans();
-            sessionServices.runtime.maintenance.startPtyWatchdog();
-
-            // ConversationLinker: 初回実行 + 5分間隔の定期実行
-            console.log('[BRAINBASE] Starting conversation linker...');
-            conversationLinker.linkAll().catch(err => {
-                console.error('[BRAINBASE] Initial conversation link failed:', err.message);
-            });
-            conversationLinker.startPeriodicLink(5 * 60 * 1000); // 5分間隔
-        } else {
-            console.log('[BRAINBASE] Skipping session restoration and cleanup (TEST_MODE)');
-        }
-    } catch (error) {
-        console.error('[BRAINBASE] Initialization failed:', error);
-    } finally {
-        sessionServices.runtime.registry.markReady();
-    }
-})();
-
-// Configure Multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, UPLOADS_DIR)
-    },
-    filename: function (req, file, cb) {
-        // Keep original extension
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname))
-    }
-});
-const upload = multer({ storage: storage });
-
-// Proxy Middleware for ttyd consoles
-// Route: /console/:sessionId -> http://localhost:PORT/...
-// On Windows, ttyd doesn't support base-path, so we strip /console/SESSION_ID prefix
-// On other platforms, ttyd uses base-path and expects the full path
 const isWindows = process.platform === 'win32';
-
-function getConsoleRequestInfo(req) {
-    const rawUrl = req.originalUrl || req.url || '';
-    const parsed = new URL(rawUrl, 'http://localhost');
-    const match = parsed.pathname.match(/^\/console\/([^/]+)/);
-    return {
-        sessionId: match ? match[1] : null,
-        viewerId: parsed.searchParams.get('viewerId') || null
-    };
-}
-
-function getConsoleProxySessionId(req) {
-    const candidates = [
-        req.originalUrl,
-        req.baseUrl && req.url ? `${req.baseUrl}${req.url}` : null,
-        req.url
-    ].filter(Boolean);
-
-    for (const candidate of candidates) {
-        const parsed = new URL(candidate, 'http://localhost');
-        const fullMatch = parsed.pathname.match(/^\/console\/([^/]+)/);
-        if (fullMatch) {
-            return fullMatch[1];
-        }
-
-        const mountedMatch = parsed.pathname.match(/^\/([^/]+)/);
-        if (mountedMatch) {
-            return mountedMatch[1];
-        }
-    }
-
-    return null;
-}
-
-function renderTerminalBlockedHtml(terminalAccess = {}) {
-    const ownerLabel = terminalAccess?.ownerViewerLabel || '別の場所';
-    return `<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terminal Blocked</title>
-  <style>
-    body { margin: 0; font-family: Menlo, Monaco, monospace; background: #0f172a; color: #e2e8f0; display: grid; place-items: center; min-height: 100vh; }
-    .card { max-width: 520px; padding: 24px; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 16px; background: rgba(15, 23, 42, 0.96); box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28); }
-    h1 { font-size: 20px; margin: 0 0 12px; }
-    p { margin: 0; line-height: 1.6; color: #cbd5e1; }
-    strong { color: #f8fafc; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>この terminal は別の viewer が使用中</h1>
-    <p><strong>${ownerLabel}</strong> がこのセッションを表示中。親画面に戻って <strong>Take over</strong> してね。</p>
-  </div>
-</body>
-</html>`;
-}
-
-function enforceTerminalOwnership(req, res, next) {
-    const { sessionId, viewerId } = getConsoleRequestInfo(req);
-    if (!sessionId) {
-        res.status(404).send('Session not found');
-        return;
-    }
-
-    if (!viewerId) {
-        const terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
-        res.status(409).type('html').send(renderTerminalBlockedHtml(terminalAccess));
-        return;
-    }
-
-    let terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
-    if (terminalAccess.state === 'available') {
-        sessionServices.ownership.claimTerminalOwnership(sessionId, viewerId);
-        terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
-    }
-
-    if (terminalAccess.state === 'blocked') {
-        res.status(409).type('html').send(renderTerminalBlockedHtml(terminalAccess));
-        return;
-    }
-
-    sessionServices.ownership.touchTerminalOwnership(sessionId, viewerId);
-    next();
-}
-
-const ttydProxy = createProxyMiddleware({
-    target: 'http://127.0.0.1:1',
-    ws: false, // WebSocket upgrade is handled manually in server.on('upgrade')
-    changeOrigin: true,
-    pathRewrite: function (path, req) {
-        if (isWindows) {
-            // Windows: Strip /console/SESSION_ID prefix since ttyd doesn't use base-path
-            // /console/SESSION_ID/ws -> /ws
-            // /console/SESSION_ID/ -> /
-            const match = path.match(/^\/console\/[^/]+(\/.*)?$/);
-            if (match) {
-                return match[1] || '/';
-            }
-            return '/';
-        } else {
-            // Non-Windows: Keep full path (ttyd expects /console/SESSION_ID...)
-            if (path.startsWith('/console')) {
-                return path;
-            }
-            return '/console' + path;
-        }
-    },
-    router: function (req) {
-        const activeSessions = sessionServices.runtime.registry.getActiveSessions();
-        const sessionId = getConsoleProxySessionId(req);
-        if (sessionId && activeSessions.has(sessionId)) {
-            return `http://127.0.0.1:${activeSessions.get(sessionId).port}`;
-        }
-
-        const debugUrl = req.originalUrl || req.url;
-        console.error(`[Proxy] No session found for ${debugUrl}`);
-        // Return a dummy URL that will fail - http-proxy-middleware requires a valid target
-        // The onError handler will catch this and return 404
-        return 'http://127.0.0.1:1'; // Invalid port that will fail
-    },
-    onProxyReqWs: (proxyReq, req, socket, options, head) => {
-        // Rewrite Origin to match the target (ttyd)
-        const activeSessions = sessionServices.runtime.registry.getActiveSessions();
-        const sessionId = getConsoleProxySessionId(req);
-        if (sessionId && activeSessions.has(sessionId)) {
-            const port = activeSessions.get(sessionId).port;
-            proxyReq.setHeader('Origin', `http://127.0.0.1:${port}`);
-        }
-    },
-    onError: (err, req, res) => {
-        console.error('Proxy Error:', err);
-        if (res && res.status) {
-            res.status(500).send('Proxy Error');
-        }
-    }
+const { enforceTerminalOwnership, ttydProxy, handleConsoleUpgrade } = createConsoleProxy({
+    sessionServices,
+    isWindows,
+    logger: console
 });
 
 app.use('/console', enforceTerminalOwnership, ttydProxy);
@@ -730,49 +362,33 @@ app.get('/health/ready', (req, res) => {
     res.status(ready ? 200 : 503).json({ ready });
 });
 
-app.use('/api/tasks', createTaskRouter(taskParser));
-app.use('/api/state', createStateRouter(
-    stateStore,
-    sessionServices.runtime.registry,
-    sessionServices.runtime.query,
-    TEST_MODE
-));
-app.use('/api/config', createConfigRouter(configParser, configService, RUNTIME_PATHS));
-app.use('/api/inbox', createInboxRouter(inboxParser));
-app.use('/api/schedule', createScheduleRouter(scheduleParser, googleCalendarService));
-app.use('/api/sessions', createSessionRouter(
-    sessionServices,
-    worktreeService,
-    stateStore,
-    TEST_MODE,
-    conversationLinker,
-    {
-        projectsRoot: PROJECTS_ROOT,
-        codeProjectsRoot: path.join(path.dirname(PROJECTS_ROOT), 'code'),
-        captureCache: tmuxCaptureCache
-    }
-));
-app.use('/api/brainbase', createBrainbaseRouter({
+registerApiRoutes(app, {
     taskParser,
-    worktreeService,
+    stateStore,
+    sessionServices,
+    testMode: TEST_MODE,
     configParser,
+    configService,
+    runtimePaths: RUNTIME_PATHS,
+    inboxParser,
+    scheduleParser,
+    googleCalendarService,
+    worktreeService,
+    conversationLinker,
     projectsRoot: PROJECTS_ROOT,
+    tmuxCaptureCache,
+    authService,
     infoSSOTService,
-    wikiService
-}));
-app.use('/api/nocodb', createNocoDBRouter(configParser));
-app.use('/api/health', createHealthRouter({ readiness: sessionServices.runtime.registry, configParser }));
-app.use('/api/auth', createAuthRouter(authService));
-app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
-app.use('/api/learning', createLearningRouter(learningService, learningHealthService));
-app.use('/api/wiki', createWikiRouter(wikiService));
-app.use('/api/setup', createSetupRouter(authService, infoSSOTService, configParser));
-app.use('/api', createMiscRouter(APP_VERSION, upload.single('file'), workspaceRoot, UPLOADS_DIR, RUNTIME_INFO, {
-    brainbaseRoot: BRAINBASE_ROOT,
-    projectsRoot: PROJECTS_ROOT,
-    sessionQuery: sessionServices.runtime.query,
-    workspace: sessionServices.workspace
-}));
+    learningService,
+    learningHealthService,
+    wikiService,
+    uploadMiddleware,
+    appVersion: APP_VERSION,
+    workspaceRoot,
+    uploadsDir: UPLOADS_DIR,
+    runtimeInfo: RUNTIME_INFO,
+    brainbaseRoot: BRAINBASE_ROOT
+});
 
 // ========================================
 // Mesh Service (optional, enabled when MESH_RELAY_URL is set)
@@ -919,77 +535,14 @@ server.on('upgrade', (request, socket, head) => {
         terminalTransportService.handleUpgrade(request, socket, head);
         return;
     }
-
-    const { sessionId, viewerId } = getConsoleRequestInfo(request);
-    if (!sessionId || !viewerId) {
-        socket.write('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n');
-        socket.destroy();
-        return;
-    }
-
-    let terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
-    if (terminalAccess?.state === 'available') {
-        sessionServices.ownership.claimTerminalOwnership(sessionId, viewerId);
-        terminalAccess = sessionServices.ownership.getTerminalAccessState(sessionId, viewerId);
-    }
-
-    if (!terminalAccess || terminalAccess.state !== 'owner') {
-        socket.write('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n');
-        socket.destroy();
-        return;
-    }
-
-    sessionServices.ownership.touchTerminalOwnership(sessionId, viewerId);
-    // TTYD console proxy
-    ttydProxy.upgrade(request, socket, head);
+    handleConsoleUpgrade(request, socket, head);
 });
 
-// Graceful shutdown (CommandMate partial cleanup pattern)
-async function gracefulShutdown(signal) {
-    console.log(`\n${signal} received. Shutting down gracefully...`);
-
-    const result = await gracefulCleanup('server-shutdown', [
-        {
-            name: 'close-http-server',
-            fn: () => new Promise((resolve) => {
-                server.close(() => {
-                    console.log('HTTP server closed');
-                    resolve();
-                });
-                // Timeout after 5s to not hang forever
-                setTimeout(resolve, 5000);
-            })
-        },
-        {
-            name: 'cleanup-state-store',
-            fn: async () => {
-                if (stateStore.cleanup) await stateStore.cleanup();
-            }
-        },
-        {
-            name: 'stop-conversation-linker',
-            fn: () => { conversationLinker.stopPeriodicLink(); }
-        },
-        {
-            name: 'cleanup-session-manager',
-            fn: async () => {
-                if (sessionServices.runtime.lifecycle.cleanup) await sessionServices.runtime.lifecycle.cleanup();
-            }
-        },
-        {
-            name: 'stop-mesh-service',
-            fn: async () => {
-                if (meshService) await meshService.stop();
-            }
-        }
-    ]);
-
-    if (result.warnings.length > 0) {
-        console.warn('Shutdown warnings:', result.warnings);
-    }
-    console.log(`Graceful shutdown complete (${result.completed.length}/${result.completed.length + result.warnings.length} steps)`);
-    process.exit(0);
-}
-
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+registerGracefulShutdown({
+    server,
+    stateStore,
+    conversationLinker,
+    sessionServices,
+    getMeshService: () => meshService,
+    log: console
+});

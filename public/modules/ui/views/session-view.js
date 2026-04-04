@@ -376,19 +376,32 @@ export class SessionView {
             return Number.isNaN(parsed) ? null : parsed;
         };
 
-        const liveStatus = session?.id ? deriveSessionUiState(session.id).hookStatus : null;
-        const statusTimestamp = Math.max(
-            liveStatus?.lastWorkingAt || 0,
+        const uiState = session?.id ? deriveSessionUiState(session.id) : null;
+        const liveStatus = uiState?.hookStatus || null;
+
+        // Timeline ordering should follow actual AI-visible output, not stale working heartbeats.
+        // Keep done-unread sessions ordered by their completion/output timestamp, but avoid
+        // promoting ordinary sessions solely because an old hookStatus object still exists.
+        const doneUnreadTimestamp = Math.max(
             liveStatus?.lastDoneAt || 0,
-            liveStatus?.timestamp || 0
+            liveStatus?.liveActivity?.assistantSnippetUpdatedAt || 0,
+            pickTimestamp(session.lastAssistantSnippetAt) || 0,
+            pickTimestamp(session.conversationSummary?.lastActivity) || 0
         );
-        if (statusTimestamp > 0) {
-            return statusTimestamp;
+        if (uiState?.activity === 'done-unread' && doneUnreadTimestamp > 0) {
+            return doneUnreadTimestamp;
+        }
+
+        const activityTimestamp = Math.max(
+            liveStatus?.liveActivity?.assistantSnippetUpdatedAt || 0,
+            pickTimestamp(session.lastAssistantSnippetAt) || 0,
+            pickTimestamp(session.conversationSummary?.lastActivity) || 0
+        );
+        if (activityTimestamp > 0) {
+            return activityTimestamp;
         }
 
         const candidates = [
-            session.updatedAt,
-            session.pausedAt,
             session.created,
             session.createdAt,
             session.createdDate

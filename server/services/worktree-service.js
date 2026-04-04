@@ -458,9 +458,9 @@ export class WorktreeService {
 
         await this._ensureGitExclude(gitWorktreePath, '.jj/');
 
-        // Git needs an index for status/diff to avoid treating the workspace
-        // as "all deleted + all untracked" on first access.
-        await this.execPromise(`git -C "${workspacePath}" reset --mixed HEAD`);
+        // Align the git worktree metadata with the freshly materialized JJ workspace.
+        // `--mixed` only updates the index and makes Git see the checkout as "all deleted".
+        await this.execPromise(`git -C "${workspacePath}" reset --hard HEAD`);
 
         return { workspaceName, branchName, gitWorktreePath };
     }
@@ -527,15 +527,14 @@ export class WorktreeService {
                 if (workspaceList.includes(`${workspaceName}:`)) {
                     logger.info(`[workspace] Workspace already exists: ${workspaceName}, reusing`);
                     await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
-                    const { stdout: startCommit } = await this._execJujutsuWithStaleRetry(
-                        workspacePath,
-                        `log -r @ -T 'commit_id' --no-pager`
-                    );
+                    const mainBranchName = await this._getMainBranchName(repoPath);
+                    const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
+                    const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
                     return {
                         worktreePath: workspacePath,
                         branchName: this._getSessionBranchName(sessionId),
                         repoPath,
-                        startCommit: startCommit.trim(),
+                        startCommit,
                         workspaceName
                     };
                 }
@@ -555,11 +554,12 @@ export class WorktreeService {
             }
 
             const mainBranchName = await this._getMainBranchName(repoPath);
+            const workspaceBaseRevision = await this._resolveWorkspaceBaseRevision(repoPath, mainBranchName);
 
             // Create workspace
             await this._execJujutsuWithStaleRetry(
                 repoPath,
-                `workspace add --name "${workspaceName}" "${workspacePath}"`
+                `workspace add --name "${workspaceName}" -r "${workspaceBaseRevision}" --sparse-patterns full "${workspacePath}"`
             );
             logger.info(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
 
@@ -575,7 +575,7 @@ export class WorktreeService {
             try {
                 await this._execJujutsuWithStaleRetry(
                     repoPath,
-                    `bookmark create -r ${mainBranchName} ${bookmarkName}`
+                    `bookmark create -r ${workspaceBaseRevision} ${bookmarkName}`
                 );
                 logger.info(`[workspace] Created bookmark: ${bookmarkName}`);
             } catch (bookmarkErr) {
@@ -589,17 +589,14 @@ export class WorktreeService {
             await this._symlinkIfMissing(path.join(workspaceRoot, '.mcp.json'), path.join(workspacePath, '.mcp.json'), '.mcp.json');
 
             // Get current HEAD as startCommit
-            const { stdout: startCommit } = await this._execJujutsuWithStaleRetry(
-                workspacePath,
-                `log -r @ -T 'commit_id' --no-pager`
-            );
+            const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
 
             logger.info(`Created Jujutsu workspace at ${workspacePath}`);
             return {
                 worktreePath: workspacePath,
                 branchName: this._getSessionBranchName(sessionId),
                 repoPath,
-                startCommit: startCommit.trim(),
+                startCommit,
                 workspaceName
             };
         } catch (err) {
@@ -784,6 +781,50 @@ export class WorktreeService {
             `git -C "${repoPath}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"`
         );
         return mainBranch.trim() || 'main';
+    }
+
+    async _resolveWorkspaceBaseRevision(repoPath, preferredRevision) {
+        const candidates = [preferredRevision, 'main', 'trunk()']
+            .filter(Boolean)
+            .filter((value, index, list) => list.indexOf(value) === index);
+
+        for (const candidate of candidates) {
+            try {
+                await this.execPromise(
+                    `jj -R "${repoPath}" --ignore-working-copy log -r "${candidate}" -T 'commit_id ++ "\\n"' --no-pager`
+                );
+                return candidate;
+            } catch {
+                // try next candidate
+            }
+        }
+
+        throw new Error(`Unable to resolve Jujutsu workspace base revision for ${repoPath}`);
+    }
+
+    async _getWorkspaceStartCommit(workspacePath, preferredRevision) {
+        const candidates = [preferredRevision, '@-', 'main', 'trunk()']
+            .filter(Boolean)
+            .filter((value, index, list) => list.indexOf(value) === index);
+
+        for (const candidate of candidates) {
+            try {
+                const { stdout } = await this.execPromise(
+                    `jj -R "${workspacePath}" --ignore-working-copy log -r "${candidate}" -T 'commit_id ++ "\\n"' --no-pager`
+                );
+                const commit = stdout
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .find(Boolean);
+                if (commit) {
+                    return commit;
+                }
+            } catch {
+                // try next candidate
+            }
+        }
+
+        throw new Error(`Unable to resolve workspace start commit for ${workspacePath}`);
     }
 
     /**
