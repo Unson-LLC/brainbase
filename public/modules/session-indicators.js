@@ -27,6 +27,8 @@ const SUPPRESS_DURATION = 5000; // 5秒間サーバーポーリングの上書�
 
 function didHookStatusChange(prev, next) {
     if (!prev) return true;
+    const prevLiveActivity = prev.liveActivity || null;
+    const nextLiveActivity = next.liveActivity || null;
     return prev.isWorking !== next.isWorking
         || prev.isDone !== next.isDone
         || prev.lastWorkingAt !== next.lastWorkingAt
@@ -34,6 +36,9 @@ function didHookStatusChange(prev, next) {
         || prev.lastActivityAt !== next.lastActivityAt
         || prev.lastEventType !== next.lastEventType
         || prev.activeTurnCount !== next.activeTurnCount
+        || prevLiveActivity?.activityKind !== nextLiveActivity?.activityKind
+        || prevLiveActivity?.statusTone !== nextLiveActivity?.statusTone
+        || prevLiveActivity?.updatedAt !== nextLiveActivity?.updatedAt
         || prev.timestamp !== next.timestamp;
 }
 
