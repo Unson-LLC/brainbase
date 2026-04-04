@@ -13,6 +13,52 @@ describe('SessionController (Server)', () => {
   let execPromiseMock;
   let tempDir;
 
+  const buildControllerDeps = (overrides = {}) => ({
+    activity: {
+      reportActivity: mockSessionManager.reportActivity,
+      getSessionStatus: mockSessionManager.getSessionStatus,
+      clearDoneStatus: mockSessionManager.clearDoneStatus
+    },
+    ownership: {
+      ensureTerminalOwnership: mockSessionManager.ensureTerminalOwnership,
+      forceTerminalOwnership: mockSessionManager.forceTerminalOwnership,
+      getTerminalAccessState: mockSessionManager.getTerminalAccessState,
+      releaseTerminalOwnership: mockSessionManager.releaseTerminalOwnership
+    },
+    workspace: {
+      resolveSessionWorkspacePath: mockSessionManager.resolveSessionWorkspacePath
+    },
+    runtimeQuery: {
+      getRuntimeStatus: mockSessionManager.getRuntimeStatus,
+      getSessionById: mockSessionManager.getSessionById,
+      _isXtermOnlyMode: mockSessionManager._isXtermOnlyMode,
+      _isProcessRunning: mockSessionManager._isProcessRunning
+    },
+    runtimeLifecycle: {
+      startTtyd: mockSessionManager.startTtyd,
+      stopTtyd: mockSessionManager.stopTtyd,
+      ensureSessionRuntime: mockSessionManager.ensureSessionRuntime
+    },
+    runtimeRegistry: {
+      activeSessions: mockSessionManager.activeSessions
+    },
+    terminalIo: {
+      sendInput: mockSessionManager.sendInput,
+      scrollSession: mockSessionManager.scrollSession,
+      selectPane: mockSessionManager.selectPane,
+      exitCopyMode: mockSessionManager.exitCopyMode
+    },
+    snapshot: {
+      getContent: mockSessionManager.getContent,
+      getContentWithColors: mockSessionManager.getContentWithColors,
+      getPaneMode: mockSessionManager.getPaneMode,
+      getOutput: mockSessionManager.getOutput
+    },
+    worktreeService: mockWorktreeService,
+    stateStore: mockStateStore,
+    ...overrides
+  });
+
   beforeEach(async () => {
     vi.useRealTimers();
 
@@ -62,11 +108,7 @@ describe('SessionController (Server)', () => {
     };
 
     // Create SessionController instance
-    sessionController = new SessionController(
-      mockSessionManager,
-      mockWorktreeService,
-      mockStateStore
-    );
+    sessionController = new SessionController(buildControllerDeps());
 
     // Mock execPromise
     execPromiseMock = vi.fn();
@@ -195,7 +237,6 @@ describe('SessionController (Server)', () => {
       expect(mockSessionManager.stopTtyd).toHaveBeenCalledWith(sessionId, { preserveTmux: true });
       expect(mockSessionManager.startTtyd).toHaveBeenCalledWith(expect.objectContaining({
         sessionId,
-        cwd: '/tmp/session-restart',
         engine: 'codex'
       }));
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
@@ -522,12 +563,10 @@ describe('SessionController (Server)', () => {
       const staleRepoPath = path.join(projectsRoot, 'tech-knight');
       const fallbackRepoPath = path.join(projectsRoot, 'techknight');
       const gitOnlyRepoPath = path.join(codeProjectsRoot, 'tech-knight');
-      const controller = new SessionController(
-        mockSessionManager,
-        mockWorktreeService,
-        mockStateStore,
-        { projectsRoot, codeProjectsRoot }
-      );
+      const controller = new SessionController(buildControllerDeps({
+        projectsRoot,
+        codeProjectsRoot
+      }));
 
       await fs.mkdir(fallbackRepoPath, { recursive: true });
       await fs.mkdir(gitOnlyRepoPath, { recursive: true });
@@ -1292,12 +1331,10 @@ describe('SessionController (Server)', () => {
       const workspaceRoot = path.join(tempDir, 'worktrees', 'session-1-brainbase');
       const fallbackRepoPath = path.join(codeProjectsRoot, 'brainbase');
       const filePath = path.join(fallbackRepoPath, 'tests/unit/iframe-contextmenu-handler.test.js');
-      const controller = new SessionController(
-        mockSessionManager,
-        mockWorktreeService,
-        mockStateStore,
-        { projectsRoot, codeProjectsRoot }
-      );
+      const controller = new SessionController(buildControllerDeps({
+        projectsRoot,
+        codeProjectsRoot
+      }));
 
       await fs.mkdir(workspaceRoot, { recursive: true });
       await fs.mkdir(path.dirname(filePath), { recursive: true });

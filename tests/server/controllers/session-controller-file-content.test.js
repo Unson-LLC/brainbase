@@ -38,11 +38,11 @@ describe('SessionController.getFileContent', () => {
             })
         };
 
-        controller = new SessionController(
-            { resolveSessionWorkspacePath: vi.fn() },
-            {},
+        controller = new SessionController({
+            workspace: { resolveSessionWorkspacePath: vi.fn() },
+            worktreeService: {},
             stateStore
-        );
+        });
 
         req = {
             params: { id: 'session-1' },
@@ -141,15 +141,13 @@ describe('SessionController.getFileContent', () => {
                 }
             ]
         });
-        controller = new SessionController(
-            { resolveSessionWorkspacePath: vi.fn() },
-            {},
+        controller = new SessionController({
+            workspace: { resolveSessionWorkspacePath: vi.fn() },
+            worktreeService: {},
             stateStore,
-            {
-                projectsRoot: '/Users/ksato/workspace/projects',
-                codeProjectsRoot: '/Users/ksato/workspace/code'
-            }
-        );
+            projectsRoot: '/Users/ksato/workspace/projects',
+            codeProjectsRoot: '/Users/ksato/workspace/code'
+        });
         req.query.path = '/Users/ksato/workspace/common/talks/example.md';
 
         mockStat.mockImplementation(async (targetPath) => {
