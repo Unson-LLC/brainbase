@@ -212,9 +212,11 @@ export function applySessionCreationMixin(AppClass) {
 
                 // Switch to the newly created session
                 if (result.sessionId) {
+                    const previousSessionId = appStore.getState().currentSessionId || null;
                     appStore.setState({ currentSessionId: result.sessionId });
                     eventBus.emit(EVENTS.SESSION_CHANGED, {
                         sessionId: result.sessionId,
+                        previousSessionId,
                         proxyPath: result.proxyPath || null
                     });
 

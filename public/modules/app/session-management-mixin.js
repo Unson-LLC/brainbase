@@ -49,18 +49,6 @@ export function applySessionManagementMixin(AppClass) {
                 };
             }
 
-            if (runtimeStatus?.recoveryState === 'broken') {
-                return {
-                    proxyPath: null,
-                    terminalAccess,
-                    runtimeStatus
-                };
-            }
-
-            if (runtimeStatus?.recoveryState === 'recoverable') {
-                await this._recoverSessionRuntime(session);
-            }
-
             const res = await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, {
                 initialCommand: session.initialCommand || '',
                 cwd: session.path,
@@ -113,11 +101,6 @@ export function applySessionManagementMixin(AppClass) {
             const session = this._getSessionById(sessionId);
             if (!session || session.intendedState === 'archived') return;
 
-            this._mobileTerminalMode = 'interactive';
-            this._mobileLiveTerminalSessionId = sessionId;
-            this._stopMobileSnapshotPolling();
-            this.mobileLiveTerminalModalEl.classList.add('active');
-
             const result = await this._openSessionInTtydFrame(sessionId, this.mobileLiveTerminalFrameEl, { forceTtyd: true });
             if (!result.ok) {
                 if (result.blocked) {
@@ -126,15 +109,16 @@ export function applySessionManagementMixin(AppClass) {
                         this.reconnectManager._setBlocked(result.terminalAccess);
                     }
                     this._updateTerminalInputStatus();
-                } else if (result.reason === 'recovery-required') {
-                    this.closeMobileLiveTerminal();
-                    this._showTerminalRecoveryPanel(session, result.runtimeStatus);
                 } else {
                     this.closeMobileLiveTerminal();
                 }
                 return;
             }
 
+            this._mobileTerminalMode = 'interactive';
+            this._mobileLiveTerminalSessionId = sessionId;
+            this._stopMobileSnapshotPolling();
+            this.mobileLiveTerminalModalEl.classList.add('active');
             this.reconnectManager?.setCurrentSession(sessionId);
             if (this.reconnectManager) {
                 this.reconnectManager.terminalAccess = result.terminalAccess || {
@@ -155,10 +139,14 @@ export function applySessionManagementMixin(AppClass) {
             const switchToken = options.switchToken ?? ++this._sessionSwitchToken;
             if (!terminalFrame) {
                 console.warn('Terminal frame not found');
-                return;
+                return { ok: false, reason: 'missing-terminal-frame' };
             }
             this.terminalFrame = terminalFrame;
             this.terminalXtermHost = terminalXtermHost;
+            const initialSelectedSessionId = appStore.getState().currentSessionId;
+            const previousSessionId = options.previousSessionId
+                ?? this._terminalPresentationSessionId
+                ?? (initialSelectedSessionId && initialSelectedSessionId !== sessionId ? initialSelectedSessionId : null);
 
             try {
                 const { sessions } = appStore.getState();
@@ -167,18 +155,17 @@ export function applySessionManagementMixin(AppClass) {
                 if (!session) {
                     console.error('Session not found:', sessionId);
                     this._clearTerminalFrame(terminalFrame);
-                    return;
+                    return { ok: false, reason: 'missing-session' };
                 }
 
                 if (appStore.getState().currentSessionId !== sessionId) {
                     appStore.setState({ currentSessionId: sessionId });
                 }
-
-                document.querySelectorAll('.session-child-row').forEach(row => {
-                    row.classList.remove('active');
-                    if (row.dataset.id === sessionId) {
-                        row.classList.add('active');
-                    }
+                this._setActiveSessionRow?.(sessionId);
+                this._beginTerminalSwitch?.(sessionId, {
+                    previousSessionId,
+                    switchToken,
+                    surface: this.isMobile() ? 'mobile' : 'desktop'
                 });
 
                 if (session.intendedState === 'archived') {
@@ -189,12 +176,28 @@ export function applySessionManagementMixin(AppClass) {
                     this.terminalTransportClient?.hide();
                     this._showTtydIframe();
                     this._clearTerminalFrame(terminalFrame);
-                    this._hideTerminalRecoveryPanel();
-                    return;
+                    this._finishTerminalSwitch?.(null, switchToken, { state: 'idle' });
+                    return { ok: true, archived: true };
                 }
 
                 if (this.isMobile()) {
-                    this.closeMobileLiveTerminal();
+                    const { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
+                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
+                    let snapshot = this._terminalSnapshotCache.get(sessionId) || null;
+                    if (!snapshot) {
+                        try {
+                            snapshot = await this._loadTerminalSnapshot(sessionId, { force: true, mode: 'fast' });
+                        } catch (error) {
+                            this._failTerminalSwitch?.(sessionId, switchToken, {
+                                previousSessionId,
+                                error,
+                                errorMessage: 'セッション表示の準備に失敗しました'
+                            });
+                            return { ok: false, reason: 'snapshot-load-failed' };
+                        }
+                    }
+                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
+                    this._closeMobileLiveTerminalModalDom?.();
                     this.terminalTransportClient?.disconnect({ preserveView: false });
                     this.terminalTransportClient?.hide();
                     this._terminalTransportStatus = null;
@@ -202,20 +205,11 @@ export function applySessionManagementMixin(AppClass) {
                     this._mobileLiveTerminalSessionId = null;
                     this._showMobileTerminalDisplay();
                     this._clearTerminalFrame(terminalFrame);
-
-                    let { runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session);
-                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                    if (runtimeStatus?.recoveryState === 'recoverable') {
-                        await this._recoverSessionRuntime(session);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                        ({ runtimeStatus, terminalAccess } = await this._resolveSessionRuntime(sessionId, session));
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                    }
-                    if (runtimeStatus?.recoveryState === 'broken') {
-                        this._showTerminalRecoveryPanel(session, runtimeStatus);
-                        this._updateTerminalInputStatus();
-                        return;
-                    }
+                    this._renderTerminalSnapshotPanel({
+                        visible: true,
+                        snapshot,
+                        title: 'Terminal display'
+                    });
                     if (this.reconnectManager) {
                         this.reconnectManager.setCurrentSession(sessionId);
                         this.reconnectManager.terminalAccess = terminalAccess || null;
@@ -226,76 +220,48 @@ export function applySessionManagementMixin(AppClass) {
                     if (runtimeStatus?.ttydRunning || runtimeStatus?.proxyPath || terminalAccess?.state === 'blocked') {
                         this._terminalLastNavigateAt = Date.now();
                     }
-                    this._syncMobileSnapshotPolling({ immediate: true, force: true });
+                    this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_snapshot' });
+                    this._syncMobileSnapshotPolling({ immediate: false, force: true });
                     this._updateTerminalInputStatus();
                     this._setCurrentSessionUiState({
                         transport: terminalAccess?.state === 'blocked' ? 'blocked' : 'connected',
                         attention: 'none'
                     });
-                    return;
+                    return { ok: true, mode: 'snapshot' };
                 }
 
                 if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
-                    this._showDesktopSnapshotDisplay(sessionId, { title: 'Terminal display', switchToken });
-                    this._updateTerminalInputStatus();
                     this._setCurrentSessionUiState({
                         transport: 'reconnecting',
                         attention: 'none'
                     });
-                    let initialRuntime = await this._resolveSessionRuntime(sessionId, session);
-                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                    if (initialRuntime?.runtimeStatus?.recoveryState === 'recoverable') {
-                        await this._recoverSessionRuntime(session);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                        initialRuntime = await this._resolveSessionRuntime(sessionId, session);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                    }
-                    if (initialRuntime?.runtimeStatus?.recoveryState === 'broken') {
-                        this._showTerminalRecoveryPanel(session, initialRuntime.runtimeStatus, { preserveSnapshot: true });
-                        this._updateTerminalInputStatus();
-                        return;
-                    }
+                    const initialRuntime = await this._resolveSessionRuntime(sessionId, session);
+                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     try {
                         await this._ensureDesktopTerminalRuntime(session, initialRuntime?.runtimeStatus || null);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
+                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     } catch (error) {
-                        console.error('Failed to ensure desktop terminal runtime:', error);
-                        if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-                        if (error?.recoveryState === 'broken') {
-                            this._showTerminalRecoveryPanel(session, {
-                                recoveryState: 'broken',
-                                recoveryReason: error?.recoveryReason || null,
-                                canRecover: false
-                            }, { preserveSnapshot: true });
-                            this._updateTerminalInputStatus();
-                            return;
-                        }
-                        this.terminalTransportClient?.disconnect({ preserveView: false });
-                        this.terminalTransportClient?.show();
-                        this._showXtermTransport();
-                        this._terminalTransportStatus = {
-                            mode: 'disconnected',
-                            copyMode: false,
-                            blockedAccess: null,
-                            connected: false,
-                            isFocused: false,
-                            lastSnapshotAt: null,
-                            transport: 'streaming'
-                        };
-                        this._updateTerminalInputStatus();
+                        this._failTerminalSwitch?.(sessionId, switchToken, {
+                            previousSessionId,
+                            error,
+                            errorMessage: 'ターミナル起動に失敗しました'
+                        });
                         this._setCurrentSessionUiState({
                             transport: 'disconnected',
                             attention: 'none'
                         });
-                        return;
+                        return { ok: false, reason: 'ensure-failed' };
                     }
 
-                    const transportResult = await this._connectXtermTransport(session);
-                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
+                    const transportResult = await this._connectXtermTransport(session, { deferDisplay: true });
+                    if (!this._isSessionSwitchCurrent(sessionId, switchToken)) {
+                        this.terminalTransportClient?.disconnect({ preserveView: false });
+                        return { ok: false, reason: 'stale' };
+                    }
                     if (transportResult.ok) {
                         this.reconnectManager?.setCurrentSession(sessionId);
                         this._terminalLastNavigateAt = Date.now();
-                        this.hideTerminalLoadingOverlay();
+                        this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_live' });
                         this._setCurrentSessionUiState({
                             transport: 'reconnecting',
                             attention: 'none'
@@ -304,7 +270,7 @@ export function applySessionManagementMixin(AppClass) {
                             this._triggerTerminalAutoFocus('switchSession');
                         }
 
-                        return;
+                        return { ok: true, mode: 'xterm' };
                     }
 
                     if (transportResult.blocked) {
@@ -319,75 +285,102 @@ export function applySessionManagementMixin(AppClass) {
                             lastSnapshotAt: null
                         };
                         this._showXtermTransport();
+                        this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'blocked' });
                         this._updateTerminalInputStatus();
-                        return;
+                        return { ok: true, blocked: true };
                     }
 
+                    this._failTerminalSwitch?.(sessionId, switchToken, {
+                        previousSessionId,
+                        errorMessage: 'ターミナル接続に失敗しました'
+                    });
                     this._setCurrentSessionUiState({
                         transport: 'disconnected',
                         attention: 'none'
                     });
-                    return;
+                    return { ok: false, reason: 'connect-failed' };
                 }
+
+                const result = await this._resolveTtydProxyPath(sessionId, session, options);
+                if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
+
+                if (result?.terminalAccess?.state === 'blocked') {
+                    console.warn(`[switchSession] Session ${sessionId} is owned by another viewer`);
+                    this.terminalTransportClient?.disconnect({ preserveView: false });
+                    this.terminalTransportClient?.hide();
+                    this._terminalTransportStatus = null;
+                    this._showTtydIframe();
+                    this._clearTerminalFrame(terminalFrame);
+                    this.reconnectManager?.setCurrentSession(sessionId);
+                    this.reconnectManager._setBlocked?.(result.terminalAccess);
+                    this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'blocked' });
+                    this._updateTerminalInputStatus();
+                    return { ok: true, blocked: true };
+                }
+
+                if (!result?.proxyPath) {
+                    this._failTerminalSwitch?.(sessionId, switchToken, {
+                        previousSessionId,
+                        errorMessage: 'ターミナル接続先が見つかりません'
+                    });
+                    this._setCurrentSessionUiState({
+                        transport: 'disconnected',
+                        attention: 'none'
+                    });
+                    return { ok: false, reason: 'missing-proxy-path' };
+                }
+
+                try {
+                    terminalFrame.classList.add('hidden');
+                    await this._awaitTerminalFrameReady(terminalFrame, result.proxyPath);
+                } catch (error) {
+                    this._failTerminalSwitch?.(sessionId, switchToken, {
+                        previousSessionId,
+                        error,
+                        errorMessage: 'ターミナル接続に失敗しました'
+                    });
+                    this._setCurrentSessionUiState({
+                        transport: 'disconnected',
+                        attention: 'none'
+                    });
+                    return { ok: false, reason: 'frame-load-failed' };
+                }
+                if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
 
                 this.terminalTransportClient?.disconnect({ preserveView: false });
                 this.terminalTransportClient?.hide();
                 this._terminalTransportStatus = null;
                 this._showTtydIframe();
-                const result = await this._openSessionInTtydFrame(sessionId, terminalFrame, options);
-                if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return;
-
-                if (result.blocked) {
-                    console.warn(`[switchSession] Session ${sessionId} is owned by another viewer`);
-                    this.reconnectManager?.setCurrentSession(sessionId);
-                    this.reconnectManager._setBlocked?.(result.terminalAccess);
-                    this._updateTerminalInputStatus();
-                    return;
+                console.log('Terminal switched to:', result.proxyPath);
+                this.reconnectManager?.setCurrentSession(sessionId);
+                if (this.reconnectManager) {
+                    this.reconnectManager.terminalAccess = result.terminalAccess || {
+                        state: 'owner',
+                        ownerViewerLabel: this.viewerLabel,
+                        ownerLastSeenAt: new Date().toISOString(),
+                        canTakeover: false
+                    };
                 }
-
-                if (result.ok) {
-                    console.log('Terminal switched to:', result.proxyPath);
-
-                    this.reconnectManager?.setCurrentSession(sessionId);
-                    if (this.reconnectManager) {
-                        this.reconnectManager.terminalAccess = result.terminalAccess || null;
-                        if (this.reconnectManager.terminalAccess?.state !== 'blocked') {
-                            this.reconnectManager.terminalAccess = {
-                                state: 'owner',
-                                ownerViewerLabel: this.viewerLabel,
-                                ownerLastSeenAt: new Date().toISOString(),
-                                canTakeover: false
-                            };
-                        }
-                    }
-                    this._terminalLastNavigateAt = Date.now();
-                    this._setCurrentSessionUiState({
-                        transport: 'reconnecting',
-                        attention: 'none'
-                    });
-                    if (this._shouldAutoFocusTerminalSurface()) {
-                        this._triggerTerminalAutoFocus('switchSession');
-                    }
-                } else {
-                    if (result.reason === 'recovery-required') {
-                        this._showTerminalRecoveryPanel(session, result.runtimeStatus);
-                        this._updateTerminalInputStatus();
-                        return;
-                    }
-                    console.error('No proxyPath available for session:', sessionId);
-                    this._clearTerminalFrame(terminalFrame);
-                    this._setCurrentSessionUiState({
-                        transport: 'disconnected',
-                        attention: 'none'
-                    });
+                this._terminalLastNavigateAt = Date.now();
+                this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_live' });
+                this._setCurrentSessionUiState({
+                    transport: 'reconnecting',
+                    attention: 'none'
+                });
+                if (this._shouldAutoFocusTerminalSurface()) {
+                    this._triggerTerminalAutoFocus('switchSession');
                 }
+                return { ok: true, mode: 'ttyd' };
             } catch (error) {
-                console.error('Failed to switch session:', error);
-                this._clearTerminalFrame(terminalFrame);
+                this._failTerminalSwitch?.(sessionId, switchToken, {
+                    previousSessionId,
+                    error
+                });
                 this._setCurrentSessionUiState({
                     transport: 'disconnected',
                     attention: 'none'
                 });
+                return { ok: false, reason: 'exception', error };
             }
         },
 

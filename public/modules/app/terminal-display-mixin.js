@@ -167,56 +167,18 @@ export function applyTerminalDisplayMixin(AppClass) {
         return Boolean(consoleArea?.classList.contains('using-snapshot') && snapshotVisible && xtermHidden);
     };
 
-    AppClass.prototype._showDesktopSnapshotDisplay = function(sessionId, { title = 'Terminal display', switchToken = null } = {}) {
+    AppClass.prototype._showDesktopSnapshotDisplay = function(sessionId, { title = 'Terminal display', snapshot = null } = {}) {
         this._restoreSnapshotPanelPosition();
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
         consoleArea?.classList.add('using-snapshot');
-        const cached = this._terminalSnapshotCache.get(sessionId) || null;
         this._renderTerminalSnapshotPanel({
             visible: true,
-            snapshot: cached,
+            snapshot: snapshot || this._terminalSnapshotCache.get(sessionId) || null,
             title
         });
-        if (cached?.mode === 'full') return;
-        const requestMode = cached ? 'full' : 'fast';
-        void this._loadTerminalSnapshot(sessionId, { mode: requestMode })
-            .then((snapshot) => {
-                if (!this._isCurrentSessionSnapshotDisplay(sessionId, switchToken)) return;
-                this._renderTerminalSnapshotPanel({
-                    visible: true,
-                    snapshot,
-                    title
-                });
-                this._updateTerminalInputStatus();
-                if (snapshot?.mode === 'fast') {
-                    void this._loadTerminalSnapshot(sessionId, { force: true, mode: 'full' })
-                        .then((fullSnapshot) => {
-                            if (!this._isCurrentSessionSnapshotDisplay(sessionId, switchToken)) return;
-                            this._renderTerminalSnapshotPanel({
-                                visible: true,
-                                snapshot: fullSnapshot,
-                                title
-                            });
-                            this._updateTerminalInputStatus();
-                        })
-                        .catch(() => {});
-                }
-            })
-            .catch(() => {
-                if (!this._isCurrentSessionSnapshotDisplay(sessionId, switchToken)) return;
-                this._renderTerminalSnapshotPanel({
-                    visible: true,
-                    snapshot: {
-                        text: 'Snapshotの取得に失敗した',
-                        capturedAt: null
-                    },
-                    title
-                });
-                this._updateTerminalInputStatus();
-            });
     };
 
     AppClass.prototype._isConsoleVisible = function() {

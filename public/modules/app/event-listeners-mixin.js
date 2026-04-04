@@ -111,11 +111,8 @@ export function applyEventListenersMixin(AppClass) {
                 void this.releaseTerminalOwnership(previousSessionId);
             }
 
-            // Update currentSessionId in store
-            appStore.setState({ currentSessionId: sessionId });
-
             const startTime = performance.now();
-            await this.switchSession(sessionId, { proxyPath, switchToken });
+            await this.switchSession(sessionId, { proxyPath, switchToken, previousSessionId });
             const duration = performance.now() - startTime;
             console.log(`[SessionSwitch] Terminal ready in ${duration.toFixed(2)}ms`);
 

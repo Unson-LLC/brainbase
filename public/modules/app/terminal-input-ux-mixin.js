@@ -12,7 +12,9 @@ import { getSessionUiEntry, mergeSessionUiEntry } from '../session-ui-state.js';
 
 export function applyTerminalInputUxMixin(AppClass) {
     AppClass.prototype._setCurrentSessionUiState = function(updates = {}, options = {}) {
-        const sessionId = appStore.getState().currentSessionId;
+        const sessionId = this._terminalSwitchState === 'switching' && this._terminalPresentationSessionId
+            ? this._terminalPresentationSessionId
+            : appStore.getState().currentSessionId;
         if (!sessionId) return;
         const { emit = false } = options;
         const previous = getSessionUiEntry(sessionId) || {};
@@ -130,37 +132,46 @@ export function applyTerminalInputUxMixin(AppClass) {
         }
     };
 
-    AppClass.prototype._connectXtermTransport = async function(session) {
+    AppClass.prototype._connectXtermTransport = async function(session, { deferDisplay = false } = {}) {
         if (!this.terminalTransportClient || !session?.id) {
             return { ok: false };
         }
 
-        this._showXtermTransport();
-        this.terminalTransportClient.show();
-        this.terminalFrame?.classList.add('hidden');
+        if (!deferDisplay) {
+            this._showXtermTransport();
+            this.terminalTransportClient.show();
+            this.terminalFrame?.classList.add('hidden');
+        }
 
         try {
             const firstAttempt = await this.terminalTransportClient.connect(session.id);
             if (firstAttempt?.mode === 'blocked') {
                 return { ok: false, blocked: true, terminalAccess: firstAttempt.terminalAccess || null };
             }
+            if (deferDisplay) {
+                this._showXtermTransport();
+                this.terminalTransportClient.show();
+                this.terminalFrame?.classList.add('hidden');
+            }
             this.hideTerminalLoadingOverlay();
             return { ok: true };
         } catch (error) {
             console.warn('Xterm transport unavailable:', error);
             this.terminalTransportClient.disconnect({ preserveView: false });
-            this.terminalTransportClient.show();
-            this._showXtermTransport();
-            this._terminalTransportStatus = {
-                mode: 'disconnected',
-                copyMode: false,
-                blockedAccess: null,
-                connected: false,
-                isFocused: false,
-                lastSnapshotAt: null,
-                transport: 'streaming'
-            };
-            this._updateTerminalInputStatus();
+            if (!deferDisplay) {
+                this.terminalTransportClient.show();
+                this._showXtermTransport();
+                this._terminalTransportStatus = {
+                    mode: 'disconnected',
+                    copyMode: false,
+                    blockedAccess: null,
+                    connected: false,
+                    isFocused: false,
+                    lastSnapshotAt: null,
+                    transport: 'streaming'
+                };
+                this._updateTerminalInputStatus();
+            }
             return { ok: false, error };
         }
     };

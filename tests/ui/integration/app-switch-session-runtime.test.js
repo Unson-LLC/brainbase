@@ -66,6 +66,7 @@ describe('app switchSession runtime handling', () => {
 
   it('uses runtimeStatus proxyPath without starting ttyd again', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
+    app._shouldUseXtermTransport = vi.fn(() => false);
 
     appStore.setState({
       currentSessionId: 'session-1',
@@ -231,7 +232,7 @@ describe('app switchSession runtime handling', () => {
 
     await app.switchSession('session-1');
 
-    expect(app._connectXtermTransport).toHaveBeenCalled();
+    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }), { deferDisplay: true });
     expect(overlay.classList.contains('hidden')).toBe(true);
   });
 
@@ -289,35 +290,15 @@ describe('app switchSession runtime handling', () => {
     resolveEnsure({ ok: true });
     await switchPromise;
 
-    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }));
+    expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }), { deferDisplay: true });
   });
 
-  it('_ensureDesktopTerminalRuntimeはrecoverable時に内部でrecoverして再試行する', async () => {
-    const recoverableError = new Error('recovery required');
-    recoverableError.recoveryState = 'recoverable';
-
-    const recoverSpy = vi.spyOn(app, '_recoverSessionRuntime').mockResolvedValue({});
-    httpClient.post
-      .mockRejectedValueOnce(recoverableError)
-      .mockResolvedValueOnce({ proxyPath: '/console/session-1' });
-
-    await expect(app._ensureDesktopTerminalRuntime({
-      id: 'session-1',
-      path: '/tmp/session-1',
-      engine: 'codex',
-      intendedState: 'active'
-    })).resolves.toEqual({ proxyPath: '/console/session-1' });
-
-    expect(recoverSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }));
-  });
-
-  it('desktopではruntime待ち中でもcached snapshot panelを即時表示する', async () => {
+  it('desktopではruntime待ち中も前のterminal presentationを維持する', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
     app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
     app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
-    const snapshotSpy = vi.spyOn(app, '_showDesktopSnapshotDisplay');
 
     let resolveRuntime;
     httpClient.get.mockImplementationOnce(() => new Promise((resolve) => {
@@ -331,21 +312,35 @@ describe('app switchSession runtime handling', () => {
     });
 
     appStore.setState({
-      currentSessionId: null,
-      sessions: [{
-        id: 'session-1',
-        name: 'Session 1',
-        path: '/tmp/session-1',
-        engine: 'codex',
-        intendedState: 'active'
-      }]
+      currentSessionId: 'session-previous',
+      sessions: [
+        {
+          id: 'session-previous',
+          name: 'Previous Session',
+          path: '/tmp/session-previous',
+          engine: 'codex',
+          intendedState: 'active'
+        },
+        {
+          id: 'session-1',
+          name: 'Session 1',
+          path: '/tmp/session-1',
+          engine: 'codex',
+          intendedState: 'active'
+        }
+      ]
     });
+    document.getElementById('console-area').classList.add('using-xterm');
+    document.getElementById('terminal-xterm-host').classList.remove('hidden');
+    document.getElementById('terminal-snapshot-panel').classList.add('hidden');
 
     const switchPromise = app.switchSession('session-1');
     await Promise.resolve();
 
-    expect(snapshotSpy).toHaveBeenCalledWith('session-1', expect.objectContaining({ title: 'Terminal display' }));
-    expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(true);
+    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
+    expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(false);
 
     resolveRuntime({
       runtimeStatus: {
@@ -363,7 +358,7 @@ describe('app switchSession runtime handling', () => {
     await switchPromise;
   });
 
-  it('desktop cold cacheではfast snapshotを先に取りに行く', async () => {
+  it('desktop xterm切替ではcold cacheでもsnapshot placeholderを先出ししない', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -404,28 +399,17 @@ describe('app switchSession runtime handling', () => {
 
     await app.switchSession('session-1');
 
-    expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', expect.objectContaining({ mode: 'fast' }));
+    expect(loadSnapshotSpy).not.toHaveBeenCalled();
+    expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(false);
   });
 
-  it('desktop broken sessionでもsnapshotを残したままrecovery panelを重ねる', async () => {
+  it('desktop broken sessionでもrecovery panelを出さず前のpresentationへ戻す', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
     app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn(), isActiveForSession: vi.fn(() => false) };
-    const snapshotSpy = vi.spyOn(app, '_showDesktopSnapshotDisplay');
-    vi.spyOn(app, '_loadTerminalSnapshot').mockResolvedValue({
-      text: 'broken snapshot',
-      colorText: null,
-      capturedAt: '2026-04-01T05:00:00.000Z',
-      mode: 'full'
-    });
-
-    app._terminalSnapshotCache.set('session-1', {
-      text: 'broken snapshot',
-      colorText: null,
-      capturedAt: '2026-04-01T05:00:00.000Z',
-      mode: 'full'
-    });
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: false });
 
     httpClient.get.mockResolvedValueOnce({
       runtimeStatus: {
@@ -437,23 +421,37 @@ describe('app switchSession runtime handling', () => {
     });
 
     appStore.setState({
-      currentSessionId: null,
-      sessions: [{
-        id: 'session-1',
-        name: 'Session 1',
-        path: '/tmp/session-1',
-        engine: 'codex',
-        intendedState: 'active'
-      }]
+      currentSessionId: 'session-previous',
+      sessions: [
+        {
+          id: 'session-previous',
+          name: 'Previous Session',
+          path: '/tmp/session-previous',
+          engine: 'codex',
+          intendedState: 'active'
+        },
+        {
+          id: 'session-1',
+          name: 'Session 1',
+          path: '/tmp/session-1',
+          engine: 'codex',
+          intendedState: 'active'
+        }
+      ]
     });
+    document.getElementById('console-area').classList.add('using-xterm');
+    document.getElementById('terminal-xterm-host').classList.remove('hidden');
+    document.getElementById('terminal-snapshot-panel').classList.add('hidden');
 
-    await app.switchSession('session-1');
+    const result = await app.switchSession('session-1');
 
-    expect(snapshotSpy).toHaveBeenCalledWith('session-1', expect.objectContaining({ title: 'Terminal display' }));
-    expect(document.getElementById('terminal-recovery-panel').classList.contains('hidden')).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(appStore.getState().currentSessionId).toBe('session-previous');
+    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
+    expect(document.getElementById('terminal-recovery-panel').classList.contains('hidden')).toBe(true);
   });
 
-  it('late desktop snapshot fetch does not repaint after live transport takes over', async () => {
+  it('desktop xterm切替ではlate snapshot repaint自体を発生させない', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -472,10 +470,7 @@ describe('app switchSession runtime handling', () => {
       return { ok: true };
     });
 
-    let resolveSnapshot;
-    app._loadTerminalSnapshot = vi.fn(() => new Promise((resolve) => {
-      resolveSnapshot = resolve;
-    }));
+    app._loadTerminalSnapshot = vi.fn();
     httpClient.get.mockResolvedValueOnce({
       runtimeStatus: {
         ttydRunning: false,
@@ -502,18 +497,9 @@ describe('app switchSession runtime handling', () => {
 
     await app.switchSession('session-1');
 
-    const lateSnapshotText = 'late snapshot';
-    resolveSnapshot({
-      text: lateSnapshotText,
-      colorText: null,
-      capturedAt: '2026-04-01T05:00:00.000Z'
-    });
-    await Promise.resolve();
-
     const snapshotPanel = document.getElementById('terminal-snapshot-panel');
-    const snapshotContent = document.getElementById('terminal-snapshot-content');
     expect(snapshotPanel.classList.contains('hidden')).toBe(true);
-    expect(snapshotContent.textContent).not.toContain(lateSnapshotText);
+    expect(app._loadTerminalSnapshot).not.toHaveBeenCalled();
   });
 
   it('mobile localhostではswitchSessionはsnapshot displayを使う', async () => {
@@ -546,33 +532,70 @@ describe('app switchSession runtime handling', () => {
     expect(app.focusTerminal).not.toHaveBeenCalled();
   });
 
-  it('mobileではsnapshot取得前でもplaceholder panelを即時表示する', async () => {
+  it('mobileではsnapshot取得完了まで前のpresentationを維持する', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);
     app.terminalTransportClient = { show: vi.fn(), disconnect: vi.fn(), hide: vi.fn(), destroy: vi.fn() };
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
 
-    const snapshotPromise = new Promise(() => {});
-    app._loadTerminalSnapshot = vi.fn(() => snapshotPromise);
+    let resolveRuntime;
+    let resolveSnapshot;
+    httpClient.get.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveRuntime = resolve;
+    }));
+    app._loadTerminalSnapshot = vi.fn(() => new Promise((resolve) => {
+      resolveSnapshot = resolve;
+    }));
 
     appStore.setState({
-      currentSessionId: 'session-1',
-      sessions: [{
-        id: 'session-1',
-        name: 'Session 1',
-        path: '/tmp/session-1',
-        engine: 'codex',
-        intendedState: 'active'
-      }]
+      currentSessionId: 'session-previous',
+      sessions: [
+        {
+          id: 'session-previous',
+          name: 'Previous Session',
+          path: '/tmp/session-previous',
+          engine: 'codex',
+          intendedState: 'active'
+        },
+        {
+          id: 'session-1',
+          name: 'Session 1',
+          path: '/tmp/session-1',
+          engine: 'codex',
+          intendedState: 'active'
+        }
+      ]
+    });
+    document.getElementById('console-area').classList.add('using-xterm');
+    document.getElementById('terminal-xterm-host').classList.remove('hidden');
+    document.getElementById('terminal-snapshot-panel').classList.add('hidden');
+
+    const switchPromise = app.switchSession('session-1');
+    await Promise.resolve();
+
+    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
+    expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(false);
+
+    resolveRuntime({
+      runtimeStatus: null,
+      terminalAccess: null
+    });
+    await vi.waitFor(() => {
+      expect(app._loadTerminalSnapshot).toHaveBeenCalledWith('session-1', { force: true, mode: 'fast' });
+      expect(typeof resolveSnapshot).toBe('function');
     });
 
-    await app.switchSession('session-1');
+    resolveSnapshot({
+      text: 'fresh snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:00.000Z',
+      mode: 'full'
+    });
+    await switchPromise;
 
-    const snapshotPanel = document.getElementById('terminal-snapshot-panel');
-    const snapshotContent = document.getElementById('terminal-snapshot-content');
-    expect(snapshotPanel.classList.contains('hidden')).toBe(false);
-    expect(snapshotContent.textContent).toContain('Snapshotを読み込み中');
     expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(true);
+    expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(false);
   });
 
   it('mobileでtapするとdedicated ttyd modalを開く', async () => {
@@ -1069,7 +1092,7 @@ describe('app switchSession runtime handling', () => {
     expect(app.reconnectManager._setBlocked).toHaveBeenCalled();
   });
 
-  it('desktop switchSessionは自動フォーカスを再試行しiframe load後も再実行する', async () => {
+  it('desktop switchSessionはttyd commit後に自動フォーカスを再試行する', async () => {
     vi.useFakeTimers();
     app.reconnectManager = { setCurrentSession: vi.fn(), terminalAccess: null };
     app._shouldUseXtermTransport = vi.fn(() => false);
@@ -1097,13 +1120,6 @@ describe('app switchSession runtime handling', () => {
     await vi.advanceTimersByTimeAsync(220);
     const switchSessionCalls = app.focusTerminal.mock.calls.filter(([reason]) => reason === 'switchSession').length;
     expect(switchSessionCalls).toBeGreaterThan(1);
-
-    const callCountBeforeLoad = app.focusTerminal.mock.calls.length;
-    terminalFrame.dispatchEvent(new Event('load'));
-    await vi.advanceTimersByTimeAsync(220);
-
-    expect(app.focusTerminal.mock.calls.length).toBeGreaterThan(callCountBeforeLoad);
-    expect(app.focusTerminal).toHaveBeenCalledWith('terminal-frame-load');
     vi.useRealTimers();
   });
 
