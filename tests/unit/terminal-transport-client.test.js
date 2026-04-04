@@ -13,6 +13,7 @@ describe('terminal-transport-client', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -252,6 +253,88 @@ describe('terminal-transport-client', () => {
 
     expect(handled).toBe(true);
     expect(client.sendKey).not.toHaveBeenCalled();
+  });
+
+  it('短い連続入力は1つのWebSocket text messageにまとめる', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('a');
+    await client.sendText('b');
+    await client.sendText('c');
+
+    expect(send).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(8);
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'abc'
+    });
+  });
+
+  it('buffered textはsendKey前にflushされる', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('a');
+    await client.sendText('b');
+    await client.sendKey('C-c');
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'ab'
+    });
+    expect(JSON.parse(send.mock.calls[1][0])).toEqual({
+      type: 'input',
+      inputType: 'key',
+      value: 'C-c'
+    });
+  });
+
+  it('改行を含むtextは即時送信してbatchしない', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('hello\n');
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'hello\n'
+    });
   });
 
   it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', async () => {

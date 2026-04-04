@@ -3,6 +3,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
+const INLINE_TEXT_MAX_BYTES = 1024;
+
 export const terminalIoMethods = {
     async resizeSessionWindow(sessionId, cols, rows) {
         if (!sessionId) {
@@ -15,7 +17,9 @@ export const terminalIoMethods = {
             throw new Error('Invalid terminal size');
         }
 
-        await this.execPromise(`tmux resize-window -t "${sessionId}" -x ${safeCols} -y ${safeRows}`);
+        await this._enqueueTerminalMutation(sessionId, async () => {
+            await this.execPromise(`tmux resize-window -t "${sessionId}" -x ${safeCols} -y ${safeRows}`);
+        });
     },
 
     async scrollSession(sessionId, direction, steps = 1) {
@@ -32,7 +36,9 @@ export const terminalIoMethods = {
         const target = sessionId.replace(/"/g, '\\"');
         const cmd = `tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X -N ${count} ${dir}" "copy-mode -t \\"${target}\\"; send-keys -t \\"${target}\\" -X -N ${count} ${dir}"`;
 
-        await this.execPromise(cmd);
+        await this._enqueueTerminalMutation(sessionId, async () => {
+            await this.execPromise(cmd);
+        });
     },
 
     async selectPane(sessionId, direction) {
@@ -46,7 +52,9 @@ export const terminalIoMethods = {
         }
 
         const target = sessionId.replace(/"/g, '\\"');
-        await this.execPromise(`tmux select-pane -t "${target}" -${direction}`);
+        await this._enqueueTerminalMutation(sessionId, async () => {
+            await this.execPromise(`tmux select-pane -t "${target}" -${direction}`);
+        });
     },
 
     async exitCopyMode(sessionId) {
@@ -57,7 +65,9 @@ export const terminalIoMethods = {
         const target = sessionId.replace(/"/g, '\\"');
         const cmd = `tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\\"${target}\\\" -X cancel" ""`;
 
-        await this.execPromise(cmd);
+        await this._enqueueTerminalMutation(sessionId, async () => {
+            await this.execPromise(cmd);
+        });
     },
 
     async sendInput(sessionId, input, type) {
@@ -67,16 +77,53 @@ export const terminalIoMethods = {
 
         await this._capturePromptInput(sessionId, input, type);
 
-        if (type === 'key') {
-            if (this.ALLOWED_KEYS.includes(input)) {
-                await this._sendNamedKey(sessionId, input);
-                return;
-            }
-        } else if (type !== 'text') {
+        if (type !== 'key' && type !== 'text') {
             throw new Error('Type must be key or text');
         }
 
-        await this._pasteInputFromTempFile(sessionId, input);
+        await this._enqueueTerminalMutation(sessionId, async () => {
+            if (type === 'key' && this.ALLOWED_KEYS.includes(input)) {
+                await this._sendNamedKey(sessionId, input);
+                return;
+            }
+
+            if (this._shouldUseLiteralText(input, type)) {
+                await this._sendLiteralText(sessionId, input);
+                return;
+            }
+
+            await this._pasteInputFromTempFile(sessionId, input);
+        });
+    },
+
+    async _enqueueTerminalMutation(sessionId, operation) {
+        if (!sessionId) {
+            throw new Error('Session ID required');
+        }
+
+        const previous = this.terminalMutationQueues.get(sessionId) || Promise.resolve();
+        const next = previous
+            .catch(() => {})
+            .then(async () => {
+                return await operation();
+            });
+
+        this.terminalMutationQueues.set(sessionId, next);
+
+        try {
+            return await next;
+        } finally {
+            if (this.terminalMutationQueues.get(sessionId) === next) {
+                this.terminalMutationQueues.delete(sessionId);
+            }
+        }
+    },
+
+    _shouldUseLiteralText(input, type) {
+        if (type !== 'text' || typeof input !== 'string' || !input) return false;
+        if (input.includes('\n') || input.includes('\r')) return false;
+        if (/[\x00-\x1f\x7f]/.test(input)) return false;
+        return Buffer.byteLength(input, 'utf8') <= INLINE_TEXT_MAX_BYTES;
     },
 
     async _runTmux(args) {
@@ -112,6 +159,10 @@ export const terminalIoMethods = {
 
     async _sendNamedKey(sessionId, key) {
         await this._runTmux(['send-keys', '-t', sessionId, key]);
+    },
+
+    async _sendLiteralText(sessionId, input) {
+        await this._runTmux(['send-keys', '-t', sessionId, '-l', '--', input]);
     },
 
     async _pasteInputFromTempFile(sessionId, input) {

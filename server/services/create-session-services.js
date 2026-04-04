@@ -38,6 +38,7 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         activeSessions: new Map(),
         hookStatus: new Map(),
         startLocks: new Map(),
+        terminalMutationQueues: new Map(),
         terminalOwners: new Map(),
         promptBuffers: new Map(),
         nextPort: 40000,
