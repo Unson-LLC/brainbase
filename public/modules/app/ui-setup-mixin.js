@@ -23,6 +23,9 @@ import { CommitTreeView } from '../ui/views/commit-tree-view.js';
 import { FileViewerView } from '../ui/views/file-viewer-view.js';
 import { WikiView } from '../ui/views/wiki-view.js';
 import { LiveFeedView } from '../ui/views/live-feed-view.js';
+import { PortalView } from '../ui/views/portal-view.js';
+import { PortalService } from '../domain/portal/portal-service.js';
+import { NocoDBIssueService } from '../domain/nocodb-issue/nocodb-issue-service.js';
 import { setupSessionViewToggle } from '../ui/session-view-toggle.js';
 import { setupSidebarPrimaryToggle } from '../ui/sidebar-primary-toggle.js';
 import { TaskAddModal } from '../ui/modals/task-add-modal.js';
@@ -133,6 +136,8 @@ export function applyUiSetupMixin(AppClass) {
         }));
         this.container.register('wikiService', () => new WikiService());
         this.container.register('liveFeedService', () => new LiveFeedService());
+        this.container.register('portalService', () => new PortalService({ httpClient }));
+        this.container.register('nocodbIssueService', () => new NocoDBIssueService({ httpClient }));
 
         // Get service instances
         this.taskService = this.container.get('taskService');
@@ -144,6 +149,8 @@ export function applyUiSetupMixin(AppClass) {
         this.fileViewerService = this.container.get('fileViewerService');
         this.wikiService = this.container.get('wikiService');
         this.liveFeedService = this.container.get('liveFeedService');
+        this.portalService = this.container.get('portalService');
+        this.nocodbIssueService = this.container.get('nocodbIssueService');
     };
 
     AppClass.prototype.initViews = function() {
@@ -201,6 +208,35 @@ export function applyUiSetupMixin(AppClass) {
                 liveFeedService: this.liveFeedService
             });
             this.views.liveFeedView.mount(liveFeedContainer);
+        }
+
+        // Portal (info drawer tab)
+        const portalContainer = document.getElementById('portal-panel');
+        if (portalContainer) {
+            // config.ymlからプロジェクト一覧を取得（非同期で初期化）
+            this._initPortalView(portalContainer);
+        }
+    };
+
+    AppClass.prototype._initPortalView = async function(container) {
+        try {
+            const configResp = await httpClient.get('/api/config');
+            const projects = (configResp?.projects || [])
+                .filter(p => !p.archived)
+                .map(p => ({ id: p.id, name: p.name || p.id }));
+
+            this.views.portalView = new PortalView({
+                portalService: this.portalService,
+                configProjects: projects
+            });
+            this.views.portalView.mount(container);
+        } catch (error) {
+            // config取得失敗時はプロジェクト一覧なしで初期化
+            this.views.portalView = new PortalView({
+                portalService: this.portalService,
+                configProjects: []
+            });
+            this.views.portalView.mount(container);
         }
     };
 

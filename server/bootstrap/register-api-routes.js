@@ -68,7 +68,9 @@ export function registerApiRoutes(app, {
         taskParser,
         worktreeService,
         configParser,
-        projectsRoot
+        projectsRoot,
+        infoSSOTService,
+        wikiService
     }));
     app.use('/api/nocodb', createNocoDBRouter(configParser));
     app.use('/api/health', createHealthRouter({ readiness: sessionServices.runtime.registry, configParser }));

@@ -241,6 +241,16 @@ export const EVENTS = {
     NOCODB_TASK_ERROR: 'nocodb:task-error',
     TASK_TAB_CHANGED: 'task:tab-changed',
 
+    // NocoDB Issue (課題) 関連
+    NOCODB_ISSUES_LOADED: 'nocodb:issues-loaded',
+    NOCODB_ISSUE_CREATED: 'nocodb:issue-created',
+    NOCODB_ISSUE_UPDATED: 'nocodb:issue-updated',
+    NOCODB_ISSUE_ERROR: 'nocodb:issue-error',
+
+    // Portal関連
+    PORTAL_DATA_LOADED: 'portal:data-loaded',
+    PORTAL_DATA_ERROR: 'portal:data-error',
+
     // Commit Tree関連
     COMMIT_LOG_LOADED: 'commit-tree:loaded',
     COMMIT_TREE_PANEL_TOGGLED: 'commit-tree:panel-toggled',

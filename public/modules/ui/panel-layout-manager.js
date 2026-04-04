@@ -75,6 +75,7 @@ export function setupPanelLayout({ store, eventBus }) {
     // Backward compat aliases
     const toggleWiki = () => toggleInfoDrawer('wiki');
     const toggleLiveFeed = () => toggleInfoDrawer('live-feed');
+    const togglePortal = () => toggleInfoDrawer('portal');
 
     // --- Apply DOM state ---
 
@@ -172,6 +173,10 @@ export function setupPanelLayout({ store, eventBus }) {
                     e.preventDefault();
                     toggleDashboard();
                     break;
+                case 'P':
+                    e.preventDefault();
+                    toggleInfoDrawer('portal');
+                    break;
             }
         }
     };
@@ -194,7 +199,7 @@ export function setupPanelLayout({ store, eventBus }) {
         unsubCommitTreeReq();
     };
 
-    return { cleanup, toggleInfoDrawer, toggleWiki, toggleLiveFeed, toggleContextSidebar, toggleDashboard, closeAllPanels };
+    return { cleanup, toggleInfoDrawer, toggleWiki, toggleLiveFeed, togglePortal, toggleContextSidebar, toggleDashboard, closeAllPanels };
 }
 
 // --- Persistence helpers ---
