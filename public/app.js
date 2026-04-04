@@ -1749,10 +1749,14 @@ export class App {
         }
 
         // mana Chat Widget (floating, no container needed)
-        this.views.manaChatView = new ManaChatView({
-            manaChatService: this.manaChatService
-        });
-        this.views.manaChatView.mount();
+        try {
+            this.views.manaChatView = new ManaChatView({
+                manaChatService: this.manaChatService
+            });
+            this.views.manaChatView.mount();
+        } catch (err) {
+            console.error('[mana] Failed to mount chat widget:', err);
+        }
     }
 
     /**
