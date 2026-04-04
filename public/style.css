@@ -1352,11 +1352,6 @@ body::after {
     animation: pulse 2s infinite;
 }
 
-.session-activity-indicator.waiting {
-    background-color: var(--warning-color);
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
-}
-
 .session-activity-indicator.done {
     background-color: var(--success-color);
     box-shadow: 0 0 4px var(--success-color);

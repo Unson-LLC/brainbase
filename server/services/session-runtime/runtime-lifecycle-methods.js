@@ -17,6 +17,10 @@ export const runtimeLifecycleMethods = {
             return { startedExisting: true };
         }
 
+        if (cwd && (cwd === '/tmp' || cwd.startsWith('/tmp/') || cwd === '/private/tmp' || cwd.startsWith('/private/tmp/'))) {
+            logger.warn(`[runtime] Rejecting ephemeral cwd: ${cwd}`);
+            cwd = null;
+        }
         if (cwd && !fs.existsSync(cwd)) {
             throw new Error(`Working directory does not exist: ${cwd}`);
         }

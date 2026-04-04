@@ -53,7 +53,7 @@ export function createBrainbaseRouter(options = {}) {
     }));
 
     // ==================== mana Capture + Chat API (P0) ====================
-    router.use(createManaCaptureRouter({ nocodbService }));
+    router.use('/mana', createManaCaptureRouter({ nocodbService }));
 
     // ==================== Actions API (Story 3) ====================
     const actionController = new BrainbaseActionController(nocodbService);

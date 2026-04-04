@@ -33,6 +33,7 @@ function readTerminalAppearance(hostEl) {
         return {
             fontFamily: 'Menlo, Monaco, monospace',
             fontSize: 14,
+            lineHeight: 1.35,
             theme: { ...DEFAULT_TERMINAL_THEME }
         };
     }
@@ -44,10 +45,12 @@ function readTerminalAppearance(hostEl) {
         return value || fallback;
     };
     const parsedFontSize = Number.parseFloat(readValue('--terminal-font-size', '14px'));
+    const parsedLineHeight = Number.parseFloat(readValue('--terminal-line-height', '1.35'));
 
     return {
         fontFamily: readValue('--terminal-font-family', styles.fontFamily || 'Menlo, Monaco, monospace'),
         fontSize: Number.isFinite(parsedFontSize) ? parsedFontSize : 14,
+        lineHeight: Number.isFinite(parsedLineHeight) ? parsedLineHeight : 1.35,
         theme: {
             background: readValue('--terminal-bg', DEFAULT_TERMINAL_THEME.background),
             foreground: readValue('--terminal-fg', DEFAULT_TERMINAL_THEME.foreground),
@@ -111,6 +114,7 @@ export class TerminalTransportClient {
         this.terminal = new Terminal({
             fontFamily: appearance.fontFamily,
             fontSize: appearance.fontSize,
+            lineHeight: appearance.lineHeight,
             scrollback: 1000,
             convertEol: true,
             allowTransparency: false,

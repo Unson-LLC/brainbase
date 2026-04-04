@@ -55,7 +55,7 @@ if [ -d "$L2_CLAUDE" ]; then
 
   # scripts/
   if [ -d "$L2_CLAUDE/scripts" ]; then
-    cp -r "$L2_CLAUDE/scripts" .claude/scripts/ 2>/dev/null || true
+    cp -r "$L2_CLAUDE/scripts"/* .claude/scripts/ 2>/dev/null || true
   fi
 
   # settings.json
@@ -93,7 +93,7 @@ if [ -d "$L3_CLAUDE" ]; then
 
   # scripts/
   if [ -d "$L3_CLAUDE/scripts" ]; then
-    cp -r "$L3_CLAUDE/scripts" .claude/scripts/ 2>/dev/null || true
+    cp -r "$L3_CLAUDE/scripts"/* .claude/scripts/ 2>/dev/null || true
   fi
 
   # settings.json

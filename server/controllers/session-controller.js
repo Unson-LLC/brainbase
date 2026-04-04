@@ -1063,9 +1063,11 @@ export class SessionController {
                 ? await this.sessionManager.resolveSessionWorkspacePath(targetSession, { persist: true, preferTmux: true })
                 : null;
 
-            if (typeof resolvedCwd === 'string' && resolvedCwd.trim()) {
+            const isEphemeral = (p) => typeof p === 'string'
+                && (p === '/tmp' || p.startsWith('/tmp/') || p === '/private/tmp' || p.startsWith('/private/tmp/'));
+            if (typeof resolvedCwd === 'string' && resolvedCwd.trim() && !isEphemeral(resolvedCwd)) {
                 startOptions.cwd = resolvedCwd;
-            } else if (typeof cwd === 'string' && cwd.trim()) {
+            } else if (typeof cwd === 'string' && cwd.trim() && !isEphemeral(cwd)) {
                 startOptions.cwd = cwd;
             }
             if (typeof initialCommand === 'string') {

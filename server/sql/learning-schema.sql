@@ -15,6 +15,15 @@ CREATE TABLE IF NOT EXISTS learning_episodes (
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
+UPDATE learning_episodes
+SET source_type = CASE
+    WHEN source_type IN ('claude_session_log', 'claude_log', 'codex_log', 'codex_cli_log') THEN 'codex_session_log'
+    WHEN source_type IN ('session', 'session-event', 'local_session_log') THEN 'session_log'
+    WHEN source_type IN ('explicit', 'explicit-learn', 'manual') THEN 'explicit_learn'
+    ELSE source_type
+END
+WHERE source_type NOT IN ('review', 'explicit_learn', 'session_log', 'codex_session_log');
+
 ALTER TABLE learning_episodes
     DROP CONSTRAINT IF EXISTS learning_episodes_source_type_check;
 
@@ -24,6 +33,15 @@ ALTER TABLE learning_episodes
 
 ALTER TABLE learning_episodes
     ADD COLUMN IF NOT EXISTS promotion_hint text NOT NULL DEFAULT 'auto';
+
+UPDATE learning_episodes
+SET promotion_hint = CASE
+    WHEN promotion_hint IN ('rule', 'wiki-only') THEN 'wiki'
+    WHEN promotion_hint IN ('skill-only', 'procedure') THEN 'skill'
+    WHEN promotion_hint IN ('dual', 'wiki+skill') THEN 'both'
+    ELSE 'auto'
+END
+WHERE promotion_hint NOT IN ('auto', 'wiki', 'skill', 'both');
 
 ALTER TABLE learning_episodes
     DROP CONSTRAINT IF EXISTS learning_episodes_promotion_hint_check;
@@ -74,6 +92,11 @@ CREATE TABLE IF NOT EXISTS promotion_candidates (
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
+
+UPDATE promotion_candidates
+SET status = 'rejected',
+    apply_error = COALESCE(NULLIF(apply_error, ''), 'legacy_filtered_status')
+WHERE status = 'filtered';
 
 ALTER TABLE promotion_candidates
     DROP CONSTRAINT IF EXISTS promotion_candidates_pillar_check;

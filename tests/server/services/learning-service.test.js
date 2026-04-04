@@ -129,6 +129,16 @@ describe('LearningService', () => {
         expect(codexResult.source_type).toBe('codex_session_log');
     });
 
+    it('ensureSchema includes legacy learning data normalization before constraints', async () => {
+        await service.ensureSchema();
+
+        const schemaSql = pool.query.mock.calls[0]?.[0] || '';
+        expect(schemaSql).toContain("WHERE status = 'filtered'");
+        expect(schemaSql).toContain("SET status = 'rejected'");
+        expect(schemaSql).toContain("claude_session_log");
+        expect(schemaSql).toContain("promotion_hint IN ('rule', 'wiki-only')");
+    });
+
     it('proposePromotions defaults to manual candidates', async () => {
         selectQueue.push([
             {
