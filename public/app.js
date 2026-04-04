@@ -113,6 +113,7 @@ export class App {
         this._terminalLastNavigateAt = 0;
         this._terminalSnapshotCache = new Map();
         this._terminalSnapshotRequestKeys = new Map();
+        this._terminalSnapshotRequests = new Map();
         this._snapshotPrefetchInFlight = new Set();
         this._snapshotPrefetchScheduled = false;
         this._mobileSnapshotPollTimer = null;

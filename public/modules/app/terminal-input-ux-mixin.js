@@ -339,26 +339,46 @@ export function applyTerminalInputUxMixin(AppClass) {
             return cached;
         }
 
-        const requestKey = `${sessionId}:${mode}:${force ? 'force' : 'cached'}:${Date.now()}`;
-        this._terminalSnapshotRequestKeys.set(sessionId, requestKey);
-        const res = await httpClient.get(
-            `/api/sessions/${encodeURIComponent(sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&mode=${encodeURIComponent(mode)}`
-        );
-
-        if (this._terminalSnapshotRequestKeys.get(sessionId) !== requestKey) {
-            return this._terminalSnapshotCache.get(sessionId) || null;
+        const inFlight = this._terminalSnapshotRequests.get(sessionId) || null;
+        if (inFlight) {
+            const inFlightSatisfiesMode = mode === 'fast'
+                ? true
+                : inFlight.mode === 'full';
+            if (inFlightSatisfiesMode) {
+                return inFlight.promise;
+            }
         }
 
-        const snapshot = {
-            text: typeof res?.text === 'string' ? res.text : '',
-            colorText: typeof res?.colorText === 'string' ? res.colorText : null,
-            capturedAt: res?.capturedAt || null,
-            mode: res?.mode === 'fast' ? 'fast' : 'full',
-            source: typeof res?.source === 'string' ? res.source : 'capture',
-            stale: Boolean(res?.stale)
-        };
-        this._cacheTerminalSnapshot(sessionId, snapshot);
-        return snapshot;
+        const requestKey = `${sessionId}:${mode}:${force ? 'force' : 'cached'}:${Date.now()}`;
+        this._terminalSnapshotRequestKeys.set(sessionId, requestKey);
+        const requestPromise = (async () => {
+            const res = await httpClient.get(
+                `/api/sessions/${encodeURIComponent(sessionId)}/terminal/snapshot?viewerId=${encodeURIComponent(this.viewerId)}&viewerLabel=${encodeURIComponent(this.viewerLabel)}&mode=${encodeURIComponent(mode)}`
+            );
+
+            if (this._terminalSnapshotRequestKeys.get(sessionId) !== requestKey) {
+                return this._terminalSnapshotCache.get(sessionId) || null;
+            }
+
+            const snapshot = {
+                text: typeof res?.text === 'string' ? res.text : '',
+                colorText: typeof res?.colorText === 'string' ? res.colorText : null,
+                capturedAt: res?.capturedAt || null,
+                mode: res?.mode === 'fast' ? 'fast' : 'full',
+                source: typeof res?.source === 'string' ? res.source : 'capture',
+                stale: Boolean(res?.stale)
+            };
+            this._cacheTerminalSnapshot(sessionId, snapshot);
+            return snapshot;
+        })();
+        this._terminalSnapshotRequests.set(sessionId, { mode, promise: requestPromise });
+        try {
+            return await requestPromise;
+        } finally {
+            if (this._terminalSnapshotRequests.get(sessionId)?.promise === requestPromise) {
+                this._terminalSnapshotRequests.delete(sessionId);
+            }
+        }
     };
 
     AppClass.prototype._cacheTerminalSnapshot = function(sessionId, snapshot) {
