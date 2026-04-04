@@ -756,7 +756,9 @@ app.use('/api/brainbase', createBrainbaseRouter({
     taskParser,
     worktreeService,
     configParser,
-    projectsRoot: PROJECTS_ROOT
+    projectsRoot: PROJECTS_ROOT,
+    infoSSOTService,
+    wikiService
 }));
 app.use('/api/nocodb', createNocoDBRouter(configParser));
 app.use('/api/health', createHealthRouter({ readiness: sessionServices.runtime.registry, configParser }));

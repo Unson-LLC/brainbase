@@ -314,6 +314,175 @@ export class NocoDBController {
         }
     };
 
+    // ==================== 課題 (Issues) ====================
+
+    /**
+     * GET /api/nocodb/issues
+     * 全プロジェクトから課題を取得
+     */
+    /** @param {Request} req @param {Response} res */
+    listIssues = async (req, res) => {
+        try {
+            this._ensureConfigured();
+
+            const mappings = await this.configParser.getNocoDBMappings();
+            if (!mappings || mappings.length === 0) {
+                return res.json({ records: [], projects: [] });
+            }
+
+            const baseIdToMappings = new Map();
+            for (const mapping of mappings) {
+                const baseId = mapping.base_id;
+                if (!baseIdToMappings.has(baseId)) {
+                    baseIdToMappings.set(baseId, []);
+                }
+                baseIdToMappings.get(baseId).push(mapping);
+            }
+
+            const allIssues = [];
+            const projectInfo = [];
+
+            for (const [baseId, baseMappings] of baseIdToMappings) {
+                const primaryMapping = baseMappings[0];
+                try {
+                    const issueTable = await this._findTable(primaryMapping.base_id, '課題');
+                    if (!issueTable) continue;
+
+                    const idFieldName = await this._resolveTableIdField(issueTable.id);
+                    const recordsResponse = await fetch(
+                        `${this.nocodbUrl}/api/v2/tables/${issueTable.id}/records?limit=100`,
+                        { headers: this._headers }
+                    );
+                    if (!recordsResponse.ok) continue;
+
+                    const recordsData = await recordsResponse.json();
+                    const issues = (recordsData.list || []).map((record, index) => {
+                        const recordId = this._selectRecordId(record, index, idFieldName);
+                        return {
+                            id: String(recordId),
+                            fields: this._extractFields(record),
+                            createdTime: record.CreatedAt || record.created_at || new Date().toISOString(),
+                            baseId: primaryMapping.base_id,
+                            tableId: issueTable.id
+                        };
+                    });
+
+                    issues.forEach(issue => {
+                        issue.project = primaryMapping.project_id;
+                        issue.projectName = primaryMapping.base_name || primaryMapping.project_id;
+                    });
+
+                    allIssues.push(...issues);
+
+                    for (const mapping of baseMappings) {
+                        projectInfo.push({
+                            id: mapping.project_id,
+                            name: mapping.base_name || mapping.project_id,
+                            baseId: mapping.base_id
+                        });
+                    }
+                } catch (projectError) {
+                    logger.warn('Failed to fetch issues from base', {
+                        baseId,
+                        error: getErrorMessage(projectError)
+                    });
+                }
+            }
+
+            res.json({ records: allIssues, projects: projectInfo });
+        } catch (error) {
+            logger.error('Failed to fetch NocoDB issues', { error });
+            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to fetch issues' });
+        }
+    };
+
+    /**
+     * POST /api/nocodb/issues
+     * 課題を作成
+     */
+    /** @param {Request} req @param {Response} res */
+    createIssue = async (req, res) => {
+        try {
+            const { projectId, baseId, title, type, impact, reporter, assignee, description } = req.body;
+
+            if (!title || typeof title !== 'string' || title.trim() === '') {
+                return res.status(400).json({ error: 'Title is required' });
+            }
+
+            this._ensureConfigured();
+
+            const mappings = await this.configParser.getNocoDBMappings();
+            let mapping = null;
+            if (projectId) mapping = mappings.find(m => m.project_id === projectId);
+            if (!mapping && baseId) mapping = mappings.find(m => m.base_id === baseId);
+            if (!mapping) return res.status(404).json({ error: 'Unknown project or baseId' });
+
+            const issueTable = await this._findTable(mapping.base_id, '課題');
+            if (!issueTable) return res.status(404).json({ error: 'Issues table not found' });
+
+            const fields = {
+                'タイトル': title.trim(),
+                '種別': type || '運用的',
+                'ステータス': assignee ? 'assigned' : 'open',
+                '影響度': impact || 'medium',
+                '起票者': reporter || '',
+                '担当者': assignee || '',
+                '説明': typeof description === 'string' ? description : ''
+            };
+
+            const response = await this._createRecord(issueTable.id, fields);
+            if (!response.ok) {
+                const errorText = await response.text();
+                logger.error('NocoDB issue create failed', { status: response.status, error: errorText });
+                return res.status(response.status).json({ error: 'NocoDB issue create failed', details: errorText });
+            }
+
+            const result = await response.json();
+            res.status(201).json({ success: true, record: result });
+        } catch (error) {
+            logger.error('Failed to create NocoDB issue', { error });
+            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to create issue' });
+        }
+    };
+
+    /**
+     * PUT /api/nocodb/issues/:id
+     * 課題を更新
+     */
+    /** @param {Request} req @param {Response} res */
+    updateIssue = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { baseId, fields } = req.body;
+
+            if (!id || typeof id !== 'string') return res.status(400).json({ error: 'Invalid issue ID' });
+            if (!baseId || !fields) return res.status(400).json({ error: 'Missing baseId or fields' });
+
+            this._ensureConfigured();
+            const { taskTable: issueTable, idFieldName } = await this._resolveTable(baseId, '課題');
+
+            const recordIdValue = this._normalizeRecordId(id);
+            let response = await this._patchRecord(issueTable.id, idFieldName, recordIdValue, fields);
+
+            const fallbackIdFields = this._getFallbackIdFields(idFieldName, recordIdValue);
+            for (const fallbackField of fallbackIdFields) {
+                if (response.ok || response.status !== 404) break;
+                response = await this._patchRecord(issueTable.id, fallbackField, recordIdValue, fields);
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                return res.status(response.status).json({ error: 'NocoDB issue update failed', details: errorText });
+            }
+
+            const result = await response.json();
+            res.json({ success: true, record: result });
+        } catch (error) {
+            logger.error('Failed to update NocoDB issue', { error, issueId: req.params.id });
+            res.status((/** @type {any} */ (error)).statusCode || 500).json({ error: getErrorMessage(error) || 'Failed to update issue' });
+        }
+    };
+
     /**
      * 環境変数チェック。未設定ならAppErrorを投げる
      */
@@ -328,9 +497,10 @@ export class NocoDBController {
     /**
      * マッピングからテーブルとIDフィールドを解決する共通処理
      * @param {string} baseId
-     * @returns {Promise<{taskTable: Object, idFieldName: string}>}
+     * @param {string} [tableName='タスク'] - テーブル名
+     * @returns {Promise<{taskTable: Object, idFieldName: string, mapping: Object}>}
      */
-    async _resolveTable(baseId) {
+    async _resolveTable(baseId, tableName = 'タスク') {
         const mappings = await this.configParser.getNocoDBMappings();
         const mapping = mappings.find(m => m.base_id === baseId);
         if (!mapping) {
@@ -338,9 +508,9 @@ export class NocoDBController {
             error.statusCode = 404;
             throw error;
         }
-        const taskTable = await this._findTaskTable(mapping.base_id);
+        const taskTable = await this._findTable(mapping.base_id, tableName);
         if (!taskTable) {
-            const error = new Error('Task table not found');
+            const error = new Error(`${tableName} table not found`);
             error.statusCode = 404;
             throw error;
         }
@@ -356,18 +526,28 @@ export class NocoDBController {
     }
 
     /**
-     * タスクテーブルを検索（テーブル一覧からタイトル'タスク'のテーブルを返す）
+     * 指定テーブルを検索（テーブル一覧から該当タイトルのテーブルを返す）
      * @param {string} baseId - NocoDB base ID
+     * @param {string} tableName - テーブル名（例: 'タスク', '課題'）
      * @returns {Promise<Object|null>} テーブルオブジェクトまたはnull
      */
-    async _findTaskTable(baseId) {
+    async _findTable(baseId, tableName) {
         const resp = await fetch(
             `${this.nocodbUrl}/api/v2/meta/bases/${baseId}/tables`,
             { headers: this._headers }
         );
         if (!resp.ok) throw new Error(`Failed to fetch tables: ${resp.status}`);
         const data = await resp.json();
-        return data.list?.find(t => t.title === 'タスク') || null;
+        return data.list?.find(t => t.title === tableName) || null;
+    }
+
+    /**
+     * タスクテーブルを検索（後方互換）
+     * @param {string} baseId - NocoDB base ID
+     * @returns {Promise<Object|null>}
+     */
+    async _findTaskTable(baseId) {
+        return this._findTable(baseId, 'タスク');
     }
 
     /**

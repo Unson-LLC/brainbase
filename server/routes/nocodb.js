@@ -21,5 +21,15 @@ export function createNocoDBRouter(configParser) {
     // DELETE /api/nocodb/tasks/:id - タスク削除
     router.delete('/tasks/:id', controller.delete);
 
+    // ==================== 課題 (Issues) ====================
+    // GET /api/nocodb/issues - 全プロジェクトの課題取得
+    router.get('/issues', controller.listIssues);
+
+    // POST /api/nocodb/issues - 課題作成
+    router.post('/issues', controller.createIssue);
+
+    // PUT /api/nocodb/issues/:id - 課題更新
+    router.put('/issues/:id', controller.updateIssue);
+
     return router;
 }

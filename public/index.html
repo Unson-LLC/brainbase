@@ -178,6 +178,9 @@
                 <button class="mobile-tab" id="mobile-tab-feed" data-tab="feed" role="tab" aria-selected="false" aria-controls="mobile-tab-content-feed">
                     <i data-lucide="radio"></i><span>Feed</span>
                 </button>
+                <button class="mobile-tab" id="mobile-tab-portal" data-tab="portal" role="tab" aria-selected="false" aria-controls="mobile-tab-content-portal">
+                    <i data-lucide="compass"></i><span>Portal</span>
+                </button>
             </div>
 
             <div class="console-area" id="console-area">
@@ -283,6 +286,7 @@
             <div id="mobile-tab-content-wiki" class="mobile-tab-content" data-tab="wiki" role="tabpanel" aria-labelledby="mobile-tab-wiki"></div>
             <div id="mobile-tab-content-tasks" class="mobile-tab-content" data-tab="tasks" role="tabpanel" aria-labelledby="mobile-tab-tasks"></div>
             <div id="mobile-tab-content-feed" class="mobile-tab-content" data-tab="feed" role="tabpanel" aria-labelledby="mobile-tab-feed"></div>
+            <div id="mobile-tab-content-portal" class="mobile-tab-content" data-tab="portal" role="tabpanel" aria-labelledby="mobile-tab-portal"></div>
 
         </main>
 
@@ -301,6 +305,9 @@
                     </button>
                     <button class="info-drawer-tab" data-tab="live-feed">
                         <i data-lucide="radio"></i> Live Feed
+                    </button>
+                    <button class="info-drawer-tab" data-tab="portal">
+                        <i data-lucide="compass"></i> Portal
                     </button>
                 </div>
                 <button id="info-drawer-close" class="icon-btn" title="閉じる" aria-label="Infoドロワーを閉じる">
@@ -452,6 +459,8 @@
                 <div id="wiki-panel" class="info-tab-content active" data-tab="wiki"></div>
                 <!-- Live Feed Tab -->
                 <div id="live-feed-panel" class="info-tab-content" data-tab="live-feed"></div>
+                <!-- Portal Tab -->
+                <div id="portal-panel" class="info-tab-content" data-tab="portal"></div>
             </div>
         </aside>
 

@@ -9,6 +9,7 @@ import { createBrainbaseManaRouter } from './brainbase/mana-routes.js';
 import { createBrainbaseOverviewRouter } from './brainbase/overview-routes.js';
 import { createBrainbaseTrendsRouter } from './brainbase/trends-routes.js';
 import { createManaCaptureRouter } from './brainbase/mana-capture-routes.js';
+import { createBrainbasePortalRouter } from './brainbase/portal-routes.js';
 
 // Re-export for backward compatibility
 export { ACTION_TYPES, ACTION_STATUS };
@@ -27,7 +28,9 @@ export function createBrainbaseRouter(options = {}) {
         taskParser,
         worktreeService,
         configParser,
-        projectsRoot
+        projectsRoot,
+        infoSSOTService,
+        wikiService
     } = options;
     const resolvedProjectsRoot = projectsRoot || process.env.PROJECTS_ROOT || null;
     const manaRepoPath = process.env.MANA_REPO_PATH
@@ -50,6 +53,14 @@ export function createBrainbaseRouter(options = {}) {
     router.use(createBrainbaseTrendsRouter({
         nocodbService,
         configParser
+    }));
+
+    // ==================== Portal API ====================
+    router.use(createBrainbasePortalRouter({
+        nocodbService,
+        configParser,
+        infoSSOTService,
+        wikiService
     }));
 
     // ==================== mana Capture + Chat API (P0) ====================
