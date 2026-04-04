@@ -162,6 +162,46 @@ async function buildRuntimeInfo({ repoDir, port, defaultPort }) {
         startedAt: new Date().toISOString()
     };
 }
+
+function registerRuntimeRevisionGuard({
+    repoDir,
+    startupGit,
+    port,
+    testMode,
+    log = console
+}) {
+    const startupSha = startupGit?.sha || null;
+    const startupBranch = startupGit?.branch || null;
+    const isCanonicalPort = String(port) === '31013';
+
+    if (testMode || !isCanonicalPort || !startupSha) {
+        return;
+    }
+
+    const intervalMs = 5000;
+    const timer = setInterval(async () => {
+        try {
+            const currentGit = await resolveGitInfo(repoDir);
+            if (!currentGit?.sha) return;
+
+            const branchChanged = Boolean(startupBranch && currentGit.branch && currentGit.branch !== startupBranch);
+            const shaChanged = currentGit.sha !== startupSha;
+            if (!branchChanged && !shaChanged) return;
+
+            log.warn('[BRAINBASE] Stale 31013 server detected; exiting for restart.', {
+                startupSha,
+                currentSha: currentGit.sha,
+                startupBranch,
+                currentBranch: currentGit.branch
+            });
+            process.exit(0);
+        } catch (error) {
+            log.warn('[BRAINBASE] Runtime revision guard failed:', error?.message || String(error));
+        }
+    }, intervalMs);
+
+    timer.unref?.();
+}
 const DEFAULT_PORT = isWorktree ? 31014 : 31013;
 const VAR_DIR = RUNTIME_PATHS.varDir;
 const UPLOADS_DIR = RUNTIME_PATHS.uploadsDir;
@@ -189,6 +229,13 @@ const RUNTIME_INFO = await buildRuntimeInfo({
     repoDir: __dirname,
     port: PORT,
     defaultPort: DEFAULT_PORT
+});
+registerRuntimeRevisionGuard({
+    repoDir: __dirname,
+    startupGit: RUNTIME_INFO.git,
+    port: PORT,
+    testMode: TEST_MODE,
+    log: console
 });
 const PORT_FILE_FALLBACK = path.join(VAR_DIR, '.brainbase-port');
 const HOME_PORT_FILE = process.env.HOME

@@ -369,14 +369,6 @@ export class TerminalReconnectManager {
             if (typeof sessionCwd === 'string' && sessionCwd.trim()) {
                 payload.cwd = sessionCwd;
             }
-            if (runtimeStatus?.recoveryState === 'recoverable') {
-                // Auto reconnect must never destroy/rebuild the runtime. A recover call can
-                // tear down tmux and stop the background AI turn. Require an explicit user
-                // recovery action instead of doing it from a transient disconnect path.
-                this.isReconnecting = false;
-                showInfo('このセッションは明示的な復旧が必要です。自動再接続では runtime を作り直しません。');
-                return;
-            }
             if (typeof targetSession?.initialCommand === 'string') {
                 payload.initialCommand = targetSession.initialCommand;
             }

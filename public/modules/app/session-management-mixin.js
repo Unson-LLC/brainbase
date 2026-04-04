@@ -79,7 +79,7 @@ export function applySessionManagementMixin(AppClass) {
                 this._clearTerminalFrame(frameEl);
                 return {
                     ok: false,
-                    reason: runtimeStatus?.recoveryState ? 'recovery-required' : 'no-proxy-path',
+                    reason: 'no-proxy-path',
                     runtimeStatus
                 };
             }

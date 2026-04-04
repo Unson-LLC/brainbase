@@ -14,6 +14,7 @@ NC='\033[0m' # No Color
 
 EFFECTIVE_PORT="${PORT:-31013}"
 IS_TEST_MODE="${BRAINBASE_TEST_MODE:-false}"
+CURRENT_BRANCH="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
 
 # .gitがファイルかディレクトリかをチェック
 if [ -f "$PROJECT_ROOT/.git" ]; then
@@ -47,6 +48,20 @@ if [ -f "$PROJECT_ROOT/.git" ]; then
         echo -e "${GREEN}現在のポート: ${EFFECTIVE_PORT}${NC}"
         echo ""
     fi
+fi
+
+if [ "$IS_TEST_MODE" != "true" ] && [ "$EFFECTIVE_PORT" = "31013" ] && [ "$CURRENT_BRANCH" != "develop" ]; then
+    echo ""
+    echo -e "${RED}❌ ポート31013は develop ブランチ専用です${NC}"
+    echo ""
+    echo "現在のブランチ: ${CURRENT_BRANCH:-unknown}"
+    echo ""
+    echo "使える起動方法:"
+    echo -e "  - ${GREEN}jj bookmark set develop && npm start${NC}"
+    echo -e "  - ${GREEN}PORT=31014 npm run dev${NC}"
+    echo -e "  - ${GREEN}PORT=31014 npm start${NC}"
+    echo ""
+    exit 1
 fi
 
 # 正本・worktree両方で正常終了

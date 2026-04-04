@@ -103,11 +103,6 @@ export class App {
         this.terminalOpenFallbackBtn = null;
         this.terminalMoreBtn = null;
         this.terminalMoreActionsEl = null;
-        this.terminalRecoveryPanelEl = null;
-        this.terminalRecoveryBadgeEl = null;
-        this.terminalRecoveryTitleEl = null;
-        this.terminalRecoveryMessageEl = null;
-        this.terminalRecoverBtn = null;
         this.mobileLiveTerminalModalEl = null;
         this.mobileLiveTerminalFrameEl = null;
         this._terminalInputUxCleanup = [];

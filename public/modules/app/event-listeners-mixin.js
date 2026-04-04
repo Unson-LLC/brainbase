@@ -7,7 +7,6 @@ import { recordRecentFileOpen } from '../session-ui-state.js';
 
 export function applyEventListenersMixin(AppClass) {
     AppClass.prototype.setupEventListeners = async function() {
-        // Terminal recovery actions depend on cached UI element references.
         this._cacheTerminalUiElements?.();
 
         // Terminal copy modal
@@ -51,30 +50,6 @@ export function applyEventListenersMixin(AppClass) {
                 } catch (error) {
                     console.error('Failed to copy:', error);
                     alert('コピーに失敗しました');
-                }
-            };
-        }
-
-        if (this.terminalRecoverBtn) {
-            this.terminalRecoverBtn.onclick = async () => {
-                const sessionId = this.terminalRecoverBtn?.dataset?.sessionId || appStore.getState().currentSessionId;
-                if (!sessionId) return;
-                const session = this._getSessionById(sessionId);
-                if (!session) return;
-
-                try {
-                    const res = await this._recoverSessionRuntime(session);
-                    const updatedSessions = (appStore.getState().sessions || []).map((item) => (
-                        item.id === sessionId
-                            ? { ...item, runtimeStatus: res?.runtimeStatus || item.runtimeStatus, recoveryState: 'healthy', recoveryReason: null }
-                            : item
-                    ));
-                    appStore.setState({ sessions: updatedSessions });
-                    this._hideTerminalRecoveryPanel();
-                    await this.switchSession(sessionId);
-                } catch (error) {
-                    console.error('Failed to recover session:', error);
-                    showError(error?.message || 'セッションの復旧に失敗しました');
                 }
             };
         }

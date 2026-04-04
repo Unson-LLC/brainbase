@@ -448,7 +448,7 @@ describe('app switchSession runtime handling', () => {
     expect(result.ok).toBe(false);
     expect(appStore.getState().currentSessionId).toBe('session-previous');
     expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
-    expect(document.getElementById('terminal-recovery-panel').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('terminal-recovery-panel')).toBeNull();
   });
 
   it('desktop xterm切替ではlate snapshot repaint自体を発生させない', async () => {
@@ -1014,7 +1014,7 @@ describe('app switchSession runtime handling', () => {
     expect(httpClient.post).not.toHaveBeenCalled();
   });
 
-  it('reconnect recoverable runtimeではauto recoverせずbackground AIを止めない', async () => {
+  it('reconnect recoverable runtimeでも通常startでruntimeを立て直す', async () => {
     await app.start();
     app.focusTerminal = vi.fn();
     vi.clearAllMocks();
@@ -1053,7 +1053,12 @@ describe('app switchSession runtime handling', () => {
     await app.reconnectManager.reconnect();
 
     expect(httpClient.get.mock.calls[0][0]).toContain('/api/sessions/session-1/runtime?viewerId=viewer-test');
-    expect(httpClient.post).not.toHaveBeenCalled();
+    expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/start', expect.objectContaining({
+      sessionId: 'session-1',
+      cwd: '/tmp/session-1',
+      engine: 'claude',
+      viewerId: 'viewer-test'
+    }));
     expect(app.reconnectManager.isReconnecting).toBe(false);
   });
 

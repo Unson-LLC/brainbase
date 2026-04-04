@@ -110,17 +110,6 @@ export function applyTerminalInputUxMixin(AppClass) {
         return payload;
     };
 
-    AppClass.prototype._recoverSessionRuntime = async function(session) {
-        if (!session?.id) return null;
-        return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/recover`, {
-            viewerId: this.viewerId,
-            viewerLabel: this.viewerLabel,
-            engine: session.engine || 'claude',
-            initialCommand: session.initialCommand || '',
-            cwd: session.path
-        });
-    };
-
     AppClass.prototype.releaseTerminalOwnership = async function(sessionId) {
         if (!sessionId) return;
         try {
@@ -178,32 +167,13 @@ export function applyTerminalInputUxMixin(AppClass) {
 
     AppClass.prototype._ensureDesktopTerminalRuntime = async function(session, runtimeStatus = null) {
         if (!session?.id) return null;
-        const currentRuntimeStatus = runtimeStatus || session.runtimeStatus || null;
-        if (currentRuntimeStatus?.recoveryState === 'broken') {
-            const error = new Error('Session is broken and cannot be recovered automatically.');
-            error.code = 'SESSION_BROKEN';
-            error.recoveryState = 'broken';
-            error.recoveryReason = currentRuntimeStatus?.recoveryReason || null;
-            throw error;
-        }
-        if (currentRuntimeStatus?.recoveryState === 'recoverable') {
-            await this._recoverSessionRuntime(session);
-        }
         const ensurePayload = {
             initialCommand: session.initialCommand || '',
             cwd: session.path,
             engine: session.engine || 'claude',
             viewerId: this.viewerId
         };
-        try {
-            return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, ensurePayload);
-        } catch (error) {
-            if (error?.recoveryState !== 'recoverable') {
-                throw error;
-            }
-            await this._recoverSessionRuntime(session);
-            return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, ensurePayload);
-        }
+        return await httpClient.post(`/api/sessions/${encodeURIComponent(session.id)}/terminal/ensure`, ensurePayload);
     };
 
     AppClass.prototype._preferXtermForCurrentSession = async function() {
@@ -911,72 +881,8 @@ export function applyTerminalInputUxMixin(AppClass) {
         this.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
         this.terminalMoreBtn = document.getElementById('terminal-more-btn');
         this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
-        this.terminalRecoveryPanelEl = document.getElementById('terminal-recovery-panel');
-        this.terminalRecoveryBadgeEl = document.getElementById('terminal-recovery-badge');
-        this.terminalRecoveryTitleEl = document.getElementById('terminal-recovery-title');
-        this.terminalRecoveryMessageEl = document.getElementById('terminal-recovery-message');
-        this.terminalRecoverBtn = document.getElementById('terminal-recover-btn');
         this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
         this.mobileLiveTerminalFrameEl = document.getElementById('mobile-live-terminal-frame');
-    };
-
-    AppClass.prototype._formatRecoveryMessage = function(session, runtimeStatus) {
-        const recoveryState = runtimeStatus?.recoveryState || session?.recoveryState || null;
-        const recoveryReason = runtimeStatus?.recoveryReason || session?.recoveryReason || null;
-        const engine = session?.engine === 'codex' ? 'Codex' : 'Claude';
-
-        if (recoveryState === 'broken') {
-            if (recoveryReason === 'binding_missing') {
-                return `${engine} の会話 binding が見つからないため、このセッションは新規起動させず停止しています。`;
-            }
-            if (recoveryReason === 'cwd_missing') {
-                return '会話 binding はありますが、復旧先の workspace が見つからないため停止しています。';
-            }
-            return 'このセッションは復旧に必要な情報が不足しています。';
-        }
-
-        return 'tmux runtime が消えています。新規起動すると履歴が別セッションに化けるため、自動再生成は止めています。';
-    };
-
-    AppClass.prototype._showTerminalRecoveryPanel = function(session, runtimeStatus, { preserveSnapshot = false } = {}) {
-        this._cacheTerminalUiElements();
-        const panel = this.terminalRecoveryPanelEl;
-        if (!panel) return;
-
-        const recoveryState = runtimeStatus?.recoveryState || session?.recoveryState || 'recoverable';
-        const canRecover = Boolean(runtimeStatus?.canRecover);
-        if (this.terminalRecoveryBadgeEl) {
-            this.terminalRecoveryBadgeEl.textContent = recoveryState === 'broken' ? '復旧不可' : '要復旧';
-            this.terminalRecoveryBadgeEl.classList.toggle('broken', recoveryState === 'broken');
-        }
-        if (this.terminalRecoveryTitleEl) {
-            this.terminalRecoveryTitleEl.textContent = recoveryState === 'broken'
-                ? 'このセッションは自動再起動されません'
-                : 'このセッションは明示復旧が必要です';
-        }
-        if (this.terminalRecoveryMessageEl) {
-            this.terminalRecoveryMessageEl.textContent = this._formatRecoveryMessage(session, runtimeStatus);
-        }
-        if (this.terminalRecoverBtn) {
-            this.terminalRecoverBtn.classList.toggle('hidden', !canRecover || recoveryState === 'broken');
-            this.terminalRecoverBtn.disabled = !canRecover || recoveryState === 'broken';
-            this.terminalRecoverBtn.dataset.sessionId = session?.id || '';
-        }
-
-        this.terminalTransportClient?.disconnect({ preserveView: false });
-        this.terminalTransportClient?.hide();
-        this.terminalFrame?.classList.add('hidden');
-        this.terminalXtermHost?.classList.add('hidden');
-        if (!preserveSnapshot) {
-            this.terminalSnapshotPanelEl?.classList.add('hidden');
-            const consoleArea = document.getElementById('console-area');
-            consoleArea?.classList.remove('using-snapshot');
-        }
-        panel.classList.remove('hidden');
-    };
-
-    AppClass.prototype._hideTerminalRecoveryPanel = function() {
-        this.terminalRecoveryPanelEl?.classList.add('hidden');
     };
 
     AppClass.prototype.setupTerminalInputUx = function() {
