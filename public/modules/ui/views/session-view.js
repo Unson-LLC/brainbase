@@ -380,6 +380,9 @@ export class SessionView {
         const statusTimestamp = Math.max(
             liveStatus?.lastWorkingAt || 0,
             liveStatus?.lastDoneAt || 0,
+            liveStatus?.lastActivityAt || 0,
+            liveStatus?.liveActivity?.assistantSnippetUpdatedAt || 0,
+            liveStatus?.liveActivity?.updatedAt || 0,
             liveStatus?.timestamp || 0
         );
         if (statusTimestamp > 0) {
@@ -387,8 +390,8 @@ export class SessionView {
         }
 
         const candidates = [
-            session.updatedAt,
-            session.pausedAt,
+            session.lastAssistantSnippetAt,
+            session.conversationSummary?.lastActivity,
             session.created,
             session.createdAt,
             session.createdDate

@@ -80,7 +80,7 @@ describe('session-list-renderer', () => {
       expect(html).toContain('fallback-id');
     });
 
-    it('should show manual paused label for paused session', () => {
+    it('should not render paused labels for paused sessions', () => {
       const session = {
         id: 'session-paused',
         name: 'Paused Session',
@@ -90,8 +90,22 @@ describe('session-list-renderer', () => {
 
       const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
 
-      expect(html).toContain('⏸ Manual pause');
       expect(html).toContain('session-child-row paused');
+      expect(html).not.toContain('paused-label');
+    });
+
+    it('should not render auto pause wording for tmux restore pauses', () => {
+      const session = {
+        id: 'session-auto-paused',
+        name: 'Auto Paused Session',
+        intendedState: 'paused',
+        pausedReason: 'tmux_missing_on_restore'
+      };
+
+      const html = renderSessionRowHTML(session, { isActive: false, project: 'general' });
+
+      expect(html).not.toContain('Auto pause');
+      expect(html).not.toContain('paused-label');
     });
 
     it('should render summary chips and transport badge when sessionUiState is provided', () => {
