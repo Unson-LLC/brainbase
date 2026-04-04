@@ -1085,6 +1085,43 @@ describe('SessionController (Server)', () => {
         currentDirectory: '/Users/ksato/workspace/code/brainbase'
       }));
     });
+
+    it('ephemeral cwd のとき_currentDirectory は workspacePath を優先する', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ephemeral',
+          name: 'Ephemeral Session',
+          cwd: '/private/tmp',
+          worktree: {
+            repo: '/Users/ksato/workspace/code/brainbase',
+            path: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ephemeral-brainbase',
+            startCommit: 'abc123'
+          }
+        }]
+      });
+
+      mockWorktreeService.getStatus.mockResolvedValue({
+        repoName: 'brainbase',
+        bookmarkName: 'session-ephemeral',
+        changesNotPushed: 0,
+        hasWorkingCopyChanges: false,
+        bookmarkPushed: false,
+        mainBranch: 'develop',
+        worktreePath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ephemeral-brainbase'
+      });
+
+      const req = {
+        params: { id: 'session-ephemeral' }
+      };
+
+      await sessionController.getContext(req, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 'session-ephemeral',
+        workspacePath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ephemeral-brainbase',
+        currentDirectory: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ephemeral-brainbase'
+      }));
+    });
   });
 
   describe('getUiSummaries', () => {
@@ -1147,6 +1184,41 @@ describe('SessionController (Server)', () => {
       await sessionController.getUiSummaries(req, mockRes);
 
       expect(mockSessionManager.resolveSessionWorkspacePath).toHaveBeenCalledTimes(1);
+    });
+
+    it('ui summary でも ephemeral cwd は workspacePath に丸める', async () => {
+      mockStateStore.get.mockReturnValue({
+        sessions: [{
+          id: 'session-ui-ephemeral',
+          cwd: '/private/tmp',
+          worktree: {
+            repo: '/tmp/repo',
+            path: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ui-ephemeral',
+            startCommit: 'abc123'
+          }
+        }]
+      });
+      mockWorktreeService.getStatus.mockResolvedValue({
+        repoName: 'brainbase',
+        changesNotPushed: 0,
+        hasWorkingCopyChanges: false,
+        bookmarkPushed: false,
+        mainBranch: 'develop',
+        worktreePath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ui-ephemeral'
+      });
+
+      const req = {
+        query: { ids: 'session-ui-ephemeral' }
+      };
+
+      await sessionController.getUiSummaries(req, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        'session-ui-ephemeral': expect.objectContaining({
+          workspacePath: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ui-ephemeral',
+          currentDirectory: '/Volumes/UNSON-DRIVE/brainbase-worktrees/session-ui-ephemeral'
+        })
+      });
     });
   });
 

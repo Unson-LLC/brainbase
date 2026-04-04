@@ -23,6 +23,14 @@ function getErrorMessage(error) {
     return error instanceof Error ? error.message : String(error || '');
 }
 
+function isEphemeralCwd(candidate) {
+    return typeof candidate === 'string'
+        && (candidate === '/tmp'
+            || candidate === '/tmp/'
+            || candidate === '/private/tmp'
+            || candidate === '/private/tmp/');
+}
+
 export function installSharedMethods(controller) {
     controller._respondError = (res, context, error) => {
         logger.error(`${context}:`, error);
@@ -512,7 +520,9 @@ export function installSharedMethods(controller) {
             || session.path
             || null;
         const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
-        const currentDirectory = session.cwd || workspacePath || null;
+        const currentDirectory = isEphemeralCwd(session.cwd)
+            ? (workspacePath || null)
+            : (session.cwd || workspacePath || null);
         const baseSummary = {
             repo: fallbackRepoName,
             baseBranch: null,

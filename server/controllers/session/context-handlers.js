@@ -5,6 +5,14 @@ import path from 'path';
 import { logger } from '../../utils/logger.js';
 import { MARKDOWN_EXTENSIONS, MAX_FILE_READ_SIZE } from './shared-methods.js';
 
+function isEphemeralCwd(candidate) {
+    return typeof candidate === 'string'
+        && (candidate === '/tmp'
+            || candidate === '/tmp/'
+            || candidate === '/private/tmp'
+            || candidate === '/private/tmp/');
+}
+
 export function installContextHandlers(controller) {
     controller.getContext = async (req, res) => {
         const { id } = req.params;
@@ -17,7 +25,9 @@ export function installContextHandlers(controller) {
             || session.path
             || null;
         const fallbackRepoName = repoPath ? path.basename(repoPath) : null;
-        const currentDirectory = session.cwd || workspacePath || null;
+        const currentDirectory = isEphemeralCwd(session.cwd)
+            ? (workspacePath || null)
+            : (session.cwd || workspacePath || null);
         const context = {
             sessionId: session.id,
             sessionName: session.name || null,

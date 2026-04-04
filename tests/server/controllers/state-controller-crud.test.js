@@ -17,6 +17,7 @@ describe('StateController CRUD session routes', () => {
     stateStore = {
       get: vi.fn(),
       update: vi.fn(),
+      reloadFromDisk: vi.fn(),
       upsertSession: vi.fn(),
       patchSession: vi.fn(),
       deleteSession: vi.fn(),
@@ -71,6 +72,42 @@ describe('StateController CRUD session routes', () => {
 
     expect(stateStore.deleteSession).toHaveBeenCalledWith('session-2');
     expect(res.json).toHaveBeenCalledWith({ success: true, sessionId: 'session-2' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('reloads state from disk before failing patch when in-memory session is temporarily missing', async () => {
+    const reloadedState = {
+      sessions: [
+        { id: 'session-2', name: 'recovered', intendedState: 'active' }
+      ]
+    };
+    stateStore.get.mockReturnValueOnce({ sessions: [] });
+    stateStore.reloadFromDisk.mockResolvedValue(reloadedState);
+    stateStore.patchSession.mockResolvedValue({
+      sessions: [
+        { id: 'session-2', name: 'recovered', intendedState: 'paused' }
+      ]
+    });
+    const res = createRes();
+    const next = vi.fn();
+
+    controller.patch({
+      params: { sessionId: 'session-2' },
+      body: { intendedState: 'paused' }
+    }, res, next);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(stateStore.reloadFromDisk).toHaveBeenCalledTimes(1);
+    expect(stateStore.patchSession).toHaveBeenCalledWith('session-2', expect.objectContaining({
+      id: 'session-2',
+      intendedState: 'paused'
+    }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'session-2',
+      intendedState: 'paused'
+    }));
     expect(next).not.toHaveBeenCalled();
   });
 

@@ -534,6 +534,45 @@ describe('SessionManager', () => {
     fs.rmSync(durableDir, { recursive: true, force: true });
   });
 
+  it('resolveSessionWorkspacePath_tmuxがprivate_tmpしか返さない場合も永続pathへフォールバックする', async () => {
+    const durableDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-durable-'));
+    let state = {
+      sessions: [{
+        id: 'session-1',
+        path: durableDir,
+        lastKnownGoodPath: durableDir,
+        worktree: {
+          repo: '/repo/project-a',
+          path: durableDir
+        }
+      }]
+    };
+
+    const stateStore = {
+      get: () => state,
+      update: async (next) => {
+        state = next;
+        return state;
+      }
+    };
+
+    const manager = createSessionServices({
+      serverDir: '/tmp',
+      execPromise: async () => ({ stdout: `/private/tmp\n` }),
+      stateStore,
+      worktreeService: { worktreesDir: '/unused' }
+    }).sessionApi;
+
+    const resolvedPath = await manager.resolveSessionWorkspacePath('session-1');
+
+    expect(resolvedPath).toBe(durableDir);
+    expect(state.sessions[0].path).toBe(durableDir);
+    expect(state.sessions[0].worktree.path).toBe(durableDir);
+    expect(state.sessions[0].lastKnownGoodPath).toBe(durableDir);
+
+    fs.rmSync(durableDir, { recursive: true, force: true });
+  });
+
   it('sendInput呼び出し時_短文テキストはliteral send-keysで送信する', async () => {
     const manager = createSessionServices({
       serverDir: '/tmp',
