@@ -1692,6 +1692,16 @@ export class App {
      * Initialize views
      */
     initViews() {
+        // mana Chat Widget (floating, no container needed) — init first to survive downstream errors
+        try {
+            this.views.manaChatView = new ManaChatView({
+                manaChatService: this.manaChatService
+            });
+            this.views.manaChatView.mount();
+        } catch (err) {
+            console.error('[mana] Failed to mount chat widget:', err);
+        }
+
         const contextBarContainer = document.getElementById('session-context-bar');
         if (contextBarContainer) {
             this.views.sessionContextBarView = new SessionContextBarView({
@@ -1748,15 +1758,6 @@ export class App {
             this.views.liveFeedView.mount(liveFeedContainer);
         }
 
-        // mana Chat Widget (floating, no container needed)
-        try {
-            this.views.manaChatView = new ManaChatView({
-                manaChatService: this.manaChatService
-            });
-            this.views.manaChatView.mount();
-        } catch (err) {
-            console.error('[mana] Failed to mount chat widget:', err);
-        }
     }
 
     /**
