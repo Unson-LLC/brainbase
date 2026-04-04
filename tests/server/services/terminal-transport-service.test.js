@@ -24,6 +24,7 @@ function buildService() {
     const sessionManager = {
         sendInput: vi.fn(async () => {}),
         resizeSessionWindow: vi.fn(async () => {}),
+        exitCopyMode: vi.fn(async () => {}),
         touchTerminalOwnership: vi.fn(),
         ensureTerminalOwnership: vi.fn(() => ({ allowed: true })),
         isTmuxSessionRunning: vi.fn(async () => true),
@@ -203,6 +204,24 @@ describe('TerminalTransportService', () => {
 
             expect(service.activeConnections.has('session-1')).toBe(false);
         });
+    });
+
+    it('exit_copy_mode message で exitCopyMode を呼ぶ', async () => {
+        const { service, sessionManager, captureCache } = buildService();
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            ws: { readyState: 1, send: vi.fn() },
+            transport: 'streaming'
+        };
+
+        await service._handleMessage(connection, JSON.stringify({
+            type: 'exit_copy_mode'
+        }));
+
+        expect(sessionManager.exitCopyMode).toHaveBeenCalledWith('session-1');
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
     it('resize message で sessionManager.resizeSessionWindow を呼ぶ', async () => {

@@ -438,6 +438,11 @@ export class TerminalTransportService {
                 }
                 return;
             }
+            case 'exit_copy_mode': {
+                await this.terminalIo.exitCopyMode(sessionId);
+                this.captureCache.invalidate(sessionId);
+                return;
+            }
             default:
                 return;
         }
