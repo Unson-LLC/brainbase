@@ -62,7 +62,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 > **詳細は `.claude/rules/commit-strategy.md` を参照**
 
-基本: 1つの意図 = 1コミット。分割は `jj split` で。
+基本: 1つの意図 = 1コミット。分割は `jj split` で。dirty な `(no description set)` を残したまま次へ進まない。
 
 ### 5. コミット実行コマンド
 

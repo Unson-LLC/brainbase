@@ -75,7 +75,9 @@ external/
 .claude/learning/
 .claude/output/
 .claude/mcp/
-.claude/rules/
+.claude/rules/*
+!.claude/rules/
+!.claude/rules/commit-strategy.md
 .claude/*.md
 .claude/*.txt
 .claude/*.json

@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+WRAPPER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+resolve_real_jj() {
+  if [ -n "${BRAINBASE_REAL_JJ_BIN:-}" ] && [ -x "${BRAINBASE_REAL_JJ_BIN}" ]; then
+    printf '%s\n' "${BRAINBASE_REAL_JJ_BIN}"
+    return 0
+  fi
+
+  local path_without_wrapper=""
+  path_without_wrapper="$(printf '%s' "${PATH:-}" | awk -v RS=: -v ORS=: -v skip="$WRAPPER_DIR" '$0 != skip { print }' | sed 's/:$//')"
+  PATH="$path_without_wrapper" command -v jj
+}
+
+REAL_JJ_BIN="$(resolve_real_jj)"
+
+current_description() {
+  "$REAL_JJ_BIN" log -r @ --no-graph -T 'description.first_line() ++ "\n"' 2>/dev/null || true
+}
+
+working_copy_dirty() {
+  local output=""
+  output="$("$REAL_JJ_BIN" diff --stat 2>/dev/null || true)"
+  [ -n "${output//[[:space:]]/}" ]
+}
+
+description_requires_checkpoint() {
+  local description=""
+  description="$(current_description | tr -d '\r')"
+  case "$description" in
+    "" | "(no description set)" | "wip" | "wip:") return 0 ;;
+    wip:\ *) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+guard_message() {
+  cat >&2 <<'EOF'
+[brainbase-jj-guard] current working copy has changes but no stable description yet.
+
+Run one of these before continuing:
+  /commit
+  jj describe -m "<type>: <summary>"
+
+Why this is blocked:
+  - brainbase uses jj as the primary workflow
+  - moving on with "(no description set)" makes changes easy to lose or overwrite
+EOF
+}
+
+subcommand="${1:-}"
+subcommand_2="${2:-}"
+
+needs_guard=0
+case "$subcommand" in
+  new | rebase | edit | split | squash | abandon | duplicate | move | backout | undo)
+    needs_guard=1
+    ;;
+  git)
+    case "$subcommand_2" in
+      push) needs_guard=1 ;;
+    esac
+    ;;
+  workspace)
+    case "$subcommand_2" in
+      add | forget | rename) needs_guard=1 ;;
+    esac
+    ;;
+  bookmark)
+    case "$subcommand_2" in
+      move | set | delete | forget | rename) needs_guard=1 ;;
+    esac
+    ;;
+esac
+
+if [ "$needs_guard" -eq 1 ] && working_copy_dirty && description_requires_checkpoint; then
+  guard_message
+  exit 2
+fi
+
+exec "$REAL_JJ_BIN" "$@"
