@@ -34,7 +34,7 @@ export function applyTerminalMobileMixin(AppClass) {
     };
 
     AppClass.prototype._refreshMobileSnapshotDisplay = async function({ force = false } = {}) {
-        if (!this._isMobileTerminalDisplayMode()) return;
+        if (!this._isMobileSnapshotMode()) return;
         // force=true（ユーザー操作起因）の場合はin-flightガードをバイパス
         if (this._mobileSnapshotInFlight && !force) return;
         const sessionId = appStore.getState().currentSessionId;
@@ -60,7 +60,7 @@ export function applyTerminalMobileMixin(AppClass) {
             console.warn('Failed to refresh mobile terminal snapshot:', error);
         } finally {
             this._mobileSnapshotInFlight = false;
-            if (this._isMobileTerminalDisplayMode() && appStore.getState().currentSessionId === sessionId) {
+            if (this._isMobileSnapshotMode() && appStore.getState().currentSessionId === sessionId) {
                 this._updateTerminalInputStatus();
                 this._setMobileSnapshotPoll(this._getMobileSnapshotPollInterval(sessionId));
             }
@@ -68,7 +68,7 @@ export function applyTerminalMobileMixin(AppClass) {
     };
 
     AppClass.prototype._syncMobileSnapshotPolling = function({ immediate = false, force = false } = {}) {
-        if (!this._isMobileTerminalDisplayMode()) {
+        if (!this._isMobileSnapshotMode()) {
             this._stopMobileSnapshotPolling();
             return;
         }
@@ -93,10 +93,10 @@ export function applyTerminalMobileMixin(AppClass) {
 
     AppClass.prototype.closeMobileLiveTerminal = function() {
         if (this._mobileTerminalMode !== 'interactive') return;
-        this._mobileTerminalMode = 'display';
+        this._mobileTerminalMode = 'snapshot';
         this._mobileLiveTerminalSessionId = null;
         this._closeMobileLiveTerminalModalDom();
-        this._showMobileTerminalDisplay();
+        this._showSnapshotDisplay(appStore.getState().currentSessionId);
         this._syncMobileSnapshotPolling({ immediate: true, force: true });
         this._updateTerminalInputStatus();
     };

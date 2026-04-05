@@ -115,7 +115,7 @@ export class App {
         this._mobileSnapshotPollTimer = null;
         this._mobileSnapshotPollDelay = null;
         this._mobileSnapshotInFlight = false;
-        this._mobileTerminalMode = 'display';
+        this._mobileTerminalMode = 'snapshot';
         this._mobileLiveTerminalSessionId = null;
         this._mobileTapTracking = null;
         this._latestMobileViewportLayout = null;

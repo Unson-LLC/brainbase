@@ -607,7 +607,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             : this.terminalFrame || document.getElementById('terminal-frame');
         const xtermStatus = this._terminalTransportStatus || null;
         const xtermActive = this._isXtermTransportActive(sessionId);
-        const usingMobileDisplay = this._isMobileTerminalDisplayMode();
+        const usingMobileSnapshot = this._isMobileSnapshotMode();
         const session = this._getSessionById(sessionId);
 
         if (!sessionId || (!frame && !xtermActive)) {
@@ -618,7 +618,7 @@ export function applyTerminalInputUxMixin(AppClass) {
 
         const overlayState = this._getTerminalOverlayState();
         const consoleArea = document.getElementById('console-area');
-        const usingDesktopSnapshot = !usingMobileDisplay && consoleArea?.classList.contains('using-snapshot');
+        const usingDesktopSnapshot = !usingMobileSnapshot && consoleArea?.classList.contains('using-snapshot');
         const isFocused = xtermActive
             ? Boolean(xtermStatus?.isFocused)
             : document.activeElement === frame;
@@ -652,7 +652,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         let snapshotTitle = 'Snapshot fallback';
         let ownerLabel = '';
 
-        if (usingMobileDisplay) {
+        if (usingMobileSnapshot) {
             presentationMode = 'snapshot';
             snapshotVisible = true;
             snapshotTitle = 'Terminal display';
@@ -821,10 +821,10 @@ export function applyTerminalInputUxMixin(AppClass) {
         this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
         const transportPillText = presentationMode === 'snapshot'
             ? 'Snapshot'
-            : (xtermActive ? 'xterm' : ((usingMobileDisplay || usingDesktopSnapshot) ? 'display' : 'ttyd'));
+            : (xtermActive ? 'xterm' : 'ttyd');
         const transportPillTitle = presentationMode === 'snapshot'
             ? 'snapshot terminal display'
-            : (xtermActive ? 'xterm transport' : ((usingMobileDisplay || usingDesktopSnapshot) ? 'snapshot terminal display' : 'ttyd iframe fallback'));
+            : (xtermActive ? 'xterm transport' : 'ttyd iframe fallback');
         this._setTerminalHeaderChip(this.terminalTransportPillEl, {
             hidden: false,
             text: transportPillText,
@@ -946,7 +946,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onTerminalMessage));
 
         const onMobileInputSent = () => {
-            if (!this._isMobileTerminalDisplayMode()) return;
+            if (!this._isMobileSnapshotMode()) return;
             this._syncMobileSnapshotPolling({ immediate: true, force: true });
         };
         const unsubMobileInputSent = eventBus.on(EVENTS.MOBILE_INPUT_SENT, onMobileInputSent);
@@ -1022,7 +1022,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             // Don't steal focus when clicking toolbar buttons or other buttons.
             if (e.target?.closest?.('button')) return;
 
-            if (this._isMobileTerminalDisplayMode()) {
+            if (this._isMobileSnapshotMode()) {
                 void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
                 return;
             }
@@ -1040,7 +1040,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('click', onConsoleClick, true));
 
         const onConsoleTouchStart = (event) => {
-            if (!this._isMobileTerminalDisplayMode()) return;
+            if (!this._isMobileSnapshotMode()) return;
             if (this._isEditableTarget(event.target)) return;
             this._mobileTapTracking = {
                 startX: event.touches?.[0]?.clientX ?? 0,
@@ -1059,7 +1059,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             }
         };
         const onConsoleTouchEnd = (event) => {
-            if (!this._isMobileTerminalDisplayMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
+            if (!this._isMobileSnapshotMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
                 this._mobileTapTracking = null;
                 return;
             }
@@ -1081,7 +1081,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         this._terminalInputUxCleanup.push(() => consoleArea?.removeEventListener('touchend', onConsoleTouchEnd, { passive: true }));
 
         const onSnapshotClick = (event) => {
-            if (!this._isMobileTerminalDisplayMode()) return;
+            if (!this._isMobileSnapshotMode()) return;
             if (this._isEditableTarget(event.target)) return;
             if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             const overlayState = this._getTerminalOverlayState();
@@ -1093,7 +1093,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         this._terminalInputUxCleanup.push(() => this.terminalSnapshotPanelEl?.removeEventListener('click', onSnapshotClick, true));
 
         const onSnapshotTouchStart = (event) => {
-            if (!this._isMobileTerminalDisplayMode()) return;
+            if (!this._isMobileSnapshotMode()) return;
             if (this._isEditableTarget(event.target)) return;
             if (event.target.closest('.snapshot-url-link, .snapshot-file-link')) return;
             this._mobileTapTracking = {
@@ -1113,7 +1113,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             }
         };
         const onSnapshotTouchEnd = (event) => {
-            if (!this._isMobileTerminalDisplayMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
+            if (!this._isMobileSnapshotMode() || !this._mobileTapTracking || this._mobileTapTracking.moved) {
                 this._mobileTapTracking = null;
                 return;
             }
@@ -1179,7 +1179,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             const overlayState = this._getTerminalOverlayState();
             if (overlayState.any) return;
 
-            if (this._isMobileTerminalDisplayMode()) {
+            if (this._isMobileSnapshotMode()) {
                 void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
                 return;
             }
@@ -1222,7 +1222,7 @@ export function applyTerminalInputUxMixin(AppClass) {
 
         const onReconnectClick = (e) => {
             e.preventDefault();
-            if (this._isMobileTerminalDisplayMode()) {
+            if (this._isMobileSnapshotMode()) {
                 void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
                 return;
             }
