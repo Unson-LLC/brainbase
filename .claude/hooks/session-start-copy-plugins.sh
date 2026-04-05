@@ -3,23 +3,27 @@
 # cwd refresh: prevent EPERM uv_cwd on unmounted drives
 cd . 2>/dev/null || cd /tmp
 
-# SessionStart Hook: L2（brainbase-unson）とL3（brainbase-config）の.claude/を自動コピー
+# SessionStart Hook: L2（brainbase-unson）とL3（brainbase-config）の.claude/とroot artifactsを自動コピー
 # - plugins/: プラグイン（goal-seek等）
 # - hooks/: このスクリプト自体も含む
 # - settings.json: SessionStart Hook定義（次回実行のため必須）
+# - CLAUDE.md: project共通正本
+# - AGENTS.md: Codex互換の派生artifact（CLAUDE.mdと同内容）
 
 set -e
 
 # brainbaseプロジェクトかどうかをチェック
 L2_CLAUDE="/Users/ksato/workspace/code/brainbase/.claude"
 L3_CLAUDE="/Users/ksato/workspace/brainbase-config/.claude"
+L2_CLAUDE_MD="/Users/ksato/workspace/code/brainbase/CLAUDE.md"
+L3_CLAUDE_MD="/Users/ksato/workspace/brainbase-config/CLAUDE.md"
 
 # L2もL3も存在しない場合は何もしない（brainbase以外のプロジェクト）
-if [ ! -d "$L2_CLAUDE" ] && [ ! -d "$L3_CLAUDE" ]; then
+if [ ! -d "$L2_CLAUDE" ] && [ ! -d "$L3_CLAUDE" ] && [ ! -f "$L2_CLAUDE_MD" ] && [ ! -f "$L3_CLAUDE_MD" ]; then
   exit 0
 fi
 
-echo "🚀 SessionStart Hook: .claude/ をコピー中..."
+echo "🚀 SessionStart Hook: .claude/ と root artifacts をコピー中..."
 
 # .claude/ ディレクトリを作成
 mkdir -p .claude/plugins
@@ -104,4 +108,18 @@ if [ -d "$L3_CLAUDE" ]; then
   echo "  ✅ L3上書き完了"
 fi
 
-echo "✅ .claude/ コピー完了！（plugins, hooks, commands, skills, scripts, settings.json）"
+# root-level artifacts（L2 -> L3 overlay）
+ROOT_CLAUDE_MD=""
+if [ -f "$L2_CLAUDE_MD" ]; then
+  ROOT_CLAUDE_MD="$L2_CLAUDE_MD"
+fi
+if [ -f "$L3_CLAUDE_MD" ]; then
+  ROOT_CLAUDE_MD="$L3_CLAUDE_MD"
+fi
+
+if [ -n "$ROOT_CLAUDE_MD" ]; then
+  cp "$ROOT_CLAUDE_MD" ./CLAUDE.md 2>/dev/null || true
+  cp "$ROOT_CLAUDE_MD" ./AGENTS.md 2>/dev/null || true
+fi
+
+echo "✅ SessionStart Hook 完了！（.claude/, CLAUDE.md, AGENTS.md）"

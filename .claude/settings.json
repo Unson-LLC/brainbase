@@ -99,6 +99,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/context-loader-wrapper.ts",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
             "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/autonomy-reminder.ts",
             "timeout": 3000
           },

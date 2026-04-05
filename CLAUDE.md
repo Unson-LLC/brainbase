@@ -8,6 +8,23 @@
 
 ## 0. Agent Operating Policy
 
+### 0.0 Source Of Truth
+
+**原則**: `brainbase` の project 共通正本は常にこの `CLAUDE.md` とする。
+
+**運用**:
+- `CLAUDE.md` は唯一の手書き正本
+- worktree には SessionStart Hook で `CLAUDE.md` を配布する
+- worktree root の `AGENTS.md` は Codex 互換のための派生artifactであり、内容は `CLAUDE.md` と同一とする
+- `AGENTS.md` を直接編集してはならない
+
+**Why**:
+- `CLAUDE.md` と `AGENTS.md` を手動で二重管理するとズレる
+- Claude 側 hooks / context loader は `CLAUDE.md` を前提にしている
+- Codex 側は `AGENTS.md` を読める環境があるため、派生artifactで互換を取るのが最も安全
+
+---
+
 ### 0.1 Default To Autonomous Execution
 
 **原則**: 明確に含意されている routine work は、確認を返さず end-to-end で実行する。
@@ -1363,8 +1380,13 @@ npm run lint:imports
 ## 8. ドキュメント間の役割分担
 
 ### CLAUDE.md (このファイル)
-- **役割**: 思考フレームワーク・ルール・ワークフロー
+- **役割**: project共通正本（思考フレームワーク・ルール・ワークフロー）
 - **対象**: 開発時の判断基準、コーディング規約、Subagentワークフロー
+
+### AGENTS.md
+- **役割**: Codex互換の派生artifact
+- **対象**: worktree root に配布される runtime 用ミラー
+- **備考**: `CLAUDE.md` と同内容を保ち、直接編集しない
 
 ### DESIGN.md
 - **役割**: アーキテクチャ詳細（技術的深掘り）
@@ -1394,6 +1416,6 @@ npm run lint:imports
 
 ---
 
-**最終更新**: 2025-12-31
+**最終更新**: 2026-04-05
 **作成者**: Unson LLC
 **ステータス**: Active
