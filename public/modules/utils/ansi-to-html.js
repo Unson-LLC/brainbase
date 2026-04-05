@@ -10,26 +10,27 @@
  * リンク検出: URL・ファイルパスをクリック可能な要素に変換。
  */
 
+// xterm.js default ANSI colors (matches Terminal.options.theme defaults)
 const BASIC_COLORS = [
-    '#000000', // 30 black
-    '#cd0000', // 31 red
-    '#00cd00', // 32 green
-    '#cdcd00', // 33 yellow
-    '#0000ee', // 34 blue
-    '#cd00cd', // 35 magenta
-    '#00cdcd', // 36 cyan
-    '#e5e5e5', // 37 white
+    '#2e3436', // 30 black
+    '#cc0000', // 31 red
+    '#4e9a06', // 32 green
+    '#c4a000', // 33 yellow
+    '#3465a4', // 34 blue
+    '#75507b', // 35 magenta
+    '#06989a', // 36 cyan
+    '#d3d7cf', // 37 white
 ];
 
 const BRIGHT_COLORS = [
-    '#7f7f7f', // 90 bright black
-    '#ff0000', // 91 bright red
-    '#00ff00', // 92 bright green
-    '#ffff00', // 93 bright yellow
-    '#5c5cff', // 94 bright blue
-    '#ff00ff', // 95 bright magenta
-    '#00ffff', // 96 bright cyan
-    '#ffffff', // 97 bright white
+    '#555753', // 90 bright black
+    '#ef2929', // 91 bright red
+    '#8ae234', // 92 bright green
+    '#fce94f', // 93 bright yellow
+    '#729fcf', // 94 bright blue
+    '#ad7fa8', // 95 bright magenta
+    '#34e2e2', // 96 bright cyan
+    '#eeeeec', // 97 bright white
 ];
 
 function escapeHtml(text) {
@@ -66,9 +67,15 @@ function color256(n) {
  */
 function buildStyle(state) {
     const parts = [];
-    if (state.color) parts.push(`color:${state.color}`);
+    const fg = state.reverse ? (state.bgColor || null) : state.color;
+    const bg = state.reverse ? (state.color || null) : state.bgColor;
+    if (fg) parts.push(`color:${fg}`);
+    if (bg) parts.push(`background-color:${bg}`);
     if (state.bold) parts.push('font-weight:bold');
     if (state.dim) parts.push('opacity:0.7');
+    if (state.italic) parts.push('font-style:italic');
+    if (state.underline) parts.push('text-decoration:underline');
+    if (state.strikethrough) parts.push('text-decoration:line-through');
     return parts.join(';');
 }
 
@@ -96,7 +103,7 @@ export function ansiToHtml(text) {
     // Step 3: ANSIシーケンス(SGR)をHTMLに変換
     // Note: \x1b はHTMLエスケープに影響されない制御文字
     const SGR_RE = /\x1b\[([\d;]*)m/g;
-    const state = { color: null, bold: false, dim: false };
+    const state = { color: null, bgColor: null, bold: false, dim: false, italic: false, underline: false, strikethrough: false, reverse: false };
     let result = '';
     let lastIndex = 0;
     let spanOpen = false;
@@ -116,19 +123,60 @@ export function ansiToHtml(text) {
                 // reset
                 if (spanOpen) { result += '</span>'; spanOpen = false; }
                 state.color = null;
+                state.bgColor = null;
                 state.bold = false;
                 state.dim = false;
+                state.italic = false;
+                state.underline = false;
+                state.strikethrough = false;
+                state.reverse = false;
             } else if (p === 1) {
                 state.bold = true;
             } else if (p === 2) {
                 state.dim = true;
+            } else if (p === 3) {
+                state.italic = true;
+            } else if (p === 4) {
+                state.underline = true;
+            } else if (p === 7) {
+                state.reverse = true;
+            } else if (p === 9) {
+                state.strikethrough = true;
+            } else if (p === 22) {
+                state.bold = false;
+                state.dim = false;
+            } else if (p === 23) {
+                state.italic = false;
+            } else if (p === 24) {
+                state.underline = false;
+            } else if (p === 27) {
+                state.reverse = false;
+            } else if (p === 29) {
+                state.strikethrough = false;
             } else if (p >= 30 && p <= 37) {
                 state.color = BASIC_COLORS[p - 30];
+            } else if (p === 39) {
+                state.color = null;
+            } else if (p >= 40 && p <= 47) {
+                state.bgColor = BASIC_COLORS[p - 40];
+            } else if (p === 49) {
+                state.bgColor = null;
             } else if (p >= 90 && p <= 97) {
                 state.color = BRIGHT_COLORS[p - 90];
+            } else if (p >= 100 && p <= 107) {
+                state.bgColor = BRIGHT_COLORS[p - 100];
             } else if (p === 38 && params[i + 1] === 5 && params[i + 2] != null) {
                 state.color = color256(params[i + 2]);
-                i += 2; // skip ;5;N
+                i += 2;
+            } else if (p === 48 && params[i + 1] === 5 && params[i + 2] != null) {
+                state.bgColor = color256(params[i + 2]);
+                i += 2;
+            } else if (p === 38 && params[i + 1] === 2 && params[i + 4] != null) {
+                state.color = `#${params[i + 2].toString(16).padStart(2, '0')}${params[i + 3].toString(16).padStart(2, '0')}${params[i + 4].toString(16).padStart(2, '0')}`;
+                i += 4;
+            } else if (p === 48 && params[i + 1] === 2 && params[i + 4] != null) {
+                state.bgColor = `#${params[i + 2].toString(16).padStart(2, '0')}${params[i + 3].toString(16).padStart(2, '0')}${params[i + 4].toString(16).padStart(2, '0')}`;
+                i += 4;
             }
             i++;
         }
