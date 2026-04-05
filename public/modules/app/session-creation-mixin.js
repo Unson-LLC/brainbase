@@ -353,47 +353,23 @@ export function applySessionCreationMixin(AppClass) {
          */
         async _waitForClaudeInitialization(sessionId) {
             const maxWaitTime = 30000;
-            const pollInterval = 500;
+            const pollInterval = 200;
             const startTime = Date.now();
 
-            const checkInitialization = async () => {
+            const checkInitialization = () => {
                 if (this._isXtermSessionReady(sessionId)) {
                     console.log(`[Claude Init] Xterm transport ready for ${sessionId}`);
                     this.hideTerminalLoadingOverlay();
                     return;
                 }
 
-                // 条件1: ターミナルiframeがロード済みならオーバーレイ解除
                 const iframe = document.getElementById('terminal-frame');
                 if (iframe && iframe.src && iframe.src !== 'about:blank') {
-                    try {
-                        // iframeがロード済みか確認（srcが設定されていればttydが起動済み）
-                        console.log(`[Claude Init] Terminal iframe loaded for ${sessionId}`);
-                        this.hideTerminalLoadingOverlay();
-                        return;
-                    } catch (e) {
-                        // cross-origin error is expected, means iframe is loaded
-                        console.log(`[Claude Init] Terminal iframe active for ${sessionId}`);
-                        this.hideTerminalLoadingOverlay();
-                        return;
-                    }
+                    console.log(`[Claude Init] Terminal iframe loaded for ${sessionId}`);
+                    this.hideTerminalLoadingOverlay();
+                    return;
                 }
 
-                // 条件2: hookStatusにisWorking/isDoneがあればオーバーレイ解除
-                try {
-                    const status = await httpClient.get('/api/sessions/status');
-                    const sessionStatus = status[sessionId];
-
-                    if (sessionStatus?.isWorking || sessionStatus?.isDone) {
-                        console.log(`[Claude Init] Session ${sessionId} initialized (via status)`);
-                        this.hideTerminalLoadingOverlay();
-                        return;
-                    }
-                } catch (error) {
-                    console.error('[Claude Init] Status check failed:', error);
-                }
-
-                // タイムアウト
                 if (Date.now() - startTime > maxWaitTime) {
                     console.warn(`[Claude Init] Timeout for session ${sessionId}, removing overlay`);
                     this.hideTerminalLoadingOverlay();
@@ -403,7 +379,7 @@ export function applySessionCreationMixin(AppClass) {
                 setTimeout(checkInitialization, pollInterval);
             };
 
-            void checkInitialization();
+            checkInitialization();
         },
 
         startSessionUiSummaryRefresh() {

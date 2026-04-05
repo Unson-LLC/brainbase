@@ -563,33 +563,28 @@ export class WorktreeService {
             );
             logger.info(`[workspace] Created workspace: ${workspaceName} at ${workspacePath}`);
 
-            // Register as git worktree (for git command compatibility)
-            try {
-                const { gitWorktreePath } = await this._ensureGitCompatibility(sessionId, repoPath, workspacePath);
-                logger.info(`[workspace] Registered git worktree at ${gitWorktreePath}`);
-            } catch (gitErr) {
-                logger.info(`[workspace] Git worktree registration failed (non-critical): ${gitErr instanceof Error ? gitErr.message : String(gitErr)}`);
-            }
-
-            // Create bookmark
-            try {
-                await this._execJujutsuWithStaleRetry(
-                    repoPath,
-                    `bookmark create -r ${workspaceBaseRevision} ${bookmarkName}`
-                );
-                logger.info(`[workspace] Created bookmark: ${bookmarkName}`);
-            } catch (bookmarkErr) {
-                logger.info(`[workspace] Bookmark creation skipped: ${bookmarkErr instanceof Error ? bookmarkErr.message : String(bookmarkErr)}`);
-            }
-
-            // Create symlinks for shared config files
+            // Run post-creation tasks in parallel (all non-critical, try-catch wrapped)
             const workspaceRoot = path.dirname(path.dirname(this.worktreesDir));
-            await this._symlinkIfMissing(path.join(repoPath, '.env'), path.join(workspacePath, '.env'), '.env');
-            await this._symlinkIfMissing(path.join(workspaceRoot, '.claude'), path.join(workspacePath, '.claude'), '.claude');
-            await this._symlinkIfMissing(path.join(workspaceRoot, '.mcp.json'), path.join(workspacePath, '.mcp.json'), '.mcp.json');
+            const [gitResult, bookmarkResult, , , , startCommitResult] = await Promise.allSettled([
+                this._ensureGitCompatibility(sessionId, repoPath, workspacePath),
+                this._execJujutsuWithStaleRetry(repoPath, `bookmark create -r ${workspaceBaseRevision} ${bookmarkName}`),
+                this._symlinkIfMissing(path.join(repoPath, '.env'), path.join(workspacePath, '.env'), '.env'),
+                this._symlinkIfMissing(path.join(workspaceRoot, '.claude'), path.join(workspacePath, '.claude'), '.claude'),
+                this._symlinkIfMissing(path.join(workspaceRoot, '.mcp.json'), path.join(workspacePath, '.mcp.json'), '.mcp.json'),
+                this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision)
+            ]);
 
-            // Get current HEAD as startCommit
-            const startCommit = await this._getWorkspaceStartCommit(workspacePath, workspaceBaseRevision);
+            if (gitResult.status === 'fulfilled') {
+                logger.info(`[workspace] Registered git worktree at ${gitResult.value?.gitWorktreePath}`);
+            } else {
+                logger.info(`[workspace] Git worktree registration failed (non-critical): ${gitResult.reason?.message || gitResult.reason}`);
+            }
+            if (bookmarkResult.status === 'fulfilled') {
+                logger.info(`[workspace] Created bookmark: ${bookmarkName}`);
+            } else {
+                logger.info(`[workspace] Bookmark creation skipped: ${bookmarkResult.reason?.message || bookmarkResult.reason}`);
+            }
+            const startCommit = startCommitResult.status === 'fulfilled' ? startCommitResult.value : null;
 
             logger.info(`Created Jujutsu workspace at ${workspacePath}`);
             return {

@@ -273,8 +273,8 @@ export const runtimeLifecycleMethods = {
         await this._saveTtydProcessInfo(sessionId, { port, pid: ttyd.pid, engine });
 
         await new Promise((resolve, reject) => {
-            const minStableMs = 120;
-            const timeoutMs = 500;
+            const minStableMs = 50;
+            const timeoutMs = 200;
             const stableAt = Date.now() + minStableMs;
             const deadline = Date.now() + timeoutMs;
 
@@ -298,7 +298,7 @@ export const runtimeLifecycleMethods = {
         });
 
         try {
-            await this.waitForTtydReady(port, 10000, 100);
+            await this.waitForTtydReady(port, 3000, 50);
             logger.info(`[ttyd:${sessionId}] Port ${port} is ready for WebSocket connections`);
         } catch (error) {
             logger.error(`[ttyd:${sessionId}] Failed to wait for port ready:`, error);
