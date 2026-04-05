@@ -99,6 +99,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/autonomy-reminder.ts",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
             "command": "npx tsx .claude/scripts/hooks/user-prompt-submit/skill-reminder.ts",
             "timeout": 3000
           },
@@ -133,6 +138,11 @@
     "Stop": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsx .claude/scripts/hooks/stop/push-guard.ts",
+            "timeout": 3000
+          },
           {
             "type": "command",
             "command": "npx tsx .claude/scripts/hooks/stop/jj-commit-guard.ts",
