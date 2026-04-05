@@ -1,8 +1,169 @@
 # brainbase Development Standards
 
-**Version**: 1.1.0
-**Last Updated**: 2025-12-31
+**Version**: 1.2.0
+**Last Updated**: 2026-04-05
 **Maintainer**: Unson LLC
+
+---
+
+## 0. Agent Operating Policy
+
+### 0.1 Default To Autonomous Execution
+
+**原則**: 明確に含意されている routine work は、確認を返さず end-to-end で実行する。
+
+**対象**:
+- commit
+- push
+- ローカルサーバー再起動
+- ローカル検証
+- 既存手順どおりの反映作業
+
+**Why**:
+- 不要な確認は操作の中断点を増やし、変更漏れ・未push・未反映を招く
+- agent は「途中報告」ではなく「完了責任」を持つ方が安定する
+- 外部の agent ガイドでも、明確なポリシーと具体例で不要な曖昧さを消すことが推奨されている
+
+**How**:
+```text
+ユーザーが「コミットして」「pushして」「反映して」と言った
+→ それぞれを別確認に分けない
+→ commit -> push -> restart -> verification まで一連で完了させる
+
+ユーザーがバグ修正を依頼した
+→ 修正 -> テスト -> 必要な再起動 -> 実確認 まで進める
+→ 「必要なら再起動します」は禁止
+```
+
+**確認を返してよい条件**:
+- 破壊的・不可逆な操作
+- 外部サービスへの送信、削除、課金、公開
+- 要件の解釈が複数あり、誤るとやり直しコストが大きい
+- ローカルで発見できない前提情報が必要
+
+**禁止事項**:
+- `必要なら〜します` で止まる
+- `pushしますか？` `再起動しますか？` のような routine 確認を返す
+- 明確な依頼を小さな承認に分割する
+
+---
+
+### 0.2 Clarify Only When Ambiguity Is Material
+
+**原則**: 質問は「不明」だからではなく、「誤ると高コスト」な時だけ行う。
+
+**Good**:
+- 「Airtable に実レコードを書き込むが、本番 base でよいか」
+- 「既存 child page が削除されるが、削除してよいか」
+
+**Bad**:
+- 「commit しますか？」
+- 「push しますか？」
+- 「再起動しますか？」
+- 「このテストも回しますか？」
+
+**思考パターン**:
+```text
+分からないことがある
+→ ローカルで確認できるか？
+→ できるなら確認して進む
+→ できず、かつ誤りコストが高いなら質問する
+→ それ以外は合理的仮定で進む
+```
+
+---
+
+### 0.3 Commit Small, Then Move
+
+**原則**: 「実装した」と返すのは、少なくとも現在の意図が commit 可能な状態になってから。
+
+**Why**:
+- uncommitted な変更は後続作業で上書きされやすい
+- 同じファイルに別意図の変更が重なると消失検知が遅れる
+
+**How**:
+```text
+1つの意図 = 1 commit
+実装 -> 検証 -> jj describe -> jj new
+そのあと次の意図へ進む
+```
+
+**運用補助**:
+- `scripts/bin/jj` guard
+- `Stop` hook の `jj-commit-guard.ts`
+- `Stop` hook の `push-guard.ts`
+
+---
+
+### 0.4 Skills First, Not Memory First
+
+**原則**: 実装・判断の前に、関連する skill と既存ルールを先に確認する。
+
+**Why**:
+- agent の記憶は不完全で、局所最適に流れやすい
+- project-specific rule は skill / command / hook に集約されている
+
+**Good**:
+```text
+task を受ける
+→ 関連 skill を探す
+→ SKILL.md を必要最小限読む
+→ 既存コマンドや hook と矛盾しない形で実装する
+```
+
+**Bad**:
+```text
+task を受ける
+→ 記憶で進める
+→ 後から「実は skill があった」と気づく
+```
+
+---
+
+### 0.5 Keep Intermediates Internal
+
+**原則**: 切替中・起動中・接続中などの中間状態を、ユーザーにそのまま露出しない。
+
+**Why**:
+- iframe の接続エラーや placeholder は「壊れている」印象を与える
+- agent / UI は中間状態を吸収して、安定した状態だけを見せるべき
+
+**実装方針**:
+- 旧表示を維持しながら preflight
+- 成功時だけ commit
+- 失敗時は旧状態へ戻す
+
+---
+
+### 0.6 Prefer Deterministic Guards Over Reminders
+
+**原則**: 再発防止は「気をつける」ではなく「止まる」仕組みで実装する。
+
+**優先順位**:
+1. hook / wrapper でブロック
+2. settings / command で正本化
+3. skill / doc で補助
+4. 人間の注意喚起だけに頼らない
+
+**例**:
+- dirty + `(no description set)` で `jj new` を禁止
+- unpushed local commit がある状態で Stop を禁止
+- `UserPromptSubmit` で autonomy / skill reminder を注入
+
+---
+
+### 0.7 External Best-Practice Alignment
+
+この方針は以下の公開ガイドラインに整合する。
+
+- OpenAI Agent Builder Safety: 明確な方針と具体例で agent を steering すること  
+  https://platform.openai.com/docs/guides/agent-builder-safety
+- OpenAI Practical Guide to Building Agents: 不要な複雑化を避け、明確な instruction と guardrail を置くこと  
+  https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/
+- OpenAI Evaluation Best Practices: 最初から multi-agent 化しすぎず、測定可能な guard と eval を置くこと  
+  https://platform.openai.com/docs/guides/evaluation-best-practices
+- MCP Build with Agent Skills: task ごとに skill を entrypoint として利用すること  
+  https://modelcontextprotocol.io/docs/develop/build-with-agent-skills
 
 ---
 
