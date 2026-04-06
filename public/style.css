@@ -1688,7 +1688,6 @@ body::after {
     cursor: pointer;
 }
 
-.terminal-transport-pill,
 .terminal-owner-label,
 .terminal-snapshot-meta {
     display: inline-flex;
@@ -1723,8 +1722,105 @@ body::after {
     color: rgba(148, 163, 184, 0.92);
 }
 
+/* --- Transport Switcher --- */
+.terminal-transport-switcher {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.terminal-transport-switcher.hidden {
+    display: none;
+}
+.terminal-transport-switcher-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(226, 232, 240, 0.88);
+    background: rgba(15, 23, 42, 0.55);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.terminal-transport-switcher-btn:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+.terminal-transport-caret {
+    width: 12px;
+    height: 12px;
+    opacity: 0.6;
+    transition: transform 0.15s;
+}
+.terminal-transport-switcher.open .terminal-transport-caret {
+    transform: rotate(180deg);
+}
+.terminal-transport-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 160px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(2, 6, 23, 0.96);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    z-index: 35;
+}
+.terminal-transport-switcher.open .terminal-transport-dropdown {
+    display: flex;
+}
+.terminal-transport-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(226, 232, 240, 0.88);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.terminal-transport-option:hover {
+    background: rgba(30, 41, 59, 0.7);
+}
+.terminal-transport-option.active {
+    color: rgba(248, 250, 252, 1);
+    font-weight: 600;
+}
+.terminal-transport-option.active .transport-option-indicator::before {
+    content: '\25CF';
+    color: #22c55e;
+}
+.terminal-transport-option:not(.active) .transport-option-indicator::before {
+    content: '\25CB';
+    color: rgba(148, 163, 184, 0.6);
+}
+#transport-opt-reconnect .transport-option-indicator::before {
+    content: '\21BB';
+    color: rgba(226, 232, 240, 0.88);
+}
+.terminal-transport-divider {
+    height: 1px;
+    margin: 4px 0;
+    background: rgba(255, 255, 255, 0.08);
+}
+
 .terminal-primary-action.hidden,
-.terminal-transport-pill.hidden,
+.terminal-transport-switcher.hidden,
 .terminal-owner-label.hidden,
 .terminal-snapshot-meta.hidden,
 .terminal-snapshot-panel.hidden {

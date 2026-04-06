@@ -19,6 +19,10 @@ vi.mock('../../../public/modules/session-indicators.js', async () => {
   };
 });
 
+vi.mock('../../../public/modules/settings/settings-extensions.js', () => ({
+  SettingsExtensions: class SettingsExtensions { constructor() {} }
+}));
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -657,7 +661,7 @@ describe('app switchSession runtime handling', () => {
 
   it('mobile snapshot refresh always bypasses cache', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
-    app._mobileTerminalMode = 'display';
+    app._mobileTerminalMode = 'snapshot';
 
     appStore.setState({
       currentSessionId: 'session-1',
@@ -756,7 +760,7 @@ describe('app switchSession runtime handling', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     app.terminalFrame = document.getElementById('terminal-frame');
     app.setupTerminalInputUx();
-    app._mobileTerminalMode = 'display';
+    app._mobileTerminalMode = 'snapshot';
     const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
 
     appStore.setState({
@@ -780,7 +784,7 @@ describe('app switchSession runtime handling', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     app.terminalFrame = document.getElementById('terminal-frame');
     app.setupTerminalInputUx();
-    app._mobileTerminalMode = 'display';
+    app._mobileTerminalMode = 'snapshot';
     const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
 
     appStore.setState({
@@ -804,7 +808,7 @@ describe('app switchSession runtime handling', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     app.terminalFrame = document.getElementById('terminal-frame');
     app.setupTerminalInputUx();
-    app._mobileTerminalMode = 'display';
+    app._mobileTerminalMode = 'snapshot';
     const openSpy = vi.spyOn(app, 'openMobileLiveTerminal').mockResolvedValue({ ok: true });
 
     appStore.setState({
@@ -818,8 +822,8 @@ describe('app switchSession runtime handling', () => {
       }]
     });
 
-    const reconnectBtn = document.getElementById('terminal-reconnect-btn');
-    reconnectBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    const reconnectOpt = document.getElementById('transport-opt-reconnect');
+    reconnectOpt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
     expect(openSpy).toHaveBeenCalledWith('session-1');
   });

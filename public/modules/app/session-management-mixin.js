@@ -201,9 +201,9 @@ export function applySessionManagementMixin(AppClass) {
                     this.terminalTransportClient?.disconnect({ preserveView: false });
                     this.terminalTransportClient?.hide();
                     this._terminalTransportStatus = null;
-                    this._mobileTerminalMode = 'display';
+                    this._mobileTerminalMode = 'snapshot';
                     this._mobileLiveTerminalSessionId = null;
-                    this._showMobileTerminalDisplay();
+                    this._showSnapshotDisplay(sessionId, { title: 'Terminal display', snapshot });
                     this._clearTerminalFrame(terminalFrame);
                     this._renderTerminalSnapshotPanel({
                         visible: true,
@@ -233,7 +233,7 @@ export function applySessionManagementMixin(AppClass) {
                 if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
                     // Show snapshot immediately so the user sees content right away
                     const cachedSnapshot = this._terminalSnapshotCache.get(sessionId) || null;
-                    this._showDesktopSnapshotDisplay?.(sessionId, {
+                    this._showSnapshotDisplay(sessionId, {
                         title: 'Terminal display',
                         snapshot: cachedSnapshot
                     });
@@ -316,7 +316,7 @@ export function applySessionManagementMixin(AppClass) {
                 // Show snapshot immediately for ttyd iframe path too
                 {
                     const cachedSnapshot = this._terminalSnapshotCache.get(sessionId) || null;
-                    this._showDesktopSnapshotDisplay?.(sessionId, {
+                    this._showSnapshotDisplay(sessionId, {
                         title: 'Terminal display',
                         snapshot: cachedSnapshot
                     });

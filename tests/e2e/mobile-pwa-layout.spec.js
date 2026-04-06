@@ -104,7 +104,7 @@ test.describe('Mobile PWA layout', () => {
             }
 
             document.body.classList.remove('mobile-tab-active');
-            app?._showMobileTerminalDisplay?.();
+            app?._showSnapshotDisplay?.();
             consoleArea.classList.add('using-snapshot');
             snapshotPanel.classList.remove('hidden');
 

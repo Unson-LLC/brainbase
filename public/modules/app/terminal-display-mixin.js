@@ -76,7 +76,7 @@ export function applyTerminalDisplayMixin(AppClass) {
         this._scheduleTerminalAutoFocus(reason, delays);
     };
 
-    AppClass.prototype._isMobileTerminalDisplayMode = function() {
+    AppClass.prototype._isMobileSnapshotMode = function() {
         return this.isMobile() && this._mobileTerminalMode !== 'interactive';
     };
 
@@ -121,34 +121,6 @@ export function applyTerminalDisplayMixin(AppClass) {
         }
     };
 
-    AppClass.prototype._showMobileTerminalDisplay = function() {
-        this.terminalXtermHost?.classList.add('hidden');
-        this.terminalFrame?.classList.add('hidden');
-        const consoleArea = document.getElementById('console-area');
-        consoleArea?.classList.remove('using-xterm');
-        consoleArea?.classList.add('using-snapshot');
-
-        // iOS Safari: overflow:hidden ancestors clip fixed-position text rendering.
-        // Move snapshot panel to body so it escapes the clipping context.
-        const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
-        if (panel && panel.parentElement !== document.body) {
-            this._snapshotPanelOriginalParent = panel.parentElement;
-            document.body.appendChild(panel);
-        }
-        // Offset snapshot panel below mobile tab bar
-        if (panel) {
-            const tabBar = document.getElementById('mobile-tab-bar');
-            const tabBarH = tabBar ? tabBar.offsetHeight : 0;
-            if (tabBarH > 0) {
-                document.body.style.setProperty('--mobile-tab-bar-height', `${tabBarH}px`);
-            }
-        }
-        this.syncMobileTerminalReserve(
-            window.visualViewport?.height || window.innerHeight,
-            window.visualViewport?.offsetTop || 0
-        );
-    };
-
     AppClass.prototype._isSessionSwitchCurrent = function(sessionId, switchToken = null) {
         if (!sessionId) return false;
         if (switchToken != null && switchToken !== this._sessionSwitchToken) return false;
@@ -167,19 +139,42 @@ export function applyTerminalDisplayMixin(AppClass) {
         return Boolean(snapshotVisible && xtermHidden);
     };
 
-    AppClass.prototype._showDesktopSnapshotDisplay = function(sessionId, { title = 'Terminal display', snapshot = null } = {}) {
-        this._restoreSnapshotPanelPosition();
+    AppClass.prototype._showSnapshotDisplay = function(sessionId, { title = 'Terminal display', snapshot = null } = {}) {
         this.terminalXtermHost?.classList.add('hidden');
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
-        // デスクトップではusing-snapshotを使わない（モバイルCSSが発火して崩れるため）
-        consoleArea?.classList.remove('using-snapshot');
-        this._renderTerminalSnapshotPanel({
-            visible: true,
-            snapshot: snapshot || this._terminalSnapshotCache.get(sessionId) || null,
-            title
-        });
+        if (this.isMobile()) {
+            consoleArea?.classList.add('using-snapshot');
+            // iOS Safari: overflow:hidden ancestors clip fixed-position text rendering.
+            // Move snapshot panel to body so it escapes the clipping context.
+            const panel = this.terminalSnapshotPanelEl || document.getElementById('terminal-snapshot-panel');
+            if (panel && panel.parentElement !== document.body) {
+                this._snapshotPanelOriginalParent = panel.parentElement;
+                document.body.appendChild(panel);
+            }
+            // Offset snapshot panel below mobile tab bar
+            if (panel) {
+                const tabBar = document.getElementById('mobile-tab-bar');
+                const tabBarH = tabBar ? tabBar.offsetHeight : 0;
+                if (tabBarH > 0) {
+                    document.body.style.setProperty('--mobile-tab-bar-height', `${tabBarH}px`);
+                }
+            }
+            this.syncMobileTerminalReserve(
+                window.visualViewport?.height || window.innerHeight,
+                window.visualViewport?.offsetTop || 0
+            );
+        } else {
+            // デスクトップではusing-snapshotを使わない（モバイルCSSが発火して崩れるため）
+            consoleArea?.classList.remove('using-snapshot');
+            this._restoreSnapshotPanelPosition();
+            this._renderTerminalSnapshotPanel({
+                visible: true,
+                snapshot: snapshot || this._terminalSnapshotCache.get(sessionId) || null,
+                title
+            });
+        }
     };
 
     AppClass.prototype._isConsoleVisible = function() {

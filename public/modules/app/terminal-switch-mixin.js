@@ -129,7 +129,7 @@ export function applyTerminalSwitchMixin(AppClass) {
             snapshotPanel.classList.toggle('hidden', presentation.snapshotHidden);
         }
 
-        this._mobileTerminalMode = presentation.mobileTerminalMode || 'display';
+        this._mobileTerminalMode = presentation.mobileTerminalMode || 'snapshot';
         this._mobileLiveTerminalSessionId = presentation.mobileLiveTerminalSessionId || null;
         if (mobileModal) {
             mobileModal.classList.toggle('active', Boolean(presentation.mobileModalActive));
