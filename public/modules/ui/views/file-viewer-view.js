@@ -1,6 +1,7 @@
 // @ts-check
 import { appStore } from '../../core/store.js';
 import { escapeHtml, refreshIcons } from '../../ui-helpers.js';
+import { showSuccess, showError } from '../../toast.js';
 import { BaseView } from './base-view.js';
 
 /**
@@ -12,6 +13,10 @@ export class FileViewerView extends BaseView {
         super();
         this.fileViewerService = fileViewerService;
         this.store = appStore;
+        /** @type {boolean} Markdown raw/preview toggle */
+        this._showRaw = false;
+        /** @type {string|null} Track current file to reset toggle on change */
+        this._currentPath = null;
     }
 
     _setupEventListeners() {
@@ -34,19 +39,45 @@ export class FileViewerView extends BaseView {
         }
 
         const { relativePath, fileName, content, renderedHtml, isMarkdown, loading, error } = fileViewer;
+
+        // Reset toggle when file changes
+        if (relativePath !== this._currentPath) {
+            this._showRaw = false;
+            this._currentPath = relativePath;
+        }
+
         const title = fileName || relativePath || '';
         const subtitle = relativePath && relativePath !== title ? relativePath : '';
+        const hasContent = !loading && !error && content != null;
 
         let bodyHtml = '';
         if (loading) {
             bodyHtml = '<div class="file-viewer-loading">Loading...</div>';
         } else if (error) {
             bodyHtml = `<div class="file-viewer-error">${escapeHtml(error)}</div>`;
-        } else if (isMarkdown && renderedHtml) {
+        } else if (isMarkdown && !this._showRaw && renderedHtml) {
             bodyHtml = `<div class="file-viewer-markdown">${renderedHtml}</div>`;
         } else if (content != null) {
             bodyHtml = `<pre class="file-viewer-text"><code>${escapeHtml(content)}</code></pre>`;
         }
+
+        // Toolbar buttons (only when content is loaded)
+        const toggleIcon = this._showRaw ? 'eye' : 'code';
+        const toggleTitle = this._showRaw ? 'Show preview' : 'Show raw';
+        const toggleClass = this._showRaw ? ' active' : '';
+        const toolbarHtml = hasContent ? `
+            <div class="file-viewer-toolbar">
+                <button class="file-viewer-toolbar-btn" data-action="copy" title="Copy raw content">
+                    <i data-lucide="copy"></i>
+                </button>
+                <button class="file-viewer-toolbar-btn" data-action="download" title="Download file">
+                    <i data-lucide="download"></i>
+                </button>
+                ${isMarkdown ? `<button class="file-viewer-toolbar-btn${toggleClass}" data-action="toggle" title="${toggleTitle}">
+                    <i data-lucide="${toggleIcon}"></i>
+                </button>` : ''}
+            </div>
+        ` : '';
 
         this.container.innerHTML = `
             <div class="file-viewer">
@@ -59,6 +90,7 @@ export class FileViewerView extends BaseView {
                         <div class="file-viewer-title" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
                         ${subtitle ? `<div class="file-viewer-path" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</div>` : ''}
                     </div>
+                    ${toolbarHtml}
                 </div>
                 <div class="file-viewer-content">
                     ${bodyHtml}
@@ -72,6 +104,52 @@ export class FileViewerView extends BaseView {
                 this.fileViewerService.close();
             });
         }
+
+        // Toolbar event listeners
+        this.container.querySelector('[data-action="copy"]')
+            ?.addEventListener('click', () => this._handleCopy());
+        this.container.querySelector('[data-action="download"]')
+            ?.addEventListener('click', () => this._handleDownload());
+        this.container.querySelector('[data-action="toggle"]')
+            ?.addEventListener('click', () => this._handleMarkdownToggle());
+
         refreshIcons();
+    }
+
+    /** Copy raw file content to clipboard */
+    async _handleCopy() {
+        const state = this.store.getState().fileViewer;
+        if (!state?.content) return;
+        try {
+            await navigator.clipboard.writeText(state.content);
+            showSuccess('Copied!');
+        } catch {
+            showError('Failed to copy');
+        }
+    }
+
+    /** Download file via Blob + <a download> */
+    _handleDownload() {
+        const state = this.store.getState().fileViewer;
+        if (!state?.content || !state?.fileName) return;
+        try {
+            const blob = new Blob([state.content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = state.fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch {
+            showError('Failed to download');
+        }
+    }
+
+    /** Toggle markdown rendered/raw view */
+    _handleMarkdownToggle() {
+        this._showRaw = !this._showRaw;
+        this.render();
     }
 }
