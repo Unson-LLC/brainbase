@@ -164,7 +164,7 @@ export function applyTerminalDisplayMixin(AppClass) {
         const xtermHidden = this.terminalXtermHost
             ? this.terminalXtermHost.classList.contains('hidden')
             : document.getElementById('terminal-xterm-host')?.classList.contains('hidden');
-        return Boolean(consoleArea?.classList.contains('using-snapshot') && snapshotVisible && xtermHidden);
+        return Boolean(snapshotVisible && xtermHidden);
     };
 
     AppClass.prototype._showDesktopSnapshotDisplay = function(sessionId, { title = 'Terminal display', snapshot = null } = {}) {
@@ -173,7 +173,8 @@ export function applyTerminalDisplayMixin(AppClass) {
         this.terminalFrame?.classList.add('hidden');
         const consoleArea = document.getElementById('console-area');
         consoleArea?.classList.remove('using-xterm');
-        consoleArea?.classList.add('using-snapshot');
+        // デスクトップではusing-snapshotを使わない（モバイルCSSが発火して崩れるため）
+        consoleArea?.classList.remove('using-snapshot');
         this._renderTerminalSnapshotPanel({
             visible: true,
             snapshot: snapshot || this._terminalSnapshotCache.get(sessionId) || null,
