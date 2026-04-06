@@ -12561,8 +12561,8 @@ body.resizing iframe {
 }
 
 /* Portal Overlay (Full-Screen Framework-Driven Portal) */
-.portal-overlay { position: fixed; inset: 0; z-index: 200; background-color: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; overflow-y: auto; display: flex; flex-direction: column; }
-.portal-overlay.open { opacity: 1; pointer-events: auto; }
+.portal-overlay { display: none; flex-direction: column; height: 100%; background-color: var(--bg-primary, #0f172a); overflow-y: auto; }
+.portal-overlay.open { display: flex; }
 .portal-overlay-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
 .portal-overlay-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: var(--text-primary); }
 .portal-overlay-title .lucide-icon { width: 18px; height: 18px; }

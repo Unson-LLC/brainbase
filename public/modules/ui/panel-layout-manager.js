@@ -129,6 +129,10 @@ export function setupPanelLayout({ store, eventBus }) {
         const overlay = getEl('portal-overlay');
         if (overlay) overlay.classList.toggle('open', open);
 
+        // Hide/show console area (portal replaces it in the same space)
+        const consoleArea = getEl('console-area');
+        if (consoleArea) consoleArea.style.display = open ? 'none' : 'flex';
+
         const abPortal = getEl('ab-portal-btn');
         if (abPortal) abPortal.classList.toggle('active', open);
 
