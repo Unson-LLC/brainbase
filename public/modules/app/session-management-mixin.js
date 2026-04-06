@@ -161,6 +161,10 @@ export function applySessionManagementMixin(AppClass) {
                 if (appStore.getState().currentSessionId !== sessionId) {
                     appStore.setState({ currentSessionId: sessionId });
                 }
+                // Update lastAccessedAt for sort ordering
+                const now = new Date().toISOString();
+                session.lastAccessedAt = now;
+                httpClient.patch(`/api/state/sessions/${sessionId}`, { lastAccessedAt: now }).catch(() => {});
                 this._setActiveSessionRow?.(sessionId);
                 this._beginTerminalSwitch?.(sessionId, {
                     previousSessionId,

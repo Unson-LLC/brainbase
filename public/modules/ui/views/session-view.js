@@ -379,44 +379,31 @@ export class SessionView {
         const uiState = session?.id ? deriveSessionUiState(session.id) : null;
         const liveStatus = uiState?.hookStatus || null;
 
-        // Timeline ordering should follow actual AI-visible output, not stale working heartbeats.
-        // Keep done-unread sessions ordered by their completion/output timestamp, but avoid
-        // promoting ordinary sessions solely because an old hookStatus object still exists.
-        const doneUnreadTimestamp = Math.max(
-            liveStatus?.lastDoneAt || 0,
-            liveStatus?.liveActivity?.assistantSnippetUpdatedAt || 0,
-            pickTimestamp(session.lastAssistantSnippetAt) || 0,
-            pickTimestamp(session.conversationSummary?.lastActivity) || 0
-        );
-        if (uiState?.activity === 'done-unread' && doneUnreadTimestamp > 0) {
-            return doneUnreadTimestamp;
+        // done-unread sessions: use completion/output timestamp for ordering within the green group
+        if (uiState?.activity === 'done-unread') {
+            const doneUnreadTimestamp = Math.max(
+                liveStatus?.lastDoneAt || 0,
+                liveStatus?.liveActivity?.assistantSnippetUpdatedAt || 0,
+                pickTimestamp(session.lastAssistantSnippetAt) || 0
+            );
+            if (doneUnreadTimestamp > 0) return doneUnreadTimestamp;
         }
 
-        const activityTimestamp = Math.max(
-            liveStatus?.liveActivity?.assistantSnippetUpdatedAt || 0,
-            pickTimestamp(session.lastAssistantSnippetAt) || 0,
-            pickTimestamp(session.conversationSummary?.lastActivity) || 0
-        );
-        if (activityTimestamp > 0) {
-            return activityTimestamp;
-        }
+        // Primary: user's last interaction time
+        const accessed = pickTimestamp(session.lastAccessedAt);
+        if (accessed) return accessed;
 
-        const candidates = [
-            session.created,
-            session.createdAt,
-            session.createdDate
-        ];
-
+        // Fallback: creation time
+        const candidates = [session.created, session.createdAt, session.createdDate];
         for (const candidate of candidates) {
             const picked = pickTimestamp(candidate);
             if (picked) return picked;
         }
 
+        // Last resort: extract from session ID
         if (session.id) {
             const match = session.id.match(/session-(\d{13})/);
-            if (match) {
-                return parseInt(match[1], 10);
-            }
+            if (match) return parseInt(match[1], 10);
         }
 
         return 0;
