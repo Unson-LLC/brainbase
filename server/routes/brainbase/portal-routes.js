@@ -158,23 +158,38 @@ export function createBrainbasePortalRouter(options = {}) {
 
     async function fetchFrame(projectCode) {
         try {
-            if (!wikiService) return { title: '', content: '', available: false };
+            if (!wikiService) return { title: '', content: '', available: false, frames: [] };
             const access = { role: 'member', roleRank: 1, clearance: ['internal'], projectCodes: [projectCode] };
             const result = await wikiService.getPage(access, `${projectCode}/frame.md`);
             if (result.error) {
                 const fallback = await wikiService.getPage(access, `${projectCode}/project.md`);
                 if (fallback.error) {
                     const readmeFallback = await wikiService.getPage(access, `${projectCode}/README.md`);
-                    if (readmeFallback.error) return { title: 'frame.md', content: '', available: false };
-                    return { title: readmeFallback.title || 'README.md', content: readmeFallback.content, available: true };
+                    if (readmeFallback.error) return { title: 'frame.md', content: '', available: false, frames: [] };
+                    return { title: readmeFallback.title || 'README.md', content: readmeFallback.content, available: true, frames: [] };
                 }
-                return { title: fallback.title || 'project.md', content: fallback.content, available: true };
+                return { title: fallback.title || 'project.md', content: fallback.content, available: true, frames: [] };
             }
-            return { title: result.title || 'frame.md', content: result.content, available: true };
+            // Parse multiple frames from YAML blocks
+            const frames = _parseFrameBlocks(result.content);
+            return { title: result.title || 'frame.md', content: result.content, available: true, frames };
         } catch (error) {
             logger.warn('Portal: Failed to fetch frame', { projectCode, error: error.message });
-            return { title: '', content: '', available: false };
+            return { title: '', content: '', available: false, frames: [] };
         }
+    }
+
+    function _parseFrameBlocks(content) {
+        const blocks = content.match(/```yaml\n([\s\S]*?)```/g) || [];
+        return blocks.map(block => {
+            const yaml = block.replace(/```yaml\n/, '').replace(/```/, '').trim();
+            const frame = {};
+            for (const line of yaml.split('\n')) {
+                const m = line.match(/^(\w[\w_]*)\s*:\s*"?(.+?)"?\s*$/);
+                if (m) frame[m[1]] = m[2];
+            }
+            return frame;
+        }).filter(f => f.frame_id);
     }
 
     async function fetchIssues(baseId) {
