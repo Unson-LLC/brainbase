@@ -322,30 +322,16 @@ async function loadAutoContext(): Promise<any> {
     const existingFiles = referencedFiles.filter((file) => file.exists);
     const missingFiles = referencedFiles.filter((file) => !file.exists);
 
-    let contextMessage = "📋 **自動コンテキスト読み込み完了**\\n\\n";
-
-    // 読み込まれたファイルの一覧
-    if (existingFiles.length > 0) {
-      contextMessage += "**📖 読み込まれたドキュメント:**\\n";
-      for (const file of existingFiles) {
-        const summary = summarizeFile(file.content!, 500);
-        contextMessage += `\\n**${file.label}** (${file.filePath}):\\n`;
-        contextMessage += `\`\`\`\\n${summary}\\n\`\`\`\\n`;
-      }
+    // 圧縮形式: ファイル名と要約のみ
+    const parts: string[] = [`Context: ${existingFiles.length}/${referencedFiles.length} loaded`];
+    for (const file of existingFiles) {
+      const summary = summarizeFile(file.content!, 300);
+      parts.push(`[${file.filePath}]\\n${summary}`);
     }
-
-    // 見つからなかったファイル
     if (missingFiles.length > 0) {
-      contextMessage += "\\n**⚠️ 見つからなかったファイル:**\\n";
-      for (const file of missingFiles) {
-        contextMessage += `• ${file.label}: ${file.filePath}\\n`;
-      }
+      parts.push(`Missing: ${missingFiles.map(f => f.filePath).join(", ")}`);
     }
-
-    contextMessage += `\\n**📊 コンテキスト統計:**\\n`;
-    contextMessage += `• 読み込み成功: ${existingFiles.length}ファイル\\n`;
-    contextMessage += `• 読み込み失敗: ${missingFiles.length}ファイル\\n`;
-    contextMessage += `• 合計参照: ${referencedFiles.length}ファイル`;
+    const contextMessage = parts.join("\\n");
 
     const response = {
       continue: true,
