@@ -45,7 +45,6 @@ export function applyTerminalSwitchMixin(AppClass) {
         };
         this._terminalSwitchState = 'switching';
         this.showTerminalLoadingOverlay?.();
-        }
         return this._pendingTerminalSwitch;
     };
 

@@ -250,6 +250,8 @@ export const EVENTS = {
     // Portal関連
     PORTAL_DATA_LOADED: 'portal:data-loaded',
     PORTAL_DATA_ERROR: 'portal:data-error',
+    PORTAL_OVERLAY_DATA_LOADED: 'portal:overlay-data-loaded',
+    PORTAL_OVERLAY_DATA_ERROR: 'portal:overlay-data-error',
 
     // Commit Tree関連
     COMMIT_LOG_LOADED: 'commit-tree:loaded',

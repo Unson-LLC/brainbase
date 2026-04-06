@@ -556,6 +556,28 @@
             </div>
         </div>
 
+        <!-- Portal Overlay (fullscreen, framework-driven project portal) -->
+        <div class="portal-overlay" id="portal-overlay">
+            <div class="portal-overlay-header">
+                <div class="portal-overlay-title">
+                    <i data-lucide="compass"></i>
+                    <span>Portal</span>
+                    <select class="portal-overlay-project-selector" id="portal-overlay-project-select">
+                        <option value="">-- Select Project --</option>
+                    </select>
+                </div>
+                <div class="portal-overlay-actions">
+                    <button class="icon-btn portal-overlay-refresh" id="portal-overlay-refresh" title="更新">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <button id="portal-overlay-close" class="icon-btn" title="Portalを閉じる" aria-label="Portalオーバーレイを閉じる">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="portal-overlay-panel"></div>
+        </div>
+
         <!-- Standalone panels removed: Commit Tree and Context Sidebar are now in Info Drawer tabs -->
     </div>
 

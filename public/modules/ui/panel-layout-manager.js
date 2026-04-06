@@ -6,6 +6,7 @@ const STORAGE_KEY = 'bb-panel-state';
  * Panel layout manager: Console is always visible.
  * - Info Drawer (Commit Tree / Tasks / Wiki / LiveFeed tabs): right slide-in panel
  * - Dashboard: fullscreen overlay
+ * - Portal Overlay: fullscreen framework-driven portal
  */
 export function setupPanelLayout({ store, eventBus }) {
     _restoreState(store);
@@ -54,28 +55,43 @@ export function setupPanelLayout({ store, eventBus }) {
         const panels = store.getState().ui.panels;
         const next = !panels.dashboardOpen;
         store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, dashboardOpen: next, infoDrawerOpen: false } }
+            ui: { ...store.getState().ui, panels: { ...panels, dashboardOpen: next, infoDrawerOpen: false, portalOverlayOpen: false } }
         });
         _applyDashboard(next);
         _applyInfoDrawer(false, panels.infoDrawerTab);
+        _applyPortalOverlay(false);
         _persistState(store);
         eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'dashboard', open: next });
+    };
+
+    const togglePortalOverlay = () => {
+        const panels = store.getState().ui.panels;
+        const next = !panels.portalOverlayOpen;
+        store.setState({
+            ui: { ...store.getState().ui, panels: { ...panels, portalOverlayOpen: next, dashboardOpen: false, infoDrawerOpen: false } }
+        });
+        _applyPortalOverlay(next);
+        _applyDashboard(false);
+        _applyInfoDrawer(false, panels.infoDrawerTab);
+        _persistState(store);
+        eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'portal-overlay', open: next });
     };
 
     const closeAllPanels = () => {
         const panels = store.getState().ui.panels;
         store.setState({
-            ui: { ...store.getState().ui, panels: { ...panels, infoDrawerOpen: false, dashboardOpen: false } }
+            ui: { ...store.getState().ui, panels: { ...panels, infoDrawerOpen: false, dashboardOpen: false, portalOverlayOpen: false } }
         });
         _applyInfoDrawer(false, panels.infoDrawerTab);
         _applyDashboard(false);
+        _applyPortalOverlay(false);
         _persistState(store);
     };
 
     // Backward compat aliases
     const toggleWiki = () => toggleInfoDrawer('wiki');
     const toggleLiveFeed = () => toggleInfoDrawer('live-feed');
-    const togglePortal = () => toggleInfoDrawer('portal');
+    const togglePortal = () => togglePortalOverlay();
 
     // --- Apply DOM state ---
 
@@ -94,16 +110,32 @@ export function setupPanelLayout({ store, eventBus }) {
         const abLive = getEl('ab-livefeed-btn');
         const abCommitTree = getEl('ab-commit-tree-btn');
         const abTasks = getEl('ab-tasks-btn');
+        const abPortal = getEl('ab-portal-btn');
         const abSessions = getEl('ab-sessions-btn');
 
         if (abWiki) abWiki.classList.toggle('active', open && activeTab === 'wiki');
         if (abLive) abLive.classList.toggle('active', open && activeTab === 'live-feed');
         if (abCommitTree) abCommitTree.classList.toggle('active', open && activeTab === 'commit-tree');
         if (abTasks) abTasks.classList.toggle('active', open && activeTab === 'tasks');
+        const portalOvOpen = store.getState().ui.panels.portalOverlayOpen;
+        if (abPortal) abPortal.classList.toggle('active', portalOvOpen || (open && activeTab === 'portal'));
 
         // Sessions button is active only when no panel is open
         const dashOpen = store.getState().ui.panels.dashboardOpen;
-        if (abSessions) abSessions.classList.toggle('active', !open && !dashOpen);
+        if (abSessions) abSessions.classList.toggle('active', !open && !dashOpen && !portalOvOpen);
+    }
+
+    function _applyPortalOverlay(open) {
+        const overlay = getEl('portal-overlay');
+        if (overlay) overlay.classList.toggle('open', open);
+
+        const abPortal = getEl('ab-portal-btn');
+        if (abPortal) abPortal.classList.toggle('active', open);
+
+        const abSessions = getEl('ab-sessions-btn');
+        const infoOpen = store.getState().ui.panels.infoDrawerOpen;
+        const dashOpen = store.getState().ui.panels.dashboardOpen;
+        if (abSessions) abSessions.classList.toggle('active', !open && !infoOpen && !dashOpen);
     }
 
     function _applyDashboard(open) {
@@ -148,7 +180,7 @@ export function setupPanelLayout({ store, eventBus }) {
     const _onKeydown = (e) => {
         if (e.key === 'Escape') {
             const panels = store.getState().ui.panels;
-            if (panels.dashboardOpen || panels.infoDrawerOpen) {
+            if (panels.portalOverlayOpen || panels.dashboardOpen || panels.infoDrawerOpen) {
                 e.preventDefault();
                 closeAllPanels();
                 return;
@@ -175,7 +207,7 @@ export function setupPanelLayout({ store, eventBus }) {
                     break;
                 case 'P':
                     e.preventDefault();
-                    toggleInfoDrawer('portal');
+                    togglePortalOverlay();
                     break;
             }
         }
@@ -187,6 +219,7 @@ export function setupPanelLayout({ store, eventBus }) {
     const initialPanels = store.getState().ui.panels;
     _applyInfoDrawer(initialPanels.infoDrawerOpen, initialPanels.infoDrawerTab);
     _applyDashboard(initialPanels.dashboardOpen);
+    _applyPortalOverlay(initialPanels.portalOverlayOpen || false);
 
     const consoleArea = getEl('console-area');
     if (consoleArea) consoleArea.style.display = 'flex';
@@ -199,7 +232,7 @@ export function setupPanelLayout({ store, eventBus }) {
         unsubCommitTreeReq();
     };
 
-    return { cleanup, toggleInfoDrawer, toggleWiki, toggleLiveFeed, togglePortal, toggleContextSidebar, toggleDashboard, closeAllPanels };
+    return { cleanup, toggleInfoDrawer, toggleWiki, toggleLiveFeed, togglePortal, togglePortalOverlay, toggleContextSidebar, toggleDashboard, closeAllPanels };
 }
 
 // --- Persistence helpers ---

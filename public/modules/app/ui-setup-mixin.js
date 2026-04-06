@@ -24,6 +24,7 @@ import { FileViewerView } from '../ui/views/file-viewer-view.js';
 import { WikiView } from '../ui/views/wiki-view.js';
 import { LiveFeedView } from '../ui/views/live-feed-view.js';
 import { PortalView } from '../ui/views/portal-view.js';
+import { PortalOverlayView } from '../ui/views/portal-overlay-view.js';
 import { PortalService } from '../domain/portal/portal-service.js';
 import { NocoDBIssueService } from '../domain/nocodb-issue/nocodb-issue-service.js';
 import { setupSessionViewToggle } from '../ui/session-view-toggle.js';
@@ -213,15 +214,21 @@ export function applyUiSetupMixin(AppClass) {
         // Portal (info drawer tab)
         const portalContainer = document.getElementById('portal-panel');
         if (portalContainer) {
-            // config.ymlからプロジェクト一覧を取得（非同期で初期化）
             this._initPortalView(portalContainer);
+        }
+
+        // Portal Overlay (fullscreen)
+        const portalOverlayContainer = document.getElementById('portal-overlay-panel');
+        if (portalOverlayContainer) {
+            this._initPortalOverlayView(portalOverlayContainer);
         }
     };
 
     AppClass.prototype._initPortalView = async function(container) {
         try {
             const configResp = await httpClient.get('/api/config');
-            const projects = (configResp?.projects || [])
+            const rawProjects = configResp?.projects?.projects || configResp?.projects || [];
+            const projects = (Array.isArray(rawProjects) ? rawProjects : [])
                 .filter(p => !p.archived)
                 .map(p => ({ id: p.id, name: p.name || p.id }));
 
@@ -231,12 +238,33 @@ export function applyUiSetupMixin(AppClass) {
             });
             this.views.portalView.mount(container);
         } catch (error) {
-            // config取得失敗時はプロジェクト一覧なしで初期化
             this.views.portalView = new PortalView({
                 portalService: this.portalService,
                 configProjects: []
             });
             this.views.portalView.mount(container);
+        }
+    };
+
+    AppClass.prototype._initPortalOverlayView = async function(container) {
+        try {
+            const configResp = await httpClient.get('/api/config');
+            const rawProjects = configResp?.projects?.projects || configResp?.projects || [];
+            const projects = (Array.isArray(rawProjects) ? rawProjects : [])
+                .filter(p => !p.archived)
+                .map(p => ({ id: p.id, name: p.name || p.id }));
+
+            this.views.portalOverlayView = new PortalOverlayView({
+                portalService: this.portalService,
+                configProjects: projects
+            });
+            this.views.portalOverlayView.mount(container);
+        } catch (error) {
+            this.views.portalOverlayView = new PortalOverlayView({
+                portalService: this.portalService,
+                configProjects: []
+            });
+            this.views.portalOverlayView.mount(container);
         }
     };
 
