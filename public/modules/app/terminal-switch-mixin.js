@@ -44,10 +44,7 @@ export function applyTerminalSwitchMixin(AppClass) {
             presentation: this._captureTerminalPresentation()
         };
         this._terminalSwitchState = 'switching';
-        // Desktop: skip overlay when snapshot can be shown immediately
-        const hasSnapshot = surface === 'desktop' && this._terminalSnapshotCache?.get(sessionId);
-        if (!hasSnapshot) {
-            this.showTerminalLoadingOverlay?.();
+        this.showTerminalLoadingOverlay?.();
         }
         return this._pendingTerminalSwitch;
     };

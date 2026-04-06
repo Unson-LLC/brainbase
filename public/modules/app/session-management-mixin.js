@@ -231,42 +231,26 @@ export function applySessionManagementMixin(AppClass) {
                 }
 
                 if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
-                    // Show snapshot immediately so the user sees content right away
-                    const cachedSnapshot = this._terminalSnapshotCache.get(sessionId) || null;
-                    this._showSnapshotDisplay(sessionId, {
-                        title: 'Terminal display',
-                        snapshot: cachedSnapshot
-                    });
-                    this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_snapshot', hideOverlay: true });
-
-                    // Load fresh snapshot in background if cache was empty
-                    if (!cachedSnapshot) {
-                        this._loadTerminalSnapshot?.(sessionId, { force: false, mode: 'fast' }).then((snapshot) => {
-                            if (this._isSessionSwitchCurrent(sessionId) && this._isCurrentSessionSnapshotDisplay?.(sessionId)) {
-                                this._renderTerminalSnapshotPanel?.({ visible: true, snapshot, title: 'Terminal display' });
-                            }
-                        }).catch(() => {});
-                    }
-
                     this._setCurrentSessionUiState({
                         transport: 'reconnecting',
                         attention: 'none'
                     });
-
-                    // Connect terminal in background — snapshot stays visible until connected
                     const initialRuntime = await this._resolveSessionRuntime(sessionId, session);
                     if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     try {
                         await this._ensureDesktopTerminalRuntime(session, initialRuntime?.runtimeStatus || null);
                         if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     } catch (error) {
-                        // Terminal startup failed — keep snapshot visible as fallback
-                        console.warn('[switchSession] Terminal startup failed, keeping snapshot display:', error.message);
+                        this._failTerminalSwitch?.(sessionId, switchToken, {
+                            previousSessionId,
+                            error,
+                            errorMessage: 'ターミナル起動に失敗しました'
+                        });
                         this._setCurrentSessionUiState({
                             transport: 'disconnected',
                             attention: 'none'
                         });
-                        return { ok: true, mode: 'snapshot_fallback' };
+                        return { ok: false, reason: 'ensure-failed' };
                     }
 
                     const transportResult = await this._connectXtermTransport(session, { deferDisplay: true });
@@ -277,6 +261,7 @@ export function applySessionManagementMixin(AppClass) {
                     if (transportResult.ok) {
                         this.reconnectManager?.setCurrentSession(sessionId);
                         this._terminalLastNavigateAt = Date.now();
+                        this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_live' });
                         this._setCurrentSessionUiState({
                             transport: 'reconnecting',
                             attention: 'none'
@@ -284,7 +269,6 @@ export function applySessionManagementMixin(AppClass) {
                         if (this._shouldAutoFocusTerminalSurface()) {
                             this._triggerTerminalAutoFocus('switchSession');
                         }
-
                         return { ok: true, mode: 'xterm' };
                     }
 
@@ -300,34 +284,20 @@ export function applySessionManagementMixin(AppClass) {
                             lastSnapshotAt: null
                         };
                         this._showXtermTransport();
+                        this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'blocked' });
                         this._updateTerminalInputStatus();
                         return { ok: true, blocked: true };
                     }
 
-                    // Connection failed — keep snapshot visible as fallback
-                    console.warn('[switchSession] Terminal connection failed, keeping snapshot display');
+                    this._failTerminalSwitch?.(sessionId, switchToken, {
+                        previousSessionId,
+                        errorMessage: 'ターミナル接続に失敗しました'
+                    });
                     this._setCurrentSessionUiState({
                         transport: 'disconnected',
                         attention: 'none'
                     });
-                    return { ok: true, mode: 'snapshot_fallback' };
-                }
-
-                // Show snapshot immediately for ttyd iframe path too
-                {
-                    const cachedSnapshot = this._terminalSnapshotCache.get(sessionId) || null;
-                    this._showSnapshotDisplay(sessionId, {
-                        title: 'Terminal display',
-                        snapshot: cachedSnapshot
-                    });
-                    this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_snapshot', hideOverlay: true });
-                    if (!cachedSnapshot) {
-                        this._loadTerminalSnapshot?.(sessionId, { force: false, mode: 'fast' }).then((snapshot) => {
-                            if (this._isSessionSwitchCurrent(sessionId) && this._isCurrentSessionSnapshotDisplay?.(sessionId)) {
-                                this._renderTerminalSnapshotPanel?.({ visible: true, snapshot, title: 'Terminal display' });
-                            }
-                        }).catch(() => {});
-                    }
+                    return { ok: false, reason: 'connect-failed' };
                 }
 
                 const result = await this._resolveTtydProxyPath(sessionId, session, options);
@@ -342,31 +312,37 @@ export function applySessionManagementMixin(AppClass) {
                     this._clearTerminalFrame(terminalFrame);
                     this.reconnectManager?.setCurrentSession(sessionId);
                     this.reconnectManager._setBlocked?.(result.terminalAccess);
+                    this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'blocked' });
                     this._updateTerminalInputStatus();
                     return { ok: true, blocked: true };
                 }
 
                 if (!result?.proxyPath) {
-                    // Keep snapshot visible as fallback
-                    console.warn('[switchSession] No proxy path, keeping snapshot display');
+                    this._failTerminalSwitch?.(sessionId, switchToken, {
+                        previousSessionId,
+                        errorMessage: 'ターミナル接続先が見つかりません'
+                    });
                     this._setCurrentSessionUiState({
                         transport: 'disconnected',
                         attention: 'none'
                     });
-                    return { ok: true, mode: 'snapshot_fallback' };
+                    return { ok: false, reason: 'missing-proxy-path' };
                 }
 
                 try {
                     terminalFrame.classList.add('hidden');
                     await this._awaitTerminalFrameReady(terminalFrame, result.proxyPath);
                 } catch (error) {
-                    // Keep snapshot visible as fallback
-                    console.warn('[switchSession] Frame load failed, keeping snapshot display:', error.message);
+                    this._failTerminalSwitch?.(sessionId, switchToken, {
+                        previousSessionId,
+                        error,
+                        errorMessage: 'ターミナル接続に失敗しました'
+                    });
                     this._setCurrentSessionUiState({
                         transport: 'disconnected',
                         attention: 'none'
                     });
-                    return { ok: true, mode: 'snapshot_fallback' };
+                    return { ok: false, reason: 'frame-load-failed' };
                 }
                 if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
 
@@ -385,6 +361,7 @@ export function applySessionManagementMixin(AppClass) {
                     };
                 }
                 this._terminalLastNavigateAt = Date.now();
+                this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_live' });
                 this._setCurrentSessionUiState({
                     transport: 'reconnecting',
                     attention: 'none'
