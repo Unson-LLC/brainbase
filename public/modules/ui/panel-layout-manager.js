@@ -74,7 +74,15 @@ export function setupPanelLayout({ store, eventBus }) {
         _applyDashboard(false);
         _applyInfoDrawer(false, panels.infoDrawerTab);
         _persistState(store);
-        eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'portal-overlay', open: next });
+
+        // Auto-select current session's project when opening
+        let autoProject = null;
+        if (next) {
+            const state = store.getState();
+            const currentSession = (state.sessions || []).find(s => s.id === state.currentSessionId);
+            autoProject = currentSession?.project || null;
+        }
+        eventBus.emit(EVENTS.PANEL_TOGGLED, { panel: 'portal-overlay', open: next, autoProject });
     };
 
     const closeAllPanels = () => {

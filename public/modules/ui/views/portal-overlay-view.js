@@ -23,6 +23,21 @@ export class PortalOverlayView extends BaseView {
 
     _setupEventListeners() {
         this._renderOn(eventBus, EVENTS.PORTAL_OVERLAY_DATA_LOADED);
+
+        // Auto-load project when portal opens with autoProject
+        const unsub = eventBus.on(EVENTS.PANEL_TOGGLED, (e) => {
+            const { panel, open, autoProject } = e.detail || {};
+            if (panel === 'portal-overlay' && open && autoProject) {
+                const current = this.portalService.getCurrentProject();
+                if (autoProject !== current) {
+                    this.portalService.loadPortalOverlay(autoProject);
+                    // Update selector
+                    const select = document.getElementById('portal-overlay-project-select');
+                    if (select) select.value = autoProject;
+                }
+            }
+        });
+        this._unsubscribers.push(unsub);
     }
 
     async render() {
