@@ -27,32 +27,55 @@ export function renderStoryMapSection(storyMap, { escapeHtml }) {
     for (const s of stories) {
         const depth = HORIZON_DEPTH[s.horizon] ?? 0;
         const label = HORIZON_LABEL[s.horizon] || s.horizon;
-        const hasDetails = s.enemy || s.criteria || s.beat_map;
+        const viewLabel = s.view ? { user: '👤', dev: '⚙️', business: '💼' }[s.view] || '' : '';
+        const hasDetails = s.enemy || s.criteria || s.beat_map || s.context;
         const detailsId = `story-${(s.story_id || '').replace(/[^a-zA-Z0-9]/g, '-')}`;
 
         html += `
             <div class="portal-story-node" data-depth="${depth}" style="padding-left:${12 + depth * 20}px;flex-wrap:wrap;${hasDetails ? 'cursor:pointer' : ''}" ${hasDetails ? `onclick="document.getElementById('${detailsId}').toggleAttribute('open')"` : ''}>
                 <span class="portal-story-status active"></span>
                 <span class="portal-story-horizon">${label}</span>
+                ${viewLabel ? `<span style="font-size:11px" title="${s.view}">${viewLabel}</span>` : ''}
                 <span style="flex:1">${escapeHtml(s.name)}</span>
-                ${hasDetails ? '<span style="font-size:10px;color:var(--text-tertiary,rgba(255,255,255,0.3))">▸</span>' : ''}
+                ${hasDetails ? '<span style="font-size:9px;color:var(--text-tertiary,rgba(255,255,255,0.3))">▸</span>' : ''}
             </div>
         `;
 
-        // Drilldown details (hidden by default)
         if (hasDetails) {
-            html += `<details id="${detailsId}" style="padding-left:${50 + depth * 20}px;margin-bottom:4px">
+            html += `<details id="${detailsId}" style="padding-left:${50 + depth * 20}px;margin-bottom:6px">
                 <summary style="display:none"></summary>
-                <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;padding:4px 0">`;
+                <div style="font-size:11px;color:var(--text-secondary);line-height:1.6;padding:6px 0;background:rgba(255,255,255,0.01);border-radius:4px;padding:8px">`;
+
             if (s.enemy) {
-                html += `<div style="margin-bottom:4px"><span style="color:#ef4444;font-weight:500">Enemy:</span> ${escapeHtml(s.enemy)}</div>`;
+                html += `<div style="margin-bottom:6px"><span style="color:#ef4444;font-weight:600;font-size:10px;text-transform:uppercase">Enemy</span><br>${escapeHtml(s.enemy)}</div>`;
             }
-            if (s.criteria) {
-                html += `<div style="margin-bottom:4px"><span style="color:#34d399;font-weight:500">Criteria:</span> ${escapeHtml(s.criteria)}</div>`;
+
+            // Criteria (array of {type, description})
+            if (Array.isArray(s.criteria) && s.criteria.length) {
+                html += '<div style="margin-bottom:6px"><span style="color:#34d399;font-weight:600;font-size:10px;text-transform:uppercase">Criteria</span>';
+                for (const c of s.criteria) {
+                    const icon = c.type === 'commit' ? '✅' : '📡';
+                    html += `<div style="padding:2px 0 2px 8px">${icon} <span style="font-size:10px;color:var(--text-tertiary)">${c.type || ''}</span> ${escapeHtml(c.description || '')}</div>`;
+                }
+                html += '</div>';
+            } else if (typeof s.criteria === 'string') {
+                html += `<div style="margin-bottom:6px"><span style="color:#34d399;font-weight:600;font-size:10px;text-transform:uppercase">Criteria</span><br>${escapeHtml(s.criteria)}</div>`;
             }
-            if (s.beat_map) {
-                html += `<div><span style="color:#818cf8;font-weight:500">Beat Map:</span> ${escapeHtml(s.beat_map)}</div>`;
+
+            // Beat Map (object: {q1: "...", q2: "..."})
+            if (s.beat_map && typeof s.beat_map === 'object') {
+                html += '<div style="margin-bottom:6px"><span style="color:#818cf8;font-weight:600;font-size:10px;text-transform:uppercase">Beat Map</span>';
+                for (const [k, v] of Object.entries(s.beat_map)) {
+                    html += `<div style="padding:2px 0 2px 8px"><span style="color:var(--text-tertiary);font-weight:500">${escapeHtml(k.toUpperCase())}:</span> ${escapeHtml(v)}</div>`;
+                }
+                html += '</div>';
             }
+
+            // Context (prose between YAML blocks)
+            if (s.context) {
+                html += `<div style="margin-top:4px;color:var(--text-tertiary);font-style:italic">${escapeHtml(s.context)}</div>`;
+            }
+
             html += '</div></details>';
         }
     }

@@ -132,28 +132,63 @@ export function createBrainbasePortalRouter(options = {}) {
             const access = { role: 'member', roleRank: 1, clearance: ['internal'], projectCodes: [projectCode] };
             const result = await wikiService.getPage(access, `${projectCode}/stories.md`);
             if (result.error || !result.content) return [];
-            // Parse YAML code blocks from stories.md
             const stories = [];
             const yamlBlocks = result.content.match(/```yaml\n([\s\S]*?)```/g) || [];
             for (const block of yamlBlocks) {
                 const yaml = block.replace(/```yaml\n/, '').replace(/```/, '').trim();
-                const story = {};
-                for (const line of yaml.split('\n')) {
-                    const match = line.match(/^(\w[\w_]*)\s*:\s*(.+)/);
-                    if (match) {
-                        const [, key, val] = match;
-                        story[key] = val.replace(/^["']|["']$/g, '').trim();
-                    }
-                }
+                const story = _parseStoryYaml(yaml);
                 if (story.story_id && story.horizon && story.name) {
                     stories.push(story);
                 }
+            }
+            // Also extract prose context between YAML blocks (section descriptions)
+            const sections = result.content.split(/```yaml[\s\S]*?```/);
+            for (let i = 0; i < stories.length && i + 1 < sections.length; i++) {
+                const prose = sections[i + 1]?.replace(/^[\s\n]*/, '').split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('```')).join(' ').trim();
+                if (prose && !stories[i].context) stories[i].context = prose.substring(0, 300);
             }
             return stories;
         } catch (error) {
             logger.warn('Portal: Failed to fetch stories', { projectCode, error: error.message });
             return [];
         }
+    }
+
+    function _parseStoryYaml(yaml) {
+        const story = { criteria: [] };
+        let currentCriterion = null;
+        for (const line of yaml.split('\n')) {
+            // Top-level key: value
+            const topMatch = line.match(/^(\w[\w_]*)\s*:\s*(.+)/);
+            if (topMatch && !line.startsWith('  ')) {
+                const [, key, val] = topMatch;
+                if (key === 'criteria') continue; // criteria is an array, skip the key line
+                if (key === 'beat_map') continue; // beat_map is a dict
+                story[key] = val.replace(/^["']|["']$/g, '').trim();
+                continue;
+            }
+            // criteria array item: - type: commit
+            const criteriaTypeMatch = line.match(/^\s+-\s+type:\s+(.+)/);
+            if (criteriaTypeMatch) {
+                currentCriterion = { type: criteriaTypeMatch[1].trim() };
+                story.criteria.push(currentCriterion);
+                continue;
+            }
+            // criteria description:
+            const criteriaDescMatch = line.match(/^\s+description:\s*"?(.+?)"?\s*$/);
+            if (criteriaDescMatch && currentCriterion) {
+                currentCriterion.description = criteriaDescMatch[1];
+                continue;
+            }
+            // beat_map entries: q1: "..."
+            const beatMatch = line.match(/^\s+(q\d+|[a-z]\d+):\s*"?(.+?)"?\s*$/);
+            if (beatMatch) {
+                if (!story.beat_map) story.beat_map = {};
+                story.beat_map[beatMatch[1]] = beatMatch[2];
+            }
+        }
+        if (!story.criteria.length) delete story.criteria;
+        return story;
     }
 
     async function fetchFrame(projectCode) {
