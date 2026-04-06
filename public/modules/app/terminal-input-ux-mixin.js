@@ -138,10 +138,11 @@ export function applyTerminalInputUxMixin(AppClass) {
                 return { ok: false, blocked: true, terminalAccess: firstAttempt.terminalAccess || null };
             }
             if (deferDisplay) {
-                await this.terminalTransportClient?.syncViewportSize();
                 this._showXtermTransport();
                 this.terminalTransportClient.show();
                 this.terminalFrame?.classList.add('hidden');
+                // syncViewportSize は表示後に実行 — hidden 状態では fitAddon が正しい列幅を取得できない
+                await this.terminalTransportClient?.syncViewportSize();
             }
             this.hideTerminalLoadingOverlay();
             return { ok: true };
