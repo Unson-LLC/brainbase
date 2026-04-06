@@ -75,7 +75,8 @@ export function createBrainbasePortalRouter(options = {}) {
             }
             : { decision: {}, work: {}, ship: {}, learn: {} };
 
-        const storyMap = { milestones, sprints };
+        const stories = await fetchStories(projectCode);
+        const storyMap = { milestones, sprints, stories };
 
         res.json({
             project: { code: projectCode, name: projectConfig.name || projectCode },
@@ -122,6 +123,36 @@ export function createBrainbasePortalRouter(options = {}) {
         } catch (error) {
             logger.warn('Portal: Failed to fetch direction', { projectCode, error: error.message });
             return { title: '', content: '', available: false };
+        }
+    }
+
+    async function fetchStories(projectCode) {
+        try {
+            if (!wikiService) return [];
+            const access = { role: 'member', roleRank: 1, clearance: ['internal'], projectCodes: [projectCode] };
+            const result = await wikiService.getPage(access, `${projectCode}/stories.md`);
+            if (result.error || !result.content) return [];
+            // Parse YAML code blocks from stories.md
+            const stories = [];
+            const yamlBlocks = result.content.match(/```yaml\n([\s\S]*?)```/g) || [];
+            for (const block of yamlBlocks) {
+                const yaml = block.replace(/```yaml\n/, '').replace(/```/, '').trim();
+                const story = {};
+                for (const line of yaml.split('\n')) {
+                    const match = line.match(/^(\w[\w_]*)\s*:\s*(.+)/);
+                    if (match) {
+                        const [, key, val] = match;
+                        story[key] = val.replace(/^["']|["']$/g, '').trim();
+                    }
+                }
+                if (story.story_id && story.horizon && story.name) {
+                    stories.push(story);
+                }
+            }
+            return stories;
+        } catch (error) {
+            logger.warn('Portal: Failed to fetch stories', { projectCode, error: error.message });
+            return [];
         }
     }
 
