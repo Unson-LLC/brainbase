@@ -28,11 +28,11 @@ export function renderStoryMapSection(storyMap, { escapeHtml }) {
             const depth = HORIZON_DEPTH[s.horizon] ?? 0;
             const label = HORIZON_LABEL[s.horizon] || s.horizon;
             html += `
-                <div class="portal-story-node" data-depth="${depth}" style="padding-left:${12 + depth * 20}px">
+                <div class="portal-story-node" data-depth="${depth}" style="padding-left:${12 + depth * 20}px;flex-wrap:wrap">
                     <span class="portal-story-status active"></span>
                     <span class="portal-story-horizon">${label}</span>
                     <span>${escapeHtml(s.name)}</span>
-                    ${s.enemy ? `<span style="font-size:10px;color:var(--text-tertiary,rgba(255,255,255,0.4));margin-left:auto">vs ${escapeHtml(s.enemy.substring(0, 40))}</span>` : ''}
+                    ${s.enemy ? `<div style="width:100%;font-size:10px;color:var(--text-tertiary,rgba(255,255,255,0.35));padding-left:50px;margin-top:1px">vs ${escapeHtml(s.enemy)}</div>` : ''}
                 </div>
             `;
         }
