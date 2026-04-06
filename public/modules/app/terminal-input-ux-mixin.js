@@ -138,6 +138,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                 return { ok: false, blocked: true, terminalAccess: firstAttempt.terminalAccess || null };
             }
             if (deferDisplay) {
+                await this.terminalTransportClient?.syncViewportSize();
                 this._showXtermTransport();
                 this.terminalTransportClient.show();
                 this.terminalFrame?.classList.add('hidden');
