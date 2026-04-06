@@ -822,8 +822,8 @@ describe('app switchSession runtime handling', () => {
       }]
     });
 
-    const reconnectBtn = document.getElementById('terminal-reconnect-btn');
-    reconnectBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    const reconnectOpt = document.getElementById('transport-opt-reconnect');
+    reconnectOpt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
     expect(openSpy).toHaveBeenCalledWith('session-1');
   });

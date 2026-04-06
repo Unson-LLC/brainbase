@@ -300,13 +300,45 @@ export function applyTerminalInputUxMixin(AppClass) {
         button.classList.toggle('hidden', !visible);
     };
 
+    AppClass.prototype._updateTransportSwitcher = function({ xtermActive, presentationMode, transportState }) {
+        if (!this.terminalTransportSwitcherEl) return;
+
+        const label = presentationMode === 'snapshot'
+            ? 'Snapshot'
+            : (xtermActive ? 'xterm' : 'ttyd');
+
+        if (this.terminalTransportSwitcherLabelEl) {
+            this.terminalTransportSwitcherLabelEl.textContent = label;
+        }
+        this.terminalTransportSwitcherEl.classList.remove('hidden');
+
+        if (this.transportOptXtermEl) {
+            this.transportOptXtermEl.classList.toggle('active', xtermActive && presentationMode !== 'snapshot');
+        }
+        if (this.transportOptTtydEl) {
+            this.transportOptTtydEl.classList.toggle('active', !xtermActive && presentationMode !== 'snapshot');
+        }
+
+        const showReconnect = presentationMode === 'snapshot'
+            || transportState === 'reconnecting'
+            || transportState === 'disconnected';
+        if (this.transportOptReconnectEl) {
+            this.transportOptReconnectEl.style.display = showReconnect ? '' : 'none';
+        }
+        const divider = this.terminalTransportDropdownEl?.querySelector('.terminal-transport-divider');
+        if (divider) divider.style.display = showReconnect ? '' : 'none';
+    };
+
+    AppClass.prototype._closeTransportDropdown = function() {
+        this.terminalTransportSwitcherEl?.classList.remove('open');
+        this.terminalTransportSwitcherBtnEl?.setAttribute('aria-expanded', 'false');
+    };
+
     AppClass.prototype._resetTerminalChrome = function() {
-        this._setTerminalHeaderChip(this.terminalTransportPillEl, { hidden: true });
+        if (this.terminalTransportSwitcherEl) this.terminalTransportSwitcherEl.classList.add('hidden');
         this._setTerminalHeaderChip(this.terminalOwnerLabelEl, { hidden: true });
         this._setTerminalHeaderChip(this.terminalSnapshotMetaEl, { hidden: true });
-        this._setTerminalHeaderAction(this.terminalReconnectBtn, false);
         this._setTerminalHeaderAction(this.terminalTakeoverBtn, false);
-        this._setTerminalHeaderAction(this.terminalOpenFallbackBtn, false);
         this._renderTerminalSnapshotPanel({ visible: false });
     };
 
@@ -818,18 +850,19 @@ export function applyTerminalInputUxMixin(AppClass) {
             title = `session=${sessionId} connected`;
         }
 
-        this._setTerminalInputStatus({ hidden: false, stateClass, text, title });
-        const transportPillText = presentationMode === 'snapshot'
-            ? 'Snapshot'
-            : (xtermActive ? 'xterm' : 'ttyd');
-        const transportPillTitle = presentationMode === 'snapshot'
-            ? 'snapshot terminal display'
-            : (xtermActive ? 'xterm transport' : 'ttyd iframe fallback');
-        this._setTerminalHeaderChip(this.terminalTransportPillEl, {
-            hidden: false,
-            text: transportPillText,
-            title: transportPillTitle
-        });
+        // Status: hide in normal states, show only on problems
+        const showStatus = stateClass === 'reconnecting'
+            || stateClass === 'disconnected'
+            || stateClass === 'blocked'
+            || (stateClass === 'needs-focus' && presentationMode === 'snapshot');
+        this._setTerminalInputStatus(showStatus
+            ? { hidden: false, stateClass, text, title }
+            : { hidden: true }
+        );
+
+        // Transport switcher
+        this._updateTransportSwitcher({ xtermActive, presentationMode, transportState });
+
         this._setTerminalHeaderChip(this.terminalOwnerLabelEl, {
             hidden: !ownerLabel,
             text: ownerLabel,
@@ -843,12 +876,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             title: snapshotSource?.capturedAt ? `Snapshot captured at ${snapshotSource.capturedAt}` : 'Snapshot fallback'
         });
 
-        this._setTerminalHeaderAction(this.terminalReconnectBtn, presentationMode === 'snapshot' || presentationMode === 'reconnecting');
         this._setTerminalHeaderAction(this.terminalTakeoverBtn, terminalAccess?.state === 'blocked');
-        this._setTerminalHeaderAction(
-            this.terminalOpenFallbackBtn,
-            xtermActive && shouldUseXtermTransport()
-        );
 
         this._syncTerminalSnapshotPanel({
             sessionId,
@@ -870,16 +898,20 @@ export function applyTerminalInputUxMixin(AppClass) {
     AppClass.prototype._cacheTerminalUiElements = function() {
         this.terminalHeaderEl = document.getElementById('terminal-header');
         this.terminalInputStatusEl = document.getElementById('terminal-input-status');
-        this.terminalTransportPillEl = document.getElementById('terminal-transport-pill');
+        this.terminalTransportSwitcherEl = document.getElementById('terminal-transport-switcher');
+        this.terminalTransportSwitcherBtnEl = document.getElementById('terminal-transport-switcher-btn');
+        this.terminalTransportSwitcherLabelEl = document.getElementById('terminal-transport-switcher-label');
+        this.terminalTransportDropdownEl = document.getElementById('terminal-transport-dropdown');
+        this.transportOptXtermEl = document.getElementById('transport-opt-xterm');
+        this.transportOptTtydEl = document.getElementById('transport-opt-ttyd');
+        this.transportOptReconnectEl = document.getElementById('transport-opt-reconnect');
         this.terminalOwnerLabelEl = document.getElementById('terminal-owner-label');
         this.terminalSnapshotMetaEl = document.getElementById('terminal-snapshot-meta');
         this.terminalSnapshotPanelEl = document.getElementById('terminal-snapshot-panel');
         this.terminalSnapshotTitleEl = document.getElementById('terminal-snapshot-title');
         this.terminalSnapshotTimestampEl = document.getElementById('terminal-snapshot-timestamp');
         this.terminalSnapshotContentEl = document.getElementById('terminal-snapshot-content');
-        this.terminalReconnectBtn = document.getElementById('terminal-reconnect-btn');
         this.terminalTakeoverBtn = document.getElementById('terminal-takeover-btn');
-        this.terminalOpenFallbackBtn = document.getElementById('terminal-open-fallback-btn');
         this.terminalMoreBtn = document.getElementById('terminal-more-btn');
         this.terminalMoreActionsEl = document.getElementById('terminal-more-actions');
         this.mobileLiveTerminalModalEl = document.getElementById('mobile-live-terminal-modal');
@@ -1220,23 +1252,6 @@ export function applyTerminalInputUxMixin(AppClass) {
         this.terminalInputStatusEl?.addEventListener('click', onStatusClick);
         this._terminalInputUxCleanup.push(() => this.terminalInputStatusEl?.removeEventListener('click', onStatusClick));
 
-        const onReconnectClick = (e) => {
-            e.preventDefault();
-            if (this._isMobileSnapshotMode()) {
-                void this.openMobileLiveTerminal(appStore.getState().currentSessionId);
-                return;
-            }
-            if (this._isXtermTransportActive()) {
-                void this.terminalTransportClient?.reconnect().catch(() => {});
-                return;
-            }
-            if (!this.reconnectManager?.isReconnecting) {
-                this.reconnectManager?.handleDisconnect?.();
-            }
-        };
-        this.terminalReconnectBtn?.addEventListener('click', onReconnectClick);
-        this._terminalInputUxCleanup.push(() => this.terminalReconnectBtn?.removeEventListener('click', onReconnectClick));
-
         const onTakeoverClick = (e) => {
             e.preventDefault();
             void this.takeOverCurrentTerminal();
@@ -1244,12 +1259,54 @@ export function applyTerminalInputUxMixin(AppClass) {
         this.terminalTakeoverBtn?.addEventListener('click', onTakeoverClick);
         this._terminalInputUxCleanup.push(() => this.terminalTakeoverBtn?.removeEventListener('click', onTakeoverClick));
 
-        const onOpenFallbackClick = (e) => {
+        // --- Transport Switcher ---
+        const onTransportSwitcherClick = (e) => {
             e.preventDefault();
-            void this.openTerminalIframeFallback();
+            e.stopPropagation();
+            const isOpen = this.terminalTransportSwitcherEl?.classList.toggle('open');
+            this.terminalTransportSwitcherBtnEl?.setAttribute('aria-expanded', String(!!isOpen));
         };
-        this.terminalOpenFallbackBtn?.addEventListener('click', onOpenFallbackClick);
-        this._terminalInputUxCleanup.push(() => this.terminalOpenFallbackBtn?.removeEventListener('click', onOpenFallbackClick));
+        const onTransportOptionClick = (e) => {
+            const btn = e.target.closest('.terminal-transport-option');
+            if (!btn) return;
+            e.preventDefault();
+            this._closeTransportDropdown();
+
+            const sessionId = appStore.getState().currentSessionId;
+            if (!sessionId) return;
+
+            if (btn.id === 'transport-opt-reconnect') {
+                if (this._isMobileSnapshotMode()) {
+                    void this.openMobileLiveTerminal(sessionId);
+                    return;
+                }
+                if (this._isXtermTransportActive()) {
+                    void this.terminalTransportClient?.reconnect().catch(() => {});
+                    return;
+                }
+                if (!this.reconnectManager?.isReconnecting) {
+                    this.reconnectManager?.handleDisconnect?.();
+                }
+                return;
+            }
+
+            if (btn.dataset.transport === 'ttyd' && !btn.classList.contains('active')) {
+                this._terminalSnapshotCache.delete(sessionId);
+                void this.switchSession(sessionId, { forceTtyd: true });
+                return;
+            }
+
+            if (btn.dataset.transport === 'xterm' && !btn.classList.contains('active')) {
+                void this.switchSession(sessionId);
+                return;
+            }
+        };
+        this.terminalTransportSwitcherBtnEl?.addEventListener('click', onTransportSwitcherClick);
+        this.terminalTransportDropdownEl?.addEventListener('click', onTransportOptionClick);
+        this._terminalInputUxCleanup.push(() => {
+            this.terminalTransportSwitcherBtnEl?.removeEventListener('click', onTransportSwitcherClick);
+            this.terminalTransportDropdownEl?.removeEventListener('click', onTransportOptionClick);
+        });
 
         const closeMoreActions = () => {
             this.terminalMoreActionsEl?.classList.remove('open');
@@ -1262,6 +1319,9 @@ export function applyTerminalInputUxMixin(AppClass) {
         const onDocumentClick = (e) => {
             if (!this.terminalHeaderEl?.contains(e.target)) {
                 closeMoreActions();
+            }
+            if (this.terminalTransportSwitcherEl && !this.terminalTransportSwitcherEl.contains(e.target)) {
+                this._closeTransportDropdown();
             }
         };
         this.terminalMoreBtn?.addEventListener('click', onMoreClick);
