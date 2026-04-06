@@ -571,6 +571,11 @@ export function applyTerminalInputUxMixin(AppClass) {
     };
 
     AppClass.prototype._syncTerminalSnapshotPanel = function({ sessionId, visible, title }) {
+        // デスクトップでxterm transport使用中はsnapshotパネルを表示しない
+        // （xterm自身がreconnect中のfallback描画を持っているため）
+        if (visible && !this.isMobile() && this._isXtermTransportActive()) {
+            visible = false;
+        }
         if (!visible || !sessionId) {
             this._renderTerminalSnapshotPanel({ visible: false });
             return;
