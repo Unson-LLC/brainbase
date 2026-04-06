@@ -51,17 +51,19 @@ function _renderDecisionItems(decision, esc) {
 
     // High-impact issues
     for (const i of (decision.issues || [])) {
+        const detail = [i.description, i.decisionLog].filter(Boolean).join(' / ');
         items.push(_card(esc(i.title || ''), [
             ['impact', i.impact || ''],
             ['assignee', i.assignee ? `@${esc(i.assignee)}` : '']
-        ]));
+        ], detail ? esc(detail.substring(0, 300)) : null));
     }
 
     // Recent decisions
     for (const d of (decision.decisions || [])) {
+        const detail = [d.chosen && `決定: ${d.chosen}`, d.reason && `理由: ${d.reason}`].filter(Boolean).join(' / ');
         items.push(_card(esc(d.title || ''), [
-            ['decided', d.decided_at ? new Date(d.decided_at).toLocaleDateString('ja-JP') : '']
-        ]));
+            ['decided', d.decidedAt ? new Date(d.decidedAt).toLocaleDateString('ja-JP') : '']
+        ], detail ? esc(detail.substring(0, 300)) : null));
     }
 
     return {
@@ -86,11 +88,12 @@ function _renderWorkItems(work, esc) {
     for (const t of (work.tasks || []).slice(0, 8)) {
         const dueStr = t.due ? new Date(t.due).toLocaleDateString('ja-JP') : '';
         const isOverdue = t.due && new Date(t.due) < new Date() && t.status !== '完了';
+        const detail = t.description ? esc(t.description.substring(0, 200)) : null;
         items.push(_card(esc(t.title || ''), [
             ['status', t.status || ''],
             ['assignee', t.assignee ? `@${esc(t.assignee)}` : ''],
             ['due', isOverdue ? `<span style="color:#ef4444">${dueStr}</span>` : dueStr]
-        ]));
+        ], detail));
     }
 
     return {
@@ -104,11 +107,12 @@ function _renderShipItems(ship, esc) {
 
     for (const s of (ship.items || []).slice(0, 8)) {
         const dateStr = s.shippedAt ? new Date(s.shippedAt).toLocaleDateString('ja-JP') : '';
+        const details = [s.description, s.evidenceUrl && `証跡: ${s.evidenceUrl}`].filter(Boolean).join(' / ');
         items.push(_card(esc(s.title || ''), [
             ['type', s.type || ''],
             ['status', s.status || ''],
             ['date', dateStr]
-        ]));
+        ], details ? esc(details.substring(0, 300)) : null));
     }
 
     return {
@@ -135,11 +139,22 @@ function _renderLearnItems(learn, esc) {
     };
 }
 
-function _card(title, meta) {
+function _card(title, meta, details) {
     const metaHtml = meta
         .filter(([, v]) => v)
         .map(([k, v]) => `<span>${v}</span>`)
         .join('');
+
+    if (details) {
+        const id = `vl-${Math.random().toString(36).substr(2, 6)}`;
+        return `<details class="portal-vl-card" id="${id}">
+            <summary style="cursor:pointer;list-style:none">
+                <div class="portal-vl-card-title">${title} <span style="font-size:9px;color:var(--text-tertiary,rgba(255,255,255,0.3))">▸</span></div>
+                ${metaHtml ? `<div class="portal-vl-card-meta">${metaHtml}</div>` : ''}
+            </summary>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;padding:6px 0 2px;border-top:1px solid rgba(255,255,255,0.04);margin-top:4px">${details}</div>
+        </details>`;
+    }
 
     return `<div class="portal-vl-card">
         <div class="portal-vl-card-title">${title}</div>

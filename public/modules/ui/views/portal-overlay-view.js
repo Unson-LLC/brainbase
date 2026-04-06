@@ -80,7 +80,7 @@ export class PortalOverlayView extends BaseView {
 
     _renderSections(data) {
         const sections = [
-            { id: 'frame', title: 'Frame', icon: 'target', render: () => renderFrameSection(data.frame || data.direction, { renderMarkdown: this._renderMarkdown.bind(this), escapeHtml: this._escapeHtml }) },
+            { id: 'frame', title: 'Frame', icon: 'target', render: () => renderFrameSection(data.frame, data.direction, { renderMarkdown: this._renderMarkdown.bind(this), escapeHtml: this._escapeHtml }) },
             { id: 'storyMap', title: 'Story Map', icon: 'git-branch', render: () => renderStoryMapSection(data.storyMap, { escapeHtml: this._escapeHtml }) },
             { id: 'valueLoop', title: 'Value Loop', icon: 'repeat', badge: this._vlBadge(data), render: () => renderValueLoopSection(data.valueLoop, { escapeHtml: this._escapeHtml }) },
             { id: 'events', title: 'Events', icon: 'activity', badge: data.events?.stats?.thisWeek ? `${data.events.stats.thisWeek} this week` : '', render: () => renderEventsSection(data.events, { escapeHtml: this._escapeHtml }) },
