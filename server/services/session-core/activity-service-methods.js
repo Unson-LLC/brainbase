@@ -262,12 +262,12 @@ export const activityServiceMethods = {
             if (turnId) {
                 activeTurnIds.delete(turnId);
             } else if (activeTurnIds.size > 0) {
-                logger.warn(`[Hook] Ignoring ambiguous turn_completed without turnId for ${sessionId}; keeping ${activeTurnIds.size} active turn(s)`);
+                // turnIdなしのturn_completed: 残留turnを全クリアして確実にdoneへ遷移
+                logger.info(`[Hook] turn_completed without turnId for ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
+                activeTurnIds.clear();
             }
 
-            if (turnId || activeTurnIds.size === 0) {
-                lastDoneAt = Math.max(lastDoneAt, timestamp);
-            }
+            lastDoneAt = Math.max(lastDoneAt, timestamp);
         } else if (lifecycle === 'heartbeat') {
             if (activeTurnIds.size > 0 || lastWorkingAt >= lastDoneAt) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
