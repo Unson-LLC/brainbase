@@ -132,21 +132,68 @@ export function createBrainbasePortalRouter(options = {}) {
             const access = { role: 'member', roleRank: 1, clearance: ['internal'], projectCodes: [projectCode] };
             const result = await wikiService.getPage(access, `${projectCode}/stories.md`);
             if (result.error || !result.content) return [];
+            const content = result.content;
             const stories = [];
-            const yamlBlocks = result.content.match(/```yaml\n([\s\S]*?)```/g) || [];
+
+            // Method 1: YAML code blocks (```yaml ... ```)
+            const yamlBlocks = content.match(/```yaml\n([\s\S]*?)```/g) || [];
             for (const block of yamlBlocks) {
                 const yaml = block.replace(/```yaml\n/, '').replace(/```/, '').trim();
                 const story = _parseStoryYaml(yaml);
-                if (story.story_id && story.horizon && story.name) {
-                    stories.push(story);
+                if (story.story_id && story.horizon && story.name) stories.push(story);
+            }
+
+            // Method 2: Markdown sections with --- frontmatter (salestailor-project format)
+            // Split by "# Story:" headings
+            if (!stories.length) {
+                const storySections = content.split(/(?=^# Story:)/m);
+                for (const section of storySections) {
+                    if (!section.startsWith('# Story:')) continue;
+                    const titleMatch = section.match(/^# Story:\s*(.+)/);
+                    const name = titleMatch ? titleMatch[1].trim() : '';
+                    // Extract YAML frontmatter within section
+                    const fmMatch = section.match(/\n---\n([\s\S]*?)\n---/);
+                    const meta = {};
+                    if (fmMatch) {
+                        for (const line of fmMatch[1].split('\n')) {
+                            const m = line.match(/^(\w[\w_]*)\s*:\s*(.+)/);
+                            if (m) meta[m[1]] = m[2].trim();
+                        }
+                    }
+                    // Extract prose sections
+                    const bgMatch = section.match(/## 背景\n\n([\s\S]*?)(?=\n## |$)/);
+                    const currentMatch = section.match(/## 現状\n\n([\s\S]*?)(?=\n## |$)/);
+                    const changeMatch = section.match(/### 何を\n\n([\s\S]*?)(?=\n### |$)/);
+                    const whyMatch = section.match(/### なぜ\n\n([\s\S]*?)(?=\n## |$)/);
+                    const acMatch = section.match(/## 受け入れ基準\n\n([\s\S]*?)(?=\n## |$)/);
+
+                    const criteria = [];
+                    if (acMatch) {
+                        const acLines = acMatch[1].split('\n').filter(l => l.match(/^- \[/));
+                        for (const l of acLines) {
+                            criteria.push({ type: 'commit', description: l.replace(/^- \[.\]\s*/, '').trim() });
+                        }
+                    }
+
+                    if (meta.story_id || name) {
+                        stories.push({
+                            story_id: meta.story_id || '',
+                            frame_id: meta.frame_id || '',
+                            horizon: meta.horizon || '',
+                            view: meta.view || 'business',
+                            name: name,
+                            status: meta.status || '',
+                            enemy: bgMatch ? bgMatch[1].trim().substring(0, 200) : '',
+                            context: [
+                                changeMatch ? changeMatch[1].trim() : '',
+                                whyMatch ? whyMatch[1].trim() : ''
+                            ].filter(Boolean).join(' / ').substring(0, 300),
+                            criteria: criteria.length ? criteria : undefined
+                        });
+                    }
                 }
             }
-            // Also extract prose context between YAML blocks (section descriptions)
-            const sections = result.content.split(/```yaml[\s\S]*?```/);
-            for (let i = 0; i < stories.length && i + 1 < sections.length; i++) {
-                const prose = sections[i + 1]?.replace(/^[\s\n]*/, '').split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('```')).join(' ').trim();
-                if (prose && !stories[i].context) stories[i].context = prose.substring(0, 300);
-            }
+
             return stories;
         } catch (error) {
             logger.warn('Portal: Failed to fetch stories', { projectCode, error: error.message });
