@@ -300,7 +300,10 @@ export function createBrainbasePortalRouter(options = {}) {
     async function fetchMilestones(baseId) {
         try {
             const records = await nocodbService._fetchRecords(baseId, 'マイルストーン');
-            return records.map(r => ({ id: r.Id ?? r.id, name: r['マイルストーン名'] || r['タイトル'] || '', progress: r['進捗率'] ?? 0, status: r['ステータス'] || '' }));
+            if (records.length > 0 && !records[0]['マイルストーン名'] && !records[0]['タイトル']) {
+                logger.info('Portal: Milestone field names', { keys: Object.keys(records[0]).slice(0, 15) });
+            }
+            return records.map(r => ({ id: r.Id ?? r.id, name: r['マイルストーン名'] || r['タイトル'] || r['名前'] || r['Name'] || r['Title'] || r['name'] || '', progress: r['進捗率'] ?? r['progress'] ?? 0, status: r['ステータス'] || r['status'] || '' }));
         } catch (error) {
             logger.warn('Portal: Failed to fetch milestones', { baseId, error: error.message });
             return [];

@@ -80,8 +80,8 @@ export function renderStoryMapSection(storyMap, { escapeHtml }) {
         }
     }
 
-    // NocoDB Milestones
-    for (const m of milestones) {
+    // NocoDB Milestones (skip empty names)
+    for (const m of milestones.filter(m => m.name)) {
         const pct = Math.min(100, Math.max(0, m.progress || 0));
         const statusClass = m.status === '完了' ? 'completed' : m.status === '進行中' ? 'active' : 'pending';
         html += `
