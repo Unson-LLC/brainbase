@@ -154,6 +154,84 @@ describe('decodeTmuxEscapes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// UTF-8 byte carryover across %output lines
+// ---------------------------------------------------------------------------
+
+describe('UTF-8 byte carryover across %output lines', () => {
+    it('3-byte character split across two lines: first 2 bytes then 1 byte', () => {
+        // あ = E3 81 82 = \343\201\202
+        // Line 1: \343\201 (2 bytes — incomplete 3-byte UTF-8)
+        // Line 2: \202 (remaining 1 byte)
+        const { client, outputs } = createClient();
+        client._handleLine('%output %0 \\343\\201');
+        // Should not emit garbled text — bytes should be buffered
+        expect(outputs).toEqual([]);
+        expect(client._pendingUtf8Bytes).toEqual([0xE3, 0x81]);
+
+        client._handleLine('%output %0 \\202');
+        // Now the 3-byte sequence is complete → emit "あ"
+        expect(outputs).toEqual(['あ']);
+        expect(client._pendingUtf8Bytes).toEqual([]);
+    });
+
+    it('3-byte character split: 1 byte then 2 bytes', () => {
+        // あ = E3 81 82
+        const { client, outputs } = createClient();
+        client._handleLine('%output %0 \\343');
+        expect(outputs).toEqual([]);
+        expect(client._pendingUtf8Bytes).toEqual([0xE3]);
+
+        client._handleLine('%output %0 \\201\\202');
+        expect(outputs).toEqual(['あ']);
+    });
+
+    it('4-byte emoji split across two lines', () => {
+        // 🔥 = F0 9F 94 A5 = \360\237\224\245
+        const { client, outputs } = createClient();
+        client._handleLine('%output %0 \\360\\237');
+        expect(outputs).toEqual([]);
+        expect(client._pendingUtf8Bytes).toEqual([0xF0, 0x9F]);
+
+        client._handleLine('%output %0 \\224\\245');
+        expect(outputs).toEqual(['🔥']);
+    });
+
+    it('ASCII before split UTF-8 is emitted immediately', () => {
+        // "Hi" + partial あ
+        const { client, outputs } = createClient();
+        client._handleLine('%output %0 Hi\\343\\201');
+        expect(outputs).toEqual(['Hi']);
+        expect(client._pendingUtf8Bytes).toEqual([0xE3, 0x81]);
+
+        client._handleLine('%output %0 \\202!');
+        expect(outputs).toEqual(['Hi', 'あ!']);
+    });
+
+    it('complete character followed by split character on same line', () => {
+        // あ (complete) + first 2 bytes of い
+        // あ = E3 81 82, い = E3 81 84
+        const { client, outputs } = createClient();
+        client._handleLine('%output %0 \\343\\201\\202\\343\\201');
+        expect(outputs).toEqual(['あ']);
+        expect(client._pendingUtf8Bytes).toEqual([0xE3, 0x81]);
+
+        client._handleLine('%output %0 \\204');
+        expect(outputs).toEqual(['あ', 'い']);
+    });
+
+    it('2-byte character split across lines', () => {
+        // é = C3 A9 = \303\251
+        const { client, outputs } = createClient();
+        client._handleLine('%output %0 caf\\303');
+        expect(outputs).toEqual(['caf']);
+        expect(client._pendingUtf8Bytes).toEqual([0xC3]);
+
+        client._handleLine('%output %0 \\251');
+        expect(outputs).toEqual(['caf', 'é']);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // _handleStdout chunk boundary tests
 // ---------------------------------------------------------------------------
 

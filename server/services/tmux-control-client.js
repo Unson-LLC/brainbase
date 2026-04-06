@@ -9,6 +9,40 @@ const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
  */
 
 /**
+ * Find the byte offset where valid (complete) UTF-8 ends in a byte array.
+ * Trailing bytes that form an incomplete multi-byte sequence are excluded.
+ * @param {number[]} bytes
+ * @returns {number} The number of bytes that form complete UTF-8 characters
+ */
+function findCompleteUtf8Length(bytes) {
+    const len = bytes.length;
+    if (len === 0) return 0;
+
+    // Walk backwards from the end (at most 3 bytes back — max leading byte lookback for 4-byte UTF-8)
+    for (let i = Math.max(0, len - 3); i < len; i++) {
+        const b = bytes[i];
+        // ASCII (0xxxxxxx) or continuation byte (10xxxxxx) — not a leading byte
+        if ((b & 0x80) === 0) continue;       // ASCII — complete
+        if ((b & 0xC0) === 0x80) continue;    // continuation byte — skip
+
+        // Leading byte — how many bytes does this character need?
+        let needed;
+        if ((b & 0xE0) === 0xC0) needed = 2;       // 110xxxxx
+        else if ((b & 0xF0) === 0xE0) needed = 3;  // 1110xxxx
+        else if ((b & 0xF8) === 0xF0) needed = 4;  // 11110xxx
+        else continue; // invalid leading byte, let Buffer handle it
+
+        const available = len - i;
+        if (available < needed) {
+            // Incomplete multi-byte sequence — split here
+            return i;
+        }
+        // Complete — this character fits
+    }
+    return len;
+}
+
+/**
  * Single-pass tmux escape decoder.
  *
  * tmux control mode escapes:
@@ -21,27 +55,41 @@ const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
  * Incomplete octal sequences (\N or \NN at end of string) are preserved
  * as-is rather than producing invalid UTF-8.
  *
+ * When carryoverBytes is provided, those bytes are prepended to the first
+ * octal byte run. Any trailing incomplete UTF-8 bytes are returned in
+ * remainingBytes so the caller can carry them to the next chunk.
+ *
  * @param {string} [value]
- * @returns {string}
+ * @param {number[]} [carryoverBytes] - incomplete UTF-8 bytes from previous call
+ * @returns {{ text: string, remainingBytes: number[] }}
  */
-function decodeTmuxEscapes(value = '') {
-    if (!value) return '';
+function decodeTmuxEscapes(value = '', carryoverBytes = []) {
+    if (!value && carryoverBytes.length === 0) return { text: '', remainingBytes: [] };
 
     let result = '';
     let i = 0;
     /** @type {number[]} */
-    let pendingBytes = [];
+    let pendingBytes = [...carryoverBytes];
 
     const flushBytes = () => {
         if (pendingBytes.length === 0) return;
-        try {
-            result += Buffer.from(pendingBytes).toString('utf-8');
-        } catch {
-            // Invalid UTF-8 sequence — emit replacement characters
-            result += pendingBytes.map(() => '\uFFFD').join('');
+        const completeLen = findCompleteUtf8Length(pendingBytes);
+        if (completeLen > 0) {
+            result += Buffer.from(pendingBytes.slice(0, completeLen)).toString('utf-8');
         }
-        pendingBytes = [];
+        pendingBytes = completeLen < pendingBytes.length
+            ? pendingBytes.slice(completeLen)
+            : [];
     };
+
+    if (!value) {
+        // Only carryover bytes, no new data — force flush everything
+        if (pendingBytes.length > 0) {
+            result += Buffer.from(pendingBytes).toString('utf-8');
+            pendingBytes = [];
+        }
+        return { text: result, remainingBytes: [] };
+    }
 
     while (i < value.length) {
         if (value[i] !== '\\') {
@@ -105,8 +153,16 @@ function decodeTmuxEscapes(value = '') {
         i++;
     }
 
-    flushBytes();
-    return result;
+    // Final flush — split complete/incomplete UTF-8
+    const completeLen = findCompleteUtf8Length(pendingBytes);
+    if (completeLen > 0) {
+        result += Buffer.from(pendingBytes.slice(0, completeLen)).toString('utf-8');
+    }
+    const remaining = completeLen < pendingBytes.length
+        ? pendingBytes.slice(completeLen)
+        : [];
+
+    return { text: result, remainingBytes: remaining };
 }
 
 export class TmuxControlClient extends EventEmitter {
@@ -123,6 +179,8 @@ export class TmuxControlClient extends EventEmitter {
         this.stdoutBuffer = '';
         /** Pending incomplete octal tail from a previous %output line */
         this._pendingOctal = '';
+        /** Pending incomplete UTF-8 bytes carried over from a previous %output line */
+        this._pendingUtf8Bytes = /** @type {number[]} */ ([]);
         /** @type {ReturnType<typeof setTimeout>|null} */
         this._idleTimer = null;
         this._closed = false;
@@ -259,7 +317,8 @@ export class TmuxControlClient extends EventEmitter {
             const payload = incomplete ? raw.slice(0, raw.length - incomplete.length) : raw;
             this._pendingOctal = incomplete;
 
-            const decoded = decodeTmuxEscapes(payload);
+            const { text: decoded, remainingBytes } = decodeTmuxEscapes(payload, this._pendingUtf8Bytes);
+            this._pendingUtf8Bytes = remainingBytes;
             if (decoded) {
                 this.emit('output', decoded);
             }
