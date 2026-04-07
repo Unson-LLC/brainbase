@@ -249,7 +249,7 @@ export class TerminalTransportClient {
         return true;
     }
 
-    async connect(sessionId) {
+    async connect(sessionId, { skipInitialResize = false } = {}) {
         const switchingSessions = Boolean(this.sessionId && this.sessionId !== sessionId);
         this._connectToken += 1;
         const connectToken = this._connectToken;
@@ -279,7 +279,9 @@ export class TerminalTransportClient {
 
         await this._ensureAuthenticated();
 
-        const initialDimensions = this._measureViewport();
+        // When skipInitialResize is true (element hidden), don't measure — wrong dimensions
+        // would resize the tmux pane to ~1 column. syncViewportSize() handles it after showing.
+        const initialDimensions = skipInitialResize ? null : this._measureViewport();
         const wsUrl = this._buildWsUrl(sessionId, initialDimensions);
         const ws = new WebSocket(wsUrl);
         this.ws = ws;
