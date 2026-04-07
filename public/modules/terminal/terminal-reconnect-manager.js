@@ -1,6 +1,7 @@
 import { appStore } from '../core/store.js';
 import { httpClient } from '../core/http-client.js';
 import { buildSessionRuntimeUrl, appendViewerIdToProxyPath } from '../core/terminal-viewer.js';
+import { shouldUseXtermTransport } from '../core/terminal-transport-client.js';
 import { showError, showInfo } from '../toast.js';
 
 export function buildTerminalBlockedText(terminalAccess) {
@@ -323,6 +324,13 @@ export class TerminalReconnectManager {
 
     async reconnect() {
         if (!this.currentSessionId) {
+            this.isReconnecting = false;
+            return;
+        }
+
+        // xterm transport が有効なデスクトップではttyd reconnectをスキップ。
+        // 両方が同時接続すると所有権を奪い合い、どちらも切断される。
+        if (shouldUseXtermTransport()) {
             this.isReconnecting = false;
             return;
         }
