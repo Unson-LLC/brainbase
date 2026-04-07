@@ -176,7 +176,8 @@ export class TmuxControlClient extends EventEmitter {
         this.spawnFn = spawnFn;
         /** @type {TmuxChildProcess|null} */
         this.process = null;
-        this.stdoutBuffer = '';
+        /** @type {Buffer} Raw byte buffer for stdout (split on 0x0A after accumulation) */
+        this.stdoutBuffer = Buffer.alloc(0);
         /** Pending incomplete octal tail from a previous %output line */
         this._pendingOctal = '';
         /** Pending incomplete UTF-8 bytes carried over from a previous %output line */
@@ -194,7 +195,10 @@ export class TmuxControlClient extends EventEmitter {
         });
 
         this.process = child;
-        child.stdout.setEncoding('utf8');
+        // Do NOT setEncoding('utf8') on stdout — tmux control mode may output
+        // raw UTF-8 bytes that get split across Node.js read chunks.
+        // StringDecoder would produce \uFFFD at chunk boundaries.
+        // Read as raw buffers, split on newline bytes, then decode per-line.
         child.stderr.setEncoding('utf8');
 
         child.stdout.on('data', (chunk) => {
@@ -272,16 +276,34 @@ export class TmuxControlClient extends EventEmitter {
     }
 
     /**
-     * @param {string} chunk
+     * Handle raw stdout bytes from tmux control mode.
+     * Split on newline bytes (0x0A) BEFORE UTF-8 decoding to avoid
+     * Node.js StringDecoder producing \uFFFD when a chunk boundary
+     * falls inside a multi-byte UTF-8 character.
+     * @param {Buffer} chunk
      * @returns {void}
      */
     _handleStdout(chunk) {
-        this.stdoutBuffer += chunk;
-        const lines = this.stdoutBuffer.split(/\r?\n/);
-        this.stdoutBuffer = lines.pop() || '';
+        this.stdoutBuffer = Buffer.concat([this.stdoutBuffer, chunk]);
 
-        for (const line of lines) {
+        let start = 0;
+        for (let idx = 0; idx < this.stdoutBuffer.length; idx++) {
+            if (this.stdoutBuffer[idx] !== 0x0A) continue;
+
+            // Found newline — extract line bytes (strip optional \r before \n)
+            let end = idx;
+            if (end > start && this.stdoutBuffer[end - 1] === 0x0D) end--;
+            const lineBytes = this.stdoutBuffer.subarray(start, end);
+            start = idx + 1;
+
+            // Decode the complete line as UTF-8 (all bytes of the line are present)
+            const line = lineBytes.toString('utf-8');
             this._handleLine(line);
+        }
+
+        // Keep remaining bytes (incomplete line) in buffer
+        if (start > 0) {
+            this.stdoutBuffer = Buffer.from(this.stdoutBuffer.subarray(start));
         }
     }
 
