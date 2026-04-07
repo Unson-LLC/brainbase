@@ -303,7 +303,7 @@ export function createBrainbasePortalRouter(options = {}) {
 
     async function fetchMilestones(baseId) {
         try {
-            const records = await nocodbService._fetchRecords(baseId, 'マイルストーン');
+            const records = await nocodbService._fetchRecords(baseId, 'ストーリー');
             return records.map(r => ({
                 id: r.Id ?? r.id,
                 name: r['マイルストーン名'] || r['タイトル'] || r['名前'] || r['Name'] || r['Title'] || r['name'] || '',

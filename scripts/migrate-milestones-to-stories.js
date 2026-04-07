@@ -121,9 +121,9 @@ async function migrateStatusValues(baseId, tableId) {
 async function migrateBase(base) {
     console.log(`\n--- ${base.name} (${base.id}) ---`);
 
-    const tableId = await getTableId(base.id, 'マイルストーン');
+    const tableId = await getTableId(base.id, 'ストーリー');
     if (!tableId) {
-        console.log('  マイルストーン table not found, skipping');
+        console.log('  ストーリー table not found, skipping');
         return;
     }
     console.log(`  Table ID: ${tableId}`);
