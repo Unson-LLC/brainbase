@@ -40,13 +40,23 @@ async function signin() {
 
 async function fetchWikiStories(projectCode) {
     try {
-        const response = await fetch(`${WIKI_API_URL}?path=${projectCode}/stories.md`);
-        if (!response.ok) return [];
-        const data = await response.json();
-        if (data.error || !data.content) return [];
+        // Try filesystem first, fallback to API
+        const { readFileSync, existsSync } = await import('fs');
+        const { join } = await import('path');
+        const wikiPath = join('/Users/ksato/workspace/wiki', projectCode, 'stories.md');
+
+        let content;
+        if (existsSync(wikiPath)) {
+            content = readFileSync(wikiPath, 'utf-8');
+        } else {
+            const response = await fetch(`${WIKI_API_URL}?path=${projectCode}/stories.md`);
+            if (!response.ok) return [];
+            const data = await response.json();
+            if (data.error || !data.content) return [];
+            content = data.content;
+        }
 
         const stories = [];
-        const content = data.content;
 
         // Method 1: YAML code blocks
         const yamlBlocks = content.match(/```yaml\n([\s\S]*?)```/g) || [];
