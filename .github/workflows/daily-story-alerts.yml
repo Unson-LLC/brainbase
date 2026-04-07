@@ -1,0 +1,43 @@
+name: Daily Story Alerts
+
+on:
+  schedule:
+    # 毎日 10:00 JST (1:00 UTC)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # 手動実行も可能
+
+jobs:
+  send-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Send Story Alerts
+        env:
+          NOCODB_BASE_URL: ${{ secrets.NOCODB_BASE_URL }}
+          NOCODB_ADMIN_EMAIL: ${{ secrets.NOCODB_ADMIN_EMAIL }}
+          NOCODB_ADMIN_PASSWORD: ${{ secrets.NOCODB_ADMIN_PASSWORD }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          node scripts/send-story-alerts.js
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          curl -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "channel": "#brainbase",
+              "text": "⚠️ ストーリーアラート送信に失敗しました"
+            }'
