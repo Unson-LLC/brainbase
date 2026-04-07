@@ -222,6 +222,11 @@ export class TerminalTransportService {
             capturedAt: snapshot.capturedAt
         };
         if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
+        // DEBUG: detect FFFD in snapshot
+        const snapshotCheckText = snapshot.colorText || snapshot.text || '';
+        if (snapshotCheckText.includes('\uFFFD')) {
+            logger.warn(`[TerminalTransport] FFFD detected in snapshot for ${sessionId}: len=${snapshotCheckText.length}, fffd_count=${(snapshotCheckText.match(/\uFFFD/g) || []).length}`);
+        }
         ws.send(JSON.stringify(snapshotMsg));
     }
 
@@ -239,6 +244,10 @@ export class TerminalTransportService {
                 if (connection.initialSnapshotTimer) {
                     clearTimeout(connection.initialSnapshotTimer);
                     connection.initialSnapshotTimer = null;
+                }
+                // DEBUG: detect FFFD in streaming output
+                if (typeof data === 'string' && data.includes('\uFFFD')) {
+                    logger.warn(`[TerminalTransport] FFFD detected in streaming output for ${connection.sessionId}: len=${data.length}, fffd_count=${(data.match(/\uFFFD/g) || []).length}, snippet=${JSON.stringify(data.slice(0, 200))}`);
                 }
                 connection.ws.send(JSON.stringify({
                     type: 'output',

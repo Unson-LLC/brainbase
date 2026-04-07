@@ -158,7 +158,7 @@ export function createBrainbasePortalRouter(options = {}) {
                     if (fmMatch) {
                         for (const line of fmMatch[1].split('\n')) {
                             const m = line.match(/^(\w[\w_]*)\s*:\s*(.+)/);
-                            if (m) meta[m[1]] = m[2].trim();
+                            if (m) meta[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
                         }
                     }
                     // Extract prose sections
@@ -184,6 +184,9 @@ export function createBrainbasePortalRouter(options = {}) {
                             view: meta.view || 'business',
                             name: name,
                             status: meta.status || '',
+                            period: meta.period || '',
+                            started_at: meta.started_at || '',
+                            due_at: meta.due_at || '',
                             enemy: bgMatch ? bgMatch[1].trim().substring(0, 200) : '',
                             context: [
                                 changeMatch ? changeMatch[1].trim() : '',

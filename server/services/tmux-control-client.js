@@ -196,9 +196,9 @@ export class TmuxControlClient extends EventEmitter {
 
         this.process = child;
         // Do NOT setEncoding('utf8') on stdout — tmux control mode may output
-        // raw UTF-8 bytes that get split across Node.js read chunks.
-        // StringDecoder would produce \uFFFD at chunk boundaries.
-        // Read as raw buffers, split on newline bytes, then decode per-line.
+        // raw UTF-8 bytes that span across %output lines (separated by \n).
+        // StringDecoder's UTF-8 would produce \uFFFD when a newline falls mid-character.
+        // Instead, read as raw buffers and decode after splitting on newline bytes.
         child.stderr.setEncoding('utf8');
 
         child.stdout.on('data', (chunk) => {
@@ -278,8 +278,8 @@ export class TmuxControlClient extends EventEmitter {
     /**
      * Handle raw stdout bytes from tmux control mode.
      * Split on newline bytes (0x0A) BEFORE UTF-8 decoding to avoid
-     * Node.js StringDecoder producing \uFFFD when a chunk boundary
-     * falls inside a multi-byte UTF-8 character.
+     * StringDecoder producing \uFFFD when a newline falls inside a
+     * multi-byte character that tmux outputs as raw UTF-8.
      * @param {Buffer} chunk
      * @returns {void}
      */
@@ -340,6 +340,13 @@ export class TmuxControlClient extends EventEmitter {
             this._pendingOctal = incomplete;
 
             const { text: decoded, remainingBytes } = decodeTmuxEscapes(payload, this._pendingUtf8Bytes);
+            // DEBUG: detect FFFD at decode level
+            if (decoded && decoded.includes('\uFFFD')) {
+                const prevBytes = this._pendingUtf8Bytes.map(b => b.toString(16).padStart(2, '0')).join(' ');
+                const remBytes = remainingBytes.map(b => b.toString(16).padStart(2, '0')).join(' ');
+                const payloadHead = payload.slice(0, 80);
+                console.error(`[FFFD-DEBUG] session=${this.sessionId} carryover=[${prevBytes}] remaining=[${remBytes}] payload="${payloadHead}" decoded="${decoded.slice(0, 80)}"`);
+            }
             this._pendingUtf8Bytes = remainingBytes;
             if (decoded) {
                 this.emit('output', decoded);
