@@ -75,8 +75,9 @@ export function createBrainbasePortalRouter(options = {}) {
             }
             : { decision: {}, work: {}, ship: {}, learn: {} };
 
-        const stories = await fetchStories(projectCode);
-        const storyMap = { milestones, sprints, stories };
+        const rawStories = await fetchStories(projectCode);
+        const mergedStories = _mergeStoriesAndMilestones(rawStories, milestones);
+        const storyMap = { stories: mergedStories, sprints, milestones: milestones.filter(m => !m.story_id && m.name) };
 
         res.json({
             project: { code: projectCode, name: projectConfig.name || projectCode },
@@ -300,14 +301,43 @@ export function createBrainbasePortalRouter(options = {}) {
     async function fetchMilestones(baseId) {
         try {
             const records = await nocodbService._fetchRecords(baseId, 'マイルストーン');
-            if (records.length > 0 && !records[0]['マイルストーン名'] && !records[0]['タイトル']) {
-                logger.info('Portal: Milestone field names', { keys: Object.keys(records[0]).slice(0, 15) });
-            }
-            return records.map(r => ({ id: r.Id ?? r.id, name: r['マイルストーン名'] || r['タイトル'] || r['名前'] || r['Name'] || r['Title'] || r['name'] || '', progress: r['進捗率'] ?? r['progress'] ?? 0, status: r['ステータス'] || r['status'] || '' }));
+            return records.map(r => ({
+                id: r.Id ?? r.id,
+                name: r['マイルストーン名'] || r['タイトル'] || r['名前'] || r['Name'] || r['Title'] || r['name'] || '',
+                progress: r['進捗率'] ?? r['progress'] ?? 0,
+                status: r['ステータス'] || r['status'] || '',
+                story_id: r['Story ID'] || r['story_id'] || '',
+                horizon: r['Horizon'] || r['horizon'] || '',
+                view: r['View'] || r['view'] || '',
+                period: r['Period'] || r['period'] || '',
+                startedAt: r['開始日'] || r['started_at'] || '',
+                dueAt: r['期限日'] || r['due_at'] || r['期限'] || '',
+                description: r['説明'] || '',
+                assignee: r['担当者'] || ''
+            }));
         } catch (error) {
             logger.warn('Portal: Failed to fetch milestones', { baseId, error: error.message });
             return [];
         }
+    }
+
+    function _mergeStoriesAndMilestones(stories, milestones) {
+        const msMap = new Map();
+        for (const m of milestones) {
+            if (m.story_id) msMap.set(m.story_id, m);
+        }
+        return stories.map(s => {
+            const ms = msMap.get(s.story_id);
+            return {
+                ...s,
+                progress: ms?.progress ?? null,
+                nocodbStatus: ms?.status ?? null,
+                milestoneId: ms?.id ?? null,
+                assignee: ms?.assignee || s.assignee || null,
+                startedAt: s.started_at || ms?.startedAt || null,
+                dueAt: s.due_at || ms?.dueAt || null
+            };
+        });
     }
 
     async function fetchTasks(baseId) {
