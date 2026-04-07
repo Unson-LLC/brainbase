@@ -43,6 +43,30 @@ function findCompleteUtf8Length(bytes) {
 }
 
 /**
+ * Find the start offset of a trailing incomplete UTF-8 sequence in a Buffer.
+ * Returns buf.length if the buffer ends with complete UTF-8.
+ * @param {Buffer} buf
+ * @returns {number}
+ */
+function _findTrailingIncompleteUtf8(buf) {
+    const len = buf.length;
+    if (len === 0) return 0;
+    // Check the last 1–3 bytes for a leading byte whose sequence is incomplete
+    for (let i = Math.max(0, len - 3); i < len; i++) {
+        const b = buf[i];
+        if ((b & 0x80) === 0) continue;       // ASCII
+        if ((b & 0xC0) === 0x80) continue;    // continuation byte
+        let needed;
+        if ((b & 0xE0) === 0xC0) needed = 2;
+        else if ((b & 0xF0) === 0xE0) needed = 3;
+        else if ((b & 0xF8) === 0xF0) needed = 4;
+        else continue;
+        if (len - i < needed) return i; // incomplete
+    }
+    return len; // all complete
+}
+
+/**
  * Single-pass tmux escape decoder.
  *
  * tmux control mode escapes:
@@ -182,6 +206,8 @@ export class TmuxControlClient extends EventEmitter {
         this._pendingOctal = '';
         /** Pending incomplete UTF-8 bytes carried over from a previous %output line */
         this._pendingUtf8Bytes = /** @type {number[]} */ ([]);
+        /** Trailing incomplete UTF-8 bytes from a previous %output line (raw bytes) */
+        this._pendingLineBytes = /** @type {Buffer|null} */ (null);
         /** @type {ReturnType<typeof setTimeout>|null} */
         this._idleTimer = null;
         this._closed = false;
@@ -196,9 +222,9 @@ export class TmuxControlClient extends EventEmitter {
 
         this.process = child;
         // Do NOT setEncoding('utf8') on stdout — tmux control mode may output
-        // raw UTF-8 bytes that get split across Node.js read chunks.
-        // StringDecoder would produce \uFFFD at chunk boundaries.
-        // Read as raw buffers, split on newline bytes, then decode per-line.
+        // raw UTF-8 bytes that span across %output lines (separated by \n).
+        // StringDecoder's UTF-8 would produce \uFFFD when a newline falls mid-character.
+        // Instead, read as raw buffers and decode after splitting on newline bytes.
         child.stderr.setEncoding('utf8');
 
         child.stdout.on('data', (chunk) => {
@@ -278,8 +304,8 @@ export class TmuxControlClient extends EventEmitter {
     /**
      * Handle raw stdout bytes from tmux control mode.
      * Split on newline bytes (0x0A) BEFORE UTF-8 decoding to avoid
-     * Node.js StringDecoder producing \uFFFD when a chunk boundary
-     * falls inside a multi-byte UTF-8 character.
+     * StringDecoder producing \uFFFD when a newline falls inside a
+     * multi-byte character that tmux outputs as raw UTF-8.
      * @param {Buffer} chunk
      * @returns {void}
      */
@@ -296,9 +322,7 @@ export class TmuxControlClient extends EventEmitter {
             const lineBytes = this.stdoutBuffer.subarray(start, end);
             start = idx + 1;
 
-            // Decode the complete line as UTF-8 (all bytes of the line are present)
-            const line = lineBytes.toString('utf-8');
-            this._handleLine(line);
+            this._handleLineBytes(lineBytes);
         }
 
         // Keep remaining bytes (incomplete line) in buffer
@@ -308,30 +332,48 @@ export class TmuxControlClient extends EventEmitter {
     }
 
     /**
-     * Check if a string ends with an incomplete octal escape.
-     * Incomplete = backslash followed by 0-2 octal digits at the tail.
-     * @param {string} s
-     * @returns {string} The incomplete tail (empty string if complete)
-     */
-    _extractIncompleteOctal(s) {
-        const match = s.match(/\\(?:[0-7]{0,2})$/);
-        return match ? match[0] : '';
-    }
-
-    /**
-     * @param {string} line
+     * Process a complete line from tmux control mode as raw bytes.
+     * For %output lines, the data portion is handled at the byte level
+     * to carry over incomplete UTF-8 sequences across lines.
+     * @param {Buffer} lineBytes
      * @returns {void}
      */
-    _handleLine(line) {
-        if (!line) return;
+    _handleLineBytes(lineBytes) {
+        if (!lineBytes || lineBytes.length === 0) return;
 
-        if (line.startsWith('%output ')) {
-            const firstSpace = line.indexOf(' ');
-            const secondSpace = line.indexOf(' ', firstSpace + 1);
+        // %output lines: handle data at byte level for UTF-8 safety
+        // "%output %N " is always ASCII, so safe to check prefix as ASCII
+        const PREFIX = '%output ';
+        if (lineBytes.length >= PREFIX.length &&
+            lineBytes.subarray(0, PREFIX.length).toString('ascii') === PREFIX) {
+            // Find second space (after pane id)
+            let secondSpace = -1;
+            for (let j = PREFIX.length; j < lineBytes.length; j++) {
+                if (lineBytes[j] === 0x20) { secondSpace = j; break; }
+            }
             if (secondSpace === -1) return;
 
-            // Prepend any leftover octal bytes from a previous line
-            const raw = this._pendingOctal + line.slice(secondSpace + 1);
+            // Extract data portion as raw bytes
+            let dataBytes = lineBytes.subarray(secondSpace + 1);
+
+            // Prepend any trailing UTF-8 bytes from the previous %output line
+            if (this._pendingLineBytes && this._pendingLineBytes.length > 0) {
+                dataBytes = Buffer.concat([this._pendingLineBytes, dataBytes]);
+                this._pendingLineBytes = null;
+            }
+
+            // Strip trailing incomplete UTF-8 and carry to next line
+            const completeEnd = _findTrailingIncompleteUtf8(dataBytes);
+            if (completeEnd < dataBytes.length) {
+                this._pendingLineBytes = Buffer.from(dataBytes.subarray(completeEnd));
+                dataBytes = dataBytes.subarray(0, completeEnd);
+            }
+
+            // Decode data as UTF-8 (now guaranteed complete at both ends)
+            const dataStr = dataBytes.toString('utf-8');
+
+            // Prepend any leftover octal from a previous line
+            const raw = this._pendingOctal + dataStr;
             this._pendingOctal = '';
 
             // Check for incomplete octal at the end
@@ -346,6 +388,30 @@ export class TmuxControlClient extends EventEmitter {
             }
             return;
         }
+
+        // Non-%output lines: decode entire line as UTF-8
+        const line = lineBytes.toString('utf-8');
+        this._handleLine(line);
+    }
+
+    /**
+     * Check if a string ends with an incomplete octal escape.
+     * Incomplete = backslash followed by 0-2 octal digits at the tail.
+     * @param {string} s
+     * @returns {string} The incomplete tail (empty string if complete)
+     */
+    _extractIncompleteOctal(s) {
+        const match = s.match(/\\(?:[0-7]{0,2})$/);
+        return match ? match[0] : '';
+    }
+
+    /**
+     * Handle non-%output lines (exit, error, etc.)
+     * @param {string} line
+     * @returns {void}
+     */
+    _handleLine(line) {
+        if (!line) return;
 
         if (line.startsWith('%exit')) {
             this.emit('exit', { code: 0, signal: null });
