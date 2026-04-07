@@ -112,7 +112,13 @@ async function fetchExistingRecords(tableId) {
     return data.list || [];
 }
 
-async function createRecord(tableId, story) {
+function getMaxNumber(tableId, existingRecords) {
+    if (!existingRecords || existingRecords.length === 0) return 0;
+    const numbers = existingRecords.map(r => r['番号'] || r['number'] || 0).filter(n => typeof n === 'number');
+    return numbers.length > 0 ? Math.max(...numbers) : 0;
+}
+
+async function createRecord(tableId, story, nextNumber) {
     const response = await fetch(`${NOCODB_BASE_URL}/api/v2/tables/${tableId}/records`, {
         method: 'POST',
         headers: {
@@ -120,7 +126,8 @@ async function createRecord(tableId, story) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            'マイルストーン名': story.name,
+            '番号': nextNumber,
+            '名前': story.name,
             'Story ID': story.story_id,
             'Horizon': story.horizon,
             'View': story.view || 'business',
@@ -154,6 +161,10 @@ async function processProject(project, dryRun) {
 
     console.log(`  Existing story records: ${existingStoryIds.size}`);
 
+    // 最大番号を取得
+    let nextNumber = getMaxNumber(project.tableId, existingRecords);
+    console.log(`  Max number: ${nextNumber}`);
+
     let created = 0;
     let skipped = 0;
 
@@ -168,11 +179,13 @@ async function processProject(project, dryRun) {
             console.log(`  [DRY RUN] Would create: ${story.story_id} - ${story.name}`);
         } else {
             try {
-                await createRecord(project.tableId, story);
-                console.log(`  ✓ Created: ${story.story_id} - ${story.name}`);
+                nextNumber++;
+                await createRecord(project.tableId, story, nextNumber);
+                console.log(`  ✓ Created: ${story.story_id} - ${story.name} (番号: ${nextNumber})`);
                 created++;
             } catch (error) {
                 console.error(`  ✗ Failed to create ${story.story_id}: ${error.message}`);
+                nextNumber--; // 失敗したら番号を戻す
             }
         }
     }
