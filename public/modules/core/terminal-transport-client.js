@@ -326,7 +326,8 @@ export class TerminalTransportClient {
                     }
                     case 'output': {
                         const outputLen = (typeof message.data === 'string' ? message.data : '').length;
-                        console.log(`[TTC] output received: len=${outputLen}`);
+                        // verbose — disabled to reduce console noise
+                        // console.log(`[TTC] output received: len=${outputLen}`);
                         this._applyOutput(typeof message.data === 'string' ? message.data : '');
                         break;
                     }
