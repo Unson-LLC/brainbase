@@ -1,0 +1,120 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Honcho Memory Server - Docker Compose
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 構成:
+#   - api: Honcho Memory API (FastAPI)
+#   - deriver: バックグラウンド推論ワーカー
+#   - database: PostgreSQL 15 + pgvector
+#   - redis: キャッシュ/キュー
+#
+# デプロイ先: Lightsail (176.34.20.239)
+# ポート: 127.0.0.1:8000 (localhost only)
+#
+# 使い方:
+#   docker compose -f docker-compose.honcho.yml up -d --build
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+services:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Honcho API Server
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  api:
+    build:
+      context: /home/ubuntu/honcho/repo
+      dockerfile: Dockerfile
+    container_name: honcho-api
+    entrypoint: ["sh", "docker/entrypoint.sh"]
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - DB_CONNECTION_URI=postgresql+psycopg://honcho:${HONCHO_DB_PASSWORD}@database:5432/honcho
+      - CACHE_URL=redis://redis:6379/0?suppress=true
+      - CACHE_ENABLED=true
+    env_file:
+      - path: .env.honcho
+        required: false
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Honcho Deriver (推論ワーカー)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  deriver:
+    build:
+      context: /home/ubuntu/honcho/repo
+      dockerfile: Dockerfile
+    container_name: honcho-deriver
+    entrypoint: ["/app/.venv/bin/python", "-m", "src.deriver"]
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DB_CONNECTION_URI=postgresql+psycopg://honcho:${HONCHO_DB_PASSWORD}@database:5432/honcho
+      - CACHE_URL=redis://redis:6379/0?suppress=true
+      - CACHE_ENABLED=true
+    env_file:
+      - path: .env.honcho
+        required: false
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # PostgreSQL 15 + pgvector
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  database:
+    image: pgvector/pgvector:pg15
+    container_name: honcho-database
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      - POSTGRES_DB=honcho
+      - POSTGRES_USER=honcho
+      - POSTGRES_PASSWORD=${HONCHO_DB_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - honcho-pgdata:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U honcho -d honcho"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Redis (キャッシュ/キュー)
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  redis:
+    image: redis:8.2
+    container_name: honcho-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - honcho-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  honcho-pgdata:
+  honcho-redis-data:

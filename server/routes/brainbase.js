@@ -10,6 +10,7 @@ import { createBrainbaseOverviewRouter } from './brainbase/overview-routes.js';
 import { createBrainbaseTrendsRouter } from './brainbase/trends-routes.js';
 import { createManaCaptureRouter } from './brainbase/mana-capture-routes.js';
 import { createBrainbasePortalRouter } from './brainbase/portal-routes.js';
+import { createHonchoService } from '../services/honcho-service.js';
 
 // Re-export for backward compatibility
 export { ACTION_TYPES, ACTION_STATUS };
@@ -64,7 +65,8 @@ export function createBrainbaseRouter(options = {}) {
     }));
 
     // ==================== mana Capture + Chat API (P0) ====================
-    router.use('/mana', createManaCaptureRouter({ nocodbService }));
+    const honchoService = createHonchoService();
+    router.use('/mana', createManaCaptureRouter({ nocodbService, honchoService }));
 
     // ==================== Actions API (Story 3) ====================
     const actionController = new BrainbaseActionController(nocodbService);

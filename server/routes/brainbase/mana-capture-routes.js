@@ -11,7 +11,7 @@ import { asyncHandler } from '../../lib/async-handler.js';
  */
 export function createManaCaptureRouter(options = {}) {
     const router = express.Router();
-    const { nocodbService } = options;
+    const { nocodbService, honchoService } = options;
 
     // Bedrock client (lazy init)
     let bedrockClient = null;
@@ -102,7 +102,7 @@ export function createManaCaptureRouter(options = {}) {
      * manaチャット → Bedrock応答
      */
     router.post('/chat', asyncHandler(async (req, res) => {
-        const { message, history } = req.body;
+        const { message, history, userId, sessionId } = req.body;
         if (!message || typeof message !== 'string' || !message.trim()) {
             return res.status(400).json({ error: 'message is required' });
         }
@@ -111,8 +111,30 @@ export function createManaCaptureRouter(options = {}) {
 
         // Build conversation messages
         const messages = [];
-        if (Array.isArray(history)) {
-            for (const msg of history.slice(-10)) { // last 10 messages for context
+
+        // Honcho有効時: 永続化された履歴から取得
+        let honchoSessionId = sessionId;
+        if (honchoService && userId) {
+            try {
+                if (!honchoSessionId) {
+                    const session = await honchoService.getOrCreateSession(userId, { source: 'mana-chat' });
+                    honchoSessionId = session.id;
+                }
+                const honchoMessages = await honchoService.getMessages(userId, honchoSessionId, 20);
+                for (const msg of honchoMessages) {
+                    messages.push({
+                        role: msg.is_user ? 'user' : 'assistant',
+                        content: msg.content
+                    });
+                }
+            } catch (err) {
+                logger.warn('Honcho history fetch failed, falling back to request history', { error: err.message });
+            }
+        }
+
+        // Honchoから取得できなかった場合はリクエストの履歴を使用
+        if (messages.length === 0 && Array.isArray(history)) {
+            for (const msg of history.slice(-10)) {
                 messages.push({
                     role: msg.role === 'user' ? 'user' : 'assistant',
                     content: msg.content
@@ -123,7 +145,18 @@ export function createManaCaptureRouter(options = {}) {
 
         try {
             const reply = await invokeBedrock(systemPrompt, messages);
-            res.json({ reply, timestamp: new Date().toISOString() });
+
+            // Honcho有効時: ユーザーメッセージとAI応答を永続化
+            if (honchoService && userId && honchoSessionId) {
+                try {
+                    await honchoService.saveMessage(userId, honchoSessionId, true, message.trim());
+                    await honchoService.saveMessage(userId, honchoSessionId, false, reply);
+                } catch (err) {
+                    logger.warn('Honcho message save failed', { error: err.message });
+                }
+            }
+
+            res.json({ reply, sessionId: honchoSessionId, timestamp: new Date().toISOString() });
         } catch (err) {
             logger.error('Mana chat Bedrock error', { error: err.message });
             res.status(503).json({ error: 'AI response unavailable', reply: 'ごめん、今ちょっと考えがまとまらない。もう一回言ってくれる？' });
