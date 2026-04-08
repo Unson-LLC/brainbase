@@ -114,16 +114,20 @@ export function createManaCaptureRouter(options = {}) {
 
         // Honcho有効時: 永続化された履歴から取得
         let honchoSessionId = sessionId;
+        let userPeer = null;
+        let manaPeer = null;
         if (honchoService && userId) {
             try {
+                userPeer = await honchoService.getOrCreatePeer(userId);
+                manaPeer = await honchoService.getOrCreatePeer('mana');
                 if (!honchoSessionId) {
-                    const session = await honchoService.getOrCreateSession(userId, { source: 'mana-chat' });
+                    const session = await honchoService.getOrCreateSession(`mana-chat-${userId}`, { source: 'mana-chat' });
                     honchoSessionId = session.id;
                 }
-                const honchoMessages = await honchoService.getMessages(userId, honchoSessionId, 20);
+                const honchoMessages = await honchoService.getMessages(honchoSessionId, 20);
                 for (const msg of honchoMessages) {
                     messages.push({
-                        role: msg.is_user ? 'user' : 'assistant',
+                        role: msg.peer === userPeer.id ? 'user' : 'assistant',
                         content: msg.content
                     });
                 }
@@ -146,11 +150,16 @@ export function createManaCaptureRouter(options = {}) {
         try {
             const reply = await invokeBedrock(systemPrompt, messages);
 
-            // Honcho有効時: ユーザーメッセージとAI応答を永続化
-            if (honchoService && userId && honchoSessionId) {
+            // Honcho有効時: ユーザーメッセージとAI応答をバッチ永続化
+            if (honchoService && userPeer && manaPeer && honchoSessionId) {
                 try {
-                    await honchoService.saveMessage(userId, honchoSessionId, true, message.trim());
-                    await honchoService.saveMessage(userId, honchoSessionId, false, reply);
+                    await honchoService.saveConversationTurn(
+                        honchoSessionId,
+                        userPeer.id,
+                        manaPeer.id,
+                        message.trim(),
+                        reply
+                    );
                 } catch (err) {
                     logger.warn('Honcho message save failed', { error: err.message });
                 }
