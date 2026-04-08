@@ -1148,11 +1148,18 @@
                 <span class="mana-chat-title">mana</span>
                 <button id="mana-chat-minimize" class="mana-chat-minimize" title="閉じる">&minus;</button>
             </div>
-            <div id="mana-chat-messages" class="mana-chat-messages"></div>
+            <div id="mana-chat-messages" class="mana-chat-messages">
+                <div id="mana-login-prompt" style="padding: 24px 16px; text-align: center; color: #94a3b8; font-size: 14px; line-height: 1.6;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">m</div>
+                    <div style="color: #e2e8f0; font-weight: 600; margin-bottom: 8px;">mana を使うにはログインが必要です</div>
+                    <div style="margin-bottom: 16px;">ログインすると、あなた専用のAI PMとして<br>タスク管理・課題整理をサポートします</div>
+                    <a href="/api/auth/login" style="display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 8px; text-decoration: none; font-weight: 500;">ログイン</a>
+                </div>
+            </div>
             <div class="mana-chat-input-bar">
-                <button id="mana-capture-btn" class="mana-capture-btn" title="課題として記録">Memo</button>
-                <input id="mana-chat-input" type="text" class="mana-chat-input" placeholder="話しかける..." autocomplete="off" />
-                <button id="mana-chat-send" class="mana-chat-send" title="送信">&rarr;</button>
+                <button id="mana-capture-btn" class="mana-capture-btn" title="課題として記録" disabled>Memo</button>
+                <input id="mana-chat-input" type="text" class="mana-chat-input" placeholder="ログインしてください..." autocomplete="off" disabled />
+                <button id="mana-chat-send" class="mana-chat-send" title="送信" disabled>&rarr;</button>
             </div>
         </div>
         <button id="mana-chat-bubble" class="mana-chat-bubble" title="mana" onclick="document.getElementById('mana-chat-panel').classList.toggle('open')">

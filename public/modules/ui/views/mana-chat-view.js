@@ -47,6 +47,15 @@ export class ManaChatView {
 
         if (!this.bubbleEl || !this.panelEl) return;
 
+        // Remove login prompt (shown for unauthenticated users)
+        const loginPrompt = document.getElementById('mana-login-prompt');
+        if (loginPrompt) loginPrompt.remove();
+
+        // Enable input controls (disabled by default for unauthenticated state)
+        if (this.inputEl) { this.inputEl.disabled = false; this.inputEl.placeholder = '話しかける...'; }
+        if (this.sendBtnEl) this.sendBtnEl.disabled = false;
+        if (this.captureBtnEl) this.captureBtnEl.disabled = false;
+
         this._setupEventListeners();
         this._addWelcomeMessage();
     }
