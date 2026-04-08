@@ -2,10 +2,13 @@
 import { logger } from '../utils/logger.js';
 
 /**
- * Honcho Memory Service
+ * Honcho Memory Service (v3 API)
  *
- * Honcho APIとの通信を管理するサービス。
- * 会話履歴の永続化、セマンティック検索、ユーザーメモリを提供。
+ * Honcho v3 APIとの通信を管理するサービス。
+ * 会話履歴の永続化、セマンティック検索、メモリ統合を提供。
+ *
+ * 概念モデル: Workspace → Peer → Session → Message
+ * 全エンティティは get-or-create セマンティクス（冪等POST）。
  *
  * @see https://github.com/plastic-labs/honcho
  */
@@ -13,34 +16,31 @@ export class HonchoService {
     /**
      * @param {Object} options
      * @param {string} options.apiUrl - Honcho API URL (e.g., http://127.0.0.1:8000)
-     * @param {string} [options.appName='brainbase'] - アプリケーション名
+     * @param {string} [options.workspaceId='brainbase'] - Workspace識別子
      */
-    constructor({ apiUrl, appName = 'brainbase' }) {
+    constructor({ apiUrl, workspaceId = 'brainbase' }) {
         this.apiUrl = apiUrl.replace(/\/$/, '');
-        this.appName = appName;
-        this.appId = null;
+        this.workspaceId = workspaceId;
+        this._workspace = null;
+        this._peerCache = new Map();
         this._initialized = false;
     }
 
     /**
-     * 初期化: アプリケーションを取得または作成
+     * 初期化: Workspaceを取得または作成
      */
     async init() {
         if (this._initialized) return;
 
         try {
-            // 既存アプリを検索
-            const apps = await this._request('GET', '/v1/apps', { name: this.appName });
-            if (apps.items?.length > 0) {
-                this.appId = apps.items[0].id;
-            } else {
-                // 新規作成
-                const app = await this._request('POST', '/v1/apps', null, { name: this.appName });
-                this.appId = app.id;
-            }
-
+            this._workspace = await this._request('POST', '/v3/workspaces', null, {
+                id: this.workspaceId
+            });
             this._initialized = true;
-            logger.info('HonchoService initialized', { appId: this.appId, apiUrl: this.apiUrl });
+            logger.info('HonchoService initialized', {
+                workspaceId: this._workspace.id,
+                apiUrl: this.apiUrl
+            });
         } catch (error) {
             logger.error('HonchoService init failed', { error: error.message });
             throw error;
@@ -48,27 +48,42 @@ export class HonchoService {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // User（ユーザー）
+    // Peer（ユーザー/エージェント）
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /**
-     * ユーザーを取得または作成
-     * @param {string} userId - ユーザー識別子（Slack ID等）
-     * @returns {Promise<Object>} Honcho User object
+     * Peerを取得または作成（冪等）
+     * @param {string} name - Peer名（Slack ID等）
+     * @returns {Promise<Object>} Honcho Peer object
      */
-    async getOrCreateUser(userId) {
+    async getOrCreatePeer(name) {
         await this._ensureInit();
 
-        try {
-            return await this._request('GET', `/v1/apps/${this.appId}/users/${userId}`);
-        } catch (error) {
-            if (error.status === 404) {
-                return await this._request('POST', `/v1/apps/${this.appId}/users`, null, {
-                    name: userId
-                });
-            }
-            throw error;
+        if (this._peerCache.has(name)) {
+            return this._peerCache.get(name);
         }
+
+        const peer = await this._request(
+            'POST',
+            `/v3/workspaces/${this._workspace.id}/peers`,
+            null,
+            { name }
+        );
+        this._peerCache.set(name, peer);
+        return peer;
+    }
+
+    /**
+     * Peer一覧を取得
+     * @returns {Promise<Object[]>}
+     */
+    async listPeers() {
+        await this._ensureInit();
+        const result = await this._request(
+            'POST',
+            `/v3/workspaces/${this._workspace.id}/peers/list`
+        );
+        return result.items || [];
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -76,42 +91,32 @@ export class HonchoService {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /**
-     * セッション作成
-     * @param {string} userId
+     * セッションを取得または作成（冪等）
+     * @param {string} sessionName - セッション識別子
      * @param {Object} [metadata={}]
      * @returns {Promise<Object>} Honcho Session object
      */
-    async createSession(userId, metadata = {}) {
+    async getOrCreateSession(sessionName, metadata = {}) {
         await this._ensureInit();
-        const user = await this.getOrCreateUser(userId);
-        return await this._request('POST', `/v1/apps/${this.appId}/users/${user.id}/sessions`, null, {
-            metadata
-        });
+        return await this._request(
+            'POST',
+            `/v3/workspaces/${this._workspace.id}/sessions`,
+            null,
+            { id: sessionName, metadata }
+        );
     }
 
     /**
-     * アクティブなセッション一覧を取得
-     * @param {string} userId
+     * セッション一覧を取得
      * @returns {Promise<Object[]>}
      */
-    async getSessions(userId) {
+    async listSessions() {
         await this._ensureInit();
-        const user = await this.getOrCreateUser(userId);
-        const result = await this._request('GET', `/v1/apps/${this.appId}/users/${user.id}/sessions`);
+        const result = await this._request(
+            'POST',
+            `/v3/workspaces/${this._workspace.id}/sessions/list`
+        );
         return result.items || [];
-    }
-
-    /**
-     * 最新のアクティブセッションを取得（なければ作成）
-     * @param {string} userId
-     * @param {Object} [metadata={}]
-     * @returns {Promise<Object>}
-     */
-    async getOrCreateSession(userId, metadata = {}) {
-        const sessions = await this.getSessions(userId);
-        const active = sessions.find(s => !s.is_active === false);
-        if (active) return active;
-        return await this.createSession(userId, metadata);
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -119,63 +124,119 @@ export class HonchoService {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /**
-     * メッセージを保存
-     * @param {string} userId
+     * メッセージをバッチ追加
      * @param {string} sessionId
-     * @param {boolean} isUser - true=ユーザー, false=AI
-     * @param {string} content
+     * @param {Array<{peerId: string, content: string}>} messages
      * @returns {Promise<Object>}
      */
-    async saveMessage(userId, sessionId, isUser, content) {
+    async addMessages(sessionId, messages) {
         await this._ensureInit();
-        const user = await this.getOrCreateUser(userId);
         return await this._request(
             'POST',
-            `/v1/apps/${this.appId}/users/${user.id}/sessions/${sessionId}/messages`,
+            `/v3/workspaces/${this._workspace.id}/sessions/${sessionId}/messages`,
             null,
-            { is_user: isUser, content }
+            { messages }
         );
     }
 
     /**
+     * ユーザーメッセージ + AI応答を一括保存（便利メソッド）
+     * @param {string} sessionId
+     * @param {string} userPeerId - ユーザーのPeer ID
+     * @param {string} assistantPeerId - AIのPeer ID
+     * @param {string} userContent
+     * @param {string} assistantContent
+     */
+    async saveConversationTurn(sessionId, userPeerId, assistantPeerId, userContent, assistantContent) {
+        return await this.addMessages(sessionId, [
+            { peer: userPeerId, content: userContent },
+            { peer: assistantPeerId, content: assistantContent }
+        ]);
+    }
+
+    /**
      * セッションのメッセージ履歴を取得
-     * @param {string} userId
      * @param {string} sessionId
      * @param {number} [limit=50]
      * @returns {Promise<Object[]>}
      */
-    async getMessages(userId, sessionId, limit = 50) {
+    async getMessages(sessionId, limit = 50) {
         await this._ensureInit();
-        const user = await this.getOrCreateUser(userId);
         const result = await this._request(
-            'GET',
-            `/v1/apps/${this.appId}/users/${user.id}/sessions/${sessionId}/messages`,
+            'POST',
+            `/v3/workspaces/${this._workspace.id}/sessions/${sessionId}/messages/list`,
+            null,
             { size: limit }
         );
         return result.items || [];
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // Metamessage（メタメッセージ / 要約・推論結果）
+    // Context / Search / Dream
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     /**
-     * メタメッセージを作成（要約、推論結果等）
-     * @param {string} userId
+     * セッションのコンテキストを取得（LLMに渡す用）
      * @param {string} sessionId
-     * @param {string} messageId - 関連するメッセージID
-     * @param {string} metamessageType - タイプ（例: 'summary', 'derived'）
-     * @param {string} content
+     * @param {Object} [options={}]
+     * @param {boolean} [options.summary=true]
+     * @param {number} [options.tokens=10000]
      * @returns {Promise<Object>}
      */
-    async createMetamessage(userId, sessionId, messageId, metamessageType, content) {
+    async getSessionContext(sessionId, options = {}) {
         await this._ensureInit();
-        const user = await this.getOrCreateUser(userId);
+        const { summary = true, tokens = 10000 } = options;
         return await this._request(
             'POST',
-            `/v1/apps/${this.appId}/users/${user.id}/sessions/${sessionId}/metamessages`,
+            `/v3/workspaces/${this._workspace.id}/sessions/${sessionId}/context`,
             null,
-            { message_id: messageId, metamessage_type: metamessageType, content }
+            { summary, tokens }
+        );
+    }
+
+    /**
+     * セマンティック検索
+     * @param {string} query - 検索クエリ
+     * @returns {Promise<Object>}
+     */
+    async search(query) {
+        await this._ensureInit();
+        return await this._request(
+            'POST',
+            `/v3/workspaces/${this._workspace.id}/search`,
+            null,
+            { query }
+        );
+    }
+
+    /**
+     * メモリ統合（Dream）をスケジュール
+     * @param {string} observerPeerId
+     * @param {string} sessionId
+     * @returns {Promise<Object>}
+     */
+    async scheduleDream(observerPeerId, sessionId) {
+        await this._ensureInit();
+        return await this._request(
+            'POST',
+            `/v3/workspaces/${this._workspace.id}/schedule_dream`,
+            null,
+            { observer: observerPeerId, session: sessionId }
+        );
+    }
+
+    /**
+     * キュー処理状態を確認
+     * @param {string} observerPeerId
+     * @param {string} sessionId
+     * @returns {Promise<Object>}
+     */
+    async queueStatus(observerPeerId, sessionId) {
+        await this._ensureInit();
+        return await this._request(
+            'GET',
+            `/v3/workspaces/${this._workspace.id}/queue/status`,
+            { observer: observerPeerId, session: sessionId }
         );
     }
 
@@ -262,6 +323,6 @@ export function createHonchoService() {
 
     return new HonchoService({
         apiUrl,
-        appName: process.env.HONCHO_APP_NAME || 'brainbase'
+        workspaceId: process.env.HONCHO_WORKSPACE_ID || 'brainbase'
     });
 }
