@@ -75,6 +75,12 @@ export const terminalIoMethods = {
             throw new Error('Input required');
         }
 
+        // フォーカスレポート(\x1b[I, \x1b[O)はtmuxに転送不要 — 除去
+        if (type === 'text' && typeof input === 'string') {
+            input = input.replace(/\x1b\[[IO]/g, '');
+            if (!input) return;
+        }
+
         await this._capturePromptInput(sessionId, input, type);
 
         if (type !== 'key' && type !== 'text') {

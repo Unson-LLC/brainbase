@@ -154,6 +154,24 @@ user     44444  0.0  0.1  ttyd -p 3003 -b /console/session-12345
       expect(pasteSpy).not.toHaveBeenCalled();
     });
 
+    it('フォーカスイベントのみの text 入力はtmuxに送信せず早期returnする', async () => {
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+      const pasteSpy = vi.spyOn(sessionManager, '_pasteInputFromTempFile').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', '\x1b[I', 'text');
+
+      expect(literalSpy).not.toHaveBeenCalled();
+      expect(pasteSpy).not.toHaveBeenCalled();
+    });
+
+    it('フォーカスイベント混入テキストからフォーカス部分を除去して送信する', async () => {
+      const literalSpy = vi.spyOn(sessionManager, '_sendLiteralText').mockResolvedValue();
+
+      await sessionManager.sendInput('session-1', 'hello\x1b[Iworld', 'text');
+
+      expect(literalSpy).toHaveBeenCalledWith('session-1', 'helloworld');
+    });
+
     it('同一sessionの text 入力は並列呼び出しでも FIFO で処理する', async () => {
       const order = [];
       vi.spyOn(sessionManager, '_sendLiteralText').mockImplementation(async (_sessionId, input) => {

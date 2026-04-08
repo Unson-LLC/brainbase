@@ -424,16 +424,25 @@ export class TerminalTransportClient {
 
     async sendText(value) {
         if (!value) return;
-        this._applyLocalEcho(value);
 
-        if (this._shouldSendTextImmediately(value)) {
-            this._flushBufferedText({ enqueueIfUnavailable: true });
-            this._dispatchTextMessage(value, { enqueueIfUnavailable: true });
-            return;
+        const segments = this._splitFocusEvents(value);
+        for (const seg of segments) {
+            if (seg.isFocusEvent) {
+                this._flushBufferedText({ enqueueIfUnavailable: true });
+                this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
+                continue;
+            }
+            this._applyLocalEcho(seg.value);
+
+            if (this._shouldSendTextImmediately(seg.value)) {
+                this._flushBufferedText({ enqueueIfUnavailable: true });
+                this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
+                continue;
+            }
+
+            this._pendingTextBuffer += seg.value;
+            this._scheduleBufferedTextFlush();
         }
-
-        this._pendingTextBuffer += value;
-        this._scheduleBufferedTextFlush();
     }
 
     async sendKey(value) {
@@ -626,6 +635,25 @@ export class TerminalTransportClient {
             await this._ensureInteractiveMode();
         }
         this.ws.send(JSON.stringify(message));
+    }
+
+    _splitFocusEvents(value) {
+        if (typeof value !== 'string' || !value) return [{ value, isFocusEvent: false }];
+        const FOCUS_RE = /\x1b\[[IO]/g;
+        const segments = [];
+        let lastIndex = 0;
+        let match;
+        while ((match = FOCUS_RE.exec(value)) !== null) {
+            if (match.index > lastIndex) {
+                segments.push({ value: value.slice(lastIndex, match.index), isFocusEvent: false });
+            }
+            segments.push({ value: match[0], isFocusEvent: true });
+            lastIndex = FOCUS_RE.lastIndex;
+        }
+        if (lastIndex < value.length) {
+            segments.push({ value: value.slice(lastIndex), isFocusEvent: false });
+        }
+        return segments.length > 0 ? segments : [{ value, isFocusEvent: false }];
     }
 
     _shouldSendTextImmediately(value) {
