@@ -57,6 +57,7 @@ export class SettingsCore {
       id: 'overview',
       displayName: 'Overview',
       order: 0,
+      requiredLevel: 1,
       lifecycle: {
         load: async () => {
           const [integrity, unified, health] = await Promise.all([
@@ -102,6 +103,7 @@ export class SettingsCore {
       id: 'projects',
       displayName: 'Projects',
       order: 10,
+      requiredLevel: 1,
       lifecycle: {
         load: async () => {
           const config = await this.apiClient.getConfig();
@@ -115,11 +117,12 @@ export class SettingsCore {
       }
     });
 
-    // Organizations Panel登録
+    // Organizations Panel登録（CEO以上のみ）
     this.pluginRegistry.register({
       id: 'organizations',
       displayName: 'Organizations',
       order: 5,
+      requiredLevel: 3,
       lifecycle: {
         load: async () => {
           const organizations = await this.apiClient.getOrganizations();
@@ -135,11 +138,12 @@ export class SettingsCore {
       }
     });
 
-    // Integrations Panel登録
+    // Integrations Panel登録（GM以上のみ）
     this.pluginRegistry.register({
       id: 'integrations',
       displayName: 'Integrations',
       order: 20,
+      requiredLevel: 2,
       lifecycle: {
         load: async () => {
           // 同期ステータスはConfigとHealthから取得
@@ -206,6 +210,7 @@ export class SettingsCore {
       id: 'notifications',
       displayName: 'Notifications',
       order: 30,
+      requiredLevel: 1,
       lifecycle: {
         load: async () => {
           const notifications = await this.apiClient.getNotifications();
@@ -227,7 +232,8 @@ export class SettingsCore {
    * @private
    */
   async _loadAllData() {
-    await this.pluginRegistry.loadAll();
+    const access = appStore.getState().auth?.access;
+    await this.pluginRegistry.loadAll(access);
   }
 
   /**
@@ -235,7 +241,8 @@ export class SettingsCore {
    * @private
    */
   _renderTabs() {
-    const tabs = this.pluginRegistry.generateTabNavigation();
+    const access = appStore.getState().auth?.access;
+    const tabs = this.pluginRegistry.generateTabNavigation(access);
     this.ui.renderTabs(tabs, this.currentTab);
 
     // パネルコンテナを動的に生成
