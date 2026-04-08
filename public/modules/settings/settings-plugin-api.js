@@ -19,10 +19,11 @@ export class SettingsPluginRegistry {
    * @param {string} descriptor.id - 一意識別子
    * @param {string} descriptor.displayName - タブ表示名
    * @param {number} [descriptor.order=100] - タブ表示順序（小さい方が左）
+   * @param {number} [descriptor.requiredLevel=1] - 表示に必要なアクセスレベル（1=member, 2=gm, 3=ceo）
    * @param {PluginLifecycle} descriptor.lifecycle - ライフサイクルフック
    */
   register(descriptor) {
-    const { id, displayName, order, lifecycle } = descriptor;
+    const { id, displayName, order, requiredLevel, lifecycle } = descriptor;
 
     // 重複チェック
     if (this.plugins.has(id)) {
@@ -38,6 +39,7 @@ export class SettingsPluginRegistry {
       id,
       displayName,
       order: order ?? 100,  // デフォルト: 100
+      requiredLevel: requiredLevel ?? 1,  // デフォルト: 全員閲覧可
       lifecycle: validatedLifecycle
     });
 
@@ -75,10 +77,15 @@ export class SettingsPluginRegistry {
 
   /**
    * すべてのプラグインのデータをロード
+   * @param {Object|null} [access=null] - ユーザーのアクセス情報（権限フィルタリング用）
    */
-  async loadAll() {
-    const loadPromises = Array.from(this.plugins.values()).map(plugin => {
-      // load()が定義されている場合は実行、なければ空のPromiseを返す
+  async loadAll(access = null) {
+    const visiblePlugins = this.panelOrder.filter(plugin => {
+      if (!access) return true;
+      return (access.level || 1) >= plugin.requiredLevel;
+    });
+
+    const loadPromises = visiblePlugins.map(plugin => {
       return plugin.lifecycle.load?.() || Promise.resolve();
     });
 
@@ -87,7 +94,7 @@ export class SettingsPluginRegistry {
     // エラーハンドリング
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
-        const plugin = this.panelOrder[index];
+        const plugin = visiblePlugins[index];
         console.error(`Plugin ${plugin.id} load failed:`, result.reason);
 
         // エラーイベント発火
@@ -135,12 +142,17 @@ export class SettingsPluginRegistry {
    * タブナビゲーションを生成
    * @returns {Array<{id: string, displayName: string, order: number}>}
    */
-  generateTabNavigation() {
-    return this.panelOrder.map(plugin => ({
-      id: plugin.id,
-      displayName: plugin.displayName,
-      order: plugin.order
-    }));
+  generateTabNavigation(access = null) {
+    return this.panelOrder
+      .filter(plugin => {
+        if (!access) return true;
+        return (access.level || 1) >= plugin.requiredLevel;
+      })
+      .map(plugin => ({
+        id: plugin.id,
+        displayName: plugin.displayName,
+        order: plugin.order
+      }));
   }
 
   /**
