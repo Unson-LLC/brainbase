@@ -246,8 +246,13 @@ JSON:`;
     }
 
     async function invokeBedrock(systemPrompt, messages) {
+        const openrouterKey = process.env.OPENROUTER_API_KEY || process.env.LLM_OPENAI_COMPATIBLE_API_KEY;
+        if (openrouterKey) {
+            return invokeOpenRouter(systemPrompt, messages, openrouterKey);
+        }
+
         const client = getBedrockClient();
-        const modelId = process.env.BEDROCK_MODEL_ID || 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
+        const modelId = process.env.BEDROCK_MODEL_ID || 'us.anthropic.claude-sonnet-4-6';
 
         const body = {
             anthropic_version: 'bedrock-2023-05-31',
@@ -266,6 +271,35 @@ JSON:`;
         const response = await client.send(command);
         const result = JSON.parse(new TextDecoder().decode(response.body));
         return result.content?.[0]?.text || '';
+    }
+
+    async function invokeOpenRouter(systemPrompt, messages, apiKey) {
+        const model = process.env.MANA_CHAT_MODEL || 'anthropic/claude-sonnet-4';
+        const allMessages = [
+            { role: 'system', content: systemPrompt },
+            ...messages
+        ];
+
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model,
+                messages: allMessages,
+                max_tokens: 1024
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`OpenRouter error ${response.status}: ${err}`);
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || '';
     }
 
     function buildManaSystemPrompt() {
