@@ -795,6 +795,15 @@ export class TerminalTransportClient {
 
     _applyLocalEcho(text) {
         if (!this.terminal || !text || this.status.mode !== 'live') return;
+
+        // Backspace(\x7f)はローカルエコーで即座に反映
+        if (text === '\x7f') {
+            const bsEcho = '\b \b';
+            this._pendingEchoText += bsEcho;
+            this._writeToTerminal(bsEcho);
+            return;
+        }
+
         if (!this._canOptimisticallyEcho(text)) return;
 
         const normalized = this._normalizeEchoText(text);

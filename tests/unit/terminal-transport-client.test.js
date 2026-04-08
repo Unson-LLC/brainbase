@@ -415,6 +415,26 @@ describe('terminal-transport-client', () => {
     expect(echoTexts).toEqual(['hello', 'world']);
   });
 
+  it('Backspaceはローカルエコーで即座に反映される', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('\x7f');
+
+    // ローカルエコーとして \b \b が書き込まれる
+    expect(client.terminal.write).toHaveBeenCalledTimes(1);
+    expect(client.terminal.write.mock.calls[0][0]).toBe('\b \b');
+  });
+
   it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
