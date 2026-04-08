@@ -297,7 +297,7 @@ describe('app switchSession runtime handling', () => {
     expect(app._connectXtermTransport).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }), { deferDisplay: true });
   });
 
-  it('desktopではruntime待ち中も前のterminal presentationを維持する', async () => {
+  it('desktopではruntime待ち中にスナップショットを即表示する', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -341,10 +341,10 @@ describe('app switchSession runtime handling', () => {
     const switchPromise = app.switchSession('session-1');
     await Promise.resolve();
 
-    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
-    expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
-    expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(false);
+    // スナップショット即表示: xterm hidden, snapshot visible, overlay hidden
+    expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('terminal-loading-overlay').classList.contains('hidden')).toBe(true);
 
     resolveRuntime({
       runtimeStatus: {
@@ -362,7 +362,7 @@ describe('app switchSession runtime handling', () => {
     await switchPromise;
   });
 
-  it('desktop xterm切替ではcold cacheでもsnapshot placeholderを先出ししない', async () => {
+  it('desktop xterm切替ではcold cacheでもスナップショットプレースホルダーを表示しfastロードを発火する', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -403,12 +403,14 @@ describe('app switchSession runtime handling', () => {
 
     await app.switchSession('session-1');
 
-    expect(loadSnapshotSpy).not.toHaveBeenCalled();
+    // cold cacheでもスナップショットパネルが表示され、バックグラウンドでfast loadが発火
+    expect(loadSnapshotSpy).toHaveBeenCalledWith('session-1', { force: false, mode: 'fast' });
+    // xterm接続成功後はxtermに切り替わる（snapshot hidden）
     expect(document.getElementById('terminal-snapshot-panel').classList.contains('hidden')).toBe(true);
-    expect(document.getElementById('console-area').classList.contains('using-snapshot')).toBe(false);
+    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
   });
 
-  it('desktop broken sessionでもrecovery panelを出さず前のpresentationへ戻す', async () => {
+  it('desktop broken sessionでは接続失敗時にスナップショットfallbackを維持する', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -449,13 +451,13 @@ describe('app switchSession runtime handling', () => {
 
     const result = await app.switchSession('session-1');
 
-    expect(result.ok).toBe(false);
-    expect(appStore.getState().currentSessionId).toBe('session-previous');
-    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
+    // 接続失敗時はsnapshot_fallbackモードで維持（真っ黒にしない）
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe('snapshot_fallback');
     expect(document.getElementById('terminal-recovery-panel')).toBeNull();
   });
 
-  it('desktop xterm切替ではlate snapshot repaint自体を発生させない', async () => {
+  it('desktop xterm切替完了後はsnapshotが非表示になりxtermに切り替わる', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
     app._shouldUseXtermTransport = vi.fn(() => true);
     app.terminalXtermHost = document.getElementById('terminal-xterm-host');
@@ -466,15 +468,14 @@ describe('app switchSession runtime handling', () => {
       destroy: vi.fn(),
       isActiveForSession: vi.fn(() => false)
     };
-    app._connectXtermTransport = vi.fn().mockImplementation(async () => {
-      document.getElementById('console-area').classList.remove('using-snapshot');
-      document.getElementById('console-area').classList.add('using-xterm');
-      document.getElementById('terminal-xterm-host').classList.remove('hidden');
-      document.getElementById('terminal-snapshot-panel').classList.add('hidden');
-      return { ok: true };
+    app._connectXtermTransport = vi.fn().mockResolvedValue({ ok: true });
+
+    app._terminalSnapshotCache.set('session-1', {
+      text: 'cached snapshot',
+      colorText: null,
+      capturedAt: '2026-04-01T05:00:00.000Z'
     });
 
-    app._loadTerminalSnapshot = vi.fn();
     httpClient.get.mockResolvedValueOnce({
       runtimeStatus: {
         ttydRunning: false,
@@ -501,9 +502,11 @@ describe('app switchSession runtime handling', () => {
 
     await app.switchSession('session-1');
 
+    // xterm接続成功後: snapshot hidden, xterm visible
     const snapshotPanel = document.getElementById('terminal-snapshot-panel');
     expect(snapshotPanel.classList.contains('hidden')).toBe(true);
-    expect(app._loadTerminalSnapshot).not.toHaveBeenCalled();
+    expect(document.getElementById('terminal-xterm-host').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('console-area').classList.contains('using-xterm')).toBe(true);
   });
 
   it('mobile localhostではswitchSessionはsnapshot displayを使う', async () => {

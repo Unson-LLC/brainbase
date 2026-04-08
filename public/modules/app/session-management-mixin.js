@@ -235,6 +235,26 @@ export function applySessionManagementMixin(AppClass) {
                 }
 
                 if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+                    // ── Step 1: スナップショット即表示（overlay不要）──
+                    const sessionTitle = session?.name || 'Terminal';
+                    const cachedSnapshot = this._terminalSnapshotCache?.get(sessionId) || null;
+                    this._showSnapshotDisplay(sessionId, {
+                        title: sessionTitle,
+                        snapshot: cachedSnapshot
+                    });
+                    this.hideTerminalLoadingOverlay?.();
+
+                    if (!cachedSnapshot) {
+                        this._loadTerminalSnapshot?.(sessionId, { force: false, mode: 'fast' })
+                            .then(snapshot => {
+                                if (this._isSessionSwitchCurrent(sessionId, switchToken) &&
+                                    this._isCurrentSessionSnapshotDisplay?.(sessionId)) {
+                                    this._renderTerminalSnapshotPanel({ visible: true, snapshot, title: sessionTitle });
+                                }
+                            }).catch(() => {});
+                    }
+
+                    // ── Step 2: バックグラウンドでxterm接続 ──
                     this._setCurrentSessionUiState({
                         transport: 'reconnecting',
                         attention: 'none'
@@ -245,16 +265,15 @@ export function applySessionManagementMixin(AppClass) {
                         await this._ensureDesktopTerminalRuntime(session, initialRuntime?.runtimeStatus || null);
                         if (!this._isSessionSwitchCurrent(sessionId, switchToken)) return { ok: false, reason: 'stale' };
                     } catch (error) {
-                        this._failTerminalSwitch?.(sessionId, switchToken, {
-                            previousSessionId,
-                            error,
-                            errorMessage: 'ターミナル起動に失敗しました'
-                        });
+                        // エラー時: スナップショット表示を維持（真っ黒にしない）
+                        console.warn('[switchSession] Terminal startup failed, keeping snapshot:', error.message);
+                        this._pendingTerminalSwitch = null;
+                        this._terminalSwitchState = 'snapshot_fallback';
                         this._setCurrentSessionUiState({
                             transport: 'disconnected',
                             attention: 'none'
                         });
-                        return { ok: false, reason: 'ensure-failed' };
+                        return { ok: true, mode: 'snapshot_fallback' };
                     }
 
                     const transportResult = await this._connectXtermTransport(session, { deferDisplay: true });
@@ -262,9 +281,12 @@ export function applySessionManagementMixin(AppClass) {
                         this.terminalTransportClient?.disconnect({ preserveView: false });
                         return { ok: false, reason: 'stale' };
                     }
+
+                    // ── Step 3: snapshot → xterm にシームレス切替 ──
                     if (transportResult.ok) {
                         this.reconnectManager?.setCurrentSession(sessionId);
                         this._terminalLastNavigateAt = Date.now();
+                        this._showXtermTransport();
                         this._finishTerminalSwitch?.(sessionId, switchToken, { state: 'ready_live' });
                         this._setCurrentSessionUiState({
                             transport: 'reconnecting',
@@ -293,15 +315,15 @@ export function applySessionManagementMixin(AppClass) {
                         return { ok: true, blocked: true };
                     }
 
-                    this._failTerminalSwitch?.(sessionId, switchToken, {
-                        previousSessionId,
-                        errorMessage: 'ターミナル接続に失敗しました'
-                    });
+                    // 接続失敗: スナップショット表示を維持
+                    console.warn('[switchSession] Terminal connection failed, keeping snapshot');
+                    this._pendingTerminalSwitch = null;
+                    this._terminalSwitchState = 'snapshot_fallback';
                     this._setCurrentSessionUiState({
                         transport: 'disconnected',
                         attention: 'none'
                     });
-                    return { ok: false, reason: 'connect-failed' };
+                    return { ok: true, mode: 'snapshot_fallback' };
                 }
 
                 const result = await this._resolveTtydProxyPath(sessionId, session, options);
