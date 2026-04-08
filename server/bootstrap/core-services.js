@@ -8,6 +8,7 @@ import { ConfigParser } from '../../lib/config-parser.js';
 import { InboxParser } from '../../lib/inbox-parser.js';
 import { createSessionServices } from '../services/create-session-services.js';
 import { TerminalTransportService } from '../services/terminal-transport-service.js';
+import { SessionActivityWsService } from '../services/session-activity-ws-service.js';
 import { TmuxCaptureCache } from '../services/tmux-capture-cache.js';
 import { TmuxControlRegistry } from '../services/tmux-control-registry.js';
 import { WorktreeService } from '../services/worktree-service.js';
@@ -83,6 +84,13 @@ export function createCoreServices({
         captureCache: tmuxCaptureCache,
         controlRegistry: tmuxControlRegistry
     });
+    const sessionActivityWsService = new SessionActivityWsService({
+        activityService: sessionServices.activity
+    });
+    sessionServices.shared._activityWsBroadcast = (sessionId, hookStatus) => {
+        sessionActivityWsService.broadcast(sessionId, hookStatus);
+    };
+
     const conversationLinker = new ConversationLinker({
         stateStore,
         workspaceService: sessionServices.workspace
@@ -117,6 +125,7 @@ export function createCoreServices({
         tmuxCaptureCache,
         tmuxControlRegistry,
         terminalTransportService,
+        sessionActivityWsService,
         conversationLinker,
         uploadMiddleware: upload.single('file')
     };

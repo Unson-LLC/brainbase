@@ -12,7 +12,7 @@ import { getTerminalViewerId, getTerminalViewerLabel } from './modules/core/term
 import { TerminalTransportClient } from './modules/core/terminal-transport-client.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsExtensions } from './modules/settings/settings-extensions.js';
-import { pollSessionStatus, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, startPolling, startActivityWs } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { refreshIcons } from './modules/ui-helpers.js';
@@ -291,6 +291,7 @@ export class App {
      * Initialize views
      */
     initViews() {
+        console.log('[App] initViews() called');
         // mana Chat Widget (floating, no container needed) — init first to survive downstream errors
         try {
             this.views.manaChatView = new ManaChatView({
@@ -501,8 +502,8 @@ export class App {
         window.addEventListener('pagehide', onPageHide);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('pagehide', onPageHide));
 
-        // 7. Start session status polling (every 3 seconds)
-        this.pollingIntervalId = startPolling(
+        // 7. Start session activity WebSocket (with polling fallback)
+        this.pollingIntervalId = startActivityWs(
             () => appStore.getState().currentSessionId,
             3000,
             async () => {

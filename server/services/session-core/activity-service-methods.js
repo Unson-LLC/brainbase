@@ -184,44 +184,47 @@ export const activityServiceMethods = {
         }
     },
 
-    getSessionStatus() {
-        const status = {};
+    _buildStatusForSession(hookData) {
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000;
         const now = Date.now();
+        const normalized = this._normalizeHookData(hookData);
+        if (!normalized) return null;
 
+        const activeTurnCount = normalized.activeTurnIds.length;
+        const hasWorking = normalized.lastWorkingAt > 0;
+        const hasDone = normalized.lastDoneAt > 0;
+        if (!hasWorking && !hasDone && activeTurnCount === 0) return null;
+
+        const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
+        const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
+        if (isStale && activeTurnCount === 0 && !hasDone) return null;
+        const isWorking = !isStale && (
+            activeTurnCount > 0
+            || (activeTurnCount === 0 && normalized.lastWorkingAt > normalized.lastDoneAt)
+        );
+        const isDone = !isWorking && hasDone;
+
+        if (!isWorking && !isDone) return null;
+
+        return {
+            isWorking,
+            isDone,
+            lastWorkingAt: normalized.lastWorkingAt,
+            lastDoneAt: normalized.lastDoneAt,
+            lastActivityAt: normalized.lastActivityAt,
+            lastEventType: normalized.lastEventType,
+            liveActivity: normalized.liveActivity,
+            activeTurnCount,
+            timestamp: normalized.timestamp
+        };
+    },
+
+    getSessionStatus() {
+        const status = {};
         for (const [sessionId, hookData] of this.hookStatus) {
-            const normalized = this._normalizeHookData(hookData);
-            if (!normalized) continue;
-
-            const activeTurnCount = normalized.activeTurnIds.length;
-            const hasWorking = normalized.lastWorkingAt > 0;
-            const hasDone = normalized.lastDoneAt > 0;
-            if (!hasWorking && !hasDone && activeTurnCount === 0) continue;
-
-            const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
-            const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
-            if (isStale && activeTurnCount === 0 && !hasDone) continue;
-            const isWorking = !isStale && (
-                activeTurnCount > 0
-                || (activeTurnCount === 0 && normalized.lastWorkingAt > normalized.lastDoneAt)
-            );
-            const isDone = !isWorking && hasDone;
-
-            if (!isWorking && !isDone) continue;
-
-            status[sessionId] = {
-                isWorking,
-                isDone,
-                lastWorkingAt: normalized.lastWorkingAt,
-                lastDoneAt: normalized.lastDoneAt,
-                lastActivityAt: normalized.lastActivityAt,
-                lastEventType: normalized.lastEventType,
-                liveActivity: normalized.liveActivity,
-                activeTurnCount,
-                timestamp: normalized.timestamp
-            };
+            const entry = this._buildStatusForSession(hookData);
+            if (entry) status[sessionId] = entry;
         }
-
         return status;
     },
 
@@ -303,6 +306,11 @@ export const activityServiceMethods = {
         this.hookStatus.set(sessionId, hookStatusData);
         this._persistHookStatus(sessionId, hookStatusData, timestamp);
 
+        if (typeof this._activityWsBroadcast === 'function') {
+            const statusForClient = this._buildStatusForSession(hookStatusData);
+            this._activityWsBroadcast(sessionId, statusForClient);
+        }
+
         const reportedTaskBrief = typeof liveActivity?.taskBrief === 'string' ? liveActivity.taskBrief : null;
         const reportedAssistantSnippet = typeof liveActivity?.assistantSnippet === 'string' ? liveActivity.assistantSnippet : null;
         if (reportedTaskBrief || reportedAssistantSnippet) {
@@ -322,6 +330,9 @@ export const activityServiceMethods = {
             (normalized.lastDoneAt > 0 || normalized.lastWorkingAt > 0)) {
             this.hookStatus.delete(sessionId);
             this._persistHookStatus(sessionId, null);
+            if (typeof this._activityWsBroadcast === 'function') {
+                this._activityWsBroadcast(sessionId, null);
+            }
         }
     },
 

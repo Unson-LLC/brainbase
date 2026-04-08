@@ -307,6 +307,7 @@ const {
     sessionServices,
     tmuxCaptureCache,
     terminalTransportService,
+    sessionActivityWsService,
     conversationLinker,
     uploadMiddleware
 } = createCoreServices({
@@ -578,6 +579,10 @@ server.on('upgrade', (request, socket, head) => {
         request.authSource = authResult.authSource || null;
     }
 
+    if (sessionActivityWsService?.isActivityWsRequest(request)) {
+        sessionActivityWsService.handleUpgrade(request, socket, head);
+        return;
+    }
     if (terminalTransportService.isTerminalTransportRequest(request)) {
         terminalTransportService.handleUpgrade(request, socket, head);
         return;
