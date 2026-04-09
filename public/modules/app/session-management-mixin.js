@@ -236,20 +236,22 @@ export function applySessionManagementMixin(AppClass) {
 
                 if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
                     // ── Step 1: スナップショット即表示（overlay不要）──
+                    // xterm hostは隠さない（display:noneにするとfitAddonがサイズ取得できない）
+                    // snapshot panelはposition:absolute+z-indexでxterm hostの上に重なる
                     const sessionTitle = session?.name || 'Terminal';
                     const cachedSnapshot = this._terminalSnapshotCache?.get(sessionId) || null;
-                    this._showSnapshotDisplay(sessionId, {
-                        title: sessionTitle,
-                        snapshot: cachedSnapshot
+                    this._renderTerminalSnapshotPanel?.({
+                        visible: true,
+                        snapshot: cachedSnapshot || this._terminalSnapshotCache?.get(sessionId) || null,
+                        title: sessionTitle
                     });
                     this.hideTerminalLoadingOverlay?.();
 
                     if (!cachedSnapshot) {
                         this._loadTerminalSnapshot?.(sessionId, { force: false, mode: 'fast' })
                             .then(snapshot => {
-                                if (this._isSessionSwitchCurrent(sessionId, switchToken) &&
-                                    this._isCurrentSessionSnapshotDisplay?.(sessionId)) {
-                                    this._renderTerminalSnapshotPanel({ visible: true, snapshot, title: sessionTitle });
+                                if (this._isSessionSwitchCurrent(sessionId, switchToken)) {
+                                    this._renderTerminalSnapshotPanel?.({ visible: true, snapshot, title: sessionTitle });
                                 }
                             }).catch(() => {});
                     }
