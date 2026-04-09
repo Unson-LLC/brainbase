@@ -264,6 +264,17 @@ export const activityServiceMethods = {
         } else if (lifecycle === 'turn_completed') {
             if (turnId) {
                 activeTurnIds.delete(turnId);
+                // 完了turnより古い残留turnもクリア（turn_completedが来なかったケース）
+                const completedTs = this._extractTurnTimestamp(turnId);
+                if (completedTs > 0) {
+                    for (const tid of [...activeTurnIds]) {
+                        const tidTs = this._extractTurnTimestamp(tid);
+                        if (tidTs > 0 && tidTs <= completedTs) {
+                            logger.info(`[Hook] Clearing stale turn ${tid} (older than completed ${turnId}) for ${sessionId}`);
+                            activeTurnIds.delete(tid);
+                        }
+                    }
+                }
             } else if (activeTurnIds.size > 0) {
                 // turnIdなしのturn_completed: 残留turnを全クリアして確実にdoneへ遷移
                 logger.info(`[Hook] turn_completed without turnId for ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
@@ -272,6 +283,15 @@ export const activityServiceMethods = {
 
             lastDoneAt = Math.max(lastDoneAt, timestamp);
         } else if (lifecycle === 'heartbeat') {
+            // heartbeat時に30分以上古い残留turnをクリア
+            const STALE_TURN_TIMEOUT = 30 * 60 * 1000;
+            for (const tid of [...activeTurnIds]) {
+                const tidTs = this._extractTurnTimestamp(tid);
+                if (tidTs > 0 && (timestamp - tidTs) > STALE_TURN_TIMEOUT) {
+                    logger.info(`[Hook] Clearing stale turn ${tid} (${Math.round((timestamp - tidTs) / 60000)}min old) for ${sessionId}`);
+                    activeTurnIds.delete(tid);
+                }
+            }
             if (activeTurnIds.size > 0 || lastWorkingAt >= lastDoneAt) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             }
@@ -545,5 +565,12 @@ export const activityServiceMethods = {
     _coerceTimestamp(reportedAt) {
         const value = Number(reportedAt);
         return Number.isFinite(value) && value > 0 ? value : Date.now();
+    },
+
+    _extractTurnTimestamp(turnId) {
+        if (typeof turnId !== 'string') return 0;
+        // turnId format: "claude-{timestamp}-{random}"
+        const match = turnId.match(/^claude-(\d+)-/);
+        return match ? Number(match[1]) : 0;
     }
 };
