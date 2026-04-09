@@ -139,6 +139,7 @@ export function applyUiSetupMixin(AppClass) {
         this.container.register('liveFeedService', () => new LiveFeedService());
         this.container.register('portalService', () => new PortalService({ httpClient }));
         this.container.register('nocodbIssueService', () => new NocoDBIssueService({ httpClient }));
+        this.container.register('manaChatService', () => new ManaChatService());
 
         // Get service instances
         this.taskService = this.container.get('taskService');
