@@ -4,6 +4,8 @@ import os from 'os';
 import path from 'path';
 
 const INLINE_TEXT_MAX_BYTES = 1024;
+const TMUX_TIMEOUT_MS = 5_000;
+const MUTATION_TIMEOUT_MS = 10_000;
 
 export const terminalIoMethods = {
     async resizeSessionWindow(sessionId, cols, rows) {
@@ -96,6 +98,17 @@ export const terminalIoMethods = {
         });
     },
 
+    _withTimeout(promise, ms, onTimeout) {
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                if (onTimeout) onTimeout();
+                reject(new Error(`Operation timed out after ${ms}ms`));
+            }, ms);
+        });
+        return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    },
+
     async _enqueueTerminalMutation(sessionId, operation) {
         if (!sessionId) {
             throw new Error('Session ID required');
@@ -105,7 +118,7 @@ export const terminalIoMethods = {
         const next = previous
             .catch(() => {})
             .then(async () => {
-                return await operation();
+                return await this._withTimeout(operation(), MUTATION_TIMEOUT_MS);
             });
 
         this.terminalMutationQueues.set(sessionId, next);
@@ -127,8 +140,9 @@ export const terminalIoMethods = {
     },
 
     async _runTmux(args) {
-        return await new Promise((resolve, reject) => {
-            const child = spawn('tmux', args, {
+        let child;
+        const result = new Promise((resolve, reject) => {
+            child = spawn('tmux', args, {
                 stdio: ['ignore', 'pipe', 'pipe']
             });
             let stdout = '';
@@ -155,6 +169,10 @@ export const terminalIoMethods = {
                 reject(error);
             });
         });
+
+        return this._withTimeout(result, TMUX_TIMEOUT_MS, () => {
+            child?.kill('SIGKILL');
+        });
     },
 
     async _sendNamedKey(sessionId, key) {
@@ -175,8 +193,8 @@ export const terminalIoMethods = {
             await this._runTmux(['load-buffer', '-b', bufferName, tempFile]);
             await this._runTmux(['paste-buffer', '-d', '-b', bufferName, '-t', sessionId]);
         } finally {
-            await this._runTmux(['delete-buffer', '-b', bufferName]).catch(() => {});
-            await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+            this._runTmux(['delete-buffer', '-b', bufferName]).catch(() => {});
+            fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
         }
     }
 };

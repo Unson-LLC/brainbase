@@ -121,6 +121,7 @@ export class TerminalTransportService {
             return;
         }
 
+        const hasClientDimensions = Boolean(cols && rows);
         const connection = {
             ws,
             sessionId,
@@ -128,6 +129,7 @@ export class TerminalTransportService {
             viewerLabel,
             cols: cols || 120,
             rows: rows || 40,
+            hasClientDimensions,
             closed: false,
             lastSnapshot: null,
             lastCopyMode: null,
@@ -269,7 +271,10 @@ export class TerminalTransportService {
                 this.controlRegistry.release(connection.sessionId, client);
             };
 
-            if (connection.cols && connection.rows) {
+            // クライアントが明示的にcols/rowsを送信した場合のみ初期resize
+            // skipInitialResize=trueの場合、デフォルト120x40でresizeすると
+            // クライアントが正しいサイズを送るまでの間に誤った幅で出力される
+            if (connection.hasClientDimensions && connection.cols && connection.rows) {
                 client.resize(connection.cols, connection.rows);
             }
         } catch (error) {

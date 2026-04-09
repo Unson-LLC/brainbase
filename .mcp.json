@@ -17,7 +17,7 @@
       "args": ["tsx", "mcp/nocodb/src/index.ts"],
       "env": {
         "NOCODB_URL": "https://noco.unson.jp",
-        "NOCODB_TOKEN": "32UQ6-Q8iIfB4ChGS7tcVpCk6bz9htHbaambf6TUCPC"
+        "NOCODB_TOKEN": "32UQ6-Q8iIfB4ChGS7tcVpCk6bz9htHbaambf6TU"
       }
     },
     "jibble": {

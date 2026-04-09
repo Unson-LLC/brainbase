@@ -337,6 +337,104 @@ describe('terminal-transport-client', () => {
     });
   });
 
+  it('フォーカスイベント混入時_テキスト部分のみバッチしフォーカスは即時送信する', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('ab\x1b[Icd');
+
+    // フォーカスイベントで分割: 'ab' (flush) + '\x1b[I' (即時) + 'cd' (バッファ)
+    // 'ab' は flush される、'\x1b[I' は即時送信
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'ab'
+    });
+    expect(JSON.parse(send.mock.calls[1][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: '\x1b[I'
+    });
+
+    // 'cd' はバッファに残っている
+    await vi.advanceTimersByTimeAsync(8);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(send.mock.calls[2][0])).toEqual({
+      type: 'input',
+      inputType: 'text',
+      value: 'cd'
+    });
+  });
+
+  it('フォーカスイベントのみの入力はローカルエコーを適用しない', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('\x1b[I');
+
+    expect(client.terminal.write).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('テキスト間のフォーカスイベントでローカルエコーがテキスト部分のみ適用される', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('hello\x1b[Oworld');
+
+    // ローカルエコーは 'hello' と 'world' のみ
+    const echoTexts = client.terminal.write.mock.calls.map(c => c[0]);
+    expect(echoTexts).toEqual(['hello', 'world']);
+  });
+
+  it('Backspaceはローカルエコーで即座に反映される', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', { OPEN: 1 });
+
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    const send = vi.fn();
+    client.ws = { readyState: 1, send };
+    client.status.mode = 'live';
+    client.terminal = { write: vi.fn() };
+
+    await client.sendText('\x7f');
+
+    // ローカルエコーとして \b \b が書き込まれる
+    expect(client.terminal.write).toHaveBeenCalledTimes(1);
+    expect(client.terminal.write.mock.calls[0][0]).toBe('\b \b');
+  });
+
   it('snapshot適用時_ユーザーが上にスクロール中ならviewport位置を維持する', async () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',

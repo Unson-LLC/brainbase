@@ -781,7 +781,7 @@
                 <div class="form-group" id="worktree-option-group">
                     <label class="checkbox-label">
                         <input type="checkbox" id="use-worktree-checkbox">
-                        <span>Git worktreeを使用</span>
+                        <span>jj workspaceを使用</span>
                     </label>
                     <p class="form-hint" id="worktree-hint">ブランチを分離して安全に作業できます</p>
                 </div>
@@ -1129,7 +1129,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=1774709000"></script>
+    <script type="module" src="app.js?v=1775715999"></script>
     <script>
         // defer scripts (lucide等) のロード後に実行
         if (typeof lucide !== 'undefined') {
@@ -1153,7 +1153,7 @@
                     <div style="font-size: 32px; margin-bottom: 12px;">m</div>
                     <div style="color: #e2e8f0; font-weight: 600; margin-bottom: 8px;">mana を使うにはログインが必要です</div>
                     <div style="margin-bottom: 16px;">ログインすると、あなた専用のAI PMとして<br>タスク管理・課題整理をサポートします</div>
-                    <a href="/api/auth/login" style="display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 8px; text-decoration: none; font-weight: 500;">ログイン</a>
+                    <button onclick="document.getElementById('auth-btn')?.click()" style="padding: 8px 20px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; font-size: 14px;">ログイン</button>
                 </div>
             </div>
             <div class="mana-chat-input-bar">

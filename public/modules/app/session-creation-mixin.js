@@ -97,7 +97,7 @@ export function applySessionCreationMixin(AppClass) {
 
                     if (worktreeLabel) {
                         if (!hasGit) {
-                            worktreeLabel.title = 'このプロジェクトにはGitリポジトリがないため、worktreeを作成できません';
+                            worktreeLabel.title = 'このプロジェクトにはGitリポジトリがないため、jj workspaceを作成できません';
                             worktreeLabel.style.opacity = '0.5';
                         } else {
                             worktreeLabel.title = '';

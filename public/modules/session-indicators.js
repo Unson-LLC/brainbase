@@ -3,7 +3,7 @@ import { refreshIcons } from './ui-helpers.js';
 /**
  * session-indicators.js - Session status indicator management
  *
- * Hook status polling and indicator state sync.
+ * Real-time WebSocket push with polling fallback.
  * The single source of truth is sessionUi.byId[sessionId].hookStatus.
  */
 
@@ -16,6 +16,7 @@ import {
     replaceSessionHookStatuses
 } from './session-ui-state.js';
 import { showError, showInfo } from './toast.js';
+import { SessionActivityWsClient } from './core/session-activity-ws-client.js';
 
 // --- Error State Management ---
 let consecutiveErrors = 0;
@@ -257,4 +258,85 @@ export function startPolling(getCurrentSessionId, intervalMs = 3000, onStatusCha
 
 export function updateSessionIndicators(_currentSessionId) {
     // no-op: indicators are now driven by session-ui-state events
+}
+
+/**
+ * Start WebSocket-based activity status updates.
+ * Falls back to polling if WebSocket is unavailable.
+ * @param {function} getCurrentSessionId
+ * @param {number} pollingIntervalMs - Fallback polling interval
+ * @param {function} onStatusChange
+ * @returns {function} Cleanup function
+ */
+export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, onStatusChange) {
+    let pollingCleanup = null;
+
+    function applyFullStatus(statusMap) {
+        const now = Date.now();
+        for (const [id, ts] of _suppressUpdates) {
+            if (now - ts > SUPPRESS_DURATION) _suppressUpdates.delete(id);
+        }
+        const filtered = { ...statusMap };
+        for (const id of _suppressUpdates.keys()) {
+            delete filtered[id];
+        }
+        replaceSessionHookStatuses(filtered);
+        eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
+            sessionIds: Object.keys(statusMap)
+        });
+        if (typeof onStatusChange === 'function') {
+            onStatusChange(statusMap);
+        }
+    }
+
+    function applyUpdate(sessionId, hookStatus) {
+        if (_suppressUpdates.has(sessionId)) return;
+        const current = getSessionHookStatusMap();
+        const updated = { ...current };
+        if (hookStatus && (hookStatus.isWorking || hookStatus.isDone)) {
+            updated[sessionId] = hookStatus;
+        } else {
+            delete updated[sessionId];
+        }
+        replaceSessionHookStatuses(updated);
+        eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
+            sessionIds: [sessionId]
+        });
+        if (typeof onStatusChange === 'function') {
+            onStatusChange(updated);
+        }
+    }
+
+    const client = new SessionActivityWsClient({
+        onStatusFull: (statusMap) => {
+            if (pollingCleanup) {
+                pollingCleanup();
+                pollingCleanup = null;
+            }
+            applyFullStatus(statusMap);
+        },
+        onStatusUpdate: (sessionId, hookStatus) => {
+            applyUpdate(sessionId, hookStatus);
+        },
+        onConnectionChange: (connected) => {
+            updateConnectionStatus(connected);
+            if (!connected && !pollingCleanup) {
+                pollingCleanup = startPolling(getCurrentSessionId, pollingIntervalMs, onStatusChange);
+            }
+            if (connected && pollingCleanup) {
+                pollingCleanup();
+                pollingCleanup = null;
+            }
+        }
+    });
+
+    client.connect();
+
+    return function cleanup() {
+        client.close();
+        if (pollingCleanup) {
+            pollingCleanup();
+            pollingCleanup = null;
+        }
+    };
 }

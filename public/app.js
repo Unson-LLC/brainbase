@@ -12,7 +12,7 @@ import { getTerminalViewerId, getTerminalViewerLabel } from './modules/core/term
 import { TerminalTransportClient } from './modules/core/terminal-transport-client.js';
 import { PluginManager } from './modules/core/plugin-manager.js';
 import { SettingsExtensions } from './modules/settings/settings-extensions.js';
-import { pollSessionStatus, startPolling } from './modules/session-indicators.js';
+import { pollSessionStatus, startPolling, startActivityWs } from './modules/session-indicators.js';
 import { initFileUpload, compressImage } from './modules/file-upload.js';
 import { showSuccess, showError, showInfo } from './modules/toast.js';
 import { refreshIcons } from './modules/ui-helpers.js';
@@ -275,27 +275,27 @@ export class App {
         this.container.register('manaChatService', () => new ManaChatService());
 
         // Get service instances
-        this.taskService = this.container.get('taskService');
-        this.sessionService = this.container.get('sessionService');
-        this.scheduleService = this.container.get('scheduleService');
-        this.inboxService = this.container.get('inboxService');
-        this.nocodbTaskService = this.container.get('nocodbTaskService');
-        this.terminalInteractionService = this.container.get('terminalInteractionService');
-        this.fileViewerService = this.container.get('fileViewerService');
-        this.wikiService = this.container.get('wikiService');
-        this.liveFeedService = this.container.get('liveFeedService');
-        this.manaChatService = this.container.get('manaChatService');
+        const safeGet = (name) => { try { return this.container.get(name); } catch(e) { console.error(`[App] Failed to get ${name}:`, e.message); return null; } };
+        this.taskService = safeGet('taskService');
+        this.sessionService = safeGet('sessionService');
+        this.scheduleService = safeGet('scheduleService');
+        this.inboxService = safeGet('inboxService');
+        this.nocodbTaskService = safeGet('nocodbTaskService');
+        this.terminalInteractionService = safeGet('terminalInteractionService');
+        this.fileViewerService = safeGet('fileViewerService');
+        this.wikiService = safeGet('wikiService');
+        this.liveFeedService = safeGet('liveFeedService');
+        this.manaChatService = safeGet('manaChatService');
     }
 
     /**
      * Initialize views
      */
     initViews() {
-        // mana Chat Widget (floating, no container needed) — init first to survive downstream errors
+        // mana Chat Widget — create service inline to avoid DI registration timing issues
         try {
-            this.views.manaChatView = new ManaChatView({
-                manaChatService: this.manaChatService
-            });
+            const svc = this.manaChatService || new ManaChatService();
+            this.views.manaChatView = new ManaChatView({ manaChatService: svc });
             this.views.manaChatView.mount();
         } catch (err) {
             console.error('[mana] Failed to mount chat widget:', err);
@@ -501,8 +501,8 @@ export class App {
         window.addEventListener('pagehide', onPageHide);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('pagehide', onPageHide));
 
-        // 7. Start session status polling (every 3 seconds)
-        this.pollingIntervalId = startPolling(
+        // 7. Start session activity WebSocket (with polling fallback)
+        this.pollingIntervalId = startActivityWs(
             () => appStore.getState().currentSessionId,
             3000,
             async () => {

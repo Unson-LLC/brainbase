@@ -174,6 +174,20 @@ export const activityServiceMethods = {
                     && (Date.now() - lastActiveAt > 60 * 60 * 1000);
 
                 if (normalized && !isStaleWorking) {
+                    // 起動時に30分以上古い残留turnをクリア
+                    const STALE_TURN_TIMEOUT = 30 * 60 * 1000;
+                    const now = Date.now();
+                    if (normalized.activeTurnIds && normalized.activeTurnIds.length > 0) {
+                        const cleaned = normalized.activeTurnIds.filter((tid) => {
+                            const tidTs = this._extractTurnTimestamp(tid);
+                            if (tidTs > 0 && (now - tidTs) > STALE_TURN_TIMEOUT) {
+                                logger.info(`[Hook] restoreHookStatus: clearing stale turn ${tid} for ${session.id}`);
+                                return false;
+                            }
+                            return true;
+                        });
+                        normalized.activeTurnIds = cleaned;
+                    }
                     this.hookStatus.set(session.id, normalized);
                     continue;
                 }
@@ -184,44 +198,47 @@ export const activityServiceMethods = {
         }
     },
 
-    getSessionStatus() {
-        const status = {};
+    _buildStatusForSession(hookData) {
         const HEARTBEAT_TIMEOUT = 60 * 60 * 1000;
         const now = Date.now();
+        const normalized = this._normalizeHookData(hookData);
+        if (!normalized) return null;
 
+        const activeTurnCount = normalized.activeTurnIds.length;
+        const hasWorking = normalized.lastWorkingAt > 0;
+        const hasDone = normalized.lastDoneAt > 0;
+        if (!hasWorking && !hasDone && activeTurnCount === 0) return null;
+
+        const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
+        const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
+        if (isStale && activeTurnCount === 0 && !hasDone) return null;
+        const isWorking = !isStale && (
+            activeTurnCount > 0
+            || (activeTurnCount === 0 && normalized.lastWorkingAt > normalized.lastDoneAt)
+        );
+        const isDone = !isWorking && hasDone;
+
+        if (!isWorking && !isDone) return null;
+
+        return {
+            isWorking,
+            isDone,
+            lastWorkingAt: normalized.lastWorkingAt,
+            lastDoneAt: normalized.lastDoneAt,
+            lastActivityAt: normalized.lastActivityAt,
+            lastEventType: normalized.lastEventType,
+            liveActivity: normalized.liveActivity,
+            activeTurnCount,
+            timestamp: normalized.timestamp
+        };
+    },
+
+    getSessionStatus() {
+        const status = {};
         for (const [sessionId, hookData] of this.hookStatus) {
-            const normalized = this._normalizeHookData(hookData);
-            if (!normalized) continue;
-
-            const activeTurnCount = normalized.activeTurnIds.length;
-            const hasWorking = normalized.lastWorkingAt > 0;
-            const hasDone = normalized.lastDoneAt > 0;
-            if (!hasWorking && !hasDone && activeTurnCount === 0) continue;
-
-            const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
-            const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
-            if (isStale && activeTurnCount === 0 && !hasDone) continue;
-            const isWorking = !isStale && (
-                activeTurnCount > 0
-                || (activeTurnCount === 0 && normalized.lastWorkingAt > normalized.lastDoneAt)
-            );
-            const isDone = !isWorking && hasDone;
-
-            if (!isWorking && !isDone) continue;
-
-            status[sessionId] = {
-                isWorking,
-                isDone,
-                lastWorkingAt: normalized.lastWorkingAt,
-                lastDoneAt: normalized.lastDoneAt,
-                lastActivityAt: normalized.lastActivityAt,
-                lastEventType: normalized.lastEventType,
-                liveActivity: normalized.liveActivity,
-                activeTurnCount,
-                timestamp: normalized.timestamp
-            };
+            const entry = this._buildStatusForSession(hookData);
+            if (entry) status[sessionId] = entry;
         }
-
         return status;
     },
 
@@ -261,6 +278,17 @@ export const activityServiceMethods = {
         } else if (lifecycle === 'turn_completed') {
             if (turnId) {
                 activeTurnIds.delete(turnId);
+                // 完了turnより古い残留turnもクリア（turn_completedが来なかったケース）
+                const completedTs = this._extractTurnTimestamp(turnId);
+                if (completedTs > 0) {
+                    for (const tid of [...activeTurnIds]) {
+                        const tidTs = this._extractTurnTimestamp(tid);
+                        if (tidTs > 0 && tidTs <= completedTs) {
+                            logger.info(`[Hook] Clearing stale turn ${tid} (older than completed ${turnId}) for ${sessionId}`);
+                            activeTurnIds.delete(tid);
+                        }
+                    }
+                }
             } else if (activeTurnIds.size > 0) {
                 // turnIdなしのturn_completed: 残留turnを全クリアして確実にdoneへ遷移
                 logger.info(`[Hook] turn_completed without turnId for ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
@@ -269,6 +297,15 @@ export const activityServiceMethods = {
 
             lastDoneAt = Math.max(lastDoneAt, timestamp);
         } else if (lifecycle === 'heartbeat') {
+            // heartbeat時に30分以上古い残留turnをクリア
+            const STALE_TURN_TIMEOUT = 30 * 60 * 1000;
+            for (const tid of [...activeTurnIds]) {
+                const tidTs = this._extractTurnTimestamp(tid);
+                if (tidTs > 0 && (timestamp - tidTs) > STALE_TURN_TIMEOUT) {
+                    logger.info(`[Hook] Clearing stale turn ${tid} (${Math.round((timestamp - tidTs) / 60000)}min old) for ${sessionId}`);
+                    activeTurnIds.delete(tid);
+                }
+            }
             if (activeTurnIds.size > 0 || lastWorkingAt >= lastDoneAt) {
                 lastWorkingAt = Math.max(lastWorkingAt, timestamp);
             }
@@ -303,6 +340,11 @@ export const activityServiceMethods = {
         this.hookStatus.set(sessionId, hookStatusData);
         this._persistHookStatus(sessionId, hookStatusData, timestamp);
 
+        if (typeof this._activityWsBroadcast === 'function') {
+            const statusForClient = this._buildStatusForSession(hookStatusData);
+            this._activityWsBroadcast(sessionId, statusForClient);
+        }
+
         const reportedTaskBrief = typeof liveActivity?.taskBrief === 'string' ? liveActivity.taskBrief : null;
         const reportedAssistantSnippet = typeof liveActivity?.assistantSnippet === 'string' ? liveActivity.assistantSnippet : null;
         if (reportedTaskBrief || reportedAssistantSnippet) {
@@ -322,6 +364,9 @@ export const activityServiceMethods = {
             (normalized.lastDoneAt > 0 || normalized.lastWorkingAt > 0)) {
             this.hookStatus.delete(sessionId);
             this._persistHookStatus(sessionId, null);
+            if (typeof this._activityWsBroadcast === 'function') {
+                this._activityWsBroadcast(sessionId, null);
+            }
         }
     },
 
@@ -534,5 +579,12 @@ export const activityServiceMethods = {
     _coerceTimestamp(reportedAt) {
         const value = Number(reportedAt);
         return Number.isFinite(value) && value > 0 ? value : Date.now();
+    },
+
+    _extractTurnTimestamp(turnId) {
+        if (typeof turnId !== 'string') return 0;
+        // turnId format: "claude-{timestamp}-{random}"
+        const match = turnId.match(/^claude-(\d+)-/);
+        return match ? Number(match[1]) : 0;
     }
 };
