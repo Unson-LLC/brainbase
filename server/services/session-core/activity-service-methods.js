@@ -174,6 +174,20 @@ export const activityServiceMethods = {
                     && (Date.now() - lastActiveAt > 60 * 60 * 1000);
 
                 if (normalized && !isStaleWorking) {
+                    // 起動時に30分以上古い残留turnをクリア
+                    const STALE_TURN_TIMEOUT = 30 * 60 * 1000;
+                    const now = Date.now();
+                    if (normalized.activeTurnIds && normalized.activeTurnIds.length > 0) {
+                        const cleaned = normalized.activeTurnIds.filter((tid) => {
+                            const tidTs = this._extractTurnTimestamp(tid);
+                            if (tidTs > 0 && (now - tidTs) > STALE_TURN_TIMEOUT) {
+                                logger.info(`[Hook] restoreHookStatus: clearing stale turn ${tid} for ${session.id}`);
+                                return false;
+                            }
+                            return true;
+                        });
+                        normalized.activeTurnIds = cleaned;
+                    }
                     this.hookStatus.set(session.id, normalized);
                     continue;
                 }
