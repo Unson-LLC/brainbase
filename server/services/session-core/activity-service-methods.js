@@ -359,10 +359,7 @@ export const activityServiceMethods = {
     },
 
     clearDoneStatus(sessionId) {
-        const normalized = this._normalizeHookData(this.hookStatus.get(sessionId));
-        if (normalized &&
-            normalized.activeTurnIds.length === 0 &&
-            (normalized.lastDoneAt > 0 || normalized.lastWorkingAt > 0)) {
+        if (this.hookStatus.has(sessionId)) {
             this.hookStatus.delete(sessionId);
             this._persistHookStatus(sessionId, null);
             if (typeof this._activityWsBroadcast === 'function') {
