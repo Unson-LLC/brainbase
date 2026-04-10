@@ -30,6 +30,7 @@ export class MobileInputUIController {
         this.sheetManager = managers.sheetManager;
         this.selectionMode = false;
         this.isOnline = true;
+        this._sending = false;
     }
 
     init() {
@@ -317,9 +318,12 @@ export class MobileInputUIController {
         });
 
         let isComposing = false;
+        let compositionJustEnded = false;
         inputEl.addEventListener('compositionstart', () => { isComposing = true; });
         inputEl.addEventListener('compositionend', () => {
             isComposing = false;
+            compositionJustEnded = true;
+            setTimeout(() => { compositionJustEnded = false; }, 250);
             this.autoResize(inputEl);
             this.draftManager.scheduleDraftSave(mode, inputEl);
         });
@@ -330,8 +334,11 @@ export class MobileInputUIController {
         });
 
         // Enter key sends message (Shift+Enter for newline in composer)
+        // Guard against IME composition: check both local isComposing, native e.isComposing,
+        // and compositionJustEnded (250ms timer) to handle browsers where compositionend
+        // fires before keydown(Enter)
         inputEl.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+            if (e.key === 'Enter' && !e.shiftKey && !isComposing && !e.isComposing && !compositionJustEnded) {
                 e.preventDefault();
                 this.handleSend(mode);
             }
@@ -418,6 +425,8 @@ export class MobileInputUIController {
     }
 
     async handleSend(mode) {
+        if (this._sending) return;
+
         const inputEl = mode === 'composer' ? this.elements.composerInput : this.elements.dockInput;
         if (!inputEl) return;
 
@@ -444,6 +453,9 @@ export class MobileInputUIController {
 
         const payload = rawValue.replace(/\n+/g, ' ').trim();
 
+        this._sending = true;
+        this._updateSendButton(mode, true);
+
         try {
             await this.terminalInput.sendInput(sessionId, payload);
 
@@ -461,7 +473,17 @@ export class MobileInputUIController {
         } catch (error) {
             console.error('Failed to send mobile input:', error);
             showError('送信に失敗したよ');
+        } finally {
+            this._sending = false;
+            this._updateSendButton(mode, false);
         }
+    }
+
+    _updateSendButton(mode, sending) {
+        const btn = mode === 'composer' ? this.elements.composerSend : this.elements.dockSend;
+        if (!btn) return;
+        btn.disabled = sending;
+        btn.classList.toggle('sending', sending);
     }
 
     moveCursor(inputEl, action) {

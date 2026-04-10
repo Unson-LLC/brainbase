@@ -458,8 +458,17 @@ export class WorktreeService {
 
         await this._ensureGitExclude(gitWorktreePath, '.jj/');
 
+        // Untrack .jj/ from git index if it was accidentally committed upstream.
+        // .gitignore only prevents new tracking; already-tracked files need explicit removal.
+        // Without this, git reset --hard restores a stale .jj/working_copy/checkout
+        // from the parent commit, corrupting the jj workspace identity.
+        try {
+            await this.execPromise(`git -C "${workspacePath}" rm -r --cached .jj/ 2>/dev/null || true`);
+        } catch {
+            // .jj/ may not be tracked — that's fine
+        }
+
         // Align the git worktree metadata with the freshly materialized JJ workspace.
-        // `--mixed` only updates the index and makes Git see the checkout as "all deleted".
         await this.execPromise(`git -C "${workspacePath}" reset --hard HEAD`);
 
         return { workspaceName, branchName, gitWorktreePath };

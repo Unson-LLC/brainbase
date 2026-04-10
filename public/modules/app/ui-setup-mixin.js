@@ -17,6 +17,8 @@ import { CommitTreeService } from '../domain/commit-tree/commit-tree-service.js'
 import { FileViewerService } from '../domain/file-viewer/file-viewer-service.js';
 import { WikiService } from '../domain/wiki/wiki-service.js';
 import { LiveFeedService } from '../domain/live-feed/live-feed-service.js';
+import { ManaChatService } from '../domain/mana/mana-chat-service.js';
+import { ManaChatView } from '../ui/views/mana-chat-view.js';
 import { SessionView } from '../ui/views/session-view.js';
 import { SessionContextBarView } from '../ui/views/session-context-bar-view.js';
 import { CommitTreeView } from '../ui/views/commit-tree-view.js';
@@ -153,9 +155,19 @@ export function applyUiSetupMixin(AppClass) {
         this.liveFeedService = this.container.get('liveFeedService');
         this.portalService = this.container.get('portalService');
         this.nocodbIssueService = this.container.get('nocodbIssueService');
+        this.manaChatService = this.container.get('manaChatService');
     };
 
     AppClass.prototype.initViews = function() {
+        // mana Chat Widget
+        try {
+            const svc = this.manaChatService || new ManaChatService();
+            this.views.manaChatView = new ManaChatView({ manaChatService: svc });
+            this.views.manaChatView.mount();
+        } catch (err) {
+            console.error('[mana] Failed to mount chat widget:', err);
+        }
+
         const contextBarContainer = document.getElementById('session-context-bar');
         if (contextBarContainer) {
             this.views.sessionContextBarView = new SessionContextBarView({

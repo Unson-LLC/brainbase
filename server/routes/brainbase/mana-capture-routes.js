@@ -99,75 +99,38 @@ export function createManaCaptureRouter(options = {}) {
 
     /**
      * POST /chat
-     * manaチャット → Bedrock応答
+     * manaチャット → mana Lambda (Mastra askMana) 経由
      */
+    const MANA_LAMBDA_URL = process.env.MANA_LAMBDA_URL || 'https://akdofkjrawesv25ynbgco3yodq0oojfm.lambda-url.us-east-1.on.aws';
+
     router.post('/chat', asyncHandler(async (req, res) => {
-        const { message, history, userId, sessionId } = req.body;
+        const { message, history, userId, sessionId, projectId } = req.body;
         if (!message || typeof message !== 'string' || !message.trim()) {
             return res.status(400).json({ error: 'message is required' });
         }
 
-        const systemPrompt = buildManaSystemPrompt();
-
-        // Build conversation messages
-        const messages = [];
-
-        // Honcho有効時: 永続化された履歴から取得
-        let honchoSessionId = sessionId;
-        let userPeer = null;
-        let manaPeer = null;
-        if (honchoService && userId) {
-            try {
-                userPeer = await honchoService.getOrCreatePeer(userId);
-                manaPeer = await honchoService.getOrCreatePeer('mana');
-                if (!honchoSessionId) {
-                    const session = await honchoService.getOrCreateSession(`mana-chat-${userId}`, { source: 'mana-chat' });
-                    honchoSessionId = session.id;
-                }
-                const honchoMessages = await honchoService.getMessages(honchoSessionId, 20);
-                for (const msg of honchoMessages) {
-                    messages.push({
-                        role: msg.peer === userPeer.id ? 'user' : 'assistant',
-                        content: msg.content
-                    });
-                }
-            } catch (err) {
-                logger.warn('Honcho history fetch failed, falling back to request history', { error: err.message });
-            }
-        }
-
-        // Honchoから取得できなかった場合はリクエストの履歴を使用
-        if (messages.length === 0 && Array.isArray(history)) {
-            for (const msg of history.slice(-10)) {
-                messages.push({
-                    role: msg.role === 'user' ? 'user' : 'assistant',
-                    content: msg.content
-                });
-            }
-        }
-        messages.push({ role: 'user', content: message.trim() });
-
         try {
-            const reply = await invokeBedrock(systemPrompt, messages);
+            const response = await fetch(`${MANA_LAMBDA_URL}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: message.trim(),
+                    userId: userId || req.user?.slackUserId || 'anonymous',
+                    projectId: projectId || undefined,
+                    senderName: req.user?.displayName || 'brainbase-user',
+                }),
+            });
 
-            // Honcho有効時: ユーザーメッセージとAI応答をバッチ永続化
-            if (honchoService && userPeer && manaPeer && honchoSessionId) {
-                try {
-                    await honchoService.saveConversationTurn(
-                        honchoSessionId,
-                        userPeer.id,
-                        manaPeer.id,
-                        message.trim(),
-                        reply
-                    );
-                } catch (err) {
-                    logger.warn('Honcho message save failed', { error: err.message });
-                }
+            if (!response.ok) {
+                const errText = await response.text();
+                logger.error('Mana Lambda error', { status: response.status, body: errText });
+                return res.status(503).json({ error: 'AI response unavailable', reply: 'ごめん、今ちょっと考えがまとまらない。もう一回言ってくれる？' });
             }
 
-            res.json({ reply, sessionId: honchoSessionId, timestamp: new Date().toISOString() });
+            const data = await response.json();
+            res.json({ reply: data.reply, timestamp: data.timestamp || new Date().toISOString() });
         } catch (err) {
-            logger.error('Mana chat Bedrock error', { error: err.message });
+            logger.error('Mana Lambda call failed', { error: err.message });
             res.status(503).json({ error: 'AI response unavailable', reply: 'ごめん、今ちょっと考えがまとまらない。もう一回言ってくれる？' });
         }
     }));

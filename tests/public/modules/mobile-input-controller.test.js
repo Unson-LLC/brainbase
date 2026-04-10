@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MobileInputFocusManager } from '../../../public/modules/ui/mobile-input-focus-manager.js';
+import { MobileInputUIController } from '../../../public/modules/ui/mobile-input-ui-controller.js';
 
 describe('MobileInputFocusManager focus tracking', () => {
     let focusManager;
@@ -122,5 +123,232 @@ describe('MobileInputFocusManager visual viewport sync', () => {
             keyboardOffset: 0,
             keyboardOpen: false
         });
+    });
+});
+
+describe('MobileInputUIController Enterキー送信ガード', () => {
+    let controller;
+    let inputEl;
+    let handleSendSpy;
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+
+        document.body.innerHTML = `
+            <textarea id="mobile-dock-input"></textarea>
+            <textarea id="mobile-composer-input"></textarea>
+            <div id="mobile-input-dock"></div>
+            <div id="mobile-composer"></div>
+        `;
+        inputEl = document.getElementById('mobile-dock-input');
+
+        const mockFocusManager = {
+            inputFocused: false,
+            setActiveInput: vi.fn(),
+            syncKeyboardState: vi.fn(),
+            scheduleKeyboardSync: vi.fn(),
+            clearKeyboardSync: vi.fn(),
+            scrollInputIntoView: vi.fn(),
+            getActiveInput: vi.fn(),
+        };
+        const mockDraftManager = { scheduleDraftSave: vi.fn() };
+        const mockClipboardManager = {};
+        const mockTerminalInput = { sendInput: vi.fn() };
+        const mockSheetManager = {};
+
+        controller = new MobileInputUIController(
+            {
+                dock: document.getElementById('mobile-input-dock'),
+                dockInput: inputEl,
+                composer: document.getElementById('mobile-composer'),
+                composerInput: document.getElementById('mobile-composer-input'),
+            },
+            {
+                focusManager: mockFocusManager,
+                draftManager: mockDraftManager,
+                clipboardManager: mockClipboardManager,
+                terminalInput: mockTerminalInput,
+                sheetManager: mockSheetManager,
+            }
+        );
+        handleSendSpy = vi.spyOn(controller, 'handleSend').mockImplementation(() => {});
+        controller.bindInputEventHandlers(inputEl, 'dock');
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('IME非使用時_Enterキーで送信される', () => {
+        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: false });
+        inputEl.dispatchEvent(event);
+        expect(handleSendSpy).toHaveBeenCalledWith('dock');
+    });
+
+    it('Shift+Enter時_送信されない', () => {
+        const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true });
+        inputEl.dispatchEvent(event);
+        expect(handleSendSpy).not.toHaveBeenCalled();
+    });
+
+    it('e.isComposing=true時_送信されない', () => {
+        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true });
+        inputEl.dispatchEvent(event);
+        expect(handleSendSpy).not.toHaveBeenCalled();
+    });
+
+    it('compositionend直後_250ms以内のEnterで送信されない（タイマーガード）', () => {
+        inputEl.dispatchEvent(new Event('compositionstart'));
+        inputEl.dispatchEvent(new Event('compositionend'));
+
+        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: false });
+        inputEl.dispatchEvent(event);
+        expect(handleSendSpy).not.toHaveBeenCalled();
+    });
+
+    it('compositionend後_250ms経過後のEnterで送信される', () => {
+        inputEl.dispatchEvent(new Event('compositionstart'));
+        inputEl.dispatchEvent(new Event('compositionend'));
+
+        vi.advanceTimersByTime(251);
+
+        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: false });
+        inputEl.dispatchEvent(event);
+        expect(handleSendSpy).toHaveBeenCalledWith('dock');
+    });
+});
+
+vi.mock('../../../public/modules/toast.js', () => ({
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showSuccess: vi.fn(),
+}));
+
+vi.mock('../../../public/modules/core/store.js', () => ({
+    appStore: {
+        getState: () => ({ currentSessionId: 'test-session' }),
+    },
+}));
+
+vi.mock('../../../public/modules/core/event-bus.js', () => ({
+    eventBus: { emit: vi.fn() },
+    EVENTS: { MOBILE_INPUT_SENT: 'mobile:input:sent' },
+}));
+
+vi.mock('../../../public/modules/ui-helpers.js', () => ({
+    refreshIcons: vi.fn(),
+}));
+
+describe('MobileInputUIController 二重送信防止', () => {
+    let controller;
+    let mockTerminalInput;
+    let mockFocusManager;
+
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <textarea id="mobile-dock-input"></textarea>
+            <textarea id="mobile-composer-input"></textarea>
+            <div id="mobile-input-dock"></div>
+            <div id="mobile-composer"></div>
+            <button id="dock-send"></button>
+            <div id="toast-container"></div>
+        `;
+
+        mockTerminalInput = {
+            sendInput: vi.fn().mockResolvedValue(undefined),
+        };
+        mockFocusManager = {
+            inputFocused: false,
+            setActiveInput: vi.fn(),
+            syncKeyboardState: vi.fn(),
+            scheduleKeyboardSync: vi.fn(),
+            clearKeyboardSync: vi.fn(),
+            scrollInputIntoView: vi.fn(),
+            getActiveInput: vi.fn(),
+            refocusInput: vi.fn(),
+        };
+
+        controller = new MobileInputUIController(
+            {
+                dock: document.getElementById('mobile-input-dock'),
+                dockInput: document.getElementById('mobile-dock-input'),
+                dockSend: document.getElementById('dock-send'),
+                composer: document.getElementById('mobile-composer'),
+                composerInput: document.getElementById('mobile-composer-input'),
+            },
+            {
+                focusManager: mockFocusManager,
+                draftManager: { scheduleDraftSave: vi.fn(), saveDraftNow: vi.fn() },
+                clipboardManager: {},
+                terminalInput: mockTerminalInput,
+                sheetManager: {},
+            }
+        );
+    });
+
+    it('送信中に再度handleSendを呼んでも二重送信されない', async () => {
+        let resolveFirst;
+        mockTerminalInput.sendInput.mockImplementation(() => new Promise(r => { resolveFirst = r; }));
+
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'test message';
+
+        // 1回目の送信開始（awaitしない）
+        const first = controller.handleSend('dock');
+        // 2回目の送信（送信中なのでスキップされるべき）
+        const second = controller.handleSend('dock');
+
+        resolveFirst();
+        await first;
+        await second;
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledTimes(1);
+    });
+
+    it('送信完了後は再送信が可能', async () => {
+        const input = document.getElementById('mobile-dock-input');
+
+        input.value = 'first';
+        await controller.handleSend('dock');
+
+        input.value = 'second';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledTimes(2);
+    });
+
+    it('送信失敗後もロック解除され再送信が可能', async () => {
+        mockTerminalInput.sendInput
+            .mockRejectedValueOnce(new Error('network error'))
+            .mockResolvedValueOnce(undefined);
+
+        const input = document.getElementById('mobile-dock-input');
+
+        input.value = 'retry me';
+        await controller.handleSend('dock');
+
+        input.value = 'retry me';
+        await controller.handleSend('dock');
+
+        expect(mockTerminalInput.sendInput).toHaveBeenCalledTimes(2);
+    });
+
+    it('送信中にボタンがdisabledになる', async () => {
+        let resolveFirst;
+        mockTerminalInput.sendInput.mockImplementation(() => new Promise(r => { resolveFirst = r; }));
+
+        const input = document.getElementById('mobile-dock-input');
+        const btn = document.getElementById('dock-send');
+        input.value = 'test';
+
+        const sendPromise = controller.handleSend('dock');
+        expect(btn.disabled).toBe(true);
+        expect(btn.classList.contains('sending')).toBe(true);
+
+        resolveFirst();
+        await sendPromise;
+
+        expect(btn.disabled).toBe(false);
+        expect(btn.classList.contains('sending')).toBe(false);
     });
 });

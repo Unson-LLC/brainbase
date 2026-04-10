@@ -1,36 +1,24 @@
 // @ts-check
 import { eventBus, EVENTS } from '../../core/event-bus.js';
 import { appStore } from '../../core/store.js';
-import { escapeHtml } from '../../ui-helpers.js';
 
 /**
  * manaチャットフローティングウィジェット
- * 右下固定バブル → クリックでパネル展開
+ * assistant-ui参考のUX改善版
  */
 export class ManaChatView {
-    /**
-     * @param {{ manaChatService: import('../../domain/mana/mana-chat-service.js').ManaChatService }} deps
-     */
     constructor({ manaChatService }) {
         this.manaChatService = manaChatService;
         this.eventBus = eventBus;
         this.store = appStore;
 
-        // DOM refs
-        /** @type {HTMLElement | null} */
         this.bubbleEl = null;
-        /** @type {HTMLElement | null} */
         this.panelEl = null;
-        /** @type {HTMLElement | null} */
         this.messagesEl = null;
-        /** @type {HTMLInputElement | null} */
         this.inputEl = null;
-        /** @type {HTMLButtonElement | null} */
         this.sendBtnEl = null;
-        /** @type {HTMLButtonElement | null} */
         this.captureBtnEl = null;
 
-        // State
         this.panelOpen = false;
         this.messages = [];
         this._sending = false;
@@ -47,12 +35,10 @@ export class ManaChatView {
 
         if (!this.bubbleEl || !this.panelEl) return;
 
-        // Remove login prompt (shown for unauthenticated users)
         const loginPrompt = document.getElementById('mana-login-prompt');
         if (loginPrompt) loginPrompt.remove();
 
-        // Enable input controls (disabled by default for unauthenticated state)
-        if (this.inputEl) { this.inputEl.disabled = false; this.inputEl.placeholder = '話しかける...'; }
+        if (this.inputEl) { this.inputEl.disabled = false; this.inputEl.placeholder = 'manaに話しかける...'; }
         if (this.sendBtnEl) this.sendBtnEl.disabled = false;
         if (this.captureBtnEl) this.captureBtnEl.disabled = false;
 
@@ -61,12 +47,10 @@ export class ManaChatView {
     }
 
     _setupEventListeners() {
-        // Bubble click → toggle panel
         if (this.bubbleEl) {
             this.bubbleEl.onclick = () => this.toggle();
         }
 
-        // Minimize button in header
         const minimizeBtn = document.getElementById('mana-chat-minimize');
         if (minimizeBtn) {
             minimizeBtn.onclick = () => {
@@ -75,27 +59,31 @@ export class ManaChatView {
             };
         }
 
-        // Send button
         if (this.sendBtnEl) {
             this.sendBtnEl.onclick = () => this._handleSend();
         }
 
-        // Capture button (quick capture)
         if (this.captureBtnEl) {
             this.captureBtnEl.onclick = () => this._handleCapture();
         }
 
-        // Enter to send
         if (this.inputEl) {
+            let isComposing = false;
+            let compositionJustEnded = false;
+            this.inputEl.addEventListener('compositionstart', () => { isComposing = true; });
+            this.inputEl.addEventListener('compositionend', () => {
+                isComposing = false;
+                compositionJustEnded = true;
+                setTimeout(() => { compositionJustEnded = false; }, 250);
+            });
             this.inputEl.onkeydown = (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !isComposing && !e.isComposing && !compositionJustEnded) {
                     e.preventDefault();
                     this._handleSend();
                 }
             };
         }
 
-        // Close on outside click
         this._outsideClickHandler = (e) => {
             if (this.panelOpen &&
                 this.panelEl && !this.panelEl.contains(e.target) &&
@@ -106,15 +94,15 @@ export class ManaChatView {
         };
         document.addEventListener('click', this._outsideClickHandler);
 
-        // EventBus
-        const unsub1 = this.eventBus.on(EVENTS.MANA_CHAT_RESPONSE, /** @param {CustomEvent<{ reply: string }>} e */ (e) => {
+        const unsub1 = this.eventBus.on(EVENTS.MANA_CHAT_RESPONSE, (e) => {
+            this._removeTypingIndicator();
             const data = e.detail;
             this._appendMessage('mana', data.reply);
             this._sending = false;
             this._updateSendState();
         });
 
-        const unsub2 = this.eventBus.on(EVENTS.MANA_CAPTURED, /** @param {CustomEvent<{ title: string }>} e */ (e) => {
+        const unsub2 = this.eventBus.on(EVENTS.MANA_CAPTURED, (e) => {
             const data = e.detail;
             this._appendMessage('system', `Captured: ${data.title}`);
         });
@@ -123,7 +111,7 @@ export class ManaChatView {
     }
 
     _addWelcomeMessage() {
-        this._appendMessage('mana', 'やっほー！manaだよ。課題やアイデアが浮かんだら即メモってね。何か話しかけてもOKだよ〜');
+        this._appendMessage('mana', 'manaだよ！課題やアイデアが浮かんだらメモってね。何でも話しかけてOK');
     }
 
     toggle() {
@@ -132,7 +120,7 @@ export class ManaChatView {
             this.panelEl.classList.toggle('open', this.panelOpen);
         }
         if (this.panelOpen && this.inputEl) {
-            setTimeout(() => this.inputEl.focus(), 100);
+            setTimeout(() => this.inputEl.focus(), 150);
         }
     }
 
@@ -144,22 +132,21 @@ export class ManaChatView {
         this.inputEl.value = '';
         this._appendMessage('user', text);
 
-        // Check for capture commands: "/capture xxx" or "これ課題: xxx"
         const captureMatch = text.match(/^\/capture\s+(.+)$/) || text.match(/^これ課題[:：]\s*(.+)$/);
         if (captureMatch) {
             await this._doCapture(captureMatch[1]);
             return;
         }
 
-        // Regular chat
         this._sending = true;
         this._updateSendState();
-        this._appendMessage('system', '...');
+        this._showTypingIndicator();
 
         try {
             await this.manaChatService.chat(text, this._getHistory());
         } catch (err) {
-            this._appendMessage('system', 'ごめん、エラー発生。もう一回试试て？');
+            this._removeTypingIndicator();
+            this._appendMessage('system', 'エラーが発生しました。もう一度お試しください。');
             this._sending = false;
             this._updateSendState();
         }
@@ -187,17 +174,34 @@ export class ManaChatView {
             this._sending = false;
             this._updateSendState();
         } catch (err) {
-            this._appendMessage('system', 'キャプチャ失敗。もう一回试试て？');
+            this._appendMessage('system', 'キャプチャに失敗しました。');
             this._sending = false;
             this._updateSendState();
         }
     }
 
     _getHistory() {
-        return this.messages.slice(-10).map(m => ({
-            role: m.sender === 'user' ? 'user' : 'assistant',
-            content: m.text
-        }));
+        return this.messages
+            .filter(m => m.sender !== 'system')
+            .slice(-10)
+            .map(m => ({
+                role: m.sender === 'user' ? 'user' : 'assistant',
+                content: m.text
+            }));
+    }
+
+    _showTypingIndicator() {
+        if (!this.messagesEl) return;
+        const el = document.createElement('div');
+        el.className = 'mana-msg mana-msg--mana mana-typing';
+        el.id = 'mana-typing-indicator';
+        el.innerHTML = '<span class="mana-avatar">m</span><span class="mana-typing-dots"><span></span><span></span><span></span></span>';
+        this.messagesEl.appendChild(el);
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    }
+
+    _removeTypingIndicator() {
+        document.getElementById('mana-typing-indicator')?.remove();
     }
 
     _appendMessage(sender, text) {
@@ -208,22 +212,47 @@ export class ManaChatView {
     _updateSendState() {
         if (this.sendBtnEl) {
             this.sendBtnEl.disabled = this._sending;
+            this.sendBtnEl.innerHTML = this._sending
+                ? '<span class="mana-send-spinner"></span>'
+                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>';
         }
         if (this.captureBtnEl) {
             this.captureBtnEl.disabled = this._sending;
         }
     }
 
+    _formatText(text) {
+        let html = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // Code blocks
+        html = html.replace(/```([\s\S]*?)```/g, '<pre class="mana-code-block">$1</pre>');
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code class="mana-inline-code">$1</code>');
+        // Bold
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // Line breaks
+        html = html.replace(/\n/g, '<br>');
+
+        return html;
+    }
+
     _renderMessages() {
         if (!this.messagesEl) return;
 
         this.messagesEl.innerHTML = this.messages.map(m => {
-            const escaped = escapeHtml(m.text);
-            const cls = `mana-msg mana-msg--${m.sender}`;
-            return `<div class="${cls}"><span class="mana-msg-text">${escaped}</span></div>`;
+            const formatted = this._formatText(m.text);
+            if (m.sender === 'user') {
+                return `<div class="mana-msg mana-msg--user"><span class="mana-msg-text">${formatted}</span></div>`;
+            }
+            if (m.sender === 'mana') {
+                return `<div class="mana-msg mana-msg--mana"><span class="mana-avatar">m</span><span class="mana-msg-text">${formatted}</span></div>`;
+            }
+            return `<div class="mana-msg mana-msg--system"><span class="mana-msg-text">${formatted}</span></div>`;
         }).join('');
 
-        // Auto-scroll to bottom
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
     }
 
