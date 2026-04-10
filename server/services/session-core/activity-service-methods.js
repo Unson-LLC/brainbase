@@ -199,7 +199,7 @@ export const activityServiceMethods = {
     },
 
     _buildStatusForSession(hookData) {
-        const HEARTBEAT_TIMEOUT = 60 * 60 * 1000;
+        const WORKING_TIMEOUT = 5 * 60 * 1000;
         const now = Date.now();
         const normalized = this._normalizeHookData(hookData);
         if (!normalized) return null;
@@ -210,12 +210,13 @@ export const activityServiceMethods = {
         if (!hasWorking && !hasDone && activeTurnCount === 0) return null;
 
         const lastActiveAt = Math.max(normalized.lastActivityAt, normalized.lastWorkingAt);
-        const isStale = lastActiveAt > 0 && (now - lastActiveAt > HEARTBEAT_TIMEOUT);
-        if (isStale && activeTurnCount === 0 && !hasDone) return null;
-        const isWorking = !isStale && (
+        const isWorkingStale = lastActiveAt > 0 && (now - lastActiveAt > WORKING_TIMEOUT);
+        if (isWorkingStale && activeTurnCount === 0 && !hasDone) return null;
+        const isWorking = !isWorkingStale && (
             activeTurnCount > 0
             || (activeTurnCount === 0 && normalized.lastWorkingAt > normalized.lastDoneAt)
         );
+        // done状態はタイムアウトしない（明示的にclearDoneStatusで消す）
         const isDone = !isWorking && hasDone;
 
         if (!isWorking && !isDone) return null;
