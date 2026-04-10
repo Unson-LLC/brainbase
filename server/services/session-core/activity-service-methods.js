@@ -547,31 +547,43 @@ export const activityServiceMethods = {
         }
     },
 
-    _persistHookStatus(sessionId, hookStatusData, timestamp = Date.now()) {
-        const currentState = this.stateStore.get();
-        const updatedAt = new Date(timestamp).toISOString();
-        const updatedSessions = currentState.sessions.map(session => {
-            if (session.id !== sessionId) {
-                return session;
+    async _persistHookStatus(sessionId, hookStatusData, timestamp = Date.now()) {
+        const MAX_RETRIES = 3;
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                const currentState = this.stateStore.get();
+                const updatedAt = new Date(timestamp).toISOString();
+                const updatedSessions = currentState.sessions.map(session => {
+                    if (session.id !== sessionId) {
+                        return session;
+                    }
+
+                    if (hookStatusData) {
+                        return {
+                            ...session,
+                            hookStatus: hookStatusData,
+                            updatedAt
+                        };
+                    }
+
+                    const nextSession = {
+                        ...session,
+                        updatedAt
+                    };
+                    delete nextSession.hookStatus;
+                    return nextSession;
+                });
+
+                await this.stateStore.update({ ...currentState, sessions: updatedSessions });
+                return;
+            } catch (err) {
+                if (attempt < MAX_RETRIES - 1) {
+                    await new Promise(r => setTimeout(r, 50 * (attempt + 1)));
+                    continue;
+                }
+                logger.warn(`[Hook] _persistHookStatus failed after ${MAX_RETRIES} retries for ${sessionId}: ${err.message}`);
             }
-
-            if (hookStatusData) {
-                return {
-                    ...session,
-                    hookStatus: hookStatusData,
-                    updatedAt
-                };
-            }
-
-            const nextSession = {
-                ...session,
-                updatedAt
-            };
-            delete nextSession.hookStatus;
-            return nextSession;
-        });
-
-        return this.stateStore.update({ ...currentState, sessions: updatedSessions });
+        }
     },
 
     _coerceTimestamp(reportedAt) {
