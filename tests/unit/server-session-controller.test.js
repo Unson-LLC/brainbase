@@ -37,7 +37,8 @@ describe('SessionController (Server)', () => {
     runtimeLifecycle: {
       startTtyd: mockSessionManager.startTtyd,
       stopTtyd: mockSessionManager.stopTtyd,
-      ensureSessionRuntime: mockSessionManager.ensureSessionRuntime
+      ensureSessionRuntime: mockSessionManager.ensureSessionRuntime,
+      ensureTtydForActiveSession: mockSessionManager.ensureTtydForActiveSession
     },
     runtimeRegistry: {
       activeSessions: mockSessionManager.activeSessions
@@ -67,6 +68,7 @@ describe('SessionController (Server)', () => {
       stopTtyd: vi.fn(),
       startTtyd: vi.fn(),
       ensureSessionRuntime: vi.fn(),
+      ensureTtydForActiveSession: vi.fn(),
       cleanupSessionResources: vi.fn(),
       clearDoneStatus: vi.fn(),
       reportActivity: vi.fn(),
@@ -324,6 +326,70 @@ describe('SessionController (Server)', () => {
           needsRestart: false,
           proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
           port: 40123
+        },
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+    });
+
+    it('activeセッションでttyd停止中のruntime取得時_ttydを自動復旧する', async () => {
+      const sessionId = 'session-runtime-repair';
+      const staleSession = {
+        id: sessionId,
+        intendedState: 'active',
+        engine: 'claude',
+        runtimeStatus: {
+          ttydRunning: false,
+          needsRestart: true,
+          proxyPath: null,
+          port: 40123
+        }
+      };
+      const repairedRuntimeStatus = {
+        ttydRunning: true,
+        needsRestart: false,
+        proxyPath: `/console/${sessionId}`,
+        port: 40124
+      };
+      mockSessionManager.getSessionById
+        .mockReturnValueOnce(staleSession)
+        .mockReturnValueOnce({
+          ...staleSession,
+          runtimeStatus: repairedRuntimeStatus
+        });
+      mockSessionManager.ensureTtydForActiveSession.mockResolvedValue({
+        restarted: true,
+        runtimeStatus: repairedRuntimeStatus
+      });
+      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
+        allowed: true,
+        terminalAccess: {
+          state: 'owner',
+          ownerViewerLabel: 'Local / Mac',
+          ownerLastSeenAt: null,
+          canTakeover: false
+        }
+      });
+
+      await sessionController.getRuntime({
+        params: { id: sessionId },
+        query: { viewerId: 'viewer-1', viewerLabel: 'Local / Mac' },
+        headers: {}
+      }, mockRes);
+
+      expect(mockSessionManager.ensureTtydForActiveSession).toHaveBeenCalledWith(staleSession);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        sessionId,
+        runtimeStatus: {
+          interactiveUrl: `/console/${sessionId}/?viewerId=viewer-1`,
+          ttydRunning: true,
+          needsRestart: false,
+          proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
+          port: 40124
         },
         terminalAccess: {
           state: 'owner',

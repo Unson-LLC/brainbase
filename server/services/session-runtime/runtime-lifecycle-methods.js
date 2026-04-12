@@ -326,6 +326,63 @@ export const runtimeLifecycleMethods = {
         });
     },
 
+    async ensureTtydForActiveSession(session, { forceTtyd = false } = {}) {
+        if (!session?.id || session.intendedState !== 'active') {
+            return {
+                restarted: false,
+                runtimeStatus: this.getRuntimeStatus(session)
+            };
+        }
+
+        if (this._isXtermOnlyMode() && !forceTtyd) {
+            return {
+                restarted: false,
+                runtimeStatus: this.getRuntimeStatus(session),
+                skippedReason: 'xterm_only'
+            };
+        }
+
+        const currentStatus = this.getRuntimeStatus(session);
+        if (currentStatus.ttydRunning) {
+            return {
+                restarted: false,
+                runtimeStatus: currentStatus
+            };
+        }
+
+        const tmuxRunning = await this._isTmuxSessionRunning(session.id);
+        if (!tmuxRunning) {
+            logger.warn(`[ensureTtydForActiveSession] Cannot restart ttyd for ${session.id}: tmux is not running`);
+            return {
+                restarted: false,
+                runtimeStatus: currentStatus,
+                skippedReason: 'tmux_missing'
+            };
+        }
+
+        const engine = session.engine || session?.ttydProcess?.engine || 'claude';
+        const preferredPort = Number.isFinite(session?.ttydProcess?.port)
+            ? session.ttydProcess.port
+            : undefined;
+
+        logger.warn(`[ensureTtydForActiveSession] Restarting dead ttyd for active session ${session.id}`);
+        const result = await this._restartTtydForExistingTmux(session.id, preferredPort, engine);
+        const updatedSession = this.getSession(session.id) || {
+            ...session,
+            ttydProcess: {
+                ...(session.ttydProcess || {}),
+                port: result.port,
+                engine
+            }
+        };
+
+        return {
+            restarted: true,
+            result,
+            runtimeStatus: this.getRuntimeStatus(updatedSession)
+        };
+    },
+
     async stopTtyd(sessionId, { preserveTmux = false } = {}) {
         if (!this.activeSessions.has(sessionId)) {
             return false;

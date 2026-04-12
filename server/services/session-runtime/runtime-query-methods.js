@@ -118,12 +118,10 @@ export const runtimeQueryMethods = {
         const persistedPid = session?.ttydProcess?.pid;
         const pidToCheck = activePid || persistedPid;
         const ttydRunning = pidToCheck ? this._isProcessRunning(pidToCheck) : false;
-        const shouldCheckTmux = intendedState === 'active' && !ttydRunning;
-        const tmuxRunning = shouldCheckTmux ? this._isTmuxSessionRunningSync(sessionId) : false;
-        const needsRestart = intendedState === 'active' && !ttydRunning && !tmuxRunning;
+        const needsRestart = intendedState === 'active' && !ttydRunning;
         const port = activeEntry?.port || session?.ttydProcess?.port || null;
-        const interactiveTransport = ttydRunning ? 'ttyd' : (tmuxRunning ? 'xterm' : 'none');
-        const interactiveReady = ttydRunning || tmuxRunning;
+        const interactiveTransport = ttydRunning ? 'ttyd' : 'none';
+        const interactiveReady = ttydRunning;
         const interactiveUrl = ttydRunning && sessionId ? `/console/${sessionId}` : null;
 
         return {

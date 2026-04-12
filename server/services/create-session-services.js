@@ -100,6 +100,7 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         startTtyd: shared.startTtyd,
         _doStartTtyd: shared._doStartTtyd,
         _restartTtydForExistingTmux: shared._restartTtydForExistingTmux,
+        ensureTtydForActiveSession: shared.ensureTtydForActiveSession,
         stopTtyd: shared.stopTtyd,
         cleanupSessionResources: shared.cleanupSessionResources,
         cleanup: shared.cleanup
@@ -110,6 +111,7 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         cleanupOrphans: shared.cleanupOrphans,
         cleanupStalePausedSessions: shared.cleanupStalePausedSessions,
         cleanupArchivedSessions: shared.cleanupArchivedSessions,
+        repairActiveTtydSessions: shared.repairActiveTtydSessions,
         startPtyWatchdog: shared.startPtyWatchdog,
         stopPtyWatchdog: shared.stopPtyWatchdog
     };

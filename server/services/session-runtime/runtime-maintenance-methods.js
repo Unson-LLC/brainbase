@@ -337,6 +337,46 @@ export const runtimeMaintenanceMethods = {
         }
     },
 
+    async repairActiveTtydSessions({ sessionId = null } = {}) {
+        if (this._isXtermOnlyMode()) {
+            return { checked: 0, restarted: 0, failed: 0, skipped: 0 };
+        }
+
+        const state = this.stateStore.get();
+        const activeSessions = (state.sessions || []).filter((session) =>
+            session?.intendedState === 'active'
+            && (!sessionId || session.id === sessionId)
+        );
+        const result = { checked: 0, restarted: 0, failed: 0, skipped: 0 };
+
+        for (const session of activeSessions) {
+            result.checked += 1;
+            const runtimeStatus = this.getRuntimeStatus(session);
+            if (runtimeStatus.ttydRunning) {
+                result.skipped += 1;
+                continue;
+            }
+
+            try {
+                const repair = await this.ensureTtydForActiveSession(session);
+                if (repair.restarted) {
+                    result.restarted += 1;
+                } else {
+                    result.skipped += 1;
+                }
+            } catch (err) {
+                result.failed += 1;
+                logger.error(`[repairActiveTtydSessions] Failed to repair ${session.id}:`, err);
+            }
+        }
+
+        if (result.restarted > 0 || result.failed > 0) {
+            logger.warn(`[repairActiveTtydSessions] checked=${result.checked} restarted=${result.restarted} failed=${result.failed} skipped=${result.skipped}`);
+        }
+
+        return result;
+    },
+
     startPtyWatchdog(intervalMs = 600000) {
         if (this._ptyWatchdogTimer) return;
         logger.info(`[PTY Watchdog] Starting (interval: ${intervalMs / 1000}s)`);
@@ -371,6 +411,8 @@ export const runtimeMaintenanceMethods = {
                     logger.error(`[PTY Watchdog] CRITICAL: PTY usage at ${usage}%! Running orphan cleanup...`);
                     await this.cleanupOrphans();
                 }
+
+                await this.repairActiveTtydSessions();
             } catch (err) {
                 logger.error('[PTY Watchdog] Error:', err.message);
             }

@@ -96,7 +96,7 @@ describe('app switchSession runtime handling', () => {
     expect(app.reconnectManager.setCurrentSession).toHaveBeenCalledWith('session-1');
   });
 
-  it('ensures ttyd when runtimeStatus is missing', async () => {
+  it('forces ttyd startup when ttyd frame needs a runtime', async () => {
     app.reconnectManager = { setCurrentSession: vi.fn() };
 
     appStore.setState({
@@ -129,7 +129,7 @@ describe('app switchSession runtime handling', () => {
     expect(httpClient.post).toHaveBeenCalledWith('/api/sessions/session-1/terminal/ensure', expect.objectContaining({
       engine: 'codex',
       viewerId: 'viewer-test',
-      forceTtyd: false
+      forceTtyd: true
     }));
   });
 

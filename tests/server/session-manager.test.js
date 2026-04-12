@@ -67,7 +67,7 @@ describe('SessionManager', () => {
     expect(runtimeStatus.interactiveTransport).toBe('none');
   });
 
-  it('getRuntimeStatus_active_session_without_ttyd_probes_tmux', () => {
+  it('getRuntimeStatus_active_session_without_ttyd_marks_ttyd_restart_needed', () => {
     vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
     const manager = createManager();
     const tmuxSpy = vi.spyOn(manager, '_isTmuxSessionRunningSync').mockReturnValue(true);
@@ -79,9 +79,33 @@ describe('SessionManager', () => {
       ttydProcess: { pid: 12345 }
     });
 
-    expect(tmuxSpy).toHaveBeenCalledWith('session-1');
-    expect(runtimeStatus.interactiveTransport).toBe('xterm');
-    expect(runtimeStatus.needsRestart).toBe(false);
+    expect(tmuxSpy).not.toHaveBeenCalled();
+    expect(runtimeStatus.interactiveTransport).toBe('none');
+    expect(runtimeStatus.interactiveReady).toBe(false);
+    expect(runtimeStatus.needsRestart).toBe(true);
+  });
+
+  it('ensureTtydForActiveSession_active_tmux_without_ttyd_restarts_existing_tmux', async () => {
+    vi.stubEnv('BRAINBASE_TERMINAL_TRANSPORT', '');
+    const manager = createManager();
+    vi.spyOn(manager, '_isProcessRunning').mockImplementation((pid) => pid === 23456);
+    vi.spyOn(manager, '_isTmuxSessionRunning').mockResolvedValue(true);
+    const restartSpy = vi.spyOn(manager, '_restartTtydForExistingTmux').mockImplementation(async (sessionId, preferredPort, engine) => {
+      manager.activeSessions.set(sessionId, { port: preferredPort || 40100, pid: 23456, process: { pid: 23456 } });
+      return { port: preferredPort || 40100, proxyPath: `/console/${sessionId}` };
+    });
+
+    const result = await manager.ensureTtydForActiveSession({
+      id: 'session-1',
+      intendedState: 'active',
+      engine: 'claude',
+      ttydProcess: { pid: 12345, port: 40123 }
+    });
+
+    expect(restartSpy).toHaveBeenCalledWith('session-1', 40123, 'claude');
+    expect(result.restarted).toBe(true);
+    expect(result.runtimeStatus.ttydRunning).toBe(true);
+    expect(result.runtimeStatus.proxyPath).toBe('/console/session-1');
   });
 
   it('reportActivity_working_latest_sets_isWorking_true', () => {

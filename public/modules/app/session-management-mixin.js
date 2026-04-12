@@ -54,7 +54,7 @@ export function applySessionManagementMixin(AppClass) {
                 cwd: session.path,
                 engine: session.engine || 'claude',
                 viewerId: this.viewerId,
-                forceTtyd: Boolean(options.forceTtyd)
+                forceTtyd: true
             });
             return {
                 proxyPath: res?.proxyPath ? this._getViewerProxyPath(res.proxyPath, res.port) : null,

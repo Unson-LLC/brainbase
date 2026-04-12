@@ -30,7 +30,7 @@ export function installRuntimeHandlers(controller) {
         });
     };
 
-    controller.getRuntime = (req, res) => {
+    controller.getRuntime = async (req, res) => {
         const { id } = req.params;
         const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
         const viewerLabel = controller._resolveViewerLabel(req, req.query?.viewerLabel);
@@ -47,10 +47,30 @@ export function installRuntimeHandlers(controller) {
         }
 
         const ownership = controller.ownership.ensureTerminalOwnership(id, viewerId, viewerLabel);
+        let effectiveSession = session;
+        let baseRuntimeStatus = session.runtimeStatus || {};
+
+        if (
+            ownership.allowed
+            && baseRuntimeStatus.needsRestart
+            && !baseRuntimeStatus.ttydRunning
+            && typeof controller.runtimeLifecycle?.ensureTtydForActiveSession === 'function'
+        ) {
+            try {
+                const repair = await controller.runtimeLifecycle.ensureTtydForActiveSession(session);
+                if (repair?.runtimeStatus) {
+                    effectiveSession = controller._getSessionById(id) || session;
+                    baseRuntimeStatus = repair.runtimeStatus;
+                }
+            } catch (error) {
+                logger.error(`[getRuntime] Failed to repair ttyd for ${id}:`, error);
+            }
+        }
+
         const runtimeStatus = ownership.allowed
-            ? controller._withViewerRuntimeStatus(session.runtimeStatus || {}, viewerId)
+            ? controller._withViewerRuntimeStatus(baseRuntimeStatus, viewerId)
             : controller._withViewerRuntimeStatus({
-                ...(session.runtimeStatus || {}),
+                ...(effectiveSession.runtimeStatus || baseRuntimeStatus || {}),
                 interactiveUrl: null,
                 proxyPath: null
             }, viewerId);
