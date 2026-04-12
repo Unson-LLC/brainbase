@@ -318,12 +318,9 @@ export class MobileInputUIController {
         });
 
         let isComposing = false;
-        let compositionJustEnded = false;
         inputEl.addEventListener('compositionstart', () => { isComposing = true; });
         inputEl.addEventListener('compositionend', () => {
             isComposing = false;
-            compositionJustEnded = true;
-            setTimeout(() => { compositionJustEnded = false; }, 250);
             this.autoResize(inputEl);
             this.draftManager.scheduleDraftSave(mode, inputEl);
         });
@@ -332,17 +329,8 @@ export class MobileInputUIController {
             this.autoResize(inputEl);
             this.draftManager.scheduleDraftSave(mode, inputEl);
         });
-
-        // Enter key sends message (Shift+Enter for newline in composer)
-        // Guard against IME composition: check both local isComposing, native e.isComposing,
-        // and compositionJustEnded (250ms timer) to handle browsers where compositionend
-        // fires before keydown(Enter)
-        inputEl.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !isComposing && !e.isComposing && !compositionJustEnded) {
-                e.preventDefault();
-                this.handleSend(mode);
-            }
-        });
+        // Mobile: Enter = newline (send via button only)
+        // No keydown send handler — mobile users expect Enter to insert a newline.
     }
 
     getActiveInput() {
@@ -461,6 +449,7 @@ export class MobileInputUIController {
 
             inputEl.value = '';
             this.autoResize(inputEl);
+            this.draftManager.cancelPendingTimer(mode);
             this.draftManager.saveDraftNow(mode);
             eventBus.emit(EVENTS.MOBILE_INPUT_SENT, { mode, sessionId });
             showSuccess('送信したよ');

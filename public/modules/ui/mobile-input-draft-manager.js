@@ -32,6 +32,13 @@ export class MobileInputDraftManager {
         }, 400);
     }
 
+    cancelPendingTimer(mode) {
+        if (this.draftTimers[mode]) {
+            clearTimeout(this.draftTimers[mode]);
+            this.draftTimers[mode] = null;
+        }
+    }
+
     saveDraftNow(mode) {
         const inputEl = mode === 'composer' ? this.elements.composerInput : this.elements.dockInput;
         if (!inputEl) return;
@@ -39,16 +46,20 @@ export class MobileInputDraftManager {
     }
 
     saveDraft(mode, inputEl) {
-        if (!inputEl.value.trim()) return;
         const sessionId = appStore.getState().currentSessionId || 'general';
+        const key = `${STORAGE_KEYS.draft}:${sessionId}:${mode}`;
+
+        if (!inputEl.value.trim()) {
+            try { localStorage.removeItem(key); } catch (_) { /* ignore */ }
+            return;
+        }
+
         const payload = {
             value: inputEl.value,
             selectionStart: inputEl.selectionStart ?? 0,
             selectionEnd: inputEl.selectionEnd ?? 0,
             updatedAt: Date.now()
         };
-        const key = `${STORAGE_KEYS.draft}:${sessionId}:${mode}`;
-        console.log(`[draft] Saving draft for session ${sessionId} (${mode}):`, payload.value.substring(0, 50));
         saveJson(key, payload);
         eventBus.emit(EVENTS.MOBILE_INPUT_DRAFT_SAVED, { mode, sessionId });
     }

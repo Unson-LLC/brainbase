@@ -126,14 +126,12 @@ describe('MobileInputFocusManager visual viewport sync', () => {
     });
 });
 
-describe('MobileInputUIController Enterキー送信ガード', () => {
+describe('MobileInputUIController Enterキー挙動', () => {
     let controller;
     let inputEl;
     let handleSendSpy;
 
     beforeEach(() => {
-        vi.useFakeTimers();
-
         document.body.innerHTML = `
             <textarea id="mobile-dock-input"></textarea>
             <textarea id="mobile-composer-input"></textarea>
@@ -175,46 +173,16 @@ describe('MobileInputUIController Enterキー送信ガード', () => {
         controller.bindInputEventHandlers(inputEl, 'dock');
     });
 
-    afterEach(() => {
-        vi.useRealTimers();
-    });
-
-    it('IME非使用時_Enterキーで送信される', () => {
+    it('モバイルではEnterキーで送信されない（改行として扱う）', () => {
         const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: false });
         inputEl.dispatchEvent(event);
-        expect(handleSendSpy).toHaveBeenCalledWith('dock');
+        expect(handleSendSpy).not.toHaveBeenCalled();
     });
 
-    it('Shift+Enter時_送信されない', () => {
+    it('Shift+Enterでも送信されない', () => {
         const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true });
         inputEl.dispatchEvent(event);
         expect(handleSendSpy).not.toHaveBeenCalled();
-    });
-
-    it('e.isComposing=true時_送信されない', () => {
-        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true });
-        inputEl.dispatchEvent(event);
-        expect(handleSendSpy).not.toHaveBeenCalled();
-    });
-
-    it('compositionend直後_250ms以内のEnterで送信されない（タイマーガード）', () => {
-        inputEl.dispatchEvent(new Event('compositionstart'));
-        inputEl.dispatchEvent(new Event('compositionend'));
-
-        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: false });
-        inputEl.dispatchEvent(event);
-        expect(handleSendSpy).not.toHaveBeenCalled();
-    });
-
-    it('compositionend後_250ms経過後のEnterで送信される', () => {
-        inputEl.dispatchEvent(new Event('compositionstart'));
-        inputEl.dispatchEvent(new Event('compositionend'));
-
-        vi.advanceTimersByTime(251);
-
-        const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: false });
-        inputEl.dispatchEvent(event);
-        expect(handleSendSpy).toHaveBeenCalledWith('dock');
     });
 });
 
@@ -232,11 +200,22 @@ vi.mock('../../../public/modules/core/store.js', () => ({
 
 vi.mock('../../../public/modules/core/event-bus.js', () => ({
     eventBus: { emit: vi.fn() },
-    EVENTS: { MOBILE_INPUT_SENT: 'mobile:input:sent' },
+    EVENTS: { MOBILE_INPUT_SENT: 'mobile:input:sent', MOBILE_INPUT_DRAFT_SAVED: 'mobile:input:draft:saved' },
 }));
 
 vi.mock('../../../public/modules/ui-helpers.js', () => ({
     refreshIcons: vi.fn(),
+}));
+
+vi.mock('../../../public/modules/utils/local-storage.js', () => ({
+    loadJson: vi.fn((key, fallback) => {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        try { return JSON.parse(raw); } catch { return fallback; }
+    }),
+    saveJson: vi.fn((key, value) => {
+        localStorage.setItem(key, JSON.stringify(value));
+    }),
 }));
 
 describe('MobileInputUIController 二重送信防止', () => {
@@ -278,7 +257,7 @@ describe('MobileInputUIController 二重送信防止', () => {
             },
             {
                 focusManager: mockFocusManager,
-                draftManager: { scheduleDraftSave: vi.fn(), saveDraftNow: vi.fn() },
+                draftManager: { scheduleDraftSave: vi.fn(), saveDraftNow: vi.fn(), cancelPendingTimer: vi.fn() },
                 clipboardManager: {},
                 terminalInput: mockTerminalInput,
                 sheetManager: {},
@@ -350,5 +329,54 @@ describe('MobileInputUIController 二重送信防止', () => {
 
         expect(btn.disabled).toBe(false);
         expect(btn.classList.contains('sending')).toBe(false);
+    });
+});
+
+describe('MobileInputDraftManager ドラフトクリア', () => {
+    let draftManager;
+
+    beforeEach(async () => {
+        document.body.innerHTML = `
+            <textarea id="mobile-dock-input"></textarea>
+            <textarea id="mobile-composer-input"></textarea>
+        `;
+
+        const { MobileInputDraftManager } = await import('../../../public/modules/ui/mobile-input-draft-manager.js');
+        draftManager = new MobileInputDraftManager({
+            dockInput: document.getElementById('mobile-dock-input'),
+            composerInput: document.getElementById('mobile-composer-input'),
+        });
+    });
+
+    afterEach(() => {
+        localStorage.clear();
+    });
+
+    it('空文字の場合localStorageからドラフトが削除される', () => {
+        const input = document.getElementById('mobile-dock-input');
+        const key = 'bb_mobile_draft:test-session:dock';
+
+        input.value = 'draft text';
+        draftManager.saveDraft('dock', input);
+        expect(localStorage.getItem(key)).not.toBeNull();
+
+        input.value = '';
+        draftManager.saveDraft('dock', input);
+        expect(localStorage.getItem(key)).toBeNull();
+    });
+
+    it('cancelPendingTimerでペンディングタイマーがキャンセルされる', () => {
+        vi.useFakeTimers();
+        const input = document.getElementById('mobile-dock-input');
+        input.value = 'pending draft';
+
+        draftManager.scheduleDraftSave('dock', input);
+        draftManager.cancelPendingTimer('dock');
+
+        vi.advanceTimersByTime(500);
+        const key = 'bb_mobile_draft:test-session:dock';
+        expect(localStorage.getItem(key)).toBeNull();
+
+        vi.useRealTimers();
     });
 });
