@@ -25,4 +25,11 @@ if [ -n "$NVM_DIR" ] && [ -d "$NVM_DIR/versions/node" ]; then
   done
 fi
 
+# Drain any pending TTY input (e.g. xterm focus events ^[[O^[[I) that may have
+# accumulated in the PTY buffer before codex initializes its input handler.
+# Without this, focus events arrive as keyboard input and can cause immediate exit.
+if [ -t 0 ]; then
+  read -t 0.2 -n 10000 _DRAIN 2>/dev/null || true
+fi
+
 exec codex "$@"
