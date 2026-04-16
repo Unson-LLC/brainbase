@@ -1199,5 +1199,40 @@ body,
     waitForTerminal();
 })();
 </script>
+
+<script>
+(function() {
+    // Disable PTY focus event reporting to fix codex initialization hang.
+    //
+    // Root cause: codex sends ESC[?1004h during startup to enable focus events.
+    // xterm.js sees this and immediately sends ESC[I] (focus-in) to the PTY.
+    // This arrives mixed with codex terminal capability query responses
+    // (ESC[6n], ESC[c], etc.), confusing its parser and causing it to hang
+    // with no TUI rendered and no response to input.
+    //
+    // Fix: override _reportFocus() on the terminal instance to a no-op so
+    // xterm.js never sends ESC[I] or ESC[O] to the PTY.
+    function disableFocusReporting(term) {
+        if (!term || typeof term._reportFocus !== 'function') return false;
+        try {
+            term._reportFocus = function() {};
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function waitAndDisableFocus(attempts) {
+        if (disableFocusReporting(window.term)) {
+            return;
+        }
+        if (attempts < 50) {
+            window.setTimeout(() => waitAndDisableFocus(attempts + 1), 100);
+        }
+    }
+
+    waitAndDisableFocus(0);
+})();
+</script>
 </body>
 </html>
