@@ -268,7 +268,7 @@ sync_codex_prompts_link() {
 # Apply tmux settings first (before session creation/attachment)
 # These settings help prevent character duplication when typing fast over WebSocket (ttyd)
 tmux set -g escape-time 0 2>/dev/null || true
-tmux set -g default-terminal "screen-256color" 2>/dev/null || true
+tmux set -g default-terminal "xterm-256color" 2>/dev/null || true
 tmux set -g mouse off 2>/dev/null || true
 tmux set -g history-limit 5000 2>/dev/null || true
 
