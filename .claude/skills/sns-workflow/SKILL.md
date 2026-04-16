@@ -18,20 +18,20 @@ SNS投稿に使用するスクリプトのパスと実行コマンドの正本�
 
 | スクリプト | パス |
 |-----------|------|
-| Nano Banana（画像生成） | `/Users/ksato/workspace/_codex/common/ops/scripts/nano_banana.py` |
-| SNS投稿 | `/Users/ksato/workspace/_codex/common/ops/scripts/sns_post.py` |
-| X OAuth2.0（ブックマーク等） | `/Users/ksato/workspace/_codex/common/ops/scripts/x_oauth2.py` |
+| Nano Banana（画像生成） | `/Users/ksato/workspace/common/ops/scripts/nano_banana.py` |
+| SNS投稿 | `/Users/ksato/workspace/common/ops/scripts/sns_post.py` |
+| X OAuth2.0（ブックマーク等） | `/Users/ksato/workspace/common/ops/scripts/x_oauth2.py` |
 
 ## 画像生成コマンド
 
 ```bash
 # テンプレート一覧
 /Users/ksato/workspace/.venv/bin/python \
-  /Users/ksato/workspace/_codex/common/ops/scripts/nano_banana.py --list
+  /Users/ksato/workspace/common/ops/scripts/nano_banana.py --list
 
 # 画像生成
 /Users/ksato/workspace/.venv/bin/python \
-  /Users/ksato/workspace/_codex/common/ops/scripts/nano_banana.py \
+  /Users/ksato/workspace/common/ops/scripts/nano_banana.py \
   -t <template> \
   "トピック" \
   "ポイント1" "ポイント2" "ポイント3"
@@ -55,7 +55,7 @@ SNS投稿に使用するスクリプトのパスと実行コマンドの正本�
 
 ```bash
 /Users/ksato/workspace/.venv/bin/python \
-  /Users/ksato/workspace/_codex/common/ops/scripts/sns_post.py \
+  /Users/ksato/workspace/common/ops/scripts/sns_post.py \
   --title "トピック要約" \
   --body "投稿本文" \
   --image <画像パス>
