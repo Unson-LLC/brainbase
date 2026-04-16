@@ -1213,9 +1213,15 @@ body,
     // Fix: override _reportFocus() on the terminal instance to a no-op so
     // xterm.js never sends ESC[I] or ESC[O] to the PTY.
     function disableFocusReporting(term) {
-        if (!term || typeof term._reportFocus !== 'function') return false;
+        if (!term) return false;
         try {
-            term._reportFocus = function() {};
+            // xterm.js v5+ wraps the terminal: public API is window.term,
+            // internal implementation is window.term._core
+            const target = (term._core && typeof term._core._reportFocus === 'function')
+                ? term._core
+                : (typeof term._reportFocus === 'function' ? term : null);
+            if (!target) return false;
+            target._reportFocus = function() {};
             return true;
         } catch (e) {
             return false;
