@@ -75,13 +75,7 @@ test.describe('codex terminal focus-event fix', () => {
 
     test('codex セッションを開くと terminal-frame が ttyd URL を指す', async ({ page }) => {
         await page.goto(BASE_URL);
-        await page.waitForLoadState('networkidle');
-
-        // state API から codex セッションを取得
-        const stateData = await page.evaluate(async (base) => {
-            const res = await fetch(`${base}/api/state`);
-            return res.json();
-        }, BASE_URL);
+        await page.waitForLoadState('domcontentloaded');
 
         // セッションリスト DOM から codex セッションを直接探す（data-engine="codex"）
         const codexSessionEl = page.locator('[data-engine="codex"]').first();
@@ -116,10 +110,116 @@ test.describe('codex terminal focus-event fix', () => {
         expect(frameSrc).toContain(`/console/${sessionId}`);
     });
 
+    test('codex TUI が実際にブラウザで描画される（ハングしない）', async ({ page, context }) => {
+        // active な codex セッションを取得（IDの降順＝最近作成順で試す）
+        await page.goto(BASE_URL);
+        await page.waitForLoadState('domcontentloaded');
+        const sessions = await page.evaluate(async (base) => {
+            const r = await fetch(`${base}/api/state`);
+            const d = await r.json();
+            const codexSessions = (d.sessions || []).filter(s => s.engine === 'codex' && s.intendedState === 'active');
+            // IDが大きい（＝最近作成）順にソート
+            return codexSessions.sort((a, b) => b.id.localeCompare(a.id));
+        }, BASE_URL);
+
+        if (!sessions.length) {
+            test.skip('アクティブな codex セッションが存在しない');
+            return;
+        }
+
+        // 全セッションを試し、いずれかでTUI描画が確認できればOK
+        let tuiRendered = false;
+        let terminalContent = '';
+        let testedSessionId = '';
+
+        for (const session of sessions) {
+            const sessionId = session.id;
+            console.log(`Trying codex session: ${sessionId}`);
+
+            // terminal/ensure API で ttyd を起動
+            const ensureData = await page.evaluate(async (args) => {
+                const r = await fetch(`${args.base}/api/sessions/${args.id}/terminal/ensure`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ forceTtyd: true })
+                });
+                return r.json();
+            }, { base: BASE_URL, id: sessionId });
+
+            if (!ensureData?.runtimeStatus?.ttydRunning) {
+                console.log(`Session ${sessionId}: ttyd not running, skipping`);
+                continue;
+            }
+
+            const ttydPort = ensureData.runtimeStatus.port;
+            const ttydUrl = `http://127.0.0.1:${ttydPort}/console/${sessionId}/`;
+            console.log(`Direct ttyd URL: ${ttydUrl}`);
+
+            // ttyd ページを新しいタブで開く
+            const ttydPage = await context.newPage();
+            await ttydPage.goto(ttydUrl);
+            await ttydPage.waitForLoadState('domcontentloaded');
+
+            // xterm.js が初期化されるのを待つ（最大8秒）
+            await ttydPage.waitForFunction(
+                () => typeof window.term !== 'undefined',
+                { timeout: 8000 }
+            ).catch(() => null);
+
+            // codex TUI の描画を確認（最大15秒待機）
+            for (let attempt = 0; attempt < 30; attempt++) {
+                await ttydPage.waitForTimeout(500);
+
+                const state = await ttydPage.evaluate(() => {
+                    const t = window.term;
+                    if (!t) return { termExists: false, rows: [] };
+
+                    try {
+                        const buffer = t.buffer.active;
+                        const rows = [];
+                        // スクロールバックも含めて全行を確認
+                        const totalRows = buffer.length;
+                        const startRow = Math.max(0, totalRows - t.rows);
+                        for (let i = startRow; i < totalRows; i++) {
+                            const line = buffer.getLine(i);
+                            if (line) rows.push(line.translateToString(true));
+                        }
+                        return { termExists: true, rows };
+                    } catch (e) {
+                        return { termExists: true, rows: [], error: e.message };
+                    }
+                });
+
+                if (!state.termExists) continue;
+
+                const allText = state.rows.join('\n');
+                // codex TUIの特徴的なテキストを確認
+                if (allText.includes('OpenAI Codex') || allText.includes('>_ ') ||
+                    allText.includes('Update available') || allText.includes('context left') ||
+                    allText.includes('codex') || allText.includes('Codex')) {
+                    tuiRendered = true;
+                    testedSessionId = sessionId;
+                    terminalContent = allText.substring(0, 200);
+                    break;
+                }
+            }
+
+            await ttydPage.close();
+
+            if (tuiRendered) break;
+        }
+
+        console.log(`TUI rendered: ${tuiRendered}, session: ${testedSessionId}`);
+        if (terminalContent) {
+            console.log(`Terminal content preview: ${terminalContent.replace(/\n/g, '|').substring(0, 200)}`);
+        }
+
+        expect(tuiRendered, 'codex TUIがブラウザで描画されているべき（ハングしていない）').toBe(true);
+    });
+
     test('codex セッションの ttyd URL に直接アクセスすると _reportFocus が no-op になる', async ({ page, context }) => {
         // terminal/ensure API から ttyd URL を取得（UIクリック不要）
         await page.goto(BASE_URL);
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         const sessions = await page.evaluate(async (base) => {
             const r = await fetch(`${base}/api/state`);
             const d = await r.json();
