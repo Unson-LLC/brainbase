@@ -32,4 +32,12 @@ if [ -t 0 ]; then
   read -t 0.2 -n 10000 _DRAIN 2>/dev/null || true
 fi
 
-exec codex "$@"
+# Prefer /usr/local/bin/codex (native aarch64 binary on Apple Silicon) over
+# nvm-installed codex which may only have the x86_64 binary (causing TUI hang
+# in detached tmux sessions due to Rosetta 2 + terminal capability mismatch).
+CODEX_BIN="codex"
+if [ -x "/usr/local/bin/codex" ]; then
+    CODEX_BIN="/usr/local/bin/codex"
+fi
+
+exec "$CODEX_BIN" "$@"
