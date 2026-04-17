@@ -1202,143 +1202,24 @@ body,
 
 <script>
 (function() {
-    // Disable PTY focus event reporting to fix codex initialization hang.
+    // NOTE: Disabled — focus reporting disable was a workaround for codex
+    // initialization hang. It is now handled at the PTY level by
+    // codex-pty-shim.py, which intercepts crossterm's ESC[?u query and
+    // responds with ESC[?0u before it reaches the browser. Disabling focus
+    // reporting here was causing regressions in non-codex sessions (status
+    // line disappearing, since tmux/Claude rely on ESC[I]/ESC[O] focus
+    // events to update status indicators).
     //
-    // Root cause: codex sends ESC[?1004h during startup to enable focus events.
-    // xterm.js sees this and immediately sends ESC[I] (focus-in) to the PTY.
-    // This arrives mixed with codex terminal capability query responses
-    // (ESC[6n], ESC[c], etc.), confusing its parser and causing it to hang
-    // with no TUI rendered and no response to input.
+    // Original root cause documented: codex sends ESC[?1004h during startup
+    // to enable focus events. xterm.js sees this and immediately sends ESC[I]
+    // (focus-in) to the PTY. This arrives mixed with codex terminal capability
+    // query responses (ESC[6n], ESC[c], etc.), confusing its parser and
+    // causing it to hang with no TUI rendered and no response to input.
     //
     // Fix: override _reportFocus() on the terminal instance to a no-op so
     // xterm.js never sends ESC[I] or ESC[O] to the PTY.
-    function disableFocusReporting(term) {
-        if (!term) return false;
-        try {
-            // xterm.js v5+ wraps the terminal: public API is window.term,
-            // internal implementation is window.term._core
-            const target = (term._core && typeof term._core._reportFocus === 'function')
-                ? term._core
-                : (typeof term._reportFocus === 'function' ? term : null);
-            if (!target) return false;
-            target._reportFocus = function() {};
-            return true;
-        } catch (e) {
-            return false;
-        }
-    }
-
-    function waitAndDisableFocus(attempts) {
-        if (disableFocusReporting(window.term)) {
-            return;
-        }
-        if (attempts < 50) {
-            window.setTimeout(() => waitAndDisableFocus(attempts + 1), 100);
-        }
-    }
-
-    waitAndDisableFocus(0);
-})();
-</script>
-
-<script>
-(function() {
-    // Fix codex 0.121.0 initialization hang caused by crossterm Kitty keyboard
-    // protocol query (ESC[?u).
-    //
-    // Root cause: codex 0.121.0 uses crossterm which, at startup, sends ESC[?u
-    // to the PTY to query Kitty keyboard protocol support. It then blocks ALL
-    // threads (main + tokio workers) waiting for the terminal's response
-    // (ESC[?0u meaning "not supported"). xterm.js does not implement Kitty
-    // keyboard protocol and never responds, causing codex to hang indefinitely
-    // with "model: loading" shown in brainbase UI.
-    //
-    // Verified via macOS `sample` tool: all threads blocked at syscall offset
-    // 0x5540ebb (blocking read on /dev/ttys*). No network connections exist
-    // because model loading never starts.
-    //
-    // Fix strategy (dual mode):
-    // 1. PROACTIVE: When browser connects to a pre-existing stuck codex session,
-    //    crossterm already sent ESC[?u before browser connected and is blocking
-    //    on read. We inject ESC[?0u immediately when terminal becomes ready.
-    // 2. REACTIVE: Intercept ESC[?u in term.write() for cases where codex starts
-    //    after browser connects (e.g., new session creation).
-
-    function sendToPty(term, data) {
-        // Inject data into PTY stdin via xterm.js internal coreService.
-        // This fires the onData event, which ttyd's client sends via WebSocket.
-        if (!term) return false;
-        try {
-            const core = term._core;
-            if (!core) return false;
-            const svc = core._coreService || core.coreService;
-            if (svc && typeof svc.triggerDataEvent === 'function') {
-                svc.triggerDataEvent(data, true);
-                return true;
-            }
-        } catch (e) {}
-        return false;
-    }
-
-    function installKittyInterceptor(term) {
-        if (!term || !term.write || term.__kittyInterceptInstalled) return false;
-        term.__kittyInterceptInstalled = true;
-        try {
-            const origWrite = term.write.bind(term);
-            let reactiveResponded = false;
-
-            term.write = function (data, callback) {
-                if (!reactiveResponded) {
-                    let str = '';
-                    if (typeof data === 'string') {
-                        str = data;
-                    } else if (ArrayBuffer.isView(data)) {
-                        try { str = new TextDecoder('utf-8', { fatal: false }).decode(data); } catch (e) {}
-                    } else if (data instanceof ArrayBuffer) {
-                        try { str = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(data)); } catch (e) {}
-                    }
-                    // ESC[?u = Kitty keyboard protocol flags query
-                    if (str.includes('\x1b[?u')) {
-                        reactiveResponded = true;
-                        setTimeout(() => sendToPty(window.term, '\x1b[?0u'), 0);
-                        console.log('[brainbase] Reactive: responded to ESC[?u with ESC[?0u');
-                    }
-                }
-                return origWrite(data, callback);
-            };
-            return true;
-        } catch (e) {
-            return false;
-        }
-    }
-
-    let proactiveFired = false;
-    function proactiveSend(term) {
-        // Send ESC[?0u proactively to unblock any already-stuck crossterm.
-        // Safe for non-stuck sessions: crossterm is not in the blocking read
-        // at that point, and an unexpected ESC[?0u is silently discarded.
-        if (proactiveFired) return;
-        proactiveFired = true;
-        setTimeout(() => {
-            if (sendToPty(term, '\x1b[?0u')) {
-                console.log('[brainbase] Proactive: sent ESC[?0u to unblock crossterm (codex 0.121.0)');
-            }
-        }, 200);
-    }
-
-    function waitAndInstall(attempts) {
-        const term = window.term;
-        if (term) {
-            installKittyInterceptor(term);
-            proactiveSend(term);
-            return;
-        }
-        if (attempts < 60) {
-            window.setTimeout(() => waitAndInstall(attempts + 1), 100);
-        }
-    }
-
-    waitAndInstall(0);
+    // DISABLED: Implementation removed. See comment above for rationale.
+    // codex-pty-shim.py handles ESC[?u / focus events at PTY level now.
 })();
 </script>
 </body>
