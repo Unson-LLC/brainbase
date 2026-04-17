@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 npm-debug.log*
+.claude/skills/*/node_modules/
 
 # Environment variables
 .env
