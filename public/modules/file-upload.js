@@ -342,13 +342,9 @@ function setupKeyHandling() {
             if (currentSessionId) {
                 console.log('Received CMD_BACKSPACE from iframe, sending C-u to session');
                 try {
-                    await fetchWithCsrf(`/api/sessions/${currentSessionId}/input`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            input: 'C-u',
-                            type: 'key'
-                        })
+                    await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
+                        input: 'C-u',
+                        type: 'key'
                     });
                 } catch (error) {
                     console.error('Failed to send key command:', error);
@@ -401,14 +397,10 @@ function setupKeyHandling() {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {
                 try {
-                    await fetch('/api/sessions/report_activity', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sessionId: currentSessionId,
-                            status: 'working',
-                            reportedAt: Date.now()
-                        })
+                    await httpClient.post('/api/sessions/report_activity', {
+                        sessionId: currentSessionId,
+                        status: 'working',
+                        reportedAt: Date.now()
                     });
                 } catch (error) {
                     console.error('Failed to report activity:', error);
@@ -420,14 +412,10 @@ function setupKeyHandling() {
             const currentSessionId = getSessionId?.();
             if (currentSessionId) {
                 try {
-                    await fetch('/api/sessions/report_activity', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sessionId: currentSessionId,
-                            status: 'done',
-                            reportedAt: Date.now()
-                        })
+                    await httpClient.post('/api/sessions/report_activity', {
+                        sessionId: currentSessionId,
+                        status: 'done',
+                        reportedAt: Date.now()
                     });
                 } catch (error) {
                     console.error('Failed to report activity:', error);

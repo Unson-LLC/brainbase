@@ -44,25 +44,27 @@ export class HttpClient {
 
         // トークンを取得
         this._csrfTokenPromise = (async () => {
-            try {
-                const tokenUrl = this.baseURL
-                    ? `${this.baseURL}/api/csrf-token`
-                    : '/api/csrf-token';
-                const response = await fetch(tokenUrl);
-                if (response.ok) {
-                    const data = await response.json();
-                    this._csrfToken = data.token;
-                    return this._csrfToken;
-                }
-            } catch (error) {
-                console.warn('[CSRF] Failed to fetch token:', error.message);
+            const tokenUrl = this.baseURL
+                ? `${this.baseURL}/api/csrf-token`
+                : '/api/csrf-token';
+            const response = await fetch(tokenUrl);
+            if (!response.ok) {
+                throw new Error(`CSRF token fetch failed: ${response.status}`);
             }
-            return '';
+            const data = await response.json();
+            this._csrfToken = data.token;
+            return this._csrfToken;
         })();
 
-        const token = await this._csrfTokenPromise;
-        this._csrfTokenPromise = null;
-        return token;
+        try {
+            const token = await this._csrfTokenPromise;
+            this._csrfTokenPromise = null;
+            return token;
+        } catch (error) {
+            console.warn('[CSRF] Failed to fetch token:', error.message);
+            this._csrfTokenPromise = null;
+            throw error;
+        }
     }
 
     /**
