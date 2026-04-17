@@ -182,6 +182,14 @@ def main():
     except termios.error:
         old_settings = None
 
+    def restore_terminal():
+        """Restore outer terminal to original settings."""
+        if old_settings is not None:
+            try:
+                termios.tcsetattr(outer_stdin, termios.TCSANOW, old_settings)
+            except termios.error:
+                pass
+
     # Forward SIGWINCH to inner PTY and codex
     def on_sigwinch(signum, frame):
         r, c = get_winsize(outer_stdin)
@@ -191,7 +199,25 @@ def main():
         except ProcessLookupError:
             pass
 
+    # Handle SIGTERM/SIGINT: restore terminal before exiting
+    # Without this, if the shim is killed externally (e.g. by brainbase session
+    # cleanup), the outer terminal stays in raw mode causing garbage input.
+    def on_terminate(signum, frame):
+        dbg(f'received signal {signum}, restoring terminal and exiting')
+        restore_terminal()
+        try:
+            os.kill(child_pid, signum)
+        except ProcessLookupError:
+            pass
+        try:
+            os.close(inner_master)
+        except OSError:
+            pass
+        os._exit(0)
+
     signal.signal(signal.SIGWINCH, on_sigwinch)
+    signal.signal(signal.SIGTERM, on_terminate)
+    signal.signal(signal.SIGINT, on_terminate)
 
     interceptor = QueryInterceptor(inner_master)
     dbg('shim started', {
@@ -245,11 +271,7 @@ def main():
                 break
 
     finally:
-        if old_settings is not None:
-            try:
-                termios.tcsetattr(outer_stdin, termios.TCSADRAIN, old_settings)
-            except termios.error:
-                pass
+        restore_terminal()
         try:
             os.close(inner_master)
         except OSError:
