@@ -28,6 +28,13 @@
         "JIBBLE_CLIENT_SECRET": "m9JpWnqrWOdOwYjtMl0IMZd57VJsH0O1FeAE-rAgdk7dtTvM"
       }
     },
+    "loki": {
+      "command": "/Volumes/UNSON-DRIVE/monitoring/tools/loki-mcp/server",
+      "env": {
+        "LOKI_URL": "http://localhost:3100",
+        "PORT": "19100"
+      }
+    },
     "slack": {
       "command": "npx",
       "args": ["-y", "slack-mcp-server"],

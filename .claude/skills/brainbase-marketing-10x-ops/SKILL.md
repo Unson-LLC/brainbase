@@ -49,11 +49,15 @@ description: brainbaseのマーケ10倍運用で、正本（SSOT）・作業場�
 ### 0) 5:2ヘッダー画像を生成（nano_banana.py）
 ```bash
 /Users/ksato/workspace/.venv/bin/python \
-  /Users/ksato/workspace/_codex/common/ops/scripts/nano_banana.py \
+  /Users/ksato/workspace/common/ops/scripts/nano_banana.py \
   -p "Create a clean Japanese business framework banner for an X Article header. Aspect ratio 5:2 (e.g., 1500x600). Title text in Japanese: {topic}. Show exactly 3 short points in Japanese from {points_text} with small icons and numbered labels 1-3. Keep text large and legible, high contrast, ample whitespace, professional blue/gray palette with one accent color. Horizontal banner composition, no extra logos, no dense paragraphs, no English text." \
-  -o /Users/ksato/workspace/_codex/sns/images/x_article_YYYYMMDD_5x2.jpg \
+  -o /Users/ksato/workspace/shared/_codex/sns/images/x_article_YYYYMMDD_1600x640.jpg \
   "タイトル" "ポイント1" "ポイント2" "ポイント3"
 ```
+
+生成後は必ず `sips -g pixelWidth -g pixelHeight <image>` で確認する。Nano Bananaが16:9で返した場合は、最終入稿前に **5:2 / 1600x640** へ整形する。
+
+Anthropic / Claude / Claude Code 系の記事では、汎用ビジネス図解ではなく **Anthropic公式っぽい黒×オレンジ×紙色の編集デザイン + Clawdキャラクター**を使う。Clawd参照画像がある場合は `nano_banana.py --ref-image <path>` で渡し、オレンジのピクセルステッカー、白フチ、短い足、小さい黒目の形を維持する。ロボット風・リアル動物風にはしない。最終成果物は必ず **5:2 / 1600x640**。
 
 ### 1) Chrome起動（ログイン保持）
 ```bash

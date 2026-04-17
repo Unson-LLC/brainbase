@@ -1199,5 +1199,28 @@ body,
     waitForTerminal();
 })();
 </script>
+
+<script>
+(function() {
+    // NOTE: Disabled — focus reporting disable was a workaround for codex
+    // initialization hang. It is now handled at the PTY level by
+    // codex-pty-shim.py, which intercepts crossterm's ESC[?u query and
+    // responds with ESC[?0u before it reaches the browser. Disabling focus
+    // reporting here was causing regressions in non-codex sessions (status
+    // line disappearing, since tmux/Claude rely on ESC[I]/ESC[O] focus
+    // events to update status indicators).
+    //
+    // Original root cause documented: codex sends ESC[?1004h during startup
+    // to enable focus events. xterm.js sees this and immediately sends ESC[I]
+    // (focus-in) to the PTY. This arrives mixed with codex terminal capability
+    // query responses (ESC[6n], ESC[c], etc.), confusing its parser and
+    // causing it to hang with no TUI rendered and no response to input.
+    //
+    // Fix: override _reportFocus() on the terminal instance to a no-op so
+    // xterm.js never sends ESC[I] or ESC[O] to the PTY.
+    // DISABLED: Implementation removed. See comment above for rationale.
+    // codex-pty-shim.py handles ESC[?u / focus events at PTY level now.
+})();
+</script>
 </body>
 </html>

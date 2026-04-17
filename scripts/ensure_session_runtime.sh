@@ -213,7 +213,9 @@ sync_codex_prompts_link() {
 }
 
 tmux set -g escape-time 0 2>/dev/null || true
-tmux set -g default-terminal "tmux-256color" 2>/dev/null || true
+# Use xterm-256color as default terminal: tmux-256color causes codex TUI initialization
+# to hang (crossterm waits for terminal capability responses that don't arrive).
+tmux set -g default-terminal "xterm-256color" 2>/dev/null || true
 tmux set -g allow-passthrough on 2>/dev/null || true
 tmux set -g mouse off 2>/dev/null || true
 tmux set -g history-limit 5000 2>/dev/null || true
@@ -247,11 +249,12 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
-        tmux set-environment -t "$SESSION_NAME" TERM "tmux-256color"
+        # xterm-256color: codex TUI (crossterm) hangs on initialization with tmux-256color
+        tmux set-environment -t "$SESSION_NAME" TERM "xterm-256color"
         # cwdが無効な場合（外付けドライブ再マウント等）に備え、絶対パスにcd。
         # cd . ではinodeが壊れている場合にcwdを修復できない。
         _CWD_TARGET="${WORKTREE_PATH:-/tmp}"
-        LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
+        LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=xterm-256color"
 
         if [ "$USE_CODEX_APP_SERVER" = "1" ] && command -v node >/dev/null 2>&1 && [ -f "$CODEX_APP_REPL" ]; then
             if [ -n "$INITIAL_CMD" ]; then
@@ -295,11 +298,12 @@ if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
         tmux set-environment -t "$SESSION_NAME" LANG "${LANG:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_ALL "${LC_ALL:-en_US.UTF-8}"
         tmux set-environment -t "$SESSION_NAME" LC_CTYPE "${LC_CTYPE:-en_US.UTF-8}"
-        tmux set-environment -t "$SESSION_NAME" TERM "tmux-256color"
+        # xterm-256color: codex TUI (crossterm) hangs on initialization with tmux-256color
+        tmux set-environment -t "$SESSION_NAME" TERM "xterm-256color"
         # cwdが無効な場合（外付けドライブ再マウント等）に備え、絶対パスにcd。
         # cd . ではinodeが壊れている場合にcwdを修復できない。
         _CWD_TARGET="${WORKTREE_PATH:-/tmp}"
-        LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=tmux-256color"
+        LOCALE_EXPORT="cd '${_CWD_TARGET}' 2>/dev/null || cd /tmp; export LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-en_US.UTF-8} LC_CTYPE=${LC_CTYPE:-en_US.UTF-8} TERM=xterm-256color"
         CLAUDE_RESUME_FLAG=""
         if [ -n "$RESUME_SESSION_ID" ]; then
             CLAUDE_RESUME_FLAG="--resume $RESUME_SESSION_ID"

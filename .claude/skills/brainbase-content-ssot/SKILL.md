@@ -16,9 +16,12 @@ description: brainbaseでnote/X Article/X投稿の原稿・ドラフト・最終
 
 ### note / X Article（長文）
 - すべて `_codex/sns/drafts/` に保存
-- 命名規則: `{topic}_structure.md`, `{topic}_draft.md`, `{topic}_reviewed.md`, `{topic}_final.md`
+- 命名規則: `{topic}_structure.md`, `{topic}_draft.md`, `{topic}_reviewed.md`, `{topic}_final.md`, `{topic}_x_article.html`
 - `topic` は `snake_case` を使う（例: `ai_human_skills`）
 - X Articleは **noteと同じ本文**。`_final.md` を正として使い回す
+- X Articleへ貼り付けるときは、Markdown直貼りではなく **HTML rich paste版**（`{topic}_x_article.html`）を作る
+- HTML rich paste版は `h1` / `h2` / `p` / `strong` / `ul` / `li` を中心にし、ブラウザで開いて本文をコピーしてX Articleエディタへ貼る
+- プレーンテキスト確認用が必要な場合のみ `{topic}_x_article.txt` を補助的に作る
 
 ### X短文（量産バッチ）
 - `_codex/sns/drafts/batch_YYYY-MM-DD/all_drafts.md`
@@ -31,7 +34,7 @@ description: brainbaseでnote/X Article/X投稿の原稿・ドラフト・最終
 ## 運用フロー（最短）
 1. **Pillar決定**（議事録・活動ログから抽出）
 2. **note-smartで長文を作成** → `{topic}_final.md` まで作る
-3. **X Articleは同じ本文で出稿**（noteと同日or翌日）
+3. **X Articleは同じ本文からHTML rich paste版を作成** → `{topic}_x_article.html` をブラウザで開き、本文をコピーして出稿
 4. **sns-smartでX短文を30本/日バッチ生成**
 5. **NocoDBにContentレコード作成/更新**（状態管理）
 
