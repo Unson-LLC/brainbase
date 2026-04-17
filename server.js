@@ -41,6 +41,7 @@ import { createConsoleProxy } from './server/bootstrap/console-proxy.js';
 import { registerGracefulShutdown } from './server/bootstrap/graceful-shutdown.js';
 import { registerApiRoutes } from './server/bootstrap/register-api-routes.js';
 import { registerStaticRoutes } from './server/bootstrap/static-routes.js';
+import { assertAllowedServerEntrypoint } from './server/bootstrap/direct-launch-guard.js';
 
 // Import middleware
 import { csrfMiddleware, csrfTokenHandler } from './server/middleware/csrf.js';
@@ -225,6 +226,19 @@ if (TEST_MODE) {
 
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
+try {
+    assertAllowedServerEntrypoint({
+        port: PORT,
+        canonicalPort: 31013,
+        startedByStartJs: process.env.BRAINBASE_STARTED_BY_START_JS === '1',
+        allowDirectServer: process.env.BRAINBASE_ALLOW_DIRECT_SERVER === '1',
+        testMode: TEST_MODE,
+        isWorktree
+    });
+} catch (error) {
+    console.error(`[BRAINBASE] ${error.message}`);
+    process.exit(1);
+}
 const RUNTIME_INFO = await buildRuntimeInfo({
     repoDir: __dirname,
     port: PORT,
@@ -598,4 +612,3 @@ registerGracefulShutdown({
     getMeshService: () => meshService,
     log: console
 });
-

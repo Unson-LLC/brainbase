@@ -13,6 +13,7 @@ const MAX_RECONNECT_DELAY_MS = 30000;
 const KEEPALIVE_INTERVAL_MS = 30000;
 const TEXT_BATCH_WINDOW_MS = 8;
 const TEXT_BATCH_MAX_BYTES = 1024;
+const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape']);
 
 // Expected close codes that should NOT trigger reconnection
 const EXPECTED_CLOSE_CODES = new Set([
@@ -86,6 +87,9 @@ export class TerminalTransportClient {
             mode: 'idle',
             copyMode: false,
             blockedAccess: null,
+            terminalAccess: null,
+            runtimeState: 'stopped',
+            inputReady: false,
             connected: false,
             isFocused: false,
             lastSnapshotAt: null,
@@ -213,6 +217,8 @@ export class TerminalTransportClient {
     canSendInput(sessionId) {
         return this.sessionId === sessionId
             && this.status.mode !== 'blocked'
+            && this.status.terminalAccess?.state === 'owner'
+            && this.status.inputReady === true
             && this.ws?.readyState === WebSocket.OPEN;
     }
 
@@ -259,6 +265,9 @@ export class TerminalTransportClient {
         this.status.mode = 'reconnecting';
         this.status.connected = false;
         this.status.blockedAccess = null;
+        this.status.terminalAccess = null;
+        this.status.inputReady = false;
+        this.status.runtimeState = 'transport_connected';
         this.status.transport = 'streaming';
         this._emitStatus();
 
@@ -307,11 +316,14 @@ export class TerminalTransportClient {
                         this._retryCount = 0;
                         this.status.mode = 'live';
                         this.status.connected = true;
+                        this._applyRuntimeStatus(message);
                         console.log('[TTC] ready received');
                         this._emitStatus();
                         this._startKeepalive();
-                        this._flushMessageQueue();
                         void this.syncViewportSize();
+                        void this.verifyInputReady().then(() => {
+                            this._flushMessageQueue();
+                        });
                         resolve({ mode: 'live' });
                         break;
                     case 'snapshot': {
@@ -334,6 +346,7 @@ export class TerminalTransportClient {
                         break;
                     }
                     case 'status':
+                        this._applyRuntimeStatus(message);
                         this.status.copyMode = Boolean(message.copyMode);
                         if (typeof message.mode === 'string') {
                             this.status.mode = message.mode;
@@ -348,6 +361,9 @@ export class TerminalTransportClient {
                         cleanup();
                         this.status.mode = 'blocked';
                         this.status.blockedAccess = message.terminalAccess || null;
+                        this.status.terminalAccess = message.terminalAccess || null;
+                        this.status.inputReady = false;
+                        this.status.runtimeState = 'blocked_by_owner';
                         this.status.connected = false;
                         this.status.transport = 'snapshot';
                         this._emitStatus();
@@ -412,6 +428,9 @@ export class TerminalTransportClient {
             this.status.mode = 'idle';
             this.status.lastSnapshotAt = null;
             this.status.blockedAccess = null;
+            this.status.terminalAccess = null;
+            this.status.inputReady = false;
+            this.status.runtimeState = 'stopped';
             this.status.transport = 'snapshot';
             this._pendingSnapshotText = null;
             this._pendingEchoText = '';
@@ -424,6 +443,7 @@ export class TerminalTransportClient {
 
     async sendText(value) {
         if (!value) return;
+        if (!this.canSendInput(this.sessionId) && !await this._ensureInputReadyForUserInput()) return;
 
         const segments = this._splitFocusEvents(value);
         for (const seg of segments) {
@@ -447,6 +467,7 @@ export class TerminalTransportClient {
 
     async sendKey(value) {
         if (!value) return;
+        if (!this.canSendInput(this.sessionId) && !this._canSendControlKey(value) && !await this._ensureInputReadyForUserInput()) return;
         await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
         const message = { type: 'input', inputType: 'key', value };
         if (this.ws?.readyState !== WebSocket.OPEN) {
@@ -463,6 +484,7 @@ export class TerminalTransportClient {
      */
     async interrupt() {
         await this._flushBufferedText({ enqueueIfUnavailable: true, ensureInteractive: true });
+        if (!this.canSendInput(this.sessionId) && !this._canSendControlKey('C-c')) return;
         if (this.ws?.readyState !== WebSocket.OPEN) return;
         await this._ensureInteractiveMode();
         this.ws.send(JSON.stringify({
@@ -492,8 +514,33 @@ export class TerminalTransportClient {
         await this.connect(this.sessionId);
     }
 
+    async verifyInputReady() {
+        if (!this.sessionId || this.status.terminalAccess?.state !== 'owner') return false;
+        try {
+            const res = await httpClient.post(`/api/sessions/${encodeURIComponent(this.sessionId)}/terminal/probe-input`, {
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
+            }, { suppressAuthError: true });
+            this.status.inputReady = Boolean(res?.inputReady);
+            this.status.runtimeState = this.status.inputReady ? 'interactive_ready' : (res?.code ? 'degraded' : this.status.runtimeState);
+            this._emitStatus();
+            return this.status.inputReady;
+        } catch {
+            this.status.inputReady = false;
+            this.status.runtimeState = 'degraded';
+            this._emitStatus();
+            return false;
+        }
+    }
+
     async refreshSnapshot() {
         await this._refreshSnapshot();
+    }
+
+    async _ensureInputReadyForUserInput() {
+        if (this.ws?.readyState !== WebSocket.OPEN) return false;
+        if (this.status.mode === 'blocked' || this.status.terminalAccess?.state !== 'owner') return false;
+        return await this.verifyInputReady();
     }
 
     async _refreshSnapshot() {
@@ -578,6 +625,7 @@ export class TerminalTransportClient {
      */
     _flushMessageQueue() {
         if (this._messageQueue.isEmpty()) return;
+        if (!this.canSendInput(this.sessionId)) return;
         const messages = this._messageQueue.drain();
         for (const msg of messages) {
             if (this.ws?.readyState === WebSocket.OPEN) {
@@ -626,11 +674,12 @@ export class TerminalTransportClient {
     async _dispatchTextMessage(value, { enqueueIfUnavailable = false, ensureInteractive = false } = {}) {
         const message = { type: 'input', inputType: 'text', value };
         if (this.ws?.readyState !== WebSocket.OPEN) {
-            if (enqueueIfUnavailable) {
+            if (enqueueIfUnavailable && this.status.inputReady) {
                 this._messageQueue.enqueue(message);
             }
             return;
         }
+        if (!this.canSendInput(this.sessionId)) return;
         if (ensureInteractive) {
             await this._ensureInteractiveMode();
         }
@@ -902,6 +951,30 @@ export class TerminalTransportClient {
         } catch {
             return null;
         }
+    }
+
+    _applyRuntimeStatus(message) {
+        if (!message || typeof message !== 'object') return;
+        if (typeof message.runtimeState === 'string') {
+            this.status.runtimeState = message.runtimeState;
+        }
+        if (Object.prototype.hasOwnProperty.call(message, 'inputReady')) {
+            this.status.inputReady = Boolean(message.inputReady);
+        }
+        if (message.terminalAccess) {
+            this.status.terminalAccess = message.terminalAccess;
+            this.status.blockedAccess = message.terminalAccess.state === 'blocked'
+                ? message.terminalAccess
+                : null;
+        }
+    }
+
+    _canSendControlKey(value) {
+        return CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(value)
+            && this.sessionId
+            && this.status.mode !== 'blocked'
+            && this.status.terminalAccess?.state === 'owner'
+            && this.ws?.readyState === WebSocket.OPEN;
     }
 
     _emitStatus() {

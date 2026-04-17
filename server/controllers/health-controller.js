@@ -10,11 +10,12 @@ import { logger } from '../utils/logger.js';
 /** @typedef {{ status: string, message: string, [key: string]: any }} HealthCheck */
 export class HealthController {
     /**
-     * @param {{ readiness?: any, configParser?: any }} deps
+     * @param {{ readiness?: any, configParser?: any, terminalRuntimeReconciler?: any }} deps
      */
-    constructor({ readiness, configParser }) {
+    constructor({ readiness, configParser, terminalRuntimeReconciler = null }) {
         this.readiness = readiness;
         this.configParser = configParser;
+        this.terminalRuntimeReconciler = terminalRuntimeReconciler;
         this.startTime = Date.now();
     }
 
@@ -46,6 +47,26 @@ export class HealthController {
                 status: 'unhealthy',
                 timestamp: new Date().toISOString(),
                 error: error instanceof Error ? error.message : 'Health check failed'
+            });
+        }
+    };
+
+    getTerminalHealth = async (req, res) => {
+        if (!this.terminalRuntimeReconciler?.getHealth) {
+            return res.status(503).json({
+                status: 'unhealthy',
+                error: 'terminal runtime reconciler is not available'
+            });
+        }
+
+        try {
+            const health = await this.terminalRuntimeReconciler.getHealth();
+            res.status(health.status === 'unhealthy' ? 503 : 200).json(health);
+        } catch (error) {
+            logger.error('Terminal health check failed:', error);
+            res.status(503).json({
+                status: 'unhealthy',
+                error: error instanceof Error ? error.message : 'Terminal health check failed'
             });
         }
     };

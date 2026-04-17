@@ -61,7 +61,11 @@ export class NocoDBIssueService {
         return issues.find(i => i.id === id);
     }
 
-    getFilteredIssues({ project, status, impact } = {}) {
+    /**
+     * @param {{ project?: string, status?: string, impact?: string }} [filters]
+     */
+    getFilteredIssues(filters = {}) {
+        const { project, status, impact } = filters;
         let issues = appStore.getState().nocodbIssues || [];
         if (project) issues = issues.filter(i => i.project === project);
         if (status) issues = issues.filter(i => i.status === status);

@@ -50,6 +50,17 @@ export const ownershipServiceMethods = {
         return this._buildTerminalAccessState(owner, normalizedViewerId);
     },
 
+    getTerminalOwnerSnapshot(sessionId) {
+        const owner = this.terminalOwners.get(sessionId);
+        if (!owner) return null;
+        return {
+            ownerViewerId: owner.viewerId,
+            ownerViewerLabel: owner.viewerLabel || null,
+            claimedAt: new Date(owner.claimedAt).toISOString(),
+            lastSeenAt: new Date(owner.lastSeenAt).toISOString()
+        };
+    },
+
     claimTerminalOwnership(sessionId, viewerId, viewerLabel) {
         const normalizedViewerId = this._normalizeViewerId(viewerId);
         if (!sessionId || !normalizedViewerId) return null;
@@ -99,8 +110,11 @@ export const ownershipServiceMethods = {
             return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
         }
 
-        const owner = this.claimTerminalOwnership(sessionId, normalizedViewerId, viewerLabel);
-        return { allowed: true, owner, terminalAccess: this._buildTerminalAccessState(owner, normalizedViewerId) };
+        return {
+            allowed: false,
+            owner: currentOwner,
+            terminalAccess: this._buildTerminalAccessState(currentOwner, normalizedViewerId)
+        };
     },
 
     forceTerminalOwnership(sessionId, viewerId, viewerLabel = null) {

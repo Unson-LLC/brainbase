@@ -41,13 +41,20 @@ describe('SessionController (Server)', () => {
       ensureTtydForActiveSession: mockSessionManager.ensureTtydForActiveSession
     },
     runtimeRegistry: {
-      activeSessions: mockSessionManager.activeSessions
+      activeSessions: mockSessionManager.activeSessions,
+      getSession: mockSessionManager.getObservedRuntime
+    },
+    runtimeReconciler: {
+      reconcile: mockSessionManager.reconcileTerminalRuntime
     },
     terminalIo: {
       sendInput: mockSessionManager.sendInput,
       scrollSession: mockSessionManager.scrollSession,
       selectPane: mockSessionManager.selectPane,
       exitCopyMode: mockSessionManager.exitCopyMode
+    },
+    terminalInputProbe: {
+      probe: mockSessionManager.probeTerminalInput
     },
     snapshot: {
       getContent: mockSessionManager.getContent,
@@ -76,6 +83,9 @@ describe('SessionController (Server)', () => {
       ensureTerminalOwnership: vi.fn(),
       forceTerminalOwnership: vi.fn(),
       getTerminalAccessState: vi.fn(),
+      getObservedRuntime: vi.fn(),
+      reconcileTerminalRuntime: vi.fn(),
+      probeTerminalInput: vi.fn(),
       releaseTerminalOwnership: vi.fn(),
       getContent: vi.fn(),
       getContentWithColors: vi.fn(async () => null),
@@ -204,14 +214,11 @@ describe('SessionController (Server)', () => {
         port: 40101,
         proxyPath: `/console/${sessionId}`
       });
-      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
-        allowed: true,
-        terminalAccess: {
-          state: 'owner',
-          ownerViewerLabel: 'Local / Mac',
-          ownerLastSeenAt: null,
-          canTakeover: false
-        }
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
       });
       mockSessionManager.forceTerminalOwnership.mockReturnValue({
         allowed: true,
@@ -302,14 +309,11 @@ describe('SessionController (Server)', () => {
           port: 40123
         }
       });
-      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
-        allowed: true,
-        terminalAccess: {
-          state: 'owner',
-          ownerViewerLabel: 'Local / Mac',
-          ownerLastSeenAt: null,
-          canTakeover: false
-        }
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
       });
 
       await sessionController.getRuntime({
@@ -336,7 +340,7 @@ describe('SessionController (Server)', () => {
       });
     });
 
-    it('activeセッションでttyd停止中のruntime取得時_ttydを自動復旧する', async () => {
+    it('activeセッションでttyd停止中のruntime取得時_ttydを自動復旧しない', async () => {
       const sessionId = 'session-runtime-repair';
       const staleSession = {
         id: sessionId,
@@ -349,30 +353,12 @@ describe('SessionController (Server)', () => {
           port: 40123
         }
       };
-      const repairedRuntimeStatus = {
-        ttydRunning: true,
-        needsRestart: false,
-        proxyPath: `/console/${sessionId}`,
-        port: 40124
-      };
-      mockSessionManager.getSessionById
-        .mockReturnValueOnce(staleSession)
-        .mockReturnValueOnce({
-          ...staleSession,
-          runtimeStatus: repairedRuntimeStatus
-        });
-      mockSessionManager.ensureTtydForActiveSession.mockResolvedValue({
-        restarted: true,
-        runtimeStatus: repairedRuntimeStatus
-      });
-      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
-        allowed: true,
-        terminalAccess: {
-          state: 'owner',
-          ownerViewerLabel: 'Local / Mac',
-          ownerLastSeenAt: null,
-          canTakeover: false
-        }
+      mockSessionManager.getSessionById.mockReturnValue(staleSession);
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
       });
 
       await sessionController.getRuntime({
@@ -381,15 +367,15 @@ describe('SessionController (Server)', () => {
         headers: {}
       }, mockRes);
 
-      expect(mockSessionManager.ensureTtydForActiveSession).toHaveBeenCalledWith(staleSession);
+      expect(mockSessionManager.ensureTtydForActiveSession).not.toHaveBeenCalled();
       expect(mockRes.json).toHaveBeenCalledWith({
         sessionId,
         runtimeStatus: {
-          interactiveUrl: `/console/${sessionId}/?viewerId=viewer-1`,
-          ttydRunning: true,
-          needsRestart: false,
-          proxyPath: `/console/${sessionId}/?viewerId=viewer-1`,
-          port: 40124
+          interactiveUrl: null,
+          ttydRunning: false,
+          needsRestart: true,
+          proxyPath: null,
+          port: 40123
         },
         terminalAccess: {
           state: 'owner',
@@ -557,14 +543,11 @@ describe('SessionController (Server)', () => {
     it('owner viewerのsnapshot取得時_terminal snapshotを返す', async () => {
       const sessionId = 'session-snapshot';
       mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
-      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
-        allowed: true,
-        terminalAccess: {
-          state: 'owner',
-          ownerViewerLabel: 'Local / Mac',
-          ownerLastSeenAt: null,
-          canTakeover: false
-        }
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'owner',
+        ownerViewerLabel: 'Local / Mac',
+        ownerLastSeenAt: null,
+        canTakeover: false
       });
       mockSessionManager.getContent.mockResolvedValue('hello\nworld');
       mockSessionManager.getPaneMode.mockResolvedValue(true);
@@ -589,18 +572,17 @@ describe('SessionController (Server)', () => {
       }));
     });
 
-    it('blocked viewerのsnapshot取得時_409を返す', async () => {
+    it('blocked viewerのsnapshot取得時_readonly snapshotを返す', async () => {
       const sessionId = 'session-snapshot-blocked';
       mockSessionManager.getSessionById.mockReturnValue({ id: sessionId });
-      mockSessionManager.ensureTerminalOwnership.mockReturnValue({
-        allowed: false,
-        terminalAccess: {
-          state: 'blocked',
-          ownerViewerLabel: 'Cloudflare / Mac',
-          ownerLastSeenAt: '2026-03-14T14:00:00.000Z',
-          canTakeover: true
-        }
+      mockSessionManager.getTerminalAccessState.mockReturnValue({
+        state: 'blocked',
+        ownerViewerLabel: 'Cloudflare / Mac',
+        ownerLastSeenAt: '2026-03-14T14:00:00.000Z',
+        canTakeover: true
       });
+      mockSessionManager.getContent.mockResolvedValue('readonly');
+      mockSessionManager.getPaneMode.mockResolvedValue(false);
 
       await sessionController.getTerminalSnapshot({
         params: { id: sessionId },
@@ -608,17 +590,18 @@ describe('SessionController (Server)', () => {
         headers: {}
       }, mockRes);
 
-      expect(mockRes.status).toHaveBeenCalledWith(409);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        error: 'Session is already open in another viewer',
-        code: 'SESSION_OWNED_BY_OTHER_VIEWER',
+      expect(mockSessionManager.ensureTerminalOwnership).not.toHaveBeenCalled();
+      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId,
+        text: 'readonly',
         terminalAccess: {
           state: 'blocked',
           ownerViewerLabel: 'Cloudflare / Mac',
           ownerLastSeenAt: '2026-03-14T14:00:00.000Z',
           canTakeover: true
         }
-      });
+      }));
     });
   });
 

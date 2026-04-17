@@ -37,8 +37,9 @@ export class PortalView extends BaseView {
 
         this._attachHandlers();
 
-        if (typeof window.lucide !== 'undefined') {
-            window.lucide.createIcons({ attrs: { class: 'lucide-icon' } });
+        const lucide = /** @type {any} */ (window).lucide;
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons({ attrs: { class: 'lucide-icon' } });
         }
     }
 
@@ -210,10 +211,12 @@ export class PortalView extends BaseView {
 
     _renderMarkdown(content) {
         if (!content) return '';
-        if (typeof window.marked !== 'undefined') {
-            const html = window.marked.parse(content);
-            if (typeof window.DOMPurify !== 'undefined') {
-                return window.DOMPurify.sanitize(html);
+        const marked = /** @type {any} */ (window).marked;
+        const purifier = /** @type {any} */ (window).DOMPurify;
+        if (typeof marked !== 'undefined') {
+            const html = marked.parse(content);
+            if (typeof purifier !== 'undefined') {
+                return purifier.sanitize(html);
             }
             return html;
         }
@@ -229,10 +232,10 @@ export class PortalView extends BaseView {
 
     _attachHandlers() {
         // Project selector
-        const select = this.container?.querySelector('#portal-project-select');
+        const select = /** @type {HTMLSelectElement | null} */ (this.container?.querySelector('#portal-project-select') || null);
         if (select) {
             select.addEventListener('change', (e) => {
-                const projectCode = e.target.value;
+                const projectCode = /** @type {HTMLSelectElement} */ (e.target).value;
                 if (projectCode) {
                     this.portalService.loadPortal(projectCode);
                 }

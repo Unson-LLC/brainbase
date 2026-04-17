@@ -6,7 +6,7 @@
 /**
  * @param {Array} members
  * @param {Object} tasks - { items: [] }
- * @param {Function} escapeHtml
+ * @param {{ escapeHtml: (value: any) => string }} helpers
  * @returns {string} HTML
  */
 export function renderTeamSection(members, tasks, { escapeHtml }) {

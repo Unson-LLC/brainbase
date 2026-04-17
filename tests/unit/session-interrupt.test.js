@@ -27,8 +27,11 @@ describe('session interrupt (CommandMate pattern)', () => {
                 readyState: 1,
                 send(msg) { sentMessages.push(JSON.parse(msg)); }
             };
+            client.sessionId = 'session-1';
             client.status.mode = 'live';
             client.status.copyMode = false;
+            client.status.terminalAccess = { state: 'owner' };
+            client.status.inputReady = true;
 
             await client.interrupt();
 
@@ -60,8 +63,11 @@ describe('session interrupt (CommandMate pattern)', () => {
                 readyState: 1,
                 send(msg) { sentMessages.push(JSON.parse(msg)); }
             };
+            client.sessionId = 'session-1';
             client.status.mode = 'live';
             client.status.copyMode = true;
+            client.status.terminalAccess = { state: 'owner' };
+            client.status.inputReady = true;
 
             await client.interrupt();
 

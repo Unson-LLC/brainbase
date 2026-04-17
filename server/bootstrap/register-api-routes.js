@@ -8,6 +8,7 @@ import { createSessionRouter } from '../routes/sessions.js';
 import { createBrainbaseRouter } from '../routes/brainbase.js';
 import { createNocoDBRouter } from '../routes/nocodb.js';
 import { createHealthRouter } from '../routes/health.js';
+import { createTerminalRouter } from '../routes/terminal.js';
 import { createAuthRouter } from '../routes/auth.js';
 import { createInfoSSOTRouter } from '../routes/info-ssot.js';
 import { createLearningRouter } from '../routes/learning.js';
@@ -73,7 +74,14 @@ export function registerApiRoutes(app, {
         wikiService
     }));
     app.use('/api/nocodb', createNocoDBRouter(configParser));
-    app.use('/api/health', createHealthRouter({ readiness: sessionServices.runtime.registry, configParser }));
+    app.use('/api/health', createHealthRouter({
+        readiness: sessionServices.runtime.registry,
+        configParser,
+        terminalRuntimeReconciler: sessionServices.runtime.reconciler
+    }));
+    app.use('/api/terminal', createTerminalRouter({
+        terminalRuntimeReconciler: sessionServices.runtime.reconciler
+    }));
     app.use('/api/auth', createAuthRouter(authService));
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     app.use('/api/learning', createLearningRouter(learningService, learningHealthService));

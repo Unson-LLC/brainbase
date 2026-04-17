@@ -27,6 +27,9 @@ const varDir = runtimePaths.varDir;
 const PID_FILE = runtimePaths.pidFile;
 process.env.BRAINBASE_VAR_DIR = runtimePaths.varDir;
 process.env.BRAINBASE_STATE_PATH = runtimePaths.stateFile;
+process.env.BRAINBASE_STARTED_BY_START_JS = '1';
+process.env.BRAINBASE_SERVER_GENERATION = process.env.BRAINBASE_SERVER_GENERATION
+    || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 function isProcessAlive(pid) {
     try {

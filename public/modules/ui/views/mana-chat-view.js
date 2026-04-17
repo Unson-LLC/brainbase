@@ -96,14 +96,14 @@ export class ManaChatView {
 
         const unsub1 = this.eventBus.on(EVENTS.MANA_CHAT_RESPONSE, (e) => {
             this._removeTypingIndicator();
-            const data = e.detail;
+            const data = /** @type {CustomEvent} */ (e).detail;
             this._appendMessage('mana', data.reply);
             this._sending = false;
             this._updateSendState();
         });
 
         const unsub2 = this.eventBus.on(EVENTS.MANA_CAPTURED, (e) => {
-            const data = e.detail;
+            const data = /** @type {CustomEvent} */ (e).detail;
             this._appendMessage('system', `Captured: ${data.title}`);
         });
 

@@ -1,6 +1,6 @@
 {
   "name": "brainbase-ui",
-  "version": "0.1.98",
+  "version": "0.2.2",
   "private": false,
   "type": "module",
   "description": "AI-first project management console for developers",
@@ -32,10 +32,10 @@
   "scripts": {
     "prestart": "bash scripts/check-worktree.sh",
     "predev": "bash scripts/check-worktree.sh",
-    "dev": "node --watch-path=server --watch-path=lib --watch-path=public --watch-path=server.js --watch-path=package.json --watch-preserve-output server.js",
+    "dev": "BRAINBASE_ALLOW_DIRECT_SERVER=1 node --watch-path=server --watch-path=lib --watch-path=public --watch-path=server.js --watch-path=package.json --watch-preserve-output server.js",
     "start": "node start.js",
     "auth-setup": "node scripts/auth-setup.mjs",
-    "test:server": "BRAINBASE_TEST_MODE=true node server.js",
+    "test:server": "BRAINBASE_TEST_MODE=true BRAINBASE_ALLOW_DIRECT_SERVER=1 node server.js",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",

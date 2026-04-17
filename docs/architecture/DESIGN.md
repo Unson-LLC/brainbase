@@ -1,114 +1,155 @@
-# brainbase UI 設計書（ブラウザ版 / 読み取り専用）
+# Brainbase UI Architecture
 
-作成日: 2025-12-04
-更新日: 2025-12-05
-範囲: ローカル専用の軽量UI。タスク追加や正本更新は行わず、表示と補助のみ。
+## Document Metadata
 
-## 目的
-- 「今やっているタスク」が一目で分かる
-- どのタスクが完了したかを即時に知る（音＋トースト＋一覧）
-- IDE再起動しても表示状態を復元する
-- `/ohayo` 由来のタイムスケジュールを常時表示する
+- Status: Active
+- Type: Architecture
+- Subject: Brainbase browser UI and terminal surface
+- Parent document: [Brainbase Foundation](./brainbase-foundation.md)
+- Related documents: [Terminal Runtime Architecture](./terminal-runtime-architecture.md)
+- Replaces: ttyd-first browser UI design
 
-## 情報源と前提
-- タスク正本: `data/_tasks/index.md`（ローカル読み取りのみ）
-- スケジュール: `data/_schedules/YYYY-MM-DD.md`（なければ「未登録」表示）
-- /ohayoログ: 任意（存在すれば最優先で表示、なければスケジュールにフォールバック）
-- 状態保存: `var/state.json`（Git無視）＋ LocalStorage
-- ネットワーク不要、ローカルHTTPサーバのみ
-- タスク登録/更新は実装しない（Claude Code経由で実施するため）
+## Purpose
 
-## レイアウト（更新: 2025-12-05 マルチセッション・コンソール型）
-- コンセプト: **brainbase OS Console**
-- グリッド:
-  - 左ナビ（固定 ~200px）: **ワークスペース切替**
-    - プロジェクト一覧（`unson`, `tech-knight` 等）と全体管理（`brainbase`）のセッションリスト。
-    - クリックで中央のターミナルセッションを切り替える。
-  - 中央メイン（可変）: **Console領域**
-    - `ttyd` 経由で `tmux` セッションを表示。
-    - 左ナビで選択したワークスペースに対応するシェルを表示。
-  - 右サイド（固定 ~350px）: **コンテキスト情報（タスク & スケジュール）**
-    - 上部: 今日のスケジュール（/ohayo優先）
-    - 下部: タスク一覧（進行中/Todo/期限切れ）。
-    - 常に表示し、作業の羅針盤とする。
+Brainbase UI is the browser surface for selecting sessions, viewing context, and interacting with Claude Code or Codex through a terminal.
 
-### ワイヤーフレーム
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│ 左ナビ：Sessions      │      中央メイン：Console (ttyd/tmux)          │ 右サイド: Context                       │
-│ ┌──────────────────┐ │                                            │ ┌─────────────────────────────────────┐ │
-│ │ 🧠 brainbase     │ │  user@brainbase:~/workspace$               │ │ 今日の予定 (/ohayo)                   │ │
-│ ├──────────────────┤ │  $ claude                                  │ │ 09:00 ...                           │ │
-│ │ 💼 unson         │ │  (ここにClaude Codeの対話画面)               │ │ ─────────────────────────────────── │ │
-│ │ 🛡️ tech-knight   │ │                                            │ │ タスク一覧                          │ │
-│ │ 👔 salestailor   │ │                                            │ │ [進行中] [Todo]                     │ │
-│ └──────────────────┘ │                                            │ │ □ タスクA (High)                    │ │
-│                      │                                            │ │ □ タスクB                           │ │
-│                      │                                            │ └─────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────┘
-フッター: [Start/Stop Focus] [ポモドーロ] [リロード] [設定]
+The UI is a projection. It is not the source of truth for session intent or runtime process health.
+
+## UI Responsibilities
+
+The UI owns:
+
+- session selection
+- layout and focus
+- viewer identity
+- xterm.js host
+- local connection display
+- explicit user commands such as start, stop, recover, and takeover
+
+The UI does not own:
+
+- live PID truth
+- tmux health
+- Claude/Codex health
+- process recovery policy
+- session desired state
+
+## Layout
+
+```text
++----------------+-------------------------------+------------------+
+| Sessions       | Terminal                      | Context          |
+|                |                               |                  |
+| session list   | xterm.js primary surface      | schedule/tasks   |
+| runtime badges | degraded/snapshot fallback    | session details  |
++----------------+-------------------------------+------------------+
 ```
 
-## UIコンポーネント
-- ヘッダー: Now Playing、ステータス切替（Todo/進行中/完了）、経過タイマー。日付と次予定は右ペインに集約。
-- 左ペイン（セッション一覧）:
-  - 固定リスト: brainbase (default), unson, tech-knight, salestailor, zeims, baao
-  - アクティブなセッションをハイライト
-- 中央ペイン（ターミナル）:
-  - iframe で `ttyd` を表示
-  - セッション切替時に `ttyd` のURLパラメータを変更（例: `/?arg=session_name`）して接続先tmuxセッションを変更
-- 右ペイン（コンテキスト）:
-  - 上部: 今日のスケジュール（/ohayoがあれば優先）。次の予定までのカウントダウン表示。
-  - 下部: タスク一覧。タブ（進行中/Todo/期限切れ）、検索、タグフィルタ。
-- フッター: Start/Stop Focus、ポモドーロ切替、リロード、設定。モバイルでは下部固定。
+The terminal pane must clearly distinguish:
 
-## データフロー
-1) サーバ起動時に `data/_tasks/index.md` と当日 `data/_schedules/YYYY-MM-DD.md` を読み取り、メモリにキャッシュ（必要に応じて短時間リロード可能）。
-2) `/api/tasks` でタスクJSONを返却（status/priority/due/overdue フラグ付与）。
-3) `/api/schedule/today` で今日のタイムブロックと次予定までの分数を返却（/ohayoログがあればそちらを整形）。
-4) `/api/state` で `var/state.json` を読み書き（開いていたタスクID、フィルタ、既読通知）。LocalStorageと二重化。
-5) フロントは HTMX でタブ・検索・トグルを即時フィルタ（0.4s以内応答目標）。
+- `InteractiveReady`: input is enabled
+- `SnapshotOnly`: output is visible, input is disabled
+- `Recovering`: recovery is running, input is disabled
+- `Degraded`: runtime is inconsistent, input is disabled
+- `Blocked`: another viewer owns the session
 
-## 状態管理
-- 永続: `var/state.json`（Git無視）、LocalStorage
-  - lastOpenTaskId, filters, readNotifications, focusSession(開始時刻)
-- 揮発: メモリキャッシュ（タスク、スケジュール）
+## Terminal Surface
 
-## 通知仕様
-- 画面内トースト（完了・期限超過・/ohayo更新）。完了は緑、期限超過は琥珀。
-- ブラウザ通知: 初回のみ許諾ダイアログ。拒否された場合はトーストのみ。
-- サウンド: 短い完了音を1回（ミュート設定可能にする）。
+Primary desktop transport:
 
-## レスポンシブ
-- `@media (max-width: 900px)` で縦積みレイアウト。フッターは固定ボトムナビ風。
-- タップターゲットは最小44px角を確保（フィッツの法則）。
+```text
+xterm.js -> Terminal Gateway WebSocket
+```
 
-## エラー/空状態
-- /ohayo未取得: 「/ohayo 未取得・再読込」カードを表示。スケジュールがあれば代替表示。
-- タスク0件: 空カード + リロードボタン。
-- ファイル読込エラー: トースト＋右上警告アイコン（リロード誘導）。
+Fallback transport:
 
-## 非機能要件
-- パフォーマンス: フィルタ/タブ切替はクライアント即時（<0.4s）。初回ロードのみファイルIO。
-- アクセシビリティ: キーボード操作可（タブ切替/検索/通知既読）、主要ボタンに aria-label。
-- ロギング: 開発時のみコンソールログ。商用配布なし。
+```text
+ttyd iframe
+```
 
-## tmux 運用ベースライン（拡張に備えた基本形）
-- 目的: IDEを閉じてもサーバを維持し、ターミナルを独立したセッションとして並行稼働させる。
-- 実装方針:
-  - `ttyd` は1つのポートで起動し、URL引数（`arg`）で接続するtmuxセッションを振り分けるスクリプトを実行する。
-  - 起動スクリプト: `ttyd scripts/login_script.sh`
-  - `scripts/login_script.sh`: 引数を受け取り、`tmux attach -t $1 || tmux new -s $1` を実行する。
+`ttyd` is fallback/debug/mobile compatibility. It is not the primary desktop transport and must not become a separate control plane.
 
-## 実装スコープ外
-- タスクの追加/編集/正本書き込み（Claude Code経由で対応）
-- 外部API・クラウド依存
-- 認証/マルチユーザ対応
+Snapshot display is read-only fallback. Snapshot visibility must never be shown as proof that typing will reach Claude Code or Codex.
 
-## 次ステップ（着手するとき）
-1. Express スケルトン + APIスタブを `server.js` に配置
-2. タスクパーサ（ローカル版）実装
-3. スケジュールパーサ（/ohayo優先）実装
-4. フロントHTML/CSS/JS/HTMX でレイアウトとインタラクション
-5. state.json + LocalStorage 同期実装
-6. 通知・サウンド・レスポンシブ仕上げ
+## Data Flow
+
+UI read flow:
+
+```text
+GET /api/state
+GET /api/sessions/:id/runtime
+GET /api/sessions/:id/terminal/snapshot
+```
+
+Read flows report state only. They must not start or repair runtime processes.
+
+Command flow:
+
+```text
+POST /api/sessions/start
+POST /api/sessions/:id/terminal/ensure
+POST /api/sessions/:id/terminal/recover
+POST /api/sessions/:id/terminal/probe-input
+POST /api/sessions/:id/terminal/takeover
+POST /api/sessions/:id/release-terminal
+POST /api/terminal/reconcile
+GET /api/health/terminal
+```
+
+Command flows are allowed to mutate runtime, but must go through the Session Orchestrator and Process Supervisor.
+
+## State Boundaries
+
+| State | UI treatment |
+| --- | --- |
+| Session desired state | Read from server, display only |
+| Runtime observed state | Read from Runtime Registry projection |
+| Terminal connection state | Local and ephemeral |
+| Viewer ownership | Local viewer id plus server ownership check |
+
+The UI may cache display data for responsiveness, but it must not make cached runtime observations authoritative.
+
+## Input Rules
+
+The UI may enable keyboard input only when the server reports `InteractiveReady`.
+
+Required conditions:
+
+- Terminal Gateway WebSocket is open.
+- Session ownership allows this viewer to type.
+- tmux exists.
+- Claude Code or Codex is present.
+- last input probe passed.
+
+If these conditions are not met, the terminal may remain visible but input must be disabled.
+
+## Error and Degraded States
+
+The UI must avoid hiding intermediate failure behind a normal terminal.
+
+Recommended messages:
+
+- `SnapshotOnly`: "Output is visible. Input is not verified."
+- `Recovering`: "Recovering terminal runtime."
+- `Degraded`: "Terminal runtime is inconsistent."
+- `Blocked`: "This session is active in another viewer."
+
+## Non-Goals
+
+- The UI does not directly manage process trees.
+- The UI does not run recovery heuristics locally.
+- The UI does not use snapshot freshness as input readiness.
+- The UI does not auto-start fallback ttyd on desktop.
+
+## Verification
+
+UI changes touching terminal behavior require a Playwright canary:
+
+1. Open Brainbase.
+2. Select a session.
+3. Focus xterm.
+4. Type a nonce marker.
+5. Verify the marker appears in tmux capture.
+6. Clear the marker.
+
+Passing visual screenshots alone is not sufficient for terminal changes.

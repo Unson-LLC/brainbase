@@ -30,18 +30,30 @@ const CLAUDE_PROMPT_PATTERNS = [
     /^[❯>]\s/,             // ❯ or > followed by space (with content)
 ];
 
+const CODEX_PROMPT_PATTERNS = [
+    /^›\s*$/,               // Codex empty prompt
+    /^›\s/,                 // Codex prompt with draft text
+];
+
 const CLAUDE_SPINNER_PATTERNS = [
     /^[✻✼✽✾⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/,  // Unicode spinners
     /Thinking\.\.\./i,
 ];
 
 const WAITING_PATTERNS = [
-    /\(y\/n\)\s*:?\s*$/i,
-    /\[Y\/n\]\s*$/i,
-    /\[y\/N\]\s*$/i,
-    /\(yes\/no\)\s*:?\s*$/i,
-    /Do you want to\s/i,
-    /Allow\s.*\?\s*$/i,
+    { pattern: /\(y\/n\)\s*:?\s*$/i, reason: 'yes_no_prompt' },
+    { pattern: /\[Y\/n\]\s*$/i, reason: 'yes_no_prompt' },
+    { pattern: /\[y\/N\]\s*$/i, reason: 'yes_no_prompt' },
+    { pattern: /\(yes\/no\)\s*:?\s*$/i, reason: 'yes_no_prompt' },
+    { pattern: /Do you want to\s/i, reason: 'confirmation_prompt' },
+    { pattern: /Would you like to\s+proceed\?/i, reason: 'execution_approval_prompt' },
+    { pattern: /Do you want to make this edit/i, reason: 'edit_approval_prompt' },
+    { pattern: /Allow\s.*\?\s*$/i, reason: 'allow_prompt' },
+    { pattern: /Enter to select/i, reason: 'choice_prompt' },
+    { pattern: /Enter to confirm/i, reason: 'workspace_trust_prompt' },
+    { pattern: /Esc to cancel\s*·\s*Tab to amend/i, reason: 'edit_approval_prompt' },
+    { pattern: /Resume a previous session/i, reason: 'codex_resume_picker' },
+    { pattern: /enter to resume/i, reason: 'codex_resume_picker' },
 ];
 
 const SHELL_PROMPT_PATTERNS = [
@@ -49,9 +61,11 @@ const SHELL_PROMPT_PATTERNS = [
     /^%\s*$/,               // zsh % prompt
     /^\$\s/,                // $ with content
     /^%\s/,                 // % with content
+    /^[\w.-]+@[\w.-]+\s+\S+\s+[%$]\s*$/, // user@host cwd %
 ];
 
-const TAIL_LINES = 5;
+const TAIL_LINES = 12;
+const WAITING_TAIL_LINES = 40;
 
 /**
  * ターミナル出力末尾からCLI状態を検出
@@ -60,52 +74,63 @@ const TAIL_LINES = 5;
  * @returns {string} CliState value
  */
 export function detectCliState(output) {
+    return detectCliStateDetail(output).state;
+}
+
+export function detectCliStateDetail(output) {
     if (!output || typeof output !== 'string') {
-        return CliState.UNKNOWN;
+        return { state: CliState.UNKNOWN, reason: 'empty' };
     }
 
     // ANSIエスケープシーケンスを除去してからパターン検出
     const cleaned = stripAnsi(output);
 
-    // 末尾の空行を除去してから末尾N行を取得
+    // 末尾の空行を除去してから末尾行を取得
     const lines = cleaned.split('\n');
-    const trimmedLines = [];
+    const tailCandidateLines = [];
     let foundContent = false;
-    for (let i = lines.length - 1; i >= 0 && trimmedLines.length < TAIL_LINES; i--) {
+    for (let i = lines.length - 1; i >= 0 && tailCandidateLines.length < WAITING_TAIL_LINES; i--) {
         const line = lines[i];
         if (!foundContent && line.trim() === '') continue;
         foundContent = true;
-        trimmedLines.unshift(line);
+        tailCandidateLines.unshift(line);
     }
 
-    if (trimmedLines.length === 0) {
-        return CliState.UNKNOWN;
+    if (tailCandidateLines.length === 0) {
+        return { state: CliState.UNKNOWN, reason: 'empty_tail' };
     }
 
+    const trimmedLines = tailCandidateLines.slice(-TAIL_LINES);
     const lastLine = trimmedLines[trimmedLines.length - 1];
-    const tailText = trimmedLines.join('\n');
+    const waitingTailText = tailCandidateLines.join('\n');
 
     // Priority 1: Waiting (confirmation prompt) - 最優先
-    if (matchesAny(tailText, WAITING_PATTERNS)) {
-        return CliState.WAITING;
+    const waitingMatch = matchAny(waitingTailText, WAITING_PATTERNS);
+    if (waitingMatch) {
+        return { state: CliState.WAITING, reason: waitingMatch.reason };
     }
 
     // Priority 2: Thinking (spinner/processing)
     if (matchesAny(lastLine, CLAUDE_SPINNER_PATTERNS)) {
-        return CliState.THINKING;
+        return { state: CliState.THINKING, reason: 'spinner' };
     }
 
     // Priority 3: Ready (CLI prompt)
-    if (matchesAny(lastLine, CLAUDE_PROMPT_PATTERNS)) {
-        return CliState.READY;
+    // Claude/Codex draw a status bar below the prompt, so the prompt is often
+    // not the final line captured by tmux. Scan the trimmed tail lines.
+    if (trimmedLines.some(line => matchesAny(line, CLAUDE_PROMPT_PATTERNS))) {
+        return { state: CliState.READY, reason: 'claude_prompt' };
+    }
+    if (trimmedLines.some(line => matchesAny(line, CODEX_PROMPT_PATTERNS))) {
+        return { state: CliState.READY, reason: 'codex_prompt' };
     }
 
     // Priority 4: Idle (shell prompt)
-    if (matchesAny(lastLine, SHELL_PROMPT_PATTERNS)) {
-        return CliState.IDLE;
+    if (trimmedLines.some(line => matchesAny(line, SHELL_PROMPT_PATTERNS))) {
+        return { state: CliState.IDLE, reason: 'shell_prompt' };
     }
 
-    return CliState.UNKNOWN;
+    return { state: CliState.UNKNOWN, reason: 'none' };
 }
 
 /**
@@ -127,13 +152,21 @@ const COLOR_STATE_MAP = {
  * @returns {{ state: string, confidence: number, source: string }}
  */
 export function detectCliStateWithColors(plainText, colorText) {
-    const textState = detectCliState(plainText);
+    const textResult = detectCliStateDetail(plainText);
+    const textState = textResult.state;
+
+    // Confirmation/choice UIs often use the same colors as normal prompt rows.
+    // If the text clearly says it is waiting for a choice, do not let ANSI color
+    // heuristics downgrade it to READY.
+    if (textState === CliState.WAITING) {
+        return { state: CliState.WAITING, confidence: 0.95, source: 'text', reason: textResult.reason };
+    }
 
     if (!colorText || typeof colorText !== 'string') {
         if (textState === CliState.UNKNOWN) {
-            return { state: CliState.UNKNOWN, confidence: 0, source: 'none' };
+            return { state: CliState.UNKNOWN, confidence: 0, source: 'none', reason: textResult.reason };
         }
-        return { state: textState, confidence: 0.5, source: 'text' };
+        return { state: textState, confidence: 0.5, source: 'text', reason: textResult.reason };
     }
 
     // 色情報抽出（末尾数行を重視）
@@ -156,19 +189,23 @@ export function detectCliStateWithColors(plainText, colorText) {
 
     if (!colorState) {
         if (textState === CliState.UNKNOWN) {
-            return { state: CliState.UNKNOWN, confidence: 0, source: 'none' };
+            return { state: CliState.UNKNOWN, confidence: 0, source: 'none', reason: textResult.reason };
         }
-        return { state: textState, confidence: 0.5, source: 'text' };
+        return { state: textState, confidence: 0.5, source: 'text', reason: textResult.reason };
     }
 
     // 色とテキストが一致 → 高confidence
     if (textState !== CliState.UNKNOWN && textState === colorState) {
-        return { state: colorState, confidence: 0.95, source: 'color' };
+        return { state: colorState, confidence: 0.95, source: 'color', reason: textResult.reason };
     }
 
-    return { state: colorState, confidence: 0.7, source: 'color' };
+    return { state: colorState, confidence: 0.7, source: 'color', reason: `ansi_color_${colorState}` };
 }
 
 function matchesAny(text, patterns) {
     return patterns.some(pattern => pattern.test(text));
+}
+
+function matchAny(text, entries) {
+    return entries.find(entry => entry.pattern.test(text)) || null;
 }

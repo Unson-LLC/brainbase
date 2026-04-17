@@ -27,6 +27,11 @@ function buildService() {
         exitCopyMode: vi.fn(async () => {}),
         touchTerminalOwnership: vi.fn(),
         ensureTerminalOwnership: vi.fn(() => ({ allowed: true })),
+        getTerminalAccessState: vi.fn(() => ({ state: 'owner' })),
+        getSession: vi.fn(() => ({
+            runtimeState: 'interactive_ready',
+            observed: { inputProbe: { status: 'passed' } }
+        })),
         isTmuxSessionRunning: vi.fn(async () => true),
         getContent: vi.fn(async () => 'snapshot'),
         getContentWithColors: vi.fn(async () => null),
@@ -131,11 +136,13 @@ describe('TerminalTransportService', () => {
         expect(msg).toHaveProperty('colorText');
     });
 
-    describe('auto-takeover: 既存接続の即切断', () => {
-        it('同一セッションに別viewerIdで接続時_前の接続がblocked送信+closeされる', async () => {
+    describe('explicit takeover: 既存接続の保護', () => {
+        it('同一セッションに別viewerIdで接続時_新しい接続をblocked送信+closeする', async () => {
             const { service, sessionManager } = buildService();
             const terminalAccess = { owner: 'viewer-2' };
-            sessionManager.ensureTerminalOwnership.mockReturnValue({ allowed: true, terminalAccess });
+            sessionManager.ensureTerminalOwnership
+                .mockReturnValueOnce({ allowed: true, terminalAccess: { state: 'owner' } })
+                .mockReturnValueOnce({ allowed: false, terminalAccess });
 
             const ws1 = buildMockWs();
             const ws2 = buildMockWs();
@@ -153,16 +160,16 @@ describe('TerminalTransportService', () => {
                 sessionId: 'session-1', viewerId: 'viewer-2', viewerLabel: 'iPhone'
             });
 
-            // 前の接続がblocked送信+close(4001)されている
-            const blockedCall = ws1.send.mock.calls.find(call => {
+            // 新しい接続がblocked送信+close(4001)される
+            const blockedCall = ws2.send.mock.calls.find(call => {
                 const msg = JSON.parse(call[0]);
                 return msg.type === 'blocked';
             });
             expect(blockedCall).toBeTruthy();
-            expect(ws1.close).toHaveBeenCalledWith(4001, 'ownership_taken_over');
+            expect(ws2.close).toHaveBeenCalledWith(4001, 'session_owned_by_other_viewer');
 
-            // activeConnectionsは新しいviewerに更新されている
-            expect(service.activeConnections.get('session-1').viewerId).toBe('viewer-2');
+            // activeConnectionsは元のviewerのまま
+            expect(service.activeConnections.get('session-1').viewerId).toBe('viewer-1');
         });
 
         it('同一viewerIdで再接続時_既存接続はcloseされない', async () => {

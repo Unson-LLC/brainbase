@@ -25,8 +25,10 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
         workspace: sessionServices?.workspace,
         runtimeQuery: sessionServices?.runtime?.query,
         runtimeLifecycle: sessionServices?.runtime?.lifecycle,
-        runtimeRegistry: sessionServices?.runtime?.registry,
+        runtimeRegistry: sessionServices?.runtime?.observedRegistry || sessionServices?.runtime?.registry,
+        runtimeReconciler: sessionServices?.runtime?.reconciler,
         terminalIo: sessionServices?.terminal?.io,
+        terminalInputProbe: sessionServices?.terminal?.inputProbe,
         snapshot: sessionServices?.terminal?.snapshot,
         worktreeService,
         stateStore,
@@ -42,6 +44,9 @@ export function createSessionRouter(sessionServices, worktreeService, stateStore
     router.post('/:id/clear-done', controller.clearDone);
     router.get('/:id/runtime', controller.getRuntime);
     router.post('/:id/terminal/ensure', controller.ensureTerminalRuntime);
+    router.post('/:id/terminal/takeover', controller.takeoverTerminal);
+    router.post('/:id/terminal/probe-input', controller.probeTerminalInput);
+    router.post('/:id/terminal/recover', controller.recoverTerminal);
     router.post('/:id/release-terminal', controller.releaseTerminal);
     router.get('/:id/terminal/snapshot', controller.getTerminalSnapshot);
     router.get('/:id', controller.get);

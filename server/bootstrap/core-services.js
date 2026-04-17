@@ -8,6 +8,9 @@ import { ConfigParser } from '../../lib/config-parser.js';
 import { InboxParser } from '../../lib/inbox-parser.js';
 import { createSessionServices } from '../services/create-session-services.js';
 import { TerminalTransportService } from '../services/terminal-transport-service.js';
+import { TerminalInputProbeService } from '../services/terminal-input-probe-service.js';
+import { TerminalRuntimeReconciler } from '../services/terminal-runtime-reconciler.js';
+import { TerminalRuntimeRegistry } from '../services/terminal-runtime-registry.js';
 import { SessionActivityWsService } from '../services/session-activity-ws-service.js';
 import { TmuxCaptureCache } from '../services/tmux-capture-cache.js';
 import { TmuxControlRegistry } from '../services/tmux-control-registry.js';
@@ -75,10 +78,39 @@ export function createCoreServices({
     });
     const tmuxCaptureCache = new TmuxCaptureCache({ snapshotService: sessionServices.terminal.snapshot });
     const tmuxControlRegistry = new TmuxControlRegistry();
+    const terminalRuntimeRegistry = new TerminalRuntimeRegistry({
+        filePath: path.join(varDir, 'terminal-runtime-registry.json'),
+        serverGeneration: {
+            id: process.env.BRAINBASE_SERVER_GENERATION || null,
+            pid: process.pid,
+            port,
+            startedAt: new Date().toISOString(),
+            entrypoint: process.env.BRAINBASE_STARTED_BY_START_JS === '1' ? 'start.js' : 'server.js'
+        }
+    });
+    const terminalRuntimeReconciler = new TerminalRuntimeReconciler({
+        stateStore,
+        runtimeQuery: sessionServices.runtime.query,
+        runtimeLifecycle: sessionServices.runtime.lifecycle,
+        ownershipService: sessionServices.ownership,
+        runtimeRegistry: terminalRuntimeRegistry,
+        serverGeneration: process.env.BRAINBASE_SERVER_GENERATION || null
+    });
+    const terminalInputProbeService = new TerminalInputProbeService({
+        ownershipService: sessionServices.ownership,
+        runtimeQuery: sessionServices.runtime.query,
+        terminalIo: sessionServices.terminal.io,
+        snapshotService: sessionServices.terminal.snapshot,
+        runtimeRegistry: terminalRuntimeRegistry,
+        captureCache: tmuxCaptureCache
+    });
+    sessionServices.runtime.observedRegistry = terminalRuntimeRegistry;
+    sessionServices.runtime.reconciler = terminalRuntimeReconciler;
+    sessionServices.terminal.inputProbe = terminalInputProbeService;
     const terminalTransportService = new TerminalTransportService({
         ownershipService: sessionServices.ownership,
         runtimeQuery: sessionServices.runtime.query,
-        runtimeRegistry: sessionServices.runtime.registry,
+        runtimeRegistry: terminalRuntimeRegistry,
         terminalIo: sessionServices.terminal.io,
         snapshotService: sessionServices.terminal.snapshot,
         captureCache: tmuxCaptureCache,
@@ -122,6 +154,9 @@ export function createCoreServices({
         learningHealthService,
         worktreeService,
         sessionServices,
+        terminalRuntimeRegistry,
+        terminalRuntimeReconciler,
+        terminalInputProbeService,
         tmuxCaptureCache,
         tmuxControlRegistry,
         terminalTransportService,

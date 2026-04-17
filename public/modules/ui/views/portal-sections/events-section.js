@@ -15,7 +15,7 @@ const TYPE_LABELS = {
 
 /**
  * @param {Object} events - { items: [], stats: { thisWeek } }
- * @param {Function} escapeHtml
+ * @param {{ escapeHtml: (value: any) => string }} helpers
  * @returns {string} HTML
  */
 export function renderEventsSection(events, { escapeHtml }) {

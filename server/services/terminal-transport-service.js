@@ -10,6 +10,8 @@ const DEFAULT_POLL_INTERVAL_MS = 350;
 const READY_TIMEOUT_MS = 5000;
 const INITIAL_FRAME_FALLBACK_MS = 150;
 const WS_CLOSE_BLOCKED = 4001; // Custom close code: ownership taken over
+const CONTROL_KEYS_WITHOUT_INPUT_PROBE = new Set(['C-c', 'C-d', 'C-l', 'C-u', 'Escape']);
+const INPUT_PROBE_FRESH_MS = 60_000;
 
 function safeJsonParse(raw) {
     try {
@@ -97,15 +99,15 @@ export class TerminalTransportService {
         logger.info(`[TerminalTransport] ownership check: allowed=${ownership.allowed}, session=${sessionId}, wsState=${ws.readyState}`);
         if (!ownership.allowed) {
             ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
-            ws.close();
+            ws.close(WS_CLOSE_BLOCKED, 'session_owned_by_other_viewer');
             return;
         }
 
-        // 同一セッションの既存接続を即切断（auto-takeover）
         const existing = this.activeConnections.get(sessionId);
         if (existing && existing.viewerId !== viewerId && existing.ws.readyState === 1) {
-            existing.ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
-            existing.ws.close(WS_CLOSE_BLOCKED, 'ownership_taken_over');
+            ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
+            ws.close(WS_CLOSE_BLOCKED, 'session_owned_by_other_viewer');
+            return;
         }
 
         if (ws.readyState !== 1) {
@@ -139,7 +141,10 @@ export class TerminalTransportService {
             controlClient: null,
             streamCleanup: null,
             initialFrameDelivered: false,
-            initialSnapshotTimer: null
+            initialSnapshotTimer: null,
+            terminalAccess: ownership.terminalAccess,
+            inputReady: false,
+            runtimeState: 'transport_connected'
         };
 
         this.activeConnections.set(sessionId, { viewerId, ws, connection });
@@ -164,6 +169,12 @@ export class TerminalTransportService {
             if (current && current.ws === ws) {
                 this.activeConnections.delete(sessionId);
             }
+            this.runtimeRegistry?.setGateway?.(sessionId, {
+                connected: false,
+                viewerId,
+                viewerLabel,
+                disconnectedAt: new Date().toISOString()
+            });
         };
 
         ws.on('close', closeConnection);
@@ -204,12 +215,19 @@ export class TerminalTransportService {
     async _sendReady(connection) {
         const { sessionId, viewerId, viewerLabel, ws, cols, rows } = connection;
         this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
+        this.runtimeRegistry?.setGateway?.(sessionId, {
+            connected: true,
+            viewerId,
+            viewerLabel,
+            connectedAt: new Date().toISOString()
+        });
         if (ws.readyState !== 1) return;
         ws.send(JSON.stringify({
             type: 'ready',
             sessionId,
             cols,
-            rows
+            rows,
+            ...this._buildRuntimeStatusPayload(connection)
         }));
 
         // snapshot即送信: セッション切り替え時にxterm.jsの前セッション内容を
@@ -308,6 +326,7 @@ export class TerminalTransportService {
 
         const cliResult = detectCliStateWithColors(snapshot.text, snapshot.colorText);
         connection.lastCliState = cliResult.state;
+        this.runtimeRegistry?.setCliState?.(connection.sessionId, cliResult);
 
         const snapshotMsg = {
             type: 'snapshot',
@@ -318,10 +337,11 @@ export class TerminalTransportService {
         connection.ws.send(JSON.stringify(snapshotMsg));
         connection.ws.send(JSON.stringify({
             type: 'status',
-            mode: 'snapshot',
+            mode: 'live',
             copyMode: snapshot.copyMode,
-            transport: 'snapshot',
-            cliState: cliResult.state
+            transport: 'streaming',
+            cliState: cliResult.state,
+            ...this._buildRuntimeStatusPayload(connection)
         }));
     }
 
@@ -340,7 +360,8 @@ export class TerminalTransportService {
                 type: 'status',
                 mode: 'snapshot',
                 copyMode: connection.lastCopyMode || false,
-                transport: 'snapshot'
+                transport: 'snapshot',
+                ...this._buildRuntimeStatusPayload(connection)
             }));
         }
 
@@ -358,9 +379,10 @@ export class TerminalTransportService {
         if (ws.readyState !== 1) return;
 
         this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
-        const ownership = this.ownershipService.ensureTerminalOwnership(sessionId, viewerId, viewerLabel);
-        if (!ownership.allowed) {
-            ws.send(JSON.stringify({ type: 'blocked', terminalAccess: ownership.terminalAccess }));
+        const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
+        connection.terminalAccess = terminalAccess;
+        if (terminalAccess?.state !== 'owner') {
+            ws.send(JSON.stringify({ type: 'blocked', terminalAccess }));
             ws.close(WS_CLOSE_BLOCKED, 'ownership_taken_over');
             return;
         }
@@ -387,6 +409,7 @@ export class TerminalTransportService {
         // CLI状態検出（色ベース優先、テキストフォールバック）
         const cliResult = detectCliStateWithColors(snapshot.text, snapshot.colorText);
         const cliState = cliResult.state;
+        this.runtimeRegistry?.setCliState?.(sessionId, cliResult);
 
         if (snapshot.copyMode !== connection.lastCopyMode || cliState !== connection.lastCliState) {
             connection.lastCopyMode = snapshot.copyMode;
@@ -396,7 +419,8 @@ export class TerminalTransportService {
                 mode: 'snapshot',
                 copyMode: snapshot.copyMode,
                 transport: 'snapshot',
-                cliState
+                cliState,
+                ...this._buildRuntimeStatusPayload(connection)
             }));
         }
     }
@@ -413,13 +437,28 @@ export class TerminalTransportService {
                         type: 'status',
                         mode: connection.transport === 'streaming' ? 'live' : 'snapshot',
                         copyMode: connection.lastCopyMode || false,
-                        transport: connection.transport
+                        transport: connection.transport,
+                        ...this._buildRuntimeStatusPayload(connection)
                     }));
                 }
                 return;
             }
             case 'input': {
+                const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
+                connection.terminalAccess = terminalAccess;
+                if (terminalAccess?.state !== 'owner') {
+                    ws.send(JSON.stringify({ type: 'blocked', terminalAccess }));
+                    return;
+                }
                 const inputType = message.inputType === 'key' ? 'key' : 'text';
+                if (!this._getInputReady(sessionId) && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(message.value))) {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        code: 'INPUT_NOT_READY',
+                        message: 'Terminal input has not been verified'
+                    }));
+                    return;
+                }
                 await this.terminalIo.sendInput(sessionId, message.value, inputType);
                 this.captureCache.invalidate(sessionId);
                 this.ownershipService.touchTerminalOwnership(sessionId, viewerId, viewerLabel);
@@ -492,6 +531,36 @@ export class TerminalTransportService {
             includeColors: options.includeColors === true,
             includeCopyMode: options.includeCopyMode !== false
         });
+    }
+
+    _getInputReady(sessionId) {
+        const entry = this.runtimeRegistry?.getSession?.(sessionId);
+        return entry?.observed?.inputProbe?.status === 'passed'
+            && this._inputProbeFresh(entry.observed.inputProbe);
+    }
+
+    _buildRuntimeStatusPayload(connection) {
+        const registryEntry = this.runtimeRegistry?.getSession?.(connection.sessionId);
+        const inputProbe = registryEntry?.observed?.inputProbe || null;
+        const inputReady = inputProbe?.status === 'passed' && this._inputProbeFresh(inputProbe);
+        connection.inputReady = inputReady;
+        connection.runtimeState = inputReady
+            ? 'interactive_ready'
+            : (registryEntry?.runtimeState || 'transport_connected');
+        return {
+            runtimeState: connection.runtimeState,
+            inputReady,
+            inputProbe,
+            terminalAccess: connection.terminalAccess || null
+        };
+    }
+
+    _inputProbeFresh(inputProbe) {
+        const stamp = inputProbe?.lastPassedAt || inputProbe?.lastFailedAt;
+        if (!stamp) return true;
+        const time = Date.parse(stamp);
+        if (!Number.isFinite(time)) return true;
+        return Date.now() - time <= INPUT_PROBE_FRESH_MS;
     }
 }
 

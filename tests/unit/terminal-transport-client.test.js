@@ -10,6 +10,7 @@ describe('terminal-transport-client', () => {
 
   beforeEach(() => {
     vi.spyOn(httpClient, 'get').mockResolvedValue({ ok: true, access: { role: 'member' } });
+    vi.spyOn(httpClient, 'post').mockResolvedValue({ inputReady: true });
   });
 
   afterEach(() => {
@@ -58,17 +59,33 @@ describe('terminal-transport-client', () => {
     expect(shouldUseXtermTransport()).toBe(false);
   });
 
-  it('同一sessionかつWebSocket openなら入力可能と判定する', () => {
+  it('同一sessionかつWebSocket openかつowner/inputReadyなら入力可能と判定する', () => {
     const client = new TerminalTransportClient({
       viewerId: 'viewer-test',
       viewerLabel: 'Local / Mac'
     });
     client.sessionId = 'session-1';
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.ws = { readyState: 1 };
 
     expect(client.canSendInput('session-1')).toBe(true);
     expect(client.canSendInput('session-2')).toBe(false);
+  });
+
+  it('inputReadyでない場合はWebSocket openでも入力不可と判定する', () => {
+    const client = new TerminalTransportClient({
+      viewerId: 'viewer-test',
+      viewerLabel: 'Local / Mac'
+    });
+    client.sessionId = 'session-1';
+    client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = false;
+    client.ws = { readyState: 1 };
+
+    expect(client.canSendInput('session-1')).toBe(false);
   });
 
   it('blocked sessionを判定できる', () => {
@@ -99,7 +116,7 @@ describe('terminal-transport-client', () => {
         this.listeners = new Map();
         queueMicrotask(() => {
           this._emit('message', {
-            data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
+            data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32, inputReady: true, terminalAccess: { state: 'owner' } })
           });
           this._emit('message', {
             data: JSON.stringify({ type: 'status', mode: 'live', transport: 'streaming', copyMode: false })
@@ -175,7 +192,7 @@ describe('terminal-transport-client', () => {
 
       emitReady() {
         this._emit('message', {
-          data: JSON.stringify({ type: 'ready', sessionId: 'session-1' })
+          data: JSON.stringify({ type: 'ready', sessionId: 'session-1', inputReady: true, terminalAccess: { state: 'owner' } })
         });
       }
 
@@ -266,6 +283,8 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('a');
@@ -295,6 +314,8 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('a');
@@ -325,6 +346,8 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('hello\n');
@@ -348,6 +371,8 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('ab\x1b[Icd');
@@ -387,6 +412,8 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('\x1b[I');
@@ -406,6 +433,8 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('hello\x1b[Oworld');
@@ -426,6 +455,8 @@ describe('terminal-transport-client', () => {
     const send = vi.fn();
     client.ws = { readyState: 1, send };
     client.status.mode = 'live';
+    client.status.terminalAccess = { state: 'owner' };
+    client.status.inputReady = true;
     client.terminal = { write: vi.fn() };
 
     await client.sendText('\x7f');
@@ -625,7 +656,7 @@ describe('terminal-transport-client', () => {
     await flushMicrotasks();
     const socket = sockets[0];
     socket._emit('message', {
-      data: JSON.stringify({ type: 'ready', sessionId: 'session-2', cols: 98, rows: 32 })
+      data: JSON.stringify({ type: 'ready', sessionId: 'session-2', cols: 98, rows: 32, inputReady: true, terminalAccess: { state: 'owner' } })
     });
     socket._emit('message', {
       data: JSON.stringify({ type: 'snapshot', text: 'session-2 output', capturedAt: new Date().toISOString() })
@@ -815,7 +846,7 @@ describe('terminal-transport-client', () => {
     await flushMicrotasks();
     const firstSocket = sockets[0];
     firstSocket._emit('message', {
-      data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
+      data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32, inputReady: true, terminalAccess: { state: 'owner' } })
     });
     firstSocket._emit('message', {
       data: JSON.stringify({ type: 'status', mode: 'live', transport: 'streaming', copyMode: false })
@@ -827,7 +858,7 @@ describe('terminal-transport-client', () => {
     const secondSocket = sockets[1];
 
     secondSocket._emit('message', {
-      data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32 })
+      data: JSON.stringify({ type: 'ready', sessionId: 'session-1', cols: 98, rows: 32, inputReady: true, terminalAccess: { state: 'owner' } })
     });
     secondSocket._emit('message', {
       data: JSON.stringify({ type: 'status', mode: 'live', transport: 'streaming', copyMode: false })

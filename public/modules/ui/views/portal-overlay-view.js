@@ -26,13 +26,13 @@ export class PortalOverlayView extends BaseView {
 
         // Auto-load project when portal opens with autoProject
         const unsub = eventBus.on(EVENTS.PANEL_TOGGLED, (e) => {
-            const { panel, open, autoProject } = e.detail || {};
+            const { panel, open, autoProject } = /** @type {CustomEvent} */ (e).detail || {};
             if (panel === 'portal-overlay' && open && autoProject) {
                 const current = this.portalService.getCurrentProject();
                 if (autoProject !== current) {
                     this.portalService.loadPortalOverlay(autoProject);
                     // Update selector
-                    const select = document.getElementById('portal-overlay-project-select');
+                    const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('portal-overlay-project-select'));
                     if (select) select.value = autoProject;
                 }
             }
@@ -54,8 +54,9 @@ export class PortalOverlayView extends BaseView {
 
         this._attachHandlers();
 
-        if (typeof window.lucide !== 'undefined') {
-            window.lucide.createIcons({ attrs: { class: 'lucide-icon' } });
+        const lucide = /** @type {any} */ (window).lucide;
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons({ attrs: { class: 'lucide-icon' } });
         }
     }
 
@@ -94,6 +95,7 @@ export class PortalOverlayView extends BaseView {
     }
 
     _renderSections(data) {
+        /** @type {Array<{ id: string, title: string, icon: string, badge?: string, render: () => string }>} */
         const sections = [
             { id: 'frame', title: 'Frame', icon: 'target', render: () => renderFrameSection(data.frame, data.direction, { renderMarkdown: this._renderMarkdown.bind(this), escapeHtml: this._escapeHtml }) },
             { id: 'storyMap', title: 'Story Map', icon: 'git-branch', render: () => renderStoryMapSection(data.storyMap, { escapeHtml: this._escapeHtml }) },
@@ -114,6 +116,9 @@ export class PortalOverlayView extends BaseView {
         return `D:${d} W:${w} S:${s} L:${l}`;
     }
 
+    /**
+     * @param {{ id: string, title: string, icon: string, badge?: string, render: () => string }} section
+     */
     _renderSection({ id, title, icon, badge, render }) {
         const collapsed = this._collapsedSections.has(id);
         const chevron = collapsed ? 'chevron-right' : 'chevron-down';
@@ -135,10 +140,12 @@ export class PortalOverlayView extends BaseView {
 
     _renderMarkdown(content) {
         if (!content) return '';
-        if (typeof window.marked !== 'undefined') {
-            const html = window.marked.parse(content);
-            if (typeof window.DOMPurify !== 'undefined') {
-                return window.DOMPurify.sanitize(html);
+        const marked = /** @type {any} */ (window).marked;
+        const purifier = /** @type {any} */ (window).DOMPurify;
+        if (typeof marked !== 'undefined') {
+            const html = marked.parse(content);
+            if (typeof purifier !== 'undefined') {
+                return purifier.sanitize(html);
             }
             return html;
         }
@@ -154,7 +161,7 @@ export class PortalOverlayView extends BaseView {
 
     _attachHandlers() {
         // Project selector in overlay header
-        const select = document.getElementById('portal-overlay-project-select');
+        const select = /** @type {HTMLSelectElement | null} */ (document.getElementById('portal-overlay-project-select'));
         if (select && this.configProjects.length) {
             // Populate options if empty
             if (select.options.length <= 1) {
@@ -170,7 +177,7 @@ export class PortalOverlayView extends BaseView {
             if (current) select.value = current;
 
             select.onchange = (e) => {
-                const projectCode = e.target.value;
+                const projectCode = /** @type {HTMLSelectElement} */ (e.target).value;
                 if (projectCode) {
                     this.portalService.loadPortalOverlay(projectCode);
                 }

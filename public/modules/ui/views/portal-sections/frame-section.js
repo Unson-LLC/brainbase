@@ -8,8 +8,7 @@
 /**
  * @param {Object} frame - { title, content, available, frames: [] }
  * @param {Object} direction - { title, content, available }
- * @param {Function} renderMarkdown
- * @param {Function} escapeHtml
+ * @param {{ renderMarkdown: (value: any) => string, escapeHtml: (value: any) => string }} helpers
  * @returns {string} HTML
  */
 export function renderFrameSection(frame, direction, { renderMarkdown, escapeHtml }) {

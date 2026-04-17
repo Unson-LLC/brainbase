@@ -207,13 +207,11 @@ export function applyTerminalInputUxMixin(AppClass) {
         const session = (sessions || []).find(item => item.id === sessionId);
         if (!session) return;
 
-        const payload = {
-            ...this._buildTerminalStartPayload(session),
-            forceTakeover: true
-        };
-
         try {
-            const res = await httpClient.post('/api/sessions/start', payload);
+            const takeover = await httpClient.post(`/api/sessions/${encodeURIComponent(sessionId)}/terminal/takeover`, {
+                viewerId: this.viewerId,
+                viewerLabel: this.viewerLabel
+            });
             if (this._shouldUseXtermTransport() && this.terminalTransportClient) {
                 const transportResult = await this._connectXtermTransport(session);
                 if (transportResult.ok) {
@@ -223,10 +221,14 @@ export function applyTerminalInputUxMixin(AppClass) {
                 }
             }
 
+            const res = await httpClient.post('/api/sessions/start', {
+                ...this._buildTerminalStartPayload(session),
+                forceTakeover: true
+            });
             if (res?.proxyPath) {
                 this.reconnectManager?.setCurrentSession(sessionId);
                 if (this.reconnectManager) {
-                    this.reconnectManager.terminalAccess = res.terminalAccess || {
+                    this.reconnectManager.terminalAccess = takeover.terminalAccess || res.terminalAccess || {
                         state: 'owner',
                         ownerViewerLabel: this.viewerLabel,
                         ownerLastSeenAt: new Date().toISOString(),

@@ -46,39 +46,29 @@ export function installRuntimeHandlers(controller) {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        const ownership = controller.ownership.ensureTerminalOwnership(id, viewerId, viewerLabel);
+        const terminalAccess = controller.ownership.getTerminalAccessState(id, viewerId);
         let effectiveSession = session;
         let baseRuntimeStatus = session.runtimeStatus || {};
-
-        if (
-            ownership.allowed
-            && baseRuntimeStatus.needsRestart
-            && !baseRuntimeStatus.ttydRunning
-            && typeof controller.runtimeLifecycle?.ensureTtydForActiveSession === 'function'
-        ) {
-            try {
-                const repair = await controller.runtimeLifecycle.ensureTtydForActiveSession(session);
-                if (repair?.runtimeStatus) {
-                    effectiveSession = controller._getSessionById(id) || session;
-                    baseRuntimeStatus = repair.runtimeStatus;
-                }
-            } catch (error) {
-                logger.error(`[getRuntime] Failed to repair ttyd for ${id}:`, error);
-            }
-        }
-
-        const runtimeStatus = ownership.allowed
-            ? controller._withViewerRuntimeStatus(baseRuntimeStatus, viewerId)
-            : controller._withViewerRuntimeStatus({
-                ...(effectiveSession.runtimeStatus || baseRuntimeStatus || {}),
+        const observedRuntime = controller.runtimeRegistry?.getSession?.(id) || null;
+        const blocked = terminalAccess?.state === 'blocked';
+        const runtimeStatus = controller._withViewerRuntimeStatus({
+            ...(effectiveSession.runtimeStatus || baseRuntimeStatus || {}),
+            ...(observedRuntime?.runtimeState ? { runtimeState: observedRuntime.runtimeState } : {}),
+            ...(observedRuntime?.observed?.inputProbe ? {
+                inputProbe: observedRuntime.observed.inputProbe,
+                inputReady: observedRuntime.observed.inputProbe.status === 'passed'
+            } : {}),
+            ...(blocked ? {
+                inputReady: false,
                 interactiveUrl: null,
                 proxyPath: null
-            }, viewerId);
+            } : {})
+        }, viewerId);
 
         res.json({
             sessionId: id,
             runtimeStatus,
-            terminalAccess: ownership.terminalAccess
+            terminalAccess
         });
     };
 
@@ -164,6 +154,20 @@ export function installRuntimeHandlers(controller) {
         res.json({ success: released, terminalAccess });
     };
 
+    controller.takeoverTerminal = (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.body?.viewerId === 'string' ? req.body.viewerId.trim() : '';
+        const viewerLabel = controller._resolveViewerLabel(req, req.body?.viewerLabel);
+        if (!id) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+        if (!viewerId) {
+            return res.status(400).json({ error: 'viewerId is required' });
+        }
+        const ownership = controller.ownership.forceTerminalOwnership(id, viewerId, viewerLabel);
+        res.json({ success: ownership.allowed, terminalAccess: ownership.terminalAccess });
+    };
+
     controller.getTerminalSnapshot = async (req, res) => {
         const { id } = req.params;
         const viewerId = typeof req.query?.viewerId === 'string' ? req.query.viewerId.trim() : '';
@@ -182,14 +186,7 @@ export function installRuntimeHandlers(controller) {
             return res.status(404).json({ error: 'Session not found' });
         }
 
-        const ownership = controller.ownership.ensureTerminalOwnership(id, viewerId, viewerLabel);
-        if (!ownership.allowed) {
-            return res.status(409).json({
-                error: 'Session is already open in another viewer',
-                code: 'SESSION_OWNED_BY_OTHER_VIEWER',
-                terminalAccess: ownership.terminalAccess
-            });
-        }
+        const terminalAccess = controller.ownership.getTerminalAccessState(id, viewerId);
 
         try {
             const payload = controller.captureCache
@@ -216,12 +213,45 @@ export function installRuntimeHandlers(controller) {
                 text: payload.text,
                 copyMode: payload.copyMode,
                 capturedAt: payload.capturedAt,
-                terminalAccess: ownership.terminalAccess
+                terminalAccess
             };
             if (payload.colorText) response.colorText = payload.colorText;
             res.json(response);
         } catch (error) {
             controller._respondError(res, `Failed to get terminal snapshot for ${id}:`, error);
+        }
+    };
+
+    controller.probeTerminalInput = async (req, res) => {
+        const { id } = req.params;
+        const viewerId = typeof req.body?.viewerId === 'string' ? req.body.viewerId.trim() : '';
+        const viewerLabel = controller._resolveViewerLabel(req, req.body?.viewerLabel);
+        if (!id) return res.status(400).json({ error: 'Session ID is required' });
+        if (!viewerId) return res.status(400).json({ error: 'viewerId is required' });
+        if (!controller.terminalInputProbe?.probe) {
+            return res.status(503).json({ error: 'Terminal input probe is not available' });
+        }
+
+        const result = await controller.terminalInputProbe.probe({ sessionId: id, viewerId, viewerLabel });
+        if (!result.success) {
+            const status = result.code === 'SESSION_OWNED_BY_OTHER_VIEWER' ? 409 : 409;
+            return res.status(status).json(result);
+        }
+        res.json(result);
+    };
+
+    controller.recoverTerminal = async (req, res) => {
+        const { id } = req.params;
+        const dryRun = req.body?.dryRun === true;
+        if (!id) return res.status(400).json({ error: 'Session ID is required' });
+        if (!controller.runtimeReconciler?.reconcile) {
+            return res.status(503).json({ error: 'Terminal runtime reconciler is not available' });
+        }
+        try {
+            const result = await controller.runtimeReconciler.reconcile({ sessionId: id, dryRun, recover: true });
+            res.json(result);
+        } catch (error) {
+            controller._respondError(res, `Failed to recover terminal runtime for ${id}:`, error);
         }
     };
 

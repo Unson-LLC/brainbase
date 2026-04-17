@@ -134,6 +134,7 @@ export function createSessionServices({ serverDir, execPromise, stateStore, work
         ownership: {
             terminalOwners: shared.terminalOwners,
             getTerminalAccessState: shared.getTerminalAccessState,
+            getTerminalOwnerSnapshot: shared.getTerminalOwnerSnapshot,
             claimTerminalOwnership: shared.claimTerminalOwnership,
             touchTerminalOwnership: shared.touchTerminalOwnership,
             ensureTerminalOwnership: shared.ensureTerminalOwnership,

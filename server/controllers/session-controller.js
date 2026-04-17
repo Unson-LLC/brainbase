@@ -17,7 +17,9 @@ export class SessionController {
      *   runtimeQuery?: any,
      *   runtimeLifecycle?: any,
      *   runtimeRegistry?: any,
+     *   runtimeReconciler?: any,
      *   terminalIo?: any,
+     *   terminalInputProbe?: any,
      *   snapshot?: any,
      *   worktreeService?: any,
      *   stateStore?: any,
@@ -33,7 +35,9 @@ export class SessionController {
         this.runtimeQuery = deps.runtimeQuery || null;
         this.runtimeLifecycle = deps.runtimeLifecycle || null;
         this.runtimeRegistry = deps.runtimeRegistry || null;
+        this.runtimeReconciler = deps.runtimeReconciler || null;
         this.terminalIo = deps.terminalIo || null;
+        this.terminalInputProbe = deps.terminalInputProbe || null;
         this.snapshot = deps.snapshot || null;
         this.worktreeService = deps.worktreeService;
         this.stateStore = deps.stateStore;
