@@ -32,6 +32,13 @@ if [ -t 0 ]; then
   read -t 0.2 -n 10000 _DRAIN 2>/dev/null || true
 fi
 
+# Ensure crossterm (Rust terminal library used by codex) can read keyboard input.
+# Without TERM, crossterm fails to query terminal capabilities and hangs on Enter.
+# Without LANG/LC_ALL, UTF-8 input handling breaks in detached tmux sessions.
+export TERM="${TERM:-xterm-256color}"
+export LANG="${LANG:-en_US.UTF-8}"
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+
 # Prefer /usr/local/bin/codex (native aarch64 binary on Apple Silicon) over
 # nvm-installed codex which may only have the x86_64 binary (causing TUI hang
 # in detached tmux sessions due to Rosetta 2 + terminal capability mismatch).
