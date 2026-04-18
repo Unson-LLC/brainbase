@@ -153,9 +153,13 @@ export class HttpClient {
 
         // CSRFトークンを付与（POST/PUT/PATCH/DELETEリクエスト）
         if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
-            const csrfToken = await this._getCsrfToken();
-            if (csrfToken) {
-                headers['X-CSRF-Token'] = csrfToken;
+            try {
+                const csrfToken = await this._getCsrfToken();
+                if (csrfToken) {
+                    headers['X-CSRF-Token'] = csrfToken;
+                }
+            } catch {
+                // トークン取得失敗時はヘッダなしで続行（dev: warn、prod: 403）
             }
         }
 
