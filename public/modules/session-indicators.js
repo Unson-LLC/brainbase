@@ -28,6 +28,7 @@ const SUPPRESS_DURATION = 5000; // 5秒間サーバーポーリングの上書�
 
 function didHookStatusChange(prev, next) {
     if (!prev) return true;
+    if (!next) return true;
     const prevLiveActivity = prev.liveActivity || null;
     const nextLiveActivity = next.liveActivity || null;
     return prev.isWorking !== next.isWorking
@@ -41,6 +42,82 @@ function didHookStatusChange(prev, next) {
         || prevLiveActivity?.statusTone !== nextLiveActivity?.statusTone
         || prevLiveActivity?.updatedAt !== nextLiveActivity?.updatedAt
         || prev.timestamp !== next.timestamp;
+}
+
+function normalizeHookStatusForClient(hookStatus) {
+    if (!hookStatus || typeof hookStatus !== 'object') return null;
+    const isWorking = hookStatus.isWorking ?? hookStatus.status === 'working';
+    const isDone = hookStatus.isDone ?? hookStatus.status === 'done';
+    return {
+        ...hookStatus,
+        isWorking: Boolean(isWorking),
+        isDone: Boolean(isDone)
+    };
+}
+
+function isRenderableHookStatus(hookStatus) {
+    if (!hookStatus) return false;
+    return Boolean(
+        hookStatus.isWorking
+        || hookStatus.isDone
+        || hookStatus.liveActivity
+        || hookStatus.lastWorkingAt
+        || hookStatus.lastDoneAt
+        || hookStatus.lastActivityAt
+        || hookStatus.activeTurnCount
+        || hookStatus.timestamp
+    );
+}
+
+function normalizeStatusMap(statusMap = {}) {
+    const normalized = {};
+    for (const [sessionId, hookStatus] of Object.entries(statusMap || {})) {
+        const nextStatus = normalizeHookStatusForClient(hookStatus);
+        if (isRenderableHookStatus(nextStatus)) {
+            normalized[sessionId] = nextStatus;
+        }
+    }
+    return normalized;
+}
+
+function pruneSuppressedUpdates(now = Date.now()) {
+    for (const [id, ts] of _suppressUpdates) {
+        if (now - ts > SUPPRESS_DURATION) _suppressUpdates.delete(id);
+    }
+}
+
+function filterSuppressedStatusMap(statusMap = {}) {
+    pruneSuppressedUpdates();
+    const filteredStatus = normalizeStatusMap(statusMap);
+    for (const id of _suppressUpdates.keys()) {
+        delete filteredStatus[id];
+    }
+    return filteredStatus;
+}
+
+function isUpdateSuppressed(sessionId) {
+    pruneSuppressedUpdates();
+    return _suppressUpdates.has(sessionId);
+}
+
+function getChangedSessionIds(previousStatuses, nextStatusMap = {}) {
+    const changedSessionIds = new Set();
+    const incomingSessionIds = new Set(Object.keys(nextStatusMap));
+
+    for (const [sessionId, newStatus] of Object.entries(nextStatusMap)) {
+        const prev = previousStatuses.get(sessionId);
+        if (didHookStatusChange(prev, newStatus)) {
+            changedSessionIds.add(sessionId);
+        }
+    }
+
+    for (const sessionId of previousStatuses.keys()) {
+        if (!incomingSessionIds.has(sessionId)) {
+            changedSessionIds.add(sessionId);
+        }
+    }
+
+    return changedSessionIds;
 }
 
 // Clear done status when session is opened
@@ -146,9 +223,9 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
 
         const status = await res.json();
         const previousStatuses = new Map(Object.entries(getSessionHookStatusMap()));
-        let hasStatusChange = false;
-        const incomingSessionIds = new Set(Object.keys(status));
-        const changedSessionIds = new Set();
+        const filteredStatus = filterSuppressedStatusMap(status);
+        const changedSessionIds = getChangedSessionIds(previousStatuses, filteredStatus);
+        const hasStatusChange = changedSessionIds.size > 0;
 
         // Debug log: 取得した状態を可視化
         const workingSessions = Object.entries(status).filter(([, s]) => s.isWorking);
@@ -160,32 +237,7 @@ export async function pollSessionStatus(currentSessionId, onStatusChange) {
             });
         }
 
-        // Update map
-        for (const [sessionId, newStatus] of Object.entries(status)) {
-            const prev = previousStatuses.get(sessionId);
-            if (didHookStatusChange(prev, newStatus)) {
-                hasStatusChange = true;
-                changedSessionIds.add(sessionId);
-            }
-        }
-
-        for (const sessionId of previousStatuses.keys()) {
-            if (!incomingSessionIds.has(sessionId)) {
-                hasStatusChange = true;
-                changedSessionIds.add(sessionId);
-            }
-        }
-
         if (hasStatusChange) {
-            // Suppress sessions recently marked as done to prevent race condition
-            const now = Date.now();
-            for (const [id, ts] of _suppressUpdates) {
-                if (now - ts > SUPPRESS_DURATION) _suppressUpdates.delete(id);
-            }
-            const filteredStatus = { ...status };
-            for (const id of _suppressUpdates.keys()) {
-                delete filteredStatus[id];
-            }
             replaceSessionHookStatuses(filteredStatus);
             if (typeof onStatusChange === 'function') {
                 await onStatusChange(status);
@@ -272,29 +324,27 @@ export function startActivityWs(getCurrentSessionId, pollingIntervalMs = 3000, o
     let pollingCleanup = null;
 
     function applyFullStatus(statusMap) {
-        const now = Date.now();
-        for (const [id, ts] of _suppressUpdates) {
-            if (now - ts > SUPPRESS_DURATION) _suppressUpdates.delete(id);
-        }
-        const filtered = { ...statusMap };
-        for (const id of _suppressUpdates.keys()) {
-            delete filtered[id];
-        }
+        const previousStatuses = new Map(Object.entries(getSessionHookStatusMap()));
+        const filtered = filterSuppressedStatusMap(statusMap);
+        const changedSessionIds = Array.from(getChangedSessionIds(previousStatuses, filtered));
         replaceSessionHookStatuses(filtered);
-        eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
-            sessionIds: Object.keys(statusMap)
-        });
+        if (changedSessionIds.length > 0) {
+            eventBus.emit(EVENTS.SESSION_UI_STATE_CHANGED, {
+                sessionIds: changedSessionIds
+            });
+        }
         if (typeof onStatusChange === 'function') {
-            onStatusChange(statusMap);
+            onStatusChange(filtered);
         }
     }
 
     function applyUpdate(sessionId, hookStatus) {
-        if (_suppressUpdates.has(sessionId)) return;
+        if (isUpdateSuppressed(sessionId)) return;
         const current = getSessionHookStatusMap();
         const updated = { ...current };
-        if (hookStatus && (hookStatus.isWorking || hookStatus.isDone)) {
-            updated[sessionId] = hookStatus;
+        const nextStatus = normalizeHookStatusForClient(hookStatus);
+        if (isRenderableHookStatus(nextStatus)) {
+            updated[sessionId] = nextStatus;
         } else {
             delete updated[sessionId];
         }
