@@ -275,11 +275,11 @@ export const activityServiceMethods = {
                 activeTurnIds.add(turnId);
             }
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
-            lastDoneAt = 0;
         } else if (lifecycle === 'turn_completed') {
             if (turnId) {
                 activeTurnIds.delete(turnId);
-                // 完了turnより古い残留turnもクリア（turn_completedが来なかったケース）
+                // 残留turnのクリア: Claudeフォーマット(claude-{ts}-{random})はタイムスタンプ比較、
+                // それ以外(Codex等)は全クリア（フォーマットが混在する場合にstale turnが残るのを防ぐ）
                 const completedTs = this._extractTurnTimestamp(turnId);
                 if (completedTs > 0) {
                     for (const tid of [...activeTurnIds]) {
@@ -289,6 +289,10 @@ export const activityServiceMethods = {
                             activeTurnIds.delete(tid);
                         }
                     }
+                } else if (activeTurnIds.size > 0) {
+                    // 非Claudeフォーマット(Codex等): 残留turnを全クリア
+                    logger.info(`[Hook] turn_completed (non-claude turnId) for ${sessionId}; clearing ${activeTurnIds.size} stale turn(s)`);
+                    activeTurnIds.clear();
                 }
             } else if (activeTurnIds.size > 0) {
                 // turnIdなしのturn_completed: 残留turnを全クリアして確実にdoneへ遷移
@@ -312,7 +316,6 @@ export const activityServiceMethods = {
             }
         } else if (status === 'working') {
             lastWorkingAt = Math.max(lastWorkingAt, timestamp);
-            lastDoneAt = 0;
         } else {
             lastDoneAt = Math.max(lastDoneAt, timestamp);
         }

@@ -21,7 +21,7 @@ module.exports = {
   apps: [
     {
       name: 'brainbase',
-      script: './server.js',
+      script: './start.js',
       env: {
         NODE_ENV: 'development',
         PORT: 31013,
