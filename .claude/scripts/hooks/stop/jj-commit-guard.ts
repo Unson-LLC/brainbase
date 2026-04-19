@@ -77,19 +77,25 @@ async function main() {
       return;
     }
 
+    // ブロックせず自動チェックポイントを作成して続行を許可する
+    try {
+      runJj(["describe", "-m", "checkpoint: auto-saved by stop hook"]);
+      logHookExecution("Stop", "jj-commit-guard", "auto-checkpoint created");
+    } catch (describeError) {
+      logHookExecution(
+        "Stop",
+        "jj-commit-guard",
+        `auto-checkpoint failed: ${describeError instanceof Error ? describeError.message : String(describeError)}`,
+      );
+    }
+
     console.log(JSON.stringify({
-      continue: false,
+      continue: true,
       suppressOutput: false,
       systemMessage: [
-        "🛑 この変更はまだ確定されていません。",
-        "",
-        "現在の working copy は dirty ですが、jj の説明が `(no description set)` / `wip` のままです。",
-        "この状態で終了すると、次の作業で上書き・消失しやすくなります。",
-        "",
-        "先に実行してください:",
-        "- `/commit`",
-        "- または `jj describe -m \"<type>: <summary>\"`",
-        "- その後 `jj new`",
+        "📌 working copy を自動チェックポイントしました。",
+        "  jj describe -m \"checkpoint: auto-saved by stop hook\"",
+        "次回作業時に jj describe で意味のある説明に書き換えてください。",
       ].join("\n"),
     }));
   } catch (error) {

@@ -234,7 +234,7 @@ export function applySessionManagementMixin(AppClass) {
                     return { ok: true, mode: 'snapshot' };
                 }
 
-                if (!options.forceTtyd && !options.proxyPath && session.engine !== 'codex' && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
+                if (!options.forceTtyd && !options.proxyPath && this._shouldUseXtermTransport() && this.terminalTransportClient && this.terminalXtermHost) {
                     // ── Step 1: スナップショット即表示（overlay不要）──
                     // xterm hostは隠さない（display:noneにするとfitAddonがサイズ取得できない）
                     // snapshot panelはposition:absolute+z-indexでxterm hostの上に重なる
