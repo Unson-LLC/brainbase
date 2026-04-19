@@ -230,6 +230,16 @@ export class TerminalTransportService {
             logger.warn(`[TerminalTransport] FFFD detected in snapshot for ${sessionId}: len=${snapshotCheckText.length}, fffd_count=${(snapshotCheckText.match(/\uFFFD/g) || []).length}`);
         }
         ws.send(JSON.stringify(snapshotMsg));
+        // Send initial copyMode status so client doesn't carry over stale value from previous session
+        connection.lastCopyMode = snapshot.copyMode;
+        if (ws.readyState === 1 && !connection.closed) {
+            ws.send(JSON.stringify({
+                type: 'status',
+                mode: 'snapshot',
+                copyMode: snapshot.copyMode,
+                transport: connection.transport
+            }));
+        }
     }
 
     async _startStreaming(connection) {
@@ -455,6 +465,17 @@ export class TerminalTransportService {
             case 'exit_copy_mode': {
                 await this.terminalIo.exitCopyMode(sessionId);
                 this.captureCache.invalidate(sessionId);
+                // Push fresh copyMode to client immediately (streaming mode doesn't poll)
+                const freshSnapshot = await this._getSnapshotPayload(sessionId, { includeCopyMode: true });
+                connection.lastCopyMode = freshSnapshot.copyMode;
+                if (ws.readyState === 1) {
+                    ws.send(JSON.stringify({
+                        type: 'status',
+                        mode: connection.transport === 'streaming' ? 'live' : 'snapshot',
+                        copyMode: freshSnapshot.copyMode,
+                        transport: connection.transport
+                    }));
+                }
                 return;
             }
             default:
