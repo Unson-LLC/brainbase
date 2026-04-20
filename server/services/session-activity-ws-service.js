@@ -38,6 +38,8 @@ export class SessionActivityWsService {
     }
 
     broadcast(sessionId, hookStatus) {
+        const state = hookStatus?.isWorking ? 'working' : hookStatus?.isDone ? 'done' : 'idle';
+        logger.info(`[ActivityWs] broadcast ${sessionId}: ${state} (clients=${this.clients.size})`);
         if (this.clients.size === 0) return;
         const msg = JSON.stringify({
             type: 'status-update',

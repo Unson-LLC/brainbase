@@ -389,6 +389,14 @@ export class SessionView {
             if (doneUnreadTimestamp > 0) return doneUnreadTimestamp;
         }
 
+        const liveOutputTimestamp = Math.max(
+            liveStatus?.liveActivity?.assistantSnippetUpdatedAt || 0,
+            pickTimestamp(session.lastAssistantSnippetAt) || 0
+        );
+        if (liveOutputTimestamp > 0) {
+            return liveOutputTimestamp;
+        }
+
         // Primary: user's last interaction time
         const accessed = pickTimestamp(session.lastAccessedAt);
         if (accessed) return accessed;
