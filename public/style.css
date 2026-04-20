@@ -6678,8 +6678,13 @@ body.resizing iframe {
     bottom: 0;
     left: 0;
     right: 0;
-    /* BUG-002: Safe Area Inset対応 - home indicator領域まで背景を拡張 */
-    min-height: 56px;
+    /* dock-gap fix: 実高さを dock の bottom 計算 (56 + safe-area) と
+       一致させる。以前は min-height:56 + padding-bottom:safe-area だったが、
+       box-sizing:border-box 下では min-height が padding を包含するため
+       実高さが (content + padding) に縮まり、dock との間に 10-12px の
+       隙間が生じていた。height を明示して固定する。 */
+    height: calc(56px + env(safe-area-inset-bottom, 0));
+    min-height: calc(56px + env(safe-area-inset-bottom, 0));
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
     z-index: 1001;
@@ -7152,12 +7157,13 @@ body.resizing iframe {
         position: fixed;
         left: 0;
         right: 0;
-        /* -1px overlap: dock の下端を bottom-nav の上端に 1px 被せて、
-           body の黒背景が隙間から見えるのを防ぐ（iOS PWA 対策） */
-        bottom: calc(56px + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px) - 1px);
+        /* dock の bottom を nav の明示 height (56 + safe-area) と一致させる。
+           以前は -1px overlap で gap を隠そうとしていたが、根本原因は
+           nav 側の実高さ不一致だったので、そちらを修正して overlap は不要に */
+        bottom: calc(56px + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
         background: var(--bg-secondary);
         border-top: 1px solid var(--border-color);
-        padding: 8px 12px 13px;
+        padding: 8px 12px 12px;
         z-index: 1002;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
         transition: padding 0.2s ease;
