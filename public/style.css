@@ -7150,10 +7150,12 @@ body.resizing iframe {
         position: fixed;
         left: 0;
         right: 0;
-        bottom: calc(56px + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px));
+        /* -1px overlap: dock の下端を bottom-nav の上端に 1px 被せて、
+           body の黒背景が隙間から見えるのを防ぐ（iOS PWA 対策） */
+        bottom: calc(56px + env(safe-area-inset-bottom, 0) + var(--keyboard-offset, 0px) - 1px);
         background: var(--bg-secondary);
         border-top: 1px solid var(--border-color);
-        padding: 8px 12px 12px;
+        padding: 8px 12px 13px;
         z-index: 1002;
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
         transition: padding 0.2s ease;
