@@ -523,16 +523,25 @@ export function applyTerminalInputUxMixin(AppClass) {
         if (this.terminalSnapshotTitleEl) {
             this.terminalSnapshotTitleEl.textContent = title;
         }
+        // Sticky bottom: ユーザーが既に最下部にいたときだけ auto-scroll する。
+        // 上にスクロールして過去ログを読んでいる最中に polling (1-3s) で
+        // 強制的に底に戻されるのを防ぐ。
+        const el = this.terminalSnapshotContentEl;
+        const STICKY_THRESHOLD_PX = 48;
+        const wasAtBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < STICKY_THRESHOLD_PX;
+
         const snapshotText = this._normalizeTerminalSnapshotText(snapshot?.text);
         if (snapshot?.colorText) {
-            this.terminalSnapshotContentEl.innerHTML = ansiToHtml(snapshot.colorText);
+            el.innerHTML = ansiToHtml(snapshot.colorText);
         } else {
-            this.terminalSnapshotContentEl.textContent = snapshotText || 'Snapshotを読み込み中...';
+            el.textContent = snapshotText || 'Snapshotを読み込み中...';
         }
         if (this.terminalSnapshotTimestampEl) {
             this.terminalSnapshotTimestampEl.textContent = formatTerminalTimestamp(snapshot?.capturedAt);
         }
-        this.terminalSnapshotContentEl.scrollTop = this.terminalSnapshotContentEl.scrollHeight;
+        if (wasAtBottom) {
+            el.scrollTop = el.scrollHeight;
+        }
         this._bindSnapshotLinks();
     };
 
