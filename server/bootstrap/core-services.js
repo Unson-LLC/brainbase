@@ -3,7 +3,7 @@ import multer from 'multer';
 
 import { TaskParser } from '../../lib/task-parser.js';
 import { ScheduleParser } from '../../lib/schedule-parser.js';
-import { StateStore } from '../../lib/state-store.js';
+import { SqliteStore as StateStore } from '../../lib/sqlite-store.js';
 import { ConfigParser } from '../../lib/config-parser.js';
 import { InboxParser } from '../../lib/inbox-parser.js';
 import { createSessionServices } from '../services/create-session-services.js';
