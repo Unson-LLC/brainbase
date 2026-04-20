@@ -1074,6 +1074,16 @@ export function applyTerminalInputUxMixin(AppClass) {
                 return;
             }
 
+            // copy-mode中なら解除（リフレッシュ後など_terminalCopyModeSessionsが空でも確実に解除できるよう常に試みる）
+            const sessionId = appStore.getState().currentSessionId;
+            if (sessionId) {
+                fetch(`/api/sessions/${sessionId}/exit_copy_mode`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                }).catch(() => {});
+                this._terminalCopyModeSessions.delete(sessionId);
+            }
+
             this.focusTerminal('console-click');
         };
         consoleArea?.addEventListener('click', onConsoleClick, true);
