@@ -77,6 +77,10 @@ export const terminalIoMethods = {
             throw new Error('Input required');
         }
 
+        // copy-mode中はまず解除してからinputを送る（scrollSession後に入力できなくなる問題を防止）
+        const target = sessionId.replace(/"/g, '\\"');
+        await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
+
         await this._capturePromptInput(sessionId, input, type);
 
         if (type !== 'key' && type !== 'text') {
