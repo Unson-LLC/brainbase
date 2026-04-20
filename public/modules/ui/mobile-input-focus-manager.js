@@ -213,8 +213,8 @@ export class MobileInputFocusManager {
 
         this.viewportHandler = update;
         update();
-        this.viewport.addEventListener('resize', update);
-        this.viewport.addEventListener('scroll', update);
+        this.viewport.addEventListener('resize', update, { passive: true });
+        this.viewport.addEventListener('scroll', update, { passive: true });
     }
 
     bindKeyboardDebug() {
