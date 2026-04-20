@@ -444,6 +444,11 @@ function setupImageFilePicker() {
         console.warn('[file-upload] #image-file-input not found — skipping picker setup');
         return;
     }
+    if (imageFileInput.dataset.bbPickerBound === '1') {
+        console.log('[file-upload] setupImageFilePicker: already bound, skip');
+        return;
+    }
+    imageFileInput.dataset.bbPickerBound = '1';
     console.log('[file-upload] setupImageFilePicker: wiring change handler');
 
     imageFileInput.addEventListener('change', async (e) => {
@@ -458,7 +463,10 @@ function setupImageFilePicker() {
     });
 
     const uploadImageBtn = document.getElementById('upload-image-btn');
-    uploadImageBtn?.addEventListener('click', () => imageFileInput.click());
+    if (uploadImageBtn && uploadImageBtn.dataset.bbBtnBound !== '1') {
+        uploadImageBtn.dataset.bbBtnBound = '1';
+        uploadImageBtn.addEventListener('click', () => imageFileInput.click());
+    }
 }
 
 /**
