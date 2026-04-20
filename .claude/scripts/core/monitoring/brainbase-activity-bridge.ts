@@ -52,6 +52,31 @@ const STATE_FILE = path.join(
   "session-state.json",
 );
 
+// CSRF token cache: port -> { token, fetchedAt }
+const csrfCache = new Map<string, { token: string; fetchedAt: number }>();
+const CSRF_TTL = 50 * 60 * 1000; // 50分（サーバー側1時間TTLより短め）
+
+async function getCsrfToken(port: string, sessionId: string): Promise<string | null> {
+  const cached = csrfCache.get(port);
+  if (cached && Date.now() - cached.fetchedAt < CSRF_TTL) {
+    return cached.token;
+  }
+  try {
+    const response = await fetch(`http://localhost:${port}/api/csrf-token`, {
+      method: "GET",
+      headers: { "X-Session-Id": sessionId },
+      signal: AbortSignal.timeout(1000),
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { token?: string };
+    if (typeof data?.token !== "string") return null;
+    csrfCache.set(port, { token: data.token, fetchedAt: Date.now() });
+    return data.token;
+  } catch {
+    return null;
+  }
+}
+
 function ensureDataDir() {
   fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
 }
@@ -145,9 +170,17 @@ async function resolvePort(): Promise<string | null> {
 }
 
 async function postActivity(port: string, payload: ReportPayload): Promise<void> {
+  const csrfToken = await getCsrfToken(port, payload.sessionId);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Session-Id": payload.sessionId,
+  };
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
   await fetch(`http://localhost:${port}/api/sessions/report_activity`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(1000),
   });

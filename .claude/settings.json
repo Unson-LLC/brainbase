@@ -1,4 +1,9 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "python3 /Users/ksato/.claude/statusline.py",
+    "refreshInterval": 30
+  },
   "hooks": {
     "PreToolUse": [
       {
