@@ -140,7 +140,8 @@ body::after {
     display: flex;
     height: calc(var(--vvh, 100dvh) - var(--app-top-offset, 0px));
     margin-top: var(--app-top-offset, 0px);
-    width: 100vw;
+    width: 100%;
+    max-width: 100vw;
     overflow: hidden;
 }
 
@@ -2455,8 +2456,8 @@ body::after {
 
 .learning-candidate-modal-dialog {
     position: relative;
-    width: min(860px, calc(100vw - 32px));
-    max-height: calc(100vh - 32px);
+    width: min(860px, calc(100% - 32px));
+    max-height: calc(100dvh - 32px);
     margin: 16px auto;
     background: #0f1726;
     border: 1px solid rgba(148, 163, 184, 0.24);
@@ -4895,12 +4896,19 @@ body.resizing iframe {
 /* Toast Notifications */
 #toast-container {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    right: calc(20px + env(safe-area-inset-right, 0px));
+    left: env(safe-area-inset-left, 0px);
+    pointer-events: none;
     z-index: 10000;
     display: flex;
     flex-direction: column;
+    align-items: flex-end;
     gap: 8px;
+}
+
+#toast-container > * {
+    pointer-events: auto;
 }
 
 .toast {
@@ -7487,7 +7495,7 @@ body.resizing iframe {
         bottom: 0;
         background: var(--bg-secondary);
         border-radius: 16px 16px 0 0;
-        max-height: 60vh;
+        max-height: min(60vh, calc(var(--vvh, 100dvh) - 160px));
         transform: translateY(100%);
         transition: transform 0.2s ease;
         z-index: 1006;
@@ -7732,10 +7740,26 @@ body.resizing iframe {
         width: var(--vvw, 100vw);
     }
 
+    .modal-fullscreen > .modal-header,
     .mobile-live-terminal-view .modal-header {
         padding-top: calc(1rem + env(safe-area-inset-top, 0px));
         padding-right: calc(1rem + env(safe-area-inset-right, 0px));
         padding-left: calc(1rem + env(safe-area-inset-left, 0px));
+    }
+
+    /* iOS momentum scroll for common scrollable containers on mobile */
+    .modal-body,
+    .modal-fullscreen .modal-body,
+    .console-area,
+    .mobile-tab-content,
+    .bottom-sheet-body {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Prevent accidental horizontal page scroll from wide children on mobile */
+    html, body {
+        overflow-x: hidden;
+        max-width: 100%;
     }
 
     .mobile-live-terminal-body {

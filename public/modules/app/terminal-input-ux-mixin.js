@@ -680,7 +680,7 @@ export function applyTerminalInputUxMixin(AppClass) {
         const recentlyNavigated = this._terminalLastNavigateAt && Date.now() - this._terminalLastNavigateAt < 2500;
 
         // モバイルではMobile Input Dockから入力するため、iframeフォーカスは不要
-        const isMobile = window.innerWidth <= 768;
+        const isMobile = typeof this.isMobile === 'function' ? this.isMobile() : window.innerWidth <= 768;
 
         let stateClass = 'blocked';
         let text = '入力: 不明';
