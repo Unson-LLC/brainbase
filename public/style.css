@@ -7732,6 +7732,12 @@ body.resizing iframe {
         width: var(--vvw, 100vw);
     }
 
+    .mobile-live-terminal-view .modal-header {
+        padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+        padding-right: calc(1rem + env(safe-area-inset-right, 0px));
+        padding-left: calc(1rem + env(safe-area-inset-left, 0px));
+    }
+
     .mobile-live-terminal-body {
         padding: 0;
         min-height: 0;
