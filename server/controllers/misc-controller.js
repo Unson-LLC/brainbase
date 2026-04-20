@@ -61,11 +61,14 @@ export class MiscController {
      */
     /** @param {Request & { file?: { filename?: string } }} req @param {Response} res */
     upload = async (req, res) => {
+        logger.info(`[upload] POST /api/upload received filename=${req.file?.filename || 'MISSING'} size=${req.file?.size || 0} ua="${req.headers['user-agent']?.slice(0, 80) || ''}"`);
         if (!req.file?.filename) {
+            logger.warn('[upload] 400: No file in request');
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
         const absolutePath = path.resolve(this.uploadsDir, req.file.filename);
+        logger.info(`[upload] 200: saved ${absolutePath}`);
         res.json({ path: absolutePath, filename: req.file.filename });
     };
 

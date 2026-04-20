@@ -5,12 +5,15 @@ export function installTerminalIoHandlers(controller) {
     controller.sendInput = async (req, res) => {
         const { id } = req.params;
         const { input, type } = req.body;
+        const preview = typeof input === 'string' ? input.slice(0, 80) : String(input).slice(0, 80);
+        logger.info(`[sendInput] POST /api/sessions/${id}/input type=${type} bytes=${typeof input === 'string' ? input.length : 0} preview="${preview}"`);
 
         try {
             await controller.terminalIo.sendInput(id, input, type);
+            logger.info(`[sendInput] 200: input sent to ${id}`);
             res.json({ success: true });
         } catch (error) {
-            logger.error(`Failed to send input to ${id}:`, error.message);
+            logger.error(`[sendInput] 500 Failed to send input to ${id}: ${error.message}`);
             res.status(500).json({ error: error.message || 'Failed to send input' });
         }
     };
