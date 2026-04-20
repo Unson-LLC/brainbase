@@ -7,6 +7,7 @@
 // --- Imports ---
 import { httpClient } from './core/http-client.js';
 import { refreshIcons } from './ui-helpers.js';
+import { showSuccess, showError, showInfo } from './toast.js';
 
 // --- Module State ---
 let getSessionId = null; // Callback to get current session ID
@@ -63,9 +64,20 @@ export async function compressImage(blob, maxWidth = 1920, maxHeight = 1080, qua
  * @param {FileList|File[]} files - Files to upload
  */
 async function handleFiles(files) {
-    const file = files[0]; // Handle single file for now
+    console.log('[file-upload] handleFiles called with', files?.length, 'file(s)');
+    const file = files?.[0];
+    if (!file) {
+        console.warn('[file-upload] No file provided');
+        showError('ファイルが選択されなかった');
+        return;
+    }
     const currentSessionId = getSessionId?.();
-    if (!currentSessionId) return;
+    if (!currentSessionId) {
+        console.warn('[file-upload] No current session — aborting upload');
+        showError('セッションを選択してからアップロードしてね');
+        return;
+    }
+    showInfo(`アップロード中: ${file.name}`);
 
     let fileToUpload = file;
     const originalSize = file.size;
@@ -91,22 +103,21 @@ async function handleFiles(files) {
     formData.append('file', fileToUpload);
 
     try {
-        console.log('アップロード中...');
-        // 1. Upload File
+        console.log('[file-upload] POST /api/upload ...');
         const uploadRes = await httpClient.post('/api/upload', formData);
 
         const { path } = uploadRes;
-        console.log('アップロード完了:', path);
+        console.log('[file-upload] Upload complete:', path);
 
-        // 2. Paste path into terminal
         await httpClient.post(`/api/sessions/${currentSessionId}/input`, {
             input: path,
             type: 'text'
         });
-
+        showSuccess('画像パスをターミナルに挿入したよ');
     } catch (error) {
-        console.error('File upload failed:', error);
-        alert('ファイルアップロードに失敗しました');
+        console.error('[file-upload] File upload failed:', error);
+        const detail = error?.message || error?.statusText || 'unknown';
+        showError(`アップロード失敗: ${detail}`);
     }
 }
 
@@ -429,12 +440,19 @@ function setupKeyHandling() {
 
 function setupImageFilePicker() {
     const imageFileInput = document.getElementById('image-file-input');
-    if (!imageFileInput) return;
+    if (!imageFileInput) {
+        console.warn('[file-upload] #image-file-input not found — skipping picker setup');
+        return;
+    }
+    console.log('[file-upload] setupImageFilePicker: wiring change handler');
 
     imageFileInput.addEventListener('change', async (e) => {
+        console.log('[file-upload] #image-file-input change fired, files:', e.target.files?.length);
         const files = e.target.files;
         if (files && files.length > 0) {
             await handleFiles(files);
+        } else {
+            console.warn('[file-upload] change fired but files list empty');
         }
         e.target.value = '';
     });
