@@ -1067,14 +1067,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                 return;
             }
 
-            // snapshotモード中にクリックしたら即reconnect
-            if (this._isXtermTransportActive() && this.terminalTransportClient?.status?.mode === 'snapshot') {
-                void this.terminalTransportClient.reconnect().catch(() => {});
-                this._updateTerminalInputStatus();
-                return;
-            }
-
-            // copy-mode中なら解除（リフレッシュ後など_terminalCopyModeSessionsが空でも確実に解除できるよう常に試みる）
+            // copy-mode中なら解除（snapshotモード等の早期returnより前に実行）
             const sessionId = appStore.getState().currentSessionId;
             if (sessionId) {
                 fetch(`/api/sessions/${sessionId}/exit_copy_mode`, {
@@ -1082,6 +1075,13 @@ export function applyTerminalInputUxMixin(AppClass) {
                     headers: { 'Content-Type': 'application/json' }
                 }).catch(() => {});
                 this._terminalCopyModeSessions.delete(sessionId);
+            }
+
+            // snapshotモード中にクリックしたら即reconnect
+            if (this._isXtermTransportActive() && this.terminalTransportClient?.status?.mode === 'snapshot') {
+                void this.terminalTransportClient.reconnect().catch(() => {});
+                this._updateTerminalInputStatus();
+                return;
             }
 
             this.focusTerminal('console-click');
