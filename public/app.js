@@ -238,9 +238,19 @@ export class App {
     async initAuth() {
         this.authManager = new AuthManager({ httpClient, store: appStore, eventBus });
 
-        httpClient.setUnauthorizedHandler(() => {
-            this.authManager?.clearSession();
-            showError('認証が必要です。Settings > 認証からログインしてください。');
+        let _refreshingOnUnauthorized = false;
+        httpClient.setUnauthorizedHandler(async () => {
+            if (_refreshingOnUnauthorized) return;
+            _refreshingOnUnauthorized = true;
+            try {
+                const refreshed = await this.authManager?.refreshSession();
+                if (!refreshed) {
+                    this.authManager?.clearSession();
+                    showError('認証が必要です。Settings > 認証からログインしてください。');
+                }
+            } finally {
+                _refreshingOnUnauthorized = false;
+            }
         });
 
         await this.authManager.initFromStorage();
