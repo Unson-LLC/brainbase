@@ -14,7 +14,7 @@ INITIAL_CMD=${2:-}
 ENGINE=${3:-claude}  # claude or codex
 INITIAL_CMD_FILE=""
 
-# Auto-fix CWD: read worktree path from state.json and cd to it
+# Auto-fix CWD: read worktree path from state (SQLite preferred, JSON fallback)
 STATE_JSON_PATH=""
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -n "$BRAINBASE_STATE_PATH" ]; then
@@ -24,34 +24,55 @@ elif [ -n "$BRAINBASE_VAR_DIR" ]; then
 else
     STATE_JSON_PATH="$(dirname "$SCRIPT_DIR_EARLY")/var/state.json"
 fi
-if [ -f "$STATE_JSON_PATH" ]; then
-    if command -v jq >/dev/null 2>&1; then
-        WORKTREE_PATH=$(jq -r --arg sid "$SESSION_NAME" '
-            .sessions[] |
-            select(.id == $sid) |
-            (.worktree.path // .path) // empty
-        ' "$STATE_JSON_PATH" 2>/dev/null)
-    elif command -v python3 >/dev/null 2>&1; then
-        WORKTREE_PATH=$(python3 -c "
-import json, sys
+
+# Derive SQLite DB path from state.json path (sqlite-store.js convention)
+STATE_DB_PATH="${STATE_JSON_PATH%.json}.db"
+
+WORKTREE_PATH=""
+if command -v python3 >/dev/null 2>&1; then
+    WORKTREE_PATH=$(python3 -c "
+import sys, json
+
+sid = '$SESSION_NAME'
+
+# SQLite first (python3 built-in sqlite3 module)
+try:
+    import sqlite3
+    db_path = '$STATE_DB_PATH'
+    conn = sqlite3.connect('file:' + db_path + '?mode=ro', uri=True)
+    row = conn.execute('SELECT data FROM sessions WHERE id = ?', (sid,)).fetchone()
+    conn.close()
+    if row:
+        data = json.loads(row[0])
+        wt = data.get('worktree', {})
+        p = wt.get('path', '') if isinstance(wt, dict) else ''
+        if not p:
+            p = data.get('path', '')
+        if p:
+            print(p)
+            sys.exit(0)
+except Exception:
+    pass
+
+# JSON fallback
 try:
     with open('$STATE_JSON_PATH') as f:
         state = json.load(f)
     for s in state['sessions']:
-        if s['id'] == '$SESSION_NAME':
+        if s['id'] == sid:
             wt = s.get('worktree', {})
             p = wt.get('path', '') if isinstance(wt, dict) else ''
             if not p:
                 p = s.get('path', '')
-            print(p)
+            if p:
+                print(p)
             break
 except Exception:
     pass
 " 2>/dev/null)
-    fi
-    if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
-        cd "$WORKTREE_PATH"
-    fi
+fi
+if [ -n "$WORKTREE_PATH" ] && [ -d "$WORKTREE_PATH" ]; then
+    cd "$WORKTREE_PATH"
 fi
 
 RESUME_SESSION_ID=""
