@@ -427,6 +427,22 @@ function setupKeyHandling() {
 
 // --- Public API ---
 
+function setupImageFilePicker() {
+    const imageFileInput = document.getElementById('image-file-input');
+    if (!imageFileInput) return;
+
+    imageFileInput.addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            await handleFiles(files);
+        }
+        e.target.value = '';
+    });
+
+    const uploadImageBtn = document.getElementById('upload-image-btn');
+    uploadImageBtn?.addEventListener('click', () => imageFileInput.click());
+}
+
 /**
  * Initialize file upload module
  * @param {function} sessionIdGetter - Function that returns current session ID
@@ -439,4 +455,5 @@ export function initFileUpload(sessionIdGetter) {
     setupDragDropEvents();
     setupClipboardPaste();
     setupKeyHandling();
+    setupImageFilePicker();
 }
