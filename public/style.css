@@ -6886,10 +6886,12 @@ body.resizing iframe {
 
 @media (max-width: 768px) {
 
-    /* BUG-002: iOS Safe Area Inset領域でbody背景が露出する問題を解消 */
-    /* 紺色(#0f172a)からターミナルと同じ黒に変更し、隙間を視覚的に消す */
+    /* BUG-002 / dock-gap: mobile-input-dock と mobile-bottom-nav の間の隙間
+       (~15-20px) に body 背景が透けていた問題を解消。
+       dock/nav と同じ bg-secondary にすることで、どんな gap が発生しても
+       視覚的には連続した1枚の帯として見える */
     body {
-        background-color: #000000;
+        background-color: var(--bg-secondary);
         --mobile-input-offset: 120px;
     }
 
