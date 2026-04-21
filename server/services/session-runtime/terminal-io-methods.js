@@ -64,11 +64,9 @@ export const terminalIoMethods = {
             throw new Error('Session ID required');
         }
 
-        const target = sessionId.replace(/"/g, '\\"');
-        const cmd = `tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\\"${target}\\\" -X cancel" ""`;
-
         await this._enqueueTerminalMutation(sessionId, async () => {
-            await this.execPromise(cmd);
+            // if-shellの-tなし問題を回避: _runTmuxで直接cancel送信し、エラーは無視（copy-mode外なら失敗するだけ）
+            await this._runTmux(['send-keys', '-t', sessionId, '-X', 'cancel']).catch(() => {});
         });
     },
 
