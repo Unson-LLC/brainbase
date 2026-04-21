@@ -112,6 +112,8 @@ export class TerminalTransportClient {
         this._pendingTextBuffer = '';
         this._pendingTextFlushTimer = null;
         this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+        this._lastSentCols = 0;
+        this._lastSentRows = 0;
     }
 
     async init(hostEl) {
@@ -165,10 +167,7 @@ export class TerminalTransportClient {
 
         this._resizeHandler = () => {
             this.fitAddon?.fit();
-            const dims = this._getDimensions();
-            if (dims) {
-                void this.resize(dims.cols, dims.rows);
-            }
+            // fitAddon.fit() triggers terminal.onResize which calls resize() — no need to call again
         };
         window.addEventListener('resize', this._resizeHandler);
 
@@ -424,6 +423,9 @@ export class TerminalTransportClient {
         this._closeWs();
         this.status.connected = false;
         this.status.copyMode = false;
+        // セッション切り替え時は次接続で必ずresizeを送る（新セッションは別tmuxウィンドウ）
+        this._lastSentCols = 0;
+        this._lastSentRows = 0;
         if (!preserveView) {
             this.status.mode = 'idle';
             this.status.lastSnapshotAt = null;
@@ -496,6 +498,9 @@ export class TerminalTransportClient {
 
     async resize(cols, rows) {
         if (this.ws?.readyState !== WebSocket.OPEN) return;
+        if (cols === this._lastSentCols && rows === this._lastSentRows) return;
+        this._lastSentCols = cols;
+        this._lastSentRows = rows;
         this.ws.send(JSON.stringify({
             type: 'resize',
             cols,
