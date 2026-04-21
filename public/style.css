@@ -7086,8 +7086,19 @@ body.resizing iframe {
         min-height: 0;
         overflow: auto;
     }
-    /* モバイル: Backボタン非表示、余白削減 */
+    /* モバイル: Back ボタンはアイコンだけの close ボタンとして表示
+       (これを display:none にすると閉じる手段がなくなる) */
     .mobile-files-preview .file-viewer-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        gap: 0;
+    }
+    .mobile-files-preview .file-viewer-back span {
         display: none;
     }
     .mobile-files-preview .file-viewer-header {
