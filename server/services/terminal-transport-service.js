@@ -144,7 +144,8 @@ export class TerminalTransportService {
             initialSnapshotTimer: null,
             terminalAccess: ownership.terminalAccess,
             inputReady: false,
-            runtimeState: 'transport_connected'
+            runtimeState: 'transport_connected',
+            messageQueue: Promise.resolve()
         };
 
         this.activeConnections.set(sessionId, { viewerId, ws, connection });
@@ -180,17 +181,19 @@ export class TerminalTransportService {
         ws.on('close', closeConnection);
         ws.on('error', closeConnection);
         ws.on('message', (raw) => {
-            void this._handleMessage(connection, raw.toString()).catch((err) => {
-                const message = err instanceof Error ? err.message : String(err);
-                logger.error(`[TerminalTransport] message error for ${sessionId}:`, message);
-                if (ws.readyState === 1) {
-                    ws.send(JSON.stringify({
-                        type: 'error',
-                        code: 'INPUT_ERROR',
-                        message: message || 'Failed to process terminal input'
-                    }));
-                }
-            });
+            connection.messageQueue = connection.messageQueue
+                .then(() => this._handleMessage(connection, raw.toString()))
+                .catch((err) => {
+                    const message = err instanceof Error ? err.message : String(err);
+                    logger.error(`[TerminalTransport] message error for ${sessionId}:`, message);
+                    if (ws.readyState === 1) {
+                        ws.send(JSON.stringify({
+                            type: 'error',
+                            code: 'INPUT_ERROR',
+                            message: message || 'Failed to process terminal input'
+                        }));
+                    }
+                });
         });
 
         try {

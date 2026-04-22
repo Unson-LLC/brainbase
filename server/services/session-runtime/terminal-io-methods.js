@@ -75,17 +75,18 @@ export const terminalIoMethods = {
             throw new Error('Input required');
         }
 
-        // copy-mode中はまず解除してからinputを送る（scrollSession後に入力できなくなる問題を防止）
-        const target = sessionId.replace(/"/g, '\\"');
-        await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
-
-        await this._capturePromptInput(sessionId, input, type);
-
         if (type !== 'key' && type !== 'text') {
             throw new Error('Type must be key or text');
         }
 
+        await this._capturePromptInput(sessionId, input, type);
+
         await this._enqueueTerminalMutation(sessionId, async () => {
+            // copy-mode中はまず解除してからinputを送る（scrollSession後に入力できなくなる問題を防止）
+            // _enqueueTerminalMutation内で実行することで、並行するsendInput呼び出しと競合しない
+            const target = sessionId.replace(/"/g, '\\"');
+            await this.execPromise(`tmux if-shell -F '#{pane_in_mode}' "send-keys -t \\"${target}\\" -X cancel" ""`).catch(() => {});
+
             if (type === 'key' && this.ALLOWED_KEYS.includes(input)) {
                 await this._sendNamedKey(sessionId, input);
                 return;
