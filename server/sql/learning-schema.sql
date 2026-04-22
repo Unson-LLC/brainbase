@@ -20,7 +20,7 @@ SET source_type = CASE
     WHEN source_type IN ('claude_session_log', 'claude_log', 'codex_log', 'codex_cli_log') THEN 'codex_session_log'
     WHEN source_type IN ('session', 'session-event', 'local_session_log') THEN 'session_log'
     WHEN source_type IN ('explicit', 'explicit-learn', 'manual') THEN 'explicit_learn'
-    ELSE source_type
+    ELSE 'explicit_learn'
 END
 WHERE source_type NOT IN ('review', 'explicit_learn', 'session_log', 'codex_session_log');
 
@@ -97,6 +97,8 @@ UPDATE promotion_candidates
 SET status = 'rejected',
     apply_error = COALESCE(NULLIF(apply_error, ''), 'legacy_filtered_status')
 WHERE status = 'filtered';
+
+UPDATE promotion_candidates SET status = 'rejected', apply_error = 'legacy_unknown_status' WHERE status NOT IN ('draft','evaluated','materialized','applied','rejected','merged');
 
 ALTER TABLE promotion_candidates
     DROP CONSTRAINT IF EXISTS promotion_candidates_pillar_check;
