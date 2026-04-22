@@ -147,8 +147,11 @@ export class TerminalTransportClient {
         if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
             this.terminal.attachCustomKeyEventHandler((event) => this._handleCustomKeyEvent(event));
         }
+        this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
-            void this.sendText(data);
+            this._inputQueue = this._inputQueue
+                .then(() => this.sendText(data))
+                .catch(() => {});
         });
         this.terminal.onResize(({ cols, rows }) => {
             void this.resize(cols, rows);
@@ -450,15 +453,15 @@ export class TerminalTransportClient {
         const segments = this._splitFocusEvents(value);
         for (const seg of segments) {
             if (seg.isFocusEvent) {
-                this._flushBufferedText({ enqueueIfUnavailable: true });
-                this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
+                await this._flushBufferedText({ enqueueIfUnavailable: true });
+                await this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
                 continue;
             }
             this._applyLocalEcho(seg.value);
 
             if (this._shouldSendTextImmediately(seg.value)) {
-                this._flushBufferedText({ enqueueIfUnavailable: true });
-                this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
+                await this._flushBufferedText({ enqueueIfUnavailable: true });
+                await this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
                 continue;
             }
 
