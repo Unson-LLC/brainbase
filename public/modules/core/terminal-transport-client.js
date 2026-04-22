@@ -112,6 +112,8 @@ export class TerminalTransportClient {
         this._pendingTextBuffer = '';
         this._pendingTextFlushTimer = null;
         this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+        this._lastSentCols = 0;
+        this._lastSentRows = 0;
     }
 
     async init(hostEl) {
@@ -145,8 +147,11 @@ export class TerminalTransportClient {
         if (typeof this.terminal.attachCustomKeyEventHandler === 'function') {
             this.terminal.attachCustomKeyEventHandler((event) => this._handleCustomKeyEvent(event));
         }
+        this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
-            void this.sendText(data);
+            this._inputQueue = this._inputQueue
+                .then(() => this.sendText(data))
+                .catch(() => {});
         });
         this.terminal.onResize(({ cols, rows }) => {
             void this.resize(cols, rows);
@@ -165,10 +170,7 @@ export class TerminalTransportClient {
 
         this._resizeHandler = () => {
             this.fitAddon?.fit();
-            const dims = this._getDimensions();
-            if (dims) {
-                void this.resize(dims.cols, dims.rows);
-            }
+            // fitAddon.fit() triggers terminal.onResize which calls resize() — no need to call again
         };
         window.addEventListener('resize', this._resizeHandler);
 
@@ -424,6 +426,9 @@ export class TerminalTransportClient {
         this._closeWs();
         this.status.connected = false;
         this.status.copyMode = false;
+        // セッション切り替え時は次接続で必ずresizeを送る（新セッションは別tmuxウィンドウ）
+        this._lastSentCols = 0;
+        this._lastSentRows = 0;
         if (!preserveView) {
             this.status.mode = 'idle';
             this.status.lastSnapshotAt = null;
@@ -448,15 +453,15 @@ export class TerminalTransportClient {
         const segments = this._splitFocusEvents(value);
         for (const seg of segments) {
             if (seg.isFocusEvent) {
-                this._flushBufferedText({ enqueueIfUnavailable: true });
-                this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
+                await this._flushBufferedText({ enqueueIfUnavailable: true });
+                await this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
                 continue;
             }
             this._applyLocalEcho(seg.value);
 
             if (this._shouldSendTextImmediately(seg.value)) {
-                this._flushBufferedText({ enqueueIfUnavailable: true });
-                this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
+                await this._flushBufferedText({ enqueueIfUnavailable: true });
+                await this._dispatchTextMessage(seg.value, { enqueueIfUnavailable: true });
                 continue;
             }
 
@@ -496,6 +501,9 @@ export class TerminalTransportClient {
 
     async resize(cols, rows) {
         if (this.ws?.readyState !== WebSocket.OPEN) return;
+        if (cols === this._lastSentCols && rows === this._lastSentRows) return;
+        this._lastSentCols = cols;
+        this._lastSentRows = rows;
         this.ws.send(JSON.stringify({
             type: 'resize',
             cols,

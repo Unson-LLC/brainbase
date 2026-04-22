@@ -1050,11 +1050,8 @@ export function applyTerminalInputUxMixin(AppClass) {
 
             if (this.isMobile()) return;
 
-            fetch('/api/open-file', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: filePath, mode: 'file', line, sessionId: currentSessionId })
-            }).catch(err => console.error('[OPEN_FILE] Error:', err));
+            httpClient.post('/api/open-file', { path: filePath, mode: 'file', line, sessionId: currentSessionId })
+                .catch(err => console.error('[OPEN_FILE] Error:', err));
         };
         window.addEventListener('message', onOpenFileMessage);
         this._terminalInputUxCleanup.push(() => window.removeEventListener('message', onOpenFileMessage));
@@ -1079,10 +1076,7 @@ export function applyTerminalInputUxMixin(AppClass) {
             // copy-mode中なら解除（snapshotモード等の早期returnより前に実行）
             const sessionId = appStore.getState().currentSessionId;
             if (sessionId) {
-                fetch(`/api/sessions/${sessionId}/exit_copy_mode`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                }).catch(() => {});
+                httpClient.post(`/api/sessions/${sessionId}/exit_copy_mode`).catch(() => {});
                 this._terminalCopyModeSessions.delete(sessionId);
             }
 
@@ -1255,10 +1249,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                 void this.terminalTransportClient?.exitCopyMode().catch(() => {});
             } else if (sessionId && this._terminalCopyModeSessions.has(sessionId)) {
                 // Best-effort: exit tmux copy-mode so input works again.
-                fetch(`/api/sessions/${sessionId}/exit_copy_mode`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                }).catch(() => {});
+                httpClient.post(`/api/sessions/${sessionId}/exit_copy_mode`).catch(() => {});
                 this._terminalCopyModeSessions.delete(sessionId);
             }
 
