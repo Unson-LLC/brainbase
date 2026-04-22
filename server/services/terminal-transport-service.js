@@ -232,6 +232,27 @@ export class TerminalTransportService {
             rows,
             ...this._buildRuntimeStatusPayload(connection)
         }));
+
+        // Eager snapshot: セッション切り替え直後の黒画面を防ぐため、
+        // readyと同時にスナップショットを送る。
+        // ストリーミング出力は8msバッチで送られるため、snapshot+streamingの
+        // 重なり描画（ghosting）は発生しない。
+        try {
+            const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
+            if (ws.readyState !== 1) return;
+            connection.lastSnapshot = snapshot.text;
+            connection.lastCopyMode = snapshot.copyMode;
+            connection.initialFrameDelivered = true;
+            const snapshotMsg = {
+                type: 'snapshot',
+                text: snapshot.text,
+                capturedAt: snapshot.capturedAt
+            };
+            if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
+            ws.send(JSON.stringify(snapshotMsg));
+        } catch {
+            // スナップショット失敗時はストリーミングかフォールバックに任せる
+        }
     }
 
     async _startStreaming(connection) {
