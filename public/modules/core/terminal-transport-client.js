@@ -158,6 +158,8 @@ export class TerminalTransportClient {
                 .catch(() => {});
         });
         this.terminal.onResize(({ cols, rows }) => {
+            // Skip bad dimensions that occur when the container is hidden or during layout transitions
+            if (cols < 40 || rows < 10) return;
             void this.resize(cols, rows);
         });
         this.terminal.onScroll(() => {
@@ -173,6 +175,11 @@ export class TerminalTransportClient {
         });
 
         this._resizeHandler = () => {
+            // Skip fit when host element has no usable height (e.g. panel is hidden during file viewer)
+            if (this.hostEl) {
+                const rect = this.hostEl.getBoundingClientRect();
+                if (rect.height < 50 || rect.width < 100) return;
+            }
             this.fitAddon?.fit();
             // fitAddon.fit() triggers terminal.onResize which calls resize() — no need to call again
         };
@@ -934,6 +941,11 @@ export class TerminalTransportClient {
     }
 
     _measureViewport() {
+        // Skip fit when host element has no usable dimensions to avoid corrupting layout
+        if (this.hostEl) {
+            const rect = this.hostEl.getBoundingClientRect();
+            if (rect.height < 50 || rect.width < 100) return null;
+        }
         this.fitAddon?.fit();
         const dims = this._getDimensions();
         if (!dims) return null;
