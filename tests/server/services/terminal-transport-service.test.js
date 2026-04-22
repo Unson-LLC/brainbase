@@ -79,8 +79,8 @@ describe('TerminalTransportService', () => {
         expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
     });
 
-    it('ready送信時にsnapshotも送る（セッション切り替え時の即表示用）', async () => {
-        const { service } = buildService();
+    it('ready送信時_snapshotを送らずreadyのみ送る', async () => {
+        const { service, captureCache } = buildService();
         const ws = { readyState: 1, send: vi.fn() };
         const connection = {
             sessionId: 'session-1',
@@ -99,8 +99,9 @@ describe('TerminalTransportService', () => {
         await service._sendReady(connection);
 
         const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
-        expect(sentTypes).toContain('ready');
-        expect(sentTypes).toContain('snapshot');
+        expect(sentTypes).toEqual(['ready']);
+        expect(captureCache.getSnapshot).not.toHaveBeenCalled();
+        expect(captureCache.invalidate).not.toHaveBeenCalled();
     });
 
     it('steady-state polling snapshotにcolorTextを含める', async () => {
@@ -305,5 +306,87 @@ describe('TerminalTransportService', () => {
             type: 'output',
             data: '\u001b[32mhello\u001b[0m'
         }));
+    });
+
+    it('初回streaming output受信時_initial snapshot fallbackをキャンセルする', async () => {
+        vi.useFakeTimers();
+
+        const { service, controlClient, captureCache } = buildService();
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws,
+            transport: 'snapshot',
+            closed: false,
+            initialFrameDelivered: false,
+            initialSnapshotTimer: null
+        };
+
+        await service._startStreaming(connection);
+        service._scheduleInitialSnapshotFallback(connection);
+
+        const outputHandler = controlClient.on.mock.calls.find(([event]) => event === 'output')[1];
+        outputHandler('live frame');
+
+        await vi.advanceTimersByTimeAsync(200);
+
+        const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
+        expect(sentTypes).toEqual(['output']);
+        expect(captureCache.getSnapshot).not.toHaveBeenCalled();
+
+        vi.useRealTimers();
+    });
+
+    it('初回streaming outputが来ない場合_fallback snapshotを1回送る', async () => {
+        vi.useFakeTimers();
+
+        const { service, captureCache } = buildService();
+        const ws = { readyState: 1, send: vi.fn() };
+        const connection = {
+            sessionId: 'session-1',
+            viewerId: 'viewer-1',
+            viewerLabel: 'Local / Mac',
+            cols: 80,
+            rows: 24,
+            ws,
+            transport: 'streaming',
+            closed: false,
+            initialFrameDelivered: false,
+            initialSnapshotTimer: null,
+            lastSnapshot: null,
+            lastCopyMode: null,
+            lastCliState: null
+        };
+
+        service._scheduleInitialSnapshotFallback(connection);
+        await vi.advanceTimersByTimeAsync(200);
+
+        const sentTypes = ws.send.mock.calls.map(call => JSON.parse(call[0]).type);
+        expect(sentTypes).toContain('snapshot');
+        expect(captureCache.invalidate).toHaveBeenCalledWith('session-1');
+        expect(connection.initialFrameDelivered).toBe(true);
+
+        vi.useRealTimers();
+    });
+
+    it('transportがstreamingでない場合_initial snapshot fallbackをスケジュールしない', () => {
+        vi.useFakeTimers();
+
+        const { service } = buildService();
+        const connection = {
+            closed: false,
+            transport: 'snapshot',
+            initialSnapshotTimer: null
+        };
+
+        service._scheduleInitialSnapshotFallback(connection);
+
+        expect(connection.initialSnapshotTimer).toBeNull();
+
+        vi.useRealTimers();
     });
 });
