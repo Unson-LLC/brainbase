@@ -242,6 +242,22 @@ export class TerminalTransportService {
             connection.controlClient = client;
             connection.transport = 'streaming';
 
+            let outputBatch = '';
+            let outputBatchTimer = null;
+            const flushOutputBatch = () => {
+                outputBatchTimer = null;
+                if (!outputBatch || connection.closed || connection.ws.readyState !== 1) {
+                    outputBatch = '';
+                    return;
+                }
+                const flushed = outputBatch;
+                outputBatch = '';
+                // DEBUG: detect FFFD in streaming output
+                if (flushed.includes('\uFFFD')) {
+                    logger.warn(`[TerminalTransport] FFFD detected in streaming output for ${connection.sessionId}: len=${flushed.length}, fffd_count=${(flushed.match(/\uFFFD/g) || []).length}, snippet=${JSON.stringify(flushed.slice(0, 200))}`);
+                }
+                connection.ws.send(JSON.stringify({ type: 'output', data: flushed }));
+            };
             const handleOutput = (data) => {
                 if (connection.closed || connection.ws.readyState !== 1 || !data) return;
                 connection.initialFrameDelivered = true;
@@ -249,14 +265,10 @@ export class TerminalTransportService {
                     clearTimeout(connection.initialSnapshotTimer);
                     connection.initialSnapshotTimer = null;
                 }
-                // DEBUG: detect FFFD in streaming output
-                if (typeof data === 'string' && data.includes('\uFFFD')) {
-                    logger.warn(`[TerminalTransport] FFFD detected in streaming output for ${connection.sessionId}: len=${data.length}, fffd_count=${(data.match(/\uFFFD/g) || []).length}, snippet=${JSON.stringify(data.slice(0, 200))}`);
+                outputBatch += data;
+                if (outputBatchTimer === null) {
+                    outputBatchTimer = setTimeout(flushOutputBatch, 8);
                 }
-                connection.ws.send(JSON.stringify({
-                    type: 'output',
-                    data
-                }));
             };
             const handleFailure = () => {
                 void this._fallbackToPolling(connection);
@@ -267,6 +279,11 @@ export class TerminalTransportService {
             client.on('exit', handleFailure);
 
             connection.streamCleanup = () => {
+                if (outputBatchTimer !== null) {
+                    clearTimeout(outputBatchTimer);
+                    outputBatchTimer = null;
+                }
+                outputBatch = '';
                 client.off('output', handleOutput);
                 client.off('error', handleFailure);
                 client.off('exit', handleFailure);
