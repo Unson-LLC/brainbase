@@ -111,6 +111,8 @@ export class TerminalTransportClient {
         this._visibilityHandler = null;
         this._pendingTextBuffer = '';
         this._pendingTextFlushTimer = null;
+        this._outputBuffer = '';
+        this._outputRafId = null;
         this._textEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
         this._lastSentCols = 0;
         this._lastSentRows = 0;
@@ -441,6 +443,11 @@ export class TerminalTransportClient {
             this.ws.send(JSON.stringify({ type: 'input', inputType: 'text', value: bufferedOnDisconnect }));
         }
         this._messageQueue.clear();
+        if (this._outputRafId !== null) {
+            cancelAnimationFrame(this._outputRafId);
+            this._outputRafId = null;
+        }
+        this._outputBuffer = '';
         this._closeWs();
         this.status.connected = false;
         this.status.copyMode = false;
@@ -865,7 +872,18 @@ export class TerminalTransportClient {
         if (!this.terminal || !text) return;
         const nextText = this._consumePendingEcho(text);
         if (!nextText) return;
-        this._writeToTerminal(nextText);
+        this._outputBuffer += nextText;
+        if (this._outputRafId === null) {
+            this._outputRafId = requestAnimationFrame(() => this._flushOutputBuffer());
+        }
+    }
+
+    _flushOutputBuffer() {
+        this._outputRafId = null;
+        if (!this._outputBuffer || !this.terminal) return;
+        const text = this._outputBuffer;
+        this._outputBuffer = '';
+        this._writeToTerminal(text);
     }
 
     _applyLocalEcho(text) {
@@ -926,6 +944,11 @@ export class TerminalTransportClient {
         this._pendingEchoText = '';
         this._lastSnapshotText = null;
         this._isViewportPinnedToBottom = true;
+        if (this._outputRafId !== null) {
+            cancelAnimationFrame(this._outputRafId);
+            this._outputRafId = null;
+        }
+        this._outputBuffer = '';
         // xterm.jsの前セッション表示を即クリア。
         // snapshotが来るまでの間、前セッションの内容が見えるのを防止。
         if (this.terminal) {
