@@ -232,35 +232,6 @@ export class TerminalTransportService {
             rows,
             ...this._buildRuntimeStatusPayload(connection)
         }));
-
-        // snapshot即送信: セッション切り替え時にxterm.jsの前セッション内容を
-        // 新セッションの画面で上書きする。クライアント側の_applySnapshotが
-        // ESC[2J+ESC[3Jで画面クリアしてから描画するため二重描画にはならない。
-        this.captureCache.invalidate(sessionId);
-        const snapshot = await this._getSnapshotPayload(sessionId, { includeColors: true });
-        if (ws.readyState !== 1 || connection.closed) return;
-        const snapshotMsg = {
-            type: 'snapshot',
-            text: snapshot.text,
-            capturedAt: snapshot.capturedAt
-        };
-        if (snapshot.colorText) snapshotMsg.colorText = snapshot.colorText;
-        // DEBUG: detect FFFD in snapshot
-        const snapshotCheckText = snapshot.colorText || snapshot.text || '';
-        if (snapshotCheckText.includes('\uFFFD')) {
-            logger.warn(`[TerminalTransport] FFFD detected in snapshot for ${sessionId}: len=${snapshotCheckText.length}, fffd_count=${(snapshotCheckText.match(/\uFFFD/g) || []).length}`);
-        }
-        ws.send(JSON.stringify(snapshotMsg));
-        // Send initial copyMode status so client doesn't carry over stale value from previous session
-        connection.lastCopyMode = snapshot.copyMode;
-        if (ws.readyState === 1 && !connection.closed) {
-            ws.send(JSON.stringify({
-                type: 'status',
-                mode: 'snapshot',
-                copyMode: snapshot.copyMode,
-                transport: connection.transport
-            }));
-        }
     }
 
     async _startStreaming(connection) {
@@ -332,6 +303,7 @@ export class TerminalTransportService {
     async _sendInitialSnapshot(connection) {
         if (connection.closed || connection.ws.readyState !== 1) return;
 
+        this.captureCache.invalidate(connection.sessionId);
         const snapshot = await this._getSnapshotPayload(connection.sessionId, { includeColors: true });
         connection.initialFrameDelivered = true;
         connection.lastSnapshot = snapshot.text;
