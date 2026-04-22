@@ -332,7 +332,11 @@ export class TerminalTransportClient {
                         console.log('[TTC] ready received');
                         this._emitStatus();
                         this._startKeepalive();
-                        void this.syncViewportSize();
+                        if (typeof requestAnimationFrame === 'function') {
+                            requestAnimationFrame(() => void this.syncViewportSize());
+                        } else {
+                            void this.syncViewportSize();
+                        }
                         void this.verifyInputReady().then(() => {
                             this._flushMessageQueue();
                         });
@@ -934,7 +938,7 @@ export class TerminalTransportClient {
         const dims = this._getDimensions();
         if (!dims) return null;
         if (!Number.isFinite(dims.cols) || !Number.isFinite(dims.rows)) return null;
-        if (dims.cols <= 0 || dims.rows <= 0) return null;
+        if (dims.cols < 60 || dims.rows < 20) return null;
         return dims;
     }
 
