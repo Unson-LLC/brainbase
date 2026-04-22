@@ -149,8 +149,12 @@ export class TerminalTransportClient {
         }
         this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
+            const token = this._connectToken;
             this._inputQueue = this._inputQueue
-                .then(() => this.sendText(data))
+                .then(() => {
+                    if (this._connectToken !== token) return;
+                    return this.sendText(data);
+                })
                 .catch(() => {});
         });
         this.terminal.onResize(({ cols, rows }) => {
@@ -262,7 +266,13 @@ export class TerminalTransportClient {
         this._connectToken += 1;
         const connectToken = this._connectToken;
         this._manualClose = false;
-        this._flushBufferedText({ enqueueIfUnavailable: true });
+        // セッション切り替え前に未送信バッファを同期的に送信する。
+        // _flushBufferedTextはawaitなしだとthis.sessionId更新後に_dispatchTextMessageが走り
+        // canSendInputチェックが新セッション文脈で失敗してバッファ内容が消える。
+        const bufferedBeforeSwitch = this._drainBufferedText();
+        if (bufferedBeforeSwitch && this.ws?.readyState === WebSocket.OPEN && this.canSendInput(this.sessionId)) {
+            this.ws.send(JSON.stringify({ type: 'input', inputType: 'text', value: bufferedBeforeSwitch }));
+        }
         this.sessionId = sessionId;
         this.status.mode = 'reconnecting';
         this.status.connected = false;
@@ -322,7 +332,11 @@ export class TerminalTransportClient {
                         console.log('[TTC] ready received');
                         this._emitStatus();
                         this._startKeepalive();
-                        void this.syncViewportSize();
+                        if (typeof requestAnimationFrame === 'function') {
+                            requestAnimationFrame(() => void this.syncViewportSize());
+                        } else {
+                            void this.syncViewportSize();
+                        }
                         void this.verifyInputReady().then(() => {
                             this._flushMessageQueue();
                         });
@@ -421,7 +435,11 @@ export class TerminalTransportClient {
         this._manualClose = true;
         this._clearReconnectTimer();
         this._stopKeepalive();
-        this._flushBufferedText({ enqueueIfUnavailable: true });
+        // closeWs前に同期送信（非同期flushだとclose後に実行されてデータが消える）
+        const bufferedOnDisconnect = this._drainBufferedText();
+        if (bufferedOnDisconnect && this.ws?.readyState === WebSocket.OPEN && this.canSendInput(this.sessionId)) {
+            this.ws.send(JSON.stringify({ type: 'input', inputType: 'text', value: bufferedOnDisconnect }));
+        }
         this._messageQueue.clear();
         this._closeWs();
         this.status.connected = false;
@@ -920,7 +938,7 @@ export class TerminalTransportClient {
         const dims = this._getDimensions();
         if (!dims) return null;
         if (!Number.isFinite(dims.cols) || !Number.isFinite(dims.rows)) return null;
-        if (dims.cols <= 0 || dims.rows <= 0) return null;
+        if (dims.cols < 60 || dims.rows < 20) return null;
         return dims;
     }
 
