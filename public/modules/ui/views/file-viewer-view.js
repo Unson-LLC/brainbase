@@ -113,6 +113,15 @@ export class FileViewerView extends BaseView {
         this.container.querySelector('[data-action="toggle"]')
             ?.addEventListener('click', () => this._handleMarkdownToggle());
 
+        // Markdownレンダリング内のリンクを新しいタブで開く
+        this.container.querySelector('.file-viewer-markdown')
+            ?.addEventListener('click', (e) => {
+                const anchor = e.target.closest('a');
+                if (!anchor) return;
+                e.preventDefault();
+                window.open(anchor.href, '_blank', 'noopener,noreferrer');
+            });
+
         refreshIcons();
     }
 
