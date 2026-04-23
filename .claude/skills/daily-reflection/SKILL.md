@@ -209,6 +209,8 @@ done
 | Kohei / 金田 | **金田 光平** |
 | 三協 | **サンキョウ** (株式会社サンキョウ) |
 | Sho | **持田 涉** (mochida_sho) |
+| シン | **佐藤 圭吾**（自分自身の呼び名） |
+| YK | **倉本 裕太**（TechKnight） |
 
 ---
 
@@ -216,11 +218,16 @@ done
 
 ### 5a. Decision（意思決定ログ）
 
-**エンドポイント**: `POST https://bb.unson.jp/api/info/decisions`
+**エンドポイント**: `POST http://localhost:31013/api/info/decisions`
+
+> ⚠️ `bb.unson.jp/api/info/decisions` は CSRF token required で 403。Graph 読み取りには `x-brainbase-role`, `x-brainbase-projects`, `x-brainbase-clearance` ヘッダーも必要。必ずローカル brainbase-ui（ポート 31013）を使用。
 
 ```bash
-curl -s -X POST "https://bb.unson.jp/api/info/decisions" \
+curl -s -X POST "http://localhost:31013/api/info/decisions" \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -H "x-brainbase-role: member" \
+  -H "x-brainbase-projects: brainbase,salestailor,zeims,techknight,baao,unson,mana,mywa,senrigan,postio,unson-os,aitle,ncom,back_office,vibepro" \
+  -H "x-brainbase-clearance: internal" \
   -d '{
     "projectCode": "<projectCode>",
     "title": "<決定タイトル>",

@@ -1,8 +1,8 @@
 ---
 name: ops-daily
-description: 毎日の運用タスクを自動化する職能ベースOrchestrator。Executive Assistant・Infrastructure Manager・Knowledge Analystの3職能が複数ワークフローを担当し、組織の朝礼を体現。
+description: ⚠️ DEPRECATED: /ohayo に統合済み。このスキルは使用しないこと。KPI・週次レポートは /retro を使用。
 tools: []
-skills: [email-classifier, learning-extraction, kpi-calculation, task-format]
+skills: []
 teammates:
   - name: executive-assistant
     agentType: executive-assistant
