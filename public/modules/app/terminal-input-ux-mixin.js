@@ -1359,7 +1359,28 @@ export function applyTerminalInputUxMixin(AppClass) {
             if (!sessionId) return;
             if (document.activeElement === this.terminalFrame) return;
             if (this.terminalFrame?.getAttribute?.('src') === 'about:blank') return;
-            if (this._isXtermTransportActive(sessionId)) return;
+
+            // xterm transport: recover focus when the textarea lost it (e.g. OS-level focus steal).
+            // The keydown event won't reach the textarea after-the-fact, so send the key explicitly.
+            if (this._isXtermTransportActive(sessionId)) {
+                if (this.terminalTransportClient?.status?.isFocused) return;
+                const overlayState = this._getTerminalOverlayState();
+                if (overlayState.any) return;
+                const key = e.key;
+                this.focusTerminal('type-to-focus');
+                if (key === 'Enter' && e.shiftKey) {
+                    this.terminalTransportClient.sendKey('M-Enter').catch(() => {});
+                    e.preventDefault();
+                } else if (key === 'Enter') {
+                    this.terminalTransportClient.sendKey('Enter').catch(() => {});
+                    e.preventDefault();
+                } else if (typeof key === 'string' && key.length === 1 && key !== ' ') {
+                    this.terminalTransportClient.sendText(key).catch(() => {});
+                    e.preventDefault();
+                }
+                return;
+            }
+
             if (this.reconnectManager?.terminalAccess?.state === 'blocked') return;
 
             const overlayState = this._getTerminalOverlayState();
