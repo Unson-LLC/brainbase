@@ -122,4 +122,13 @@ if [ -n "$ROOT_CLAUDE_MD" ]; then
   cp "$ROOT_CLAUDE_MD" ./AGENTS.md 2>/dev/null || true
 fi
 
-echo "✅ SessionStart Hook 完了！（.claude/, CLAUDE.md, AGENTS.md）"
+# node_modules を L2 から symlink（hook 実行基盤: npx tsx が解決できるように）
+L2_NODE_MODULES="/Users/ksato/workspace/code/brainbase/node_modules"
+if [ -d "$L2_NODE_MODULES" ]; then
+  if [ ! -e "./node_modules" ] || [ -L "./node_modules" ]; then
+    ln -sfn "$L2_NODE_MODULES" ./node_modules
+    echo "  🔗 node_modules → L2 (hook 実行基盤)"
+  fi
+fi
+
+echo "✅ SessionStart Hook 完了！（.claude/, CLAUDE.md, AGENTS.md, node_modules）"

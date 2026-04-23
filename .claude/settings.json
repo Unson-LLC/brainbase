@@ -156,17 +156,17 @@
           {
             "type": "command",
             "command": "npx tsx .claude/scripts/hooks/stop/push-guard.ts",
-            "timeout": 3000
+            "timeout": 10000
           },
           {
             "type": "command",
             "command": "npx tsx .claude/scripts/hooks/stop/jj-commit-guard.ts",
-            "timeout": 3000
+            "timeout": 10000
           },
           {
             "type": "command",
             "command": "npx tsx .claude/scripts/hooks/stop/activity-bridge.ts",
-            "timeout": 3000
+            "timeout": 10000
           },
           {
             "type": "command",
