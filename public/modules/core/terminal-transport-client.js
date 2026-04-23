@@ -277,8 +277,20 @@ export class TerminalTransportClient {
         // _flushBufferedTextはawaitなしだとthis.sessionId更新後に_dispatchTextMessageが走り
         // canSendInputチェックが新セッション文脈で失敗してバッファ内容が消える。
         const bufferedBeforeSwitch = this._drainBufferedText();
-        if (bufferedBeforeSwitch && this.ws?.readyState === WebSocket.OPEN && this.canSendInput(this.sessionId)) {
-            this.ws.send(JSON.stringify({ type: 'input', inputType: 'text', value: bufferedBeforeSwitch }));
+        if (bufferedBeforeSwitch) {
+            if (this.ws?.readyState === WebSocket.OPEN && this.canSendInput(this.sessionId)) {
+                this.ws.send(JSON.stringify({ type: 'input', inputType: 'text', value: bufferedBeforeSwitch }));
+                console.log('[TTC-PROBE] connect drain flushed', { len: bufferedBeforeSwitch.length });
+            } else {
+                console.warn('[TTC-PROBE] connect drain DROPPED', {
+                    len: bufferedBeforeSwitch.length,
+                    preview: bufferedBeforeSwitch.slice(0, 40),
+                    wsState: this.ws?.readyState,
+                    canSend: this.canSendInput(this.sessionId),
+                    mode: this.status.mode,
+                    inputReady: this.status.inputReady
+                });
+            }
         }
         this.sessionId = sessionId;
         this.status.mode = 'reconnecting';
@@ -407,6 +419,18 @@ export class TerminalTransportClient {
 
             ws.addEventListener('close', (closeEvent) => {
                 const closeCode = closeEvent?.code;
+                console.warn('[TTC-PROBE] ws close', {
+                    code: closeCode,
+                    reason: closeEvent?.reason,
+                    wasClean: closeEvent?.wasClean,
+                    pendingBufferLen: this._pendingTextBuffer.length,
+                    pendingBufferPreview: this._pendingTextBuffer.slice(0, 40),
+                    messageQueueSize: this._messageQueue.size(),
+                    mode: this.status.mode,
+                    inputReady: this.status.inputReady,
+                    manualClose: this._manualClose,
+                    sessionId: this.sessionId
+                });
                 console.log(`[TTC] ws close: code=${closeCode}, stale=${this._connectToken !== connectToken}`);
                 if (this._connectToken !== connectToken || this.ws !== ws) {
                     cleanup();
@@ -473,7 +497,23 @@ export class TerminalTransportClient {
 
     async sendText(value) {
         if (!value) return;
-        if (!this.canSendInput(this.sessionId) && !await this._ensureInputReadyForUserInput()) return;
+        if (!this.canSendInput(this.sessionId) && !await this._ensureInputReadyForUserInput()) {
+            console.warn('[TTC-PROBE] sendText dropped: canSendInput=false after ensure', {
+                len: value.length,
+                mode: this.status.mode,
+                inputReady: this.status.inputReady,
+                owner: this.status.terminalAccess?.state,
+                wsState: this.ws?.readyState,
+                sessionId: this.sessionId
+            });
+            return;
+        }
+        console.log('[TTC-PROBE] sendText accepted', {
+            len: value.length,
+            pendingBefore: this._pendingTextBuffer.length,
+            mode: this.status.mode,
+            wsState: this.ws?.readyState
+        });
 
         const segments = this._splitFocusEvents(value);
         for (const seg of segments) {
@@ -709,14 +749,37 @@ export class TerminalTransportClient {
         if (this.ws?.readyState !== WebSocket.OPEN) {
             if (enqueueIfUnavailable && this.status.inputReady) {
                 this._messageQueue.enqueue(message);
+                console.warn('[TTC-PROBE] dispatch queued (ws not open)', {
+                    len: value.length,
+                    wsState: this.ws?.readyState,
+                    queueSize: this._messageQueue.size()
+                });
+            } else {
+                console.warn('[TTC-PROBE] dispatch DROPPED (ws not open, no enqueue)', {
+                    len: value.length,
+                    wsState: this.ws?.readyState,
+                    enqueueIfUnavailable,
+                    inputReady: this.status.inputReady,
+                    mode: this.status.mode
+                });
             }
             return;
         }
-        if (!this.canSendInput(this.sessionId)) return;
+        if (!this.canSendInput(this.sessionId)) {
+            console.warn('[TTC-PROBE] dispatch DROPPED (canSendInput=false, ws OPEN)', {
+                len: value.length,
+                mode: this.status.mode,
+                inputReady: this.status.inputReady,
+                owner: this.status.terminalAccess?.state,
+                sessionId: this.sessionId
+            });
+            return;
+        }
         if (ensureInteractive) {
             await this._ensureInteractiveMode();
         }
         this.ws.send(JSON.stringify(message));
+        console.log('[TTC-PROBE] dispatch sent', { len: value.length });
     }
 
     _splitFocusEvents(value) {
