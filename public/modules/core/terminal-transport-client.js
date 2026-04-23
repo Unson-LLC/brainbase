@@ -150,9 +150,26 @@ export class TerminalTransportClient {
         this._inputQueue = Promise.resolve();
         this.terminal.onData((data) => {
             const token = this._connectToken;
+            console.log('[TTC-PROBE][onData] fired', {
+                len: data.length,
+                preview: data.slice(0, 20),
+                token,
+                currentToken: this._connectToken,
+                mode: this.status.mode,
+                isFocused: this.status.isFocused,
+                activeEl: document.activeElement?.tagName + (document.activeElement?.className ? '.' + document.activeElement.className.split(' ')[0] : '')
+            });
             this._inputQueue = this._inputQueue
                 .then(() => {
-                    if (this._connectToken !== token) return;
+                    if (this._connectToken !== token) {
+                        console.warn('[TTC-PROBE][onData] DROPPED token mismatch', {
+                            len: data.length,
+                            preview: data.slice(0, 20),
+                            capturedToken: token,
+                            currentToken: this._connectToken
+                        });
+                        return;
+                    }
                     return this.sendText(data);
                 })
                 .catch(() => {});
@@ -165,12 +182,18 @@ export class TerminalTransportClient {
         this.terminal.onScroll(() => {
             this._handleTerminalScroll();
         });
-        this.hostEl.addEventListener('focusin', () => {
+        this.hostEl.addEventListener('focusin', (e) => {
             this.status.isFocused = true;
+            console.log('[TTC-PROBE][focus] focusin', { target: e.target?.tagName, mode: this.status.mode });
             this._emitStatus();
         });
-        this.hostEl.addEventListener('focusout', () => {
+        this.hostEl.addEventListener('focusout', (e) => {
             this.status.isFocused = false;
+            console.log('[TTC-PROBE][focus] focusout', {
+                target: e.target?.tagName,
+                relatedTarget: e.relatedTarget?.tagName,
+                mode: this.status.mode
+            });
             this._emitStatus();
         });
 
@@ -270,8 +293,16 @@ export class TerminalTransportClient {
 
     async connect(sessionId, { skipInitialResize = false } = {}) {
         const switchingSessions = Boolean(this.sessionId && this.sessionId !== sessionId);
+        const prevToken = this._connectToken;
         this._connectToken += 1;
         const connectToken = this._connectToken;
+        console.warn('[TTC-PROBE] connectToken++', {
+            from: prevToken,
+            to: connectToken,
+            switchingSessions,
+            fromSession: this.sessionId,
+            toSession: sessionId
+        });
         this._manualClose = false;
         // セッション切り替え前に未送信バッファを同期的に送信する。
         // _flushBufferedTextはawaitなしだとthis.sessionId更新後に_dispatchTextMessageが走り
