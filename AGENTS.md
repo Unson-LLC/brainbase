@@ -169,7 +169,67 @@ task を受ける
 
 ---
 
-### 0.7 External Best-Practice Alignment
+### 0.7 Graph SSOT First
+
+**原則**: 固有名詞・組織・顧客・パートナー・プロジェクト・用語・意思決定を書く前に、brainbase Graph SSOT (`https://bb.unson.jp`) を一次情報として確認する。議事録・transcript・memory・推測は参考値であり、Graph と食い違えば **Graph を優先**。
+
+**Why**:
+- 議事録は Tactiq の話者名推測や AI 要約を経由するため、固有名詞が誤認されやすい（例: 正「川合 秀明」→ 誤「河合 英明」）
+- 組織名・顧客名・用語の表記ゆれ（雲孫 / Unson LLC / UNSON など）が memory や doc に混在している
+- Graph は `aliases` を持つので逆引きで正本に戻せる
+
+**Graph に格納されているエンティティ（13 type / 約400件）**:
+
+| type | 内容 | 主な payload フィールド |
+|---|---|---|
+| `person` | 社内・関係者 | name, aliases, projects, sources |
+| `org` | 組織・法人 | name, type, aliases, source |
+| `customer` | 顧客（企業） | name, status, projects, source |
+| `partner` | 外部パートナー企業 | name, category, status, contact, location |
+| `contact` | 個人連絡先（CRM） | name, email, phone, company, role, department |
+| `project` | プロダクト（zeims / salestailor / baao 等） | code, name |
+| `app` | アプリ | name, orgs, app_id, status, projects |
+| `brand` | ブランドガイド | title, brand_id, projects |
+| `frame` | 運用フレームワーク（UNSON OS 等） | code, name, source |
+| `glossary_term` | 用語集 | term, definition, context |
+| `decision` | 意思決定ログ（ADR） | title, status, decided_at, decision_domain |
+| `story` | 開発ストーリー | title, source, story_id |
+| `raci_assignment` | RACI 割当 | role_code, authority_scope, sensitivity_min |
+
+**How**:
+```bash
+TOKEN=$(cat ~/.brainbase/tokens.json | jq -r .access_token)
+
+# type 指定で一覧取得（limit は最大 500〜1000）
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://bb.unson.jp/api/info/graph/entities?type=<type>&limit=500" | jq
+
+# 例: 組織名を aliases 含めて逆引き
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://bb.unson.jp/api/info/graph/entities?type=org&limit=500" \
+  | jq '.records[] | {name: .payload.name, aliases: .payload.aliases}'
+
+# 例: 用語の定義を引く
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://bb.unson.jp/api/info/graph/entities?type=glossary_term&limit=500" \
+  | jq '.records[] | select(.payload.term | contains("<keyword>"))'
+```
+
+**思考パターン**:
+```
+固有名詞・社名・人名・用語を書く
+→ 先に Graph を引いたか？
+→ 議事録や memory と食い違ったか？
+→ Graph を正、他を参考値として扱う
+```
+
+**Enforcement**:
+- hook: `.claude/scripts/hooks/user-prompt-submit/graph-ssot-reminder.ts`（毎プロンプト時に注入）
+- skill: `people-meta` / `customers-meta` / `brainbase-content-ssot`
+
+---
+
+### 0.8 External Best-Practice Alignment
 
 この方針は以下の公開ガイドラインに整合する。
 

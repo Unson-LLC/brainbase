@@ -192,6 +192,30 @@ export class InfoSSOTController {
         }
     };
 
+    upsertGraphEntity = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createOrUpdateGraphEntity(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to upsert graph entity', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to upsert graph entity' });
+        }
+    };
+
+    upsertGraphEdge = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            const result = await this.infoSSOTService.createOrUpdateGraphEdge(access, req.body || {});
+            res.status(201).json(result);
+        } catch (error) {
+            logger.error('Failed to upsert graph edge', { error });
+            res.status(resolveErrorStatus(error)).json({ error: error.message || 'Failed to upsert graph edge' });
+        }
+    };
+
     createEvent = async (req, res) => {
         try {
             const access = buildAccessContext(req);
