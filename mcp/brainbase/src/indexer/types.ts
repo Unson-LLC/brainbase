@@ -91,7 +91,7 @@ export interface RACIEntry {
   informed: string;      // I
 }
 
-// App entity from common/meta/apps.md (table format)
+// App entity (entity_type='app' in the Graph SSOT)
 export interface App extends BaseEntity {
   type: 'app';
   app_id: string;

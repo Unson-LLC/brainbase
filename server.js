@@ -67,7 +67,7 @@ const packageJson = JSON.parse(readFileSync(path.join(__dirname, 'package.json')
 const APP_VERSION = `v${packageJson.version}`;
 
 // Environment variables for directory structure
-// BRAINBASE_ROOT: Personal data location (_codex, _tasks, _schedules, config.yml)
+// BRAINBASE_ROOT: Personal data location (_tasks, _schedules, config.yml)
 // BRAINBASE_VAR_DIR: Runtime data location (state.json, uploads, logs)
 // PROJECTS_ROOT: Project code location (where projects are stored)
 //
@@ -280,9 +280,7 @@ const TASKS_FILE = path.join(BRAINBASE_ROOT, '_tasks/index.md');
 const SCHEDULES_DIR = path.join(BRAINBASE_ROOT, '_schedules');
 const STATE_FILE = RUNTIME_PATHS.stateFile;
 const WORKTREES_DIR = process.env.BRAINBASE_WORKTREES_DIR || path.join(BRAINBASE_ROOT, '.worktrees');
-const CODEX_PATH = existsSync(path.join(BRAINBASE_ROOT, '_codex'))
-    ? path.join(BRAINBASE_ROOT, '_codex')
-    : path.join(__dirname, 'examples', 'codex');
+const CODEX_PATH = path.join(__dirname, 'examples', 'codex');
 const CONFIG_PATH = existsSync(path.join(BRAINBASE_ROOT, 'config.yml'))
     ? path.join(BRAINBASE_ROOT, 'config.yml')
     : path.join(__dirname, 'config.yml');
