@@ -1,6 +1,6 @@
 /**
  * brainbase MCP Server
- * Provides context from _codex entities to Claude
+ * Provides context from the brainbase Graph SSOT to Claude
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';

@@ -1,6 +1,8 @@
 /**
- * Filesystem Source
- * Loads entities from local _codex directory (existing implementation)
+ * Filesystem Source (legacy)
+ * Previously loaded entities from a local SSOT directory on disk.
+ * The current runtime path uses the Graph SSOT API instead; this class is kept
+ * as a reference implementation and is not instantiated by default.
  */
 
 import { readdir, readFile } from 'fs/promises';
@@ -19,8 +21,8 @@ import { parseMarkdownFile, parseMarkdownString, ensureArray, extractIdFromPath 
 import { parseAppsTable, parseCustomersTable, parseRACITable, parsePositionTable, parseDecisionTable, parseAssignmentTable, parseProductsList } from '../indexer/table.js';
 
 /**
- * FilesystemSource
- * Loads entities from local _codex directory
+ * FilesystemSource (legacy reference implementation)
+ * Loads entities from a local filesystem SSOT rooted at `codexPath`.
  */
 export class FilesystemSource implements EntitySource {
   private codexPath: string;

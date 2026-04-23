@@ -3,7 +3,7 @@
  * brainbase MCP Server Entry Point
  *
  * Usage:
- *   npx tsx src/index.ts [legacy_codex_path]
+ *   npx tsx src/index.ts
  */
 
 import { runServer } from './server.js';

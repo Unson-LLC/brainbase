@@ -166,12 +166,6 @@ EOF
     echo "   ✅ config.yml created"
 fi
 
-# Create empty _codex if it doesn't exist (use sample as fallback)
-if [ ! -d "$DATA_DIR/_codex" ]; then
-    echo "📚 Using examples/codex as knowledge base..."
-    echo "   (You can create your own _codex later)"
-fi
-
 # Setup .claude/hooks/ and settings.json for SessionStart Hook
 echo "🪝 Setting up SessionStart Hook..."
 mkdir -p "$REPO_ROOT/.claude/hooks"
