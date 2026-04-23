@@ -469,12 +469,17 @@ export class TerminalTransportService {
             case 'input': {
                 const terminalAccess = this.ownershipService.getTerminalAccessState(sessionId, viewerId);
                 connection.terminalAccess = terminalAccess;
+                const inputTypeForLog = message.inputType === 'key' ? 'key' : 'text';
+                const valueLen = typeof message.value === 'string' ? message.value.length : 0;
+                logger.info(`[TTC-PROBE][ws-input] session=${sessionId} type=${inputTypeForLog} len=${valueLen} owner=${terminalAccess?.state}`);
                 if (terminalAccess?.state !== 'owner') {
+                    logger.warn(`[TTC-PROBE][ws-input] dropped NOT_OWNER session=${sessionId} len=${valueLen}`);
                     ws.send(JSON.stringify({ type: 'blocked', terminalAccess }));
                     return;
                 }
-                const inputType = message.inputType === 'key' ? 'key' : 'text';
+                const inputType = inputTypeForLog;
                 if (!this._getInputReady(sessionId) && !(inputType === 'key' && CONTROL_KEYS_WITHOUT_INPUT_PROBE.has(message.value))) {
+                    logger.warn(`[TTC-PROBE][ws-input] dropped INPUT_NOT_READY session=${sessionId} len=${valueLen}`);
                     ws.send(JSON.stringify({
                         type: 'error',
                         code: 'INPUT_NOT_READY',
