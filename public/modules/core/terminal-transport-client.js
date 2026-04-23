@@ -159,8 +159,16 @@ export class TerminalTransportClient {
                 isFocused: this.status.isFocused,
                 activeEl: document.activeElement?.tagName + (document.activeElement?.className ? '.' + document.activeElement.className.split(' ')[0] : '')
             });
+            const enqueueAt = performance.now();
             this._inputQueue = this._inputQueue
                 .then(() => {
+                    const resumedAt = performance.now();
+                    console.log('[TTC-PROBE][onData] chain resumed', {
+                        len: data.length,
+                        waitMs: Math.round(resumedAt - enqueueAt),
+                        capturedToken: token,
+                        currentToken: this._connectToken
+                    });
                     if (this._connectToken !== token) {
                         console.warn('[TTC-PROBE][onData] DROPPED token mismatch', {
                             len: data.length,
@@ -172,7 +180,9 @@ export class TerminalTransportClient {
                     }
                     return this.sendText(data);
                 })
-                .catch(() => {});
+                .catch((err) => {
+                    console.error('[TTC-PROBE][onData] chain error', err);
+                });
         });
         this.terminal.onResize(({ cols, rows }) => {
             // Skip bad dimensions that occur when the container is hidden or during layout transitions
@@ -527,17 +537,30 @@ export class TerminalTransportClient {
     }
 
     async sendText(value) {
+        console.log('[TTC-PROBE][sendText] entered', {
+            len: value?.length,
+            canSend: this.canSendInput(this.sessionId),
+            mode: this.status.mode,
+            inputReady: this.status.inputReady
+        });
         if (!value) return;
-        if (!this.canSendInput(this.sessionId) && !await this._ensureInputReadyForUserInput()) {
-            console.warn('[TTC-PROBE] sendText dropped: canSendInput=false after ensure', {
-                len: value.length,
-                mode: this.status.mode,
-                inputReady: this.status.inputReady,
-                owner: this.status.terminalAccess?.state,
-                wsState: this.ws?.readyState,
-                sessionId: this.sessionId
-            });
-            return;
+        if (!this.canSendInput(this.sessionId)) {
+            console.log('[TTC-PROBE][sendText] probe needed (canSendInput=false)');
+            const probeStart = performance.now();
+            const ok = await this._ensureInputReadyForUserInput();
+            const probeMs = Math.round(performance.now() - probeStart);
+            console.log('[TTC-PROBE][sendText] probe returned', { ok, probeMs });
+            if (!ok) {
+                console.warn('[TTC-PROBE] sendText dropped: canSendInput=false after ensure', {
+                    len: value.length,
+                    mode: this.status.mode,
+                    inputReady: this.status.inputReady,
+                    owner: this.status.terminalAccess?.state,
+                    wsState: this.ws?.readyState,
+                    sessionId: this.sessionId
+                });
+                return;
+            }
         }
         console.log('[TTC-PROBE] sendText accepted', {
             len: value.length,
@@ -642,9 +665,25 @@ export class TerminalTransportClient {
     }
 
     async _ensureInputReadyForUserInput() {
-        if (this.ws?.readyState !== WebSocket.OPEN) return false;
-        if (this.status.mode === 'blocked' || this.status.terminalAccess?.state !== 'owner') return false;
-        return await this.verifyInputReady();
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+            console.warn('[TTC-PROBE][ensureInputReady] early-return ws not open', { wsState: this.ws?.readyState });
+            return false;
+        }
+        if (this.status.mode === 'blocked' || this.status.terminalAccess?.state !== 'owner') {
+            console.warn('[TTC-PROBE][ensureInputReady] early-return blocked', {
+                mode: this.status.mode,
+                owner: this.status.terminalAccess?.state
+            });
+            return false;
+        }
+        console.log('[TTC-PROBE][ensureInputReady] calling verifyInputReady');
+        const vStart = performance.now();
+        const result = await this.verifyInputReady();
+        console.log('[TTC-PROBE][ensureInputReady] verifyInputReady returned', {
+            result,
+            ms: Math.round(performance.now() - vStart)
+        });
+        return result;
     }
 
     async _refreshSnapshot() {
