@@ -563,6 +563,72 @@ export class InfoSSOTService {
         return id;
     }
 
+    async createOrUpdateGraphEntity(access, input) {
+        const { id, entityType, projectCode, projectName, payload } = input;
+        const roleMin = this.normalizeRole(input.roleMin);
+        const sensitivity = this.normalizeSensitivity(input.sensitivity);
+
+        if (!id || typeof id !== 'string') {
+            throw new Error('id is required');
+        }
+        if (!entityType || typeof entityType !== 'string') {
+            throw new Error('entityType is required');
+        }
+        if (!projectCode || typeof projectCode !== 'string') {
+            throw new Error('projectCode is required');
+        }
+
+        this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
+
+        return this.withAccessContext(access, async (client) => {
+            const projectId = await this.ensureProject(client, { projectCode, projectName });
+            await this.upsertGraphEntity(client, {
+                id,
+                entityType,
+                projectId,
+                payload,
+                roleMin,
+                sensitivity
+            });
+            return { entity_id: id };
+        });
+    }
+
+    async createOrUpdateGraphEdge(access, input) {
+        const { fromId, toId, relType, projectCode, projectName, payload } = input;
+        const roleMin = this.normalizeRole(input.roleMin);
+        const sensitivity = this.normalizeSensitivity(input.sensitivity);
+
+        if (!fromId || typeof fromId !== 'string') {
+            throw new Error('fromId is required');
+        }
+        if (!toId || typeof toId !== 'string') {
+            throw new Error('toId is required');
+        }
+        if (!relType || typeof relType !== 'string') {
+            throw new Error('relType is required');
+        }
+        if (!projectCode || typeof projectCode !== 'string') {
+            throw new Error('projectCode is required');
+        }
+
+        this.assertWriteAccess(access, { projectCode, roleMin, sensitivity });
+
+        return this.withAccessContext(access, async (client) => {
+            const projectId = await this.ensureProject(client, { projectCode, projectName });
+            await this.upsertGraphEdge(client, {
+                fromId,
+                toId,
+                relType,
+                projectId,
+                payload,
+                roleMin,
+                sensitivity
+            });
+            return { from_id: fromId, to_id: toId, rel_type: relType };
+        });
+    }
+
     async createEvent(access, input) {
         const roleMin = this.normalizeRole(input.roleMin);
         const sensitivity = this.normalizeSensitivity(input.sensitivity);

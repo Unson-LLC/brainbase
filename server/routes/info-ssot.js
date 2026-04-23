@@ -16,6 +16,8 @@ export function createInfoSSOTRouter(infoSSOTService) {
     router.get('/context', controller.getContext);
 
     // Write
+    router.post('/graph/entities', controller.upsertGraphEntity);
+    router.post('/graph/edges', controller.upsertGraphEdge);
     router.post('/events', controller.createEvent);
     router.post('/decisions', controller.createDecision);
     router.post('/raci', controller.createRaci);
