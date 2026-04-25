@@ -85,6 +85,7 @@ describe('LearningService', () => {
                 if (sql.includes('FROM learning_artifact_ingestions li')) return { rows: selectQueue.shift() || [] };
                 if (sql.includes('SELECT id, source_type')) return { rows: selectQueue.shift() || [] };
                 if (sql.includes('SELECT id, pillar')) return { rows: selectQueue.shift() || [] };
+                if (sql.includes('FROM skill_usage_logs')) return { rows: selectQueue.shift() || [] };
                 return { rows: [], rowCount: 1 };
             })
         };
@@ -509,5 +510,47 @@ describe('LearningService', () => {
 
         expect(result.success).toBe(true);
         expect(wikiService.savePage).toHaveBeenCalled();
+    });
+
+    it('recordSkillUsage呼び出し時_skill_usage_logs に INSERT される', async () => {
+        const result = await service.recordSkillUsage({
+            skill_name: 'commit',
+            session_id: 'sess_1',
+            turn_id: 'claude-1',
+            duration_ms: 250
+        });
+
+        expect(result.id).toMatch(/^sul_/);
+        expect(result.outcome).toBe('completed');
+        expect(result.duration_ms).toBe(250);
+
+        const insertCall = pool.query.mock.calls.find(
+            (call) => typeof call[0] === 'string' && call[0].includes('INSERT INTO skill_usage_logs')
+        );
+        expect(insertCall).toBeTruthy();
+        expect(insertCall[1][1]).toBe('commit');
+    });
+
+    it('recordSkillUsage呼び出し時_skill_name 未指定でエラー', async () => {
+        await expect(service.recordSkillUsage({})).rejects.toThrow('skill_name is required');
+    });
+
+    it('recordSkillUsage呼び出し時_invalid outcome でエラー', async () => {
+        await expect(
+            service.recordSkillUsage({ skill_name: 'commit', outcome: 'bogus' })
+        ).rejects.toThrow('outcome must be');
+    });
+
+    it('listStaleSkills呼び出し時_閾値日数以前の skill のみ返る', async () => {
+        selectQueue.push([
+            { skill_name: 'old-skill', last_used_at: new Date('2025-01-01'), uses: '3' }
+        ]);
+
+        const result = await service.listStaleSkills({ days: 90 });
+
+        expect(result).toHaveLength(1);
+        expect(result[0].skill_name).toBe('old-skill');
+        expect(result[0].uses).toBe(3);
+        expect(result[0].stale_threshold_days).toBe(90);
     });
 });

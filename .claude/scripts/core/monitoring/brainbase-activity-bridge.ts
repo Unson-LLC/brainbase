@@ -208,6 +208,7 @@ function derivePostToolActivity(rawInput: string | undefined): {
   activityKind: ActivityKind;
   currentStep: string;
   latestEvidence: string | null;
+  skillName?: string;
 } {
   try {
     const input = JSON.parse(rawInput || "{}");
@@ -236,6 +237,15 @@ function derivePostToolActivity(rawInput: string | undefined): {
         latestEvidence: filePath,
       };
     }
+    if (tool === "Skill") {
+      const skillName = sanitizeText(input?.parameters?.skill, 80) || undefined;
+      return {
+        activityKind: "reasoning",
+        currentStep: skillName ? `Skill ${skillName} を実行中` : "Skill を実行中",
+        latestEvidence: skillName || null,
+        skillName,
+      };
+    }
   } catch {
     // ignore parse failures and fall back to generic heartbeat
   }
@@ -245,6 +255,37 @@ function derivePostToolActivity(rawInput: string | undefined): {
     currentStep: "考え中",
     latestEvidence: null,
   };
+}
+
+async function recordSkillUsage(
+  port: string,
+  sessionId: string,
+  skillName: string,
+  turnId: string,
+): Promise<void> {
+  try {
+    const csrfToken = await getCsrfToken(port, sessionId);
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Session-Id": sessionId,
+    };
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
+    await fetch(`http://localhost:${port}/api/learning/usage`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        skill_name: skillName,
+        session_id: sessionId,
+        turn_id: turnId,
+        outcome: "completed",
+      }),
+      signal: AbortSignal.timeout(1000),
+    });
+  } catch {
+    // skill usage logging is best-effort; never fail the hook
+  }
 }
 
 function looksLikeWaitingForInput(output: string, hasChoices: boolean): boolean {
@@ -376,6 +417,10 @@ export async function heartbeatClaudeTurn(rawToolInput?: string): Promise<void> 
       currentStep: activity.currentStep,
       latestEvidence: activity.latestEvidence,
     });
+
+    if (activity.skillName) {
+      await recordSkillUsage(port, sessionId, activity.skillName, turnId);
+    }
 
     state.sessions[sessionId] = {
       activeTurnId: turnId,

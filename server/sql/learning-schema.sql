@@ -151,3 +151,28 @@ CREATE INDEX IF NOT EXISTS idx_promotion_candidates_target_ref
     ON promotion_candidates (pillar, target_ref);
 CREATE INDEX IF NOT EXISTS idx_promotion_candidates_semantic_scope
     ON promotion_candidates (pillar, semantic_scope, status);
+
+CREATE TABLE IF NOT EXISTS skill_usage_logs (
+    id text PRIMARY KEY,
+    skill_name text NOT NULL,
+    session_id text,
+    turn_id text,
+    project_id text,
+    outcome text NOT NULL DEFAULT 'completed',
+    duration_ms integer,
+    created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE skill_usage_logs
+    DROP CONSTRAINT IF EXISTS skill_usage_logs_outcome_check;
+
+ALTER TABLE skill_usage_logs
+    ADD CONSTRAINT skill_usage_logs_outcome_check
+    CHECK (outcome IN ('started', 'completed', 'errored'));
+
+CREATE INDEX IF NOT EXISTS idx_skill_usage_logs_skill_name
+    ON skill_usage_logs (skill_name);
+CREATE INDEX IF NOT EXISTS idx_skill_usage_logs_created_at
+    ON skill_usage_logs (created_at);
+CREATE INDEX IF NOT EXISTS idx_skill_usage_logs_skill_recent
+    ON skill_usage_logs (skill_name, created_at DESC);
