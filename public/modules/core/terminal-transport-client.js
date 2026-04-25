@@ -197,6 +197,15 @@ export class TerminalTransportClient {
             console.log('[TTC-PROBE][focus] focusin', { target: e.target?.tagName, mode: this.status.mode });
             this._emitStatus();
         });
+        // hostEl 配下の keydown を capture で監視。onData が来ない時にキーが届いているか確認する。
+        this.hostEl.addEventListener('keydown', (e) => {
+            console.log('[TTC-PROBE][hostEl-keydown]', {
+                key: e.key.slice(0, 10),
+                isComposing: e.isComposing,
+                target: e.target?.tagName,
+                activeEl: document.activeElement?.tagName
+            });
+        }, true);
         this.hostEl.addEventListener('focusout', (e) => {
             this.status.isFocused = false;
             console.log('[TTC-PROBE][focus] focusout', {
@@ -209,6 +218,11 @@ export class TerminalTransportClient {
         // ウィンドウが前面に戻った時、live セッションのフォーカスを復元する。
         // relatedTarget===undefined の focusout はウィンドウレベルのフォーカス喪失で発生し、
         // ブラウザは window.focus 後も textarea のフォーカスを自動復元しない。
+        this._windowBlurHandler = () => {
+            console.log('[TTC-PROBE][window] blur, isFocused:', this.status.isFocused, 'mode:', this.status.mode, 'activeEl:', document.activeElement?.tagName);
+        };
+        window.addEventListener('blur', this._windowBlurHandler);
+
         this._windowFocusHandler = () => {
             console.log('[TTC-PROBE][window] focus, isFocused:', this.status.isFocused, 'mode:', this.status.mode);
             if (!this.status.isFocused && (this.status.mode === 'live' || this.status.mode === 'waiting')) {
@@ -266,6 +280,10 @@ export class TerminalTransportClient {
         if (this._visibilityHandler) {
             document.removeEventListener('visibilitychange', this._visibilityHandler);
             this._visibilityHandler = null;
+        }
+        if (this._windowBlurHandler) {
+            window.removeEventListener('blur', this._windowBlurHandler);
+            this._windowBlurHandler = null;
         }
         if (this._windowFocusHandler) {
             window.removeEventListener('focus', this._windowFocusHandler);
