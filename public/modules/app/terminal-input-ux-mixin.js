@@ -1367,6 +1367,7 @@ export function applyTerminalInputUxMixin(AppClass) {
                 const overlayState = this._getTerminalOverlayState();
                 if (overlayState.any) return;
                 const key = e.key;
+                console.log('[TTC-PROBE][type-to-focus] xterm recovery key:', key);
                 this.focusTerminal('type-to-focus');
                 if (key === 'Enter' && e.shiftKey) {
                     this.terminalTransportClient.sendKey('M-Enter').catch(() => {});

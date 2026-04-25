@@ -206,6 +206,26 @@ export class TerminalTransportClient {
             });
             this._emitStatus();
         });
+        // ウィンドウが前面に戻った時、live セッションのフォーカスを復元する。
+        // relatedTarget===undefined の focusout はウィンドウレベルのフォーカス喪失で発生し、
+        // ブラウザは window.focus 後も textarea のフォーカスを自動復元しない。
+        this._windowFocusHandler = () => {
+            console.log('[TTC-PROBE][window] focus, isFocused:', this.status.isFocused, 'mode:', this.status.mode);
+            if (!this.status.isFocused && (this.status.mode === 'live' || this.status.mode === 'waiting')) {
+                console.log('[TTC-PROBE][window] refocusing terminal');
+                this.terminal?.focus();
+            }
+        };
+        window.addEventListener('focus', this._windowFocusHandler);
+        // xterm canvas / container クリック時も確実に textarea にフォーカスを渡す。
+        // xterm.js は内部で処理するはずだが、overlay 等で届かない場合の保険。
+        this._hostClickHandler = () => {
+            if (!this.status.isFocused) {
+                console.log('[TTC-PROBE][click] hostEl clicked while unfocused, refocusing');
+                this.terminal?.focus();
+            }
+        };
+        this.hostEl.addEventListener('click', this._hostClickHandler);
 
         this._resizeHandler = () => {
             // Skip fit when host element has no usable height (e.g. panel is hidden during file viewer)
@@ -246,6 +266,14 @@ export class TerminalTransportClient {
         if (this._visibilityHandler) {
             document.removeEventListener('visibilitychange', this._visibilityHandler);
             this._visibilityHandler = null;
+        }
+        if (this._windowFocusHandler) {
+            window.removeEventListener('focus', this._windowFocusHandler);
+            this._windowFocusHandler = null;
+        }
+        if (this._hostClickHandler) {
+            this.hostEl?.removeEventListener('click', this._hostClickHandler);
+            this._hostClickHandler = null;
         }
         this.terminal?.dispose();
         this.terminal = null;
