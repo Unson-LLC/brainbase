@@ -1,5 +1,5 @@
 ---
-name: brainbase-readme-の画像解決ルールが-viewer-実装に固定されておらず-markdown-内の相対パスをページ-url-基準で解釈していた
+name: brainbase-readme-image-path-resolution
 description: README の画像解決ルールが viewer 実装に固定されておらず、Markdown 内の相対パスをページ URL 基準で解釈していた。
 ---
 

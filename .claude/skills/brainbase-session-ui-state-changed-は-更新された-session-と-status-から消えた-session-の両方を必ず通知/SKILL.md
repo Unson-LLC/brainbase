@@ -1,5 +1,5 @@
 ---
-name: brainbase-session-ui-state-changed-は-更新された-session-と-status-から消えた-session-の両方を必ず通知
+name: brainbase-session-ui-state-notify-both
 description: SESSION UI STATE CHANGED は「更新された session」と「status から消えた session」の両方を必ず通知
 ---
 
