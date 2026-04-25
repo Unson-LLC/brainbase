@@ -58,6 +58,17 @@
    jj log -r @- --no-pager
    ```
 
+7. **学習抽出をバックグラウンドで起動（明示的な作業完了イベント）:**
+   ```bash
+   # 作業単位の区切り = commit なので、このタイミングで学習候補抽出を走らせる
+   # 終わるのを待たず、nohup で投げっぱなし（2h cron が保険で拾う）
+   nohup bash /Users/ksato/workspace/common/ops/scripts/drain-learn-queue.sh \
+     > /dev/null 2>&1 &
+   ```
+   - 別プロセスで codex exec が transcript を分析
+   - 候補は `brainbase learn inbox` に積まれる
+   - 毎朝 `/ohayo` で件数確認、週次 `/retro` で apply/reject
+
 ## コミットメッセージフォーマット
 
 ```

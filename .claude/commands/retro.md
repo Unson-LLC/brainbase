@@ -17,7 +17,25 @@
    - NocoDB ストーリーテーブルから `ステータス=active` の進捗率変化を確認
    - ブロッカー欄が埋まっているタスクを抽出
 
-3. **振り返りレポート生成**
+3. **学習候補の一括レビュー** ⭐ 週次決裁ポイント
+
+   ohayo は件数だけ報告し、apply/reject 判断はここに集約する設計。
+
+   ```bash
+   cd /Users/ksato/workspace/code/brainbase
+   node cli/index.js learn inbox
+   ```
+
+   全 pending 候補を一覧表示し、各候補について以下を判断:
+   - **apply**: wiki/skill に昇格させる価値あり
+     - `node cli/index.js learn apply <id>`
+   - **reject**: ノイズ・既出・粒度不適切
+     - `node cli/index.js learn reject <id>`
+   - **保留**: 判断がつかない → そのまま次週に持ち越し
+
+   レビュー結果を Learn 枠に集計（apply N件 / reject M件 / hold K件）。
+
+4. **振り返りレポート生成**
    ```markdown
    # Weekly Retro: YYYY-MM-DD
 
@@ -63,5 +81,16 @@
 ## 注意
 
 - Ship = 「外部に価値が到達した」もののみ（ドラフト生成 ≠ Ship）
-- Learn は wiki に反映されたもののみカウント
+- Learn は wiki/skill に **apply 済み** のもののみカウント（pending は count しない）
 - Block は現在進行中のブロッカーのみ
+
+## 学習候補の補給ルート
+
+学習候補は2系統で自動投入される:
+
+| ソース | トリガー | 投入経路 |
+|---|---|---|
+| explicit | ユーザーが `/learn` を呼んだ時 | `brainbase learn add` |
+| auto-extract | /commit 完了 + launchd `com.brainbase.learn-extractor`（2h毎） | codex exec で transcript 分析 → `brainbase learn add` |
+
+`/retro` 実行時、`learn inbox` には両系統の pending が混ざって表示される。
